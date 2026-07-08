@@ -1,0 +1,5 @@
+Hello,
+
+Could you put a mp3 sound file on a usb stick and connect it directly to the unit using the wire in the glove box, once you have the usb connected please try playing the audio file using vlc on your unit. Please let us know if you are able to hear the sound file.
+
+Thank you

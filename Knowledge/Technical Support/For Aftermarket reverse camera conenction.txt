@@ -1,0 +1,34 @@
+Hi
+
+How are you doing? In order to install the backup camera to the system, basically you only need to run the cable from the tailgate to the front unit underneath the vehicle. (Caution: At the back end of the camera wire, there are two wires RED and BLACK, please cut it and tape it. Please make sure both red wire and black wire do not touch each other and cause short circuit. Otherwise, it will burn the camera). Please test the whole camera system and all the wire first before run the wire underneath the truck. Make sure the camera is working before run any camera wire.
+
+The new system provide the camera power, the camera power wire is labelled as "CCD-12". You just need to connect this camera power from the screen (CCD-12) to the camera power wire of the camera (Red wire which attached to the YELLOW RCA connector). You do not need to connect to any power from the reverse light at the back end of the camera cable. You will just need to cut and tape the "RED" and "BLACK" wires at the back end of the camera cable. Make sure there is no contact each other between the "RED" and" "BLACK" wires, otherwise, the metal part from the wires will cause short circuit and it will burn the camera.
+
+For the wiring instruction, you can also take a look of the video instruction below for a reference.
+
+Below is a video tutorial to show you the functionality of each harness for the new Android 11 version:
+
+Wiring Introduction (Version 1): https://youtu.be/2efVfSvW8fM
+
+Wiring Introduction (Version 2): https://youtu.be/QFQelces-7M
+
+
+For the Setting:
+
+If you are installing the aftermarket camera, you will also need to go to Settings - System - Factory Setting (7890 / 666888) - Reversing Format - Change it to "CVBS", then click "Save and Reboot".
+
+If it's the original camera from OEM, you will also need to go to Settings - System - Factory Setting (7890 / 666888) - Reversing Format - Change it to "VGA", then click "Save and Reboot".
+
+
+Trouble Shooting:
+
+1) Please prepare a voltage tester. Make sure the wire CCD-12 provide 12V power.
+
+2) Please make sure the RED wire at the back end of the camera wire (The end that connect to the reverse camera, it comes with RED and BLACK wire.) Since the system provides 12V power from the front to the camera , there should also be 12V power on the RED wire of the camera side.
+
+3) Please make sure the Reversing Camera setting is set to "CVBS".
+
+4) Please make sure the camera wire is not damage.
+
+
+

@@ -1,0 +1,13 @@
+Thank you for reaching out and bringing this to our attention. The system uses the BT 5.0. Bluetooth performance can sometimes be affected by several factors, such as interference from other wireless devices, distance from the connected device, or software settings. To help resolve this issue, we recommend the following troubleshooting steps:
+
+Ensure Close Proximity – Keep your connected device within a reasonable range (typically within 10 meters/33 feet) and avoid obstructions.
+
+Minimize Interference – Other wireless devices, Wi-Fi routers, or even microwaves can interfere with Bluetooth signals. Try moving away from such sources.
+
+Restart Both Devices – Power off both the product and the connected device, then turn them back on to refresh the connection.
+
+Check for Updates – Ensure that both the product and your connected device have the latest firmware/software updates installed.
+
+Re-Pair the Connection – Remove the Bluetooth pairing from your device settings and reconnect it.
+
+If the issue persists after these steps, please let us know so we can assist you further. We are committed to ensuring you have the best experience possible with our products.

@@ -1,0 +1,25 @@
+CarPlay Troubleshooting Procedure
+
+1) Perform a Factory Reset on the unit.
+
+2) Connect the unit to your phone’s WiFi hotspot.
+
+3) Set the correct Time Zone, Date, and Time.
+
+4) Confirm internet is working by opening the Google Play Store (sign-in is optional).
+
+5) Open the Car Auto app and ensure it is activated.
+
+6) Delete all existing Bluetooth connections from your phone. Also ensure the phone is not connected to the original system via USB.
+
+7) Restart your phone.
+
+8) Pair your phone with the unit via Bluetooth.
+
+9) Open Car Auto and allow all CarPlay authorization prompts on your phone.
+
+10) Bluetooth will disconnect automatically — this is normal. Do not reconnect manually.
+
+11) CarPlay and WiFi hotspot cannot be used at the same time.
+
+12) Do not manually change Bluetooth or WiFi settings on either the unit or your phone during connection.

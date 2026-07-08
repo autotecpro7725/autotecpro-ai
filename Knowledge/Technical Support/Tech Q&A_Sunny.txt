@@ -1,0 +1,123 @@
+Technical Inquiry - 
+
+
+1) Disney app Link:
+
+In order to download the Disney+ app, please download the APK to a USB flash drive and install it directly from the USB.
+
+Download link:
+https://autotecpro-my.sharepoint.com/:u:/g/personal/autotecpro_autotecpro_onmicrosoft_com/IQCFSnBjO4rBTr2ndWASeoSfAUfZ3ruO0swhkr8FP4ONrEI?e=3zOw1J
+
+
+2) PX6 Update Request:
+
+Hi, since the PX6 models have been discontinued and the A11/A13 models use different hardware, there are currently no software updates available for the PX6 series.
+
+
+3) Ask to read instruction:
+
+For a complete step-by-step guideline and wiring instruction, you can feel free to review the instruction link above:
+
+You may feel free to review the wiring photos provided in the link above for reference.
+
+
+4) Schedule call appointment: 
+
+Hi, we can arrange a video call with one of our technicians for you at 4:00 PM EST today. May I kindly confirm if you will be available at that time?
+
+
+5) What is included in the software update? 
+
+Hi, how are you doing? I hope you’re doing well.
+
+The software update mainly includes minor bug fixes and overall performance improvements to ensure the system runs more smoothly and reliably.
+
+Please feel free to let us know if you have any questions.
+
+Best regards,
+
+
+6) Checked Engine Light on after installation: 
+
+Hi, how are you doing? I hope you’re doing well.
+
+We’re sorry to hear about the issue with the engine light.
+
+This is not something we have encountered before, as the system does not interact with the engine control system. However, we would recommend double-checking the installation to ensure everything is connected properly.
+
+Please try the following:
+
+Disconnect all wiring and reconnect it carefully
+Make sure all connectors are fully seated and secured
+Check that no wires are loose or incorrectly connected
+
+If the issue persists, please let us know and we will be happy to assist you further.
+
+
+7) May I kindly confirm whether the original system is displayed when switching to Console Mode? You can access Console Mode by tapping the “Console” icon located at the top of the navigation panel on the home screen. As most vehicle functions, such as the camera and audio, are routed through the original system, the first step is to ensure that the factory interface is displaying properly in Console Mode.
+
+
+8) Hi, Romario, sorry for the inconvenience. We are unable to locate Order #_______ in our system. Could you please double-check the order number and confirm it again ? Thanks very much.
+
+Hi Romario, sorry for the inconvenience. For Order # ________, it seems it has already been cancelled in our system. Would you mind confirming that for me? Thanks very much. 
+
+
+
+9) For SYNC 2, SYNC 3 Systems | Camera and audio issue: 
+
+Hi, for this model, both the audio and video signals come from the original SYNC system. The first thing we would like to check is whether the original SYNC display shows properly under Console Mode. If it does not, could you please check the Car Model/AC settings and also make sure the LVDS cable is connected properly?
+
+
+10) SYNC 3 Audio Issue: 
+
+First, disconnect, unpair, and delete the original Bluetooth connection from both your phone and the vehicle’s original system.
+Check that the small white audio connector behind the new unit is properly plugged in.
+Confirm that the original SYNC module has been transferred correctly and installed in the proper orientation.
+Make sure the original radio unit is still installed in the vehicle.
+Tap Console on the new screen and verify that the original SYNC menu appears normally.
+Go to Console → Radio, then play original FM or AM radio and confirm that sound is coming from all speakers.
+Once the radio is playing, do not exit the radio. Simply press the Home icon in the bottom-left corner to return to the Android home screen while keeping the radio running in the background.
+On the Android system, open the “HD Movies” (Video Media) app to switch the audio channel.
+Finally, open CarPlay and play music to confirm that the audio from the new system is working properly.
+
+11) How to download disney+ app:
+
+https://disney-disneyplus.en.uptodown.com/android
+
+
+12) SYNC Doesn't show up:
+
+First, you will need to bring up the original SYNC menu under Console mode. There are several possible reasons why it may not be showing:
+
+The Car Model / AC menu setting may be incorrect
+The original SYNC APIM module may not have been transferred to the new system properly
+The LVDS cable may not be connected properly
+
+Can you send us a photo of the screen under Console mode? Also, does the "Original system" display properly under Console mode?
+
+
+
+13) Hi, hope you’re doing well. May I kindly ask the reason for the return? If needed, we’d be happy to arrange a video call with one of our technicians to assist you and see if we can help resolve the issue.
+
+
+14) Hi,
+
+May I ask if you could perform a factory reset on the unit first? This will restore all settings back to their factory defaults and help eliminate the possibility of any incorrect settings causing the issue.
+
+After the reset is completed, please let us know whether the issue persists. We will then be happy to assist you with the next troubleshooting steps if necessary.
+
+Thank you very much.
+
+
+15)
+
+Hi, it was a pleasure speaking with you on the phone. If you need any assistance or have any questions, please don't hesitate to leave a message in this group. We will respond as soon as possible and do our best to help.
+
+
+
+
+
+
+
+
+

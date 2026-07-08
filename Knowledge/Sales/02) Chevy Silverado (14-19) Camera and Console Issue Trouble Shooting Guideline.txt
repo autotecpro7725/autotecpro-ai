@@ -1,0 +1,42 @@
+Possible Reasons Why Silverado Console Mode Is Not Showing:
+
+1) Please ensure the original OnStar module and CD player/radio were not removed during installation. Only the front dash panel should be replaced— all original components must remain connected inside the dashboard.
+2) If the mini USB LVDS adapter included in the package is connected, please remove it and test again. This adapter is only required for vehicles equipped with a factory rear entertainment system.
+3) Please check the Car Model / AC settings. Try selecting a different option, then click Save and Reboot the system.
+4) If the original screen appears misaligned in Console Mode, please adjust the settings under GM Screen Parameter.
+5) Kindly verify that all wiring connections behind the unit are properly secured.
+6) If any original components were previously removed, the new system may not function correctly, including Console Mode.
+
+
+
+
+
+__________________________________________________________________
+
+
+Chevy Silverado - Camera Issue Trouble Shooting Guideline:
+
+Note: Most of the original features come from the original OnStar system. The first step is to ensure that the original OnStar menu displays correctly on the screen.
+
+
+1) OnStar Menu: Go to the console and check if the Original menu displays correctly.
+
+3) Settings: Go to Setting – System – Factory Setting (Password: 7890) – Reversing Format. Please make sure it is set to “VGA”.
+
+
+
+__________________________________________________________________
+Console Trouble shooting guideline. 
+
+1) Check the back of the unit, and make sure the original screen signal connector is connected properly. It's a micro USB connector that used to connect to the original screen. If it's connected, try to remove it and try again.
+
+2) Disconnect the tiny micro USB adapter that come with the box. It's not required for some of the vehicle. Disconnect it and connect the original screen signal directly to the back of the new unit.
+
+3) Go to Settings – Systems – Setting Guide – Car Model/AC Model (Password: 666888)
+
+Note: You can change to other settings and try again. Year doesn't need to match exactly
+
+4) Only For Silverado (14-19) Console Alignment: Go to Settings – Systems – Factory Settings (Password: 7890) – GM Screen Parameter. try different settings, start from auto. Then save and reboot. 
+
+
+

@@ -1,0 +1,17 @@
+Hi, how are you doing? I hope you’re doing well.
+
+For this model, the original microphone is directly connected to the factory radio. Once the factory radio is removed, that connection is no longer functional. Some customers have chosen to manually rewire the original roof-mounted microphone; however, we currently do not provide specific instructions for this modification.
+
+Alternatively, you may try adjusting the microphone sensitivity by changing the Mic Gain setting, which can be found under Settings → Audio → Mic Gain.
+
+We would also recommend using the external microphone included with the system. You can relocate it to a convenient location inside the vehicle for optimal performance.
+
+>> (Just for reference:) https://www.ebay.com/itm/125836775088
+
+Additionally, you may consider purchasing a noise-reduction microphone that is compatible with our system. Many customers have reported improved audio quality with this option.
+
+Please let us know if you would like assistance choosing a compatible noise-reduction microphone or if you have any other questions.
+
+
+
+Best regards,

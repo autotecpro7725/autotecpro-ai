@@ -1,0 +1,3 @@
+Hi I hope you're doing well. Due to the current design of the system, when it connects to SYNC, it is unable to synchronize previously saved radio stations. This is expected behavior for now, but our team is actively working on a solution and we’re hopeful it will be resolved in a future software update. Thank you for your patience and understanding.
+
+Also, please ensure your phone is not connected to the original system in any way, including via USB or Bluetooth. You may need to go into the “Original” Bluetooth menu and delete the existing pairing record before proceeding.

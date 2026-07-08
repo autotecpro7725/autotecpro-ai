@@ -1,0 +1,16 @@
+Hi 
+
+How are you doing? In order to fix the Google Play Store issue, you can basically just download the app which is called "01) Google Play Store_22.4.25-21 [0] [PR] 337959405". Download it to a USB and install it on the system. 
+
+
+https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/EggHFbrkZBRBo_QTlivuWx8BMHA8cxzhBhOoRQjX35E-7Q?e=sR3cCu
+
+
+Step 1: Download the software that mentioned above to your computer.
+(Not necessary to download all the softwares, just download the one that you need)
+
+Step 2: Copy the softwares (*.apk) to a USB
+
+Step 3: Insert the USB Stick to the USB conncetor of the unit
+
+Step 4: Open APK installer or File Explorer (e.g. ES Explorer). Go to the folder of the USB,  Cick on it and install the software.

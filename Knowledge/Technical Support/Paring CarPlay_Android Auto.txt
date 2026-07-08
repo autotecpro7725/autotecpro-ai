@@ -1,0 +1,19 @@
+Hi,
+
+You will need to unpair your phone from the ORIGINAL RADIO first. Please also make sure your phone is not connected to the original radio via USB while using Apple CarPlay or Android Auto.
+
+When using wireless CarPlay/Android Auto, do not enable your phone's Wi-Fi hotspot at the same time. CarPlay/Android Auto uses your phone's Wi-Fi connection, so you cannot use the hotspot for YouTube or other Android apps simultaneously. In addition, your phone should not be paired to two different devices (the original radio and the new infotainment system) at the same time.
+
+Please go to your phone's Bluetooth settings, delete the SYNC connection, then restart both your phone and the new infotainment system before pairing again.
+
+CarPlay / Android Auto Pairing Procedure
+
+    1. Clear all previous Bluetooth pairing records from your phone.
+    2. Go to the original radio (SYNC) and make sure your phone is not connected to it.
+    3. Restart both your phone and the infotainment system.
+    4. Pair your phone to the Bluetooth of the new infotainment system.
+    5. Once paired successfully, a Bluetooth icon will appear in the upper-right corner of the new screen.
+    6. Open the CarAuto app from the app list.
+    7. Follow the on-screen prompts to complete the CarPlay/Android Auto connection.
+
+If you continue to experience issues after following the above steps, please send us a short video showing the problem and we will be happy to assist further.

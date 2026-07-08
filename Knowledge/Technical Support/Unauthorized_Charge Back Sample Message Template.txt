@@ -1,0 +1,16 @@
+Hi I am Sunny, the manager of AutoTecPro. The payment for this order was successfully authorized and processed through PayPal on [Date]. We have verified that the transaction was completed legitimately by the buyer, and the order was fulfilled in accordance with our standard procedures. Below are the key details of the transaction:
+
+Here are the details of the transaction:
+
+Transaction ID: _____________________
+Order Number: _____________________
+Buyer’s Name: _____________________
+Payment Amount: _____________________
+Carrier Name: _____________________
+Tracking #: _____________________
+
+We kindly request PayPal’s assistance in reviewing this matter, as the payment was authorized, and we have fulfilled our obligations as the seller. If additional documentation is required, we would be happy to provide any necessary proof, including invoices, tracking details, and customer communications.
+
+We appreciate your time and support in resolving this matter promptly. Please let us know if any further steps are needed from our side.
+
+

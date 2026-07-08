@@ -1,0 +1,54 @@
+Hi, how are you doing? I hope you’re doing well.
+
+This system retains your original factory radio (such as OnStar, SYNC 2, or SYNC 3). Because of this, all audio still goes through the original radio.
+
+Audio flow:
+
+New screen → Original radio → Amplifier → Speakers
+
+There is no RCA output from the new unit.
+If you would like to install an aftermarket amplifier or subwoofer, it needs to be connected to the back of the original radio, not directly to the new screen.
+If your amplifier already works with the factory system, it will continue to work the same way after installation.
+If connected directly to the new screen, it may bypass the original radio and cause some factory audio (such as FM/AM) to not work.
+
+You may also consider adding a T-harness and a line output converter, which can make it easier to connect an aftermarket amplifier while maintaining the factory wiring. This setup is commonly used and may simplify the installation process. Please take a look at the example below for reference.
+
+>> https://www.crutchfield.ca/S-550NGBlUrFB/p_541LPHFD21/PAC-LPHFD21-LocPro-Advanced-T-Harness.html?XVINQ=CNX&XVVer=1ELF&awcr=698228495721&awdv=c&awnw=g&awug=9192240&awkw=pla-1677177947891&awmt=&awat=pla&gad_source=1&gad_campaignid=20190326392&gbraid=0AAAAAD97Yw1nLY5Mrl7s3iZ7HW517Yz9F&gclid=CjwKCAjw3ejRBhAdEiwADkqPn8FO2JcGILhd3CvJAEyh1i7xMP3p2cce6RBwOfWRW7nQDL2aK6TX8hoC5rEQAvD_BwE
+
+
+
+Please let us know if you have any questions — we’re happy to help.
+Best regards,
+
+
+__________________________________________________________________________________________________________
+
+When it comes to aftermarket amplifiers, there are a couple of important points that may be helpful for customers to know. For systems that retain the original radio, there is no RCA output available from the new screen, so the amplifier will need to be connected by splicing directly into the speaker wires behind the original radio. For systems that do not retain the original radio, such as Dodge RAM and Ford SYNC 1 vehicles, customers may be able to use the RCA outputs from the new unit. We have also acknowledged the issue regarding the subwoofer output and are currently working with the factory to investigate the cause and determine a solution.
+
+__________________________________________________________________________________________________________
+
+
+Hi, how are you doing? I hope you’re doing well.
+
+To clarify, this system retains your original factory radio (such as OnStar, SYNC 2, or SYNC 3), so all audio continues to go through the original system.
+
+Audio flow:
+New screen → Original radio → Amplifier → Speakers
+
+There is no RCA output from the new unit. The aftermarket amplifier is not directly related to the new system, as it relies on the original radio for audio signal.
+
+If you would like to install or use an aftermarket amplifier or subwoofer, it must be connected to the back of the original radio, not the new screen. If your amplifier already works with the factory system, it will continue to work the same way after installation.
+
+Also, it is very important to confirm whether there is audio in Console mode (original system).
+
+If there is no sound in Console mode, the issue is related to the original system or wiring.
+If there is sound in Console mode, then the system is working correctly.
+
+If the amplifier is connected directly to the new screen, it may bypass the original radio and cause some factory audio (such as FM/AM) to not work.
+
+Please let us know if you have any questions — we’re happy to assist.
+
+Best regards,
+
+
+

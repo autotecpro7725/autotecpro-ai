@@ -1,0 +1,13 @@
+Hi How are you doing? When you try to connect the WiFi hotspot of your cellphone to the new system, and the new system automatically turn off the WiFi. This is normal. The reason why the system doing this is because the system try to connect the CarPlay / Android Auto to your cellphone. The wireless Apple CarPlay and Android Auto only use the Bluetooth to pair at the beginning, once it get paired with the unit, the system will automatically switch to WiFi at the background.
+
+In order to fix it, you will need to turn off the CarPlay on your cellphone first, for more details how to turn off CarPlay on the phone please refer to the CarPlay section from the link below:
+
+https://autotecpro.com/installation-instruction-technical-information-android-11-ford-150-250-350-tesla-style-infotainment-system-2015-2021/
+
+Once you make sure you have turned off the CarPlay or android auto from your phone. Then you can follow the steps below to connect to WiFi.
+
+1) Turn Off CarPlay from your cellphone and then turn on the WiFi hotspot on your cellphone.
+
+2) Open WiFi menu from the new system and pair the WiFi with your cellphone. (The new system will try to connect to your cellphone and activate the CarPlay, this is normal. As long as you have turned off the CarPlay on the phone, then it's fine.)
+
+3) The new system might automatically turn off the WiFi and bring up the CarAuto App. If this happen, you can simply just close the CarAuto app, and re-open the WiFi again. Just make sure the CarPlay / Android Auto has been turned off on the cellphone.

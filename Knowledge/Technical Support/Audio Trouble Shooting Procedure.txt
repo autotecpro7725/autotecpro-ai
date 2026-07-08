@@ -1,0 +1,77 @@
+Audio Trouble Shooting Procedure: 
+
+[SYNC 3 – Audio Connection Tutorial]
+
+- Verify Original SYNC shows properly in Console
+- Delete ALL BT connection from original radio. Must be deleted FROM the ORIGINAL BT/PHONE menu.
+- Delete BT Connection from cellphone's BT menu
+- Make sure there is no USB connected with the phone
+- Restart BOTH cellphone and the infotainment system
+- Open Origianl radio in Console mode
+- Press Home icon so Console running at background
+- Open HD Movie - Verfiy if radio stop
+- Connect Internet
+- Open Youtube (Internet browser / YouTube app)
+- Verify the audio is working or not
+- If not, pull out system and inspect wiring
+- Focus on Yellow audio connector and tiny white audio connector
+- Disconnect SYNC Power harness, wait for 2 mins and reconnect it back
+
+
+[SYNC 2 – Audio Connection Tutorial]
+
+- Verify Original SYNC shows properly in Console
+- Delete ALL BT connection from original radio. Must be deleted FROM the ORIGINAL BT/PHONE menu.
+- Delete BT Connection from cellphone's BT menu
+- Make sure there is no USB connected with the phone
+- Restart BOTH cellphone and the infotainment system
+- Insert USB (with MP3) into factory USB port (not new screen)
+- Play USB Music from origianl radio: Console → Media → USB and play music
+- Return Home → open “HD MOVIE” app
+- If music stops, audio has switched to Android system
+- Connect Internet
+- Open Youtube (Internet browser / YouTube app)
+- Verify the audio is working or not
+- If not, pull out system and inspect wiring
+- Focus on Yellow audio connector and tiny white audio connector
+- Disconnect SYNC Power harness, wait for 2 mins and reconnect it back
+
+_______________________________________________________________________________________________________________________
+[Silveardo/Sierra – Audio Connection Tutorial]
+
+AUX Connection Method
+
+- Verify Original system shows properly in Console
+- Delete ALL BT connection from ORIGIANL system's BT / Phone menu. Must be deleted FROM the ORIGINAL BT/PHONE menu in the OnStar System.
+- Delete BT Connection from cellphone's BT menu (Make sure the Onstar Device is not connected on the phone)
+- Make sure there is no USB connected with the phone
+- Restart BOTH cellphone and the infotainment system
+- Make sure origianl radio is working
+- For 2014-2019 (OLD GEN Silveradio): Make sure AUX Dummy Connector is connected in armrest
+- For 2019-2024 (NEW GEN Silveradio): Make sure AUX CABLE is connected from the unit to the AUX Port
+- Go to original system (Console) - Media
+- Verify the AUX option is available under Original mdeia menu
+- If not, please check AUX Cable / AUX Connector
+- Switch to AUX mode in Original system
+- Press Home icon so Console running at background
+- Connect Internet
+- Open Youtube (Internet browser / YouTube app)
+- Verify the audio is working or not
+
+
+BT Connection Method
+
+- Verify Original system shows properly in Console
+- Delete ALL BT connection from ORIGIANL system's BT / Phone menu. Must be deleted FROM the ORIGINAL BT/PHONE menu in the OnStar System.
+- Delete BT Connection from cellphone's BT menu (Make sure the Onstar Device is not connected on the phone)
+- Make sure there is no USB connected with the phone
+- Make sure origianl radio is working
+- Restart BOTH cellphone and the infotainment system
+- Open Console - Check if the WHITE BT connection icon is available
+- If NOT, please run a software factory reset and verfiy the new system is not connected to the original system's BT. Review Step 2 again. 
+- Do not connect the phone first. 
+- Open Console - Pair the BT of the new system to the original system's BT
+- Once connected, switch the ORIGINAL audio mode to BT Audio mode
+- Connect Internet
+- Open Youtube (Internet browser / YouTube app)
+- Verify the audio is working or not

@@ -1,0 +1,9 @@
+Hello
+
+Can you please try the below settings,
+
+    Open Settings -> System -> Factory settings (7890)
+    Last option named "Back car Left right mirror" please change this to either on or off.
+    Click Save & Reboot.
+
+Thank you 

@@ -1,0 +1,18 @@
+Hi,
+
+The radio feature belongs to the original vehicle system. To use it while accessing CarPlay or Android Auto, please follow these steps:
+
+Open the original console and start the radio.
+
+Tap the “Home” icon at the bottom left of the screen to return to the main menu.
+
+This will keep the original radio running in the background while you switch to CarPlay or Android Auto.
+
+However, on some vehicle models, this workaround may not be effective. This is because the original radio and the new system's CarPlay/Android Auto use two separate audio channels and cannot run simultaneously.
+
+If that’s the case, you have two alternative solutions:
+
+Option 1: Download a radio app on your phone and access it through CarPlay or Android Auto.
+Option 2: Do not use CarPlay/Android Auto. Instead, connect your phone’s Bluetooth either to the original system or the new system. If you need navigation, you can install navigation apps directly onto the new system—it supports offline navigation.
+
+Let us know if you need further help with setup. 

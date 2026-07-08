@@ -1,0 +1,21 @@
+Chevy Silverado - Audio Issue Trouble Shooting Guideline (For the models that goes through BT Audio Channel):
+
+Note: The audio of the new Tesla system require to use the ORIGINAL BT Audio channel. Therefore, you will first need to pair the Bluetooth of the new system with the original system first, then switch the original media mode to Bluetooth Audio mode.
+
+1) Please disconnect and unpair your phone with the original system in any way (BT or USB). Delete all pairing records from the original BT menu
+
+2) Make sure all wiring harness are connected properly behind the unit
+
+3) Open the Console, tap on the tiny circular Bluetooth icon on the screen. If it doesn't exist, it could probably because the connections need to be reset. You can try to run a software reset on the new system
+
+Note: Go to Setting – System – Factory Reset.
+
+4) Pair the Bluetooth of the new Tesla system to the original Bluetooth.
+
+5) Once it get paired, the device name of the new system should shows on the list of the ORIGINAL Bluetooth menu.
+
+6) Switch the ORIGINAL media mode to BT Audio
+
+7) Select "Home" screen from the bottom left corner of the new system.
+
+8)The audio should work through the original BT Audio channel now.

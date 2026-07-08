@@ -1,0 +1,1 @@
+To adjust the camera, you can go to setting - car infotainment - Setting (There is a tiny setting icon on the upper left corner - Password:  8878 - BackCar Setup - > Cam Type (Set to 0 - CVBS) and Cam Format (Set to 1 - NTSC)

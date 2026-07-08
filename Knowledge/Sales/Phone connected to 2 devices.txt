@@ -1,0 +1,5 @@
+Hello
+
+Please go into your console application and delete the Bluetooth devices from sync menu, the ford sync and the carplay are two different ford devices and they cannot both be connected at the same time. this will cause the issues you are having. if your need further assistance please let us know.
+
+Thank you

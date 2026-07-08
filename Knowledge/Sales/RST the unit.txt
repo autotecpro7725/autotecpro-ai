@@ -1,0 +1,5 @@
+Hello,
+
+Please press the RST button on the front of the screen using a thin pin tool, this will restart the system.
+
+Thank you

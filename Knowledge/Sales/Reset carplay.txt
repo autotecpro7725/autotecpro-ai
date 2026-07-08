@@ -1,0 +1,13 @@
+Hello,
+
+Please read the information below and watch the video on how to reset your carplay connection.
+[Apple CarPlay]
+How to connect / reset wireless Apple CarPlay:
+
+Note: If you have any difficulties on connecting the CarPlay on the new system, please make sure you have DISCONNECTED the cellphone from the original Bluetooth first. You can go to the Bluetooth menu of the cellphone to confirm it. If you see any connections with the original system, please disconnect and unpair it before try to connect the CarPlay from the New Android Screen.
+
+Wireless Apple CarPlay only use Bluetooth to pair at the beginning, once it got paired, it will automatically switch to the WiFi channel at the background. While using Wireless Apple CarPlay, you can not turn on WiFi hotspot at the same time. If you would like to turn on the WiFi Hotspot to use some of the applications (such as YouTube..etc), you will need to turn off the CarPlay first. The procedure to turn off the CarPlay shows as below:
+
+Video: https://youtu.be/btUnE357gK4?si=2YUb6CQXyuTpQPO0
+
+Thank you

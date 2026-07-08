@@ -1,0 +1,134 @@
+F150 SYNC 3 Audio Troubleshooting Guide
+
+For vehicles equipped with SYNC 3, the Android/Tesla-style screen does not contain a built-in amplifier. All audio signals are processed through the original Ford SYNC system. Please follow the steps below to verify the audio setup and restore sound functionality.
+
+Step 1 – Remove Original Bluetooth Connections
+
+Disconnect, unpair, and delete the original Bluetooth connection from both your phone and the vehicle's original SYNC system.
+
+Step 2 – Check Audio Connectors
+
+Verify that the following connectors are properly connected behind the unit:
+
+The large yellow audio connector
+The white audio connector (The small white connector located beside the yellow connector)
+
+A loose or improperly connected audio connector may prevent sound from working.
+
+Step 3 – Verify SYNC Module Installation
+
+Please make sure the original SYNC module has been transferred to the new unit correctly.
+
+Important: Pay close attention to the orientation of the SYNC module during installation. An incorrectly installed module may cause audio and communication issues.
+
+Step 4 – Verify Original Radio Installation
+
+The original Ford radio module must remain installed in the vehicle. Removing or disconnecting the original radio can result in loss of audio functionality.
+
+Step 5 – Check the SYNC Menu
+
+Open the Console application and confirm that the original SYNC menu displays properly.
+
+Step 6 – Test Radio Audio (Very Important)
+Open Console → Radio.
+Tune to an FM or AM radio station.
+Confirm that audio can be heard from all speakers.
+
+Once you hear the radio playing:
+
+Do not close the Radio application.
+Tap the Home icon in the lower-left corner.
+Leave the radio running in the background.
+
+This step confirms that the original SYNC audio system is functioning correctly.
+
+Step 7 – Switch Audio Channel to the New System (Most Important - You will need to switch the audio channel from the original radio to the new screen manually)
+
+On the Android/Tesla screen:
+
+Open the HD Movies or Video Media application.
+This action switches the audio channel from the original SYNC system to the Android system.
+Once opened, launch CarPlay or Android Auto.
+Play music and verify that audio is working properly.
+Note
+
+Opening the HD Movies/Video Media application forces the system to switch the audio source from the original SYNC system to the Android/Tesla screen, allowing audio from CarPlay, Android Auto, YouTube, Spotify, and other Android applications to play through the vehicle speakers.
+
+Additional Reset Procedure
+
+If the above steps do not resolve the issue:
+
+Disconnect the SYNC Power Harness from the vehicle.
+Leave it disconnected for approximately 30 minutes.
+Reconnect the harness.
+Repeat the troubleshooting steps above.
+
+This process will reset the SYNC module and may resolve communication or audio synchronization issues.
+
+
+
+
+_________________________________________________________________
+For SYNC 2: 
+
+For all SYNC 2 systems, a USB flash drive with an MP3 file needs to be plugged into the original USB port at all times. The new system uses the USB audio channel from the factory system. If a USB flash drive is not connected to the original USB port, the SYNC 2 system will not switch the audio channel to the new unit, which will result in no sound from the new system.
+
+Prepare the USB: Copy at least one MP3 file onto a USB drive.
+Plug in the USB: Insert it into the vehicle’s original factory USB port, not the USB port from the new screen.
+Open SYNC: Tap “Console” on the new screen.
+Play Music: Go to Media → USB and play the MP3 file.
+Return to Home: Press the Home icon to go back to the Android interface.
+Open the App: Tap “HD MOVIE.”
+
+✅ If the USB music stops playing, it means the audio channel has successfully switched to the Android system.
+
+_________________________________________________________________
+For SYNC 2: 
+
+The audio from the new system is routed through the vehicle’s original USB channel. In some cases, you may need to connect an external USB drive to the “ORIGINAL” USB port to activate the factory USB audio source. First, copy at least one MP3 music file onto a USB drive, then insert the USB into the vehicle’s original factory USB port (not the USB from the new screen). On the new screen, tap “Console” to open the original SYNC system, then go to Media → USB and play the MP3 file. Once the music is playing, press the Home icon to return to the Android screen and open the “HD MOVIE” app. If the USB music stops at this point, it means the audio channel has successfully switched to the Android system.
+
+
+_________________________________________________________________
+
+
+
+
+
+Hi When it comes down to audio. it's related to the wiring . There are two audio wires must be connected behind the unit, the yellow one AND the tiny white audio cable beside it. 
+
+May I ask if these two wires are connected. 
+
+Once confirmed the wires are connected, please check if you will have to manually switch the audio channel from the original radio to the new system. 
+
+
+For SYNC 3 models, the system does not include a built-in amplifier, as all audio signals are processed through the original SYNC system. To ensure the audio is set up correctly, please make sure both the yellow and white audio connectors are properly connected behind the unit, and also confirm that the small white connector located on the right side of the yellow connector is securely plugged in.
+Next, disconnect, unpair, and delete the original Bluetooth connection from both your phone and the original vehicle system. Please also confirm that the original SYNC module has been transferred correctly and installed in the proper direction, and that the original radio unit is still installed in the vehicle.
+
+After that, open Console and confirm that the SYNC menu displays properly. Then go to Console > Radio and make sure FM/AM radio can be heard from all speakers. Once the radio is playing, do not close it. Simply tap the Home icon in the bottom-left corner so the radio continues running in the background.
+
+Finally, on the new system, open the HD Movies or Video Media app to switch the audio channel. Then open CarPlay and play music to test whether the new system audio is working properly.
+Steps:
+
+1) Original Bluetooth: Please disconnect, un-pair and delete the original Bluetooth from both the phone and the original system.
+
+2) Check the Connector: Please make sure the small white audio connector is connected properly behind the unit.
+
+3) Sync Module: Please make sure the original sync module has been transferred properly (Please pay attention to the orientation of the SYNC module)
+
+4) Original Radio: Please make sure the original radio unit remains inside.
+
+5) SYNC Menu: Go to the console and check if the sync menu displays correctly.
+
+6) Speakers (Important): Go to Console - Radio and see if all the speakers are working properly. Please make sure you can hear the RADIO FM/AM from the original Console menu first. Once you hear the radio from the speaker, please do not close it, click on the "Home" icon on the bottom left corner and leave it running at the background.
+
+7) New System - Media App: Go to the new system, click the "HD Movies"/Video Media app from the top menu. This will switch the audio channel to the new system. Then you can open carplay and play some music.
+
+Note: By doing this way, the system will switch the audio channel from original SYNC to the new tesla system (Included CarPlay/Android Auto...etc)
+
+
+
+
+
+
+
+

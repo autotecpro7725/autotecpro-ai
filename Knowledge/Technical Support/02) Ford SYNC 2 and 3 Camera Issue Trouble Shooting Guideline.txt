@@ -1,0 +1,11 @@
+Ford SYNC 2 / SYNC 3 - Camera Issue Trouble Shooting Guideline:
+
+Note: Most of the original features come from the original SYNC system. The first step is to ensure that the original SYNC menu displays correctly on the screen.
+
+
+1) Sync Module: Please make sure the original sync module has been transferred properly (Please pay attention to the orientation of the SYNC module)
+
+2) SYNC Menu: Go to the console and check if the sync menu displays correctly.
+
+3) Settings: Go to Setting – System – Factory Setting (Password: 7890) – Reversing Format. Please make sure it is set to “VGA” for "SYNC 2 & SYNC 3".
+

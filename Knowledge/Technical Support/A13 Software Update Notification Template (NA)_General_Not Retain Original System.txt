@@ -1,0 +1,121 @@
+
+Hi,
+
+Thank you for reaching out to AutoTecPro. We are pleased to inform you that a new update for this model has been released. You can find the download link in the below. This link will also be valid for any future updates.
+
+Note: Kindly note that the download link will stay the same going forward, while the file date will be updated with each new version. You’re welcome to save the link and check back from time to time for updates.
+
+(Caution: Do not turn off the unit or put the car in reverse during the update process).
+
+Before proceeding with the update, you can also perform a software reset first.
+
+1) Go to Setting – System
+2) Scroll down the menu and select “Factory Reset”
+3) ERASE ALL DATA
+
+After a factory reset, if the CarAuto application (CarPlay/Android Auto) asks for activation, please follow these steps:
+
+1) Connect to Wi-Fi and ensure the internet is working properly.
+2) Verify that the time zone and system time are correctly set for your location.
+3) Open the Chrome browser and try to play a video on YouTube to confirm that the internet connection is working properly.
+4) Close the CarAuto app completely.
+5) Reopen the CarAuto app.
+
+The Apple CarPlay / Android Auto should activate automatically as long as the internet connection is active.
+________________________________________________________________________________________________________________________
+
+Video Instructions: https://autotecpro-my.sharepoint.com/:v:/g/personal/autotecpro_autotecpro_onmicrosoft_com/IQBNB4TZkleOTYq1COoLkNHKAcILUOHVPTS2EbBgXD2uSzE?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=fuVri2
+
+Download Link: https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/IgCFbdid8tasS78fqF66Oq1CAU1MgzX7u0cSRcns5BiTRcU?e=32Xgvo
+________________________________________________________________________________________________________________________
+
+Update Procedure:
+
+1) Prepare an 8GB or 16GB USB 2.0 flash drive.
+
+2) "Format" the USB drive to FAT32 using a PC Computer.
+
+3) Download the update file from the provided link and copy it to the USB drive without unzipping. The file must be named "update13.zip". The system will ONLY recognize the file if there is only one single file in the USB's root directory. Ensure that no additional files are present in the USB. If there are other files in the USB’s root directory, reformat the USB and copy the update file again. The system will only recognize files named "update13.zip".
+
+(Note: Please make sure this is the only file in the USB stick)
+
+4) Once downloaded, make sure the "update13.zip" is at least 1.5Gb in size.
+
+5) Start the vehicle's engine and ensure the system is powered on.
+
+6) Disconnect any USB devices connected to the new system’s USB ports.
+
+7) Insert the USB drive into one of the system's USB ports (use the USB cable from the back of the new system, not the original port under the centre console).
+
+(Note: Please make sure the USB is connected to the USB cable that come from the new tesla unit instead of the original USB port on the center console)
+
+8) Follow the on-screen instructions to complete the update.
+
+
+After the update, you may also need to adjust settings in Car Model / Factory Setting.
+
+The document attached includes both the download link and detailed update instructions. Please note that a Hotmail or Outlook account may be required for download. For any questions, feel free to contact us—we're happy to help.
+
+Optional: It’s recommended to perform a factory reset post-update. Go to Settings > System > Factory Reset.
+
+____________________________________________________________________________________________________________
+If your original camera does not work after the update or reset, follow these steps again:
+
+1) Navigate to Settings > System > Factory Setting (Password: 7890 / 666888)
+
+2) Select Reversing Camera Format
+
+3) Choose CVBS
+
+4) Click Save and Reboot
+
+____________________________________________________________________________________________________________
+Trouble shooting on software update: 
+
+To resolve the issue you're experiencing, please follow the steps below carefully:
+
+1) Prepare a new USB drive:
+
+Use a new or recently formatted USB stick.
+
+Format it to either FAT32 or exFAT file system (avoid NTFS, as it may not be recognized by the system).
+
+2) Download the update file again:
+
+Re-download the update file from our link.
+
+3) Make sure the file name remains exactly as specified in the instructions.
+
+Please note: some computers (especially Windows) may automatically rename downloaded files by adding suffixes like “(1)” or “-copy”, which can cause the system to not recognize the file. If this happens, manually rename the file to match the required name.
+
+4) Factory reset the current system (if applicable):
+
+Perform a full factory reset on the existing system before attempting the update.
+
+This helps clear any residual data that might interfere with the installation process.
+
+    Go to Setting – System
+    Scroll down the menu and select “Factory Reset”
+
+5) Disconnect any USB devices connected to the new system’s USB ports.
+
+6) Check the USB cable connection:
+
+Ensure that the USB cable is connected to the correct USB port on the back of the new system.
+
+Improper connection or using the wrong port may prevent the system from reading the update file.
+
+7) After completing the steps above, insert the USB into the system and follow the on-screen instructions (if applicable) to proceed with the update.
+
+
+
+After a factory reset, if the CarAuto application (CarPlay/Android Auto) asks for activation, please follow these steps:
+
+1) Connect to Wi-Fi and ensure the internet is working properly.
+2) Verify that the time zone and system time are correctly set for your location.
+3) Close the CarAuto app completely.
+4) Reopen the CarAuto app.
+The system should activate automatically as long as the internet connection is active.
+
+
+

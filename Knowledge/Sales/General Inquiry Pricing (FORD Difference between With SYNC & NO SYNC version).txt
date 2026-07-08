@@ -1,0 +1,20 @@
+For this vehicle, it does come with two different versions. The first version will retain the original Microsoft SYNC, but does not come with RCA output. The second one will not retain the original Microsoft SYNC, but it comes with RCA output. For the comparison between these two versions, please refer to list below:
+
+
+First Version (Retain Original SYNC | No RCA):
+1) Retain the original Microsoft SYNC.
+2) Retain the original sound system / original amplifier, included SONY and B&O sound system.
+3) Retain the original Bluetooth and original microphone as well.
+4) Retain the original camera system, included reverse camera, 360 camera..etc.
+6) Does NOT come with RCA. (However, it also supports the connection to an aftermarket amplifier, you can connect directly to the back of the original radio. Since if the aftermarket amplifier is connected directly to the new system, it will skip the signal from the original radio. This is how the new system works: The signal goes from the New screen -> Original Radio (Use original sound system) -> The signal will be sent from the original radio to the original Car amplifier & Sound System. Therefore, in order to connect an aftermarket amplifier, you can connect directly to the original radio. Then you can use the new aftermarket amplifier on both the original radio and the new system at the same time.)
+
+
+Second Version (With RCA | Not retain Original SYNC):
+1) Does NOT retain the original Microsoft SYNC. The CarPlay/Android Auto/Bluetooth from the new system will replace the similar features of the original Microsoft SYNC. 
+2) Does NOT retain the original Bluetooth and microphone as well.
+3） Does NOT support original B&O premium sound system if it comes with your vehicle.
+4) Retain the SONY Premium Sound system if it comes with your vehicle.
+5) Retain the original camera system, included reverse camera, 360 camera..etc
+6) Comes with RCA output for aftermarket amplifier. 
+7) Does not support the original Massage seat feature if it comes with the vehicle.
+

@@ -1,0 +1,64 @@
+Hi, 
+
+How are you doing? To activate a SIM card for the unit, you don’t need to rely on the IMEI number from the Tesla system. If you can’t activate the SIM card using the system’s IMEI, you can simply use the IMEI from any other Android device (not iPhone) to complete the activation. Once activated, the SIM card will also work on the new Android infotainment system.
+
+
+_____________________________________________________________________________________________
+
+
+
+Hi
+
+How are you doing? After inserted the sim card, you will need to use a small pin (such as Sim Card Tray Eject Pin) to gently press the RESET button. (Attention: Please do not use anything bigger than that, otherwise, it will crack the screen) The reset button is usually located at the front of the unit and labelled as “RST”. Once you press the RESET button, the system will restart and it will recognize the sim card. 
+
+(⚠️ Please note: Do not use anything larger than the ejector pin, as it could damage or crack the screen.
+The RESET button is usually located at the front of the unit and labeled “RST.” Once pressed, the system will automatically restart.)
+
+For the Sim Card, it use the medium size sim card. In order to get a better compatibility, we would suggest you to use a full service medium size sim card. The sim card needs to have the same service as the ones we put in our phones. Also, you may need to setup an APN as well. We have tested the network on Mint Mobile / T-Mobile and they work fine. Once you insert the sim card, you can also try to use a tiny pin to reset the unit, the unit should recognize the sim automatically if it's compatible with the unit. Please also make sure the LTE antenna is located at a position where you can receive the signal as well.
+
+Once you insert the sim card into the harness you will need to press the RST button using a thin pin tool such as a paperclip, using an improper tool can crack the screen.
+
+If you are using the AT&T, you may need to change APN settings as well. For more details, please refer to the link below:
+
+https://www.att.com/support/article/wireless/KM1062162
+
+After confirming that the 4G SIM card is working properly, please make sure to set up the correct time zone as well.
+
+1) Ensure the 4G LTE antenna is positioned where it can receive a strong signal.
+2) Properly insert the SIM card into the SIM card slot.
+3) Use a small pin (such as a SIM ejector tool) to press the RESET button, usually located at the front of the unit and labeled “RST.” This will restart the system.
+4) Navigate to Settings > System > Android > Time Setting.
+5) Enable Network Time.
+6) Disable Automatic Time Zone, then manually set the time zone according to your region.
+7) Verify that the time displayed in the upper-left corner of the screen matches your local time.
+8) Once the time is correctly set, the internet connection should begin working.
+
+For the time, you can also go to the WiFi section on the instruction to manually adjust the time. 
+
+
+
+Thanks very much. 
+
+
+
+Note: For European Customers:
+
+The sim code has to be deleted from the sim card first before you can access to the internet. 
+
+
+
+T-Mobile:
+Change APN to epc.tmobile.com.
+
+
+Known Working Sim Card:
+- T-Mobile
+- Bell
+- Mint Mobile
+
+
+
+AT&T Fix:
+https://www.att.com/support/article/wireless/KM1062162
+
+

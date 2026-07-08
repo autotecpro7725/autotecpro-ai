@@ -1,0 +1,12 @@
+F150 / F250 / F350 (2015–2021) – Console Not Showing
+
+If the original SYNC interface does not appear in Console mode, please check the following:
+
+1) SYNC Module Connection
+Ensure the original SYNC computer (APIM) has been properly transferred and connected to the new system.
+2) LVDS Cable
+Verify the LVDS cable is securely connected. Try disconnecting and reconnecting it to ensure a stable connection.
+3) Car Model / A/C Settings
+Go to the Car Model / AC menu and confirm that all settings are correctly selected for your vehicle.
+4) Power Reset
+Disconnect the power from both the SYNC system and the new unit for about 1 hour. Then reconnect and test again.

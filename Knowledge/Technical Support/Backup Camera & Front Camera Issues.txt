@@ -1,0 +1,16 @@
+Reverse Camera Installation (Diagnostic Procedure):
+
+For the camera, you will need to first check if you connect all the wires properly. It's always better to test the camera and the camera wire before you start to run the camera. It will be better to make sure you understand how the whole system work. In order to do it, after you connect the screen and after you made sure the screen is working properly. You can just connect the camera and the camera wire to the system without actually running the wire. Leave it lose and connect all the power (Be careful of the wire, please don't get it shorted and it will burn the camera or other electronic.) Then you can go to the screen, go to setting - Camera Setting. Make sure it's set to Aftermarket Camera. Move the gear to reverse, then you can test if the camera is displaying on the screen properly. 
+
+For Automatic Transmission, you do not need to connect the power from the reverse light to get the power on this system. The system comes with camera power output. The wire is labelled as CCD 12+. Before start, you should use a tester to test if there is any power form the wire (CCCD +12) when you move the gear to reverse. After you have finished testing the power of the wire, you should also test if the power from the back of the camera wire (Trunk side) is normal. Since the power is provided from the front of the screen to the back of the camera. Once you finished testing the whole system, then you can start to run the wire. 
+
+For the Manual Transmission, you will need to connect the power from the reverse light to provide the power to the camera. However, you will need to connect to a relay to stabilize the power of the reverse light since the power from the reverse light is not stable enough to power on the camera. This step is not required for Automatic Transmission.
+
+
+
+________________________________________________________________________________________________________________________________
+Front Camera Installation:
+
+In order to install the front camera, you will need to provide the power from the ACC to the camera. You can get the power from anywhere in the vehicle, as long as you make sure it's 12V and the power is stable. If the power is not stable, you may also need to add a relay as well. For the front camera input, you can connect to one of the yellow RCA connector from the main harness. In order to activate the front camera, you can go to the screen and click on AUX. It can be manually activated the front camera from the touch screen. 
+
+

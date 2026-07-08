@@ -1,0 +1,2 @@
+Hi, how are you doing?
+If your phone is connected to the original system, you can use the original steering wheel controls to manage it. However, if your phone is connected to the new system via CarPlay or Android Auto, control will need to be done through the touchscreen.

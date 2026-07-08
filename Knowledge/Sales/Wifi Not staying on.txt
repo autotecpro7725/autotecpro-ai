@@ -1,0 +1,5 @@
+Hello,
+
+If your phone is connected to the unit for wireless android auto or Apple CarPlay, the unit cannot have it Wi-Fi on. This is because the wireless connections will use the hotspot from our unit which your phone will connect, and because the hotspot is on the unit cannot turn on the Wi-Fi till you disconnect your phone by turning the Wi-Fi and Bluetooth off on your phone in the settings application on your phone.
+
+Thank you

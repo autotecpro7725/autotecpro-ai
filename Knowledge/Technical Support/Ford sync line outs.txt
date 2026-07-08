@@ -1,0 +1,5 @@
+Hello,
+
+Unfortunately your system can not have line outs on your system from the android unit because your original sync is retained, if you want to add any subs or amps you must tap into you original ford sync system, and this will also allow the android system to you the subs and amps connected to the sync.
+
+Thank you

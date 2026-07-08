@@ -1,0 +1,59 @@
+Subject: MCU Update Instruction - Order # ____________
+
+
+For: RL9A.bin Upgrade
+
+
+Hi 
+
+How are you doing ? Below is the instruction video for how to update the MCU of the Android 13 Tesla Style Series. Please download the system update file from the "Attachment" below. The file name should be named as "RL9A.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+*** CAUTION: During the update, please do NOT turn off the vehicle or operate the unit. Otherwise, it will cause damage on the system ***
+
+Please select "MCU Upgrade"
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+Step 1: Go to Setting - System - Upgrade
+
+Step 2: Make sure "Plug Box" is selected
+
+Step 3: Select "MCU UPGRADE".
+
+Video Instruction: https://youtu.be/sS1xFbT_pi4
+
+
+
+
+
+____________________________________________________________________________________________________
+
+For: Simplecanupdate.bin Canbus Upgrade
+
+
+Hi 
+
+How are you doing ? Attached is the CanBus update as per request. We have also included the instruction video to show you how to update the firmware of the Android 13 Tesla Style Series. Please download the system update file from the "Attachment" below. The file name should be named as "simplecanupdate.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+*** CAUTION: During the update, please do NOT turn off the vehicle or operate the unit. Otherwise, it will casue damage on the system ***
+
+On the update page, please select the Plug Box option accordingly. 
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+
+Step 1: Go to Setting - System - Upgrade
+
+Step 2: Make sure "Plug Box" is selected
+
+Step 3: Select "SIMPLE UPGRADE".
+
+Step 4: Once the system restart or the screen re-flash, you can turn off the vehicle for an hour. Alternatively, you can also disconnect the battery of the vehicle for half hour as well. 
+
+Step 5: Turn it on again and try again. 
+
+
+Video Instruction: https://youtu.be/sS1xFbT_pi4
+
+
+

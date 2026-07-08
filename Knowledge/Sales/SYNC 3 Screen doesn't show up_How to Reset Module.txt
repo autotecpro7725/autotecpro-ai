@@ -1,0 +1,41 @@
+Hi How are you doing? You can try to reset the original SYNC module by just following the steps below:
+
+1) Turn off the vehicle, remove the key and open the front driver side door since the power of the unit is connected to the front driver side door. 
+
+2) First unplug the main harness behind the SYNC APIM module.
+
+3) Second unplug the main power harness of the screen and check the SYNC 3 LVDS cable and make sure it's connected properly.
+
+4) Wait for couple minutes.
+
+5) First conncet back the main harness for the SYNC module.
+
+6) Second connect back the main power harness for the screen.
+
+7) Turn on the ignition. 
+
+
+If still have some issue, you may also need to check the software settings as well.
+
+1) Go to Settings - System - Setting Guide - CarModel (7890 / 666888)
+
+2) Make sure it's set to "F150 HI for AUTO AC" and "F150 LO for Manual AC", as well as the car info settings on the right hand side
+
+3) Save and Reboot.
+
+
+
+If the reverse camera is not working, you can check the settings below:
+
+1) Settings - System - Factory Setting (7890 / 666888)
+
+2) Reversing Format - VGA
+
+3) Save and Reboot.
+
+
+
+
+
+
+

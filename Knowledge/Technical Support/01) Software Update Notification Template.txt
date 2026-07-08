@@ -1,0 +1,65 @@
+New Software Update Release Notification (AutoTecPro) - Order # __________
+
+
+
+
+Hi
+
+How are you doing? Thanks for contacting AutoTecPro. Currently we do have a new update just released for this model. The download link will be in the document attached. When the future update is available, you can also use the same download link as well. 
+
+Before the update, please prepare the following: (Caution: During the update process, the unit can not be turned off, the car can not be reversed)
+
+After the update or factor reset, if your original camera is not working. Please follow the steps below:
+(Note: This settings ONLY applies to SYNC 2/3, and Silverado series, for all other models, please leave it with CVBS setting.)
+
+1) Go to setting - System - Factory Setting (Password: 7890 / 666888)
+2) Go to Reversing Camera Format
+3) Select VGA
+4) Click "Save and Reboot"
+
+
+Update Procedure: 
+
+1) A USB 2.0 Flash Drive with 8GB/16GB
+
+2) Use a PC computer to format the USB to FAT32 format. 
+
+3) Download the update file from the link provided and copy to the USB Flash Drive. No need to unzip or extract the file
+
+4) There should be only one single file in the USB parent directory, which is named as "Update_e.zip"
+
+5) Turn on the engine of the vehicle and make sure the system is on. 
+
+6) Insert the USB to the one of the USB ports from the screen (Not the one from the original system under the center console)
+
+7) Follow the instruction on the screen and update the system. 
+
+Download Link: https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/Et7m7JjuGsRDhhaiHYEotLkB5AldZUQHmHMdasdZMTokxg?e=3mQmhI
+
+
+After the update, you may also need to go to Car Model / Factory setting to change some settings. 
+
+
+The download link and update instruction are both included in the document which attached in this message. You may need a hotmail or outlook email account to download the software. If you have any questions, please feel free to contact us and we will be more than happy to assist you. Thanks and have a nice day. 
+
+Optional: After the update, I would suggest you to run a factory reset. It's under Setting - System - Factory Reset. 
+
+
+After the update or factor reset, if your original camera is not working. Please follow the steps below:
+
+1) Go to setting - System - Factory Setting (Password: 7890 / 666888)
+2) Go to Reversing Camera Format
+3) Select VGA
+4) Click "Save and Reboot"
+
+
+
+
+________________________________________________________________________
+Hi
+
+How are you doing? Currently we have a new software releasing in two days, the new update will fix most of the bug on the system. As soon as the new software is released, I will send it to you immediately. 
+
+
+
+

@@ -1,0 +1,12 @@
+Subject: Time Setting
+
+
+Hi
+
+How are you doing? In order to set the time on the system. For the first time, you may need to connect to a functional internet, such as cellphone's WiFi Hotspot. Then go to setting - system - Android Setting - System - Date & Time
+
+1) Turn on Network Time
+
+2) Turn off Network Time Zone
+
+3) Setup the Time Zone Manually

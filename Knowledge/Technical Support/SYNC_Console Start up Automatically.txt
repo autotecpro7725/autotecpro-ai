@@ -1,0 +1,3 @@
+Hi,
+
+Please note that the new Tesla-style system does not include a built-in amplifier, so the audio signal must be routed through the vehicle’s original SYNC system to function properly. For this reason, the original SYNC interface will automatically activate when the new system powers on. You can simply tap the Home icon located at the bottom-left corner of the screen to return to the main Android interface, while the original SYNC system continues running in the background to ensure audio output and other OEM functions operate normally.

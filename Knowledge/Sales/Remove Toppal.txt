@@ -1,0 +1,5 @@
+Hello,
+
+If you want to remove the Toppal service please go into your apps drawer and press and hold on Toppal Voice and uninstall, do the same for Toppal Service. Once you do this, open settings and press Save & Reboot at the top right of the screen to remove the floating Toppal.
+
+Thank you

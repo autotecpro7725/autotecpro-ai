@@ -1,0 +1,5 @@
+Hello,
+
+You need to calibrate the touch on the sync, please use 1 finger to press and hold on the sync till the screen goes black. Once the screen goes black, let go and test the touch.
+
+Thank you

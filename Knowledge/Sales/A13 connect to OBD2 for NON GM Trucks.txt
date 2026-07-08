@@ -1,0 +1,5 @@
+Hello,
+
+You will need to plug in the obd dongle and open the Bluetooth app -> chain link -> External device -> Connect to OBD2. Once connected you can download any OBD2 app from the play store such as "torque".
+
+Thank you

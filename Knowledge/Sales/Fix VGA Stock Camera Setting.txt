@@ -1,0 +1,11 @@
+Hi,
+
+How are you doing? After the update or factor reset, if your original camera is not working. Please follow the steps below:
+
+1) Go to setting - System - Factory Setting (Password: 7890 / 666888)
+
+2) Go to Reversing Camera Format
+
+3) Select VGA
+
+4) Click "Save and Reboot"

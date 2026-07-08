@@ -1,0 +1,39 @@
+In order to install the front camera, currently we do not have instruction for it. 
+
+1) You can simply run the wire from the front to the screen, the camera signal can be connected to AUX-V, and 
+
+2) In order to provide the power to the camera, you can get the power from any of the accessory wire (+12V) in the vehicle. Please don't get the power directly from the unit, you can get the power from the fuse box of the vehicle. 
+
+3) In order to activate the front camera, you can click on the icon (AUX) from the app list. 
+
+IMPORTANT: Camera Image & Parking Guideline Settings
+
+Note: In order to switch the left and right mirror image of the camera, you can connect both "WHITE" and "GREEN" wire at the back end of the camera. The white one control the guidance line and the green one control the mirror image of the camera.
+
+At the back of the front camera, you will find two small control wires: WHITE and GREEN. These wires are used to adjust the camera display settings.
+
+WHITE wire – Parking Guidance Lines
+This wire controls the on-screen parking guidelines (the colored lines that help estimate distance when parking).
+
+Connected → Parking guideline lines will appear on the screen.
+
+Disconnected → Parking guideline lines will be disabled.
+
+GREEN wire – Mirror Image (Left/Right Orientation)
+This wire controls whether the camera image is displayed in mirror mode or normal mode.
+
+Connected → The image will be displayed in mirror mode (left and right are reversed).
+
+Disconnected → The image will be displayed in normal orientation.
+
+Important:
+For a front camera, it is usually recommended to disable mirror mode so the image displays in normal orientation. You can adjust this by connecting or disconnecting the GREEN wire depending on your preference.
+
+These wires are located near the camera cable at the back end of the camera, and they can simply be connected together or left disconnected to change the settings.
+
+
+Disable the guidance line
+
+If you want to disable the guidance line, you can connect both white and green wire at the back end of the camera.
+
+Note: The power out put from the unit (CCD-12 / CCD-6) are only for the reverse camera power. The power can only be activated when the car is in reverse, therefore it can’t be used for the front camera.

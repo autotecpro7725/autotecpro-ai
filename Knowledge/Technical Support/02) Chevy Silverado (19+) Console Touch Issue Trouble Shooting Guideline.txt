@@ -1,0 +1,18 @@
+Console Screen Touch Issues
+If the console screen is unresponsive inside the Console window, first ensure the cable is properly connected, then adjust the Car Model / AC settings:
+
+Steps:
+
+Go to Settings > System > Setting Guide > Car Model/AC (Password: 666888).
+
+Set Protocol to Xinbasi.
+
+Select the correct Car Model. To apply, double-click the model on the left; the system will restart.
+
+If the touch screen still does not respond:
+
+Turn off the car and remove the key.
+
+Lock the car and leave it for 15 minutes.
+
+Restart the car — the touch screen should now function.

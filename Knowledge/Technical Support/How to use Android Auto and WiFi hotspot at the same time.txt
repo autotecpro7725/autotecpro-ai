@@ -1,0 +1,16 @@
+How to use Android Auto and WiFi hotspot at the same time
+
+1) Turn on WiFi Hotspot from the cellphone
+
+2) Unpair the bluetooth from the unit and the cellphone
+
+3) Forget the WiFi network from the cellphone with the new tesla screen. 
+
+4) Make sure the WiFi is turned "ON" on the new tesla screen
+
+5) Connect the WiFi of the new tesla screen to the hotspot of the cellphone
+
+6) Use USB cable to connect the Android Auto. 
+
+Now you can use the internet and Android Auto at the same time. 
+

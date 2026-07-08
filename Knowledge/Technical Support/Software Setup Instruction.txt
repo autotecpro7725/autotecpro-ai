@@ -1,0 +1,12 @@
+In order to change the settings under the factory settings (KLD)
+
+1) Go to Settings -> Car Infotainment
+
+2) Go to Above Deive
+
+3) Click on the small setting icon (Password: 8878)
+
+4) Select Backcar Setup
+
+
+>> Tutorial Video: https://youtu.be/-hPCtb9IErA?si=LhQDPPVkEy2zWxtc

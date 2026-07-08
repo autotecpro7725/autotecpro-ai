@@ -1,0 +1,26 @@
+Hi, how are you doing?
+
+Since this vehicle model is distributed globally, different regions use different airbag indicator wiring configurations. As a result, on some vehicles the airbag indicator light may appear ON, while on others it may appear OFF.
+
+Please rest assured that this is strictly an indicator display variation and will not affect the functionality or operation of the airbag system in any way. The original airbag system remains fully functional and operates exactly as designed by the manufacturer.
+
+Our technical team is actively working on a permanent solution, which will be implemented through a future software update.
+
+Thank you for your patience and understanding.
+
+______________________________________________________________________________________
+Hi,
+
+I hope you're doing well.
+
+As you may know, there are multiple airbag indicator wiring standards across different vehicles worldwide. For certain models, this may cause the airbag light to appear ON, while for others it may appear OFF. Please rest assured that the original airbag system remains fully functional—this issue only affects the indicator light itself.
+
+We are actively working on a solution and expect to address this through a software update in the near future.
+
+Thank you for your understanding and patience.
+
+Best regards,
+
+______________________________________________________________________________________
+
+Hi, I hope you are doing well. Since this vehicle model is distributed globally, different regions utilize varying airbag indicator wiring configurations; as a result, the airbag indicator light may appear ON in some vehicles and OFF in others. Please be assured this is strictly an indicator display variation only, and the original airbag system remains fully functional and unaffected. Our technical team is actively working on a permanent solution, which will be implemented through a future software update. Thank you for your patience and understanding.

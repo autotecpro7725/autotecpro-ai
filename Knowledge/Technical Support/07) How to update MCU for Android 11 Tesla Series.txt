@@ -1,0 +1,34 @@
+Subject: MCU Update Instruction - Order # ____________
+
+
+For: RL9A.bin Upgrade
+
+
+Hi 
+
+How are you doing ? Below is the instruction video for how to update the MCU of the Android 11 Tesla Style Series. Please download the system update file from the link proveided below. The file name should be named as "RL9A.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+Please select "MCU Upgrade"
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+Video Instruction: https://youtu.be/uXgflX14Upo
+
+
+
+
+
+____________________________________________________________________________________________________
+
+For: Simplecanupdate.bin Upgrade
+
+
+Hi 
+
+How are you doing ? Attached is the MCU update as per request. We have also included the instruction video to show you how to update the MCU / firmware of the Android 11 Tesla Style Series. Please download the system update file from the link proveided below. The file name should be named as "simplecanupdate.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+Video Instruction: https://youtu.be/uXgflX14Upo
+
+

@@ -1,0 +1,13 @@
+Hello,
+
+Please follow the steps below:
+
+1) Go to setting - System - Factory Setting (Password: 7890 / 666888)
+
+2) Go to Colour Depth
+
+3) Select 8 bit or 6 bit (depending on what is already selected)
+
+4) Click "Save and Reboot"
+
+Thank you

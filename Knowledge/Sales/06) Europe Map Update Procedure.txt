@@ -1,0 +1,47 @@
+Map Installation Procedure: 
+
+
+Applly to IGO NextGen:
+
+
+Below is the download link of the latest map. We will update it again whenever the update is available in the future. 
+
+
+(Note: Before intall the new map, please unsintall the old software from the system first, also delete the whole software folder from the system. )
+
+
+Map Download Link: (Please use PC instead of MAC for the update)
+
+
+Mirror 1: https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/EotQK3r-6l1Elh05K6d5dQMBPUa3k_XMivIoqI60amcdOw?e=5FrIRr
+
+(Password: Autotecgps)
+
+
+
+Step 1: Download the file "iGO (Compressed - Extract this file)" from the link provided to your computer
+
+
+Step 2: Extract the file by using the software like WinZip or WinRAR (FREE). You should be able to see a folder which is named as "IGO" under the parent folder "Android IGO NextGen MAP (US & CAN)"
+
+
+Step 3: Copy the "Extracted" folder "IGO" to an "empty" SD card (Minimum 8GB) or an empty USB stick. If copy to the internal memory of the navigation unit. Usually the internal hard drive is named as "FLASH" in Android. 
+
+
+Step 4: (If install from the SD) Insert the new SD to the GPS card SD card Slot or USB slot.
+
+
+>>>> You can choose either copy the whole folder to the unit and install directly from the unit, or you can just install it directly from the SD or USB, by doing this method, the SD or USB must stay inside in the unit after installation as a storage media.<<<<<
+
+
+Step 5: Open the APK installer or File Explorer. Go to the folder (IGO) that you just copied to the unit OR go to the IGO folder on the SD if choose to install from the SD
+
+
+Step 6: Under the folder "IGO", there is an installer file named as "iGO_9.18.27.693527_make.sys.apk". Cick on it and install the software.
+
+
+Step 7: You may also need to setup the default navigation software of the system after the isntallation. Just go to Setting -> Navigation -> Navigation application options -> Choose "IGo"
+
+
+Step 8: Once it's done, Exit to the main menu of the unit. Done. 
+

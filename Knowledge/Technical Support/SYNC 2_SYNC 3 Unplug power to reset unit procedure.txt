@@ -1,0 +1,20 @@
+Hi How are you doing? 
+
+In order to find out the issue, please send us couple pictures to help me address your issues.
+
+1) Go to setting - System - Setting Guide - Car Model/AC (Password: 7890/666888) Take a picture of this page so we can check the settings for you
+
+   - A picture of the Car Model/AC setting menu (Setting - System - Setting Guide - Car Model)
+   - A picture of the Software version (Setting - System - Software Version)
+
+2) If the original camera is not working, please follow the steps below to check.
+
+   - Go to setting - System - Factory Setting (Password: 7890 / 666888)
+   - Go to Reversing Camera Format
+   - Select VGA
+   - Click "Save and Reboot"
+
+3) The last steps is to unplug the SYNC computer and the power of the unit, let it sit for a while, then re-connect the power of both sides. Please pay attention of the sequency when connecting back the unit.
+
+   - First un-plug the SYNC computer harness and make sure it's connect back tight and properly
+   - Second connect the power connector to the new Tesla screen (Black Color connector)

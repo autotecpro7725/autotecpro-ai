@@ -1,0 +1,21 @@
+Hello,
+
+You may need a computer mouse to navigate the system menus.
+
+Please follow the instructions to fix your screen rotation.
+
+    Open Settings -> System -> Factory Setting (Pass code 7890)
+    Please change screen rotation to either negative or positive
+    Click Save & Reboot once setting is changed.
+
+Thank you
+
+Hello,
+
+Please follow the instructions to fix your screen bit.
+
+    Open Settings -> System -> Factory Setting (Pass code 7890)
+    Please change Bit Depth to either 8 or 6 bit
+    Click Save & Reboot once setting is changed.
+
+Thank you

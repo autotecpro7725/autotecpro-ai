@@ -1,0 +1,19 @@
+Hi, how are you doing?
+
+After performing a factory reset, please connect the unit to Wi-Fi. Once connected, CarPlay/Android Auto should activate automatically.
+
+1) Go to Setting – System
+2) Scroll down the menu and select “Factory Reset”
+3) Go to settings – Systems – Factory Setting (Password: 7890) – Reversing Format – Select “VGA”
+
+However, please ensure the following:
+
+1) Set the correct time zone under Android settings.
+
+2) Confirm the time displayed in the upper-left corner matches your local time.
+
+3) Make sure the internet connection is working properly.
+
+If it’s still not working, try switching to a different mobile hotspot and test again.
+
+Let us know if you need further assistance!

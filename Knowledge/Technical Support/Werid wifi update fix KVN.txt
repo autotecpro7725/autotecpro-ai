@@ -1,0 +1,108 @@
+Hello,
+
+Please follow the steps below and use the provided video tutorials as a guide.
+
+        Video Tutorial Link #1: https://youtu.be/T8JkqD-hYOg
+
+    	Software Re-Configuration files attached...
+
+
+Note: It's very important to use a compatible USB for this update. We strongly recommend to try another USB if the first one doesn't work. Also, please keep the engine running while performing these steps.
+
+	1) A USB 2.0 Flash Drive with 8GB/16GB
+
+	2) Use a PC computer to format the USB to FAT32 format.
+
+
+If it still doesn't work, please contact us at (Support@AutoTecPro.com). 
+
+________________________________________________________________________________________________________________________________________________________________________________________________________________________
+STEP 1:
+
+Software Re-Configuration Procedure: 
+
+
+	a) Please prepare a tiny pin to reset the unit by pressing the Reset Button at the front of the unit. The reset button should be labelled as "RST".
+
+	b) Download the file which is attached to this email onto the computer (e.g., 732-S3.zip, 732-S2.zip, 715-S1.zip). Once downloaded, "extract" the ZIP file. You'll have a new uncompressed folder. Within this new folder, you should see two files; 'zxwfactory.zip' & 'zxwConfiguration_factory.txt.
+
+	c) Copy these two files to the root directory of a USB Thumb-Drive. 
+
+	d) Turn on the engine and wait for the Android-Screen to boot-up. Then insert the USB thumb-drive into one of the USB ports from the Android-Screen.
+
+	e) Make sure you see the USB Symbol on the top-right of the Android-Screen, after you plug in the USB thumb-drive.
+
+	f) A prompt with a message will appear- "Configuration, files detected, install or not?". Either press "OK" or do nothing at all.
+
+	g) The Android-Screen will restart on its own to finalize the 'Re-Configuration Procedure'. After the Android-Screen restarts, if the touch is reversed, hold 5 fingers on the screen for 10 seconds to re-calibrate the touch settings.
+
+	h) Once this process is completed, please unplug the USB thumb-drive from the Android-Screen.
+
+	i) Prepare the USB thumb-drive for the next step, by deleting all the files on it.
+
+
+________________________________________________________________________________________________________________________________________________________________________________________________________________________
+STEP 2:
+
+Once you have completed the previous step, please DOWNGRADE the Android-Screen's system software version. Follow the instructions below.
+
+	Video Tutorial Link #2: https://youtu.be/bAHW3YOgj3E?si=BPde57HVC4WNCCB3
+
+	Download Link: https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/ErHm3e-bjdVDvXdxEaxf5L8Bh2MwaGnBaDEcbDgHS78qkg?e=x058tc
+
+Downgrade Procedure: 
+
+
+	a) Download the update file (e.g., update_e.zip) from the link provided and copy the file to the root directory of a USB Thumb-Drive. (No need to extract the ZIP update file)
+
+	b) Turn on the engine and wait for the Android-Screen to boot-up. Then insert the USB thumb-drive into one of the USB ports from the Android-Screen.
+
+	c) Make sure you see the USB Symbol on the top-right of the Android-Screen, after you plug in the USB thumb-drive.
+
+	d) The 'SystemUpdater' app will open automatically, asking if you would like to proceed with the software update.
+
+	e) Press on "Upgrade" and wait for the Green Bar to load. (This may take more than five minutes to complete)
+
+	f) The Android-Screen will restart on its own to finalize the 'Downgrade Procedure'.
+
+	g) Once this process is completed, please unplug the USB thumb-drive from the Android-Screen.
+
+
+
+After the update, you may also need to go to Car Model / Factory setting to change some settings. 
+
+
+________________________________________________________________________________________________________________________________________________________________________________________________________________________
+STEP 3:
+
+After completing STEP 2, please run a factory reset on the Android-Screen.
+
+Android-Screen 'Factory-Reset' Procedure:
+
+	a) Open the Settings application.
+
+	b) Click on the System tab on the top right-hand-side.
+
+	c) Scroll all the way down and press "Factory Reset"
+
+	d) A prompt will appear- "Restore to factory settings?", please press on "OK".
+
+	e) The Android-Screen will restart on its own to finalize the 'Factory-Reset' Procedure.
+
+
+After Android-Screen boots back up, if your original reverse camera is not working. Please follow the steps below:
+
+    a) Open the Settings application.
+    b) Click on the System tab on the top right-hand-side.
+    c) Scroll down and look for Factory Settings.
+    d) Type in pass-code >    7890    <
+    e) Set the  Reversing Video format:  option to >    VGA-YUV signal.
+    f) Once you change this option, head to the bottom of the screen and click on Save and reboot.
+
+    Once the Android-Navigation-Screen reboots, please put the vehicle into reverse and see if the camera shows up.
+
+	Please let us know how it goes.
+
+Thanks and have a nice day,
+
+

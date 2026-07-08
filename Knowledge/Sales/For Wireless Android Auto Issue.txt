@@ -1,0 +1,12 @@
+For Wireless Android Auto Issues:
+
+
+
+
+Hi
+
+How are you doing? Thanks for contacting AutoTecPro. Currently we do have a new update just released for this model. The download link and update instruction are both included in the document which attached in this message. You may need a Hotmail or outlook email account to download the software. If you have any questions, please feel free to contact us and we will be more than happy to assist you.
+
+Optional: After the update, I would suggest you to run a factory reset. It's under Setting - System - Factory Reset. 
+
+For the wireless Android Auto, this update may not fix the issues. You can try to un-install the Android Auto update from the phone and then connect to the unit again. (You can go to PlayStore on your cellphone, un-install the Android Auto, then hit "Update" once the uninstallation is finished.) This version of update will improve the stability and compatibility of the Android Phone in the market, however, we still can't guarantee that the wireless Android Auto will be compatible with your phone. You can also use the USB to connect the Android Auto as well. Wired Android Auto will work better than the Wireless Android Auto. Since if use wireless android auto, you will not be able to use WiFi Hotspot at the same time since wireless android auto occupy the WiFi channel. That also said you can't use any app on the system that required WiFi. Other than the wired Android Auto, you can also connect the phone by Bluetooth and sharing WiFi hotspot at the same time as well. Thanks and have a nice day. 

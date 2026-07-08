@@ -1,0 +1,98 @@
+Hi How are you doing? I would suggest you to run a factory software reset first since your connection might have been messed up. Please make sure your phone are not connected to the original system in any way, included both USB and Bluetooth. Also please make sure you have disconnected and deleted the original Bluetooth from the original system. Also please do not connect the phone to the original SYNC by USB. Otherwise, the system might get confused. If you would like to charge the phone at the same time, we would suggest you to use the cigarette lighter charger instead. It's faster as well, since it's 12V compare with 5V provided from USB. Furthermore, Wireless Apple CarPlay / Android can not be use together with WiFi Hotspot from the cellphone at the same time.
+
+You can also send us a photo of your software version of the new system so we can take a look for you. You can find it under setting - software version.
+_______________________________________________________________________________________________
+
+[Understand how the audio of the new system works is important:]
+
+The NEW system's audio signal goes through the Bluetooth channel of the original system, you will need to first pair the Bluetooth of the new system with the original radio and THEN switch the ORIGINAL audio mode to BT Audio and leave it at BT audio mode. For more details, you can also take a look of the instruction below:
+
+>> https://autotecpro.com/android-13-audio-trouble-shooting-guideline-chevrolet-silverado-gmc-sierra-2014-2023/
+
+Password: auto123
+
+Audio Diagnostic: https://youtu.be/jZ4TLxLqcFs
+
+_______________________________________________________________________________________________
+
+Attention: <<Please make sure your phone are not connected to the original system in any way, included both USB and Bluetooth. You may need to go to the "Original" Bluetooth menu to delete the pairing record first.>>
+
+Please make sure you have disconnect and unpair the "Original" Bluetooth from the phone first. The phone can only connect to one Bluetooth system at the same time. Also please do not connect the phone to the original system by any USB. Otherwise, the system might get confused. If you would like to charge the phone at the same time, we would suggest you to use the cigarette lighter charger instead. It's faster as well, since it's 12V compare with 5V provided from USB. Furthermore, Wireless Apple CarPlay / Android can not be use together with WiFi Hotspot from the cellphone at the same time.
+
+In order to reset the CarPlay / Android Auto connection, Please make sure your phone has disconnected with the original vehicle Bluetooth in any way. The cellphone can only be connected to one Bluetooth device during CarPlay. Then you can follow the steps below, it included two parts, first part is to erase the CarPlay connection record on the cellphone, second part is to erase the BT pairing record of the NEW Tesla system:
+
+CarPlay Reset Procedure:
+
+Part 1 - Reset and Erase all previous pairing record
+
+Step 1: Go to CarPlay Setting Menu on the iPhone. (Go to General Settings of iPhone, search "CarPlay", delete all devices on this CarPlay pairing record.)
+
+Step 2: Delete the Bluetooth pairing record under Bluetooth menu of the cellphone (iPhone / Android Phone) - Go to Bluetooth menu of the cellphone, find the Tesla screen device BT name on the list, simply "Unpair and Forget the device"
+
+Step 2: Restart the cellphone (iPhone/Android Phone).
+
+
+Part 2 - Delete Bluetooth pairing record on the new Tesla system.
+
+Step 1: Go to the Bluetooth pairing menu on the new Tesla system.
+
+Step 5: Select the connection icon on the Bluetooth menu (Located at the upper right corner of the Bluetooth menu). Delete and unpair all previous connected cellphone devices under the Bluetooth menu. The cellphone must be deleted from this menu.
+
+Step 6: Restart the unit or Reset the new system by using a tiny pin to click on the rest button which is usually located at the front of the unit. The Reset button is labelled as “RST”.
+
+Once both the phone and the screen are both restarted, you can now start to pair the CarPlay again.
+
+Part 2: How to connect Wireless Apple CarPlay:
+
+Step 1: Go to Bluetooth menu of the new tesla system. Select the connection icon on the Bluetooth menu (Located at the upper right corner of the Bluetooth menu).
+
+Step 2: Go to the Bluetooth menu of your cellphone (iPhone/Android Phone). Pair the BT of the cellphone with the new system.
+
+Note: Wireless Apple CarPlay ONLY use Bluetooth to pair at the beginning. Once they got paired, both devices will then switch to WiFi channel at the "background". By the moment, the Bluetooth will then “Disconnected” by itself, therefore, the Bluetooth will show "Disconnected" on the iPhone and the new tesla system. This is normal and please do not connect it back manually.
+
+Step 4: System will automatically open CarAuto (CarPlay / Android Auto) on the table screen. If it doesn't bring up the CarAuto, you can simply manually open the app from the app list.
+
+Step 5: When you try to connect the CarPlay, please pay attention on the iPhone and grant the authorization message of “Using CarPlay” on the iPhone. Since there will be a message show up on the cellphone to ask for your authorization of connecting the CarPlay with the new system.
+
+Once it's done, you can enjoy the CarPlay.
+
+
+_______________________________________________________________________________________________
+Guidelines for Using CarPlay/Android Auto:
+
+Connection Requirements
+CarPlay/Android Auto uses the WiFi channel on your device to establish the connection. While using CarPlay/Android Auto, your phone will occupy the WiFi channel, so please avoid manually pairing the phone's WiFi hotspot with the system.
+
+Automatic Switching
+Once CarPlay/Android Auto is connected, the system will automatically switch to WiFi and disable Bluetooth. Do not attempt to manually connect your phone’s Bluetooth to the system after the CarPlay/Android Auto connection is established.
+
+Steps to Disconnect CarPlay and Manually Connect the Phone’s WiFi Hotspot to the System:
+
+Disable CarPlay on iPhone
+Open the CarPlay settings on your iPhone by going to Settings > General > CarPlay. Locate the Tesla system and turn off CarPlay (do not delete it).
+
+Enable Phone Hotspot
+Turn on your phone’s WiFi Hotspot.
+
+Connect System to Hotspot
+On the Tesla system, open the WiFi settings menu and connect to your phone’s Hotspot. This action will automatically open the CarAuto (CarPlay/Android Auto) app and turn off the WiFi icon. Simply close the CarAuto app and manually re-enable WiFi on the Tesla system. Note that CarPlay/Android Auto will automatically initiate whenever Bluetooth is connected.
+
+Note: To keep the system in WiFi Hotspot mode, disable the Auto Connect feature in the CarAuto app.
+
+_______________________________________________________________________________________________
+Disconnect your phone from the system.
+Open the CarAuto app and tap the settings icon at the bottom right corner.
+In the settings menu, turn off Auto Connect.
+This will prevent CarPlay from automatically starting each time you connect your phone, allowing the system to remain in WiFi Hotspot mode.
+
+
+
+
+
+
+
+
+
+
+
+

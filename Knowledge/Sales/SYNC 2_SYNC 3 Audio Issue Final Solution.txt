@@ -1,0 +1,51 @@
+Hi How are you doing? In order to check why the audio doesn't come out from the original SYNC, you can follow the steps below for a diagnostic:
+
+For Audio Issues, please refer to the link below:
+
+https://autotecpro.com/audio-trouble-shooting-guideline-ford-sync2_sync3-tesla-style-infotainment-system-2015-2021/
+
+1) First check and mkae sure the SYNC APIM module has been transferred to the back of the new system succesfuly. You can click on the "Console" and make sure the Original SYNC menu shows up on the screen normally.
+
+2) Second to check the Yellow and White connectors behind the new system and makes sure they are connected to the correct location and properly. For more details, please refer to the instruction above. 
+
+3) Conncet a USB stick to the ORIGINAL USB port and try to play some music and see if it works normally. 
+
+
+After these steps, if the issue persist. Please follow the steps below to update the system. 
+
+
+Step 1: Update the newest MCU of the system
+
+Below is the instruction video for how to update the MCU of the Android 11 Tesla Style Series. Please download the system update file from the "Attachment" below. The file name should be named as "RL9A.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+Please select "MCU Upgrade"
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+Video Instruction: https://youtu.be/uXgflX14Upo
+
+MCU File Download Link: 
+
+https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/ErgMavrV50tJoSAcsNK465kB5aj23sbpu01YmtmicOr9IQ?e=FHbN2N
+
+
+
+Step 2: Update the CanBus software of the system
+
+Attached is the firmware update as per request. We have also included the instruction video to show you how to update the firmware of the Android 11 Tesla Style Series. Please download the system update file from the "Attachment" below. The file name should be named as "simplecanupdate.bin". Once you download the file to the computer, please copy the file to a USB stick and insert to the USB port from the screen. Please make sure the USB is recognized by the system. If it's not recognized by the screen, please change to another compatible USB. 
+
+On the update page, please select the AirPane / Plug Box option accordingly. 
+
+Please keep the engine running and make sure the engine is on during the update process. During the update process, please do not remove the USB from the USB port.
+
+Video Instruction: https://youtu.be/uXgflX14Upo
+
+CanBus Software Download Link (Only For SYNC 3): 
+
+https://autotecpro-my.sharepoint.com/:u:/g/personal/autotecpro_autotecpro_onmicrosoft_com/EZ4c9_6yleBKksD0DV-ru_gBsDOd5VM0lDIFYfpaLeLLew?e=RficiJ
+
+
+
+
+
+

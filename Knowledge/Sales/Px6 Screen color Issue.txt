@@ -1,0 +1,11 @@
+Hello,
+
+Can you please try the below diagnostic steps before we schedule a call,
+
+    Open Settings -> System Info
+    Press and hold on the information in system info until it asks for password
+    Enter Password 7890
+    Change the Bit Depth
+    Click Save and reboot
+
+Thank you

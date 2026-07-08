@@ -1,0 +1,17 @@
+Bluetooth Issues:
+
+
+If your device can not pair with the new system, you can try the following procedure:
+
+Step 1: Please make sure the original Bluetooth system is un-pair, disconnected and forgotten from the phone. 
+
+Step 2: Go to the Bluetooth menu of the cellphone, delete the Bluetooth device (Tesla screen) from the Bluetooth list of the cellphone. Restart the cellphone.
+
+Step 3: Go to the Bluetooth menu of the new screen, delete the Bluetooth device (Cellphone) from the Bluetooth list of the Tesla screen.
+
+Step 4: Get ready with a tiny pin or needle. (The pin that used to eject a sim card from any cellphone will work.)
+
+Step 5: Find the reset button at the front of the system. Usually located on either the bottom left corner or bottom right corner of the screen. Please be careful that one of the holes is the microphone and another one is reset button. The reset button usually is labelled as “RST”.
+
+Step 6: Wait until the system restart. Then you can try to pair with the new system again. If you ca find the tesla Bluetooth from your cellphone, you can turn off the Bluetooth of the cellphone and turn it on again. 
+

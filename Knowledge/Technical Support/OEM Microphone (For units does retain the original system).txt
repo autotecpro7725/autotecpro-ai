@@ -1,0 +1,32 @@
+Hi, How are you doing?
+
+I hope you're doing well. Thank you for reaching out.
+
+For this model, if your phone is connected to the vehicle's original Bluetooth system, phone calls will continue to use the factory microphone. If your phone is connected to the new infotainment system via Bluetooth or Wireless CarPlay/Android Auto, the new unit will use its built-in microphone instead.
+
+If you're not satisfied with the microphone performance, we recommend the following:
+
+- Install the included external microphone and place it on the dashboard or near the driver's side for the best voice quality.
+- Go to Settings > Audio and increase the Mic Gain to improve microphone sensitivity.
+- You can also use the original Bluetooth system for phone calls while connecting your phone's Wi-Fi hotspot to the new unit for navigation, music streaming, and other online features.
+
+Please let us know if you have any questions or need assistance with the setup. We'll be happy to help.
+
+Best regards,
+
+
+_____________________________________________________________________________________________________
+
+
+Hi
+
+How are you doing? For this model, you can only use the original microphone when you connect to the Original Bluetooth. When you connect to the new system, the connection between the original mic will be disconnected and the system will automatically switch to the built-in microphone on the new system. You can also connect to the external microphone provided as well or relocate the microphone to some other location on the dash or windshield. You can also go to setting - Audio to adjust the mic gain value. Another alternative way is to connect the Bluetooth to the original Bluetooth system for the phone call and share the WiFi hotspot to the new system for some other features.
+
+_____________________________________________________________________________________________________
+
+To use the original microphone and Wi-Fi hotspot at the same time, pair your phone only with the factory Bluetooth so that calls continue to use the vehicle’s built-in microphone, and then enable your phone’s Wi-Fi hotspot and connect the new Tesla-style system to it for internet access. This setup allows you to enjoy streaming apps while keeping the original microphone active, but please note that wireless Apple CarPlay/Android Auto cannot be used in this mode since it requires pairing your phone with the new system instead, which would disable the use of the original microphone.
+
+
+
+Microiphone Option: >> (Just for reference:) https://www.ebay.com/itm/125836775088
+

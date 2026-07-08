@@ -1,0 +1,12 @@
+1) We sent the technical reply already, asked customer to confirm
+
+Hi How are you doing? I have checked our system. Our technician has sent you an email on _______________ regarding the Order # _________________. We are still waiting for your reply and would like to know if you have resolved the issue yet? If not please let us know and we can arrange a technician to contact you shortly. 
+
+If you have any questions, please feel free to contact us at Support@AutoTecPro.com and we will be more than happy to assist you. Thanks very much and wish you have a nice day. 
+
+
+
+
+2) We have not sent the technical reply yet. 
+
+Forward to technical department. 

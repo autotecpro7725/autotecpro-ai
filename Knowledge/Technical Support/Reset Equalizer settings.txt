@@ -1,0 +1,5 @@
+Hello,
+
+If you want to reset the equalizer to fix your audio issues, please go into Settings -> Audio -> Equalizer. and reset all the settings you will have to swipe right and click reset on for those settings as well.
+
+Thank you

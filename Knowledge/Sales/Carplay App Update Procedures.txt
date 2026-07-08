@@ -1,0 +1,31 @@
+Hi,
+
+For the system which comes with CarPlay USB dongle, you can download the CarPlay / Android Auto software from below: 
+
+https://autotecpro-my.sharepoint.com/:f:/g/personal/autotecpro_autotecpro_onmicrosoft_com/EvKOJRe3xYdEuPC1KQTz1nsBw4sEDq18FZMclwibt5plSw?e=ryGpkt
+
+There have 2 different ways to update the CarPlay /Android software:
+
+
+________________________________________
+Method 1: 
+
+You can connect to the WiFi hotspot from the cellphone and update directly from the software. The video below will show you how to update the CarPlay / Android Auto software. 
+
+
+Video Tutorial: https://youtu.be/5ZgSPZA5tYs
+
+
+________________________________________
+Method 2:
+
+Step 1: Download the software from the link provided above to your computer.
+
+Step 2: Copy the softwares (*.apk) to a USB
+
+Step 3: Insert the USB Stick to the USB conncetor of the unit
+
+Step 4: Open APK installer or File Explorer (e.g. ES Explorer). Navigate to the folder of the software in the USB,  Cick on it and install the software.
+
+
+

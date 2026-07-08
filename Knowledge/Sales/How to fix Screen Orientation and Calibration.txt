@@ -1,0 +1,6 @@
+Hi 
+
+In order to fix the orientation of the screen, you can connect a wired computer mouse to the unit's USB cable, then go to setting - system - factory setting (7890 / 666888). Look for the setting of Screen Rotaion. Change the setting (Positive to Negative / Negative to Positive), then click Save and Reboot.
+
+After the screen orientation is fixed, you can put five fingers on the screen for 10 seconds. It will bring up the calibration screen. You can sjut simply follow the instruction on the screen to calibrate the screen. 
+

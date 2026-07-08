@@ -1,0 +1,14 @@
+Hi How are you doing? Since this system does not come with amplifier, it basically just send the audio signal to the original amplifier and powered up by the original system.
+
+Also, there are two connectors behind the new units related to the audio, the yellow connector and the tiny white connector which is right beside the yellow connector. You can try to ONLY connect the yellow connector and leave the tiny white connector disconnected and try again.
+
+For the setting part for the audio of the system, there are couple locations that can be adjusted:
+
+1) Setting - Audio - Equalizer (Please reset all settings to default under this menu).
+
+2) Setting - Audio - Audio Gain (You can adjust the audio output on each function of the unit.
+
+3) Setting - System - Factory Setting (7890) - Original Amplifier Setting (You can adjust the audio output of the system as well.
+
+You can also run a factory reset as well. It's under Setting - System - Factory Reset.
+

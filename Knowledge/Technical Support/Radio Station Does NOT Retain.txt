@@ -1,0 +1,1 @@
+Hi How are you doing? Due to the design of the system, it will not retain the previous radio station. Currently there is no solution yet, it will be addressed by next software update. 

@@ -1,0 +1,48 @@
+Hi,
+
+How are you doing? For the issue of Apple CarPlay. Currently we do have a new update (July 10, 2023) just released for this model to address this issue. The download link and update instruction are both included in the document which attached in this message. You may need a hotmail or outlook email account to download the software. If you have any questions, please feel free to contact us and we will be more than happy to assist you. Thanks and have a nice day. 
+
+Optional: After the update, I would suggest you to run a factory reset. It's under Setting - System - Factory Reset. 
+
+
+After the Reset, you can just simply follow the procedure below to reset the CarPlay. 
+
+
+CarPlay Reset Procedure:
+
+Part 1: Reset and Erase all previous pairing record
+Step 1: Go to CarPlay Setting Menu on the iPhone. (It’s under General Setting menu of the phone. Under General Setting, Search CarPlay)
+
+Step 2: Delete and forget all the devices under the CarPlay list.
+
+Step 3: Restart the iPhone.
+
+Step 4: Go to the Bluetooth menu on the New Android Screen.
+
+Step 5: Select the connection icon on the Bluetooth menu (Located at the upper right corner of the Bluetooth menu). Delete and unpair all previous connected device under the Bluetooth menu.
+
+Step 6: Reset the new system by using a tiny pin to click on the rest button which is usually located at the front of the unit. The Reset button is labelled as “RST”.
+
+Step 7: Once both the phone and the screen are both restarted, you can start to pair the carplay again.
+
+_______________________________________________________________________________________________________________
+
+Part 2: How to connect Wireless Apple CarPlay:
+
+Step 1: Go to Bluetooth menu of the New Android System. Select the connection icon on the Bluetooth menu (Located at the upper right corner of the Bluetooth menu).
+
+Step 2: Go to the Bluetooth menu of your iPhone. Pair the New Android System with the iPhone.
+
+Note: Wireless Apple CarPlay ONLY use Bluetooth to pair at the beginning. Once they got paired, both devices will switch to WiFi channel at the background. Therefore, the Bluetooth will show “Disconnected” on the iPhone and the tablet. This is “Normal” and please do not Manually
+
+Connect the Bluetooth when the CarPlay connection is established.
+
+Step 3: Once it got paired, the Bluetooth will be disconnected automatically and the connection will be switch to WiFi channel at the background
+
+Step 4: System will automatically open CarAuto (CarPlay) on the table screen.
+
+Step 5: Grant the authorization message of “Using CarPlay” on the iPhone.
+
+ 
+
+

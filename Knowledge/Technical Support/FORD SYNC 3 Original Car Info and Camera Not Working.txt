@@ -1,0 +1,26 @@
+How to fix issues of original camera / original SYNC menu:
+
+
+
+After the update applied, if the original camera or original SYNC menu not displaying properly, please follow the steps below to check the settings:
+
+Setting 1:
+
+1. Go to Settings - System - Car Model (Password: 666888)
+
+2. For SYNC 3 Auto AC: F150 HI - S3 AUTO
+
+   For SYNC 3 Manual AC: F150 LO - S3 MANUAL
+
+3. Double Click on it and it will restart the unit. 
+
+Setting 2: 
+
+1. Go to Settings - Factory Setting (Password: 7890)
+
+2. Reversing Format - Select VGA
+
+3. Click on "Save and Reboot"
+
+Another steps is to turn off the vehicle, remove the key and open the front driver door first (Since the power is connected to the front drive side door lock.) Once the power is completely off, unplug the main harness for the APIM modul / SYNC 3 Module AND the power of the new system for 5 mins and then connect it back. The original SYNC computer will restart. 
+

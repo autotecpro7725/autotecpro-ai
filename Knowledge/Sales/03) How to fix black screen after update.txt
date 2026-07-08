@@ -1,0 +1,19 @@
+Hi 
+
+In order to reload the configuration files to the unit, please follow the following steps, I have also attached an update file in this message as well:
+
+1) Download the folder to the computer and extract the folder. There should have two files inside. One is labelled as "zxwfactory.zip" (No need to extract this file), another is labelled as "zxwConfiguration_factory.txt"
+
+2) Copy these two files to the root directory of a USB. 
+
+3) Turn on the engine and insert the USB to the USB port from the new screen and wait for 2 minutes.
+
+4) Please prepare a tiny pin to reset the unit by pressing the Reset button at the front of the unit. The reset button should be labelled as "RST".
+
+5) There will not have any prompt message. The system should be able to boot up the system normally. If it's not working, please change another USB and try again. 
+
+Note: It's very important to use a compatible USB for this update. We strongly recommend to try another USB if the first one doesn't work. 
+
+6) If it still doesn't work, please contact us at (Support@AutoTecPro.com). 
+
+Thanks and have a nice day. 
