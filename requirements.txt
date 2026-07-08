@@ -1,0 +1,6 @@
+streamlit
+openai
+supabase
+pandas
+pillow
+python-dotenv
