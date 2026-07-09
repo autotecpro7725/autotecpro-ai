@@ -183,16 +183,17 @@ def inject_base_css():
         }
 
         .chat-icon {
-            width: 38px;
-            height: 38px;
-            min-width: 38px;
-            border-radius: 12px;
+            width: 54px;
+            height: 54px;
+            min-width: 54px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 32px;
+            line-height: 1;
             font-weight: 800;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
         }
 
         .user-icon {
@@ -201,8 +202,8 @@ def inject_base_css():
         }
 
         .assistant-icon {
-            background: linear-gradient(135deg, #ffd43b 0%, #f59e0b 100%);
-            color: #111827;
+            background: linear-gradient(135deg, #FFD43B 0%, #FACC15 100%);
+            color: #222222;
         }
 
         .chat-bubble {
