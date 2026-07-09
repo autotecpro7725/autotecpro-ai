@@ -1,6 +1,10 @@
 import streamlit as st
 from openai import OpenAI
 from pathlib import Path
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 import base64
 import html
 from datetime import datetime, timezone
@@ -14,6 +18,13 @@ BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
 
+PAGE_ICON = "🤖"
+if Image is not None and LOGO_FILE.exists():
+    try:
+        PAGE_ICON = Image.open(LOGO_FILE)
+    except Exception:
+        PAGE_ICON = "🤖"
+
 api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
 
@@ -22,7 +33,7 @@ SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
 
 st.set_page_config(
     page_title="AutoTecPro AI",
-    page_icon="🤖",
+    page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -922,62 +933,46 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     return openai_file.id
 
 # ============================================================
-# Optional Supabase Chat History Helpers
+# Supabase Chat History Helpers
 # ============================================================
 
+
 def clean_assistant_label(assistant_name):
-    """Normalize assistant labels so old and new records both load."""
-    value = assistant_name or ""
+    """Normalize assistant labels so history works even when labels include emoji."""
+    value = str(assistant_name or "")
     for icon in ["🔧", "📈", "🎨", "⚙️", "⚙"]:
         value = value.replace(icon, "")
     return value.strip()
 
 
-def assistant_history_keys(assistant_name):
-    """Return all label variants used by old/new chat history records."""
-    clean = clean_assistant_label(assistant_name)
-    keys = {assistant_name, clean}
-
-    if clean == "Technical Support":
-        keys.update({"🔧 Technical Support", "Technical Support"})
-    elif clean == "Sales & Marketing":
-        keys.update({"📈 Sales & Marketing", "Sales & Marketing"})
-    elif clean == "Graphic Marketing":
-        keys.update({"🎨 Graphic Marketing", "Graphic Marketing"})
-
-    return {key for key in keys if key}
-
-
-def assistant_history_value(assistant_name):
-    """Save a clean assistant label so history stays consistent."""
-    return clean_assistant_label(assistant_name)
+def conversation_title_from_text(text):
+    clean = str(text or "").replace("\n", " ").strip()
+    if not clean:
+        return "New Case"
+    return clean[:55]
 
 
 def create_conversation(username, assistant_name, first_message=None):
-    title = "New Case"
-
-    if first_message:
-        clean = first_message.replace("\n", " ").strip()
-        title = clean[:48] if clean else "New Case"
-
+    """Create a new conversation and return its ID."""
     result = supabase.table("conversations").insert({
         "username": username,
-        "assistant": assistant_history_value(assistant_name),
-        "title": title,
+        "assistant": clean_assistant_label(assistant_name),
+        "title": conversation_title_from_text(first_message),
         "archived": False,
         "created_at": now_iso(),
         "updated_at": now_iso()
     }).execute()
 
     if not result.data:
-        raise RuntimeError("Conversation was not created in Supabase.")
+        raise RuntimeError("Conversation was not created. Supabase returned no data.")
 
     return result.data[0]["id"]
 
 
 def save_message(conversation_id, role, content):
+    """Save one chat message into Supabase."""
     if not conversation_id:
-        return
+        raise RuntimeError("Missing conversation_id. Message was not saved.")
 
     supabase.table("messages").insert({
         "conversation_id": conversation_id,
@@ -992,6 +987,10 @@ def save_message(conversation_id, role, content):
 
 
 def load_messages(conversation_id):
+    """Load all messages for a selected conversation."""
+    if not conversation_id:
+        return []
+
     result = (
         supabase
         .table("messages")
@@ -1001,17 +1000,19 @@ def load_messages(conversation_id):
         .execute()
     )
 
-    return [{"role": item["role"], "content": item["content"]} for item in result.data]
+    return [
+        {"role": item.get("role", "assistant"), "content": item.get("content", "")}
+        for item in (result.data or [])
+    ]
 
 
-def load_conversations(username, assistant_name, role=None):
+def load_conversations(username, role=None):
     """
-    Load saved chat history with the safest possible logic.
+    Reliable history loader.
 
-    This version intentionally does NOT filter by username or assistant in the
-    Supabase query. It loads recent rows first, then only removes archived rows.
-    This fixes cases where history was saved under different usernames, roles,
-    or assistant labels during testing.
+    Important: this intentionally does NOT filter by assistant.
+    Earlier versions filtered by assistant label and username too strictly,
+    which caused saved cases to disappear from the sidebar.
     """
     result = (
         supabase
@@ -1024,28 +1025,23 @@ def load_conversations(username, assistant_name, role=None):
 
     rows = result.data or []
 
-    def is_not_archived(item):
-        value = item.get("archived")
-        if value is True:
-            return False
-        if str(value).lower() == "true":
-            return False
-        return True
+    def is_active(row):
+        value = row.get("archived")
+        return not (value is True or str(value).lower() == "true")
 
-    active_rows = [item for item in rows if is_not_archived(item)]
+    active_rows = [row for row in rows if is_active(row)]
 
-    # Prefer conversations that match the current workspace, but keep a fallback.
-    target_assistant = clean_assistant_label(assistant_name).lower()
-    assistant_matches = [
-        item for item in active_rows
-        if clean_assistant_label(item.get("assistant", "")).lower() == target_assistant
+    # Admin can see all cases. Staff sees their own cases first.
+    if str(role or "").lower() == "admin":
+        return active_rows[:30]
+
+    own_rows = [
+        row for row in active_rows
+        if str(row.get("username", "")).lower() == str(username or "").lower()
     ]
 
-    # If there are assistant matches, show them first. If not, show all active rows.
-    if assistant_matches:
-        return assistant_matches[:30]
-
-    return active_rows[:30]
+    # Fallback: if username changed during testing, show all active rows.
+    return (own_rows or active_rows)[:30]
 
 
 def archive_conversation(conversation_id):
@@ -1056,6 +1052,26 @@ def archive_conversation(conversation_id):
         }).eq("id", conversation_id).execute()
 
 
+def get_current_conversation_title():
+    cid = st.session_state.get("conversation_id")
+    if not cid:
+        return "New Case"
+    try:
+        result = (
+            supabase
+            .table("conversations")
+            .select("title")
+            .eq("id", cid)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0].get("title") or "New Case"
+    except Exception:
+        pass
+    return "New Case"
+
+
 # ============================================================
 # Chat History Sidebar
 # ============================================================
@@ -1064,10 +1080,12 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
 
+    if st.sidebar.button("🔄 Refresh History"):
+        st.rerun()
+
     try:
         conversations = load_conversations(
             st.session_state.username,
-            assistant,
             st.session_state.role
         )
 
@@ -1080,22 +1098,22 @@ if assistant != "⚙️ Admin Panel":
             for convo in conversations:
                 title = convo.get("title") or "New Case"
                 owner = convo.get("username") or ""
-                updated_at = (convo.get("updated_at") or "")[:10]
-
-                if len(title) > 30:
-                    title = title[:30] + "..."
-
-                # Show owner only if this is not the current user's own case.
-                owner_prefix = ""
-                if str(owner).lower() != str(st.session_state.username).lower():
-                    owner_prefix = f"{owner}: "
-
                 assistant_label = convo.get("assistant") or ""
-                label = f"💬 {owner_prefix}{title}"
+                updated_at = (convo.get("updated_at") or convo.get("created_at") or "")[:10]
+
+                if len(title) > 26:
+                    title = title[:26] + "..."
+
+                label_parts = ["💬"]
+                if str(owner).lower() != str(st.session_state.username).lower():
+                    label_parts.append(f"{owner}:")
+                label_parts.append(title)
                 if assistant_label:
-                    label += f" · {assistant_label}"
+                    label_parts.append(f"· {assistant_label}")
                 if updated_at:
-                    label += f" · {updated_at}"
+                    label_parts.append(f"· {updated_at}")
+
+                label = " ".join(label_parts)
 
                 if st.sidebar.button(label, key=f"convo_{convo['id']}"):
                     st.session_state.conversation_id = convo["id"]
@@ -1105,6 +1123,8 @@ if assistant != "⚙️ Admin Panel":
             st.sidebar.caption("No saved cases yet.")
 
         if st.session_state.conversation_id:
+            st.sidebar.caption(f"Current: {get_current_conversation_title()}")
+
             if st.sidebar.button("🗄️ Archive Current Case"):
                 archive_conversation(st.session_state.conversation_id)
                 st.session_state.conversation_id = None
@@ -1247,7 +1267,8 @@ else:
                     assistant,
                     user_display
                 )
-            except Exception:
+            except Exception as e:
+                st.error(f"Could not create chat history case: {e}")
                 st.session_state.conversation_id = None
 
         st.session_state.messages.append({
@@ -1257,8 +1278,8 @@ else:
 
         try:
             save_message(st.session_state.conversation_id, "user", user_display)
-        except Exception:
-            pass
+        except Exception as e:
+            st.warning(f"User message was not saved to history: {e}")
 
         render_chat_message("user", user_display)
 
@@ -1274,7 +1295,7 @@ else:
 
         try:
             save_message(st.session_state.conversation_id, "assistant", answer)
-        except Exception:
-            pass
+        except Exception as e:
+            st.warning(f"AI answer was not saved to history: {e}")
 
         st.rerun()
