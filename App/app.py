@@ -1507,6 +1507,152 @@ def inject_base_css():
             height: 1px;
         }
 
+
+        /* ============================================================
+           Stable native ChatGPT-style history rows
+           This avoids raw HTML being printed in Streamlit sidebar.
+        ============================================================ */
+        .history-shell,
+        .history-row-html,
+        .history-open,
+        .history-menu,
+        .history-menu-panel {
+            display: none !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
+            max-height: 460px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            border: none !important;
+            background: transparent !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
+            width: 5px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35) !important;
+            border-radius: 999px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
+            align-items: center !important;
+            gap: 3px !important;
+            margin: 0 !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
+            min-height: 28px !important;
+            height: 28px !important;
+            padding: 3px 8px !important;
+            margin: 0 !important;
+            border-radius: 7px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            box-shadow: none !important;
+            color: #dbe7f5 !important;
+            -webkit-text-fill-color: #dbe7f5 !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            line-height: 1 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            align-items: center !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            transform: none !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.11) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button {
+            height: 28px !important;
+            min-height: 28px !important;
+            width: 26px !important;
+            min-width: 26px !important;
+            max-width: 26px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 7px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            box-shadow: none !important;
+            color: #aeb9c8 !important;
+            -webkit-text-fill-color: #aeb9c8 !important;
+            font-size: 16px !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transform: none !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button svg {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
+            background: rgba(148, 163, 184, 0.13) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
+        div[data-testid="stPopoverBody"],
+        div[data-baseweb="popover"] div[role="dialog"] {
+            width: 172px !important;
+            min-width: 172px !important;
+            max-width: 172px !important;
+            padding: 6px !important;
+            border-radius: 12px !important;
+            background: rgba(32, 33, 35, 0.98) !important;
+            border: 1px solid rgba(255, 255, 255, 0.10) !important;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.38) !important;
+            backdrop-filter: blur(12px) !important;
+        }
+
+        div[data-testid="stPopoverBody"] .stButton > button {
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 5px 8px !important;
+            border-radius: 8px !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #e5e7eb !important;
+            -webkit-text-fill-color: #e5e7eb !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stPopoverBody"] .stButton > button:hover {
+            background: rgba(255,255,255,0.08) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
+        @media (max-width: 768px) {
+            section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
+                background: rgba(31, 41, 55, 0.92) !important;
+                border: 1px solid rgba(148, 163, 184, 0.18) !important;
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+            }
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -3484,62 +3630,93 @@ def get_conversation_title_by_id(conversation_id):
     return "New Case"
 
 
-def render_history_html(conversations):
-    """Render ChatGPT 2026 style history cards with hidden hover menu."""
-    current_id = str(st.session_state.get("conversation_id") or "")
+def render_history_cards(conversations):
+    """
+    Streamlit-native ChatGPT-style history cards.
 
-    def row_html(convo):
-        convo_id = str(convo["id"])
-        title = str(convo.get("title") or "New Case").strip()
-        pinned = bool(convo.get("pinned", False))
-        is_current = current_id == convo_id
-
-        display_title = title[:36] + "..." if len(title) > 36 else title
-        safe_title = html.escape(display_title)
-        safe_full_title = html.escape(title)
-        active_class = " active" if is_current else ""
-        pin_prefix = "📌 " if pinned else ""
-        pin_label = "Unpin chat" if pinned else "Pin chat"
-
-        return f"""
-        <div class="history-row-html{active_class}">
-            <a class="history-open" href="{app_action_url('open', convo_id)}" title="{safe_full_title}">{pin_prefix}{safe_title}</a>
-            <div class="history-menu">
-                <details>
-                    <summary>⋯</summary>
-                    <div class="history-menu-panel">
-                        <div class="menu-title">{safe_title}</div>
-                        <a href="{app_action_url('rename', convo_id)}">Rename</a>
-                        <a href="{app_action_url('pin', convo_id)}">{pin_label}</a>
-                        <a href="{app_action_url('archive', convo_id)}">Archive</a>
-                        <a class="delete-link" href="{app_action_url('delete', convo_id)}">Delete</a>
-                    </div>
-                </details>
-            </div>
-        </div>
-        """
-
+    Important:
+    We intentionally do NOT render conversation rows as raw HTML.
+    Streamlit can escape/sanitize complex sidebar HTML and print it as text.
+    This native implementation keeps Rename / Pin / Archive / Delete working
+    and avoids the raw <div> sidebar issue.
+    """
     pinned_conversations = [c for c in conversations if c.get("pinned")]
     normal_conversations = [c for c in conversations if not c.get("pinned")]
 
-    html_parts = ['<div class="history-shell">']
-
+    sections = []
     if pinned_conversations:
-        html_parts.append('<div class="history-section-label">Pinned</div>')
-        html_parts.append('<div class="history-list">')
-        html_parts.extend(row_html(c) for c in pinned_conversations)
-        html_parts.append('</div>')
-
+        sections.append(("Pinned", pinned_conversations))
     if normal_conversations:
-        html_parts.append('<div class="history-section-label">Recent</div>')
-        html_parts.append('<div class="history-list">')
-        html_parts.extend(row_html(c) for c in normal_conversations)
-        html_parts.append('</div>')
+        sections.append(("Recent", normal_conversations))
 
-    html_parts.append('</div>')
+    history_box = st.sidebar.container(height=460, border=False)
 
-    st.sidebar.markdown("\n".join(html_parts), unsafe_allow_html=True)
+    with history_box:
+        for section_name, section_convos in sections:
+            st.markdown(
+                f'<div class="history-section-label">{html.escape(section_name)}</div>',
+                unsafe_allow_html=True
+            )
 
+            for convo in section_convos:
+                convo_id = convo["id"]
+                title = convo.get("title") or "New Case"
+                pinned = bool(convo.get("pinned", False))
+                is_current = str(st.session_state.get("conversation_id")) == str(convo_id)
+
+                title_short = title[:36] + "..." if len(title) > 36 else title
+                active_prefix = "• " if is_current else ""
+                pin_prefix = "📌 " if pinned else ""
+                history_label = f"{active_prefix}{pin_prefix}{title_short}"
+
+                item_col, menu_col = st.columns([0.86, 0.14], gap="small")
+
+                with item_col:
+                    if st.button(
+                        history_label,
+                        key=f"open_{convo_id}",
+                        help="Open conversation",
+                        use_container_width=True
+                    ):
+                        st.session_state.conversation_id = convo_id
+                        st.session_state.messages = load_messages(convo_id)
+                        st.session_state.rename_conversation_id = None
+                        st.session_state.scroll_to_bottom = True
+                        st.rerun()
+
+                with menu_col:
+                    with st.popover("⋯"):
+                        st.markdown(
+                            f'<div class="history-menu-title">{html.escape(title_short)}</div>',
+                            unsafe_allow_html=True
+                        )
+
+                        if st.button("Rename", key=f"rename_{convo_id}", use_container_width=True):
+                            st.session_state.rename_conversation_id = str(convo_id)
+                            st.session_state.rename_conversation_value = title
+                            st.rerun()
+
+                        pin_label = "Unpin chat" if pinned else "Pin chat"
+                        if st.button(pin_label, key=f"pin_{convo_id}", use_container_width=True):
+                            try:
+                                toggle_pin_conversation(convo_id, not pinned)
+                                st.rerun()
+                            except Exception:
+                                st.toast("Pin needs the pinned column in Supabase.")
+
+                        if st.button("Archive", key=f"archive_{convo_id}", use_container_width=True):
+                            archive_conversation(convo_id)
+                            if st.session_state.conversation_id == convo_id:
+                                st.session_state.conversation_id = None
+                                st.session_state.messages = []
+                            st.rerun()
+
+                        if st.button("Delete", key=f"delete_{convo_id}", use_container_width=True):
+                            delete_conversation(convo_id)
+                            if st.session_state.conversation_id == convo_id:
+                                st.session_state.conversation_id = None
+                                st.session_state.messages = []
+                            st.rerun()
 
 def auto_scroll_to_latest():
     """Scroll browser to the latest chat reply after a rerun."""
@@ -3562,8 +3739,6 @@ def auto_scroll_to_latest():
         height=0,
     )
 
-
-process_history_action()
 
 # ============================================================
 # Chat History Sidebar
@@ -3592,7 +3767,7 @@ if assistant != "⚙️ Admin Panel":
         )
 
         if conversations:
-            render_history_html(conversations)
+            render_history_cards(conversations)
         else:
             st.sidebar.caption("No saved cases yet.")
 
