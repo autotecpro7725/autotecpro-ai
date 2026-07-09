@@ -483,18 +483,46 @@ def inject_base_css():
             font-size: 14px !important;
         }
 
-        /* ChatGPT-style compact sidebar history */
+
+
+        /* ============================================================
+           ChatGPT-style compact history list
+        ============================================================ */
+        div[data-testid="stSidebar"] {
+            width: 292px !important;
+            min-width: 292px !important;
+        }
+
         .history-title {
-            font-size: 13px !important;
+            font-size: 12px !important;
             font-weight: 700 !important;
-            color: #cbd5e1 !important;
+            color: #94a3b8 !important;
             margin: 14px 0 6px 0 !important;
+            letter-spacing: 0 !important;
+        }
+
+        .history-section-label {
+            font-size: 11px;
+            line-height: 1.2;
+            color: #8b97a8;
+            margin: 12px 0 4px 2px;
+            font-weight: 650;
         }
 
         .history-count {
             font-size: 11px !important;
             color: #8b97a8 !important;
             margin-bottom: 6px !important;
+        }
+
+        .history-current-note {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         div[data-testid="stSidebar"] .stButton > button {
@@ -511,6 +539,9 @@ def inject_base_css():
             line-height: 1.25 !important;
             text-align: left !important;
             justify-content: flex-start !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         div[data-testid="stSidebar"] .stButton > button:hover {
@@ -525,19 +556,30 @@ def inject_base_css():
             box-shadow: none !important;
         }
 
+        /* Three-dot menu button */
+        div[data-testid="stSidebar"] [data-testid="stPopover"] button {
+            min-height: 28px !important;
+            height: 28px !important;
+            width: 30px !important;
+            padding: 0 !important;
+            border-radius: 8px !important;
+            font-size: 18px !important;
+            line-height: 1 !important;
+            text-align: center !important;
+            justify-content: center !important;
+            color: #cbd5e1 !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+        }
+
+        div[data-testid="stSidebar"] [data-testid="stPopover"] button:hover {
+            background: rgba(148, 163, 184, 0.14) !important;
+            border-color: rgba(148, 163, 184, 0.12) !important;
+        }
+
         .sidebar-profile {
             padding: 12px 11px !important;
             border-radius: 14px !important;
-        }
-
-        .history-current-note {
-            color: #94a3b8;
-            font-size: 11px;
-            margin-top: 6px;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
         </style>
         """,
@@ -1184,16 +1226,22 @@ def conversation_title_from_text(text):
 
 
 def create_conversation(username, assistant_name, first_message=None):
-    """Create a new conversation and return its ID."""
-    result = supabase.table("conversations").insert({
+    """Create a new conversation and return its ID.
+
+    Keep the insert schema-safe: do not require optional columns such as pinned.
+    This prevents chat saving from breaking if a new UI feature is deployed
+    before the Supabase migration has been run.
+    """
+    payload = {
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
         "title": conversation_title_from_text(first_message),
         "archived": False,
-        "pinned": False,
         "created_at": now_iso(),
         "updated_at": now_iso()
-    }).execute()
+    }
+
+    result = supabase.table("conversations").insert(payload).execute()
 
     if not result.data:
         raise RuntimeError("Conversation was not created. Supabase returned no data.")
@@ -1239,12 +1287,11 @@ def load_messages(conversation_id):
 
 
 def load_conversations(username, role=None):
-    """
-    Reliable history loader.
+    """Load conversations for the sidebar.
 
-    Important: this intentionally does NOT filter by assistant.
-    Earlier versions filtered by assistant label and username too strictly,
-    which caused saved cases to disappear from the sidebar.
+    Pinned conversations appear first, then recent conversations.
+    The query intentionally avoids assistant filtering so old saved cases
+    remain visible even if workspace labels change later.
     """
     result = (
         supabase
@@ -1263,27 +1310,21 @@ def load_conversations(username, role=None):
 
     active_rows = [row for row in rows if is_active(row)]
 
-    # Pinned conversations should stay at the top, similar to ChatGPT.
-    active_rows = sorted(
+    if str(role or "").lower() != "admin":
+        own_rows = [
+            row for row in active_rows
+            if str(row.get("username", "")).lower() == str(username or "").lower()
+        ]
+        active_rows = own_rows or active_rows
+
+    return sorted(
         active_rows,
         key=lambda row: (
-            not bool(row.get("pinned", False)),
+            bool(row.get("pinned", False)),
             str(row.get("updated_at") or row.get("created_at") or "")
         ),
-        reverse=False
-    )
-
-    # Admin can see all cases. Staff sees their own cases first.
-    if str(role or "").lower() == "admin":
-        return active_rows[:30]
-
-    own_rows = [
-        row for row in active_rows
-        if str(row.get("username", "")).lower() == str(username or "").lower()
-    ]
-
-    # Fallback: if username changed during testing, show all active rows.
-    return (own_rows or active_rows)[:30]
+        reverse=True
+    )[:40]
 
 
 def archive_conversation(conversation_id):
@@ -1309,10 +1350,16 @@ def toggle_pin_conversation(conversation_id, pinned):
     if not conversation_id:
         return
 
-    supabase.table("conversations").update({
-        "pinned": bool(pinned),
-        "updated_at": now_iso()
-    }).eq("id", conversation_id).execute()
+    try:
+        supabase.table("conversations").update({
+            "pinned": bool(pinned),
+            "updated_at": now_iso()
+        }).eq("id", conversation_id).execute()
+    except Exception as e:
+        raise RuntimeError(
+            "Pin feature needs the Supabase column: "
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE;"
+        ) from e
 
 
 def format_history_date(value):
@@ -1357,12 +1404,12 @@ def get_current_conversation_title():
 
 if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown("---")
-    st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="history-title">Recents</div>', unsafe_allow_html=True)
 
-    top_left, top_right = st.sidebar.columns([0.78, 0.22], gap="small")
-    with top_left:
-        st.caption("Saved cases")
-    with top_right:
+    history_top_left, history_top_right = st.sidebar.columns([0.84, 0.16], gap="small")
+    with history_top_left:
+        st.caption("Chat history")
+    with history_top_right:
         if st.button("↻", key="refresh_history", help="Refresh history"):
             st.rerun()
 
@@ -1372,79 +1419,92 @@ if assistant != "⚙️ Admin Panel":
             st.session_state.role
         )
 
-        st.sidebar.markdown(
-            f'<div class="history-count">{len(conversations)} conversation(s)</div>',
-            unsafe_allow_html=True
-        )
+        pinned_conversations = [c for c in conversations if c.get("pinned")]
+        recent_conversations = [c for c in conversations if not c.get("pinned")]
 
-        if conversations:
-            pinned_conversations = [c for c in conversations if c.get("pinned")]
-            normal_conversations = [c for c in conversations if not c.get("pinned")]
+        if not conversations:
+            st.sidebar.caption("No saved cases yet.")
 
-            if pinned_conversations:
-                st.sidebar.caption("Pinned")
+        def render_history_group(group_title, items):
+            if not items:
+                return
 
-            ordered_sections = []
-            if pinned_conversations:
-                ordered_sections.append(pinned_conversations)
-            if normal_conversations:
-                if pinned_conversations:
-                    st.sidebar.caption("Recent")
-                ordered_sections.append(normal_conversations)
+            st.sidebar.markdown(
+                f'<div class="history-section-label">{html.escape(group_title)}</div>',
+                unsafe_allow_html=True
+            )
 
-            for section in ordered_sections:
-                for convo in section:
-                    convo_id = convo["id"]
-                    title = convo.get("title") or "New Case"
-                    assistant_label = clean_assistant_label(convo.get("assistant") or "")
-                    updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
-                    pinned = bool(convo.get("pinned", False))
-                    is_current = st.session_state.conversation_id == convo_id
+            for convo in items:
+                convo_id = convo["id"]
+                title = convo.get("title") or "New Case"
+                pinned = bool(convo.get("pinned", False))
+                is_current = st.session_state.conversation_id == convo_id
 
-                    if len(title) > 32:
-                        title = title[:32] + "..."
+                clean_title = " ".join(str(title).split())
+                if len(clean_title) > 34:
+                    clean_title = clean_title[:34] + "…"
 
-                    meta_parts = []
-                    if assistant_label:
-                        meta_parts.append(assistant_label)
-                    if updated_at:
-                        meta_parts.append(updated_at)
-                    meta = " · ".join(meta_parts)
+                prefix = "📌 " if pinned else ""
+                active_prefix = "● " if is_current else ""
+                open_label = f"{active_prefix}{prefix}{clean_title}"
 
-                    active_mark = "● " if is_current else ""
-                    pin_icon = "📌" if pinned else "☆"
-                    history_label = f"{active_mark}{title}"
-                    if meta:
-                        history_label += f"\n{meta}"
+                item_col, menu_col = st.sidebar.columns([0.86, 0.14], gap="small")
 
-                    item_col, pin_col, delete_col = st.sidebar.columns([0.74, 0.13, 0.13], gap="small")
+                with item_col:
+                    if st.button(open_label, key=f"open_{convo_id}", help=title):
+                        st.session_state.conversation_id = convo_id
+                        st.session_state.messages = load_messages(convo_id)
+                        st.rerun()
 
-                    with item_col:
-                        if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
-                            st.session_state.conversation_id = convo_id
-                            st.session_state.messages = load_messages(convo_id)
-                            st.rerun()
+                with menu_col:
+                    if hasattr(st, "popover"):
+                        with st.popover("⋯", use_container_width=False):
+                            st.caption(clean_title)
 
-                    with pin_col:
-                        if st.button(pin_icon, key=f"pin_{convo_id}", help="Pin / unpin"):
-                            try:
+                            if st.button("Unpin chat" if pinned else "Pin chat", key=f"pin_menu_{convo_id}"):
+                                try:
+                                    toggle_pin_conversation(convo_id, not pinned)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(str(e))
+
+                            if st.button("Archive", key=f"archive_menu_{convo_id}"):
+                                try:
+                                    archive_conversation(convo_id)
+                                    if st.session_state.conversation_id == convo_id:
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Archive failed: {e}")
+
+                            if st.button("Delete", key=f"delete_menu_{convo_id}"):
+                                try:
+                                    delete_conversation(convo_id)
+                                    if st.session_state.conversation_id == convo_id:
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Delete failed: {e}")
+                    else:
+                        # Fallback for older Streamlit versions.
+                        if st.button("⋯", key=f"menu_fallback_{convo_id}", help="Menu"):
+                            st.session_state[f"show_menu_{convo_id}"] = not st.session_state.get(f"show_menu_{convo_id}", False)
+
+                        if st.session_state.get(f"show_menu_{convo_id}", False):
+                            if st.button("Pin" if not pinned else "Unpin", key=f"pin_fallback_{convo_id}"):
                                 toggle_pin_conversation(convo_id, not pinned)
                                 st.rerun()
-                            except Exception as e:
-                                st.sidebar.error(f"Pin failed: {e}")
-
-                    with delete_col:
-                        if st.button("🗑", key=f"delete_{convo_id}", help="Delete conversation"):
-                            try:
+                            if st.button("Delete", key=f"delete_fallback_{convo_id}"):
                                 delete_conversation(convo_id)
                                 if st.session_state.conversation_id == convo_id:
                                     st.session_state.conversation_id = None
                                     st.session_state.messages = []
                                 st.rerun()
-                            except Exception as e:
-                                st.sidebar.error(f"Delete failed: {e}")
-        else:
-            st.sidebar.caption("No saved cases yet.")
+
+        render_history_group("Pinned", pinned_conversations)
+        render_history_group("Recent", recent_conversations)
 
         if st.session_state.conversation_id:
             current_title = get_current_conversation_title()
@@ -1452,12 +1512,6 @@ if assistant != "⚙️ Admin Panel":
                 f'<div class="history-current-note">Current: {html.escape(current_title)}</div>',
                 unsafe_allow_html=True
             )
-
-            if st.sidebar.button("Archive current case", key="archive_current_case"):
-                archive_conversation(st.session_state.conversation_id)
-                st.session_state.conversation_id = None
-                st.session_state.messages = []
-                st.rerun()
 
     except Exception as e:
         st.sidebar.error(f"Chat history error: {e}")
