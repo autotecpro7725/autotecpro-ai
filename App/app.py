@@ -2035,6 +2035,133 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
         "file_id": openai_file_id
     }
 
+
+# ============================================================
+# AI Analytics Engine
+# ============================================================
+
+def extract_analytics_from_question(question, answer, selected_assistant):
+    """Extract lightweight analytics signals from each AI interaction."""
+    prompt = f"""
+You are AutoTecPro's internal analytics engine.
+
+Extract analytics from this AI interaction.
+
+Return ONLY valid JSON:
+{{
+  "vehicle": "vehicle model/year if mentioned, else empty",
+  "issue": "short issue/search topic",
+  "product": "product/model/category searched, else empty",
+  "keywords": "comma-separated keywords",
+  "was_unanswered": true/false,
+  "confidence_score": 0-100
+}}
+
+Rules:
+- was_unanswered is true if the AI could not answer, lacked documentation, asked for escalation, or only requested more info without a usable answer.
+- confidence_score should reflect how confident the AI answer appears based on the answer wording.
+- Do not invent details.
+
+Assistant:
+{clean_assistant_label(selected_assistant)}
+
+Question:
+{question}
+
+Answer:
+{answer}
+"""
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Return only valid JSON. No markdown.",
+            input=prompt
+        )
+        data = extract_json_object(response.output_text)
+    except Exception:
+        data = {}
+
+    fallback_vehicle = detect_vehicle_basic(str(question) + " " + str(answer))
+
+    try:
+        confidence = int(data.get("confidence_score", 70))
+    except Exception:
+        confidence = 70
+
+    return {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": str(data.get("vehicle") or fallback_vehicle or "").strip(),
+        "issue": str(data.get("issue") or conversation_title_from_text(question) or "").strip()[:180],
+        "product": str(data.get("product") or "").strip()[:180],
+        "keywords": str(data.get("keywords") or "").strip(),
+        "question": str(question or ""),
+        "answer": str(answer or ""),
+        "was_unanswered": bool(data.get("was_unanswered", False)),
+        "confidence_score": max(0, min(100, confidence)),
+        "conversation_id": st.session_state.get("conversation_id"),
+        "created_at": now_iso()
+    }
+
+
+def log_ai_analytics(question, answer, selected_assistant, learning_result=None):
+    """Save one analytics event for Admin dashboard."""
+    try:
+        payload = extract_analytics_from_question(question, answer, selected_assistant)
+
+        if learning_result:
+            payload["learned"] = bool(learning_result.get("learned"))
+            payload["learning_mode"] = learning_result.get("mode")
+            payload["learned_record_id"] = learning_result.get("record_id")
+        else:
+            payload["learned"] = False
+            payload["learning_mode"] = None
+            payload["learned_record_id"] = None
+
+        supabase.table("ai_analytics").insert(payload).execute()
+        return True
+
+    except Exception:
+        # Analytics should never break the main chat.
+        return False
+
+
+def top_counts(rows, field, limit=10):
+    counts = {}
+    for row in rows:
+        value = str(row.get(field) or "").strip()
+        if not value:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+
+    return sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+
+
+def keyword_counts(rows, limit=10):
+    counts = {}
+    for row in rows:
+        keywords = str(row.get("keywords") or "")
+        for kw in keywords.split(","):
+            key = kw.strip().lower()
+            if not key:
+                continue
+            counts[key] = counts.get(key, 0) + 1
+    return sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+
+
+def render_count_table(title, data, col_name):
+    st.markdown(f"#### {title}")
+    if not data:
+        st.info("No data yet.")
+        return
+
+    st.table([
+        {col_name: item[0], "Count": item[1]}
+        for item in data
+    ])
+
+
+
 # ============================================================
 # Supabase Chat History Helpers
 # ============================================================
@@ -2414,7 +2541,7 @@ if assistant == "⚙️ Admin Panel":
     st.caption("Manage users and upload new documents into your AI knowledge base.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["👥 Manage Users", "📚 Upload Knowledge", "🧠 Learned Knowledge"])
+    tab1, tab2, tab3, tab4 = st.tabs(["👥 Manage Users", "📚 Upload Knowledge", "🧠 Learned Knowledge", "📊 Analytics"])
 
     with tab1:
         st.markdown("### Current Users")
@@ -2559,6 +2686,134 @@ if assistant == "⚙️ Admin Panel":
             st.info("Create the learned_knowledge table in Supabase first.")
 
 
+
+    with tab4:
+        st.markdown("### 📊 AutoTecPro AI Analytics")
+        st.caption("Tracks what staff asks, what the AI learns, recurring issues, unanswered questions, and confidence trend.")
+
+        try:
+            analytics_rows = (
+                supabase
+                .table("ai_analytics")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(500)
+                .execute()
+                .data
+            ) or []
+
+            learned_rows_for_analytics = (
+                supabase
+                .table("learned_knowledge")
+                .select("*")
+                .order("updated_at", desc=True)
+                .limit(500)
+                .execute()
+                .data
+            ) or []
+
+            total_questions = len(analytics_rows)
+            unanswered_count = len([r for r in analytics_rows if r.get("was_unanswered")])
+            learned_count = len([r for r in analytics_rows if r.get("learned")])
+            avg_confidence = round(
+                sum([int(r.get("confidence_score") or 0) for r in analytics_rows]) / max(total_questions, 1)
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Questions", total_questions)
+            c2.metric("Unanswered", unanswered_count)
+            c3.metric("Learned Events", learned_count)
+            c4.metric("Avg Confidence", f"{avg_confidence}%")
+
+            st.markdown("---")
+
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                render_count_table(
+                    "Most Common Vehicle Models",
+                    top_counts(analytics_rows + learned_rows_for_analytics, "vehicle", 10),
+                    "Vehicle"
+                )
+
+                render_count_table(
+                    "Most Searched Products",
+                    top_counts(analytics_rows, "product", 10),
+                    "Product"
+                )
+
+                render_count_table(
+                    "Top Keywords",
+                    keyword_counts(analytics_rows + learned_rows_for_analytics, 10),
+                    "Keyword"
+                )
+
+            with col_b:
+                render_count_table(
+                    "Top Recurring Issues",
+                    top_counts(analytics_rows + learned_rows_for_analytics, "issue", 10),
+                    "Issue"
+                )
+
+                frequent_solutions = sorted(
+                    [
+                        r for r in learned_rows_for_analytics
+                        if r.get("solution")
+                    ],
+                    key=lambda r: int(r.get("times_seen") or 1),
+                    reverse=True
+                )[:10]
+
+                st.markdown("#### Frequently Used / Improved Solutions")
+                if frequent_solutions:
+                    for row in frequent_solutions:
+                        st.write(
+                            f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
+                            f"｜ Seen: {row.get('times_seen') or 1} "
+                            f"｜ Confidence: {row.get('confidence_score') or 0}%"
+                        )
+                else:
+                    st.info("No learned solutions yet.")
+
+            st.markdown("---")
+            st.markdown("#### Unanswered Questions")
+
+            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")][:20]
+            if unanswered_rows:
+                for row in unanswered_rows:
+                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:80]}"):
+                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                        st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
+                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                        st.markdown("**Question**")
+                        st.write(row.get("question") or "")
+                        st.markdown("**AI Answer**")
+                        st.write(row.get("answer") or "")
+            else:
+                st.success("No unanswered questions logged yet.")
+
+            st.markdown("---")
+            st.markdown("#### AI Confidence Trends")
+
+            trend_rows = list(reversed(analytics_rows[:50]))
+            if trend_rows:
+                chart_data = [
+                    {
+                        "Case": idx + 1,
+                        "Confidence": int(row.get("confidence_score") or 0)
+                    }
+                    for idx, row in enumerate(trend_rows)
+                ]
+                st.line_chart(chart_data, x="Case", y="Confidence")
+            else:
+                st.info("No confidence trend data yet.")
+
+        except Exception as e:
+            st.warning(f"Could not load analytics: {e}")
+            st.info("Create the ai_analytics table in Supabase first.")
+
+
+
 # ============================================================
 # Main Chat UI
 # ============================================================
@@ -2637,6 +2892,7 @@ else:
         # Continuous Learning:
         # Automatically extracts reusable knowledge, detects duplicates,
         # improves existing records, and syncs final knowledge to OpenAI Vector Store.
+        learning_result = None
         try:
             learning_result = auto_learn_from_latest_answer(prompt, answer, assistant)
             if learning_result and learning_result.get("learned"):
@@ -2644,5 +2900,13 @@ else:
                 st.toast(f"AI learned from this case ({mode}).", icon="🧠")
         except Exception as e:
             st.warning(f"AI learning skipped: {e}")
+
+        # Analytics:
+        # Tracks most common vehicles, recurring issues, searched products,
+        # unanswered questions, confidence trend, and learning performance.
+        try:
+            log_ai_analytics(prompt, answer, assistant, learning_result)
+        except Exception:
+            pass
 
         st.rerun()
