@@ -2,6 +2,7 @@ import streamlit as st
 from openai import OpenAI
 from pathlib import Path
 import base64
+import html
 from datetime import datetime, timezone
 from config import supabase
 
@@ -168,12 +169,103 @@ def inject_base_css():
             letter-spacing: .2px;
         }
 
+        /* Hide default Streamlit chat message shells if any old calls remain */
         [data-testid="stChatMessage"] {
-            background: rgba(15, 23, 42, 0.40);
-            border: 1px solid rgba(148, 163, 184, 0.12);
-            border-radius: 18px;
-            padding: 12px;
-            margin-bottom: 12px;
+            display: none !important;
+        }
+
+        .chat-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin: 18px 0;
+            width: 100%;
+        }
+
+        .chat-icon {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+        }
+
+        .user-icon {
+            background: linear-gradient(135deg, #ff5a2f 0%, #ef233c 100%);
+            color: white;
+        }
+
+        .assistant-icon {
+            background: linear-gradient(135deg, #ffd43b 0%, #f59e0b 100%);
+            color: #111827;
+        }
+
+        .chat-bubble {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.74);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            padding: 15px 18px;
+            color: #f8fafc;
+            line-height: 1.58;
+            overflow-wrap: anywhere;
+            box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+        }
+
+        .user-bubble {
+            background: rgba(30, 64, 175, 0.34);
+            border-color: rgba(96, 165, 250, 0.22);
+        }
+
+        .assistant-bubble {
+            background: rgba(15, 23, 42, 0.58);
+            border-color: rgba(245, 158, 11, 0.22);
+        }
+
+        .chat-bubble h1,
+        .chat-bubble h2,
+        .chat-bubble h3 {
+            margin-top: 8px;
+            margin-bottom: 10px;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+
+        .chat-bubble ul {
+            margin-top: 6px;
+            margin-bottom: 10px;
+            padding-left: 22px;
+        }
+
+        .chat-bubble li {
+            margin-bottom: 5px;
+        }
+
+        .assistant-section-card {
+            background: rgba(15, 23, 42, 0.52);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 20px;
+            padding: 22px 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 18px 45px rgba(0,0,0,0.18);
+        }
+
+        .assistant-section-title {
+            color: #ffffff;
+            font-size: 31px;
+            font-weight: 850;
+            margin: 0 0 8px 0;
+        }
+
+        .assistant-section-subtitle {
+            color: #94a3b8;
+            font-size: 15px;
+            margin: 0;
         }
 
         [data-testid="stFileUploader"] {
@@ -295,6 +387,140 @@ def get_logo_base64():
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+def html_from_text(text):
+    """Small markdown-like renderer for custom chat bubbles without extra dependencies."""
+    if text is None:
+        return ""
+
+    lines = str(text).splitlines()
+    html_lines = []
+    in_ul = False
+
+    def close_ul():
+        nonlocal in_ul
+        if in_ul:
+            html_lines.append("</ul>")
+            in_ul = False
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+
+        if not line.strip():
+            close_ul()
+            html_lines.append("<br>")
+            continue
+
+        stripped = line.strip()
+
+        if stripped.startswith("### "):
+            close_ul()
+            html_lines.append(f"<h3>{html.escape(stripped[4:])}</h3>")
+        elif stripped.startswith("## "):
+            close_ul()
+            html_lines.append(f"<h2>{html.escape(stripped[3:])}</h2>")
+        elif stripped.startswith("# "):
+            close_ul()
+            html_lines.append(f"<h1>{html.escape(stripped[2:])}</h1>")
+        elif stripped.startswith("- ") or stripped.startswith("• "):
+            if not in_ul:
+                html_lines.append("<ul>")
+                in_ul = True
+            html_lines.append(f"<li>{html.escape(stripped[2:])}</li>")
+        else:
+            close_ul()
+            # Basic bold support for **text**
+            safe = html.escape(stripped)
+            parts = safe.split("**")
+            if len(parts) > 1:
+                rebuilt = ""
+                for i, part in enumerate(parts):
+                    rebuilt += f"<strong>{part}</strong>" if i % 2 else part
+                safe = rebuilt
+            html_lines.append(f"<div>{safe}</div>")
+
+    close_ul()
+    return "\n".join(html_lines)
+
+
+def render_chat_message(role, content):
+    if role == "user":
+        icon = "😊"
+        icon_class = "user-icon"
+        bubble_class = "user-bubble"
+    else:
+        icon = "🤖"
+        icon_class = "assistant-icon"
+        bubble_class = "assistant-bubble"
+
+    st.markdown(
+        f"""
+        <div class="chat-row">
+            <div class="chat-icon {icon_class}">{icon}</div>
+            <div class="chat-bubble {bubble_class}">
+                {html_from_text(content)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def create_login_session(username, role):
+    result = supabase.table("login_sessions").insert({
+        "username": username,
+        "role": role,
+        "active": True,
+        "created_at": now_iso()
+    }).execute()
+    return result.data[0]["id"]
+
+
+def restore_login_session():
+    token = st.query_params.get("session")
+    if not token:
+        return
+
+    try:
+        result = (
+            supabase
+            .table("login_sessions")
+            .select("*")
+            .eq("id", token)
+            .eq("active", True)
+            .execute()
+        )
+
+        if result.data:
+            session = result.data[0]
+            st.session_state.logged_in = True
+            st.session_state.username = session["username"]
+            st.session_state.role = session["role"]
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+            if "conversation_id" not in st.session_state:
+                st.session_state.conversation_id = None
+    except Exception:
+        # If the login_sessions table does not exist yet, fall back to normal login.
+        return
+
+
+def logout_user():
+    token = st.query_params.get("session")
+
+    if token:
+        try:
+            supabase.table("login_sessions").update({
+                "active": False
+            }).eq("id", token).execute()
+        except Exception:
+            pass
+
+    st.query_params.clear()
+    st.session_state.logged_in = False
+    st.session_state.messages = []
+    st.session_state.conversation_id = None
+    st.rerun()
+
 
 # ============================================================
 # Login Screen
@@ -357,6 +583,13 @@ def login_screen():
 
             if result.data:
                 user = result.data[0]
+                try:
+                    session_id = create_login_session(user["username"], user["role"])
+                    st.query_params["session"] = session_id
+                except Exception:
+                    # If login_sessions table is not created yet, login still works for this session.
+                    pass
+
                 st.session_state.logged_in = True
                 st.session_state.username = user["username"]
                 st.session_state.role = user["role"]
@@ -381,6 +614,9 @@ def login_screen():
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    restore_login_session()
 
 if not st.session_state.logged_in:
     login_screen()
@@ -469,10 +705,7 @@ if st.sidebar.button("🧹 New Case / Clear Chat"):
     st.rerun()
 
 if st.sidebar.button("Logout"):
-    st.session_state.logged_in = False
-    st.session_state.messages = []
-    st.session_state.conversation_id = None
-    st.rerun()
+    logout_user()
 
 # ============================================================
 # AI Helper Functions
@@ -803,10 +1036,17 @@ if assistant == "⚙️ Admin Panel":
 
 else:
 
-    st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
-    st.subheader(assistant)
-    st.caption("Upload photos, PDFs, or TXT files, then ask AutoTecPro AI for support.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="assistant-section-card">
+            <div class="assistant-section-title">{assistant}</div>
+            <p class="assistant-section-subtitle">
+                Upload photos, PDFs, or TXT files, then ask AutoTecPro AI for support.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     uploaded_files = st.file_uploader(
         "📎 Attach files or photos",
@@ -816,51 +1056,52 @@ else:
     )
 
     for msg in st.session_state.messages:
-        avatar = "👤" if msg["role"] == "user" else "🤖"
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+        render_chat_message(msg["role"], msg["content"])
 
     prompt = st.chat_input("Message AutoTecPro AI...")
-    send_button = st.button("Ask AI", use_container_width=True)
 
-    if prompt or send_button:
-        if not prompt and not uploaded_files:
-            st.warning("Please type a message or upload a file.")
-        else:
-            user_display = prompt if prompt else "[Uploaded file only]"
+    if prompt:
+        user_display = prompt
 
-            if uploaded_files:
-                file_names = ", ".join([file.name for file in uploaded_files])
-                user_display += f"\n\n📎 Attached: {file_names}"
+        if uploaded_files:
+            file_names = ", ".join([file.name for file in uploaded_files])
+            user_display += f"\n\n📎 Attached: {file_names}"
 
-            if st.session_state.conversation_id is None:
-                try:
-                    st.session_state.conversation_id = create_conversation(
-                        st.session_state.username,
-                        assistant,
-                        user_display
-                    )
-                except Exception:
-                    st.session_state.conversation_id = None
-
-            st.session_state.messages.append({"role": "user", "content": user_display})
-
+        if st.session_state.conversation_id is None:
             try:
-                save_message(st.session_state.conversation_id, "user", user_display)
+                st.session_state.conversation_id = create_conversation(
+                    st.session_state.username,
+                    assistant,
+                    user_display
+                )
             except Exception:
-                pass
+                st.session_state.conversation_id = None
 
-            with st.chat_message("user", avatar="👤"):
-                st.markdown(user_display)
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_display
+        })
 
-            with st.chat_message("assistant", avatar="🤖"):
-                with st.spinner("Searching AutoTecPro knowledge base..."):
-                    answer = ask_ai(prompt, uploaded_files)
-                    st.markdown(answer)
+        try:
+            save_message(st.session_state.conversation_id, "user", user_display)
+        except Exception:
+            pass
 
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+        render_chat_message("user", user_display)
 
-            try:
-                save_message(st.session_state.conversation_id, "assistant", answer)
-            except Exception:
-                pass
+        with st.spinner("Searching AutoTecPro knowledge base..."):
+            answer = ask_ai(prompt, uploaded_files)
+
+        render_chat_message("assistant", answer)
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": answer
+        })
+
+        try:
+            save_message(st.session_state.conversation_id, "assistant", answer)
+        except Exception:
+            pass
+
+        st.rerun()
