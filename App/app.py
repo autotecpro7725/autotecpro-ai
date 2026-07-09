@@ -8,6 +8,9 @@ except Exception:
 import base64
 import html
 from datetime import datetime, timezone
+import tempfile
+import os
+import re
 from config import supabase
 
 # ============================================================
@@ -977,6 +980,31 @@ def inject_base_css():
             min-height: 32px !important;
             font-size: 12px !important;
             border-radius: 8px !important;
+        }
+
+        /* ============================================================
+           AI Learning Engine UI
+        ============================================================ */
+        .learning-card {
+            background: rgba(15, 23, 42, 0.58);
+            border: 1px solid rgba(34, 197, 94, 0.22);
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin: 14px 0 18px 50px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+        }
+
+        .learning-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #dcfce7;
+            margin-bottom: 4px;
+        }
+
+        .learning-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 10px;
         }
 </style>
         """,
@@ -1989,7 +2017,7 @@ if assistant == "⚙️ Admin Panel":
     st.caption("Manage users and upload new documents into your AI knowledge base.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["👥 Manage Users", "📚 Upload Knowledge"])
+    tab1, tab2, tab3 = st.tabs(["👥 Manage Users", "📚 Upload Knowledge", "🧠 Learned Knowledge"])
 
     with tab1:
         st.markdown("### Current Users")
@@ -2067,6 +2095,48 @@ if assistant == "⚙️ Admin Panel":
                     except Exception as e:
                         st.error(f"Failed to upload {admin_file.name}: {e}")
 
+
+    with tab3:
+        st.markdown("### 🧠 Learned Knowledge")
+        st.caption("Approved answers saved by staff and synced to OpenAI Vector Store.")
+
+        try:
+            learned_rows = (
+                supabase
+                .table("learned_knowledge")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(50)
+                .execute()
+                .data
+            )
+
+            if learned_rows:
+                for row in learned_rows:
+                    title = row.get("question") or "Approved Knowledge"
+                    vehicle = row.get("vehicle") or "Vehicle not specified"
+                    assistant_name = row.get("assistant") or ""
+                    synced = row.get("synced")
+                    created_at = (row.get("created_at") or "")[:10]
+
+                    with st.expander(f"{vehicle} | {title[:80]}"):
+                        st.write(f"**Assistant:** {assistant_name}")
+                        st.write(f"**Created:** {created_at}")
+                        st.write(f"**Synced:** {synced}")
+                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                        st.markdown("**Question**")
+                        st.write(row.get("question") or "")
+                        st.markdown("**Approved Answer**")
+                        st.write(row.get("approved_answer") or "")
+                        st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+            else:
+                st.info("No learned knowledge saved yet.")
+
+        except Exception as e:
+            st.warning(f"Could not load learned knowledge: {e}")
+            st.info("Create the learned_knowledge table in Supabase first.")
+
+
 # ============================================================
 # Main Chat UI
 # ============================================================
@@ -2094,6 +2164,8 @@ else:
 
     for msg in st.session_state.messages:
         render_chat_message(msg["role"], msg["content"])
+
+    render_learning_panel(assistant)
 
     prompt = st.chat_input("Message AutoTecPro AI...")
 
