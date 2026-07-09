@@ -4,38 +4,21 @@ from pathlib import Path
 import base64
 from config import supabase
 
-# ============================================================
-# File Paths
-# ============================================================
-
 BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
-
-API_KEY_FILE = BASE_DIR / "Config" / "apikey.txt"
 LOGO_FILE = APP_DIR / "logo.png"
 
-api_key = API_KEY_FILE.read_text().strip()
+# OpenAI API Key - Streamlit Cloud
+api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
-
-# ============================================================
-# Vector Store IDs
-# ============================================================
 
 TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
-
-# ============================================================
-# Page Setup
-# ============================================================
 
 st.set_page_config(
     page_title="AutoTecPro AI",
     layout="wide"
 )
-
-# ============================================================
-# Supabase Login
-# ============================================================
 
 def login_screen():
     st.title("AutoTecPro AI Login")
@@ -56,16 +39,13 @@ def login_screen():
 
         if result.data:
             user = result.data[0]
-
             st.session_state.logged_in = True
             st.session_state.username = user["username"]
             st.session_state.role = user["role"]
             st.session_state.messages = []
-
             st.rerun()
         else:
             st.error("Invalid username or password.")
-
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -73,10 +53,6 @@ if "logged_in" not in st.session_state:
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
-
-# ============================================================
-# Header
-# ============================================================
 
 with open(LOGO_FILE, "rb") as f:
     logo_base64 = base64.b64encode(f.read()).decode()
@@ -98,10 +74,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-# ============================================================
-# Sidebar
-# ============================================================
 
 st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
 st.sidebar.write(f"Role: **{st.session_state.role}**")
@@ -137,14 +109,9 @@ if st.session_state.current_assistant != assistant:
     st.session_state.current_assistant = assistant
     st.rerun()
 
-# ============================================================
-# Helper Functions
-# ============================================================
-
 def image_to_data_url(uploaded_file):
     encoded = base64.b64encode(uploaded_file.getvalue()).decode()
     return f"data:{uploaded_file.type};base64,{encoded}"
-
 
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -190,7 +157,6 @@ Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
 """
 
-
 def build_user_input(prompt_text, uploaded_files):
     content = []
 
@@ -213,13 +179,11 @@ def build_user_input(prompt_text, uploaded_files):
 
     if uploaded_files:
         for uploaded_file in uploaded_files:
-
             if uploaded_file.type.startswith("image/"):
                 content.append({
                     "type": "input_image",
                     "image_url": image_to_data_url(uploaded_file)
                 })
-
             else:
                 uploaded_openai_file = client.files.create(
                     file=uploaded_file,
@@ -237,7 +201,6 @@ def build_user_input(prompt_text, uploaded_files):
             "content": content
         }
     ]
-
 
 def ask_ai(prompt_text, uploaded_files):
     user_input = build_user_input(prompt_text, uploaded_files)
@@ -278,7 +241,6 @@ def ask_ai(prompt_text, uploaded_files):
 
     return response.output_text
 
-
 def upload_to_vector_store(uploaded_file, vector_store_id):
     openai_file = client.files.create(
         file=uploaded_file,
@@ -291,10 +253,6 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     )
 
     return openai_file.id
-
-# ============================================================
-# Admin Panel
-# ============================================================
 
 if assistant == "⚙️ Admin Panel":
 
@@ -391,10 +349,6 @@ if assistant == "⚙️ Admin Panel":
                         st.success(f"Uploaded: {admin_file.name} | File ID: {file_id}")
                     except Exception as e:
                         st.error(f"Failed to upload {admin_file.name}: {e}")
-
-# ============================================================
-# Main Chat UI
-# ============================================================
 
 else:
 
