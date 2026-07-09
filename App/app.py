@@ -1660,6 +1660,70 @@ def inject_base_css():
             display: none !important;
         }
 
+
+        /* ============================================================
+           ChatGPT-style Customer Reply copy icon
+        ============================================================ */
+        .copyable-reply-card {
+            position: relative;
+            margin-top: 12px;
+            padding: 14px 44px 14px 14px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .copyable-reply-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+
+        .copyable-reply-body {
+            color: #f8fafc;
+            line-height: 1.58;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-size: 15px;
+        }
+
+        .copy-icon-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(15, 23, 42, 0.55);
+            color: #cbd5e1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.55;
+            transition: all 140ms ease;
+        }
+
+        .copy-icon-btn:hover {
+            opacity: 1;
+            background: rgba(30, 41, 59, 0.95);
+            color: #ffffff;
+            border-color: rgba(148, 163, 184, 0.32);
+        }
+
+        .copy-icon-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2;
+        }
+
+        .copy-icon-check {
+            color: #22c55e !important;
+            border-color: rgba(34, 197, 94, 0.28) !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -2025,6 +2089,84 @@ def html_from_text(text):
     return rendered
 
 
+
+def split_customer_reply_draft(content):
+    """
+    Split an assistant answer into:
+    - before_text: all analysis/identification sections before Customer Reply Draft
+    - reply_text: only the customer-ready reply text
+    This lets the copy icon copy only the customer message.
+    """
+    text = clean_visible_chat_text(content)
+
+    # Match common heading formats:
+    # Customer Reply Draft
+    # ## Customer Reply Draft
+    # ### Customer Reply Draft
+    match = re.search(
+        r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
+        text
+    )
+
+    if not match:
+        return text, ""
+
+    before_text = text[:match.start()].rstrip()
+    after_text = text[match.end():].strip()
+
+    # If another major heading appears after the reply, stop there.
+    next_heading = re.search(
+        r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
+        after_text
+    )
+    if next_heading:
+        reply_text = after_text[:next_heading.start()].strip()
+    else:
+        reply_text = after_text.strip()
+
+    reply_text = clean_visible_chat_text(reply_text)
+    return before_text, reply_text
+
+
+def render_customer_reply_card(reply_text):
+    """
+    Render Customer Reply Draft with a ChatGPT-style double-square copy icon.
+    The icon copies only the reply body.
+    """
+    if not reply_text:
+        return ""
+
+    safe_reply_html = html_from_text(reply_text)
+    reply_json = json.dumps(reply_text)
+
+    copy_icon = """
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    """
+
+    return f"""
+    <div class="copyable-reply-card">
+        <button class="copy-icon-btn" type="button" title="Copy reply" aria-label="Copy reply"
+            onclick='
+                navigator.clipboard.writeText({reply_json});
+                this.classList.add("copy-icon-check");
+                this.innerHTML = "✓";
+                setTimeout(() => {{
+                    this.classList.remove("copy-icon-check");
+                    this.innerHTML = `{copy_icon}`;
+                }}, 1400);
+            '>
+            {copy_icon}
+        </button>
+        <div class="copyable-reply-title">Customer Reply Draft</div>
+        <div class="copyable-reply-body">{safe_reply_html}</div>
+    </div>
+    """
+
+
+
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
@@ -2034,6 +2176,7 @@ def render_chat_message(role, content, images=None):
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
+        bubble_html = html_from_text(visible_content)
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2043,12 +2186,17 @@ def render_chat_message(role, content, images=None):
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
+        before_text, reply_text = split_customer_reply_draft(visible_content)
+        bubble_html = html_from_text(before_text)
+        if reply_text:
+            bubble_html += render_customer_reply_card(reply_text)
+
     st.markdown(
         f"""
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {html_from_text(visible_content)}
+                {bubble_html}
                 {render_image_previews(final_images)}
             </div>
         </div>
@@ -2242,6 +2390,33 @@ if logo_base64:
 else:
     st.title("AutoTecPro AI")
     st.caption("Internal AI Assistant for AutoTecPro")
+
+
+def install_keyboard_copy_guard():
+    """
+    Prevent Streamlit from treating Ctrl+C / Cmd+C as an app shortcut.
+    This allows normal text copying without opening Streamlit's Clear caches modal.
+    """
+    components.html(
+        """
+        <script>
+        const doc = window.parent.document;
+        if (!window.parent.__atpCopyShortcutGuardInstalled) {
+            window.parent.__atpCopyShortcutGuardInstalled = true;
+
+            doc.addEventListener("keydown", function(e) {
+                const key = (e.key || "").toLowerCase();
+                if ((e.ctrlKey || e.metaKey) && key === "c") {
+                    e.stopImmediatePropagation();
+                }
+            }, true);
+        }
+        </script>
+        """,
+        height=0,
+    )
+
+
 
 # ============================================================
 # Session Defaults
