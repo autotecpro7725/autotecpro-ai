@@ -1626,8 +1626,32 @@ def html_from_text(text):
     return "\n".join(html_lines)
 
 
+def clean_visible_chat_text(text):
+    """
+    Remove accidental raw HTML closing/opening tags from AI replies.
+    This prevents visible artifacts like </div> from showing in chat bubbles.
+    """
+    value = str(text or "")
+
+    # Remove common standalone HTML tags that sometimes leak into LLM output.
+    cleaned_lines = []
+    for line in value.splitlines():
+        stripped = line.strip()
+        if re.fullmatch(r"</?(div|span|p|br|section|article|main|body|html)[^>]*>", stripped, flags=re.IGNORECASE):
+            continue
+        cleaned_lines.append(line)
+
+    value = "\n".join(cleaned_lines)
+
+    # Also remove repeated closing tags if they appear inline at the very end.
+    value = re.sub(r"(\s*</div>\s*)+$", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"(\s*</p>\s*)+$", "", value, flags=re.IGNORECASE)
+    return value.strip()
+
+
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
+    visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
 
     if role == "user":
@@ -2052,6 +2076,7 @@ Answer in this order when useful:
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
+Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
 """
 
     if selected_assistant == "📈 Sales & Marketing":
@@ -2065,6 +2090,7 @@ dealer messages, customer replies, Amazon listings, website copy,
 social media, promotions, warranty, and return policy.
 
 Never invent pricing or compatibility.
+Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
 """
 
     return """
@@ -2074,6 +2100,7 @@ Analyze uploaded images when provided.
 
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
+Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
 """
 
 
@@ -3596,6 +3623,7 @@ else:
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
             answer = ask_ai(prompt, uploaded_files)
+            answer = clean_visible_chat_text(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
 
