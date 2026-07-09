@@ -18,12 +18,12 @@ BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
 
-PAGE_ICON = "🤖"
+PAGE_ICON = "🚗"
 if Image is not None and LOGO_FILE.exists():
     try:
         PAGE_ICON = Image.open(LOGO_FILE)
     except Exception:
-        PAGE_ICON = "🤖"
+        PAGE_ICON = "🚗"
 
 api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
@@ -179,27 +179,27 @@ def inject_base_css():
         }
 
         .app-header img {
-            width: 92px;
-            height: 92px;
-            border-radius: 18px;
+            width: 76px;
+            height: 76px;
+            border-radius: 16px;
             object-fit: contain;
         }
 
         .app-title {
             margin: 0;
             padding: 0;
-            font-size: 46px;
+            font-size: 38px;
             font-weight: 850;
-            letter-spacing: -1px;
-            line-height: 1.02;
+            letter-spacing: -0.7px;
+            line-height: 1.05;
             color: #ffffff;
         }
 
         .app-subtitle {
-            margin-top: 8px;
-            width: 260px;
+            margin-top: 6px;
+            width: 240px;
             color: #9CA3AF;
-            font-size: 16px;
+            font-size: 14px;
             line-height: 1.3;
         }
 
@@ -254,6 +254,18 @@ def inject_base_css():
             transform: none;
         }
 
+
+        /* Sidebar history delete icon */
+        div[data-testid="stSidebar"] div[data-testid="column"]:last-child .stButton > button {
+            min-height: 38px;
+            padding: 8px 0 !important;
+            text-align: center !important;
+            justify-content: center !important;
+            font-size: 15px;
+            background: rgba(127, 29, 29, 0.46) !important;
+            border-color: rgba(248, 113, 113, 0.25) !important;
+        }
+
         /* Hide default Streamlit chat message shells if any old calls remain */
         [data-testid="stChatMessage"] {
             display: none !important;
@@ -262,23 +274,23 @@ def inject_base_css():
         .chat-row {
             display: flex;
             align-items: flex-start;
-            gap: 14px;
-            margin: 18px 0;
+            gap: 12px;
+            margin: 14px 0;
             width: 100%;
         }
 
         .chat-icon {
-            width: 54px;
-            height: 54px;
-            min-width: 54px;
-            border-radius: 16px;
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            border-radius: 13px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 32px;
+            font-size: 23px;
             line-height: 1;
             font-weight: 800;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.20);
         }
 
         .user-icon {
@@ -293,9 +305,9 @@ def inject_base_css():
         }
 
         .assistant-icon img {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
             object-fit: contain;
             display: block;
         }
@@ -304,12 +316,13 @@ def inject_base_css():
             width: 100%;
             background: rgba(30, 41, 59, 0.74);
             border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 16px;
-            padding: 15px 18px;
+            border-radius: 15px;
+            padding: 12px 15px;
             color: #f8fafc;
-            line-height: 1.58;
+            font-size: 15px;
+            line-height: 1.62;
             overflow-wrap: anywhere;
-            box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.13);
         }
 
         .user-bubble {
@@ -322,23 +335,44 @@ def inject_base_css():
             border-color: rgba(245, 158, 11, 0.22);
         }
 
-        .chat-bubble h1,
-        .chat-bubble h2,
-        .chat-bubble h3 {
-            margin-top: 8px;
+        .chat-bubble h1 {
+            font-size: 24px;
+            margin-top: 6px;
             margin-bottom: 10px;
             color: #ffffff;
-            line-height: 1.2;
+            line-height: 1.25;
+        }
+
+        .chat-bubble h2 {
+            font-size: 21px;
+            margin-top: 6px;
+            margin-bottom: 9px;
+            color: #ffffff;
+            line-height: 1.28;
+        }
+
+        .chat-bubble h3 {
+            font-size: 18px;
+            margin-top: 6px;
+            margin-bottom: 8px;
+            color: #ffffff;
+            line-height: 1.3;
+        }
+
+        .chat-bubble div,
+        .chat-bubble li {
+            font-size: 15px;
+            line-height: 1.62;
         }
 
         .chat-bubble ul {
-            margin-top: 6px;
-            margin-bottom: 10px;
-            padding-left: 22px;
+            margin-top: 5px;
+            margin-bottom: 9px;
+            padding-left: 20px;
         }
 
         .chat-bubble li {
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .assistant-section-card {
@@ -352,14 +386,14 @@ def inject_base_css():
 
         .assistant-section-title {
             color: #ffffff;
-            font-size: 31px;
+            font-size: 26px;
             font-weight: 850;
-            margin: 0 0 8px 0;
+            margin: 0 0 7px 0;
         }
 
         .assistant-section-subtitle {
             color: #94a3b8;
-            font-size: 15px;
+            font-size: 14px;
             margin: 0;
         }
 
@@ -547,7 +581,7 @@ def render_chat_message(role, content):
         if logo_base64:
             icon_html = f'<img src="data:image/png;base64,{logo_base64}" alt="AutoTecPro AI">'
         else:
-            icon_html = "🤖"
+            icon_html = "ATP"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
@@ -1052,6 +1086,16 @@ def archive_conversation(conversation_id):
         }).eq("id", conversation_id).execute()
 
 
+def delete_conversation(conversation_id):
+    """Permanently delete a conversation and all messages."""
+    if not conversation_id:
+        return
+
+    # Delete messages first. The database should also cascade, but this keeps it explicit.
+    supabase.table("messages").delete().eq("conversation_id", conversation_id).execute()
+    supabase.table("conversations").delete().eq("id", conversation_id).execute()
+
+
 def get_current_conversation_title():
     cid = st.session_state.get("conversation_id")
     if not cid:
@@ -1115,10 +1159,21 @@ if assistant != "⚙️ Admin Panel":
 
                 label = " ".join(label_parts)
 
-                if st.sidebar.button(label, key=f"convo_{convo['id']}"):
-                    st.session_state.conversation_id = convo["id"]
-                    st.session_state.messages = load_messages(convo["id"])
-                    st.rerun()
+                history_cols = st.sidebar.columns([0.82, 0.18], gap="small")
+
+                with history_cols[0]:
+                    if st.button(label, key=f"convo_{convo['id']}"):
+                        st.session_state.conversation_id = convo["id"]
+                        st.session_state.messages = load_messages(convo["id"])
+                        st.rerun()
+
+                with history_cols[1]:
+                    if st.button("🗑", key=f"delete_{convo['id']}", help="Delete this chat"):
+                        delete_conversation(convo["id"])
+                        if st.session_state.conversation_id == convo["id"]:
+                            st.session_state.conversation_id = None
+                            st.session_state.messages = []
+                        st.rerun()
         else:
             st.sidebar.caption("No saved cases yet.")
 
