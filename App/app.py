@@ -1099,6 +1099,140 @@ def inject_base_css():
             max-width: 24px !important;
         }
 
+
+        /* ============================================================
+           MOBILE FIX: readable sidebar/history text on phones
+           Desktop is not affected because this only applies <= 768px
+        ============================================================ */
+        @media (max-width: 768px) {
+            /* Main mobile form/input readability */
+            input,
+            textarea,
+            div[data-testid="stTextInputRootElement"] input,
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                color: #111827 !important;
+                -webkit-text-fill-color: #111827 !important;
+                caret-color: #ef4444 !important;
+            }
+
+            input::placeholder,
+            textarea::placeholder,
+            div[data-testid="stChatInput"] textarea::placeholder,
+            div[data-testid="stChatInput"] input::placeholder {
+                color: #6b7280 !important;
+                -webkit-text-fill-color: #6b7280 !important;
+                opacity: 1 !important;
+            }
+
+            div[data-testid="stChatInput"],
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                background: #ffffff !important;
+                border-color: rgba(239, 68, 68, 0.85) !important;
+            }
+
+            /* Upload widget readability on iPhone Safari */
+            div[data-testid="stFileUploader"] section {
+                background: #f8fafc !important;
+            }
+
+            div[data-testid="stFileUploader"] button,
+            div[data-testid="stFileUploader"] button *,
+            div[data-testid="stFileUploader"] small,
+            div[data-testid="stFileUploader"] span,
+            div[data-testid="stFileUploader"] p {
+                color: #111827 !important;
+                -webkit-text-fill-color: #111827 !important;
+                opacity: 1 !important;
+            }
+
+            /* Sidebar background and general sidebar text */
+            section[data-testid="stSidebar"] {
+                background: #0b1220 !important;
+            }
+
+            section[data-testid="stSidebar"],
+            section[data-testid="stSidebar"] * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* History headings */
+            .history-title,
+            .history-section-label {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            .history-count,
+            .history-current-note,
+            .history-scroll-note {
+                color: #cbd5e1 !important;
+                -webkit-text-fill-color: #cbd5e1 !important;
+                opacity: 1 !important;
+            }
+
+            /* History row buttons */
+            section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button,
+            section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button *,
+            section[data-testid="stSidebar"] .stButton > button,
+            section[data-testid="stSidebar"] .stButton > button * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* Three-dot menu button */
+            section[data-testid="stSidebar"] div[data-testid="stPopover"] button,
+            section[data-testid="stSidebar"] div[data-testid="stPopover"] button * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* Floating popover menu */
+            div[data-testid="stPopoverBody"],
+            div[data-baseweb="popover"] div[role="dialog"] {
+                background: rgba(32, 33, 35, 0.98) !important;
+            }
+
+            div[data-testid="stPopoverBody"],
+            div[data-testid="stPopoverBody"] *,
+            div[data-baseweb="popover"] div[role="dialog"],
+            div[data-baseweb="popover"] div[role="dialog"] * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            .history-menu-title {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+            }
+
+            /* Sidebar radio/workspace text */
+            section[data-testid="stSidebar"] label,
+            section[data-testid="stSidebar"] label *,
+            section[data-testid="stSidebar"] p,
+            section[data-testid="stSidebar"] span {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* Keep red action buttons readable */
+            .sidebar-newcase-btn .stButton > button,
+            .sidebar-newcase-btn .stButton > button *,
+            .sidebar-logout-btn .stButton > button,
+            .sidebar-logout-btn .stButton > button * {
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+            }
+        }
+
 </style>
         """,
         unsafe_allow_html=True
