@@ -41,47 +41,36 @@ st.markdown(
         background-color: #07111f;
     }
 
-    .login-wrapper {
-        min-height: 85vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+    .block-container {
+        max-width: 660px !important;
+        padding-top: 70px !important;
+        padding-bottom: 40px !important;
     }
 
     .login-logo {
-        margin-bottom: 22px;
         text-align: center;
+        margin-bottom: 24px;
     }
 
     .login-logo img {
-        width: 340px;
+        width: 300px;
         max-width: 90%;
-    }
-
-    .login-card {
-        width: 520px;
-        max-width: 92%;
-        background: rgba(15, 23, 42, 0.86);
-        border: 1px solid rgba(148, 163, 184, 0.22);
-        border-radius: 22px;
-        padding: 38px 42px;
-        box-shadow: 0 25px 80px rgba(0,0,0,0.45);
-        backdrop-filter: blur(14px);
+        border-radius: 12px;
     }
 
     .login-title {
-        font-size: 31px;
+        text-align: center;
+        font-size: 34px;
         font-weight: 800;
-        margin-bottom: 24px;
         color: #ffffff;
+        margin-bottom: 26px;
     }
 
     .login-footer {
-        margin-top: 26px;
-        color: #94a3b8;
-        font-size: 14px;
         text-align: center;
+        color: #94a3b8;
+        margin-top: 26px;
+        font-size: 14px;
     }
 
     .stTextInput > label {
@@ -90,11 +79,16 @@ st.markdown(
     }
 
     .stTextInput input {
-        background-color: #0f172a !important;
+        background-color: rgba(15, 23, 42, 0.96) !important;
         color: #ffffff !important;
         border: 1px solid #334155 !important;
         border-radius: 10px !important;
         height: 46px;
+    }
+
+    .stTextInput input:focus {
+        border: 1px solid #ef4444 !important;
+        box-shadow: 0 0 0 1px #ef4444 !important;
     }
 
     .stButton > button {
@@ -106,30 +100,12 @@ st.markdown(
         color: white;
         font-weight: 700;
         font-size: 16px;
-        margin-top: 10px;
+        margin-top: 14px;
     }
 
     .stButton > button:hover {
         background: linear-gradient(90deg, #f87171, #ef4444);
         color: white;
-    }
-
-    .hex-left {
-        position: fixed;
-        left: 60px;
-        top: 420px;
-        color: rgba(239,68,68,0.18);
-        font-size: 120px;
-        z-index: 0;
-    }
-
-    .hex-right {
-        position: fixed;
-        right: 70px;
-        bottom: 120px;
-        color: rgba(239,68,68,0.18);
-        font-size: 120px;
-        z-index: 0;
     }
     </style>
     """,
@@ -154,11 +130,6 @@ def get_logo_base64():
 def login_screen():
     logo_base64 = get_logo_base64()
 
-    st.markdown('<div class="hex-left">⬡</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hex-right">⬡</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-
     if logo_base64:
         st.markdown(
             f"""
@@ -172,20 +143,22 @@ def login_screen():
         st.markdown(
             """
             <div class="login-logo">
-                <h1 style="font-size:48px;margin:0;">AutoTecPro</h1>
+                <h1 style="font-size:48px;margin:0;color:white;">AutoTecPro</h1>
                 <p style="color:#94a3b8;margin-top:6px;">Driven by Innovation</p>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">AutoTecPro AI Login</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="login-title">AutoTecPro AI Login</div>',
+        unsafe_allow_html=True
+    )
 
     username = st.text_input("Username", placeholder="Enter your username")
     password = st.text_input("Password", placeholder="Enter your password", type="password")
 
-    if st.button("↪ Login"):
+    if st.button("Login"):
         result = (
             supabase
             .table("users")
@@ -206,9 +179,10 @@ def login_screen():
         else:
             st.error("Invalid username or password.")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="login-footer">© 2026 AutoTecPro. All rights reserved.</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="login-footer">© 2026 AutoTecPro. All rights reserved.</div>',
+        unsafe_allow_html=True
+    )
 
 
 # ============================================================
