@@ -561,10 +561,25 @@ def login_screen():
         unsafe_allow_html=True
     )
 
-    username = st.text_input("Username", placeholder="Enter your username")
-    password = st.text_input("Password", placeholder="Enter your password", type="password")
+    # Streamlit form allows both pressing Enter and clicking Login.
+    with st.form("login_form"):
+        username = st.text_input(
+            "Username",
+            placeholder="Enter your username"
+        )
 
-    if st.button("Login", use_container_width=True):
+        password = st.text_input(
+            "Password",
+            placeholder="Enter your password",
+            type="password"
+        )
+
+        login_submitted = st.form_submit_button(
+            "Login",
+            use_container_width=True
+        )
+
+    if login_submitted:
         username = username.strip()
 
         if not username or not password:
@@ -584,8 +599,12 @@ def login_screen():
 
             if result.data:
                 user = result.data[0]
+
                 try:
-                    session_id = create_login_session(user["username"], user["role"])
+                    session_id = create_login_session(
+                        user["username"],
+                        user["role"]
+                    )
                     st.query_params["session"] = session_id
                 except Exception:
                     # If login_sessions table is not created yet, login still works for this session.
@@ -939,8 +958,8 @@ if assistant != "⚙️ Admin Panel":
                 st.session_state.messages = []
                 st.rerun()
 
-    except Exception:
-        st.sidebar.caption("Chat history unavailable. Create Supabase conversations/messages tables to enable it.")
+    except Exception as e:
+        st.sidebar.error(f"Chat history error: {e}")
 
 # ============================================================
 # Admin Panel
