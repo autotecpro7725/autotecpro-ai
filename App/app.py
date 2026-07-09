@@ -179,27 +179,27 @@ def inject_base_css():
         }
 
         .app-header img {
-            width: 76px;
-            height: 76px;
-            border-radius: 16px;
+            width: 92px;
+            height: 92px;
+            border-radius: 18px;
             object-fit: contain;
         }
 
         .app-title {
             margin: 0;
             padding: 0;
-            font-size: 38px;
+            font-size: 46px;
             font-weight: 850;
-            letter-spacing: -0.7px;
-            line-height: 1.05;
+            letter-spacing: -1px;
+            line-height: 1.02;
             color: #ffffff;
         }
 
         .app-subtitle {
-            margin-top: 6px;
-            width: 240px;
+            margin-top: 8px;
+            width: 260px;
             color: #9CA3AF;
-            font-size: 14px;
+            font-size: 16px;
             line-height: 1.3;
         }
 
@@ -254,18 +254,6 @@ def inject_base_css():
             transform: none;
         }
 
-
-        /* Sidebar history delete icon */
-        div[data-testid="stSidebar"] div[data-testid="column"]:last-child .stButton > button {
-            min-height: 38px;
-            padding: 8px 0 !important;
-            text-align: center !important;
-            justify-content: center !important;
-            font-size: 15px;
-            background: rgba(127, 29, 29, 0.46) !important;
-            border-color: rgba(248, 113, 113, 0.25) !important;
-        }
-
         /* Hide default Streamlit chat message shells if any old calls remain */
         [data-testid="stChatMessage"] {
             display: none !important;
@@ -274,23 +262,23 @@ def inject_base_css():
         .chat-row {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            margin: 14px 0;
+            gap: 14px;
+            margin: 18px 0;
             width: 100%;
         }
 
         .chat-icon {
-            width: 42px;
-            height: 42px;
-            min-width: 42px;
-            border-radius: 13px;
+            width: 54px;
+            height: 54px;
+            min-width: 54px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 23px;
+            font-size: 32px;
             line-height: 1;
             font-weight: 800;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.20);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
         }
 
         .user-icon {
@@ -305,9 +293,9 @@ def inject_base_css():
         }
 
         .assistant-icon img {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
             object-fit: contain;
             display: block;
         }
@@ -316,13 +304,12 @@ def inject_base_css():
             width: 100%;
             background: rgba(30, 41, 59, 0.74);
             border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 15px;
-            padding: 12px 15px;
+            border-radius: 16px;
+            padding: 15px 18px;
             color: #f8fafc;
-            font-size: 15px;
-            line-height: 1.62;
+            line-height: 1.58;
             overflow-wrap: anywhere;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.13);
+            box-shadow: 0 14px 32px rgba(0,0,0,0.16);
         }
 
         .user-bubble {
@@ -335,44 +322,53 @@ def inject_base_css():
             border-color: rgba(245, 158, 11, 0.22);
         }
 
-        .chat-bubble h1 {
-            font-size: 24px;
-            margin-top: 6px;
+        .chat-bubble h1,
+        .chat-bubble h2,
+        .chat-bubble h3 {
+            margin-top: 8px;
             margin-bottom: 10px;
             color: #ffffff;
-            line-height: 1.25;
-        }
-
-        .chat-bubble h2 {
-            font-size: 21px;
-            margin-top: 6px;
-            margin-bottom: 9px;
-            color: #ffffff;
-            line-height: 1.28;
-        }
-
-        .chat-bubble h3 {
-            font-size: 18px;
-            margin-top: 6px;
-            margin-bottom: 8px;
-            color: #ffffff;
-            line-height: 1.3;
-        }
-
-        .chat-bubble div,
-        .chat-bubble li {
-            font-size: 15px;
-            line-height: 1.62;
+            line-height: 1.2;
         }
 
         .chat-bubble ul {
-            margin-top: 5px;
-            margin-bottom: 9px;
-            padding-left: 20px;
+            margin-top: 6px;
+            margin-bottom: 10px;
+            padding-left: 22px;
         }
 
         .chat-bubble li {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
+        }
+
+        .chat-bubble table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 14px 0;
+            font-size: 14px;
+            line-height: 1.45;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+
+        .chat-bubble th {
+            background: rgba(148, 163, 184, 0.18);
+            color: #f8fafc;
+            font-weight: 750;
+            text-align: left;
+            padding: 8px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+        }
+
+        .chat-bubble td {
+            color: #e5e7eb;
+            padding: 8px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            vertical-align: top;
+        }
+
+        .chat-bubble tr:nth-child(even) td {
+            background: rgba(15, 23, 42, 0.22);
         }
 
         .assistant-section-card {
@@ -386,14 +382,14 @@ def inject_base_css():
 
         .assistant-section-title {
             color: #ffffff;
-            font-size: 26px;
+            font-size: 31px;
             font-weight: 850;
-            margin: 0 0 7px 0;
+            margin: 0 0 8px 0;
         }
 
         .assistant-section-subtitle {
             color: #94a3b8;
-            font-size: 14px;
+            font-size: 15px;
             margin: 0;
         }
 
@@ -409,6 +405,139 @@ def inject_base_css():
             color: #94a3b8;
             margin-top: 34px;
             font-size: 14px;
+        }
+
+
+        /* ============================================================
+           Compact ChatGPT-style UI refinements
+        ============================================================ */
+        .chat-row {
+            gap: 10px !important;
+            margin: 12px 0 !important;
+        }
+
+        .chat-icon {
+            width: 40px !important;
+            height: 40px !important;
+            min-width: 40px !important;
+            border-radius: 12px !important;
+            font-size: 22px !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.20) !important;
+        }
+
+        .assistant-icon img {
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 9px !important;
+        }
+
+        .chat-bubble {
+            font-size: 15px !important;
+            line-height: 1.62 !important;
+            padding: 13px 16px !important;
+            border-radius: 14px !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+        }
+
+        .chat-bubble h1 {
+            font-size: 22px !important;
+            line-height: 1.25 !important;
+            margin: 6px 0 10px 0 !important;
+        }
+
+        .chat-bubble h2 {
+            font-size: 19px !important;
+            line-height: 1.28 !important;
+            margin: 12px 0 8px 0 !important;
+        }
+
+        .chat-bubble h3 {
+            font-size: 16px !important;
+            line-height: 1.35 !important;
+            margin: 10px 0 6px 0 !important;
+        }
+
+        .chat-bubble div,
+        .chat-bubble li {
+            font-size: 15px !important;
+        }
+
+        .chat-bubble ul {
+            margin-top: 4px !important;
+            margin-bottom: 8px !important;
+            padding-left: 20px !important;
+        }
+
+        .assistant-section-card {
+            padding: 18px 20px !important;
+            border-radius: 18px !important;
+            margin-bottom: 14px !important;
+        }
+
+        .assistant-section-title {
+            font-size: 26px !important;
+            line-height: 1.2 !important;
+        }
+
+        .assistant-section-subtitle {
+            font-size: 14px !important;
+        }
+
+        /* ChatGPT-style compact sidebar history */
+        .history-title {
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            color: #cbd5e1 !important;
+            margin: 14px 0 6px 0 !important;
+        }
+
+        .history-count {
+            font-size: 11px !important;
+            color: #8b97a8 !important;
+            margin-bottom: 6px !important;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button {
+            min-height: 32px !important;
+            height: auto !important;
+            padding: 6px 8px !important;
+            border-radius: 9px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: #dbe7f5 !important;
+            box-shadow: none !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            line-height: 1.25 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.12) !important;
+            border-color: rgba(148, 163, 184, 0.10) !important;
+            color: #ffffff !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        div[data-testid="stSidebar"] button[kind="secondary"] {
+            box-shadow: none !important;
+        }
+
+        .sidebar-profile {
+            padding: 12px 11px !important;
+            border-radius: 14px !important;
+        }
+
+        .history-current-note {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 6px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         </style>
         """,
@@ -516,14 +645,69 @@ def get_logo_base64():
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+def inline_format(text):
+    """Escape text and support simple markdown bold inside custom HTML bubbles."""
+    safe = html.escape(str(text or ""))
+    parts = safe.split("**")
+    if len(parts) > 1:
+        rebuilt = ""
+        for i, part in enumerate(parts):
+            rebuilt += f"<strong>{part}</strong>" if i % 2 else part
+        safe = rebuilt
+    return safe
+
+
+def is_markdown_table_separator(line):
+    """Return True for markdown separator rows like |---|---|."""
+    stripped = line.strip()
+    if "|" not in stripped:
+        return False
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if not cells:
+        return False
+    return all(cell and set(cell) <= set("-: ") for cell in cells)
+
+
+def split_markdown_table_row(line):
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def table_to_html(table_lines):
+    """Convert a basic markdown table to HTML."""
+    if len(table_lines) < 2:
+        return ""
+
+    headers = split_markdown_table_row(table_lines[0])
+    body_lines = table_lines[2:] if is_markdown_table_separator(table_lines[1]) else table_lines[1:]
+
+    html_rows = ["<table>"]
+    html_rows.append("<thead><tr>")
+    for header in headers:
+        html_rows.append(f"<th>{inline_format(header)}</th>")
+    html_rows.append("</tr></thead>")
+
+    html_rows.append("<tbody>")
+    for row_line in body_lines:
+        cells = split_markdown_table_row(row_line)
+        if len(cells) < len(headers):
+            cells += [""] * (len(headers) - len(cells))
+        html_rows.append("<tr>")
+        for cell in cells[:len(headers)]:
+            html_rows.append(f"<td>{inline_format(cell)}</td>")
+        html_rows.append("</tr>")
+    html_rows.append("</tbody></table>")
+    return "\n".join(html_rows)
+
+
 def html_from_text(text):
-    """Small markdown-like renderer for custom chat bubbles without extra dependencies."""
+    """Small markdown-like renderer for custom chat bubbles, including basic tables."""
     if text is None:
         return ""
 
     lines = str(text).splitlines()
     html_lines = []
     in_ul = False
+    i = 0
 
     def close_ul():
         nonlocal in_ul
@@ -531,41 +715,54 @@ def html_from_text(text):
             html_lines.append("</ul>")
             in_ul = False
 
-    for raw_line in lines:
-        line = raw_line.rstrip()
+    while i < len(lines):
+        line = lines[i].rstrip()
 
         if not line.strip():
             close_ul()
             html_lines.append("<br>")
+            i += 1
             continue
 
         stripped = line.strip()
 
+        # Markdown table support:
+        # | Header | Header |
+        # |---|---|
+        # | Cell | Cell |
+        if (
+            "|" in stripped
+            and i + 1 < len(lines)
+            and is_markdown_table_separator(lines[i + 1])
+        ):
+            close_ul()
+            table_lines = [line, lines[i + 1]]
+            i += 2
+            while i < len(lines) and "|" in lines[i].strip() and lines[i].strip():
+                table_lines.append(lines[i])
+                i += 1
+            html_lines.append(table_to_html(table_lines))
+            continue
+
         if stripped.startswith("### "):
             close_ul()
-            html_lines.append(f"<h3>{html.escape(stripped[4:])}</h3>")
+            html_lines.append(f"<h3>{inline_format(stripped[4:])}</h3>")
         elif stripped.startswith("## "):
             close_ul()
-            html_lines.append(f"<h2>{html.escape(stripped[3:])}</h2>")
+            html_lines.append(f"<h2>{inline_format(stripped[3:])}</h2>")
         elif stripped.startswith("# "):
             close_ul()
-            html_lines.append(f"<h1>{html.escape(stripped[2:])}</h1>")
+            html_lines.append(f"<h1>{inline_format(stripped[2:])}</h1>")
         elif stripped.startswith("- ") or stripped.startswith("• "):
             if not in_ul:
                 html_lines.append("<ul>")
                 in_ul = True
-            html_lines.append(f"<li>{html.escape(stripped[2:])}</li>")
+            html_lines.append(f"<li>{inline_format(stripped[2:])}</li>")
         else:
             close_ul()
-            # Basic bold support for **text**
-            safe = html.escape(stripped)
-            parts = safe.split("**")
-            if len(parts) > 1:
-                rebuilt = ""
-                for i, part in enumerate(parts):
-                    rebuilt += f"<strong>{part}</strong>" if i % 2 else part
-                safe = rebuilt
-            html_lines.append(f"<div>{safe}</div>")
+            html_lines.append(f"<div>{inline_format(stripped)}</div>")
+
+        i += 1
 
     close_ul()
     return "\n".join(html_lines)
@@ -581,7 +778,7 @@ def render_chat_message(role, content):
         if logo_base64:
             icon_html = f'<img src="data:image/png;base64,{logo_base64}" alt="AutoTecPro AI">'
         else:
-            icon_html = "ATP"
+            icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
@@ -993,6 +1190,7 @@ def create_conversation(username, assistant_name, first_message=None):
         "assistant": clean_assistant_label(assistant_name),
         "title": conversation_title_from_text(first_message),
         "archived": False,
+        "pinned": False,
         "created_at": now_iso(),
         "updated_at": now_iso()
     }).execute()
@@ -1065,6 +1263,16 @@ def load_conversations(username, role=None):
 
     active_rows = [row for row in rows if is_active(row)]
 
+    # Pinned conversations should stay at the top, similar to ChatGPT.
+    active_rows = sorted(
+        active_rows,
+        key=lambda row: (
+            not bool(row.get("pinned", False)),
+            str(row.get("updated_at") or row.get("created_at") or "")
+        ),
+        reverse=False
+    )
+
     # Admin can see all cases. Staff sees their own cases first.
     if str(role or "").lower() == "admin":
         return active_rows[:30]
@@ -1087,13 +1295,40 @@ def archive_conversation(conversation_id):
 
 
 def delete_conversation(conversation_id):
-    """Permanently delete a conversation and all messages."""
+    """Permanently delete a conversation and its messages."""
     if not conversation_id:
         return
 
-    # Delete messages first. The database should also cascade, but this keeps it explicit.
+    # The messages table should also delete by cascade, but this makes it explicit.
     supabase.table("messages").delete().eq("conversation_id", conversation_id).execute()
     supabase.table("conversations").delete().eq("id", conversation_id).execute()
+
+
+def toggle_pin_conversation(conversation_id, pinned):
+    """Pin or unpin a conversation in the sidebar."""
+    if not conversation_id:
+        return
+
+    supabase.table("conversations").update({
+        "pinned": bool(pinned),
+        "updated_at": now_iso()
+    }).eq("id", conversation_id).execute()
+
+
+def format_history_date(value):
+    if not value:
+        return ""
+
+    text = str(value)[:10]
+    try:
+        dt = datetime.fromisoformat(text)
+        return dt.strftime("%b %-d")
+    except Exception:
+        try:
+            dt = datetime.strptime(text, "%Y-%m-%d")
+            return dt.strftime("%b %d").replace(" 0", " ")
+        except Exception:
+            return text
 
 
 def get_current_conversation_title():
@@ -1124,8 +1359,12 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
 
-    if st.sidebar.button("🔄 Refresh History"):
-        st.rerun()
+    top_left, top_right = st.sidebar.columns([0.78, 0.22], gap="small")
+    with top_left:
+        st.caption("Saved cases")
+    with top_right:
+        if st.button("↻", key="refresh_history", help="Refresh history"):
+            st.rerun()
 
     try:
         conversations = load_conversations(
@@ -1134,53 +1373,87 @@ if assistant != "⚙️ Admin Panel":
         )
 
         st.sidebar.markdown(
-            f'<div class="history-count">{len(conversations)} saved case(s)</div>',
+            f'<div class="history-count">{len(conversations)} conversation(s)</div>',
             unsafe_allow_html=True
         )
 
         if conversations:
-            for convo in conversations:
-                title = convo.get("title") or "New Case"
-                owner = convo.get("username") or ""
-                assistant_label = convo.get("assistant") or ""
-                updated_at = (convo.get("updated_at") or convo.get("created_at") or "")[:10]
+            pinned_conversations = [c for c in conversations if c.get("pinned")]
+            normal_conversations = [c for c in conversations if not c.get("pinned")]
 
-                if len(title) > 26:
-                    title = title[:26] + "..."
+            if pinned_conversations:
+                st.sidebar.caption("Pinned")
 
-                label_parts = ["💬"]
-                if str(owner).lower() != str(st.session_state.username).lower():
-                    label_parts.append(f"{owner}:")
-                label_parts.append(title)
-                if assistant_label:
-                    label_parts.append(f"· {assistant_label}")
-                if updated_at:
-                    label_parts.append(f"· {updated_at}")
+            ordered_sections = []
+            if pinned_conversations:
+                ordered_sections.append(pinned_conversations)
+            if normal_conversations:
+                if pinned_conversations:
+                    st.sidebar.caption("Recent")
+                ordered_sections.append(normal_conversations)
 
-                label = " ".join(label_parts)
+            for section in ordered_sections:
+                for convo in section:
+                    convo_id = convo["id"]
+                    title = convo.get("title") or "New Case"
+                    assistant_label = clean_assistant_label(convo.get("assistant") or "")
+                    updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
+                    pinned = bool(convo.get("pinned", False))
+                    is_current = st.session_state.conversation_id == convo_id
 
-                history_cols = st.sidebar.columns([0.82, 0.18], gap="small")
+                    if len(title) > 32:
+                        title = title[:32] + "..."
 
-                with history_cols[0]:
-                    if st.button(label, key=f"convo_{convo['id']}"):
-                        st.session_state.conversation_id = convo["id"]
-                        st.session_state.messages = load_messages(convo["id"])
-                        st.rerun()
+                    meta_parts = []
+                    if assistant_label:
+                        meta_parts.append(assistant_label)
+                    if updated_at:
+                        meta_parts.append(updated_at)
+                    meta = " · ".join(meta_parts)
 
-                with history_cols[1]:
-                    if st.button("🗑", key=f"delete_{convo['id']}", help="Delete this chat"):
-                        delete_conversation(convo["id"])
-                        if st.session_state.conversation_id == convo["id"]:
-                            st.session_state.conversation_id = None
-                            st.session_state.messages = []
-                        st.rerun()
+                    active_mark = "● " if is_current else ""
+                    pin_icon = "📌" if pinned else "☆"
+                    history_label = f"{active_mark}{title}"
+                    if meta:
+                        history_label += f"\n{meta}"
+
+                    item_col, pin_col, delete_col = st.sidebar.columns([0.74, 0.13, 0.13], gap="small")
+
+                    with item_col:
+                        if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
+                            st.session_state.conversation_id = convo_id
+                            st.session_state.messages = load_messages(convo_id)
+                            st.rerun()
+
+                    with pin_col:
+                        if st.button(pin_icon, key=f"pin_{convo_id}", help="Pin / unpin"):
+                            try:
+                                toggle_pin_conversation(convo_id, not pinned)
+                                st.rerun()
+                            except Exception as e:
+                                st.sidebar.error(f"Pin failed: {e}")
+
+                    with delete_col:
+                        if st.button("🗑", key=f"delete_{convo_id}", help="Delete conversation"):
+                            try:
+                                delete_conversation(convo_id)
+                                if st.session_state.conversation_id == convo_id:
+                                    st.session_state.conversation_id = None
+                                    st.session_state.messages = []
+                                st.rerun()
+                            except Exception as e:
+                                st.sidebar.error(f"Delete failed: {e}")
         else:
             st.sidebar.caption("No saved cases yet.")
 
         if st.session_state.conversation_id:
-            st.sidebar.caption(f"Current: {get_current_conversation_title()}")
+            current_title = get_current_conversation_title()
+            st.sidebar.markdown(
+                f'<div class="history-current-note">Current: {html.escape(current_title)}</div>',
+                unsafe_allow_html=True
+            )
 
-            if st.sidebar.button("🗄️ Archive Current Case"):
+            if st.sidebar.button("Archive current case", key="archive_current_case"):
                 archive_conversation(st.session_state.conversation_id)
                 st.session_state.conversation_id = None
                 st.session_state.messages = []
