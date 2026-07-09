@@ -13,6 +13,7 @@ import os
 import re
 import json
 import time
+import io
 from difflib import SequenceMatcher
 from config import supabase
 
@@ -1233,6 +1234,61 @@ def inject_base_css():
             }
         }
 
+
+        /* ============================================================
+           Chat uploaded image previews
+        ============================================================ */
+        .chat-image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .chat-image-card {
+            max-width: 260px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.40);
+            box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+        }
+
+        .chat-image-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+        }
+
+        .chat-image-caption {
+            padding: 7px 9px;
+            font-size: 11px !important;
+            color: #cbd5e1 !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-top: 1px solid rgba(148, 163, 184, 0.14);
+        }
+
+        @media (max-width: 768px) {
+            .chat-image-grid {
+                gap: 8px !important;
+                margin-top: 10px !important;
+            }
+
+            .chat-image-card {
+                max-width: 100% !important;
+                width: 100% !important;
+                border-radius: 12px !important;
+            }
+
+            .chat-image-caption {
+                color: #e5e7eb !important;
+                -webkit-text-fill-color: #e5e7eb !important;
+            }
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1570,7 +1626,10 @@ def html_from_text(text):
     return "\n".join(html_lines)
 
 
-def render_chat_message(role, content):
+def render_chat_message(role, content, images=None):
+    visible_content, stored_images = extract_images_from_message_content(content)
+    final_images = images if images is not None else stored_images
+
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
@@ -1589,7 +1648,8 @@ def render_chat_message(role, content):
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {html_from_text(content)}
+                {html_from_text(visible_content)}
+                {render_image_previews(final_images)}
             </div>
         </div>
         """,
@@ -1858,6 +1918,120 @@ def image_to_data_url(uploaded_file):
     return f"data:{uploaded_file.type};base64,{encoded}"
 
 
+IMAGE_MARKER_PREFIX = "[[ATP_IMAGES_JSON:"
+IMAGE_MARKER_SUFFIX = "]]"
+
+
+def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76):
+    """
+    Create a browser-friendly compressed image preview for chat display/history.
+    The original uploaded image is still sent to OpenAI by build_user_input().
+    """
+    raw = uploaded_file.getvalue()
+    mime_type = getattr(uploaded_file, "type", "") or "image/jpeg"
+
+    if Image is not None:
+        try:
+            img = Image.open(io.BytesIO(raw))
+            img.thumbnail(max_size)
+
+            output = io.BytesIO()
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGBA")
+                img.save(output, format="PNG", optimize=True)
+                mime_type = "image/png"
+            else:
+                img = img.convert("RGB")
+                img.save(output, format="JPEG", quality=quality, optimize=True)
+                mime_type = "image/jpeg"
+
+            raw = output.getvalue()
+        except Exception:
+            pass
+
+    encoded = base64.b64encode(raw).decode()
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def get_uploaded_image_previews(uploaded_files):
+    """Return image preview objects for uploaded image files only."""
+    previews = []
+    for uploaded_file in uploaded_files or []:
+        file_type = getattr(uploaded_file, "type", "") or ""
+        if file_type.startswith("image/"):
+            try:
+                previews.append({
+                    "name": getattr(uploaded_file, "name", "uploaded image"),
+                    "data_url": make_image_preview_data_url(uploaded_file)
+                })
+            except Exception:
+                pass
+    return previews
+
+
+def serialize_images_marker(images):
+    """Embed image preview data in message content so history can display it after reload."""
+    if not images:
+        return ""
+    try:
+        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(images, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
+    except Exception:
+        return ""
+
+
+def extract_images_from_message_content(content):
+    """Split stored message content into visible text and uploaded image previews."""
+    text = str(content or "")
+    pattern = re.escape(IMAGE_MARKER_PREFIX) + r"(.*?)" + re.escape(IMAGE_MARKER_SUFFIX) + r"\s*$"
+    match = re.search(pattern, text, re.DOTALL)
+
+    if not match:
+        return text, []
+
+    visible_text = text[:match.start()].rstrip()
+    try:
+        images = json.loads(match.group(1))
+        if not isinstance(images, list):
+            images = []
+    except Exception:
+        images = []
+
+    clean_images = []
+    for image in images:
+        if isinstance(image, dict) and image.get("data_url"):
+            clean_images.append({
+                "name": str(image.get("name") or "uploaded image"),
+                "data_url": str(image.get("data_url"))
+            })
+
+    return visible_text, clean_images
+
+
+def render_image_previews(images):
+    if not images:
+        return ""
+
+    cards = []
+    for image in images:
+        name = html.escape(str(image.get("name") or "uploaded image"))
+        data_url = html.escape(str(image.get("data_url") or ""))
+        if not data_url:
+            continue
+        cards.append(
+            f"""
+            <div class="chat-image-card">
+                <img src="{data_url}" alt="{name}">
+                <div class="chat-image-caption">📎 {name}</div>
+            </div>
+            """
+        )
+
+    if not cards:
+        return ""
+
+    return f'<div class="chat-image-grid">{"".join(cards)}</div>'
+
+
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -1910,7 +2084,8 @@ def build_user_input(prompt_text, uploaded_files):
         memory_text = "Previous conversation in this case:\n\n"
 
         for msg in st.session_state.messages[-10:]:
-            memory_text += f"{msg['role'].upper()}: {msg['content']}\n\n"
+            clean_content, _ = extract_images_from_message_content(msg.get("content", ""))
+            memory_text += f"{msg['role'].upper()}: {clean_content}\n\n"
 
         content.append({"type": "input_text", "text": memory_text})
 
@@ -3387,10 +3562,13 @@ else:
 
     if prompt:
         user_display = prompt
+        uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
         if uploaded_files:
             file_names = ", ".join([file.name for file in uploaded_files])
             user_display += f"\n\n📎 Attached: {file_names}"
+
+        user_content_to_save = user_display + serialize_images_marker(uploaded_image_previews)
 
         if st.session_state.conversation_id is None:
             try:
@@ -3405,15 +3583,15 @@ else:
 
         st.session_state.messages.append({
             "role": "user",
-            "content": user_display
+            "content": user_content_to_save
         })
 
         try:
-            save_message(st.session_state.conversation_id, "user", user_display)
+            save_message(st.session_state.conversation_id, "user", user_content_to_save)
         except Exception as e:
             st.warning(f"User message was not saved to history: {e}")
 
-        render_chat_message("user", user_display)
+        render_chat_message("user", user_display, uploaded_image_previews)
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
