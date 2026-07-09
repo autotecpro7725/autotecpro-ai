@@ -80,14 +80,46 @@ def inject_base_css():
 
         .stTextInput input { height: 46px; }
 
+        /* Fix password field / eye icon alignment */
+        div[data-testid="stTextInputRootElement"] {
+            background-color: rgba(15, 23, 42, 0.96) !important;
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+            min-height: 46px !important;
+            overflow: hidden !important;
+        }
+
+        div[data-testid="stTextInputRootElement"] input {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        div[data-testid="stTextInputRootElement"]:focus-within {
+            border: 1px solid var(--atp-red) !important;
+            box-shadow: 0 0 0 1px var(--atp-red) !important;
+        }
+
+        div[data-testid="stTextInputRootElement"] button {
+            background: rgba(148, 163, 184, 0.18) !important;
+            border: none !important;
+            box-shadow: none !important;
+            width: 46px !important;
+            height: 46px !important;
+            border-radius: 0 12px 12px 0 !important;
+            color: white !important;
+            transform: none !important;
+        }
+
         .stTextInput input:focus,
         .stTextArea textarea:focus {
             border: 1px solid var(--atp-red) !important;
             box-shadow: 0 0 0 1px var(--atp-red) !important;
         }
 
+        /* Orange / red action buttons */
         .stButton > button,
-        .stForm button {
+        .stFormSubmitButton > button {
             width: 100%;
             height: 52px;
             border-radius: 12px;
@@ -101,7 +133,7 @@ def inject_base_css():
         }
 
         .stButton > button:hover,
-        .stForm button:hover {
+        .stFormSubmitButton > button:hover {
             background: linear-gradient(135deg, #ff7255 0%, #ff4d3d 45%, #ff2d20 100%) !important;
             color: white !important;
             transform: translateY(-1px);
@@ -109,7 +141,7 @@ def inject_base_css():
         }
 
         .stButton > button:active,
-        .stForm button:active {
+        .stFormSubmitButton > button:active {
             transform: scale(0.98);
         }
 
@@ -184,6 +216,31 @@ def inject_base_css():
             margin-top: 14px;
             margin-bottom: 8px;
             letter-spacing: .2px;
+        }
+
+        .history-count {
+            color: #64748b;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button {
+            height: auto;
+            min-height: 38px;
+            padding: 8px 10px;
+            text-align: left;
+            justify-content: flex-start;
+            background: rgba(15, 23, 42, 0.72) !important;
+            border: 1px solid rgba(148, 163, 184, 0.14) !important;
+            box-shadow: none !important;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(30, 41, 59, 0.95) !important;
+            border-color: rgba(239, 68, 68, 0.35) !important;
+            transform: none;
         }
 
         /* Hide default Streamlit chat message shells if any old calls remain */
@@ -868,9 +925,17 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # Optional Supabase Chat History Helpers
 # ============================================================
 
+def clean_assistant_label(assistant_name):
+    """Normalize assistant labels so old and new records both load."""
+    value = assistant_name or ""
+    for icon in ["🔧", "📈", "🎨", "⚙️", "⚙"]:
+        value = value.replace(icon, "")
+    return value.strip()
+
+
 def assistant_history_keys(assistant_name):
     """Return all label variants used by old/new chat history records."""
-    clean = (assistant_name or "").replace("🔧", "").replace("📈", "").replace("🎨", "").replace("⚙️", "").strip()
+    clean = clean_assistant_label(assistant_name)
     keys = {assistant_name, clean}
 
     if clean == "Technical Support":
@@ -885,7 +950,8 @@ def assistant_history_keys(assistant_name):
 
 def assistant_history_value(assistant_name):
     """Save a clean assistant label so history stays consistent."""
-    return (assistant_name or "").replace("🔧", "").replace("📈", "").replace("🎨", "").replace("⚙️", "").strip()
+    return clean_assistant_label(assistant_name)
+
 
 def create_conversation(username, assistant_name, first_message=None):
     title = "New Case"
@@ -935,27 +1001,47 @@ def load_messages(conversation_id):
     return [{"role": item["role"], "content": item["content"]} for item in result.data]
 
 
-def load_conversations(username, assistant_name):
-    # Load by username first, then filter assistant labels locally.
-    # This fixes old records saved as "Technical Support" and new UI labels like "🔧 Technical Support".
+def load_conversations(username, assistant_name, role=None):
+    """
+    Load saved history robustly.
+
+    Important fix:
+    - Old conversations may be saved under a different username such as Sunny vs ATP.
+    - Admin users should be able to see all saved cases.
+    - If no exact username match is found, we fall back to all matching assistant records.
+    """
     result = (
         supabase
         .table("conversations")
         .select("*")
-        .eq("username", username)
         .eq("archived", False)
         .order("updated_at", desc=True)
-        .limit(50)
+        .limit(100)
         .execute()
     )
 
     valid_assistant_names = assistant_history_keys(assistant_name)
-    conversations = [
-        item for item in result.data
+
+    assistant_matches = [
+        item for item in (result.data or [])
         if item.get("assistant") in valid_assistant_names
     ]
 
-    return conversations[:12]
+    # Admin sees all matching assistant conversations.
+    if (role or "").lower() == "admin":
+        return assistant_matches[:20]
+
+    # Staff first sees their own cases.
+    own_matches = [
+        item for item in assistant_matches
+        if str(item.get("username", "")).lower() == str(username).lower()
+    ]
+
+    # Fallback: if usernames changed during testing, still show matching assistant records.
+    if own_matches:
+        return own_matches[:20]
+
+    return assistant_matches[:20]
 
 
 def archive_conversation(conversation_id):
@@ -975,15 +1061,36 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
 
     try:
-        conversations = load_conversations(st.session_state.username, assistant)
+        conversations = load_conversations(
+            st.session_state.username,
+            assistant,
+            st.session_state.role
+        )
+
+        st.sidebar.markdown(
+            f'<div class="history-count">{len(conversations)} saved case(s)</div>',
+            unsafe_allow_html=True
+        )
 
         if conversations:
             for convo in conversations:
                 title = convo.get("title") or "New Case"
-                if len(title) > 34:
-                    title = title[:34] + "..."
+                owner = convo.get("username") or ""
+                updated_at = (convo.get("updated_at") or "")[:10]
 
-                if st.sidebar.button(f"💬 {title}", key=f"convo_{convo['id']}"):
+                if len(title) > 30:
+                    title = title[:30] + "..."
+
+                # Show owner only if this is not the current user's own case.
+                owner_prefix = ""
+                if str(owner).lower() != str(st.session_state.username).lower():
+                    owner_prefix = f"{owner}: "
+
+                label = f"💬 {owner_prefix}{title}"
+                if updated_at:
+                    label += f" · {updated_at}"
+
+                if st.sidebar.button(label, key=f"convo_{convo['id']}"):
                     st.session_state.conversation_id = convo["id"]
                     st.session_state.messages = load_messages(convo["id"])
                     st.rerun()
