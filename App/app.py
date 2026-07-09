@@ -1009,6 +1009,27 @@ def inject_base_css():
             color: #94a3b8;
             margin-bottom: 10px;
         }
+
+
+        /* ============================================================
+           FIX: Scrollable chat history list
+        ============================================================ */
+        div[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
+            border: none !important;
+            background: transparent !important;
+        }
+
+        .history-scroll-note {
+            font-size: 10.5px;
+            color: #64748b;
+            margin-top: 2px;
+            margin-bottom: 4px;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"]:has(.history-section-label) {
+            gap: 1px !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1114,6 +1135,100 @@ def get_logo_base64():
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+# ============================================================
+# Supabase Schema Safety Helpers
+# ============================================================
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_table_columns(table_name):
+    """Return existing Supabase columns so code never crashes when schema is older."""
+    try:
+        result = (
+            supabase
+            .table(table_name)
+            .select("*")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return list(result.data[0].keys())
+    except Exception:
+        pass
+
+    # Fallback known schemas. These keep the app running even if a table is empty.
+    fallback = {
+        "learned_knowledge": [
+            "id", "username", "assistant", "vehicle", "year", "make", "model",
+            "product", "product_category", "issue", "symptoms", "solution",
+            "question", "approved_answer", "keywords", "source_question", "source_answer",
+            "source_conversation_id", "confidence_score", "times_seen", "times_used",
+            "search_count", "openai_file_id", "vector_store_id", "synced",
+            "embedding_status", "last_used_at", "created_at", "updated_at"
+        ],
+        "ai_analytics": [
+            "id", "username", "assistant", "vehicle", "year", "make", "model",
+            "issue", "product", "solution", "keywords", "question", "answer",
+            "was_unanswered", "resolved", "confidence_score", "conversation_id",
+            "learned", "learning_mode", "learned_record_id", "duplicate_of",
+            "response_time", "tokens_used", "learning_source", "feedback", "created_at"
+        ],
+        "conversations": [
+            "id", "username", "assistant", "title", "archived", "pinned", "created_at", "updated_at"
+        ]
+    }
+    return fallback.get(table_name, [])
+
+
+def filter_payload_for_table(table_name, payload):
+    """Remove fields that do not exist in Supabase table to prevent PGRST204 errors."""
+    columns = set(get_table_columns(table_name))
+    if not columns:
+        return payload
+    return {k: v for k, v in payload.items() if k in columns}
+
+
+def safe_select_rows(table_name, order_columns=None, limit=500):
+    """Select rows with fallback ordering for mixed database versions."""
+    order_columns = order_columns or ["updated_at", "created_at"]
+    last_error = None
+    for order_col in order_columns:
+        try:
+            return (
+                supabase
+                .table(table_name)
+                .select("*")
+                .order(order_col, desc=True)
+                .limit(limit)
+                .execute()
+                .data
+            ) or []
+        except Exception as e:
+            last_error = e
+    try:
+        return (
+            supabase
+            .table(table_name)
+            .select("*")
+            .limit(limit)
+            .execute()
+            .data
+        ) or []
+    except Exception:
+        if last_error:
+            raise last_error
+        raise
+
+
+def safe_insert_row(table_name, payload):
+    clean_payload = filter_payload_for_table(table_name, payload)
+    return supabase.table(table_name).insert(clean_payload).execute()
+
+
+def safe_update_row(table_name, payload, row_id):
+    clean_payload = filter_payload_for_table(table_name, payload)
+    return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
 def inline_format(text):
     """Escape text and support simple markdown bold inside custom HTML bubbles."""
@@ -1834,16 +1949,11 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
 
 def find_duplicate_learned_knowledge(candidate, selected_assistant):
     try:
-        rows = (
-            supabase
-            .table("learned_knowledge")
-            .select("*")
-            .eq("assistant", clean_assistant_label(selected_assistant))
-            .order("updated_at", desc=True)
-            .limit(150)
-            .execute()
-            .data
-        ) or []
+        all_rows = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=200)
+        rows = [
+            row for row in all_rows
+            if str(row.get("assistant") or "").strip().lower() == clean_assistant_label(selected_assistant).lower()
+        ] or all_rows
     except Exception:
         return None, 0
 
@@ -1862,8 +1972,8 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
             row.get("vehicle", ""),
             row.get("issue", ""),
             row.get("keywords", ""),
-            row.get("solution", "")[:600],
-            row.get("source_question", "")
+            str(row.get("solution") or row.get("approved_answer") or "")[:600],
+            row.get("source_question", "") or row.get("question", "")
         ])
 
         score = text_similarity(candidate_text, row_text)
@@ -1979,9 +2089,12 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
         openai_file_id = upload_learned_record_to_vector_store(record_for_file, vector_store_id)
 
         update_payload = {
+            "assistant": clean_assistant_label(selected_assistant),
             "vehicle": improved["vehicle"],
             "issue": improved["issue"],
             "solution": improved["solution"],
+            "approved_answer": improved["solution"],
+            "question": question,
             "keywords": improved["keywords"],
             "source_question": question,
             "source_answer": answer,
@@ -1991,32 +2104,40 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             "openai_file_id": openai_file_id,
             "vector_store_id": vector_store_id,
             "synced": True,
+            "embedding_status": "synced",
             "updated_at": now_iso()
         }
 
-        supabase.table("learned_knowledge").update(update_payload).eq("id", duplicate_row["id"]).execute()
+        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
 
         return {
             "learned": True,
             "mode": "updated",
             "duplicate_score": round(duplicate_score, 3),
             "record_id": duplicate_row["id"],
+            "duplicate_of": duplicate_row["id"],
             "file_id": openai_file_id
         }
 
     new_record = {
+        "username": st.session_state.get("username"),
         "assistant": clean_assistant_label(selected_assistant),
         "vehicle": candidate["vehicle"],
         "issue": candidate["issue"],
         "solution": candidate["solution"],
+        "approved_answer": candidate["solution"],
+        "question": question,
         "keywords": candidate["keywords"],
         "source_question": question,
         "source_answer": answer,
         "source_conversation_id": st.session_state.get("conversation_id"),
         "confidence_score": candidate["confidence_score"],
         "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
         "vector_store_id": vector_store_id,
         "synced": False,
+        "embedding_status": "pending",
         "created_at": now_iso(),
         "updated_at": now_iso()
     }
@@ -2025,7 +2146,7 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
     new_record["openai_file_id"] = openai_file_id
     new_record["synced"] = True
 
-    result = supabase.table("learned_knowledge").insert(new_record).execute()
+    result = safe_insert_row("learned_knowledge", new_record)
     if not result.data:
         raise RuntimeError("Learning record was not saved.")
 
@@ -2156,7 +2277,7 @@ def log_ai_analytics(question, answer, selected_assistant, learning_result=None,
         payload["tokens_used"] = tokens_used
         payload["learning_source"] = "automatic"
 
-        supabase.table("ai_analytics").insert(payload).execute()
+        safe_insert_row("ai_analytics", payload)
         return True
 
     except Exception:
@@ -2401,15 +2522,20 @@ def load_conversations(username, role=None):
 
     active_rows = [row for row in rows if is_active(row)]
 
-    # Pinned conversations should stay at the top, similar to ChatGPT.
+    # Pinned conversations stay at the top; newest first inside each group.
     active_rows = sorted(
         active_rows,
         key=lambda row: (
-            not bool(row.get("pinned", False)),
+            0 if bool(row.get("pinned", False)) else 1,
             str(row.get("updated_at") or row.get("created_at") or "")
         ),
         reverse=False
     )
+    pinned_rows = [r for r in active_rows if bool(r.get("pinned", False))]
+    normal_rows = [r for r in active_rows if not bool(r.get("pinned", False))]
+    pinned_rows = sorted(pinned_rows, key=lambda r: str(r.get("updated_at") or r.get("created_at") or ""), reverse=True)
+    normal_rows = sorted(normal_rows, key=lambda r: str(r.get("updated_at") or r.get("created_at") or ""), reverse=True)
+    active_rows = pinned_rows + normal_rows
 
     # Admin can see all cases. Staff sees their own cases first.
     if str(role or "").lower() == "admin":
@@ -2573,72 +2699,68 @@ if assistant != "⚙️ Admin Panel":
             if normal_conversations:
                 sections.append(("Recent", normal_conversations))
 
-            for section_name, section_convos in sections:
-                st.sidebar.markdown(
-                    f'<div class="history-section-label">{section_name}</div>',
-                    unsafe_allow_html=True
-                )
+            history_box = st.sidebar.container(height=360, border=False)
 
-                for convo in section_convos:
-                    convo_id = convo["id"]
-                    title = convo.get("title") or "New Case"
-                    assistant_label = clean_assistant_label(convo.get("assistant") or "")
-                    updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
-                    pinned = bool(convo.get("pinned", False))
-                    is_current = st.session_state.conversation_id == convo_id
+            with history_box:
+                for section_name, section_convos in sections:
+                    st.markdown(
+                        f'<div class="history-section-label">{section_name}</div>',
+                        unsafe_allow_html=True
+                    )
 
-                    title_short = title[:34] + "..." if len(title) > 34 else title
+                    for convo in section_convos:
+                        convo_id = convo["id"]
+                        title = convo.get("title") or "New Case"
+                        assistant_label = clean_assistant_label(convo.get("assistant") or "")
+                        updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
+                        pinned = bool(convo.get("pinned", False))
+                        is_current = st.session_state.conversation_id == convo_id
 
-                    meta_parts = []
-                    if assistant_label:
-                        meta_parts.append(assistant_label)
-                    if updated_at:
-                        meta_parts.append(updated_at)
-                    meta = " · ".join(meta_parts)
+                        title_short = title[:34] + "..." if len(title) > 34 else title
 
-                    # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
-                    active_prefix = "• " if is_current else ""
-                    pin_prefix = "📌 " if pinned else ""
-                    history_label = f"{active_prefix}{pin_prefix}{title_short}"
+                        # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
+                        active_prefix = "• " if is_current else ""
+                        pin_prefix = "📌 " if pinned else ""
+                        history_label = f"{active_prefix}{pin_prefix}{title_short}"
 
-                    item_col, menu_col = st.sidebar.columns([0.88, 0.12], gap="small")
+                        item_col, menu_col = st.columns([0.88, 0.12], gap="small")
 
-                    with item_col:
-                        if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
-                            st.session_state.conversation_id = convo_id
-                            st.session_state.messages = load_messages(convo_id)
-                            st.rerun()
-
-                    with menu_col:
-                        with st.popover("⋯"):
-                            st.markdown(f'<div class="history-menu-title">{html.escape(title_short)}</div>', unsafe_allow_html=True)
-
-                            if st.button("Rename", key=f"rename_{convo_id}"):
-                                st.session_state.rename_conversation_id = str(convo_id)
-                                st.session_state.rename_conversation_value = title
+                        with item_col:
+                            if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
+                                st.session_state.conversation_id = convo_id
+                                st.session_state.messages = load_messages(convo_id)
                                 st.rerun()
 
-                            pin_label = "Unpin chat" if pinned else "Pin chat"
-                            if st.button(pin_label, key=f"pin_{convo_id}"):
-                                try:
-                                    toggle_pin_conversation(convo_id, not pinned)
+                        with menu_col:
+                            with st.popover("⋯"):
+                                st.markdown(f'<div class="history-menu-title">{html.escape(title_short)}</div>', unsafe_allow_html=True)
+
+                                if st.button("Rename", key=f"rename_{convo_id}"):
+                                    st.session_state.rename_conversation_id = str(convo_id)
+                                    st.session_state.rename_conversation_value = title
                                     st.rerun()
-                                except Exception:
-                                    st.toast("Pin needs the pinned column in Supabase.")
 
-                            if st.button("Archive", key=f"archive_{convo_id}"):
-                                archive_conversation(convo_id)
-                                if st.session_state.conversation_id == convo_id:
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
+                                pin_label = "Unpin chat" if pinned else "Pin chat"
+                                if st.button(pin_label, key=f"pin_{convo_id}"):
+                                    try:
+                                        toggle_pin_conversation(convo_id, not pinned)
+                                        st.rerun()
+                                    except Exception:
+                                        st.toast("Pin needs the pinned column in Supabase.")
 
-                            if st.button("Delete", key=f"delete_{convo_id}"):
-                                delete_conversation(convo_id)
-                                if st.session_state.conversation_id == convo_id:
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
+                                if st.button("Archive", key=f"archive_{convo_id}"):
+                                    archive_conversation(convo_id)
+                                    if st.session_state.conversation_id == convo_id:
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
+
+                                if st.button("Delete", key=f"delete_{convo_id}"):
+                                    delete_conversation(convo_id)
+                                    if st.session_state.conversation_id == convo_id:
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
         else:
             st.sidebar.caption("No saved cases yet.")
 
@@ -2683,28 +2805,12 @@ if assistant == "⚙️ Admin Panel":
 
     # Shared analytics data for all admin dashboards.
     try:
-        analytics_rows = (
-            supabase
-            .table("ai_analytics")
-            .select("*")
-            .order("created_at", desc=True)
-            .limit(2000)
-            .execute()
-            .data
-        ) or []
+        analytics_rows = safe_select_rows("ai_analytics", order_columns=["created_at"], limit=2000)
     except Exception:
         analytics_rows = []
 
     try:
-        learned_rows_for_analytics = (
-            supabase
-            .table("learned_knowledge")
-            .select("*")
-            .order("updated_at", desc=True)
-            .limit(2000)
-            .execute()
-            .data
-        ) or []
+        learned_rows_for_analytics = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=2000)
     except Exception:
         learned_rows_for_analytics = []
 
