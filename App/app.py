@@ -1662,30 +1662,31 @@ def inject_base_css():
 
 
         /* ============================================================
-           ChatGPT-style Customer Reply copy icon
+           Safe ChatGPT-style Customer Reply copy icon
+           No inline JavaScript; click handler is installed separately.
         ============================================================ */
         .copyable-reply-card {
             position: relative;
             margin-top: 12px;
-            padding: 14px 44px 14px 14px;
+            padding: 14px 46px 14px 14px;
             border-radius: 14px;
             background: rgba(15, 23, 42, 0.45);
             border: 1px solid rgba(148, 163, 184, 0.18);
         }
 
         .copyable-reply-title {
-            font-size: 15px;
-            font-weight: 800;
-            color: #ffffff;
-            margin-bottom: 10px;
+            font-size: 15px !important;
+            font-weight: 800 !important;
+            color: #ffffff !important;
+            margin-bottom: 10px !important;
         }
 
         .copyable-reply-body {
-            color: #f8fafc;
-            line-height: 1.58;
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-            font-size: 15px;
+            color: #f8fafc !important;
+            line-height: 1.58 !important;
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere !important;
+            font-size: 15px !important;
         }
 
         .copy-icon-btn {
@@ -1704,6 +1705,8 @@ def inject_base_css():
             justify-content: center;
             opacity: 0.55;
             transition: all 140ms ease;
+            padding: 0;
+            margin: 0;
         }
 
         .copy-icon-btn:hover {
@@ -1717,11 +1720,13 @@ def inject_base_css():
             width: 16px;
             height: 16px;
             stroke-width: 2;
+            pointer-events: none;
         }
 
-        .copy-icon-check {
+        .copy-icon-btn.copied {
             color: #22c55e !important;
             border-color: rgba(34, 197, 94, 0.28) !important;
+            opacity: 1;
         }
 
 </style>
@@ -2092,17 +2097,12 @@ def html_from_text(text):
 
 def split_customer_reply_draft(content):
     """
-    Split an assistant answer into:
-    - before_text: all analysis/identification sections before Customer Reply Draft
-    - reply_text: only the customer-ready reply text
-    This lets the copy icon copy only the customer message.
+    Split assistant answer into:
+    - before_text: internal explanation / vehicle identification
+    - reply_text: only the Customer Reply Draft body
     """
     text = clean_visible_chat_text(content)
 
-    # Match common heading formats:
-    # Customer Reply Draft
-    # ## Customer Reply Draft
-    # ### Customer Reply Draft
     match = re.search(
         r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
         text
@@ -2114,11 +2114,11 @@ def split_customer_reply_draft(content):
     before_text = text[:match.start()].rstrip()
     after_text = text[match.end():].strip()
 
-    # If another major heading appears after the reply, stop there.
     next_heading = re.search(
         r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
         after_text
     )
+
     if next_heading:
         reply_text = after_text[:next_heading.start()].strip()
     else:
@@ -2130,14 +2130,14 @@ def split_customer_reply_draft(content):
 
 def render_customer_reply_card(reply_text):
     """
-    Render Customer Reply Draft with a ChatGPT-style double-square copy icon.
-    The icon copies only the reply body.
+    Render Customer Reply Draft with a safe double-square copy icon.
+    The click logic is handled by install_copy_icon_handler(), not inline JS.
     """
     if not reply_text:
         return ""
 
     safe_reply_html = html_from_text(reply_text)
-    reply_json = json.dumps(reply_text)
+    encoded_reply = base64.b64encode(reply_text.encode("utf-8")).decode("ascii")
 
     copy_icon = """
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -2148,22 +2148,72 @@ def render_customer_reply_card(reply_text):
 
     return f"""
     <div class="copyable-reply-card">
-        <button class="copy-icon-btn" type="button" title="Copy reply" aria-label="Copy reply"
-            onclick='
-                navigator.clipboard.writeText({reply_json});
-                this.classList.add("copy-icon-check");
-                this.innerHTML = "✓";
-                setTimeout(() => {{
-                    this.classList.remove("copy-icon-check");
-                    this.innerHTML = `{copy_icon}`;
-                }}, 1400);
-            '>
+        <button class="copy-icon-btn" type="button" title="Copy reply" aria-label="Copy reply" data-copy-b64="{encoded_reply}">
             {copy_icon}
         </button>
         <div class="copyable-reply-title">Customer Reply Draft</div>
         <div class="copyable-reply-body">{safe_reply_html}</div>
     </div>
     """
+
+
+def install_copy_icon_handler():
+    """
+    Install one global click handler for copy icons.
+    This avoids inline JavaScript inside chat bubbles, which caused the previous layout bug.
+    """
+    components.html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+
+            if (window.parent.__atpCopyIconHandlerInstalled) {
+                return;
+            }
+            window.parent.__atpCopyIconHandlerInstalled = true;
+
+            function decodeB64Unicode(str) {
+                try {
+                    const binary = atob(str);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    return new TextDecoder("utf-8").decode(bytes);
+                } catch (e) {
+                    return "";
+                }
+            }
+
+            doc.addEventListener("click", async function(e) {
+                const btn = e.target.closest(".copy-icon-btn");
+                if (!btn) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const text = decodeB64Unicode(btn.getAttribute("data-copy-b64") || "");
+                if (!text) return;
+
+                try {
+                    await window.parent.navigator.clipboard.writeText(text);
+                    const original = btn.innerHTML;
+                    btn.classList.add("copied");
+                    btn.textContent = "✓";
+                    setTimeout(function() {
+                        btn.classList.remove("copied");
+                        btn.innerHTML = original;
+                    }, 1300);
+                } catch (err) {
+                    console.warn("Copy failed", err);
+                }
+            }, true);
+        })();
+        </script>
+        """,
+        height=0,
+    )
 
 
 
