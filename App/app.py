@@ -542,82 +542,105 @@ def inject_base_css():
         
 
         /* ============================================================
-           ChatGPT-style compact history sidebar and menu fixes
-           - left aligned text
-           - smaller vertical gaps
-           - no dropdown arrow; only three dots
-           - compact popover menu
+           Final ChatGPT-style compact history sidebar
         ============================================================ */
         section[data-testid="stSidebar"] {
-            width: 300px !important;
-            min-width: 300px !important;
+            width: 292px !important;
+            min-width: 292px !important;
         }
 
-        .history-header-row {
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            margin: 8px 0 6px 0;
+        .history-title {
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            color: #d7dde7 !important;
+            margin: 12px 0 4px 0 !important;
+        }
+
+        .history-count, .history-current-note {
+            font-size: 11px !important;
+            color: #8d98a8 !important;
+            margin: 4px 0 !important;
+            line-height: 1.25 !important;
         }
 
         .history-section-label {
-            font-size: 12px;
-            color: #8b97a8;
-            font-weight: 700;
-            margin: 10px 0 4px 2px;
+            font-size: 11px !important;
+            color: #8d98a8 !important;
+            font-weight: 700 !important;
+            margin: 10px 0 3px 2px !important;
+            line-height: 1.2 !important;
         }
 
-        .history-current-note {
-            color: #94a3b8;
-            font-size: 11px;
-            margin-top: 8px;
-            margin-bottom: 4px;
+        .history-menu-title {
+            font-size: 12px;
+            color: #cbd5e1;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding: 4px 8px 6px 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+            margin-bottom: 4px;
         }
 
-        /* Streamlit sidebar history buttons: compact + left aligned */
-        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
+        /* Reduce vertical space in sidebar columns */
+        section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
+            gap: 4px !important;
+            margin: 0 !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
+            gap: 2px !important;
+        }
+
+        /* Compact history row button */
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
             min-height: 30px !important;
-            height: auto !important;
-            padding: 5px 8px !important;
+            height: 30px !important;
+            padding: 4px 8px !important;
             margin: 0 !important;
             border-radius: 8px !important;
             background: transparent !important;
             border: 1px solid transparent !important;
             box-shadow: none !important;
             color: #dbe7f5 !important;
-            font-size: 12px !important;
+            font-size: 12.5px !important;
             font-weight: 500 !important;
-            line-height: 1.18 !important;
+            line-height: 1.15 !important;
             text-align: left !important;
             justify-content: flex-start !important;
             align-items: center !important;
-            white-space: normal !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
-        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button p {
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button p,
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button div {
             text-align: left !important;
             width: 100% !important;
             margin: 0 !important;
-            line-height: 1.18 !important;
+            padding: 0 !important;
+            line-height: 1.15 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            display: block !important;
         }
 
-        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button:hover {
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button:hover {
             background: rgba(148, 163, 184, 0.11) !important;
-            border-color: rgba(148, 163, 184, 0.10) !important;
             color: #ffffff !important;
             transform: none !important;
             box-shadow: none !important;
         }
 
-        /* Three-dot menu button */
-        div[data-testid="stSidebar"] div[data-testid="stPopover"] button {
+        /* Small three-dot popover trigger only, no arrow */
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button {
             width: 28px !important;
             min-width: 28px !important;
-            height: 28px !important;
-            min-height: 28px !important;
+            max-width: 28px !important;
+            height: 30px !important;
+            min-height: 30px !important;
             padding: 0 !important;
             margin: 0 !important;
             border-radius: 8px !important;
@@ -632,27 +655,27 @@ def inject_base_css():
             justify-content: center !important;
         }
 
-        div[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
             background: rgba(148, 163, 184, 0.12) !important;
             color: #ffffff !important;
-            border-color: transparent !important;
         }
 
-        /* Hide any extra arrow/svg beside popover trigger when Streamlit renders one */
-        div[data-testid="stSidebar"] div[data-testid="stPopover"] button svg {
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button svg {
             display: none !important;
+            width: 0 !important;
         }
 
-        /* Compact popover body */
-        div[data-testid="stPopoverBody"] {
-            width: 190px !important;
-            min-width: 190px !important;
-            max-width: 210px !important;
-            padding: 8px !important;
+        /* ChatGPT-style small floating menu */
+        div[data-testid="stPopoverBody"],
+        div[data-baseweb="popover"] div[role="dialog"] {
+            width: 176px !important;
+            min-width: 176px !important;
+            max-width: 176px !important;
+            padding: 6px !important;
             border-radius: 14px !important;
-            background: rgba(31, 41, 55, 0.96) !important;
-            border: 1px solid rgba(148, 163, 184, 0.20) !important;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.35) !important;
+            background: rgba(32, 33, 35, 0.98) !important;
+            border: 1px solid rgba(255, 255, 255, 0.10) !important;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.38) !important;
             backdrop-filter: blur(12px) !important;
         }
 
@@ -679,13 +702,10 @@ def inject_base_css():
             box-shadow: none !important;
         }
 
-        div[data-testid="stPopoverBody"] .stMarkdown,
-        div[data-testid="stPopoverBody"] p {
-            font-size: 12px !important;
-            line-height: 1.25 !important;
-            margin: 0 !important;
-            color: #cbd5e1 !important;
+        div[data-testid="stPopoverBody"] .stButton > button[kind="secondary"] {
+            color: #e5e7eb !important;
         }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1551,12 +1571,12 @@ if assistant != "⚙️ Admin Panel":
                         meta_parts.append(updated_at)
                     meta = " · ".join(meta_parts)
 
-                    active_mark = "● " if is_current else ""
-                    history_label = f"{active_mark}{title_short}"
-                    if meta:
-                        history_label += f"\n{meta}"
+                    # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
+                    active_prefix = "• " if is_current else ""
+                    pin_prefix = "📌 " if pinned else ""
+                    history_label = f"{active_prefix}{pin_prefix}{title_short}"
 
-                    item_col, menu_col = st.sidebar.columns([0.86, 0.14], gap="small")
+                    item_col, menu_col = st.sidebar.columns([0.88, 0.12], gap="small")
 
                     with item_col:
                         if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
@@ -1565,11 +1585,11 @@ if assistant != "⚙️ Admin Panel":
                             st.rerun()
 
                     with menu_col:
-                        with st.popover("⋯", help="Conversation options"):
-                            st.markdown(f"**{html.escape(title_short)}**")
+                        with st.popover("⋯"):
+                            st.markdown(f'<div class="history-menu-title">{html.escape(title_short)}</div>', unsafe_allow_html=True)
 
                             if st.button("Rename", key=f"rename_{convo_id}"):
-                                st.info("Rename will be added in the next version.")
+                                st.toast("Rename will be added in the next version.")
 
                             pin_label = "Unpin chat" if pinned else "Pin chat"
                             if st.button(pin_label, key=f"pin_{convo_id}"):
@@ -1577,9 +1597,7 @@ if assistant != "⚙️ Admin Panel":
                                     toggle_pin_conversation(convo_id, not pinned)
                                     st.rerun()
                                 except Exception:
-                                    st.warning(
-                                        "Pin requires this Supabase SQL: ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE;"
-                                    )
+                                    st.toast("Pin needs the pinned column in Supabase.")
 
                             if st.button("Archive", key=f"archive_{convo_id}"):
                                 archive_conversation(convo_id)
