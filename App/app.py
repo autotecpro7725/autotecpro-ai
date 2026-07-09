@@ -540,172 +540,238 @@ def inject_base_css():
             text-overflow: ellipsis;
         }
         
-
         /* ============================================================
-           Final ChatGPT-style compact history sidebar
+           Final ChatGPT-style sidebar polish
+           - smaller New Case / Logout buttons
+           - cleaner navigation
+           - compact history rows
+           - smaller option menu
         ============================================================ */
+
         section[data-testid="stSidebar"] {
-            width: 292px !important;
-            min-width: 292px !important;
+            min-width: 300px !important;
+            max-width: 300px !important;
+        }
+
+        div[data-testid="stSidebar"] .sidebar-profile {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 8px 4px 12px 4px !important;
+            margin-bottom: 8px !important;
+        }
+
+        div[data-testid="stSidebar"] .sidebar-profile div:first-child {
+            font-size: 12px !important;
+            color: #94a3b8 !important;
+        }
+
+        div[data-testid="stSidebar"] .sidebar-profile div:nth-child(2) {
+            font-size: 16px !important;
+            line-height: 1.25 !important;
+        }
+
+        div[data-testid="stSidebar"] .sidebar-profile div:nth-child(3) {
+            font-size: 12px !important;
+            color: #94a3b8 !important;
+        }
+
+        div[data-testid="stSidebar"] [role="radiogroup"] {
+            gap: 2px !important;
+        }
+
+        div[data-testid="stSidebar"] label[data-baseweb="radio"] {
+            min-height: 34px !important;
+            padding: 5px 8px !important;
+            border-radius: 8px !important;
+            margin-bottom: 2px !important;
+        }
+
+        div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
+            background: rgba(148, 163, 184, 0.10) !important;
+        }
+
+        div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            line-height: 1.2 !important;
+        }
+
+        /* Sidebar regular buttons: ChatGPT-like, not large red blocks */
+        div[data-testid="stSidebar"] .stButton > button {
+            min-height: 30px !important;
+            height: 32px !important;
+            padding: 4px 8px !important;
+            border-radius: 8px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: #dbe7f5 !important;
+            box-shadow: none !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            line-height: 1.2 !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.12) !important;
+            border-color: transparent !important;
+            color: #ffffff !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        /* New Case button */
+        div[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:has(button[kind="secondary"]) .stButton > button {
+            box-shadow: none !important;
+        }
+
+        /* Make specific action buttons compact and subtle */
+        div[data-testid="stSidebar"] button:has(div[data-testid="stMarkdownContainer"]) {
+            max-width: 100% !important;
+        }
+
+        .sidebar-action-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 12px;
+            margin-bottom: 18px;
         }
 
         .history-title {
             font-size: 13px !important;
-            font-weight: 700 !important;
-            color: #d7dde7 !important;
-            margin: 12px 0 4px 0 !important;
+            font-weight: 650 !important;
+            color: #e5e7eb !important;
+            margin: 18px 0 2px 0 !important;
+            padding-left: 2px !important;
         }
 
-        .history-count, .history-current-note {
+        .history-count {
             font-size: 11px !important;
-            color: #8d98a8 !important;
-            margin: 4px 0 !important;
-            line-height: 1.25 !important;
+            color: #94a3b8 !important;
+            margin: 6px 0 5px 2px !important;
+        }
+
+        .history-current-note {
+            color: #94a3b8 !important;
+            font-size: 11px !important;
+            margin-top: 6px !important;
+            margin-bottom: 4px !important;
+            padding-left: 2px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* Compact ChatGPT-like history rows */
+        .history-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 28px;
+            align-items: center;
+            gap: 4px;
+            margin: 1px 0 !important;
+        }
+
+        .history-row .stButton > button {
+            height: 32px !important;
+            min-height: 32px !important;
+            padding: 5px 8px !important;
+            border-radius: 8px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: #dbe7f5 !important;
+            text-align: left !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            justify-content: flex-start !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+        }
+
+        .history-row .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.12) !important;
+            border-color: transparent !important;
+        }
+
+        .history-menu-button .stButton > button {
+            width: 28px !important;
+            min-width: 28px !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            padding: 0 !important;
+            border-radius: 8px !important;
+            justify-content: center !important;
+            text-align: center !important;
+            color: #94a3b8 !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+        }
+
+        .history-menu-button .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.14) !important;
+            color: #ffffff !important;
         }
 
         .history-section-label {
-            font-size: 11px !important;
-            color: #8d98a8 !important;
-            font-weight: 700 !important;
-            margin: 10px 0 3px 2px !important;
-            line-height: 1.2 !important;
+            color: #94a3b8;
+            font-size: 11px;
+            font-weight: 650;
+            margin: 10px 0 4px 2px;
         }
 
-        .history-menu-title {
+        .history-menu-card {
+            width: 188px;
+            padding: 8px;
+            border-radius: 12px;
+            background: rgba(31, 41, 55, 0.96);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+            margin: 4px 0 8px 38px;
+        }
+
+        .history-menu-card-title {
             font-size: 12px;
+            font-weight: 600;
             color: #cbd5e1;
+            padding: 4px 6px 8px 6px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+            margin-bottom: 4px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding: 4px 8px 6px 8px;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-            margin-bottom: 4px;
         }
 
-        /* Reduce vertical space in sidebar columns */
-        section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
-            gap: 4px !important;
-            margin: 0 !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
-            gap: 2px !important;
-        }
-
-        /* Compact history row button */
-        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
-            min-height: 30px !important;
+        .history-menu-card .stButton > button {
             height: 30px !important;
+            min-height: 30px !important;
             padding: 4px 8px !important;
-            margin: 0 !important;
             border-radius: 8px !important;
-            background: transparent !important;
-            border: 1px solid transparent !important;
-            box-shadow: none !important;
-            color: #dbe7f5 !important;
             font-size: 12.5px !important;
             font-weight: 500 !important;
-            line-height: 1.15 !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
-            align-items: center !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button p,
-        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button div {
-            text-align: left !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1.15 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            display: block !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button:hover {
-            background: rgba(148, 163, 184, 0.11) !important;
-            color: #ffffff !important;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-
-        /* Small three-dot popover trigger only, no arrow */
-        section[data-testid="stSidebar"] div[data-testid="stPopover"] button {
-            width: 28px !important;
-            min-width: 28px !important;
-            max-width: 28px !important;
-            height: 30px !important;
-            min-height: 30px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border-radius: 8px !important;
             background: transparent !important;
-            border: 1px solid transparent !important;
-            box-shadow: none !important;
-            color: #aeb9c8 !important;
-            font-size: 18px !important;
-            line-height: 1 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
-            background: rgba(148, 163, 184, 0.12) !important;
-            color: #ffffff !important;
-        }
-
-        section[data-testid="stSidebar"] div[data-testid="stPopover"] button svg {
-            display: none !important;
-            width: 0 !important;
-        }
-
-        /* ChatGPT-style small floating menu */
-        div[data-testid="stPopoverBody"],
-        div[data-baseweb="popover"] div[role="dialog"] {
-            width: 176px !important;
-            min-width: 176px !important;
-            max-width: 176px !important;
-            padding: 6px !important;
-            border-radius: 14px !important;
-            background: rgba(32, 33, 35, 0.98) !important;
-            border: 1px solid rgba(255, 255, 255, 0.10) !important;
-            box-shadow: 0 12px 32px rgba(0,0,0,0.38) !important;
-            backdrop-filter: blur(12px) !important;
-        }
-
-        div[data-testid="stPopoverBody"] .stButton > button {
-            height: 32px !important;
-            min-height: 32px !important;
-            padding: 6px 8px !important;
-            border-radius: 8px !important;
-            background: transparent !important;
+            color: #e5e7eb !important;
             border: none !important;
             box-shadow: none !important;
-            color: #e5e7eb !important;
-            font-size: 13px !important;
-            font-weight: 500 !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
-            transform: none !important;
         }
 
-        div[data-testid="stPopoverBody"] .stButton > button:hover {
-            background: rgba(255,255,255,0.08) !important;
+        .history-menu-card .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.13) !important;
             color: #ffffff !important;
-            transform: none !important;
-            box-shadow: none !important;
         }
 
-        div[data-testid="stPopoverBody"] .stButton > button[kind="secondary"] {
-            color: #e5e7eb !important;
+        .history-menu-card .delete-action button {
+            color: #f87171 !important;
         }
 
+        hr {
+            margin-top: 16px !important;
+            margin-bottom: 16px !important;
+            border-color: rgba(148, 163, 184, 0.14) !important;
+        }
 </style>
         """,
         unsafe_allow_html=True
@@ -1198,13 +1264,17 @@ if st.session_state.current_assistant != assistant:
     st.session_state.current_assistant = assistant
     st.rerun()
 
-if st.sidebar.button("🧹 New Case / Clear Chat"):
+st.sidebar.markdown('<div class="sidebar-action-wrap">', unsafe_allow_html=True)
+
+if st.sidebar.button("＋ New Case", key="new_case_button"):
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.rerun()
 
-if st.sidebar.button("Logout"):
+if st.sidebar.button("Logout", key="logout_button"):
     logout_user()
+
+st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
 # AI Helper Functions
@@ -1352,14 +1422,25 @@ def conversation_title_from_text(text):
 
 def create_conversation(username, assistant_name, first_message=None):
     """Create a new conversation and return its ID."""
-    result = supabase.table("conversations").insert({
+    payload = {
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
         "title": conversation_title_from_text(first_message),
         "archived": False,
+        "pinned": False,
         "created_at": now_iso(),
         "updated_at": now_iso()
-    }).execute()
+    }
+
+    try:
+        result = supabase.table("conversations").insert(payload).execute()
+    except Exception as e:
+        # Fallback for older Supabase schema without pinned column.
+        if "pinned" in str(e).lower():
+            payload.pop("pinned", None)
+            result = supabase.table("conversations").insert(payload).execute()
+        else:
+            raise
 
     if not result.data:
         raise RuntimeError("Conversation was not created. Supabase returned no data.")
@@ -1521,14 +1602,146 @@ def get_current_conversation_title():
 # Chat History Sidebar
 # ============================================================
 
+def render_history_item(convo):
+    """Render one compact ChatGPT-style history row with a small ⋯ menu."""
+    convo_id = convo["id"]
+    title = convo.get("title") or "New Case"
+    assistant_label = clean_assistant_label(convo.get("assistant") or "")
+    updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
+    pinned = bool(convo.get("pinned", False))
+    is_current = st.session_state.conversation_id == convo_id
+
+    display_title = title.strip()
+    if len(display_title) > 32:
+        display_title = display_title[:32] + "..."
+
+    prefix = "• " if is_current else ""
+    pin_prefix = "📌 " if pinned else ""
+    row_label = f"{prefix}{pin_prefix}{display_title}"
+
+    row_cols = st.sidebar.columns([0.86, 0.14], gap="small")
+
+    with row_cols[0]:
+        if st.button(row_label, key=f"open_{convo_id}", help=f"{title}"):
+            st.session_state.conversation_id = convo_id
+            st.session_state.messages = load_messages(convo_id)
+            st.session_state.open_history_menu = None
+            st.session_state.rename_conversation_id = None
+            st.rerun()
+
+    with row_cols[1]:
+        if st.button("⋯", key=f"menu_{convo_id}", help="Conversation options"):
+            if st.session_state.get("open_history_menu") == convo_id:
+                st.session_state.open_history_menu = None
+            else:
+                st.session_state.open_history_menu = convo_id
+            st.rerun()
+
+    if st.session_state.get("open_history_menu") == convo_id:
+        st.sidebar.markdown(
+            f"""
+            <div class="history-menu-card">
+                <div class="history-menu-card-title">{html.escape(display_title)}</div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if st.button("Rename", key=f"rename_action_{convo_id}"):
+            st.session_state.rename_conversation_id = convo_id
+            st.session_state.rename_conversation_value = title
+            st.session_state.open_history_menu = None
+            st.rerun()
+
+        if st.button("Unpin chat" if pinned else "Pin chat", key=f"pin_action_{convo_id}"):
+            try:
+                toggle_pin_conversation(convo_id, not pinned)
+                st.session_state.open_history_menu = None
+                st.rerun()
+            except Exception:
+                st.toast("Pin needs Supabase column: pinned", icon="⚠️")
+
+        if st.button("Archive", key=f"archive_action_{convo_id}"):
+            archive_conversation(convo_id)
+            if st.session_state.conversation_id == convo_id:
+                st.session_state.conversation_id = None
+                st.session_state.messages = []
+            st.session_state.open_history_menu = None
+            st.rerun()
+
+        st.sidebar.markdown('<div class="delete-action">', unsafe_allow_html=True)
+        if st.button("Delete", key=f"delete_action_{convo_id}"):
+            delete_conversation(convo_id)
+            if st.session_state.conversation_id == convo_id:
+                st.session_state.conversation_id = None
+                st.session_state.messages = []
+            st.session_state.open_history_menu = None
+            st.rerun()
+        st.sidebar.markdown('</div></div>', unsafe_allow_html=True)
+
+
+def render_rename_box(conversations):
+    """Inline rename box below history list."""
+    rename_id = st.session_state.get("rename_conversation_id")
+    if not rename_id:
+        return
+
+    target = None
+    for item in conversations:
+        if item.get("id") == rename_id:
+            target = item
+            break
+
+    if not target:
+        st.session_state.rename_conversation_id = None
+        return
+
+    st.sidebar.markdown('<div class="history-section-label">Rename conversation</div>', unsafe_allow_html=True)
+
+    with st.sidebar.form(f"rename_form_{rename_id}", clear_on_submit=False):
+        new_title = st.text_input(
+            "Title",
+            value=st.session_state.get("rename_conversation_value", target.get("title") or "New Case"),
+            label_visibility="collapsed"
+        )
+
+        save_col, cancel_col = st.columns([0.58, 0.42], gap="small")
+
+        with save_col:
+            save_clicked = st.form_submit_button("Save", use_container_width=True)
+
+        with cancel_col:
+            cancel_clicked = st.form_submit_button("Cancel", use_container_width=True)
+
+    if save_clicked:
+        cleaned = new_title.strip() or "New Case"
+        supabase.table("conversations").update({
+            "title": cleaned,
+            "updated_at": now_iso()
+        }).eq("id", rename_id).execute()
+
+        st.session_state.rename_conversation_id = None
+        st.session_state.rename_conversation_value = ""
+        st.rerun()
+
+    if cancel_clicked:
+        st.session_state.rename_conversation_id = None
+        st.session_state.rename_conversation_value = ""
+        st.rerun()
+
+
 if assistant != "⚙️ Admin Panel":
+    if "open_history_menu" not in st.session_state:
+        st.session_state.open_history_menu = None
+    if "rename_conversation_id" not in st.session_state:
+        st.session_state.rename_conversation_id = None
+
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
 
-    header_left, header_right = st.sidebar.columns([0.84, 0.16], gap="small")
-    with header_left:
-        st.markdown('<div class="history-count">Saved cases</div>', unsafe_allow_html=True)
-    with header_right:
+    top_left, top_right = st.sidebar.columns([0.82, 0.18], gap="small")
+    with top_left:
+        st.caption("Saved cases")
+    with top_right:
         if st.button("↻", key="refresh_history", help="Refresh history"):
             st.rerun()
 
@@ -1542,83 +1755,25 @@ if assistant != "⚙️ Admin Panel":
             pinned_conversations = [c for c in conversations if c.get("pinned")]
             normal_conversations = [c for c in conversations if not c.get("pinned")]
 
-            sections = []
             if pinned_conversations:
-                sections.append(("Pinned", pinned_conversations))
+                st.sidebar.markdown('<div class="history-section-label">Pinned</div>', unsafe_allow_html=True)
+                for convo in pinned_conversations:
+                    render_history_item(convo)
+
             if normal_conversations:
-                sections.append(("Recent", normal_conversations))
+                st.sidebar.markdown('<div class="history-section-label">Recent</div>', unsafe_allow_html=True)
+                for convo in normal_conversations:
+                    render_history_item(convo)
 
-            for section_name, section_convos in sections:
-                st.sidebar.markdown(
-                    f'<div class="history-section-label">{section_name}</div>',
-                    unsafe_allow_html=True
-                )
+            st.sidebar.markdown(
+                f'<div class="history-count">{len(conversations)} conversation(s)</div>',
+                unsafe_allow_html=True
+            )
 
-                for convo in section_convos:
-                    convo_id = convo["id"]
-                    title = convo.get("title") or "New Case"
-                    assistant_label = clean_assistant_label(convo.get("assistant") or "")
-                    updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
-                    pinned = bool(convo.get("pinned", False))
-                    is_current = st.session_state.conversation_id == convo_id
+            render_rename_box(conversations)
 
-                    title_short = title[:34] + "..." if len(title) > 34 else title
-
-                    meta_parts = []
-                    if assistant_label:
-                        meta_parts.append(assistant_label)
-                    if updated_at:
-                        meta_parts.append(updated_at)
-                    meta = " · ".join(meta_parts)
-
-                    # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
-                    active_prefix = "• " if is_current else ""
-                    pin_prefix = "📌 " if pinned else ""
-                    history_label = f"{active_prefix}{pin_prefix}{title_short}"
-
-                    item_col, menu_col = st.sidebar.columns([0.88, 0.12], gap="small")
-
-                    with item_col:
-                        if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
-                            st.session_state.conversation_id = convo_id
-                            st.session_state.messages = load_messages(convo_id)
-                            st.rerun()
-
-                    with menu_col:
-                        with st.popover("⋯"):
-                            st.markdown(f'<div class="history-menu-title">{html.escape(title_short)}</div>', unsafe_allow_html=True)
-
-                            if st.button("Rename", key=f"rename_{convo_id}"):
-                                st.toast("Rename will be added in the next version.")
-
-                            pin_label = "Unpin chat" if pinned else "Pin chat"
-                            if st.button(pin_label, key=f"pin_{convo_id}"):
-                                try:
-                                    toggle_pin_conversation(convo_id, not pinned)
-                                    st.rerun()
-                                except Exception:
-                                    st.toast("Pin needs the pinned column in Supabase.")
-
-                            if st.button("Archive", key=f"archive_{convo_id}"):
-                                archive_conversation(convo_id)
-                                if st.session_state.conversation_id == convo_id:
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
-
-                            if st.button("Delete", key=f"delete_{convo_id}"):
-                                delete_conversation(convo_id)
-                                if st.session_state.conversation_id == convo_id:
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
         else:
             st.sidebar.caption("No saved cases yet.")
-
-        st.sidebar.markdown(
-            f'<div class="history-count">{len(conversations)} conversation(s)</div>',
-            unsafe_allow_html=True
-        )
 
         if st.session_state.conversation_id:
             current_title = get_current_conversation_title()
@@ -1630,6 +1785,7 @@ if assistant != "⚙️ Admin Panel":
     except Exception as e:
         st.sidebar.error(f"Chat history error: {e}")
 
+# ============================================================
 # ============================================================
 # Admin Panel
 # ============================================================
