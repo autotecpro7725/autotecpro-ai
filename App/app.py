@@ -542,73 +542,90 @@ def inject_base_css():
         
 
         /* ============================================================
-           ChatGPT-style sidebar history + compact popover menu
+           ChatGPT-style compact history sidebar and menu fixes
+           - left aligned text
+           - smaller vertical gaps
+           - no dropdown arrow; only three dots
+           - compact popover menu
         ============================================================ */
-        .history-title {
-            font-size: 12px !important;
-            font-weight: 650 !important;
-            color: #aab4c3 !important;
-            margin: 14px 0 8px 0 !important;
-            letter-spacing: 0 !important;
+        section[data-testid="stSidebar"] {
+            width: 300px !important;
+            min-width: 300px !important;
         }
 
-        .history-count {
-            font-size: 11px !important;
-            color: #7f8a9b !important;
-            margin: 2px 0 8px 0 !important;
+        .history-header-row {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            margin: 8px 0 6px 0;
         }
 
         .history-section-label {
-            font-size: 11px;
+            font-size: 12px;
             color: #8b97a8;
-            font-weight: 650;
-            margin: 10px 0 5px 2px;
+            font-weight: 700;
+            margin: 10px 0 4px 2px;
         }
 
-        .history-row-wrap {
-            margin: 1px 0 2px 0;
+        .history-current-note {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        /* The conversation title button should look like ChatGPT history text */
-        div[data-testid="stSidebar"] .stButton > button {
+        /* Streamlit sidebar history buttons: compact + left aligned */
+        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
             min-height: 30px !important;
-            height: 30px !important;
+            height: auto !important;
             padding: 5px 8px !important;
+            margin: 0 !important;
             border-radius: 8px !important;
             background: transparent !important;
             border: 1px solid transparent !important;
-            color: #dbe7f5 !important;
             box-shadow: none !important;
-            font-size: 12.5px !important;
-            font-weight: 450 !important;
-            line-height: 1.15 !important;
+            color: #dbe7f5 !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            line-height: 1.18 !important;
             text-align: left !important;
             justify-content: flex-start !important;
-            overflow: hidden !important;
-            white-space: nowrap !important;
-            text-overflow: ellipsis !important;
+            align-items: center !important;
+            white-space: normal !important;
         }
 
-        div[data-testid="stSidebar"] .stButton > button:hover {
-            background: rgba(148, 163, 184, 0.13) !important;
-            border-color: rgba(148, 163, 184, 0.08) !important;
+        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button p {
+            text-align: left !important;
+            width: 100% !important;
+            margin: 0 !important;
+            line-height: 1.18 !important;
+        }
+
+        div[data-testid="stSidebar"] div[data-testid="column"] .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.11) !important;
+            border-color: rgba(148, 163, 184, 0.10) !important;
             color: #ffffff !important;
             transform: none !important;
             box-shadow: none !important;
         }
 
-        /* Make the three-dot popover trigger small, not a red action button */
+        /* Three-dot menu button */
         div[data-testid="stSidebar"] div[data-testid="stPopover"] button {
-            width: 30px !important;
-            height: 30px !important;
-            min-height: 30px !important;
+            width: 28px !important;
+            min-width: 28px !important;
+            height: 28px !important;
+            min-height: 28px !important;
             padding: 0 !important;
+            margin: 0 !important;
             border-radius: 8px !important;
             background: transparent !important;
             border: 1px solid transparent !important;
-            color: #cbd5e1 !important;
             box-shadow: none !important;
-            font-size: 17px !important;
+            color: #aeb9c8 !important;
+            font-size: 18px !important;
             line-height: 1 !important;
             display: flex !important;
             align-items: center !important;
@@ -616,57 +633,58 @@ def inject_base_css():
         }
 
         div[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
-            background: rgba(148, 163, 184, 0.14) !important;
-            border-color: rgba(148, 163, 184, 0.10) !important;
-            transform: none !important;
-            box-shadow: none !important;
+            background: rgba(148, 163, 184, 0.12) !important;
+            color: #ffffff !important;
+            border-color: transparent !important;
         }
 
-        /* Popover body menu: ChatGPT-like compact dark menu */
-        div[data-testid="stPopoverBody"],
-        div[role="dialog"] {
-            background: rgba(30, 41, 59, 0.98) !important;
-            border: 1px solid rgba(148, 163, 184, 0.18) !important;
-            border-radius: 14px !important;
-            box-shadow: 0 18px 50px rgba(0,0,0,.38) !important;
+        /* Hide any extra arrow/svg beside popover trigger when Streamlit renders one */
+        div[data-testid="stSidebar"] div[data-testid="stPopover"] button svg {
+            display: none !important;
+        }
+
+        /* Compact popover body */
+        div[data-testid="stPopoverBody"] {
+            width: 190px !important;
+            min-width: 190px !important;
+            max-width: 210px !important;
             padding: 8px !important;
-            backdrop-filter: blur(14px) !important;
+            border-radius: 14px !important;
+            background: rgba(31, 41, 55, 0.96) !important;
+            border: 1px solid rgba(148, 163, 184, 0.20) !important;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.35) !important;
+            backdrop-filter: blur(12px) !important;
         }
 
-        div[data-testid="stPopoverBody"] .stButton > button,
-        div[role="dialog"] .stButton > button {
-            height: 34px !important;
-            min-height: 34px !important;
-            width: 180px !important;
-            padding: 7px 10px !important;
+        div[data-testid="stPopoverBody"] .stButton > button {
+            height: 32px !important;
+            min-height: 32px !important;
+            padding: 6px 8px !important;
             border-radius: 8px !important;
             background: transparent !important;
-            border: 1px solid transparent !important;
-            color: #e5e7eb !important;
+            border: none !important;
             box-shadow: none !important;
+            color: #e5e7eb !important;
             font-size: 13px !important;
             font-weight: 500 !important;
             text-align: left !important;
             justify-content: flex-start !important;
+            transform: none !important;
         }
 
-        div[data-testid="stPopoverBody"] .stButton > button:hover,
-        div[role="dialog"] .stButton > button:hover {
-            background: rgba(148, 163, 184, 0.14) !important;
-            border-color: transparent !important;
+        div[data-testid="stPopoverBody"] .stButton > button:hover {
+            background: rgba(255,255,255,0.08) !important;
+            color: #ffffff !important;
             transform: none !important;
             box-shadow: none !important;
-            color: #ffffff !important;
         }
 
-        .history-menu-title {
-            font-size: 12px;
-            color: #94a3b8;
-            padding: 4px 8px 8px 8px;
-            max-width: 180px;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
+        div[data-testid="stPopoverBody"] .stMarkdown,
+        div[data-testid="stPopoverBody"] p {
+            font-size: 12px !important;
+            line-height: 1.25 !important;
+            margin: 0 !important;
+            color: #cbd5e1 !important;
         }
 </style>
         """,
@@ -1313,30 +1331,15 @@ def conversation_title_from_text(text):
 
 
 def create_conversation(username, assistant_name, first_message=None):
-    """Create a new conversation and return its ID.
-
-    Works even if the older Supabase schema does not have the optional
-    `pinned` column yet. Pinning will simply be unavailable until the
-    column is added.
-    """
-    payload = {
+    """Create a new conversation and return its ID."""
+    result = supabase.table("conversations").insert({
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
         "title": conversation_title_from_text(first_message),
         "archived": False,
-        "pinned": False,
         "created_at": now_iso(),
         "updated_at": now_iso()
-    }
-
-    try:
-        result = supabase.table("conversations").insert(payload).execute()
-    except Exception as e:
-        if "pinned" in str(e).lower():
-            payload.pop("pinned", None)
-            result = supabase.table("conversations").insert(payload).execute()
-        else:
-            raise
+    }).execute()
 
     if not result.data:
         raise RuntimeError("Conversation was not created. Supabase returned no data.")
@@ -1452,24 +1455,8 @@ def toggle_pin_conversation(conversation_id, pinned):
     if not conversation_id:
         return
 
-    try:
-        supabase.table("conversations").update({
-            "pinned": bool(pinned),
-            "updated_at": now_iso()
-        }).eq("id", conversation_id).execute()
-    except Exception as e:
-        if "pinned" in str(e).lower():
-            raise RuntimeError("Pin feature needs this Supabase column: ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE;")
-        raise
-
-
-def rename_conversation(conversation_id, new_title):
-    """Rename a conversation title."""
-    clean_title = str(new_title or "").strip()
-    if not conversation_id or not clean_title:
-        return
     supabase.table("conversations").update({
-        "title": clean_title[:80],
+        "pinned": bool(pinned),
         "updated_at": now_iso()
     }).eq("id", conversation_id).execute()
 
@@ -1518,10 +1505,10 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
 
-    refresh_cols = st.sidebar.columns([0.82, 0.18], gap="small")
-    with refresh_cols[0]:
+    header_left, header_right = st.sidebar.columns([0.84, 0.16], gap="small")
+    with header_left:
         st.markdown('<div class="history-count">Saved cases</div>', unsafe_allow_html=True)
-    with refresh_cols[1]:
+    with header_right:
         if st.button("↻", key="refresh_history", help="Refresh history"):
             st.rerun()
 
@@ -1541,25 +1528,21 @@ if assistant != "⚙️ Admin Panel":
             if normal_conversations:
                 sections.append(("Recent", normal_conversations))
 
-            for section_name, section_rows in sections:
+            for section_name, section_convos in sections:
                 st.sidebar.markdown(
                     f'<div class="history-section-label">{section_name}</div>',
                     unsafe_allow_html=True
                 )
 
-                for convo in section_rows:
+                for convo in section_convos:
                     convo_id = convo["id"]
-                    raw_title = convo.get("title") or "New Case"
-                    title = raw_title.strip() or "New Case"
+                    title = convo.get("title") or "New Case"
                     assistant_label = clean_assistant_label(convo.get("assistant") or "")
                     updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
                     pinned = bool(convo.get("pinned", False))
                     is_current = st.session_state.conversation_id == convo_id
 
-                    if len(title) > 34:
-                        display_title = title[:34] + "..."
-                    else:
-                        display_title = title
+                    title_short = title[:34] + "..." if len(title) > 34 else title
 
                     meta_parts = []
                     if assistant_label:
@@ -1569,11 +1552,10 @@ if assistant != "⚙️ Admin Panel":
                     meta = " · ".join(meta_parts)
 
                     active_mark = "● " if is_current else ""
-                    history_label = f"{active_mark}{display_title}"
+                    history_label = f"{active_mark}{title_short}"
                     if meta:
                         history_label += f"\n{meta}"
 
-                    st.sidebar.markdown('<div class="history-row-wrap">', unsafe_allow_html=True)
                     item_col, menu_col = st.sidebar.columns([0.86, 0.14], gap="small")
 
                     with item_col:
@@ -1583,82 +1565,42 @@ if assistant != "⚙️ Admin Panel":
                             st.rerun()
 
                     with menu_col:
-                        if hasattr(st, "popover"):
-                            with st.popover("⋯", help="Conversation options"):
-                                st.markdown(
-                                    f'<div class="history-menu-title">{html.escape(title)}</div>',
-                                    unsafe_allow_html=True
-                                )
+                        with st.popover("⋯", help="Conversation options"):
+                            st.markdown(f"**{html.escape(title_short)}**")
 
-                                if "rename_target" not in st.session_state:
-                                    st.session_state.rename_target = None
+                            if st.button("Rename", key=f"rename_{convo_id}"):
+                                st.info("Rename will be added in the next version.")
 
-                                if st.button("✏️ Rename", key=f"rename_menu_{convo_id}"):
-                                    st.session_state.rename_target = convo_id
-                                    st.rerun()
-
-                                pin_text = "📌 Unpin chat" if pinned else "📌 Pin chat"
-                                if st.button(pin_text, key=f"pin_menu_{convo_id}"):
-                                    try:
-                                        toggle_pin_conversation(convo_id, not pinned)
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(str(e))
-
-                                if st.button("🗂 Archive", key=f"archive_menu_{convo_id}"):
-                                    try:
-                                        archive_conversation(convo_id)
-                                        if st.session_state.conversation_id == convo_id:
-                                            st.session_state.conversation_id = None
-                                            st.session_state.messages = []
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Archive failed: {e}")
-
-                                if st.button("🗑 Delete", key=f"delete_menu_{convo_id}"):
-                                    try:
-                                        delete_conversation(convo_id)
-                                        if st.session_state.conversation_id == convo_id:
-                                            st.session_state.conversation_id = None
-                                            st.session_state.messages = []
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Delete failed: {e}")
-                        else:
-                            # Fallback for older Streamlit versions.
-                            if st.button("⋯", key=f"more_{convo_id}", help="Options"):
-                                st.session_state.menu_target = convo_id
-                                st.rerun()
-
-                    st.sidebar.markdown('</div>', unsafe_allow_html=True)
-
-                    if st.session_state.get("rename_target") == convo_id:
-                        with st.sidebar.form(f"rename_form_{convo_id}"):
-                            new_title = st.text_input("Rename", value=raw_title, label_visibility="collapsed")
-                            rename_cols = st.columns(2)
-                            with rename_cols[0]:
-                                save_rename = st.form_submit_button("Save")
-                            with rename_cols[1]:
-                                cancel_rename = st.form_submit_button("Cancel")
-
-                            if save_rename:
+                            pin_label = "Unpin chat" if pinned else "Pin chat"
+                            if st.button(pin_label, key=f"pin_{convo_id}"):
                                 try:
-                                    rename_conversation(convo_id, new_title)
-                                    st.session_state.rename_target = None
+                                    toggle_pin_conversation(convo_id, not pinned)
                                     st.rerun()
-                                except Exception as e:
-                                    st.sidebar.error(f"Rename failed: {e}")
+                                except Exception:
+                                    st.warning(
+                                        "Pin requires this Supabase SQL: ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE;"
+                                    )
 
-                            if cancel_rename:
-                                st.session_state.rename_target = None
+                            if st.button("Archive", key=f"archive_{convo_id}"):
+                                archive_conversation(convo_id)
+                                if st.session_state.conversation_id == convo_id:
+                                    st.session_state.conversation_id = None
+                                    st.session_state.messages = []
                                 st.rerun()
 
-            st.sidebar.markdown(
-                f'<div class="history-count">{len(conversations)} conversation(s)</div>',
-                unsafe_allow_html=True
-            )
+                            if st.button("Delete", key=f"delete_{convo_id}"):
+                                delete_conversation(convo_id)
+                                if st.session_state.conversation_id == convo_id:
+                                    st.session_state.conversation_id = None
+                                    st.session_state.messages = []
+                                st.rerun()
         else:
             st.sidebar.caption("No saved cases yet.")
+
+        st.sidebar.markdown(
+            f'<div class="history-count">{len(conversations)} conversation(s)</div>',
+            unsafe_allow_html=True
+        )
 
         if st.session_state.conversation_id:
             current_title = get_current_conversation_title()
