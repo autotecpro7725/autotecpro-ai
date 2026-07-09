@@ -1278,6 +1278,18 @@ def inject_base_css():
             }
         }
 
+
+        /* Final safety: hide empty HTML-artifact code boxes in chat */
+        .chat-bubble pre,
+        .chat-bubble code {
+            white-space: pre-wrap !important;
+        }
+
+        .chat-bubble pre:has(code:empty),
+        .chat-bubble code:empty {
+            display: none !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1914,43 +1926,86 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Remove raw/escaped HTML artifacts from AI replies and saved history.
-    This specifically removes visible fragments like </div>, <div>, </p>,
-    and fenced code blocks that only contain HTML closing tags.
+    Strong cleanup for raw HTML artifacts from AI replies and saved history.
+    Removes:
+    - raw tags like </div>, <div>, </p>
+    - escaped tags like &lt;/div&gt;
+    - markdown code blocks that only contain those tags
+    - standalone code-fence markers left behind
     """
     value = str(text or "")
 
-    # Remove image marker first if somehow passed here.
-    marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
-    value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
+    # Remove saved image marker if this function is called on full stored content.
+    try:
+        marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
+        value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
+    except Exception:
+        pass
 
-    # Remove fenced code blocks that only contain HTML closing/opening div/p/span tags.
+    tag_names = r"(div|p|span|section|article|main|body|html)"
+
+    # Remove fenced blocks that contain only HTML tag junk.
     value = re.sub(
-        r"```\s*(?:html)?\s*(?:</?(?:div|p|span|section|article|main)[^>]*>\s*)+```",
+        r"```(?:html|HTML)?\s*(?:</?\s*" + tag_names + r"\b[^>]*>\s*)+```",
         "",
         value,
         flags=re.IGNORECASE | re.DOTALL,
     )
 
-    # Remove raw HTML fragments anywhere.
-    value = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", value, flags=re.IGNORECASE)
+    # Remove any remaining raw or escaped HTML tags anywhere in the message.
+    value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
 
-    # Remove escaped HTML fragments anywhere.
-    value = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
-
-    # Remove leftover lines that are only code-fence markers.
     cleaned_lines = []
+    inside_junk_code_fence = False
+    code_fence_buffer = []
+
     for line in value.splitlines():
         stripped = line.strip()
-        if stripped in ("```", "```html", "```HTML"):
+
+        # If a markdown code fence remains and the fenced content is only blank/tag junk,
+        # remove the whole block. Otherwise keep non-junk content.
+        if stripped.lower() in ("```", "```html"):
+            if not inside_junk_code_fence:
+                inside_junk_code_fence = True
+                code_fence_buffer = []
+            else:
+                joined = "\n".join(code_fence_buffer).strip()
+                junk = not joined or re.fullmatch(
+                    r"(?:</?\s*" + tag_names + r"\b[^>]*>\s*|&lt;/?\s*" + tag_names + r"\b[^&]*&gt;\s*)+",
+                    joined,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+                if not junk:
+                    cleaned_lines.append(joined)
+                inside_junk_code_fence = False
+                code_fence_buffer = []
             continue
-        if re.fullmatch(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", stripped, flags=re.IGNORECASE):
+
+        if inside_junk_code_fence:
+            code_fence_buffer.append(line)
             continue
-        if re.fullmatch(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", stripped, flags=re.IGNORECASE):
+
+        # Drop standalone HTML tag artifact lines.
+        if re.fullmatch(r"</?\s*" + tag_names + r"\b[^>]*>", stripped, flags=re.IGNORECASE):
             continue
-        cleaned_lines.append(line)
+        if re.fullmatch(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", stripped, flags=re.IGNORECASE):
+            continue
+
+        # Drop lines that became empty after tag removal.
+        if not stripped:
+            cleaned_lines.append("")
+        else:
+            cleaned_lines.append(line)
 
     value = "\n".join(cleaned_lines)
+
+    # Final sweep for any leftover raw fragments.
+    value = value.replace("</div>", "").replace("<div>", "")
+    value = value.replace("&lt;/div&gt;", "").replace("&lt;div&gt;", "")
+    value = value.replace("</p>", "").replace("<p>", "")
+    value = value.replace("&lt;/p&gt;", "").replace("&lt;p&gt;", "")
+
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
