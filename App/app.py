@@ -12,6 +12,7 @@ import tempfile
 import os
 import re
 import json
+import time
 from difflib import SequenceMatcher
 from config import supabase
 
@@ -2041,7 +2042,7 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
 # ============================================================
 
 def extract_analytics_from_question(question, answer, selected_assistant):
-    """Extract lightweight analytics signals from each AI interaction."""
+    """Extract structured analytics signals from each AI interaction."""
     prompt = f"""
 You are AutoTecPro's internal analytics engine.
 
@@ -2049,16 +2050,22 @@ Extract analytics from this AI interaction.
 
 Return ONLY valid JSON:
 {{
-  "vehicle": "vehicle model/year if mentioned, else empty",
+  "vehicle": "full vehicle if mentioned, else empty",
+  "year": "year if mentioned, else empty",
+  "make": "make/brand if mentioned, else empty",
+  "model": "model if mentioned, else empty",
   "issue": "short issue/search topic",
   "product": "product/model/category searched, else empty",
+  "solution": "short reusable solution summary, else empty",
   "keywords": "comma-separated keywords",
   "was_unanswered": true/false,
+  "resolved": true/false,
   "confidence_score": 0-100
 }}
 
 Rules:
 - was_unanswered is true if the AI could not answer, lacked documentation, asked for escalation, or only requested more info without a usable answer.
+- resolved is true if the answer gives a clear useful solution, next step, compatibility fact, or customer-ready response.
 - confidence_score should reflect how confident the AI answer appears based on the answer wording.
 - Do not invent details.
 
@@ -2081,30 +2088,55 @@ Answer:
     except Exception:
         data = {}
 
-    fallback_vehicle = detect_vehicle_basic(str(question) + " " + str(answer))
+    combined_text = str(question) + " " + str(answer)
+    fallback_vehicle = detect_vehicle_basic(combined_text)
+    fallback_year_match = re.search(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", combined_text)
 
     try:
         confidence = int(data.get("confidence_score", 70))
     except Exception:
         confidence = 70
 
+    vehicle = str(data.get("vehicle") or fallback_vehicle or "").strip()
+    year = str(data.get("year") or (fallback_year_match.group(1) if fallback_year_match else "")).strip()
+    make = str(data.get("make") or "").strip()
+    model = str(data.get("model") or "").strip()
+
+    # Lightweight fallback make/model split when AI extraction is empty.
+    if vehicle and not make:
+        vehicle_low = vehicle.lower()
+        for brand in ["chevrolet", "chevy", "gmc", "ford", "toyota", "dodge", "ram", "infiniti", "audi", "mercedes"]:
+            if brand in vehicle_low:
+                make = brand.title()
+                break
+
+    if vehicle and not model:
+        for possible_model in ["silverado", "sierra", "tahoe", "suburban", "yukon", "f150", "f-150", "f250", "f-250", "f350", "f-350", "tundra", "ram", "durango", "q50", "q60", "a4", "a5", "glc"]:
+            if possible_model in vehicle.lower():
+                model = possible_model.upper()
+                break
+
     return {
         "username": st.session_state.get("username"),
         "assistant": clean_assistant_label(selected_assistant),
-        "vehicle": str(data.get("vehicle") or fallback_vehicle or "").strip(),
+        "vehicle": vehicle,
+        "year": year,
+        "make": make,
+        "model": model,
         "issue": str(data.get("issue") or conversation_title_from_text(question) or "").strip()[:180],
         "product": str(data.get("product") or "").strip()[:180],
+        "solution": str(data.get("solution") or "").strip(),
         "keywords": str(data.get("keywords") or "").strip(),
         "question": str(question or ""),
         "answer": str(answer or ""),
         "was_unanswered": bool(data.get("was_unanswered", False)),
+        "resolved": bool(data.get("resolved", False)),
         "confidence_score": max(0, min(100, confidence)),
         "conversation_id": st.session_state.get("conversation_id"),
         "created_at": now_iso()
     }
 
-
-def log_ai_analytics(question, answer, selected_assistant, learning_result=None):
+def log_ai_analytics(question, answer, selected_assistant, learning_result=None, response_time=None, tokens_used=None):
     """Save one analytics event for Admin dashboard."""
     try:
         payload = extract_analytics_from_question(question, answer, selected_assistant)
@@ -2113,10 +2145,16 @@ def log_ai_analytics(question, answer, selected_assistant, learning_result=None)
             payload["learned"] = bool(learning_result.get("learned"))
             payload["learning_mode"] = learning_result.get("mode")
             payload["learned_record_id"] = learning_result.get("record_id")
+            payload["duplicate_of"] = learning_result.get("duplicate_of")
         else:
             payload["learned"] = False
             payload["learning_mode"] = None
             payload["learned_record_id"] = None
+            payload["duplicate_of"] = None
+
+        payload["response_time"] = response_time
+        payload["tokens_used"] = tokens_used
+        payload["learning_source"] = "automatic"
 
         supabase.table("ai_analytics").insert(payload).execute()
         return True
@@ -2124,7 +2162,6 @@ def log_ai_analytics(question, answer, selected_assistant, learning_result=None)
     except Exception:
         # Analytics should never break the main chat.
         return False
-
 
 def top_counts(rows, field, limit=10):
     counts = {}
@@ -2188,6 +2225,69 @@ def learning_success_rate(rows):
         return 0
     learned = len([r for r in rows if r.get("learned")])
     return round((learned / max(len(rows), 1)) * 100)
+
+
+
+
+def count_today(rows, date_field="created_at"):
+    today = datetime.now(timezone.utc).date().isoformat()
+    return len([r for r in rows if str(r.get(date_field) or "").startswith(today)])
+
+
+def safe_avg(rows, field):
+    values = []
+    for row in rows:
+        try:
+            if row.get(field) is not None:
+                values.append(float(row.get(field)))
+        except Exception:
+            pass
+    if not values:
+        return 0
+    return round(sum(values) / len(values), 2)
+
+
+def duplicate_detection_rate(rows):
+    if not rows:
+        return 0
+    dupes = len([r for r in rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
+    return round((dupes / max(len(rows), 1)) * 100)
+
+
+def resolved_rate(rows):
+    if not rows:
+        return 0
+    resolved = len([r for r in rows if r.get("resolved")])
+    return round((resolved / max(len(rows), 1)) * 100)
+
+
+def total_numeric(rows, field):
+    total = 0
+    for row in rows:
+        try:
+            total += int(row.get(field) or 0)
+        except Exception:
+            pass
+    return total
+
+
+def growth_counts(rows, field="created_at", limit=30, label="New Knowledge"):
+    counts = {}
+    for row in rows:
+        day = str(row.get(field) or "")[:10]
+        if not day:
+            continue
+        counts[day] = counts.get(day, 0) + 1
+    items = sorted(counts.items())[-limit:]
+    return [{"Date": k, label: v} for k, v in items]
+
+
+def render_metric_row(metrics):
+    cols = st.columns(len(metrics))
+    for col, metric in zip(cols, metrics):
+        label, value = metric[0], metric[1]
+        delta = metric[2] if len(metric) > 2 else None
+        col.metric(label, value, delta=delta)
 
 
 
@@ -2567,10 +2667,46 @@ if assistant == "⚙️ Admin Panel":
 
     st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
     st.subheader("⚙️ Admin Panel")
-    st.caption("Manage users and upload new documents into your AI knowledge base.")
+    st.caption("Manage users, knowledge uploads, AI learning, analytics, and continuous improvement.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs(["👥 Manage Users", "📚 Upload Knowledge", "🧠 Learned Knowledge", "📊 Analytics"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "👥 Users",
+        "📚 Upload Knowledge",
+        "🧠 AI Learning",
+        "🚗 Vehicle Analytics",
+        "📦 Product Analytics",
+        "🔧 Technical Analytics",
+        "📊 AI Analytics",
+        "📈 Learning Analytics"
+    ])
+
+    # Shared analytics data for all admin dashboards.
+    try:
+        analytics_rows = (
+            supabase
+            .table("ai_analytics")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(2000)
+            .execute()
+            .data
+        ) or []
+    except Exception:
+        analytics_rows = []
+
+    try:
+        learned_rows_for_analytics = (
+            supabase
+            .table("learned_knowledge")
+            .select("*")
+            .order("updated_at", desc=True)
+            .limit(2000)
+            .execute()
+            .data
+        ) or []
+    except Exception:
+        learned_rows_for_analytics = []
 
     with tab1:
         st.markdown("### Current Users")
@@ -2648,232 +2784,251 @@ if assistant == "⚙️ Admin Panel":
                     except Exception as e:
                         st.error(f"Failed to upload {admin_file.name}: {e}")
 
-
     with tab3:
-        st.markdown("### 🧠 Self-Learning Knowledge")
-        st.caption("Automatically learned cases with duplicate detection and self-improving solutions.")
+        st.markdown("### 🧠 AI Learning")
+        st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
 
-        try:
-            learned_rows = (
-                supabase
-                .table("learned_knowledge")
-                .select("*")
-                .order("updated_at", desc=True)
-                .limit(80)
-                .execute()
-                .data
-            )
+        total_learned = len(learned_rows_for_analytics)
+        new_today = count_today(learned_rows_for_analytics, "created_at")
+        avg_conf = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+        synced_cases = len([r for r in learned_rows_for_analytics if r.get("synced")])
+        duplicate_rate = duplicate_detection_rate(analytics_rows)
+        total_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
 
-            if learned_rows:
-                total_cases = len(learned_rows)
-                synced_cases = len([r for r in learned_rows if r.get("synced")])
-                avg_confidence = round(
-                    sum([int(r.get("confidence_score") or 0) for r in learned_rows]) / max(total_cases, 1)
-                )
+        render_metric_row([
+            ("Total Learned Cases", total_learned),
+            ("New Knowledge Today", new_today),
+            ("Duplicate Detection Rate", f"{duplicate_rate}%"),
+            ("Confidence Average", f"{avg_conf}%"),
+            ("Synced Cases", synced_cases),
+            ("New Vectors Created", total_vectors),
+        ])
 
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Learned Cases", total_cases)
-                m2.metric("Synced", synced_cases)
-                m3.metric("Avg Confidence", f"{avg_confidence}%")
+        st.markdown("#### Knowledge Growth Chart")
+        growth_data = growth_counts(learned_rows_for_analytics, "created_at", limit=30, label="Learned Cases")
+        if growth_data:
+            st.bar_chart(growth_data, x="Date", y="Learned Cases")
+        else:
+            st.info("No learned knowledge yet.")
 
-                for row in learned_rows:
-                    issue = row.get("issue") or row.get("question") or "Learned Knowledge"
-                    vehicle = row.get("vehicle") or "Vehicle not specified"
-                    assistant_name = row.get("assistant") or ""
-                    synced = row.get("synced")
-                    updated_at = (row.get("updated_at") or row.get("created_at") or "")[:10]
-                    confidence = row.get("confidence_score") or 0
-                    times_seen = row.get("times_seen") or 1
+        st.markdown("#### Latest Learned Knowledge")
+        if learned_rows_for_analytics:
+            for row in learned_rows_for_analytics[:80]:
+                issue = row.get("issue") or row.get("question") or "Learned Knowledge"
+                vehicle = row.get("vehicle") or "Vehicle not specified"
+                confidence = row.get("confidence_score") or 0
+                times_seen = row.get("times_seen") or 1
+                with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
+                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                    st.write(f"**Product:** {row.get('product') or ''}")
+                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                    st.write(f"**Synced:** {row.get('synced')}")
+                    st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
+                    st.markdown("**Solution**")
+                    st.write(row.get("solution") or row.get("approved_answer") or "")
+                    st.markdown("**Source Question**")
+                    st.write(row.get("source_question") or row.get("question") or "")
+                    st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
 
-                    with st.expander(f"{vehicle} | {issue[:80]}"):
-                        st.write(f"**Assistant:** {assistant_name}")
-                        st.write(f"**Updated:** {updated_at}")
-                        st.write(f"**Synced:** {synced}")
-                        st.write(f"**Confidence:** {confidence}%")
-                        st.write(f"**Times Seen:** {times_seen}")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-
-                        st.markdown("**Issue**")
-                        st.write(row.get("issue") or "")
-
-                        st.markdown("**Self-Improved Solution**")
-                        st.write(row.get("solution") or row.get("approved_answer") or "")
-
-                        st.markdown("**Latest Source Question**")
-                        st.write(row.get("source_question") or row.get("question") or "")
-
-                        st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
-
-                        if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-                            st.rerun()
-            else:
-                st.info("No learned knowledge saved yet.")
-
-        except Exception as e:
-            st.warning(f"Could not load learned knowledge: {e}")
-            st.info("Create the learned_knowledge table in Supabase first.")
-
-
+                    if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
+                        supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                        st.rerun()
+        else:
+            st.info("No learned knowledge saved yet.")
 
     with tab4:
-        st.markdown("### 📊 AutoTecPro AI Analytics")
-        st.caption("Business intelligence dashboard for support trends, AI performance, learned knowledge, and unanswered questions.")
+        st.markdown("### 🚗 Vehicle Analytics")
+        st.caption("Most common makes, models, years, and vehicle-related questions.")
 
-        try:
-            analytics_rows = (
-                supabase
-                .table("ai_analytics")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(1000)
-                .execute()
-                .data
-            ) or []
+        combined_rows = analytics_rows + learned_rows_for_analytics
 
-            learned_rows_for_analytics = (
-                supabase
-                .table("learned_knowledge")
-                .select("*")
-                .order("updated_at", desc=True)
-                .limit(1000)
-                .execute()
-                .data
-            ) or []
+        render_metric_row([
+            ("Vehicle Mentions", len([r for r in combined_rows if r.get("vehicle")])),
+            ("Unique Makes", len(set([str(r.get("make") or "").strip() for r in combined_rows if r.get("make")]))),
+            ("Unique Models", len(set([str(r.get("model") or "").strip() for r in combined_rows if r.get("model")]))),
+            ("Unique Years", len(set([str(r.get("year") or "").strip() for r in combined_rows if r.get("year")]))),
+        ])
 
-            total_questions = len(analytics_rows)
-            unanswered_count = len([r for r in analytics_rows if r.get("was_unanswered")])
-            learned_count = len([r for r in analytics_rows if r.get("learned")])
-            learning_rate = learning_success_rate(analytics_rows)
-            avg_confidence = round(
-                sum([int(r.get("confidence_score") or 0) for r in analytics_rows]) / max(total_questions, 1)
-            )
-            total_learned_knowledge = len(learned_rows_for_analytics)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            render_count_table("Most Common Makes", top_counts(combined_rows, "make", 15), "Make")
+        with c2:
+            render_count_table("Most Common Models", top_counts(combined_rows, "model", 15), "Model")
+        with c3:
+            render_count_table("Most Common Years", top_counts(combined_rows, "year", 15), "Year")
 
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Total Questions", total_questions)
-            c2.metric("Learned Knowledge", total_learned_knowledge)
-            c3.metric("Learning Rate", f"{learning_rate}%")
-            c4.metric("Unanswered", unanswered_count)
-            c5.metric("Avg Confidence", f"{avg_confidence}%")
+        st.markdown("#### Most Common Vehicle Strings")
+        render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-            st.markdown("---")
+    with tab5:
+        st.markdown("### 📦 Product Analytics")
+        st.caption("Products staff search most often, and products associated with the most issues.")
 
-            chart_col1, chart_col2 = st.columns(2)
+        render_metric_row([
+            ("Product Searches", len([r for r in analytics_rows if r.get("product")])),
+            ("Unique Products", len(set([str(r.get("product") or "").strip() for r in analytics_rows if r.get("product")]))),
+            ("Product-Related Issues", len([r for r in analytics_rows if r.get("product") and r.get("issue")])),
+        ])
 
-            with chart_col1:
-                st.markdown("#### Daily Question Volume")
-                daily_data = daily_question_counts(analytics_rows, limit=14)
-                if daily_data:
-                    st.bar_chart(daily_data, x="Date", y="Questions")
-                else:
-                    st.info("No question volume data yet.")
+        c1, c2 = st.columns(2)
+        with c1:
+            render_count_table("Most Searched Products", top_counts(analytics_rows, "product", 20), "Product")
+        with c2:
+            product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")]
+            render_count_table("Products With Most Issues", top_counts(product_issue_rows, "product", 20), "Product")
 
-            with chart_col2:
-                st.markdown("#### AI Confidence Trend")
-                trend_rows = list(reversed(analytics_rows[:50]))
-                if trend_rows:
-                    chart_data = [
-                        {
-                            "Case": idx + 1,
-                            "Confidence": int(row.get("confidence_score") or 0)
-                        }
-                        for idx, row in enumerate(trend_rows)
-                    ]
-                    st.line_chart(chart_data, x="Case", y="Confidence")
-                else:
-                    st.info("No confidence trend data yet.")
+        st.markdown("#### Product Issue Details")
+        product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")][:50]
+        if product_issue_rows:
+            for row in product_issue_rows:
+                st.write(f"**{row.get('product')}** — {row.get('issue')} | {row.get('vehicle') or 'No vehicle'}")
+        else:
+            st.info("No product issue data yet.")
 
-            st.markdown("---")
+    with tab6:
+        st.markdown("### 🔧 Technical Analytics")
+        st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
-            col_a, col_b = st.columns(2)
+        unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")]
+        resolved_rows = [r for r in analytics_rows if r.get("resolved")]
+        avg_response = safe_avg(analytics_rows, "response_time")
 
-            with col_a:
-                render_count_table(
-                    "Most Common Vehicle Models",
-                    top_counts(analytics_rows + learned_rows_for_analytics, "vehicle", 12),
-                    "Vehicle"
-                )
+        render_metric_row([
+            ("Top Questions Logged", len(analytics_rows)),
+            ("Resolved Rate", f"{resolved_rate(analytics_rows)}%"),
+            ("Unanswered Questions", len(unanswered_rows)),
+            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+        ])
 
-                render_count_table(
-                    "Most Searched Products",
-                    top_counts(analytics_rows, "product", 12),
-                    "Product"
-                )
-
-                render_count_table(
-                    "Most Active Users",
-                    user_counts(analytics_rows, 12),
-                    "User"
-                )
-
-            with col_b:
-                render_count_table(
-                    "Top Recurring Issues",
-                    top_counts(analytics_rows + learned_rows_for_analytics, "issue", 12),
-                    "Issue"
-                )
-
-                render_count_table(
-                    "Top Search Keywords",
-                    keyword_counts(analytics_rows + learned_rows_for_analytics, 12),
-                    "Keyword"
-                )
-
-                render_count_table(
-                    "Assistant Usage",
-                    assistant_counts(analytics_rows, 12),
-                    "Assistant"
-                )
-
-            st.markdown("---")
-            st.markdown("#### Frequently Used / Self-Improved Solutions")
-
+        c1, c2 = st.columns(2)
+        with c1:
+            render_count_table("Top Recurring Issues", top_counts(analytics_rows + learned_rows_for_analytics, "issue", 20), "Issue")
+        with c2:
             frequent_solutions = sorted(
-                [
-                    r for r in learned_rows_for_analytics
-                    if r.get("solution")
-                ],
+                [r for r in learned_rows_for_analytics if r.get("solution") or r.get("approved_answer")],
                 key=lambda r: int(r.get("times_seen") or 1),
                 reverse=True
             )[:15]
 
+            st.markdown("#### Most Successful / Reused Solutions")
             if frequent_solutions:
                 for row in frequent_solutions:
-                    with st.expander(
-                        f"{row.get('vehicle') or 'N/A'} | {row.get('issue') or 'Issue'} "
-                        f"| Seen {row.get('times_seen') or 1}x | Confidence {row.get('confidence_score') or 0}%"
-                    ):
-                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.markdown("**Solution**")
-                        st.write(row.get("solution") or "")
-                        st.caption(f"Last updated: {(row.get('updated_at') or row.get('created_at') or '')[:10]}")
+                    st.write(
+                        f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
+                        f"| Seen: {row.get('times_seen') or 1}x | Confidence: {row.get('confidence_score') or 0}%"
+                    )
             else:
-                st.info("No learned solutions yet.")
+                st.info("No reusable solutions yet.")
 
-            st.markdown("---")
-            st.markdown("#### Unanswered Questions / Knowledge Gaps")
+        st.markdown("#### Unanswered Questions")
+        if unanswered_rows:
+            for row in unanswered_rows[:40]:
+                with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
+                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                    st.write(f"**User:** {row.get('username') or ''}")
+                    st.write(f"**Product:** {row.get('product') or ''}")
+                    st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
+                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                    st.markdown("**Question**")
+                    st.write(row.get("question") or "")
+                    st.markdown("**AI Answer**")
+                    st.write(row.get("answer") or "")
+        else:
+            st.success("No unanswered questions logged yet.")
 
-            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")][:30]
-            if unanswered_rows:
-                for row in unanswered_rows:
-                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
-                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                        st.write(f"**User:** {row.get('username') or ''}")
-                        st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
-                        st.write(f"**Product:** {row.get('product') or ''}")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.markdown("**Question**")
-                        st.write(row.get("question") or "")
-                        st.markdown("**AI Answer**")
-                        st.write(row.get("answer") or "")
+    with tab7:
+        st.markdown("### 📊 AI Analytics")
+        st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
+
+        total_tokens = total_numeric(analytics_rows, "tokens_used")
+        duplicate_questions = len([r for r in analytics_rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
+        avg_response = safe_avg(analytics_rows, "response_time")
+        avg_confidence = round(safe_avg(analytics_rows, "confidence_score"))
+
+        render_metric_row([
+            ("Total AI Questions", len(analytics_rows)),
+            ("Avg Confidence", f"{avg_confidence}%"),
+            ("OpenAI Token Usage", total_tokens if total_tokens else "N/A"),
+            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+            ("Duplicate Questions", duplicate_questions),
+        ])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("#### Confidence Trend")
+            trend_rows = list(reversed(analytics_rows[:80]))
+            if trend_rows:
+                chart_data = [{"Case": idx + 1, "Confidence": int(row.get("confidence_score") or 0)} for idx, row in enumerate(trend_rows)]
+                st.line_chart(chart_data, x="Case", y="Confidence")
             else:
-                st.success("No unanswered questions logged yet.")
+                st.info("No confidence trend data yet.")
 
-        except Exception as e:
-            st.warning(f"Could not load analytics: {e}")
-            st.info("Create the ai_analytics table in Supabase first.")
+            st.markdown("#### Daily Question Volume")
+            daily_data = daily_question_counts(analytics_rows, limit=30)
+            if daily_data:
+                st.bar_chart(daily_data, x="Date", y="Questions")
+            else:
+                st.info("No volume data yet.")
+
+        with c2:
+            render_count_table("Assistant Usage", assistant_counts(analytics_rows, 15), "Assistant")
+            render_count_table("Most Active Users", user_counts(analytics_rows, 15), "User")
+
+        st.markdown("#### Most Reused Knowledge")
+        reused = sorted(
+            [r for r in learned_rows_for_analytics if r.get("times_seen")],
+            key=lambda r: int(r.get("times_seen") or 0),
+            reverse=True
+        )[:20]
+        if reused:
+            for row in reused:
+                st.write(
+                    f"**{row.get('issue') or 'Issue'}** | {row.get('vehicle') or 'N/A'} | "
+                    f"Used/Seen: {row.get('times_seen') or 0} | Confidence: {row.get('confidence_score') or 0}%"
+                )
+        else:
+            st.info("No reused knowledge yet.")
+
+    with tab8:
+        st.markdown("### 📈 Learning Analytics")
+        st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
+
+        auto_extracted = len(learned_rows_for_analytics)
+        new_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
+        search_success_rate = resolved_rate(analytics_rows)
+        learning_accuracy = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+        continuous_updates = len([r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"])
+
+        render_metric_row([
+            ("Auto-Extracted Knowledge", auto_extracted),
+            ("New Vectors Created", new_vectors),
+            ("Search Success Rate", f"{search_success_rate}%"),
+            ("Learning Accuracy", f"{learning_accuracy}%"),
+            ("Continuous Improvements", continuous_updates),
+        ])
+
+        st.markdown("#### Continuous Improvement Trend")
+        updated_rows = [r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"]
+        improvement_chart = growth_counts(updated_rows, "created_at", limit=30, label="Improved Records")
+        if improvement_chart:
+            st.bar_chart(improvement_chart, x="Date", y="Improved Records")
+        else:
+            st.info("No duplicate/improvement events yet.")
+
+        st.markdown("#### Learning Quality")
+        quality_rows = sorted(
+            learned_rows_for_analytics,
+            key=lambda r: int(r.get("confidence_score") or 0),
+            reverse=True
+        )[:30]
+        if quality_rows:
+            for row in quality_rows:
+                st.write(
+                    f"**{row.get('confidence_score') or 0}%** — {row.get('vehicle') or 'N/A'} | "
+                    f"{row.get('issue') or row.get('question') or 'Knowledge'}"
+                )
+        else:
+            st.info("No quality data yet.")
 
 
 
@@ -2938,7 +3093,10 @@ else:
         render_chat_message("user", user_display)
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
+            response_start_time = time.time()
             answer = ask_ai(prompt, uploaded_files)
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
 
         render_chat_message("assistant", answer)
 
@@ -2968,7 +3126,7 @@ else:
         # Tracks most common vehicles, recurring issues, searched products,
         # unanswered questions, confidence trend, and learning performance.
         try:
-            log_ai_analytics(prompt, answer, assistant, learning_result)
+            log_ai_analytics(prompt, answer, assistant, learning_result, response_time=response_time, tokens_used=tokens_used)
         except Exception:
             pass
 
