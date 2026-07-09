@@ -1577,14 +1577,34 @@ def html_from_text(text):
 
     while i < len(lines):
         line = lines[i].rstrip()
+        stripped = line.strip()
 
-        if not line.strip():
+        # Final defensive cleanup: never render HTML artifact lines.
+        # This catches old saved messages and AI replies that include raw/escaped tags.
+        artifact_check = stripped.replace("`", "").strip()
+        artifact_check = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", artifact_check, flags=re.IGNORECASE)
+        artifact_check = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", artifact_check, flags=re.IGNORECASE).strip()
+
+        if stripped in ("```", "```html", "```HTML"):
+            i += 1
+            continue
+
+        if not artifact_check and (
+            "<" in stripped or ">" in stripped or "&lt;" in stripped.lower() or "&gt;" in stripped.lower()
+        ):
+            i += 1
+            continue
+
+        # Remove inline HTML tags from otherwise valid lines.
+        line = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", line, flags=re.IGNORECASE)
+        line = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", line, flags=re.IGNORECASE)
+        stripped = line.strip()
+
+        if not stripped:
             close_ul()
             html_lines.append("<br>")
             i += 1
             continue
-
-        stripped = line.strip()
 
         # Markdown table support:
         # | Header | Header |
@@ -1625,7 +1645,13 @@ def html_from_text(text):
         i += 1
 
     close_ul()
-    return "\n".join(html_lines)
+    rendered = "\n".join(html_lines)
+
+    # Final safety sweep after rendering.
+    rendered = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", rendered, flags=re.IGNORECASE)
+    rendered = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", rendered, flags=re.IGNORECASE)
+    rendered = re.sub(r"<div>\s*</div>", "", rendered, flags=re.IGNORECASE)
+    return rendered
 
 
 def render_chat_message(role, content, images=None):
