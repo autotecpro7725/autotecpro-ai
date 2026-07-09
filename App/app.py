@@ -1005,43 +1005,69 @@ def load_conversations(username, assistant_name, role=None):
     """
     Load saved history robustly.
 
-    Important fix:
-    - Old conversations may be saved under a different username such as Sunny vs ATP.
-    - Admin users should be able to see all saved cases.
-    - If no exact username match is found, we fall back to all matching assistant records.
+    This version avoids the most common Supabase/Streamlit history issues:
+    - Archived can be NULL/False depending on old rows, so we filter locally.
+    - Assistant names may be saved with or without emoji, so we normalize both sides.
+    - Usernames may have changed during testing, so if no own records are found,
+      we still show matching assistant records.
     """
     result = (
         supabase
         .table("conversations")
         .select("*")
-        .eq("archived", False)
         .order("updated_at", desc=True)
         .limit(100)
         .execute()
     )
 
-    valid_assistant_names = assistant_history_keys(assistant_name)
+    rows = result.data or []
+
+    def is_not_archived(item):
+        value = item.get("archived")
+        if value is True:
+            return False
+        if str(value).lower() == "true":
+            return False
+        return True
+
+    target_assistant = clean_assistant_label(assistant_name).lower()
+
+    active_rows = [item for item in rows if is_not_archived(item)]
 
     assistant_matches = [
-        item for item in (result.data or [])
-        if item.get("assistant") in valid_assistant_names
+        item for item in active_rows
+        if clean_assistant_label(item.get("assistant", "")).lower() == target_assistant
     ]
 
-    # Admin sees all matching assistant conversations.
+    # Admin sees all matching assistant conversations first.
     if (role or "").lower() == "admin":
-        return assistant_matches[:20]
+        if assistant_matches:
+            return assistant_matches[:20]
+        return active_rows[:20]
 
-    # Staff first sees their own cases.
+    # Staff first sees their own cases for this assistant.
     own_matches = [
         item for item in assistant_matches
         if str(item.get("username", "")).lower() == str(username).lower()
     ]
 
-    # Fallback: if usernames changed during testing, still show matching assistant records.
     if own_matches:
         return own_matches[:20]
 
-    return assistant_matches[:20]
+    # If the username changed during testing, still show matching assistant records.
+    if assistant_matches:
+        return assistant_matches[:20]
+
+    # Last fallback: show this user's other active conversations.
+    own_all = [
+        item for item in active_rows
+        if str(item.get("username", "")).lower() == str(username).lower()
+    ]
+
+    if own_all:
+        return own_all[:20]
+
+    return active_rows[:20]
 
 
 def archive_conversation(conversation_id):
