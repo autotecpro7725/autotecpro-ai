@@ -86,23 +86,40 @@ def inject_base_css():
             box-shadow: 0 0 0 1px var(--atp-red) !important;
         }
 
-        .stButton > button {
+        .stButton > button,
+        .stForm button {
             width: 100%;
-            height: 46px;
+            height: 52px;
             border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: linear-gradient(90deg, var(--atp-red), var(--atp-red-dark));
-            color: white;
-            font-weight: 750;
-            font-size: 15px;
-            transition: 0.2s ease;
+            border: none !important;
+            background: linear-gradient(135deg, #ff5a3d 0%, #ff3b30 45%, #e10600 100%) !important;
+            color: white !important;
+            font-weight: 800;
+            font-size: 16px;
+            transition: 0.22s ease;
+            box-shadow: 0 10px 26px rgba(255, 80, 40, 0.34);
         }
 
-        .stButton > button:hover {
-            background: linear-gradient(90deg, #f87171, var(--atp-red));
-            color: white;
-            border: 1px solid rgba(255,255,255,0.18);
+        .stButton > button:hover,
+        .stForm button:hover {
+            background: linear-gradient(135deg, #ff7255 0%, #ff4d3d 45%, #ff2d20 100%) !important;
+            color: white !important;
             transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(255, 80, 40, 0.44);
+        }
+
+        .stButton > button:active,
+        .stForm button:active {
+            transform: scale(0.98);
+        }
+
+        div[data-testid="stForm"] {
+            background: rgba(15, 23, 42, 0.36);
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 18px;
+            padding: 26px;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 16px 42px rgba(0,0,0,0.22);
         }
 
         .app-header {
@@ -202,8 +219,17 @@ def inject_base_css():
         }
 
         .assistant-icon {
-            background: linear-gradient(135deg, #FFD43B 0%, #FACC15 100%);
+            background: #ffffff;
             color: #222222;
+            border: 1px solid rgba(255,255,255,0.80);
+        }
+
+        .assistant-icon img {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            object-fit: contain;
+            display: block;
         }
 
         .chat-bubble {
@@ -445,18 +471,22 @@ def html_from_text(text):
 
 def render_chat_message(role, content):
     if role == "user":
-        icon = "👤"
+        icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
     else:
-        icon = "🤖"
+        logo_base64 = get_logo_base64()
+        if logo_base64:
+            icon_html = f'<img src="data:image/png;base64,{logo_base64}" alt="AutoTecPro AI">'
+        else:
+            icon_html = "🤖"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
     st.markdown(
         f"""
         <div class="chat-row">
-            <div class="chat-icon {icon_class}">{icon}</div>
+            <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
                 {html_from_text(content)}
             </div>
@@ -561,23 +591,10 @@ def login_screen():
         unsafe_allow_html=True
     )
 
-    # Streamlit form allows both pressing Enter and clicking Login.
     with st.form("login_form"):
-        username = st.text_input(
-            "Username",
-            placeholder="Enter your username"
-        )
-
-        password = st.text_input(
-            "Password",
-            placeholder="Enter your password",
-            type="password"
-        )
-
-        login_submitted = st.form_submit_button(
-            "Login",
-            use_container_width=True
-        )
+        username = st.text_input("Username", placeholder="Enter your username")
+        password = st.text_input("Password", placeholder="Enter your password", type="password")
+        login_submitted = st.form_submit_button("Login", use_container_width=True)
 
     if login_submitted:
         username = username.strip()
@@ -599,12 +616,8 @@ def login_screen():
 
             if result.data:
                 user = result.data[0]
-
                 try:
-                    session_id = create_login_session(
-                        user["username"],
-                        user["role"]
-                    )
+                    session_id = create_login_session(user["username"], user["role"])
                     st.query_params["session"] = session_id
                 except Exception:
                     # If login_sessions table is not created yet, login still works for this session.
@@ -855,6 +868,25 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # Optional Supabase Chat History Helpers
 # ============================================================
 
+def assistant_history_keys(assistant_name):
+    """Return all label variants used by old/new chat history records."""
+    clean = (assistant_name or "").replace("🔧", "").replace("📈", "").replace("🎨", "").replace("⚙️", "").strip()
+    keys = {assistant_name, clean}
+
+    if clean == "Technical Support":
+        keys.update({"🔧 Technical Support", "Technical Support"})
+    elif clean == "Sales & Marketing":
+        keys.update({"📈 Sales & Marketing", "Sales & Marketing"})
+    elif clean == "Graphic Marketing":
+        keys.update({"🎨 Graphic Marketing", "Graphic Marketing"})
+
+    return {key for key in keys if key}
+
+
+def assistant_history_value(assistant_name):
+    """Save a clean assistant label so history stays consistent."""
+    return (assistant_name or "").replace("🔧", "").replace("📈", "").replace("🎨", "").replace("⚙️", "").strip()
+
 def create_conversation(username, assistant_name, first_message=None):
     title = "New Case"
 
@@ -864,7 +896,7 @@ def create_conversation(username, assistant_name, first_message=None):
 
     result = supabase.table("conversations").insert({
         "username": username,
-        "assistant": assistant_name,
+        "assistant": assistant_history_value(assistant_name),
         "title": title,
         "archived": False,
         "created_at": now_iso(),
@@ -904,19 +936,26 @@ def load_messages(conversation_id):
 
 
 def load_conversations(username, assistant_name):
+    # Load by username first, then filter assistant labels locally.
+    # This fixes old records saved as "Technical Support" and new UI labels like "🔧 Technical Support".
     result = (
         supabase
         .table("conversations")
         .select("*")
         .eq("username", username)
-        .eq("assistant", assistant_name)
         .eq("archived", False)
         .order("updated_at", desc=True)
-        .limit(12)
+        .limit(50)
         .execute()
     )
 
-    return result.data
+    valid_assistant_names = assistant_history_keys(assistant_name)
+    conversations = [
+        item for item in result.data
+        if item.get("assistant") in valid_assistant_names
+    ]
+
+    return conversations[:12]
 
 
 def archive_conversation(conversation_id):
