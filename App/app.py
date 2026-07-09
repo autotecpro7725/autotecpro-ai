@@ -969,6 +969,9 @@ def create_conversation(username, assistant_name, first_message=None):
         "updated_at": now_iso()
     }).execute()
 
+    if not result.data:
+        raise RuntimeError("Conversation was not created in Supabase.")
+
     return result.data[0]["id"]
 
 
@@ -1002,12 +1005,20 @@ def load_messages(conversation_id):
 
 
 def load_conversations(username, assistant_name, role=None):
+    """
+    Load saved chat history with the safest possible logic.
+
+    This version intentionally does NOT filter by username or assistant in the
+    Supabase query. It loads recent rows first, then only removes archived rows.
+    This fixes cases where history was saved under different usernames, roles,
+    or assistant labels during testing.
+    """
     result = (
         supabase
         .table("conversations")
         .select("*")
         .order("updated_at", desc=True)
-        .limit(30)
+        .limit(100)
         .execute()
     )
 
@@ -1021,44 +1032,20 @@ def load_conversations(username, assistant_name, role=None):
             return False
         return True
 
-    target_assistant = clean_assistant_label(assistant_name).lower()
-
     active_rows = [item for item in rows if is_not_archived(item)]
 
+    # Prefer conversations that match the current workspace, but keep a fallback.
+    target_assistant = clean_assistant_label(assistant_name).lower()
     assistant_matches = [
         item for item in active_rows
         if clean_assistant_label(item.get("assistant", "")).lower() == target_assistant
     ]
 
-    # Admin sees all matching assistant conversations first.
-    if (role or "").lower() == "admin":
-        if assistant_matches:
-            return assistant_matches[:20]
-        return active_rows[:20]
-
-    # Staff first sees their own cases for this assistant.
-    own_matches = [
-        item for item in assistant_matches
-        if str(item.get("username", "")).lower() == str(username).lower()
-    ]
-
-    if own_matches:
-        return own_matches[:20]
-
-    # If the username changed during testing, still show matching assistant records.
+    # If there are assistant matches, show them first. If not, show all active rows.
     if assistant_matches:
-        return assistant_matches[:20]
+        return assistant_matches[:30]
 
-    # Last fallback: show this user's other active conversations.
-    own_all = [
-        item for item in active_rows
-        if str(item.get("username", "")).lower() == str(username).lower()
-    ]
-
-    if own_all:
-        return own_all[:20]
-
-    return active_rows[:20]
+    return active_rows[:30]
 
 
 def archive_conversation(conversation_id):
@@ -1103,7 +1090,10 @@ if assistant != "⚙️ Admin Panel":
                 if str(owner).lower() != str(st.session_state.username).lower():
                     owner_prefix = f"{owner}: "
 
+                assistant_label = convo.get("assistant") or ""
                 label = f"💬 {owner_prefix}{title}"
+                if assistant_label:
+                    label += f" · {assistant_label}"
                 if updated_at:
                     label += f" · {updated_at}"
 
