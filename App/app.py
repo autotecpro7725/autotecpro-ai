@@ -2165,8 +2165,6 @@ else:
     for msg in st.session_state.messages:
         render_chat_message(msg["role"], msg["content"])
 
-    render_learning_panel(assistant)
-
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
