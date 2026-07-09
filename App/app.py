@@ -8,7 +8,6 @@ BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
 
-# OpenAI API Key - Streamlit Cloud
 api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
 
@@ -20,13 +19,173 @@ st.set_page_config(
     layout="wide"
 )
 
+# ============================================================
+# Global Styling
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background:
+            radial-gradient(circle at top, rgba(239,68,68,0.14), transparent 28%),
+            linear-gradient(135deg, #050b16 0%, #0b1220 45%, #020617 100%);
+        color: white;
+    }
+
+    header[data-testid="stHeader"] {
+        background: transparent;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #07111f;
+    }
+
+    .login-wrapper {
+        min-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .login-logo {
+        margin-bottom: 22px;
+        text-align: center;
+    }
+
+    .login-logo img {
+        width: 340px;
+        max-width: 90%;
+    }
+
+    .login-card {
+        width: 520px;
+        max-width: 92%;
+        background: rgba(15, 23, 42, 0.86);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 22px;
+        padding: 38px 42px;
+        box-shadow: 0 25px 80px rgba(0,0,0,0.45);
+        backdrop-filter: blur(14px);
+    }
+
+    .login-title {
+        font-size: 31px;
+        font-weight: 800;
+        margin-bottom: 24px;
+        color: #ffffff;
+    }
+
+    .login-footer {
+        margin-top: 26px;
+        color: #94a3b8;
+        font-size: 14px;
+        text-align: center;
+    }
+
+    .stTextInput > label {
+        color: #e5e7eb !important;
+        font-weight: 600;
+    }
+
+    .stTextInput input {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        border: 1px solid #334155 !important;
+        border-radius: 10px !important;
+        height: 46px;
+    }
+
+    .stButton > button {
+        width: 100%;
+        height: 48px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+        color: white;
+        font-weight: 700;
+        font-size: 16px;
+        margin-top: 10px;
+    }
+
+    .stButton > button:hover {
+        background: linear-gradient(90deg, #f87171, #ef4444);
+        color: white;
+    }
+
+    .hex-left {
+        position: fixed;
+        left: 60px;
+        top: 420px;
+        color: rgba(239,68,68,0.18);
+        font-size: 120px;
+        z-index: 0;
+    }
+
+    .hex-right {
+        position: fixed;
+        right: 70px;
+        bottom: 120px;
+        color: rgba(239,68,68,0.18);
+        font-size: 120px;
+        z-index: 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ============================================================
+# Helpers
+# ============================================================
+
+def get_logo_base64():
+    if LOGO_FILE.exists():
+        with open(LOGO_FILE, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return None
+
+
+# ============================================================
+# Login Screen
+# ============================================================
+
 def login_screen():
-    st.title("AutoTecPro AI Login")
+    logo_base64 = get_logo_base64()
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    st.markdown('<div class="hex-left">⬡</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hex-right">⬡</div>', unsafe_allow_html=True)
 
-    if st.button("Login"):
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+
+    if logo_base64:
+        st.markdown(
+            f"""
+            <div class="login-logo">
+                <img src="data:image/png;base64,{logo_base64}">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            """
+            <div class="login-logo">
+                <h1 style="font-size:48px;margin:0;">AutoTecPro</h1>
+                <p style="color:#94a3b8;margin-top:6px;">Driven by Innovation</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.markdown('<div class="login-title">AutoTecPro AI Login</div>', unsafe_allow_html=True)
+
+    username = st.text_input("Username", placeholder="Enter your username")
+    password = st.text_input("Password", placeholder="Enter your password", type="password")
+
+    if st.button("↪ Login"):
         result = (
             supabase
             .table("users")
@@ -47,6 +206,15 @@ def login_screen():
         else:
             st.error("Invalid username or password.")
 
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-footer">© 2026 AutoTecPro. All rights reserved.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ============================================================
+# Login Check
+# ============================================================
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -54,26 +222,37 @@ if not st.session_state.logged_in:
     login_screen()
     st.stop()
 
-with open(LOGO_FILE, "rb") as f:
-    logo_base64 = base64.b64encode(f.read()).decode()
+# ============================================================
+# Header After Login
+# ============================================================
 
-st.markdown(
-    f"""
-    <div style="display:flex; align-items:center; gap:18px; margin-bottom:25px;">
-        <img src="data:image/png;base64,{logo_base64}"
-             style="width:75px; height:75px; border-radius:14px; object-fit:contain;">
-        <div>
-            <h1 style="margin:0; padding:0; font-size:46px; font-weight:700;">
-                AutoTecPro AI
-            </h1>
-            <p style="margin:0; color:#9CA3AF; font-size:18px;">
-                Internal AI Assistant for AutoTecPro
-            </p>
+logo_base64 = get_logo_base64()
+
+if logo_base64:
+    st.markdown(
+        f"""
+        <div style="display:flex; align-items:center; gap:18px; margin-bottom:25px;">
+            <img src="data:image/png;base64,{logo_base64}"
+                 style="width:75px; height:75px; border-radius:14px; object-fit:contain;">
+            <div>
+                <h1 style="margin:0; padding:0; font-size:46px; font-weight:700;">
+                    AutoTecPro AI
+                </h1>
+                <p style="margin:0; color:#9CA3AF; font-size:18px;">
+                    Internal AI Assistant for AutoTecPro
+                </p>
+            </div>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.title("AutoTecPro AI")
+    st.caption("Internal AI Assistant for AutoTecPro")
+
+# ============================================================
+# Sidebar
+# ============================================================
 
 st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
 st.sidebar.write(f"Role: **{st.session_state.role}**")
@@ -109,9 +288,14 @@ if st.session_state.current_assistant != assistant:
     st.session_state.current_assistant = assistant
     st.rerun()
 
+# ============================================================
+# AI Helper Functions
+# ============================================================
+
 def image_to_data_url(uploaded_file):
     encoded = base64.b64encode(uploaded_file.getvalue()).decode()
     return f"data:{uploaded_file.type};base64,{encoded}"
+
 
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -156,6 +340,7 @@ Analyze uploaded images when provided.
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
 """
+
 
 def build_user_input(prompt_text, uploaded_files):
     content = []
@@ -202,6 +387,7 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
+
 def ask_ai(prompt_text, uploaded_files):
     user_input = build_user_input(prompt_text, uploaded_files)
     instructions = get_instructions(assistant)
@@ -241,6 +427,7 @@ def ask_ai(prompt_text, uploaded_files):
 
     return response.output_text
 
+
 def upload_to_vector_store(uploaded_file, vector_store_id):
     openai_file = client.files.create(
         file=uploaded_file,
@@ -253,6 +440,10 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     )
 
     return openai_file.id
+
+# ============================================================
+# Admin Panel
+# ============================================================
 
 if assistant == "⚙️ Admin Panel":
 
@@ -349,6 +540,10 @@ if assistant == "⚙️ Admin Panel":
                         st.success(f"Uploaded: {admin_file.name} | File ID: {file_id}")
                     except Exception as e:
                         st.error(f"Failed to upload {admin_file.name}: {e}")
+
+# ============================================================
+# Main Chat UI
+# ============================================================
 
 else:
 
