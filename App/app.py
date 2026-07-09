@@ -1272,20 +1272,9 @@ def inject_base_css():
         }
 
         @media (max-width: 768px) {
-            .chat-image-grid {
-                gap: 8px !important;
-                margin-top: 10px !important;
-            }
-
             .chat-image-card {
                 max-width: 100% !important;
                 width: 100% !important;
-                border-radius: 12px !important;
-            }
-
-            .chat-image-caption {
-                color: #e5e7eb !important;
-                -webkit-text-fill-color: #e5e7eb !important;
             }
         }
 
@@ -1562,6 +1551,7 @@ def html_from_text(text):
     if text is None:
         return ""
 
+    text = clean_visible_chat_text(text)
     lines = str(text).splitlines()
     html_lines = []
     in_ul = False
@@ -1626,48 +1616,6 @@ def html_from_text(text):
     return "\n".join(html_lines)
 
 
-def clean_visible_chat_text(text):
-    """
-    Remove accidental raw HTML artifacts from AI replies and old saved messages.
-    This fixes visible </div>, <div>, </p>, etc. inside chat bubbles.
-    """
-    value = str(text or "")
-
-    # Remove common HTML tags anywhere, including old saved messages.
-    value = re.sub(r"</?div[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"</?p[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"</?span[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"</?section[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"</?article[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"</?main[^>]*>", "", value, flags=re.IGNORECASE)
-
-    # Remove lines that are only HTML fragments or escaped HTML fragments.
-    cleaned_lines = []
-    for line in value.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            cleaned_lines.append(line)
-            continue
-
-        if re.fullmatch(r"&lt;/?(div|p|span|section|article|main)[^&]*&gt;", stripped, flags=re.IGNORECASE):
-            continue
-        if re.fullmatch(r"</?(div|p|span|section|article|main)[^>]*>", stripped, flags=re.IGNORECASE):
-            continue
-
-        cleaned_lines.append(line)
-
-    value = "\n".join(cleaned_lines)
-
-    # Remove escaped tags if they were already escaped before rendering.
-    value = re.sub(r"&lt;/?div[^&]*&gt;", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"&lt;/?p[^&]*&gt;", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"&lt;/?span[^&]*&gt;", "", value, flags=re.IGNORECASE)
-
-    # Clean up excessive blank lines.
-    value = re.sub(r"\n{3,}", "\n\n", value)
-    return value.strip()
-
-
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
@@ -1698,7 +1646,6 @@ def render_chat_message(role, content, images=None):
         """,
         unsafe_allow_html=True
     )
-
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -1965,11 +1912,50 @@ IMAGE_MARKER_PREFIX = "[[ATP_IMAGES_JSON:"
 IMAGE_MARKER_SUFFIX = "]]"
 
 
+def clean_visible_chat_text(text):
+    """
+    Remove raw/escaped HTML artifacts from AI replies and saved history.
+    This specifically removes visible fragments like </div>, <div>, </p>,
+    and fenced code blocks that only contain HTML closing tags.
+    """
+    value = str(text or "")
+
+    # Remove image marker first if somehow passed here.
+    marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
+    value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
+
+    # Remove fenced code blocks that only contain HTML closing/opening div/p/span tags.
+    value = re.sub(
+        r"```\s*(?:html)?\s*(?:</?(?:div|p|span|section|article|main)[^>]*>\s*)+```",
+        "",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # Remove raw HTML fragments anywhere.
+    value = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", value, flags=re.IGNORECASE)
+
+    # Remove escaped HTML fragments anywhere.
+    value = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
+
+    # Remove leftover lines that are only code-fence markers.
+    cleaned_lines = []
+    for line in value.splitlines():
+        stripped = line.strip()
+        if stripped in ("```", "```html", "```HTML"):
+            continue
+        if re.fullmatch(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", stripped, flags=re.IGNORECASE):
+            continue
+        if re.fullmatch(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", stripped, flags=re.IGNORECASE):
+            continue
+        cleaned_lines.append(line)
+
+    value = "\n".join(cleaned_lines)
+    value = re.sub(r"\n{3,}", "\n\n", value)
+    return value.strip()
+
+
 def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76):
-    """
-    Create a browser-friendly compressed image preview for chat display/history.
-    The original uploaded image is still sent to OpenAI by build_user_input().
-    """
     raw = uploaded_file.getvalue()
     mime_type = getattr(uploaded_file, "type", "") or "image/jpeg"
 
@@ -1977,8 +1963,8 @@ def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76
         try:
             img = Image.open(io.BytesIO(raw))
             img.thumbnail(max_size)
-
             output = io.BytesIO()
+
             if img.mode in ("RGBA", "LA", "P"):
                 img = img.convert("RGBA")
                 img.save(output, format="PNG", optimize=True)
@@ -1997,7 +1983,6 @@ def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76
 
 
 def get_uploaded_image_previews(uploaded_files):
-    """Return image preview objects for uploaded image files only."""
     previews = []
     for uploaded_file in uploaded_files or []:
         file_type = getattr(uploaded_file, "type", "") or ""
@@ -2013,7 +1998,6 @@ def get_uploaded_image_previews(uploaded_files):
 
 
 def serialize_images_marker(images):
-    """Embed image preview data in message content so history can display it after reload."""
     if not images:
         return ""
     try:
@@ -2023,7 +2007,6 @@ def serialize_images_marker(images):
 
 
 def extract_images_from_message_content(content):
-    """Split stored message content into visible text and uploaded image previews."""
     text = str(content or "")
     pattern = re.escape(IMAGE_MARKER_PREFIX) + r"(.*?)" + re.escape(IMAGE_MARKER_SUFFIX) + r"\s*$"
     match = re.search(pattern, text, re.DOTALL)
@@ -2032,6 +2015,7 @@ def extract_images_from_message_content(content):
         return text, []
 
     visible_text = text[:match.start()].rstrip()
+
     try:
         images = json.loads(match.group(1))
         if not isinstance(images, list):
@@ -2060,6 +2044,7 @@ def render_image_previews(images):
         data_url = html.escape(str(image.get("data_url") or ""))
         if not data_url:
             continue
+
         cards.append(
             f"""
             <div class="chat-image-card">
@@ -2095,7 +2080,7 @@ Answer in this order when useful:
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
-Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
+Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
 """
 
     if selected_assistant == "📈 Sales & Marketing":
@@ -2109,7 +2094,7 @@ dealer messages, customer replies, Amazon listings, website copy,
 social media, promotions, warranty, and return policy.
 
 Never invent pricing or compatibility.
-Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
+Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
 """
 
     return """
@@ -2119,7 +2104,7 @@ Analyze uploaded images when provided.
 
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
-Do not output raw HTML tags such as <div>, </div>, <p>, or </p>.
+Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
 """
 
 
@@ -2131,6 +2116,7 @@ def build_user_input(prompt_text, uploaded_files):
 
         for msg in st.session_state.messages[-10:]:
             clean_content, _ = extract_images_from_message_content(msg.get("content", ""))
+            clean_content = clean_visible_chat_text(clean_content)
             memory_text += f"{msg['role'].upper()}: {clean_content}\n\n"
 
         content.append({"type": "input_text", "text": memory_text})
@@ -3607,7 +3593,7 @@ else:
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
-        user_display = prompt
+        user_display = clean_visible_chat_text(prompt)
         uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
         if uploaded_files:
