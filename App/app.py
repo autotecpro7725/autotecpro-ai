@@ -2162,6 +2162,35 @@ def render_count_table(title, data, col_name):
 
 
 
+
+def daily_question_counts(rows, limit=14):
+    counts = {}
+    for row in rows:
+        day = str(row.get("created_at") or "")[:10]
+        if not day:
+            continue
+        counts[day] = counts.get(day, 0) + 1
+
+    items = sorted(counts.items())[-limit:]
+    return [{"Date": k, "Questions": v} for k, v in items]
+
+
+def assistant_counts(rows, limit=10):
+    return top_counts(rows, "assistant", limit)
+
+
+def user_counts(rows, limit=10):
+    return top_counts(rows, "username", limit)
+
+
+def learning_success_rate(rows):
+    if not rows:
+        return 0
+    learned = len([r for r in rows if r.get("learned")])
+    return round((learned / max(len(rows), 1)) * 100)
+
+
+
 # ============================================================
 # Supabase Chat History Helpers
 # ============================================================
@@ -2689,7 +2718,7 @@ if assistant == "⚙️ Admin Panel":
 
     with tab4:
         st.markdown("### 📊 AutoTecPro AI Analytics")
-        st.caption("Tracks what staff asks, what the AI learns, recurring issues, unanswered questions, and confidence trend.")
+        st.caption("Business intelligence dashboard for support trends, AI performance, learned knowledge, and unanswered questions.")
 
         try:
             analytics_rows = (
@@ -2697,7 +2726,7 @@ if assistant == "⚙️ Admin Panel":
                 .table("ai_analytics")
                 .select("*")
                 .order("created_at", desc=True)
-                .limit(500)
+                .limit(1000)
                 .execute()
                 .data
             ) or []
@@ -2707,7 +2736,7 @@ if assistant == "⚙️ Admin Panel":
                 .table("learned_knowledge")
                 .select("*")
                 .order("updated_at", desc=True)
-                .limit(500)
+                .limit(1000)
                 .execute()
                 .data
             ) or []
@@ -2715,15 +2744,45 @@ if assistant == "⚙️ Admin Panel":
             total_questions = len(analytics_rows)
             unanswered_count = len([r for r in analytics_rows if r.get("was_unanswered")])
             learned_count = len([r for r in analytics_rows if r.get("learned")])
+            learning_rate = learning_success_rate(analytics_rows)
             avg_confidence = round(
                 sum([int(r.get("confidence_score") or 0) for r in analytics_rows]) / max(total_questions, 1)
             )
+            total_learned_knowledge = len(learned_rows_for_analytics)
 
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Total Questions", total_questions)
-            c2.metric("Unanswered", unanswered_count)
-            c3.metric("Learned Events", learned_count)
-            c4.metric("Avg Confidence", f"{avg_confidence}%")
+            c2.metric("Learned Knowledge", total_learned_knowledge)
+            c3.metric("Learning Rate", f"{learning_rate}%")
+            c4.metric("Unanswered", unanswered_count)
+            c5.metric("Avg Confidence", f"{avg_confidence}%")
+
+            st.markdown("---")
+
+            chart_col1, chart_col2 = st.columns(2)
+
+            with chart_col1:
+                st.markdown("#### Daily Question Volume")
+                daily_data = daily_question_counts(analytics_rows, limit=14)
+                if daily_data:
+                    st.bar_chart(daily_data, x="Date", y="Questions")
+                else:
+                    st.info("No question volume data yet.")
+
+            with chart_col2:
+                st.markdown("#### AI Confidence Trend")
+                trend_rows = list(reversed(analytics_rows[:50]))
+                if trend_rows:
+                    chart_data = [
+                        {
+                            "Case": idx + 1,
+                            "Confidence": int(row.get("confidence_score") or 0)
+                        }
+                        for idx, row in enumerate(trend_rows)
+                    ]
+                    st.line_chart(chart_data, x="Case", y="Confidence")
+                else:
+                    st.info("No confidence trend data yet.")
 
             st.markdown("---")
 
@@ -2732,58 +2791,78 @@ if assistant == "⚙️ Admin Panel":
             with col_a:
                 render_count_table(
                     "Most Common Vehicle Models",
-                    top_counts(analytics_rows + learned_rows_for_analytics, "vehicle", 10),
+                    top_counts(analytics_rows + learned_rows_for_analytics, "vehicle", 12),
                     "Vehicle"
                 )
 
                 render_count_table(
                     "Most Searched Products",
-                    top_counts(analytics_rows, "product", 10),
+                    top_counts(analytics_rows, "product", 12),
                     "Product"
                 )
 
                 render_count_table(
-                    "Top Keywords",
-                    keyword_counts(analytics_rows + learned_rows_for_analytics, 10),
-                    "Keyword"
+                    "Most Active Users",
+                    user_counts(analytics_rows, 12),
+                    "User"
                 )
 
             with col_b:
                 render_count_table(
                     "Top Recurring Issues",
-                    top_counts(analytics_rows + learned_rows_for_analytics, "issue", 10),
+                    top_counts(analytics_rows + learned_rows_for_analytics, "issue", 12),
                     "Issue"
                 )
 
-                frequent_solutions = sorted(
-                    [
-                        r for r in learned_rows_for_analytics
-                        if r.get("solution")
-                    ],
-                    key=lambda r: int(r.get("times_seen") or 1),
-                    reverse=True
-                )[:10]
+                render_count_table(
+                    "Top Search Keywords",
+                    keyword_counts(analytics_rows + learned_rows_for_analytics, 12),
+                    "Keyword"
+                )
 
-                st.markdown("#### Frequently Used / Improved Solutions")
-                if frequent_solutions:
-                    for row in frequent_solutions:
-                        st.write(
-                            f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
-                            f"｜ Seen: {row.get('times_seen') or 1} "
-                            f"｜ Confidence: {row.get('confidence_score') or 0}%"
-                        )
-                else:
-                    st.info("No learned solutions yet.")
+                render_count_table(
+                    "Assistant Usage",
+                    assistant_counts(analytics_rows, 12),
+                    "Assistant"
+                )
 
             st.markdown("---")
-            st.markdown("#### Unanswered Questions")
+            st.markdown("#### Frequently Used / Self-Improved Solutions")
 
-            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")][:20]
+            frequent_solutions = sorted(
+                [
+                    r for r in learned_rows_for_analytics
+                    if r.get("solution")
+                ],
+                key=lambda r: int(r.get("times_seen") or 1),
+                reverse=True
+            )[:15]
+
+            if frequent_solutions:
+                for row in frequent_solutions:
+                    with st.expander(
+                        f"{row.get('vehicle') or 'N/A'} | {row.get('issue') or 'Issue'} "
+                        f"| Seen {row.get('times_seen') or 1}x | Confidence {row.get('confidence_score') or 0}%"
+                    ):
+                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                        st.markdown("**Solution**")
+                        st.write(row.get("solution") or "")
+                        st.caption(f"Last updated: {(row.get('updated_at') or row.get('created_at') or '')[:10]}")
+            else:
+                st.info("No learned solutions yet.")
+
+            st.markdown("---")
+            st.markdown("#### Unanswered Questions / Knowledge Gaps")
+
+            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")][:30]
             if unanswered_rows:
                 for row in unanswered_rows:
-                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:80]}"):
+                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
                         st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                        st.write(f"**User:** {row.get('username') or ''}")
                         st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
+                        st.write(f"**Product:** {row.get('product') or ''}")
                         st.write(f"**Keywords:** {row.get('keywords') or ''}")
                         st.markdown("**Question**")
                         st.write(row.get("question") or "")
@@ -2791,22 +2870,6 @@ if assistant == "⚙️ Admin Panel":
                         st.write(row.get("answer") or "")
             else:
                 st.success("No unanswered questions logged yet.")
-
-            st.markdown("---")
-            st.markdown("#### AI Confidence Trends")
-
-            trend_rows = list(reversed(analytics_rows[:50]))
-            if trend_rows:
-                chart_data = [
-                    {
-                        "Case": idx + 1,
-                        "Confidence": int(row.get("confidence_score") or 0)
-                    }
-                    for idx, row in enumerate(trend_rows)
-                ]
-                st.line_chart(chart_data, x="Case", y="Confidence")
-            else:
-                st.info("No confidence trend data yet.")
 
         except Exception as e:
             st.warning(f"Could not load analytics: {e}")
