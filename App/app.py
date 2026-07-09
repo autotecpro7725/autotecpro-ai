@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 import tempfile
 import os
 import re
+import json
+from difflib import SequenceMatcher
 from config import supabase
 
 # ============================================================
@@ -1638,6 +1640,401 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
     return openai_file.id
 
+
+# ============================================================
+# Automatic AI Learning Engine
+# Duplicate detection + continuous learning + self-improving knowledge
+# ============================================================
+
+def get_learning_vector_store_id(selected_assistant):
+    if selected_assistant == "📈 Sales & Marketing":
+        return SALES_VECTOR_STORE_ID
+    return TECHNICAL_VECTOR_STORE_ID
+
+
+def normalize_text_for_match(value):
+    value = str(value or "").lower()
+    value = re.sub(r"[^a-z0-9\s]", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def text_similarity(a, b):
+    return SequenceMatcher(None, normalize_text_for_match(a), normalize_text_for_match(b)).ratio()
+
+
+def extract_json_object(raw_text):
+    if not raw_text:
+        return {}
+    text = str(raw_text).strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except Exception:
+            return {}
+    return {}
+
+
+def detect_vehicle_basic(text):
+    value = str(text or "").lower()
+    years = re.findall(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", value)
+    vehicles = [
+        "silverado", "sierra", "tahoe", "suburban", "yukon",
+        "f150", "f-150", "f250", "f-250", "f350", "f-350",
+        "ram", "tundra", "durango", "q50", "q60",
+        "a4", "a5", "glc", "mercedes", "audi", "ford",
+        "chevy", "gmc", "toyota", "dodge", "infiniti"
+    ]
+    found = ""
+    for vehicle in vehicles:
+        if vehicle in value:
+            found = vehicle.upper()
+            break
+    if years and found:
+        return f"{years[0]} {found}"
+    if found:
+        return found
+    if years:
+        return years[0]
+    return ""
+
+
+def extract_learning_candidate(question, answer, selected_assistant):
+    extraction_prompt = f"""
+You are AutoTecPro's internal knowledge engineer.
+
+Convert this latest support conversation into a clean reusable knowledge record.
+
+Return ONLY valid JSON with this exact schema:
+{{
+  "should_learn": true/false,
+  "vehicle": "vehicle/product/year if known",
+  "issue": "short reusable issue title",
+  "solution": "clean final solution that future staff can reuse",
+  "keywords": "comma-separated keywords",
+  "confidence_score": 0-100,
+  "reason": "short reason"
+}}
+
+Rules:
+- should_learn should be true only if the answer contains a reusable solution, compatibility fact, troubleshooting step, product fact, warranty/sales policy, or customer reply that can help future cases.
+- should_learn should be false for greetings, vague chats, uncertain answers, purely emotional messages, or cases where the answer says documentation is unavailable without useful next steps.
+- Keep the solution accurate and concise.
+- Never invent details not supported by the Q&A.
+
+Assistant: {clean_assistant_label(selected_assistant)}
+
+Question:
+{question}
+
+Answer:
+{answer}
+"""
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Return only valid JSON. No markdown.",
+            input=extraction_prompt
+        )
+        data = extract_json_object(response.output_text)
+    except Exception:
+        data = {}
+
+    should_learn = bool(data.get("should_learn", False))
+    vehicle = str(data.get("vehicle") or "").strip() or detect_vehicle_basic(question + " " + answer)
+    issue = str(data.get("issue") or conversation_title_from_text(question)).strip()
+    solution = str(data.get("solution") or answer).strip()
+    keywords = str(data.get("keywords") or "").strip()
+
+    try:
+        confidence_score = int(data.get("confidence_score", 70))
+    except Exception:
+        confidence_score = 70
+
+    confidence_score = max(0, min(100, confidence_score))
+
+    if len(solution) < 80:
+        should_learn = False
+    if len(str(question).strip()) < 5:
+        should_learn = False
+
+    return {
+        "should_learn": should_learn,
+        "vehicle": vehicle,
+        "issue": issue[:180],
+        "solution": solution,
+        "keywords": keywords,
+        "confidence_score": confidence_score,
+        "reason": str(data.get("reason") or "").strip()
+    }
+
+
+def make_learned_knowledge_document(record):
+    return f"""AutoTecPro Self-Learned Knowledge
+
+Assistant:
+{record.get("assistant", "")}
+
+Vehicle / Product:
+{record.get("vehicle", "") or "Not specified"}
+
+Issue:
+{record.get("issue", "")}
+
+Solution:
+{record.get("solution", "")}
+
+Keywords:
+{record.get("keywords", "")}
+
+Confidence Score:
+{record.get("confidence_score", "")}
+
+Times Seen:
+{record.get("times_seen", "")}
+
+Source Question:
+{record.get("source_question", "")}
+
+Source Answer:
+{record.get("source_answer", "")}
+
+Usage Instruction:
+Use this learned case when a future AutoTecPro support, sales, or compatibility question is similar. Verify vehicle year, trim, factory radio, audio system, camera system, and firmware when relevant.
+"""
+
+
+def upload_learned_record_to_vector_store(record, vector_store_id):
+    doc_text = make_learned_knowledge_document(record)
+    safe_name = normalize_text_for_match(record.get("issue") or "learned_case")[:50].replace(" ", "_") or "learned_case"
+    filename = f"autotecpro_learned_{safe_name}.txt"
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as tmp:
+        tmp.write(doc_text)
+        tmp_path = tmp.name
+
+    try:
+        with open(tmp_path, "rb") as f:
+            openai_file = client.files.create(file=(filename, f), purpose="assistants")
+
+        client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
+        return openai_file.id
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
+def find_duplicate_learned_knowledge(candidate, selected_assistant):
+    try:
+        rows = (
+            supabase
+            .table("learned_knowledge")
+            .select("*")
+            .eq("assistant", clean_assistant_label(selected_assistant))
+            .order("updated_at", desc=True)
+            .limit(150)
+            .execute()
+            .data
+        ) or []
+    except Exception:
+        return None, 0
+
+    best_row = None
+    best_score = 0
+
+    candidate_text = " ".join([
+        candidate.get("vehicle", ""),
+        candidate.get("issue", ""),
+        candidate.get("keywords", ""),
+        candidate.get("solution", "")[:600]
+    ])
+
+    for row in rows:
+        row_text = " ".join([
+            row.get("vehicle", ""),
+            row.get("issue", ""),
+            row.get("keywords", ""),
+            row.get("solution", "")[:600],
+            row.get("source_question", "")
+        ])
+
+        score = text_similarity(candidate_text, row_text)
+        issue_score = text_similarity(candidate.get("issue", ""), row.get("issue", ""))
+
+        vehicle_match = (
+            candidate.get("vehicle")
+            and row.get("vehicle")
+            and normalize_text_for_match(candidate.get("vehicle")) in normalize_text_for_match(row.get("vehicle"))
+        )
+
+        if vehicle_match:
+            score += 0.08
+        if issue_score > 0.72:
+            score += 0.10
+
+        score = min(score, 1.0)
+
+        if score > best_score:
+            best_score = score
+            best_row = row
+
+    if best_score >= 0.82:
+        return best_row, best_score
+
+    return None, best_score
+
+
+def improve_existing_solution(existing_row, candidate):
+    prompt = f"""
+You are AutoTecPro's internal knowledge base editor.
+
+Merge the existing knowledge and the new case into one improved, accurate, reusable solution.
+
+Return ONLY valid JSON:
+{{
+  "issue": "best short issue title",
+  "vehicle": "best vehicle/product",
+  "solution": "improved final solution",
+  "keywords": "comma-separated keywords",
+  "confidence_score": 0-100
+}}
+
+Do not invent facts. Preserve exact compatibility and troubleshooting details.
+
+Existing Knowledge:
+Vehicle: {existing_row.get("vehicle", "")}
+Issue: {existing_row.get("issue", "")}
+Solution: {existing_row.get("solution", "")}
+Keywords: {existing_row.get("keywords", "")}
+Confidence: {existing_row.get("confidence_score", 70)}
+Times Seen: {existing_row.get("times_seen", 1)}
+
+New Case:
+Vehicle: {candidate.get("vehicle", "")}
+Issue: {candidate.get("issue", "")}
+Solution: {candidate.get("solution", "")}
+Keywords: {candidate.get("keywords", "")}
+Confidence: {candidate.get("confidence_score", 70)}
+"""
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Return only valid JSON. No markdown.",
+            input=prompt
+        )
+        data = extract_json_object(response.output_text)
+    except Exception:
+        data = {}
+
+    old_times_seen = int(existing_row.get("times_seen") or 1)
+    old_confidence = int(existing_row.get("confidence_score") or 70)
+    new_confidence = int(candidate.get("confidence_score") or 70)
+    merged_confidence = max(old_confidence, min(98, round((old_confidence + new_confidence) / 2 + min(old_times_seen, 10))))
+
+    return {
+        "vehicle": str(data.get("vehicle") or candidate.get("vehicle") or existing_row.get("vehicle") or "").strip(),
+        "issue": str(data.get("issue") or candidate.get("issue") or existing_row.get("issue") or "").strip()[:180],
+        "solution": str(data.get("solution") or candidate.get("solution") or existing_row.get("solution") or "").strip(),
+        "keywords": str(data.get("keywords") or candidate.get("keywords") or existing_row.get("keywords") or "").strip(),
+        "confidence_score": int(data.get("confidence_score") or merged_confidence),
+        "times_seen": old_times_seen + 1
+    }
+
+
+def auto_learn_from_latest_answer(question, answer, selected_assistant):
+    if selected_assistant == "⚙️ Admin Panel":
+        return None
+
+    candidate = extract_learning_candidate(question, answer, selected_assistant)
+
+    if not candidate.get("should_learn"):
+        return {"learned": False, "reason": candidate.get("reason") or "Not reusable enough to learn."}
+
+    vector_store_id = get_learning_vector_store_id(selected_assistant)
+    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(candidate, selected_assistant)
+
+    if duplicate_row:
+        improved = improve_existing_solution(duplicate_row, candidate)
+
+        record_for_file = {
+            "assistant": clean_assistant_label(selected_assistant),
+            "vehicle": improved["vehicle"],
+            "issue": improved["issue"],
+            "solution": improved["solution"],
+            "keywords": improved["keywords"],
+            "confidence_score": improved["confidence_score"],
+            "times_seen": improved["times_seen"],
+            "source_question": question,
+            "source_answer": answer
+        }
+
+        openai_file_id = upload_learned_record_to_vector_store(record_for_file, vector_store_id)
+
+        update_payload = {
+            "vehicle": improved["vehicle"],
+            "issue": improved["issue"],
+            "solution": improved["solution"],
+            "keywords": improved["keywords"],
+            "source_question": question,
+            "source_answer": answer,
+            "source_conversation_id": st.session_state.get("conversation_id"),
+            "confidence_score": improved["confidence_score"],
+            "times_seen": improved["times_seen"],
+            "openai_file_id": openai_file_id,
+            "vector_store_id": vector_store_id,
+            "synced": True,
+            "updated_at": now_iso()
+        }
+
+        supabase.table("learned_knowledge").update(update_payload).eq("id", duplicate_row["id"]).execute()
+
+        return {
+            "learned": True,
+            "mode": "updated",
+            "duplicate_score": round(duplicate_score, 3),
+            "record_id": duplicate_row["id"],
+            "file_id": openai_file_id
+        }
+
+    new_record = {
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": candidate["vehicle"],
+        "issue": candidate["issue"],
+        "solution": candidate["solution"],
+        "keywords": candidate["keywords"],
+        "source_question": question,
+        "source_answer": answer,
+        "source_conversation_id": st.session_state.get("conversation_id"),
+        "confidence_score": candidate["confidence_score"],
+        "times_seen": 1,
+        "vector_store_id": vector_store_id,
+        "synced": False,
+        "created_at": now_iso(),
+        "updated_at": now_iso()
+    }
+
+    openai_file_id = upload_learned_record_to_vector_store(new_record, vector_store_id)
+    new_record["openai_file_id"] = openai_file_id
+    new_record["synced"] = True
+
+    result = supabase.table("learned_knowledge").insert(new_record).execute()
+    if not result.data:
+        raise RuntimeError("Learning record was not saved.")
+
+    return {
+        "learned": True,
+        "mode": "created",
+        "record_id": result.data[0]["id"],
+        "file_id": openai_file_id
+    }
+
 # ============================================================
 # Supabase Chat History Helpers
 # ============================================================
@@ -2097,38 +2494,63 @@ if assistant == "⚙️ Admin Panel":
 
 
     with tab3:
-        st.markdown("### 🧠 Learned Knowledge")
-        st.caption("Approved answers saved by staff and synced to OpenAI Vector Store.")
+        st.markdown("### 🧠 Self-Learning Knowledge")
+        st.caption("Automatically learned cases with duplicate detection and self-improving solutions.")
 
         try:
             learned_rows = (
                 supabase
                 .table("learned_knowledge")
                 .select("*")
-                .order("created_at", desc=True)
-                .limit(50)
+                .order("updated_at", desc=True)
+                .limit(80)
                 .execute()
                 .data
             )
 
             if learned_rows:
+                total_cases = len(learned_rows)
+                synced_cases = len([r for r in learned_rows if r.get("synced")])
+                avg_confidence = round(
+                    sum([int(r.get("confidence_score") or 0) for r in learned_rows]) / max(total_cases, 1)
+                )
+
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Learned Cases", total_cases)
+                m2.metric("Synced", synced_cases)
+                m3.metric("Avg Confidence", f"{avg_confidence}%")
+
                 for row in learned_rows:
-                    title = row.get("question") or "Approved Knowledge"
+                    issue = row.get("issue") or row.get("question") or "Learned Knowledge"
                     vehicle = row.get("vehicle") or "Vehicle not specified"
                     assistant_name = row.get("assistant") or ""
                     synced = row.get("synced")
-                    created_at = (row.get("created_at") or "")[:10]
+                    updated_at = (row.get("updated_at") or row.get("created_at") or "")[:10]
+                    confidence = row.get("confidence_score") or 0
+                    times_seen = row.get("times_seen") or 1
 
-                    with st.expander(f"{vehicle} | {title[:80]}"):
+                    with st.expander(f"{vehicle} | {issue[:80]}"):
                         st.write(f"**Assistant:** {assistant_name}")
-                        st.write(f"**Created:** {created_at}")
+                        st.write(f"**Updated:** {updated_at}")
                         st.write(f"**Synced:** {synced}")
+                        st.write(f"**Confidence:** {confidence}%")
+                        st.write(f"**Times Seen:** {times_seen}")
                         st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.markdown("**Question**")
-                        st.write(row.get("question") or "")
-                        st.markdown("**Approved Answer**")
-                        st.write(row.get("approved_answer") or "")
+
+                        st.markdown("**Issue**")
+                        st.write(row.get("issue") or "")
+
+                        st.markdown("**Self-Improved Solution**")
+                        st.write(row.get("solution") or row.get("approved_answer") or "")
+
+                        st.markdown("**Latest Source Question**")
+                        st.write(row.get("source_question") or row.get("question") or "")
+
                         st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+
+                        if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
+                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                            st.rerun()
             else:
                 st.info("No learned knowledge saved yet.")
 
@@ -2211,5 +2633,16 @@ else:
             save_message(st.session_state.conversation_id, "assistant", answer)
         except Exception as e:
             st.warning(f"AI answer was not saved to history: {e}")
+
+        # Continuous Learning:
+        # Automatically extracts reusable knowledge, detects duplicates,
+        # improves existing records, and syncs final knowledge to OpenAI Vector Store.
+        try:
+            learning_result = auto_learn_from_latest_answer(prompt, answer, assistant)
+            if learning_result and learning_result.get("learned"):
+                mode = learning_result.get("mode", "saved")
+                st.toast(f"AI learned from this case ({mode}).", icon="🧠")
+        except Exception as e:
+            st.warning(f"AI learning skipped: {e}")
 
         st.rerun()
