@@ -1002,21 +1002,12 @@ def load_messages(conversation_id):
 
 
 def load_conversations(username, assistant_name, role=None):
-    """
-    Load saved history robustly.
-
-    This version avoids the most common Supabase/Streamlit history issues:
-    - Archived can be NULL/False depending on old rows, so we filter locally.
-    - Assistant names may be saved with or without emoji, so we normalize both sides.
-    - Usernames may have changed during testing, so if no own records are found,
-      we still show matching assistant records.
-    """
     result = (
         supabase
         .table("conversations")
         .select("*")
         .order("updated_at", desc=True)
-        .limit(100)
+        .limit(30)
         .execute()
     )
 
