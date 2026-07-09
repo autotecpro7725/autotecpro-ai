@@ -444,7 +444,7 @@ def html_from_text(text):
 
 def render_chat_message(role, content):
     if role == "user":
-        icon = "😊"
+        icon = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
     else:
