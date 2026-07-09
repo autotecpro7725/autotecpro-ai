@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from openai import OpenAI
 from pathlib import Path
 try:
@@ -1291,10 +1292,219 @@ def inject_base_css():
         }
 
 
-        /* Last-resort UI guard for accidental bottom artifact boxes */
-        .assistant-bubble pre,
-        .assistant-bubble code {
-            display: none !important;
+        /* ============================================================
+           ChatGPT 2026 custom history cards
+           Replaces Streamlit history buttons with real HTML cards.
+        ============================================================ */
+        .history-shell {
+            max-height: 460px;
+            overflow-y: auto;
+            overflow-x: visible;
+            padding: 2px 4px 8px 0;
+            margin-top: 4px;
+        }
+
+        .history-shell::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .history-shell::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .history-shell::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.28);
+            border-radius: 999px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin: 2px 0 8px 0;
+        }
+
+        .history-row-html {
+            position: relative;
+            display: flex;
+            align-items: center;
+            min-height: 32px;
+            padding: 0 4px 0 0;
+            border-radius: 9px;
+            transition: background 140ms ease, color 140ms ease;
+        }
+
+        .history-row-html:hover {
+            background: rgba(148, 163, 184, 0.11);
+        }
+
+        .history-row-html.active {
+            background: rgba(148, 163, 184, 0.14);
+        }
+
+        .history-row-html.active::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 7px;
+            bottom: 7px;
+            width: 3px;
+            border-radius: 99px;
+            background: #ef4444;
+        }
+
+        .history-open {
+            flex: 1;
+            min-width: 0;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            padding: 0 8px 0 10px;
+            color: #dbe7f5 !important;
+            -webkit-text-fill-color: #dbe7f5 !important;
+            text-decoration: none !important;
+            font-size: 12.5px;
+            font-weight: 500;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-radius: 9px;
+        }
+
+        .history-row-html.active .history-open {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            font-weight: 650;
+            padding-left: 13px;
+        }
+
+        .history-menu {
+            width: 28px;
+            min-width: 28px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 140ms ease;
+        }
+
+        .history-row-html:hover .history-menu,
+        .history-menu:has(details[open]),
+        .history-row-html.active .history-menu {
+            opacity: 1;
+        }
+
+        .history-menu details {
+            position: relative;
+            width: 28px;
+            height: 28px;
+        }
+
+        .history-menu summary {
+            list-style: none;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aeb9c8 !important;
+            -webkit-text-fill-color: #aeb9c8 !important;
+            font-size: 18px;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .history-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .history-menu summary:hover {
+            background: rgba(148, 163, 184, 0.13);
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
+        .history-menu-panel {
+            position: absolute;
+            z-index: 999999;
+            top: 30px;
+            right: 0;
+            width: 178px;
+            padding: 6px;
+            border-radius: 14px;
+            background: rgba(32, 33, 35, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.38);
+            backdrop-filter: blur(12px);
+        }
+
+        .history-menu-panel .menu-title {
+            color: #cbd5e1;
+            -webkit-text-fill-color: #cbd5e1;
+            font-size: 11.5px;
+            padding: 4px 7px 7px 7px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-menu-panel a {
+            display: block;
+            height: 31px;
+            line-height: 31px;
+            padding: 0 8px;
+            border-radius: 8px;
+            color: #e5e7eb !important;
+            -webkit-text-fill-color: #e5e7eb !important;
+            text-decoration: none !important;
+            font-size: 12.5px;
+            font-weight: 500;
+        }
+
+        .history-menu-panel a:hover {
+            background: rgba(255,255,255,0.08);
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
+        .history-menu-panel a.delete-link {
+            color: #fca5a5 !important;
+            -webkit-text-fill-color: #fca5a5 !important;
+        }
+
+        .history-menu-panel a.delete-link:hover {
+            background: rgba(239,68,68,0.15);
+            color: #fecaca !important;
+            -webkit-text-fill-color: #fecaca !important;
+        }
+
+        @media (max-width: 768px) {
+            .history-menu {
+                opacity: 1 !important;
+            }
+
+            .history-open {
+                font-size: 13px !important;
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+            }
+
+            .history-row-html {
+                background: rgba(31, 41, 55, 0.92);
+                border: 1px solid rgba(148, 163, 184, 0.18);
+                margin-bottom: 5px;
+            }
+        }
+
+        #chat-bottom-anchor {
+            width: 1px;
+            height: 1px;
         }
 
 </style>
@@ -1658,7 +1868,6 @@ def html_from_text(text):
     rendered = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", rendered, flags=re.IGNORECASE)
     rendered = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", rendered, flags=re.IGNORECASE)
     rendered = re.sub(r"<div>\s*</div>", "", rendered, flags=re.IGNORECASE)
-    rendered = re.sub(r"(?:<br>\s*)+$", "", rendered, flags=re.IGNORECASE)
     return rendered
 
 
@@ -1960,12 +2169,16 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Clean AI/user visible text before display and before saving.
-    This removes raw HTML artifacts such as </div> that may come from model output,
-    old saved messages, or copied HTML fragments.
+    Strong cleanup for raw HTML artifacts from AI replies and saved history.
+    Removes:
+    - raw tags like </div>, <div>, </p>
+    - escaped tags like &lt;/div&gt;
+    - markdown code blocks that only contain those tags
+    - standalone code-fence markers left behind
     """
     value = str(text or "")
 
+    # Remove saved image marker if this function is called on full stored content.
     try:
         marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
         value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
@@ -1974,55 +2187,67 @@ def clean_visible_chat_text(text):
 
     tag_names = r"(div|p|span|section|article|main|body|html)"
 
-    # Remove any fenced code block that contains HTML layout tags.
+    # Remove fenced blocks that contain only HTML tag junk.
     value = re.sub(
-        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b|&lt;/?\s*" + tag_names + r"\b)[\s\S]*?```",
+        r"```(?:html|HTML)?\s*(?:</?\s*" + tag_names + r"\b[^>]*>\s*)+```",
         "",
         value,
-        flags=re.IGNORECASE,
+        flags=re.IGNORECASE | re.DOTALL,
     )
 
-    # Remove normal/escaped HTML layout tags anywhere.
+    # Remove any remaining raw or escaped HTML tags anywhere in the message.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
     value = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
 
     cleaned_lines = []
+    inside_junk_code_fence = False
+    code_fence_buffer = []
+
     for line in value.splitlines():
         stripped = line.strip()
-        low = stripped.lower()
 
-        # Drop markdown code fence markers.
-        if low in ("```", "```html"):
+        # If a markdown code fence remains and the fenced content is only blank/tag junk,
+        # remove the whole block. Otherwise keep non-junk content.
+        if stripped.lower() in ("```", "```html"):
+            if not inside_junk_code_fence:
+                inside_junk_code_fence = True
+                code_fence_buffer = []
+            else:
+                joined = "\n".join(code_fence_buffer).strip()
+                junk = not joined or re.fullmatch(
+                    r"(?:</?\s*" + tag_names + r"\b[^>]*>\s*|&lt;/?\s*" + tag_names + r"\b[^&]*&gt;\s*)+",
+                    joined,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+                if not junk:
+                    cleaned_lines.append(joined)
+                inside_junk_code_fence = False
+                code_fence_buffer = []
             continue
 
-        # Drop any line that is basically an HTML artifact, including backtick-wrapped artifacts.
-        artifact = stripped.replace("`", "").replace(" ", "")
-        artifact_low = artifact.lower()
-        if artifact_low in (
-            "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-            "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
-            "&lt;/span&gt;", "&lt;span&gt;"
-        ):
+        if inside_junk_code_fence:
+            code_fence_buffer.append(line)
             continue
 
-        # Drop lines containing only one or more layout closing/opening tags.
-        no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
-        no_tags = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", no_tags, flags=re.IGNORECASE)
-        no_tags = no_tags.replace("`", "").strip()
-        if not no_tags and ("<" in stripped or ">" in stripped or "&lt;" in low or "&gt;" in low):
+        # Drop standalone HTML tag artifact lines.
+        if re.fullmatch(r"</?\s*" + tag_names + r"\b[^>]*>", stripped, flags=re.IGNORECASE):
+            continue
+        if re.fullmatch(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", stripped, flags=re.IGNORECASE):
             continue
 
-        cleaned_lines.append(line)
+        # Drop lines that became empty after tag removal.
+        if not stripped:
+            cleaned_lines.append("")
+        else:
+            cleaned_lines.append(line)
 
     value = "\n".join(cleaned_lines)
 
-    # Last-resort direct replacements.
-    for bad in [
-        "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-        "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
-        "&lt;/span&gt;", "&lt;span&gt;"
-    ]:
-        value = value.replace(bad, "")
+    # Final sweep for any leftover raw fragments.
+    value = value.replace("</div>", "").replace("<div>", "")
+    value = value.replace("&lt;/div&gt;", "").replace("&lt;div&gt;", "")
+    value = value.replace("</p>", "").replace("<p>", "")
+    value = value.replace("&lt;/p&gt;", "").replace("&lt;p&gt;", "")
 
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
@@ -3162,6 +3387,184 @@ def render_rename_form(conversations):
         st.rerun()
 
 
+
+# ============================================================
+# ChatGPT-style HTML History Actions
+# ============================================================
+
+def app_action_url(action, conversation_id):
+    """Build query-string URL for custom HTML history actions."""
+    session_token = st.query_params.get("session")
+    parts = []
+    if session_token:
+        parts.append(f"session={html.escape(str(session_token), quote=True)}")
+    parts.append(f"hist_action={html.escape(str(action), quote=True)}")
+    parts.append(f"cid={html.escape(str(conversation_id), quote=True)}")
+    return "?" + "&".join(parts)
+
+
+def clear_history_action_params():
+    """Clear one-time history action query params while preserving login session."""
+    session_token = st.query_params.get("session")
+    st.query_params.clear()
+    if session_token:
+        st.query_params["session"] = session_token
+
+
+def process_history_action():
+    """Process open / rename / pin / archive / delete from custom HTML history links."""
+    action = st.query_params.get("hist_action")
+    cid = st.query_params.get("cid")
+
+    if not action or not cid:
+        return
+
+    if "rename_conversation_id" not in st.session_state:
+        st.session_state.rename_conversation_id = None
+    if "rename_conversation_value" not in st.session_state:
+        st.session_state.rename_conversation_value = ""
+
+    try:
+        if action == "open":
+            st.session_state.conversation_id = cid
+            st.session_state.messages = load_messages(cid)
+            st.session_state.rename_conversation_id = None
+            st.session_state.scroll_to_bottom = True
+
+        elif action == "rename":
+            st.session_state.rename_conversation_id = str(cid)
+            st.session_state.rename_conversation_value = get_conversation_title_by_id(cid)
+
+        elif action == "pin":
+            current = (
+                supabase.table("conversations")
+                .select("pinned")
+                .eq("id", cid)
+                .limit(1)
+                .execute()
+            )
+            pinned = False
+            if current.data:
+                pinned = bool(current.data[0].get("pinned", False))
+            toggle_pin_conversation(cid, not pinned)
+
+        elif action == "archive":
+            archive_conversation(cid)
+            if st.session_state.conversation_id == cid:
+                st.session_state.conversation_id = None
+                st.session_state.messages = []
+
+        elif action == "delete":
+            delete_conversation(cid)
+            if st.session_state.conversation_id == cid:
+                st.session_state.conversation_id = None
+                st.session_state.messages = []
+
+    except Exception as e:
+        st.session_state.history_action_error = str(e)
+
+    clear_history_action_params()
+    st.rerun()
+
+
+def get_conversation_title_by_id(conversation_id):
+    try:
+        result = (
+            supabase
+            .table("conversations")
+            .select("title")
+            .eq("id", conversation_id)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0].get("title") or "New Case"
+    except Exception:
+        pass
+    return "New Case"
+
+
+def render_history_html(conversations):
+    """Render ChatGPT 2026 style history cards with hidden hover menu."""
+    current_id = str(st.session_state.get("conversation_id") or "")
+
+    def row_html(convo):
+        convo_id = str(convo["id"])
+        title = str(convo.get("title") or "New Case").strip()
+        pinned = bool(convo.get("pinned", False))
+        is_current = current_id == convo_id
+
+        display_title = title[:36] + "..." if len(title) > 36 else title
+        safe_title = html.escape(display_title)
+        safe_full_title = html.escape(title)
+        active_class = " active" if is_current else ""
+        pin_prefix = "📌 " if pinned else ""
+        pin_label = "Unpin chat" if pinned else "Pin chat"
+
+        return f"""
+        <div class="history-row-html{active_class}">
+            <a class="history-open" href="{app_action_url('open', convo_id)}" title="{safe_full_title}">{pin_prefix}{safe_title}</a>
+            <div class="history-menu">
+                <details>
+                    <summary>⋯</summary>
+                    <div class="history-menu-panel">
+                        <div class="menu-title">{safe_title}</div>
+                        <a href="{app_action_url('rename', convo_id)}">Rename</a>
+                        <a href="{app_action_url('pin', convo_id)}">{pin_label}</a>
+                        <a href="{app_action_url('archive', convo_id)}">Archive</a>
+                        <a class="delete-link" href="{app_action_url('delete', convo_id)}">Delete</a>
+                    </div>
+                </details>
+            </div>
+        </div>
+        """
+
+    pinned_conversations = [c for c in conversations if c.get("pinned")]
+    normal_conversations = [c for c in conversations if not c.get("pinned")]
+
+    html_parts = ['<div class="history-shell">']
+
+    if pinned_conversations:
+        html_parts.append('<div class="history-section-label">Pinned</div>')
+        html_parts.append('<div class="history-list">')
+        html_parts.extend(row_html(c) for c in pinned_conversations)
+        html_parts.append('</div>')
+
+    if normal_conversations:
+        html_parts.append('<div class="history-section-label">Recent</div>')
+        html_parts.append('<div class="history-list">')
+        html_parts.extend(row_html(c) for c in normal_conversations)
+        html_parts.append('</div>')
+
+    html_parts.append('</div>')
+
+    st.sidebar.markdown("\n".join(html_parts), unsafe_allow_html=True)
+
+
+def auto_scroll_to_latest():
+    """Scroll browser to the latest chat reply after a rerun."""
+    components.html(
+        """
+        <script>
+        const scrollToBottom = () => {
+            const doc = window.parent.document;
+            const anchor = doc.getElementById("chat-bottom-anchor");
+            if (anchor) {
+                anchor.scrollIntoView({behavior: "smooth", block: "end"});
+            } else {
+                window.parent.scrollTo({top: doc.body.scrollHeight, behavior: "smooth"});
+            }
+        };
+        setTimeout(scrollToBottom, 120);
+        setTimeout(scrollToBottom, 500);
+        </script>
+        """,
+        height=0,
+    )
+
+
+process_history_action()
+
 # ============================================================
 # Chat History Sidebar
 # ============================================================
@@ -3169,6 +3572,8 @@ def render_rename_form(conversations):
 if assistant != "⚙️ Admin Panel":
     if "rename_conversation_id" not in st.session_state:
         st.session_state.rename_conversation_id = None
+    if "rename_conversation_value" not in st.session_state:
+        st.session_state.rename_conversation_value = ""
 
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
@@ -3187,77 +3592,7 @@ if assistant != "⚙️ Admin Panel":
         )
 
         if conversations:
-            pinned_conversations = [c for c in conversations if c.get("pinned")]
-            normal_conversations = [c for c in conversations if not c.get("pinned")]
-
-            sections = []
-            if pinned_conversations:
-                sections.append(("Pinned", pinned_conversations))
-            if normal_conversations:
-                sections.append(("Recent", normal_conversations))
-
-            history_box = st.sidebar.container(height=460, border=False)
-
-            with history_box:
-                for section_name, section_convos in sections:
-                    st.markdown(
-                        f'<div class="history-section-label">{section_name}</div>',
-                        unsafe_allow_html=True
-                    )
-
-                    for convo in section_convos:
-                        convo_id = convo["id"]
-                        title = convo.get("title") or "New Case"
-                        assistant_label = clean_assistant_label(convo.get("assistant") or "")
-                        updated_at = format_history_date(convo.get("updated_at") or convo.get("created_at"))
-                        pinned = bool(convo.get("pinned", False))
-                        is_current = st.session_state.conversation_id == convo_id
-
-                        title_short = title[:30] + "..." if len(title) > 30 else title
-
-                        # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
-                        active_prefix = "• " if is_current else ""
-                        pin_prefix = "📌 " if pinned else ""
-                        history_label = f"{active_prefix}{pin_prefix}{title_short}"
-
-                        item_col, menu_col = st.columns([0.86, 0.14], gap="small")
-
-                        with item_col:
-                            if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
-                                st.session_state.conversation_id = convo_id
-                                st.session_state.messages = load_messages(convo_id)
-                                st.rerun()
-
-                        with menu_col:
-                            with st.popover("⋯"):
-                                st.markdown(f'<div class="history-menu-title">{html.escape(title_short)}</div>', unsafe_allow_html=True)
-
-                                if st.button("Rename", key=f"rename_{convo_id}"):
-                                    st.session_state.rename_conversation_id = str(convo_id)
-                                    st.session_state.rename_conversation_value = title
-                                    st.rerun()
-
-                                pin_label = "Unpin chat" if pinned else "Pin chat"
-                                if st.button(pin_label, key=f"pin_{convo_id}"):
-                                    try:
-                                        toggle_pin_conversation(convo_id, not pinned)
-                                        st.rerun()
-                                    except Exception:
-                                        st.toast("Pin needs the pinned column in Supabase.")
-
-                                if st.button("Archive", key=f"archive_{convo_id}"):
-                                    archive_conversation(convo_id)
-                                    if st.session_state.conversation_id == convo_id:
-                                        st.session_state.conversation_id = None
-                                        st.session_state.messages = []
-                                    st.rerun()
-
-                                if st.button("Delete", key=f"delete_{convo_id}"):
-                                    delete_conversation(convo_id)
-                                    if st.session_state.conversation_id == convo_id:
-                                        st.session_state.conversation_id = None
-                                        st.session_state.messages = []
-                                    st.rerun()
+            render_history_html(conversations)
         else:
             st.sidebar.caption("No saved cases yet.")
 
@@ -3275,8 +3610,13 @@ if assistant != "⚙️ Admin Panel":
                 unsafe_allow_html=True
             )
 
+        if st.session_state.get("history_action_error"):
+            st.sidebar.warning(st.session_state.history_action_error)
+            st.session_state.history_action_error = ""
+
     except Exception as e:
         st.sidebar.error(f"Chat history error: {e}")
+
 
 # ============================================================
 # Admin Panel
@@ -3663,6 +4003,11 @@ else:
     for msg in st.session_state.messages:
         render_chat_message(msg["role"], msg["content"])
 
+    st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
+    if st.session_state.get("scroll_to_bottom"):
+        auto_scroll_to_latest()
+        st.session_state.scroll_to_bottom = False
+
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
@@ -3737,4 +4082,5 @@ else:
         except Exception:
             pass
 
+        st.session_state.scroll_to_bottom = True
         st.rerun()
