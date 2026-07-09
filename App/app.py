@@ -1030,6 +1030,75 @@ def inject_base_css():
             gap: 1px !important;
         }
 
+
+        /* ============================================================
+           PRODUCTION FIX: Scrollable history area shows many cases
+        ============================================================ */
+        .history-scroll-container {
+            max-height: 360px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            padding-right: 4px !important;
+            margin-top: 2px !important;
+            margin-bottom: 6px !important;
+        }
+
+        .history-scroll-container::-webkit-scrollbar {
+            width: 5px !important;
+        }
+
+        .history-scroll-container::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+
+        .history-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35) !important;
+            border-radius: 999px !important;
+        }
+
+        .history-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.55) !important;
+        }
+
+
+        /* ============================================================
+           FINAL OVERRIDE: More history rows visible + aligned menu
+        ============================================================ */
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
+            max-height: 460px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
+            width: 5px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35) !important;
+            border-radius: 999px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
+            align-items: center !important;
+            gap: 3px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="column"] .stButton > button {
+            height: 26px !important;
+            min-height: 26px !important;
+            padding-top: 2px !important;
+            padding-bottom: 2px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stPopover"] button {
+            height: 26px !important;
+            min-height: 26px !important;
+            width: 24px !important;
+            min-width: 24px !important;
+            max-width: 24px !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1143,42 +1212,56 @@ def now_iso():
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_table_columns(table_name):
-    """Return existing Supabase columns so code never crashes when schema is older."""
+    """
+    Return actual Supabase table columns.
+
+    IMPORTANT:
+    Do not guess columns from fallback when a table is empty. That causes PGRST204
+    missing-column errors. The RPC below reads information_schema directly.
+    """
     try:
-        result = (
-            supabase
-            .table(table_name)
-            .select("*")
-            .limit(1)
-            .execute()
-        )
+        result = supabase.rpc("get_table_columns", {"input_table_name": table_name}).execute()
         if result.data:
-            return list(result.data[0].keys())
+            return [row["column_name"] for row in result.data if row.get("column_name")]
     except Exception:
         pass
 
-    # Fallback known schemas. These keep the app running even if a table is empty.
+    # Safe minimum fallback only. These are columns used by the original app and are
+    # usually present even in older schemas. Optional learning fields are filtered out
+    # unless Supabase confirms they exist.
     fallback = {
         "learned_knowledge": [
-            "id", "username", "assistant", "vehicle", "year", "make", "model",
-            "product", "product_category", "issue", "symptoms", "solution",
-            "question", "approved_answer", "keywords", "source_question", "source_answer",
-            "source_conversation_id", "confidence_score", "times_seen", "times_used",
-            "search_count", "openai_file_id", "vector_store_id", "synced",
-            "embedding_status", "last_used_at", "created_at", "updated_at"
+            "id", "question", "approved_answer", "keywords",
+            "source_conversation_id", "openai_file_id", "vector_store_id",
+            "synced", "created_at"
         ],
         "ai_analytics": [
-            "id", "username", "assistant", "vehicle", "year", "make", "model",
-            "issue", "product", "solution", "keywords", "question", "answer",
-            "was_unanswered", "resolved", "confidence_score", "conversation_id",
-            "learned", "learning_mode", "learned_record_id", "duplicate_of",
-            "response_time", "tokens_used", "learning_source", "feedback", "created_at"
+            "id", "username", "assistant", "vehicle", "issue", "product",
+            "keywords", "question", "answer", "created_at"
         ],
         "conversations": [
-            "id", "username", "assistant", "title", "archived", "pinned", "created_at", "updated_at"
+            "id", "username", "assistant", "title", "archived", "pinned",
+            "created_at", "updated_at"
+        ],
+        "messages": [
+            "id", "conversation_id", "role", "content", "created_at"
+        ],
+        "login_sessions": [
+            "id", "username", "role", "active", "created_at"
+        ],
+        "users": [
+            "id", "username", "password", "role", "active"
         ]
     }
     return fallback.get(table_name, [])
+
+
+def refresh_schema_cache():
+    """Clear cached schema after SQL migration or Streamlit reboot."""
+    try:
+        get_table_columns.clear()
+    except Exception:
+        pass
 
 
 def filter_payload_for_table(table_name, payload):
@@ -2539,7 +2622,7 @@ def load_conversations(username, role=None):
 
     # Admin can see all cases. Staff sees their own cases first.
     if str(role or "").lower() == "admin":
-        return active_rows[:30]
+        return active_rows[:50]
 
     own_rows = [
         row for row in active_rows
@@ -2547,7 +2630,7 @@ def load_conversations(username, role=None):
     ]
 
     # Fallback: if username changed during testing, show all active rows.
-    return (own_rows or active_rows)[:30]
+    return (own_rows or active_rows)[:50]
 
 
 def archive_conversation(conversation_id):
@@ -2699,7 +2782,7 @@ if assistant != "⚙️ Admin Panel":
             if normal_conversations:
                 sections.append(("Recent", normal_conversations))
 
-            history_box = st.sidebar.container(height=360, border=False)
+            history_box = st.sidebar.container(height=460, border=False)
 
             with history_box:
                 for section_name, section_convos in sections:
@@ -2716,14 +2799,14 @@ if assistant != "⚙️ Admin Panel":
                         pinned = bool(convo.get("pinned", False))
                         is_current = st.session_state.conversation_id == convo_id
 
-                        title_short = title[:34] + "..." if len(title) > 34 else title
+                        title_short = title[:30] + "..." if len(title) > 30 else title
 
                         # ChatGPT-style history row: single-line title, compact spacing, menu on the right.
                         active_prefix = "• " if is_current else ""
                         pin_prefix = "📌 " if pinned else ""
                         history_label = f"{active_prefix}{pin_prefix}{title_short}"
 
-                        item_col, menu_col = st.columns([0.88, 0.12], gap="small")
+                        item_col, menu_col = st.columns([0.86, 0.14], gap="small")
 
                         with item_col:
                             if st.button(history_label, key=f"open_{convo_id}", help="Open conversation"):
@@ -3226,7 +3309,7 @@ else:
                 mode = learning_result.get("mode", "saved")
                 st.toast(f"AI learned from this case ({mode}).", icon="🧠")
         except Exception as e:
-            st.warning(f"AI learning skipped: {e}")
+            st.caption(f"AI learning skipped: {e}")
 
         # Analytics:
         # Tracks most common vehicles, recurring issues, searched products,
