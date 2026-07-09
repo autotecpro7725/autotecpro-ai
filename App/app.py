@@ -1290,6 +1290,13 @@ def inject_base_css():
             display: none !important;
         }
 
+
+        /* Last-resort UI guard for accidental bottom artifact boxes */
+        .assistant-bubble pre,
+        .assistant-bubble code {
+            display: none !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -1651,6 +1658,7 @@ def html_from_text(text):
     rendered = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", rendered, flags=re.IGNORECASE)
     rendered = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", rendered, flags=re.IGNORECASE)
     rendered = re.sub(r"<div>\s*</div>", "", rendered, flags=re.IGNORECASE)
+    rendered = re.sub(r"(?:<br>\s*)+$", "", rendered, flags=re.IGNORECASE)
     return rendered
 
 
@@ -1952,16 +1960,12 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Strong cleanup for raw HTML artifacts from AI replies and saved history.
-    Removes:
-    - raw tags like </div>, <div>, </p>
-    - escaped tags like &lt;/div&gt;
-    - markdown code blocks that only contain those tags
-    - standalone code-fence markers left behind
+    Clean AI/user visible text before display and before saving.
+    This removes raw HTML artifacts such as </div> that may come from model output,
+    old saved messages, or copied HTML fragments.
     """
     value = str(text or "")
 
-    # Remove saved image marker if this function is called on full stored content.
     try:
         marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
         value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
@@ -1970,67 +1974,55 @@ def clean_visible_chat_text(text):
 
     tag_names = r"(div|p|span|section|article|main|body|html)"
 
-    # Remove fenced blocks that contain only HTML tag junk.
+    # Remove any fenced code block that contains HTML layout tags.
     value = re.sub(
-        r"```(?:html|HTML)?\s*(?:</?\s*" + tag_names + r"\b[^>]*>\s*)+```",
+        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b|&lt;/?\s*" + tag_names + r"\b)[\s\S]*?```",
         "",
         value,
-        flags=re.IGNORECASE | re.DOTALL,
+        flags=re.IGNORECASE,
     )
 
-    # Remove any remaining raw or escaped HTML tags anywhere in the message.
+    # Remove normal/escaped HTML layout tags anywhere.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
     value = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
 
     cleaned_lines = []
-    inside_junk_code_fence = False
-    code_fence_buffer = []
-
     for line in value.splitlines():
         stripped = line.strip()
+        low = stripped.lower()
 
-        # If a markdown code fence remains and the fenced content is only blank/tag junk,
-        # remove the whole block. Otherwise keep non-junk content.
-        if stripped.lower() in ("```", "```html"):
-            if not inside_junk_code_fence:
-                inside_junk_code_fence = True
-                code_fence_buffer = []
-            else:
-                joined = "\n".join(code_fence_buffer).strip()
-                junk = not joined or re.fullmatch(
-                    r"(?:</?\s*" + tag_names + r"\b[^>]*>\s*|&lt;/?\s*" + tag_names + r"\b[^&]*&gt;\s*)+",
-                    joined,
-                    flags=re.IGNORECASE | re.DOTALL,
-                )
-                if not junk:
-                    cleaned_lines.append(joined)
-                inside_junk_code_fence = False
-                code_fence_buffer = []
+        # Drop markdown code fence markers.
+        if low in ("```", "```html"):
             continue
 
-        if inside_junk_code_fence:
-            code_fence_buffer.append(line)
+        # Drop any line that is basically an HTML artifact, including backtick-wrapped artifacts.
+        artifact = stripped.replace("`", "").replace(" ", "")
+        artifact_low = artifact.lower()
+        if artifact_low in (
+            "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
+            "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
+            "&lt;/span&gt;", "&lt;span&gt;"
+        ):
             continue
 
-        # Drop standalone HTML tag artifact lines.
-        if re.fullmatch(r"</?\s*" + tag_names + r"\b[^>]*>", stripped, flags=re.IGNORECASE):
-            continue
-        if re.fullmatch(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", stripped, flags=re.IGNORECASE):
+        # Drop lines containing only one or more layout closing/opening tags.
+        no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
+        no_tags = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", no_tags, flags=re.IGNORECASE)
+        no_tags = no_tags.replace("`", "").strip()
+        if not no_tags and ("<" in stripped or ">" in stripped or "&lt;" in low or "&gt;" in low):
             continue
 
-        # Drop lines that became empty after tag removal.
-        if not stripped:
-            cleaned_lines.append("")
-        else:
-            cleaned_lines.append(line)
+        cleaned_lines.append(line)
 
     value = "\n".join(cleaned_lines)
 
-    # Final sweep for any leftover raw fragments.
-    value = value.replace("</div>", "").replace("<div>", "")
-    value = value.replace("&lt;/div&gt;", "").replace("&lt;div&gt;", "")
-    value = value.replace("</p>", "").replace("<p>", "")
-    value = value.replace("&lt;/p&gt;", "").replace("&lt;p&gt;", "")
+    # Last-resort direct replacements.
+    for bad in [
+        "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
+        "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
+        "&lt;/span&gt;", "&lt;span&gt;"
+    ]:
+        value = value.replace(bad, "")
 
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
@@ -2161,7 +2153,7 @@ Answer in this order when useful:
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
-Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
+Do not output HTML or code-fence formatting.
 """
 
     if selected_assistant == "📈 Sales & Marketing":
@@ -2175,7 +2167,7 @@ dealer messages, customer replies, Amazon listings, website copy,
 social media, promotions, warranty, and return policy.
 
 Never invent pricing or compatibility.
-Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
+Do not output HTML or code-fence formatting.
 """
 
     return """
@@ -2185,7 +2177,7 @@ Analyze uploaded images when provided.
 
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
-Do not output raw HTML tags such as <div>, </div>, <p>, </p>, or code fences containing HTML.
+Do not output HTML or code-fence formatting.
 """
 
 
