@@ -999,6 +999,123 @@ def inject_base_css():
             font-size: 12.5px !important;
             line-height: 1.1 !important;
         }
+
+        /* ============================================================
+           FINAL GAP + THREE-DOT ALIGNMENT PATCH
+        ============================================================ */
+
+        div[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
+            gap: 0.08rem !important;
+        }
+
+        div[data-testid="stSidebar"] div[data-testid="column"] {
+            padding: 0 !important;
+        }
+
+        div[data-testid="stSidebar"] .stButton {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        div[data-testid="stSidebar"] .stButton > button {
+            margin: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        .history-open-btn .stButton > button {
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
+            padding: 3px 8px !important;
+            border-radius: 7px !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            line-height: 1 !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: #e5e7eb !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        .history-open-btn.active .stButton > button {
+            background: rgba(148, 163, 184, 0.16) !important;
+        }
+
+        .history-open-btn .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.12) !important;
+            border-color: transparent !important;
+        }
+
+        .history-dot-btn .stButton > button {
+            width: 26px !important;
+            min-width: 26px !important;
+            max-width: 26px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            max-height: 26px !important;
+            padding: 0 !important;
+            border-radius: 7px !important;
+            text-align: center !important;
+            justify-content: center !important;
+            font-size: 15px !important;
+            line-height: 1 !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: #94a3b8 !important;
+        }
+
+        .history-dot-btn .stButton > button:hover {
+            background: rgba(148, 163, 184, 0.14) !important;
+            color: #ffffff !important;
+        }
+
+        .history-section-label {
+            margin-top: 7px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .history-count,
+        .history-current-note {
+            margin-top: 4px !important;
+        }
+
+        .menu-title-small {
+            font-size: 11px !important;
+            color: #cbd5e1 !important;
+            margin: 4px 0 2px 0 !important;
+            padding: 4px 6px !important;
+            border-radius: 7px !important;
+            background: rgba(148, 163, 184, 0.08) !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* Compact the inline menu action buttons */
+        div[data-testid="stSidebar"] .menu-title-small + div .stButton > button,
+        div[data-testid="stSidebar"] .menu-title-small ~ div .stButton > button {
+            height: 26px !important;
+            min-height: 26px !important;
+            padding: 3px 7px !important;
+            font-size: 11.5px !important;
+            border-radius: 7px !important;
+        }
+
+        /* Smaller refresh */
+        .history-refresh .stButton > button {
+            width: 26px !important;
+            min-width: 26px !important;
+            max-width: 26px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            max-height: 26px !important;
+            padding: 0 !important;
+            justify-content: center !important;
+            text-align: center !important;
+        }
 </style>
         """,
         unsafe_allow_html=True
@@ -1904,7 +2021,7 @@ def safe_short_title(title, max_len=32):
 
 
 def render_history_row(convo):
-    """Streamlit-native compact history row. No HTML dropdowns."""
+    """Compact Streamlit-native history row with a clean ⋯ menu. No popover arrow."""
     convo_id = str(convo["id"])
     title = str(convo.get("title") or "New Case").strip() or "New Case"
     short_title = safe_short_title(title)
@@ -1926,35 +2043,33 @@ def render_history_row(convo):
             st.session_state.conversation_id = convo_id
             st.session_state.messages = load_messages(convo_id)
             st.session_state.rename_conversation_id = None
+            st.session_state.open_history_menu = None
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     with row_cols[1]:
-        st.markdown('<div class="history-menu-popover">', unsafe_allow_html=True)
+        st.markdown('<div class="history-dot-btn">', unsafe_allow_html=True)
+        if st.button("⋯", key=f"menu_history_{convo_id}", help="Conversation options"):
+            if st.session_state.get("open_history_menu") == convo_id:
+                st.session_state.open_history_menu = None
+            else:
+                st.session_state.open_history_menu = convo_id
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # st.popover keeps the menu small and does not create the raw HTML issue.
-        try:
-            pop = st.popover("⋯", help="Conversation options", use_container_width=False)
-        except Exception:
-            pop = st.expander("⋯", expanded=False)
+    if st.session_state.get("open_history_menu") == convo_id:
+        st.sidebar.markdown(
+            f'<div class="menu-title-small">{html.escape(short_title)}</div>',
+            unsafe_allow_html=True
+        )
 
-        with pop:
-            st.markdown(
-                f'<div class="menu-title-small">{html.escape(short_title)}</div>',
-                unsafe_allow_html=True
-            )
-
+        menu_cols = st.sidebar.columns([1, 1], gap="small")
+        with menu_cols[0]:
             if st.button("Rename", key=f"rename_history_{convo_id}"):
                 st.session_state.rename_conversation_id = convo_id
                 st.session_state.rename_conversation_value = title
+                st.session_state.open_history_menu = None
                 st.rerun()
-
-            if st.button("Unpin chat" if pinned else "Pin chat", key=f"pin_history_{convo_id}"):
-                try:
-                    toggle_pin_conversation(convo_id, not pinned)
-                    st.rerun()
-                except Exception as e:
-                    st.warning(f"Pin failed: {e}")
 
             if st.button("Archive", key=f"archive_history_{convo_id}"):
                 archive_conversation(convo_id)
@@ -1962,7 +2077,17 @@ def render_history_row(convo):
                     st.session_state.conversation_id = None
                     st.session_state.messages = []
                 st.session_state.rename_conversation_id = None
+                st.session_state.open_history_menu = None
                 st.rerun()
+
+        with menu_cols[1]:
+            if st.button("Unpin" if pinned else "Pin", key=f"pin_history_{convo_id}"):
+                try:
+                    toggle_pin_conversation(convo_id, not pinned)
+                    st.session_state.open_history_menu = None
+                    st.rerun()
+                except Exception as e:
+                    st.warning(f"Pin failed: {e}")
 
             if st.button("Delete", key=f"delete_history_{convo_id}"):
                 delete_conversation(convo_id)
@@ -1970,9 +2095,8 @@ def render_history_row(convo):
                     st.session_state.conversation_id = None
                     st.session_state.messages = []
                 st.session_state.rename_conversation_id = None
+                st.session_state.open_history_menu = None
                 st.rerun()
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_rename_form(conversations):
@@ -2031,6 +2155,8 @@ def render_rename_form(conversations):
 if assistant != "⚙️ Admin Panel":
     if "rename_conversation_id" not in st.session_state:
         st.session_state.rename_conversation_id = None
+    if "open_history_menu" not in st.session_state:
+        st.session_state.open_history_menu = None
 
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div class="history-title">Chat History</div>', unsafe_allow_html=True)
