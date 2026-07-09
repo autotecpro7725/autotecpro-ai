@@ -1628,24 +1628,43 @@ def html_from_text(text):
 
 def clean_visible_chat_text(text):
     """
-    Remove accidental raw HTML closing/opening tags from AI replies.
-    This prevents visible artifacts like </div> from showing in chat bubbles.
+    Remove accidental raw HTML artifacts from AI replies and old saved messages.
+    This fixes visible </div>, <div>, </p>, etc. inside chat bubbles.
     """
     value = str(text or "")
 
-    # Remove common standalone HTML tags that sometimes leak into LLM output.
+    # Remove common HTML tags anywhere, including old saved messages.
+    value = re.sub(r"</?div[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?p[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?span[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?section[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?article[^>]*>", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"</?main[^>]*>", "", value, flags=re.IGNORECASE)
+
+    # Remove lines that are only HTML fragments or escaped HTML fragments.
     cleaned_lines = []
     for line in value.splitlines():
         stripped = line.strip()
-        if re.fullmatch(r"</?(div|span|p|br|section|article|main|body|html)[^>]*>", stripped, flags=re.IGNORECASE):
+        if not stripped:
+            cleaned_lines.append(line)
             continue
+
+        if re.fullmatch(r"&lt;/?(div|p|span|section|article|main)[^&]*&gt;", stripped, flags=re.IGNORECASE):
+            continue
+        if re.fullmatch(r"</?(div|p|span|section|article|main)[^>]*>", stripped, flags=re.IGNORECASE):
+            continue
+
         cleaned_lines.append(line)
 
     value = "\n".join(cleaned_lines)
 
-    # Also remove repeated closing tags if they appear inline at the very end.
-    value = re.sub(r"(\s*</div>\s*)+$", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"(\s*</p>\s*)+$", "", value, flags=re.IGNORECASE)
+    # Remove escaped tags if they were already escaped before rendering.
+    value = re.sub(r"&lt;/?div[^&]*&gt;", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"&lt;/?p[^&]*&gt;", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"&lt;/?span[^&]*&gt;", "", value, flags=re.IGNORECASE)
+
+    # Clean up excessive blank lines.
+    value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
 
