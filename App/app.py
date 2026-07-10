@@ -4327,6 +4327,16 @@ if assistant == "⚙️ Admin Panel":
         learned_rows_for_analytics = []
 
     with tab1:
+        # Remove legacy widget-state keys from older Admin Panel versions.
+        # This runs before any current user-management widgets are created.
+        for legacy_key in (
+            "admin_user_username",
+            "admin_user_password",
+            "admin_user_role",
+            "admin_user_active",
+        ):
+            st.session_state.pop(legacy_key, None)
+
         st.markdown("### Users")
 
         delete_flash = st.session_state.pop("admin_delete_success", None)
@@ -4413,7 +4423,7 @@ if assistant == "⚙️ Admin Panel":
                 filtered_users.append(user)
 
         # Clean table header: no colored badges or status dots.
-        header_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.8])
+        header_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.15])
         header_cols[0].markdown("**Username**")
         header_cols[1].markdown("**Role**")
         header_cols[2].markdown("**Status**")
@@ -4432,7 +4442,7 @@ if assistant == "⚙️ Admin Panel":
                     latest_login_by_user.get(username_value)
                 )
 
-                row_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.8])
+                row_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.15])
                 row_cols[0].write(username_value)
                 row_cols[1].write(role_value)
                 row_cols[2].write(status_value)
@@ -4441,7 +4451,7 @@ if assistant == "⚙️ Admin Panel":
                 if username_value == st.session_state.username:
                     row_cols[4].markdown("*Current User*")
                 else:
-                    action_cols = row_cols[4].columns([1, 1])
+                    action_cols = row_cols[4].columns([0.42, 0.42, 0.16])
 
                     if action_cols[0].button(
                         "✏️",
@@ -4449,12 +4459,10 @@ if assistant == "⚙️ Admin Panel":
                         help=f"Edit {username_value}"
                     ):
                         st.session_state["admin_edit_username"] = username_value
-                        st.session_state["admin_user_username"] = username_value
-                        st.session_state["admin_user_password"] = ""
-                        st.session_state["admin_user_role"] = str(
+                        st.session_state["admin_edit_role_value"] = str(
                             user.get("role") or "staff"
                         ).lower()
-                        st.session_state["admin_user_active"] = bool(
+                        st.session_state["admin_edit_active_value"] = bool(
                             user.get("active")
                         )
                         st.rerun()
@@ -4472,106 +4480,133 @@ if assistant == "⚙️ Admin Panel":
         st.markdown("### Add / Update User")
 
         editing_username = st.session_state.get("admin_edit_username")
+
         if editing_username:
             st.caption(f"Editing: {editing_username}")
 
-        new_username = st.text_input(
-            "Username",
-            key="admin_user_username"
-        )
-        new_password = st.text_input(
-            "Password",
-            type="password",
-            key="admin_user_password",
-            help=(
-                "Enter a password when creating a user. When editing, enter a new "
-                "password only when you want to change it."
+            edit_username = st.text_input(
+                "Username",
+                value=editing_username,
+                disabled=True,
+                key="admin_edit_username_display"
             )
-        )
-        new_role = st.selectbox(
-            "Role",
-            ["staff", "admin"],
-            key="admin_user_role"
-        )
-        new_active = st.checkbox(
-            "Active",
-            value=True,
-            key="admin_user_active"
-        )
+            edit_password = st.text_input(
+                "New Password",
+                type="password",
+                key="admin_edit_password",
+                help="Leave blank to keep the current password."
+            )
+            edit_role = st.selectbox(
+                "Role",
+                ["staff", "admin"],
+                index=0 if st.session_state.get("admin_edit_role_value", "staff") == "staff" else 1,
+                key="admin_edit_role"
+            )
+            edit_active = st.checkbox(
+                "Active",
+                value=bool(st.session_state.get("admin_edit_active_value", True)),
+                key="admin_edit_active"
+            )
 
-        save_cols = st.columns([1, 1, 3])
+            edit_cols = st.columns([1, 1, 4])
 
-        if save_cols[0].button("Save User", key="admin_save_user_button"):
-            clean_username = new_username.strip()
-
-            if not clean_username:
-                st.warning("Please enter a username.")
-            else:
+            if edit_cols[0].button("Update User", key="admin_update_user_button"):
                 try:
-                    existing = (
+                    update_payload = {
+                        "role": edit_role,
+                        "active": edit_active,
+                    }
+                    if edit_password:
+                        update_payload["password"] = edit_password
+
+                    (
                         supabase
                         .table("users")
-                        .select("*")
-                        .eq("username", clean_username)
+                        .update(update_payload)
+                        .eq("username", editing_username)
                         .execute()
-                        .data
-                    ) or []
-
-                    if existing:
-                        update_payload = {
-                            "role": new_role,
-                            "active": new_active,
-                        }
-                        if new_password:
-                            update_payload["password"] = new_password
-
-                        (
-                            supabase
-                            .table("users")
-                            .update(update_payload)
-                            .eq("username", clean_username)
-                            .execute()
-                        )
-                        message = f"User '{clean_username}' updated successfully."
-                    else:
-                        if not new_password:
-                            st.warning("Please enter a password for the new user.")
-                            st.stop()
-
-                        (
-                            supabase
-                            .table("users")
-                            .insert({
-                                "username": clean_username,
-                                "password": new_password,
-                                "role": new_role,
-                                "active": new_active,
-                            })
-                            .execute()
-                        )
-                        message = f"User '{clean_username}' added successfully."
+                    )
 
                     st.session_state.pop("admin_edit_username", None)
-                    st.session_state["admin_user_username"] = ""
-                    st.session_state["admin_user_password"] = ""
-                    st.session_state["admin_user_role"] = "staff"
-                    st.session_state["admin_user_active"] = True
-                    st.session_state["admin_user_save_success"] = message
+                    st.session_state.pop("admin_edit_role_value", None)
+                    st.session_state.pop("admin_edit_active_value", None)
+                    st.session_state.pop("admin_edit_password", None)
+                    st.session_state["admin_user_save_success"] = (
+                        f"User '{editing_username}' updated successfully."
+                    )
                     st.rerun()
 
                 except Exception as error:
-                    st.error(f"Unable to save user: {error}")
+                    st.error(f"Unable to update user: {error}")
 
-        if editing_username and save_cols[1].button(
-            "Cancel Edit",
-            key="admin_cancel_edit_button"
-        ):
-            st.session_state.pop("admin_edit_username", None)
-            st.session_state["admin_user_username"] = ""
-            st.session_state["admin_user_password"] = ""
-            st.session_state["admin_user_role"] = "staff"
-            st.session_state["admin_user_active"] = True
-            st.rerun()
+            if edit_cols[1].button("Cancel", key="admin_cancel_edit_button"):
+                st.session_state.pop("admin_edit_username", None)
+                st.session_state.pop("admin_edit_role_value", None)
+                st.session_state.pop("admin_edit_active_value", None)
+                st.session_state.pop("admin_edit_password", None)
+                st.rerun()
+
+        else:
+            new_username = st.text_input(
+                "Username",
+                key="admin_new_user_username"
+            )
+            new_password = st.text_input(
+                "Password",
+                type="password",
+                key="admin_new_user_password"
+            )
+            new_role = st.selectbox(
+                "Role",
+                ["staff", "admin"],
+                key="admin_new_user_role"
+            )
+            new_active = st.checkbox(
+                "Active",
+                value=True,
+                key="admin_new_user_active"
+            )
+
+            if st.button("Save User", key="admin_save_user_button"):
+                clean_username = new_username.strip()
+
+                if not clean_username or not new_password:
+                    st.warning("Please enter username and password.")
+                else:
+                    try:
+                        existing = (
+                            supabase
+                            .table("users")
+                            .select("*")
+                            .eq("username", clean_username)
+                            .execute()
+                            .data
+                        ) or []
+
+                        if existing:
+                            st.warning(
+                                "This username already exists. Use the edit icon instead."
+                            )
+                        else:
+                            (
+                                supabase
+                                .table("users")
+                                .insert({
+                                    "username": clean_username,
+                                    "password": new_password,
+                                    "role": new_role,
+                                    "active": new_active,
+                                })
+                                .execute()
+                            )
+
+                            st.session_state["admin_user_save_success"] = (
+                                f"User '{clean_username}' added successfully."
+                            )
+                            st.rerun()
+
+                    except Exception as error:
+                        st.error(f"Unable to save user: {error}")
 
         pending_delete_user = st.session_state.get("admin_pending_delete_user")
 
