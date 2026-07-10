@@ -3165,6 +3165,84 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V14 CHATGPT-STYLE FULL TEXT WIDTH
+           Let text flow nearly all the way to the send button.
+        ============================================================ */
+
+        html body div[data-testid="stChatInput"] {
+            display: grid !important;
+            grid-template-columns: 54px minmax(0, 1fr) 50px !important;
+            align-items: end !important;
+            column-gap: 6px !important;
+            padding: 7px 4px 7px 4px !important;
+            width: calc(100% - 4px) !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Place the microphone in column 1 */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            position: static !important;
+            grid-column: 1 !important;
+            grid-row: 1 !important;
+            align-self: end !important;
+            justify-self: center !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        /* Place all Streamlit input wrappers in column 2 */
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            flex: 1 1 auto !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+            padding-left: 4px !important;
+            padding-right: 2px !important;
+            margin: 0 !important;
+        }
+
+        /* Place the visible send proxy in column 3 */
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            position: static !important;
+            grid-column: 3 !important;
+            grid-row: 1 !important;
+            align-self: end !important;
+            justify-self: end !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                grid-template-columns: 50px minmax(0, 1fr) 46px !important;
+                column-gap: 4px !important;
+                padding-left: 3px !important;
+                padding-right: 3px !important;
+            }
+
+            html body div[data-testid="stChatInput"] textarea {
+                padding-left: 3px !important;
+                padding-right: 1px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
