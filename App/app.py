@@ -2977,6 +2977,60 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V11 STABLE AUTO-GROW
+           Prevent oversized composer while keeping ChatGPT-like growth.
+        ============================================================ */
+        html body div[data-testid="stChatInput"] {
+            height: auto !important;
+            min-height: 64px !important;
+            max-height: 196px !important;
+            align-items: flex-end !important;
+            overflow: hidden !important;
+        }
+
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            height: auto !important;
+            min-height: 44px !important;
+            max-height: 180px !important;
+            overflow: visible !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            height: auto !important;
+            min-height: 44px !important;
+            max-height: 180px !important;
+            overflow-y: hidden !important;
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            resize: none !important;
+            line-height: 22px !important;
+        }
+
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger,
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            top: auto !important;
+            bottom: 9px !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                max-height: 170px !important;
+            }
+
+            html body div[data-testid="stChatInput"] textarea {
+                max-height: 154px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -3362,22 +3416,19 @@ def install_browser_voice_dictation():
 
 
 def install_chat_composer_autogrow():
-    """Make the Streamlit chat composer grow with pasted or typed text.
+    """Make the chat composer grow safely for long pasted or typed text.
 
-    The textarea expands up to a controlled maximum height, then becomes
-    internally scrollable. It remounts after Streamlit reruns.
+    The composer grows up to a controlled maximum height. Nested Streamlit
+    wrappers are left alone to avoid the oversized layout regression.
     """
     components.html(
         r"""
         <script>
         (() => {
-          const INSTANCE_ATTR = "data-atp-autogrow";
-          const INSTANCE_TOKEN =
-            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-          const MIN_TEXTAREA_HEIGHT = 44;
-          const MAX_TEXTAREA_HEIGHT = 220;
-          const COMPOSER_VERTICAL_PADDING = 14;
+          const BIND_ATTR = "data-atp-autogrow-bound";
+          const MIN_HEIGHT = 44;
+          const MAX_HEIGHT = 180;
+          const COMPOSER_EXTRA = 16;
 
           function getParentDocument() {
             try {
@@ -3392,7 +3443,7 @@ def install_chat_composer_autogrow():
             element.style.setProperty(property, value, "important");
           }
 
-          function resizeComposer() {
+          function resize() {
             const doc = getParentDocument();
             if (!doc) return;
 
@@ -3403,55 +3454,42 @@ def install_chat_composer_autogrow():
 
             if (!composer || !textarea) return;
 
-            // Reset first so scrollHeight reflects the full current content.
+            // Reset before reading scrollHeight.
             setImportant(textarea, "height", "auto");
-            setImportant(textarea, "min-height", `${MIN_TEXTAREA_HEIGHT}px`);
-            setImportant(textarea, "max-height", `${MAX_TEXTAREA_HEIGHT}px`);
+            setImportant(textarea, "min-height", `${MIN_HEIGHT}px`);
+            setImportant(textarea, "max-height", `${MAX_HEIGHT}px`);
 
-            const desiredHeight = Math.min(
-              Math.max(textarea.scrollHeight, MIN_TEXTAREA_HEIGHT),
-              MAX_TEXTAREA_HEIGHT
+            const nextHeight = Math.min(
+              Math.max(textarea.scrollHeight, MIN_HEIGHT),
+              MAX_HEIGHT
             );
 
-            setImportant(textarea, "height", `${desiredHeight}px`);
+            setImportant(textarea, "height", `${nextHeight}px`);
             setImportant(
               textarea,
               "overflow-y",
-              textarea.scrollHeight > MAX_TEXTAREA_HEIGHT
-                ? "auto"
-                : "hidden"
+              textarea.scrollHeight > MAX_HEIGHT ? "auto" : "hidden"
             );
             setImportant(textarea, "white-space", "pre-wrap");
+            setImportant(textarea, "overflow-wrap", "anywhere");
             setImportant(textarea, "word-break", "break-word");
 
-            const composerHeight =
-              desiredHeight + COMPOSER_VERTICAL_PADDING;
+            const composerHeight = Math.max(
+              64,
+              nextHeight + COMPOSER_EXTRA
+            );
 
             setImportant(composer, "height", `${composerHeight}px`);
             setImportant(composer, "min-height", "64px");
             setImportant(
               composer,
               "max-height",
-              `${MAX_TEXTAREA_HEIGHT + COMPOSER_VERTICAL_PADDING}px`
+              `${MAX_HEIGHT + COMPOSER_EXTRA}px`
             );
             setImportant(composer, "align-items", "flex-end");
-
-            const wrappers = composer.querySelectorAll(
-              ':scope > div:not(.atp-plus-menu), ' +
-              '[data-baseweb="textarea"], ' +
-              '[data-baseweb="base-input"]'
-            );
-
-            wrappers.forEach((wrapper) => {
-              setImportant(wrapper, "height", `${desiredHeight}px`);
-              setImportant(wrapper, "min-height", `${desiredHeight}px`);
-              setImportant(wrapper, "max-height", `${desiredHeight}px`);
-              setImportant(wrapper, "align-items", "flex-end");
-              setImportant(wrapper, "overflow", "visible");
-            });
           }
 
-          function bindTextarea() {
+          function bind() {
             const doc = getParentDocument();
             if (!doc) return;
 
@@ -3462,44 +3500,38 @@ def install_chat_composer_autogrow():
 
             if (!composer || !textarea) return;
 
-            if (textarea.getAttribute(INSTANCE_ATTR) !== INSTANCE_TOKEN) {
-              textarea.setAttribute(INSTANCE_ATTR, INSTANCE_TOKEN);
+            if (!textarea.hasAttribute(BIND_ATTR)) {
+              textarea.setAttribute(BIND_ATTR, "1");
 
-              textarea.addEventListener("input", () => {
-                window.requestAnimationFrame(resizeComposer);
-              });
+              const scheduleResize = () => {
+                window.requestAnimationFrame(resize);
+              };
 
+              textarea.addEventListener("input", scheduleResize);
+              textarea.addEventListener("change", scheduleResize);
+              textarea.addEventListener("keyup", scheduleResize);
               textarea.addEventListener("paste", () => {
-                window.setTimeout(resizeComposer, 0);
-                window.setTimeout(resizeComposer, 50);
-              });
-
-              textarea.addEventListener("change", () => {
-                window.requestAnimationFrame(resizeComposer);
-              });
-
-              textarea.addEventListener("keydown", () => {
-                window.requestAnimationFrame(resizeComposer);
+                window.setTimeout(resize, 0);
+                window.setTimeout(resize, 40);
               });
             }
 
-            resizeComposer();
+            resize();
           }
 
-          bindTextarea();
+          bind();
 
           const doc = getParentDocument();
-          const observer = new MutationObserver(bindTextarea);
+          const observer = new MutationObserver(bind);
 
           if (doc?.body) {
             observer.observe(doc.body, {
               childList: true,
-              subtree: true,
-              characterData: true
+              subtree: true
             });
           }
 
-          const timer = window.setInterval(bindTextarea, 700);
+          const timer = window.setInterval(bind, 800);
 
           window.addEventListener(
             "beforeunload",
