@@ -1,0 +1,3 @@
+[client]
+# Hide Streamlit developer tools, including Clear cache.
+toolbarMode = "viewer"
