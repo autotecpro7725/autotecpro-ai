@@ -2708,6 +2708,33 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V5 SEND POSITION
+           Keep login untouched; only adjust the chat composer controls.
+        ============================================================ */
+        html body div[data-testid="stChatInput"] {
+            padding-right: 60px !important;
+        }
+
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+            right: 0px !important;
+            top: 50% !important;
+            bottom: auto !important;
+            transform: translate3d(0, -50%, 0) !important;
+            margin: 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                padding-right: 58px !important;
+            }
+
+            html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+                right: 0px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -2722,15 +2749,19 @@ def inject_base_css():
 
 
 def install_browser_voice_dictation():
-    """Add browser speech-to-text using a stable SVG microphone button.
+    """Add rerun-safe browser speech-to-text with an SVG microphone button.
 
-    Unsupported browsers keep normal typing and sending fully functional.
+    The button is re-mounted after every Streamlit rerun so it works without
+    requiring a manual page refresh.
     """
     components.html(
         r"""
         <script>
         (() => {
           const HOST_ID = "atp-browser-voice-dictation";
+          const INSTANCE_TOKEN =
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
           const MIC_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 14.75a3.75 3.75 0 0 0 3.75-3.75V6.75a3.75 3.75 0 1 0-7.5 0V11A3.75 3.75 0 0 0 12 14.75Z"></path>
@@ -2738,6 +2769,7 @@ def install_browser_voice_dictation():
               <path d="M12 17.5V21"></path>
               <path d="M8.75 21h6.5"></path>
             </svg>`;
+
           const LISTENING_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="4"></circle>
@@ -2750,7 +2782,11 @@ def install_browser_voice_dictation():
           let committedText = "";
 
           function getParentDocument() {
-            try { return window.parent.document; } catch (error) { return null; }
+            try {
+              return window.parent.document;
+            } catch (error) {
+              return null;
+            }
           }
 
           function setComposerValue(input, value) {
@@ -2758,10 +2794,16 @@ def install_browser_voice_dictation():
               const proto = input.tagName === "TEXTAREA"
                 ? window.parent.HTMLTextAreaElement.prototype
                 : window.parent.HTMLInputElement.prototype;
-              const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+              const setter =
+                Object.getOwnPropertyDescriptor(proto, "value").set;
+
               setter.call(input, value);
-              input.dispatchEvent(new window.parent.Event("input", { bubbles: true }));
-              input.dispatchEvent(new window.parent.Event("change", { bubbles: true }));
+              input.dispatchEvent(
+                new window.parent.Event("input", { bubbles: true })
+              );
+              input.dispatchEvent(
+                new window.parent.Event("change", { bubbles: true })
+              );
               input.focus();
             } catch (error) {
               input.value = value;
@@ -2769,45 +2811,62 @@ def install_browser_voice_dictation():
             }
           }
 
-          function mount() {
-            const doc = getParentDocument();
-            if (!doc) return;
+          function resetButton(button) {
+            listening = false;
+            button.classList.remove("listening");
+            button.innerHTML = MIC_ICON;
+            button.setAttribute("title", "Voice dictation");
+            button.setAttribute("aria-label", "Start voice dictation");
+          }
 
-            const composer = doc.querySelector('div[data-testid="stChatInput"]');
-            if (!composer || composer.querySelector(`#${HOST_ID}`)) return;
+          function createButton(doc, composer) {
+            const staleButton = doc.getElementById(HOST_ID);
+            if (staleButton) staleButton.remove();
 
             const button = doc.createElement("button");
             button.id = HOST_ID;
             button.type = "button";
             button.className = "atp-voice-trigger";
+            button.dataset.atpVoiceInstance = INSTANCE_TOKEN;
             button.innerHTML = MIC_ICON;
             button.setAttribute("aria-label", "Start voice dictation");
             button.setAttribute("title", "Voice dictation");
+
             composer.appendChild(button);
 
             const SpeechRecognition =
-              window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition;
+              window.parent.SpeechRecognition ||
+              window.parent.webkitSpeechRecognition;
 
             if (!SpeechRecognition) {
               button.classList.add("unsupported");
-              button.setAttribute("title", "Voice dictation is not supported by this browser");
+              button.setAttribute(
+                "title",
+                "Voice dictation is not supported by this browser"
+              );
               button.addEventListener("click", () => {
                 window.parent.alert(
                   "Voice dictation is not supported by this browser. You can still type normally."
                 );
               });
-              return;
+              return button;
             }
 
             button.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
 
-              const input = composer.querySelector("textarea, input");
+              const currentComposer =
+                doc.querySelector('div[data-testid="stChatInput"]');
+              const input =
+                currentComposer?.querySelector("textarea, input");
+
               if (!input) return;
 
               if (listening && recognition) {
-                try { recognition.stop(); } catch (error) {}
+                try {
+                  recognition.stop();
+                } catch (error) {}
                 return;
               }
 
@@ -2820,69 +2879,131 @@ def install_browser_voice_dictation():
                   doc.documentElement.lang ||
                   window.parent.navigator.language ||
                   "en-US";
+
                 committedText = input.value ? input.value.trim() : "";
 
                 recognition.onstart = () => {
                   listening = true;
                   button.classList.add("listening");
                   button.innerHTML = LISTENING_ICON;
-                  button.setAttribute("title", "Listening — tap to stop");
+                  button.setAttribute(
+                    "title",
+                    "Listening — tap to stop"
+                  );
                 };
 
-                recognition.onresult = (event) => {
+                recognition.onresult = (resultEvent) => {
                   let interim = "";
                   let finalText = "";
 
-                  for (let i = event.resultIndex; i < event.results.length; i += 1) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) finalText += transcript;
-                    else interim += transcript;
+                  for (
+                    let i = resultEvent.resultIndex;
+                    i < resultEvent.results.length;
+                    i += 1
+                  ) {
+                    const transcript =
+                      resultEvent.results[i][0].transcript;
+
+                    if (resultEvent.results[i].isFinal) {
+                      finalText += transcript;
+                    } else {
+                      interim += transcript;
+                    }
                   }
 
-                  const prefix = committedText ? committedText + " " : "";
-                  const nextValue = (prefix + finalText + interim).trimStart();
+                  const prefix = committedText
+                    ? committedText + " "
+                    : "";
+
+                  const nextValue =
+                    (prefix + finalText + interim).trimStart();
+
                   setComposerValue(input, nextValue);
 
                   if (finalText) {
-                    committedText = (prefix + finalText).trim();
+                    committedText =
+                      (prefix + finalText).trim();
                   }
                 };
 
-                recognition.onerror = (event) => {
-                  if (!["aborted", "no-speech"].includes(event.error)) {
-                    console.warn("Voice dictation error:", event.error);
+                recognition.onerror = (errorEvent) => {
+                  if (
+                    !["aborted", "no-speech"].includes(
+                      errorEvent.error
+                    )
+                  ) {
+                    console.warn(
+                      "Voice dictation error:",
+                      errorEvent.error
+                    );
                   }
                 };
 
                 recognition.onend = () => {
-                  listening = false;
-                  button.classList.remove("listening");
-                  button.innerHTML = MIC_ICON;
-                  button.setAttribute("title", "Voice dictation");
+                  resetButton(button);
                 };
 
                 recognition.start();
               } catch (error) {
-                listening = false;
-                button.classList.remove("listening");
-                button.innerHTML = MIC_ICON;
-                console.warn("Could not start voice dictation:", error);
+                resetButton(button);
+                console.warn(
+                  "Could not start voice dictation:",
+                  error
+                );
               }
             });
+
+            return button;
+          }
+
+          function mount() {
+            const doc = getParentDocument();
+            if (!doc) return;
+
+            const composer =
+              doc.querySelector('div[data-testid="stChatInput"]');
+
+            if (!composer) return;
+
+            const existing = doc.getElementById(HOST_ID);
+
+            if (
+              existing &&
+              existing.dataset.atpVoiceInstance === INSTANCE_TOKEN &&
+              composer.contains(existing)
+            ) {
+              return;
+            }
+
+            createButton(doc, composer);
           }
 
           mount();
 
-          const observer = new MutationObserver(mount);
           const doc = getParentDocument();
+          const observer = new MutationObserver(mount);
 
-          if (doc && doc.body) {
-            observer.observe(doc.body, { childList: true, subtree: true });
+          if (doc?.body) {
+            observer.observe(doc.body, {
+              childList: true,
+              subtree: true
+            });
           }
+
+          // Streamlit can replace the chat input without a full page reload.
+          // The interval safely restores the button and its live event handler.
+          const mountTimer = window.setInterval(mount, 750);
 
           window.addEventListener(
             "beforeunload",
-            () => observer.disconnect(),
+            () => {
+              observer.disconnect();
+              window.clearInterval(mountTimer);
+
+              try {
+                if (recognition && listening) recognition.stop();
+              } catch (error) {}
+            },
             { once: true }
           );
         })();
