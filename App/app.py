@@ -1660,6 +1660,34 @@ def inject_base_css():
             display: none !important;
         }
 
+
+        /* ============================================================
+           Safe Customer Reply Draft copy area
+           Uses Streamlit st.code native copy icon instead of injected JS.
+        ============================================================ */
+        .customer-reply-native-wrap {
+            margin-left: 50px;
+            margin-top: -4px;
+            margin-bottom: 18px;
+            background: rgba(15, 23, 42, 0.40);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+
+        .customer-reply-native-title {
+            color: #ffffff !important;
+            font-size: 15px !important;
+            font-weight: 800 !important;
+            margin-bottom: 8px !important;
+        }
+
+        @media (max-width: 768px) {
+            .customer-reply-native-wrap {
+                margin-left: 0 !important;
+            }
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -2025,15 +2053,70 @@ def html_from_text(text):
     return rendered
 
 
+
+def split_customer_reply_draft(content):
+    """
+    Split assistant answer into main analysis and customer-ready reply.
+    We render the customer reply with st.code so Streamlit provides a safe
+    native double-square copy icon without inline JavaScript.
+    """
+    text = clean_visible_chat_text(content)
+
+    match = re.search(
+        r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
+        text
+    )
+
+    if not match:
+        return text, ""
+
+    before_text = text[:match.start()].rstrip()
+    after_text = text[match.end():].strip()
+
+    next_heading = re.search(
+        r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
+        after_text
+    )
+
+    if next_heading:
+        reply_text = after_text[:next_heading.start()].strip()
+    else:
+        reply_text = after_text.strip()
+
+    return before_text, clean_visible_chat_text(reply_text)
+
+
+def render_customer_reply_copy_area(reply_text):
+    """
+    Safe copy UI: no inline JS, no HTML button.
+    st.code includes Streamlit's native copy icon in the upper-right.
+    """
+    if not reply_text:
+        return
+
+    st.markdown(
+        """
+        <div class="customer-reply-native-wrap">
+            <div class="customer-reply-native-title">Customer Reply Draft</div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.code(clean_visible_chat_text(reply_text), language=None)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
+    reply_text = ""
 
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
+        display_text = visible_content
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2042,19 +2125,23 @@ def render_chat_message(role, content, images=None):
             icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
+        display_text, reply_text = split_customer_reply_draft(visible_content)
 
     st.markdown(
         f"""
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {html_from_text(visible_content)}
+                {html_from_text(display_text)}
                 {render_image_previews(final_images)}
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    if role != "user" and reply_text:
+        render_customer_reply_copy_area(reply_text)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2242,6 +2329,31 @@ if logo_base64:
 else:
     st.title("AutoTecPro AI")
     st.caption("Internal AI Assistant for AutoTecPro")
+
+
+def install_keyboard_copy_guard():
+    """
+    Prevent Streamlit from opening the Clear caches dialog when users press Ctrl+C / Cmd+C.
+    """
+    components.html(
+        """
+        <script>
+        const doc = window.parent.document;
+        if (!window.parent.__atpCopyShortcutGuardInstalled) {
+            window.parent.__atpCopyShortcutGuardInstalled = true;
+            doc.addEventListener("keydown", function(e) {
+                const key = (e.key || "").toLowerCase();
+                if ((e.ctrlKey || e.metaKey) && key === "c") {
+                    e.stopImmediatePropagation();
+                }
+            }, true);
+        }
+        </script>
+        """,
+        height=0,
+    )
+
+
 
 # ============================================================
 # Session Defaults
