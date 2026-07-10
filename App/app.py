@@ -2111,201 +2111,6 @@ def inject_base_css():
             }
         }
 
-
-        /* ============================================================
-           FINAL STABILITY OVERRIDE: single-line, vertically aligned composer
-           Keeps Streamlit's native submit behavior and the voice button intact.
-        ============================================================ */
-        div[data-testid="stChatInput"] {
-            box-sizing: border-box !important;
-            width: 100% !important;
-            height: 72px !important;
-            min-height: 72px !important;
-            max-height: 72px !important;
-            padding: 9px 10px 9px 68px !important;
-            display: flex !important;
-            align-items: center !important;
-            overflow: hidden !important;
-        }
-
-        /* Keep Streamlit's internal composer row to one horizontal line. */
-        div[data-testid="stChatInput"] > div {
-            box-sizing: border-box !important;
-            width: 100% !important;
-            height: 54px !important;
-            min-height: 54px !important;
-            max-height: 54px !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: hidden !important;
-        }
-
-        div[data-testid="stChatInput"] [data-baseweb="textarea"],
-        div[data-testid="stChatInput"] [data-baseweb="base-input"] {
-            flex: 1 1 auto !important;
-            width: auto !important;
-            min-width: 0 !important;
-            height: 50px !important;
-            min-height: 50px !important;
-            max-height: 50px !important;
-            display: flex !important;
-            align-items: center !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: hidden !important;
-        }
-
-        div[data-testid="stChatInput"] textarea,
-        div[data-testid="stChatInput"] input {
-            box-sizing: border-box !important;
-            width: 100% !important;
-            min-width: 0 !important;
-            height: 50px !important;
-            min-height: 50px !important;
-            max-height: 50px !important;
-            padding: 14px 8px !important;
-            margin: 0 !important;
-            line-height: 22px !important;
-            overflow-y: hidden !important;
-            white-space: nowrap !important;
-        }
-
-        div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
-            position: static !important;
-            align-self: center !important;
-            flex: 0 0 48px !important;
-            margin: 0 !important;
-            transform: none !important;
-        }
-
-        .atp-voice-trigger {
-            left: 13px !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-        }
-
-        @media (max-width: 768px) {
-            div[data-testid="stChatInput"] {
-                height: 70px !important;
-                min-height: 70px !important;
-                max-height: 70px !important;
-                padding: 8px 9px 8px 66px !important;
-                border-radius: 24px !important;
-            }
-
-            div[data-testid="stChatInput"] > div {
-                height: 52px !important;
-                min-height: 52px !important;
-                max-height: 52px !important;
-            }
-
-            div[data-testid="stChatInput"] [data-baseweb="textarea"],
-            div[data-testid="stChatInput"] [data-baseweb="base-input"],
-            div[data-testid="stChatInput"] textarea,
-            div[data-testid="stChatInput"] input {
-                height: 48px !important;
-                min-height: 48px !important;
-                max-height: 48px !important;
-            }
-
-            div[data-testid="stChatInput"] textarea,
-            div[data-testid="stChatInput"] input {
-                padding: 13px 6px !important;
-                line-height: 22px !important;
-                white-space: nowrap !important;
-            }
-
-            .atp-voice-trigger {
-                left: 12px !important;
-                width: 46px !important;
-                min-width: 46px !important;
-                height: 46px !important;
-                min-height: 46px !important;
-            }
-        }
-
-        /* ============================================================
-           PLUS MENU: Upload files + browser voice dictation
-        ============================================================ */
-        .atp-plus-menu {
-            position: absolute !important;
-            left: 10px !important;
-            bottom: calc(100% + 10px) !important;
-            z-index: 9999 !important;
-            width: 190px !important;
-            padding: 7px !important;
-            border-radius: 14px !important;
-            background: rgba(25, 32, 46, 0.98) !important;
-            border: 1px solid rgba(148, 163, 184, 0.24) !important;
-            box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42) !important;
-            backdrop-filter: blur(14px) !important;
-            display: none !important;
-        }
-
-        .atp-plus-menu.open {
-            display: block !important;
-        }
-
-        .atp-plus-menu button {
-            box-sizing: border-box !important;
-            width: 100% !important;
-            height: 40px !important;
-            min-height: 40px !important;
-            max-height: 40px !important;
-            margin: 0 !important;
-            padding: 0 11px !important;
-            border: 0 !important;
-            border-radius: 9px !important;
-            background: transparent !important;
-            color: #f8fafc !important;
-            -webkit-text-fill-color: #f8fafc !important;
-            box-shadow: none !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            gap: 10px !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
-            line-height: 1 !important;
-            cursor: pointer !important;
-            transform: none !important;
-        }
-
-        .atp-plus-menu button:hover,
-        .atp-plus-menu button:active {
-            background: rgba(148, 163, 184, 0.14) !important;
-            transform: none !important;
-        }
-
-        .atp-plus-menu .atp-menu-icon {
-            width: 22px !important;
-            min-width: 22px !important;
-            height: 22px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            font-size: 19px !important;
-            line-height: 1 !important;
-        }
-
-        .atp-plus-menu .atp-menu-divider {
-            height: 1px !important;
-            margin: 4px 6px !important;
-            background: rgba(148, 163, 184, 0.16) !important;
-        }
-
-        @media (max-width: 768px) {
-            .atp-plus-menu {
-                left: 6px !important;
-                bottom: calc(100% + 8px) !important;
-                width: 184px !important;
-            }
-        }
-
-
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -2320,18 +2125,16 @@ def inject_base_css():
 
 
 def install_browser_voice_dictation():
-    """Add a stable plus menu with file upload and browser voice dictation.
+    """Add a safe browser speech-to-text trigger to Streamlit's chat composer.
 
-    Upload reuses the app's existing Streamlit file uploader. Voice dictation
-    uses the browser SpeechRecognition API when available. Unsupported voice
-    browsers keep upload and normal typing fully functional.
+    The feature runs entirely in the browser. Unsupported browsers simply show
+    a disabled button and the normal text input continues to work unchanged.
     """
     components.html(
         r"""
         <script>
         (() => {
           const HOST_ID = "atp-browser-voice-dictation";
-          const MENU_ID = "atp-plus-menu";
           let recognition = null;
           let listening = false;
           let committedText = "";
@@ -2356,192 +2159,97 @@ def install_browser_voice_dictation():
             }
           }
 
-          function openExistingUploader(doc) {
-            const uploader = doc.querySelector('div[data-testid="stFileUploader"]');
-            if (!uploader) {
-              window.parent.alert("The file uploader is not available in this workspace.");
-              return;
-            }
-
-            uploader.scrollIntoView({ behavior: "smooth", block: "center" });
-
-            const fileInput = uploader.querySelector('input[type="file"]');
-            if (fileInput) {
-              try {
-                fileInput.click();
-                return;
-              } catch (error) {
-                console.warn("Could not open native file input:", error);
-              }
-            }
-
-            const uploadButton = uploader.querySelector("button");
-            if (uploadButton) uploadButton.click();
-          }
-
-          function startVoice(doc, composer, trigger, menu) {
-            const SpeechRecognition =
-              window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition;
-
-            if (!SpeechRecognition) {
-              menu.classList.remove("open");
-              window.parent.alert(
-                "Voice dictation is not supported by this browser. Upload and normal typing still work."
-              );
-              return;
-            }
-
-            const input = composer.querySelector("textarea, input");
-            if (!input) return;
-
-            menu.classList.remove("open");
-
-            if (listening && recognition) {
-              try { recognition.stop(); } catch (error) {}
-              return;
-            }
-
-            try {
-              recognition = new SpeechRecognition();
-              recognition.continuous = false;
-              recognition.interimResults = true;
-              recognition.maxAlternatives = 1;
-              recognition.lang =
-                doc.documentElement.lang ||
-                window.parent.navigator.language ||
-                "en-US";
-              committedText = input.value ? input.value.trim() : "";
-
-              recognition.onstart = () => {
-                listening = true;
-                trigger.classList.add("listening");
-                trigger.textContent = "●";
-                trigger.setAttribute("title", "Listening — tap to stop");
-              };
-
-              recognition.onresult = (event) => {
-                let interim = "";
-                let finalText = "";
-                for (let i = event.resultIndex; i < event.results.length; i += 1) {
-                  const transcript = event.results[i][0].transcript;
-                  if (event.results[i].isFinal) finalText += transcript;
-                  else interim += transcript;
-                }
-                const prefix = committedText ? committedText + " " : "";
-                const nextValue = (prefix + finalText + interim).trimStart();
-                setComposerValue(input, nextValue);
-                if (finalText) committedText = (prefix + finalText).trim();
-              };
-
-              recognition.onerror = (event) => {
-                if (!["aborted", "no-speech"].includes(event.error)) {
-                  console.warn("Voice dictation error:", event.error);
-                }
-              };
-
-              recognition.onend = () => {
-                listening = false;
-                trigger.classList.remove("listening");
-                trigger.textContent = "+";
-                trigger.setAttribute("title", "Attachments and voice");
-              };
-
-              recognition.start();
-            } catch (error) {
-              listening = false;
-              trigger.classList.remove("listening");
-              trigger.textContent = "+";
-              console.warn("Could not start voice dictation:", error);
-            }
-          }
-
           function mount() {
             const doc = getParentDocument();
             if (!doc) return;
-
             const composer = doc.querySelector('div[data-testid="stChatInput"]');
             if (!composer || composer.querySelector(`#${HOST_ID}`)) return;
 
-            const trigger = doc.createElement("button");
-            trigger.id = HOST_ID;
-            trigger.type = "button";
-            trigger.className = "atp-voice-trigger";
-            trigger.textContent = "+";
-            trigger.setAttribute("aria-label", "Open attachment and voice menu");
-            trigger.setAttribute("aria-expanded", "false");
-            trigger.setAttribute("title", "Attachments and voice");
+            const button = doc.createElement("button");
+            button.id = HOST_ID;
+            button.type = "button";
+            button.className = "atp-voice-trigger";
+            button.textContent = "+";
+            button.setAttribute("aria-label", "Start voice dictation");
+            button.setAttribute("title", "Voice dictation");
+            composer.appendChild(button);
 
-            const menu = doc.createElement("div");
-            menu.id = MENU_ID;
-            menu.className = "atp-plus-menu";
-            menu.setAttribute("role", "menu");
-            menu.innerHTML = `
-              <button type="button" class="atp-upload-menu-item" role="menuitem">
-                <span class="atp-menu-icon" aria-hidden="true">⇧</span>
-                <span>Upload files or photos</span>
-              </button>
-              <div class="atp-menu-divider"></div>
-              <button type="button" class="atp-voice-menu-item" role="menuitem">
-                <span class="atp-menu-icon" aria-hidden="true">🎤</span>
-                <span>Voice input</span>
-              </button>
-            `;
+            const SpeechRecognition = window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+              button.classList.add("unsupported");
+              button.setAttribute("title", "Voice dictation is not supported by this browser");
+              button.addEventListener("click", () => {
+                window.parent.alert("Voice dictation is not supported by this browser. You can still type your message normally.");
+              });
+              return;
+            }
 
-            composer.appendChild(trigger);
-            composer.appendChild(menu);
-
-            const closeMenu = () => {
-              menu.classList.remove("open");
-              trigger.setAttribute("aria-expanded", "false");
-            };
-
-            trigger.addEventListener("click", (event) => {
-              event.preventDefault();
-              event.stopPropagation();
+            button.addEventListener("click", () => {
+              const input = composer.querySelector("textarea, input");
+              if (!input) return;
 
               if (listening && recognition) {
                 try { recognition.stop(); } catch (error) {}
                 return;
               }
 
-              const willOpen = !menu.classList.contains("open");
-              menu.classList.toggle("open", willOpen);
-              trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
-            });
+              try {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.maxAlternatives = 1;
+                recognition.lang = doc.documentElement.lang || navigator.language || "en-US";
+                committedText = input.value ? input.value.trim() : "";
 
-            menu.querySelector(".atp-upload-menu-item").addEventListener("click", (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              closeMenu();
-              openExistingUploader(doc);
-            });
+                recognition.onstart = () => {
+                  listening = true;
+                  button.classList.add("listening");
+                  button.textContent = "●";
+                  button.setAttribute("title", "Listening — tap to stop");
+                };
 
-            menu.querySelector(".atp-voice-menu-item").addEventListener("click", (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              startVoice(doc, composer, trigger, menu);
-            });
+                recognition.onresult = (event) => {
+                  let interim = "";
+                  let finalText = "";
+                  for (let i = event.resultIndex; i < event.results.length; i += 1) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) finalText += transcript;
+                    else interim += transcript;
+                  }
+                  const prefix = committedText ? committedText + " " : "";
+                  const nextValue = (prefix + finalText + interim).trimStart();
+                  setComposerValue(input, nextValue);
+                  if (finalText) committedText = (prefix + finalText).trim();
+                };
 
-            doc.addEventListener("click", (event) => {
-              if (!menu.contains(event.target) && event.target !== trigger) closeMenu();
-            });
+                recognition.onerror = (event) => {
+                  if (!["aborted", "no-speech"].includes(event.error)) {
+                    console.warn("Voice dictation error:", event.error);
+                  }
+                };
 
-            doc.addEventListener("keydown", (event) => {
-              if (event.key === "Escape") closeMenu();
+                recognition.onend = () => {
+                  listening = false;
+                  button.classList.remove("listening");
+                  button.textContent = "+";
+                  button.setAttribute("title", "Voice dictation");
+                };
+
+                recognition.start();
+              } catch (error) {
+                listening = false;
+                button.classList.remove("listening");
+                button.textContent = "+";
+                console.warn("Could not start voice dictation:", error);
+              }
             });
           }
 
           mount();
           const observer = new MutationObserver(mount);
           const doc = getParentDocument();
-          if (doc && doc.body) {
-            observer.observe(doc.body, { childList: true, subtree: true });
-          }
-          window.addEventListener(
-            "beforeunload",
-            () => observer.disconnect(),
-            { once: true }
-          );
+          if (doc && doc.body) observer.observe(doc.body, { childList: true, subtree: true });
+          window.addEventListener("beforeunload", () => observer.disconnect(), { once: true });
         })();
         </script>
         """,
