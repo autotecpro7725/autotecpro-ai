@@ -2735,6 +2735,102 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V6 SEND EDGE FIX
+           Hide Streamlit's native send control and use a right-edge proxy.
+        ============================================================ */
+
+        /* Hide only Streamlit's native send button; JS proxy keeps behavior. */
+        html body div[data-testid="stChatInput"]
+        button:not(.atp-voice-trigger):not(.atp-send-proxy) {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            position: absolute !important;
+            width: 1px !important;
+            min-width: 1px !important;
+            max-width: 1px !important;
+            height: 1px !important;
+            min-height: 1px !important;
+            max-height: 1px !important;
+            right: 0 !important;
+            overflow: hidden !important;
+        }
+
+        html body div[data-testid="stChatInput"] {
+            padding-right: 58px !important;
+        }
+
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            position: absolute !important;
+            right: 4px !important;
+            top: 50% !important;
+            bottom: auto !important;
+            left: auto !important;
+            transform: translate3d(0, -50%, 0) !important;
+            box-sizing: border-box !important;
+            width: 46px !important;
+            min-width: 46px !important;
+            max-width: 46px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            border: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 40 !important;
+            color: #ffffff !important;
+            background: linear-gradient(
+                135deg,
+                #ff5a3d 0%,
+                #ef4444 55%,
+                #dc2626 100%
+            ) !important;
+            box-shadow: 0 7px 18px rgba(239, 68, 68, 0.30) !important;
+            cursor: pointer !important;
+        }
+
+        html body #atp-send-proxy svg,
+        html body .atp-send-proxy svg {
+            display: block !important;
+            width: 23px !important;
+            height: 23px !important;
+            margin: 0 !important;
+            fill: none !important;
+            stroke: currentColor !important;
+            stroke-width: 2.1 !important;
+            stroke-linecap: round !important;
+            stroke-linejoin: round !important;
+        }
+
+        html body #atp-send-proxy.disabled,
+        html body .atp-send-proxy.disabled {
+            opacity: 0.58 !important;
+            cursor: default !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                padding-right: 56px !important;
+            }
+
+            html body #atp-send-proxy,
+            html body .atp-send-proxy {
+                right: 3px !important;
+                width: 44px !important;
+                min-width: 44px !important;
+                max-width: 44px !important;
+                height: 44px !important;
+                min-height: 44px !important;
+                max-height: 44px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -2749,16 +2845,18 @@ def inject_base_css():
 
 
 def install_browser_voice_dictation():
-    """Add rerun-safe browser speech-to-text with an SVG microphone button.
+    """Add rerun-safe voice dictation and a right-edge send proxy.
 
-    The button is re-mounted after every Streamlit rerun so it works without
-    requiring a manual page refresh.
+    The send proxy clicks Streamlit's native submit button, so existing chat
+    behavior remains unchanged while the visible button can be positioned
+    exactly at the composer edge.
     """
     components.html(
         r"""
         <script>
         (() => {
-          const HOST_ID = "atp-browser-voice-dictation";
+          const VOICE_ID = "atp-browser-voice-dictation";
+          const SEND_ID = "atp-send-proxy";
           const INSTANCE_TOKEN =
             `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -2775,6 +2873,12 @@ def install_browser_voice_dictation():
               <circle cx="12" cy="12" r="4"></circle>
               <path d="M5 12a7 7 0 0 1 14 0"></path>
               <path d="M7.5 12a4.5 4.5 0 0 1 9 0"></path>
+            </svg>`;
+
+          const SEND_ICON = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 19V5"></path>
+              <path d="M6.5 10.5 12 5l5.5 5.5"></path>
             </svg>`;
 
           let recognition = null;
@@ -2811,7 +2915,93 @@ def install_browser_voice_dictation():
             }
           }
 
-          function resetButton(button) {
+          function findNativeSendButton(composer) {
+            const buttons = Array.from(composer.querySelectorAll("button"));
+            return buttons.find((button) => {
+              if (button.id === VOICE_ID || button.id === SEND_ID) return false;
+
+              const aria = (button.getAttribute("aria-label") || "").toLowerCase();
+              const testId = (button.getAttribute("data-testid") || "").toLowerCase();
+              const kind = (button.getAttribute("kind") || "").toLowerCase();
+
+              return (
+                aria.includes("send") ||
+                testId.includes("chatinputsubmit") ||
+                kind === "primary"
+              );
+            }) || null;
+          }
+
+          function updateSendState(composer, proxy) {
+            const input = composer.querySelector("textarea, input");
+            const hasText = Boolean(input && input.value.trim());
+
+            proxy.disabled = !hasText;
+            proxy.classList.toggle("disabled", !hasText);
+            proxy.setAttribute("aria-disabled", hasText ? "false" : "true");
+          }
+
+          function createSendProxy(doc, composer) {
+            const stale = doc.getElementById(SEND_ID);
+            if (stale) stale.remove();
+
+            const proxy = doc.createElement("button");
+            proxy.id = SEND_ID;
+            proxy.type = "button";
+            proxy.className = "atp-send-proxy";
+            proxy.dataset.atpSendInstance = INSTANCE_TOKEN;
+            proxy.innerHTML = SEND_ICON;
+            proxy.setAttribute("aria-label", "Send message");
+            proxy.setAttribute("title", "Send");
+
+            composer.appendChild(proxy);
+
+            proxy.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+
+              const currentComposer =
+                doc.querySelector('div[data-testid="stChatInput"]');
+
+              if (!currentComposer) return;
+
+              const nativeSend = findNativeSendButton(currentComposer);
+
+              if (nativeSend && !nativeSend.disabled) {
+                nativeSend.click();
+                return;
+              }
+
+              const input =
+                currentComposer.querySelector("textarea, input");
+
+              if (input && input.value.trim()) {
+                input.focus();
+                input.dispatchEvent(
+                  new window.parent.KeyboardEvent("keydown", {
+                    key: "Enter",
+                    code: "Enter",
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true
+                  })
+                );
+              }
+            });
+
+            const input = composer.querySelector("textarea, input");
+
+            if (input) {
+              const sync = () => updateSendState(composer, proxy);
+              input.addEventListener("input", sync);
+              input.addEventListener("change", sync);
+              sync();
+            }
+
+            return proxy;
+          }
+
+          function resetVoiceButton(button) {
             listening = false;
             button.classList.remove("listening");
             button.innerHTML = MIC_ICON;
@@ -2819,12 +3009,12 @@ def install_browser_voice_dictation():
             button.setAttribute("aria-label", "Start voice dictation");
           }
 
-          function createButton(doc, composer) {
-            const staleButton = doc.getElementById(HOST_ID);
-            if (staleButton) staleButton.remove();
+          function createVoiceButton(doc, composer) {
+            const stale = doc.getElementById(VOICE_ID);
+            if (stale) stale.remove();
 
             const button = doc.createElement("button");
-            button.id = HOST_ID;
+            button.id = VOICE_ID;
             button.type = "button";
             button.className = "atp-voice-trigger";
             button.dataset.atpVoiceInstance = INSTANCE_TOKEN;
@@ -2920,6 +3110,11 @@ def install_browser_voice_dictation():
 
                   setComposerValue(input, nextValue);
 
+                  const proxy = doc.getElementById(SEND_ID);
+                  if (proxy && currentComposer) {
+                    updateSendState(currentComposer, proxy);
+                  }
+
                   if (finalText) {
                     committedText =
                       (prefix + finalText).trim();
@@ -2940,12 +3135,12 @@ def install_browser_voice_dictation():
                 };
 
                 recognition.onend = () => {
-                  resetButton(button);
+                  resetVoiceButton(button);
                 };
 
                 recognition.start();
               } catch (error) {
-                resetButton(button);
+                resetVoiceButton(button);
                 console.warn(
                   "Could not start voice dictation:",
                   error
@@ -2965,17 +3160,25 @@ def install_browser_voice_dictation():
 
             if (!composer) return;
 
-            const existing = doc.getElementById(HOST_ID);
-
+            const voice = doc.getElementById(VOICE_ID);
             if (
-              existing &&
-              existing.dataset.atpVoiceInstance === INSTANCE_TOKEN &&
-              composer.contains(existing)
+              !voice ||
+              voice.dataset.atpVoiceInstance !== INSTANCE_TOKEN ||
+              !composer.contains(voice)
             ) {
-              return;
+              createVoiceButton(doc, composer);
             }
 
-            createButton(doc, composer);
+            const send = doc.getElementById(SEND_ID);
+            if (
+              !send ||
+              send.dataset.atpSendInstance !== INSTANCE_TOKEN ||
+              !composer.contains(send)
+            ) {
+              createSendProxy(doc, composer);
+            } else {
+              updateSendState(composer, send);
+            }
           }
 
           mount();
@@ -2990,9 +3193,7 @@ def install_browser_voice_dictation():
             });
           }
 
-          // Streamlit can replace the chat input without a full page reload.
-          // The interval safely restores the button and its live event handler.
-          const mountTimer = window.setInterval(mount, 750);
+          const mountTimer = window.setInterval(mount, 650);
 
           window.addEventListener(
             "beforeunload",
