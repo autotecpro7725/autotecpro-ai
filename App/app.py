@@ -3883,18 +3883,13 @@ def install_global_file_dropzone(
     uploader_key_hint=None,
 ):
     """
-    Install a global drag/drop + clipboard-paste handler for the current page.
+    Install global drag/drop and image-paste support for the uploader on the
+    currently visible page.
 
-    The handler forwards dropped files into the correct visible Streamlit
-    file_uploader on that page. It works for both:
-    - Main chat uploader
-    - Admin Panel knowledge uploader
-
-    Parameters:
-        allowed_extensions: list such as [".jpg", ".jpeg", ".png", ".pdf", ".txt"]
-        overlay_title: text shown while dragging
-        overlay_subtitle: supported file types shown while dragging
-        uploader_key_hint: optional substring expected in the uploader's DOM path/key
+    This version targets the visible Streamlit uploader CONTAINER first, then
+    finds its hidden file input. That is important because Streamlit's actual
+    <input type="file"> is often hidden and cannot be selected reliably by
+    checking the input's own dimensions.
     """
     allowed_json = json.dumps([str(ext).lower() for ext in allowed_extensions])
     title_json = json.dumps(str(overlay_title))
@@ -3907,56 +3902,91 @@ def install_global_file_dropzone(
         (function () {{
             const parentWindow = window.parent;
             const doc = parentWindow.document;
-            const allowedExtensions = {allowed_json};
-            const overlayTitle = {title_json};
-            const overlaySubtitle = {subtitle_json};
-            const uploaderHint = {hint_json};
 
-            function isVisible(element) {{
-                if (!element || element.disabled) return false;
+            const config = {{
+                allowedExtensions: {allowed_json},
+                overlayTitle: {title_json},
+                overlaySubtitle: {subtitle_json},
+                uploaderHint: {hint_json}
+            }};
+
+            function elementIsVisible(element) {{
+                if (!element) return false;
+
                 const style = parentWindow.getComputedStyle(element);
                 const rect = element.getBoundingClientRect();
+
                 return (
                     style.display !== "none" &&
                     style.visibility !== "hidden" &&
-                    rect.width >= 0 &&
-                    rect.height >= 0
+                    style.opacity !== "0" &&
+                    rect.width > 1 &&
+                    rect.height > 1
                 );
             }}
 
-            function getUploaderContainer(input) {{
-                return input.closest('[data-testid="stFileUploader"]') ||
-                       input.closest('[data-testid="stFileUploaderDropzone"]') ||
-                       input.parentElement;
+            function getVisibleUploaderContainers() {{
+                const selectors = [
+                    '[data-testid="stFileUploader"]',
+                    '[data-testid="stFileUploaderDropzone"]'
+                ];
+
+                const containers = [];
+                selectors.forEach((selector) => {{
+                    doc.querySelectorAll(selector).forEach((element) => {{
+                        const mainContainer =
+                            element.closest('[data-testid="stFileUploader"]') || element;
+
+                        if (
+                            elementIsVisible(mainContainer) &&
+                            !containers.includes(mainContainer)
+                        ) {{
+                            containers.push(mainContainer);
+                        }}
+                    }});
+                }});
+
+                return containers;
             }}
 
             function getTargetFileInput() {{
-                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'))
-                    .filter(isVisible);
+                const containers = getVisibleUploaderContainers();
 
-                if (!inputs.length) return null;
+                if (containers.length) {{
+                    const hint = (config.uploaderHint || "").toLowerCase();
 
-                if (uploaderHint) {{
-                    const hinted = inputs.find((input) => {{
-                        const container = getUploaderContainer(input);
-                        const text = (
-                            (input.getAttribute("aria-label") || "") + " " +
-                            (container?.innerText || "") + " " +
-                            (container?.getAttribute("data-testid") || "")
-                        ).toLowerCase();
+                    if (hint) {{
+                        const matchedContainer = containers.find((container) =>
+                            (container.innerText || "").toLowerCase().includes(hint)
+                        );
 
-                        return text.includes(uploaderHint.toLowerCase());
-                    }});
+                        if (matchedContainer) {{
+                            const matchedInput =
+                                matchedContainer.querySelector('input[type="file"]');
 
-                    if (hinted) return hinted;
+                            if (matchedInput) return matchedInput;
+                        }}
+                    }}
+
+                    // The uploader installed most recently on the current visible page.
+                    for (let index = containers.length - 1; index >= 0; index -= 1) {{
+                        const input =
+                            containers[index].querySelector('input[type="file"]');
+
+                        if (input) return input;
+                    }}
                 }}
 
-                // On each page, use the last visible uploader rendered.
-                return inputs[inputs.length - 1];
+                // Last-resort fallback.
+                const allInputs =
+                    Array.from(doc.querySelectorAll('input[type="file"]'));
+
+                return allInputs.length ? allInputs[allInputs.length - 1] : null;
             }}
 
             function ensureOverlay() {{
                 let overlay = doc.getElementById("atp-global-drop-overlay");
+
                 if (!overlay) {{
                     overlay = doc.createElement("div");
                     overlay.id = "atp-global-drop-overlay";
@@ -3968,7 +3998,7 @@ def install_global_file_dropzone(
                         display: "none",
                         alignItems: "center",
                         justifyContent: "center",
-                        background: "rgba(2,6,23,.68)",
+                        background: "rgba(2,6,23,.70)",
                         backdropFilter: "blur(6px)",
                         WebkitBackdropFilter: "blur(6px)",
                         pointerEvents: "none"
@@ -3979,22 +4009,22 @@ def install_global_file_dropzone(
 
                 overlay.innerHTML = `
                     <div style="
-                        width:min(520px,82vw);
-                        padding:34px 28px;
+                        width:min(540px,84vw);
+                        padding:36px 28px;
                         border-radius:22px;
-                        border:2px dashed rgba(255,255,255,.78);
-                        background:rgba(15,23,42,.94);
-                        box-shadow:0 24px 70px rgba(0,0,0,.42);
+                        border:2px dashed rgba(255,255,255,.80);
+                        background:rgba(15,23,42,.95);
+                        box-shadow:0 24px 70px rgba(0,0,0,.46);
                         color:#fff;
                         text-align:center;
                         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
                     ">
                         <div style="font-size:42px;line-height:1;margin-bottom:12px;">📎</div>
                         <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
-                            ${{overlayTitle}}
+                            ${{config.overlayTitle}}
                         </div>
                         <div style="font-size:14px;color:#cbd5e1;">
-                            ${{overlaySubtitle}}
+                            ${{config.overlaySubtitle}}
                         </div>
                     </div>
                 `;
@@ -4007,128 +4037,162 @@ def install_global_file_dropzone(
                 return types.includes("Files");
             }}
 
-            function filterAcceptedFiles(fileList) {{
+            function acceptedFiles(fileList) {{
                 return Array.from(fileList || []).filter((file) => {{
                     const name = (file.name || "").toLowerCase();
-                    return allowedExtensions.some((ext) => name.endsWith(ext));
+
+                    return config.allowedExtensions.some((extension) =>
+                        name.endsWith(extension)
+                    );
                 }});
             }}
 
             function attachFiles(fileList) {{
-                const acceptedFiles = filterAcceptedFiles(fileList);
-                if (!acceptedFiles.length) return false;
+                const files = acceptedFiles(fileList);
+                if (!files.length) return false;
 
                 const input = getTargetFileInput();
                 if (!input) {{
-                    console.warn("AutoTecPro AI: target uploader was not found.");
+                    console.warn(
+                        "AutoTecPro AI: no visible uploader input was found.",
+                        config.uploaderHint
+                    );
                     return false;
                 }}
 
                 const transfer = new DataTransfer();
 
-                // Preserve already-selected files.
                 Array.from(input.files || []).forEach((file) => {{
                     transfer.items.add(file);
                 }});
 
-                acceptedFiles.forEach((file) => {{
+                files.forEach((file) => {{
                     transfer.items.add(file);
                 }});
 
                 input.files = transfer.files;
 
-                // Streamlit listens to both input and change in different versions.
-                input.dispatchEvent(new Event("input", {{ bubbles: true }}));
-                input.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                // React/Streamlit versions listen differently, so trigger both.
+                input.dispatchEvent(new Event("input", {{
+                    bubbles: true,
+                    composed: true
+                }}));
+
+                input.dispatchEvent(new Event("change", {{
+                    bubbles: true,
+                    composed: true
+                }}));
 
                 return true;
             }}
 
             const overlay = ensureOverlay();
 
-            // Store current page configuration globally so reruns can update it.
+            // Always refresh the active configuration when switching between
+            // Main Chat and Admin Panel.
             parentWindow.__atpGlobalDropzoneConfig = {{
-                allowedExtensions,
-                overlayTitle,
-                overlaySubtitle,
-                uploaderHint,
+                ...config,
+                overlay,
                 attachFiles,
-                getTargetFileInput,
-                overlay
+                getTargetFileInput
             }};
 
-            if (!parentWindow.__atpGlobalDropzoneInstalled) {{
-                parentWindow.__atpGlobalDropzoneInstalled = true;
+            if (!parentWindow.__atpGlobalDropzoneInstalledV4) {{
+                parentWindow.__atpGlobalDropzoneInstalledV4 = true;
                 let dragDepth = 0;
 
-                function currentConfig() {{
+                function activeConfig() {{
                     return parentWindow.__atpGlobalDropzoneConfig;
                 }}
 
                 doc.addEventListener("dragenter", function (event) {{
                     if (!hasFiles(event)) return;
+
                     event.preventDefault();
                     dragDepth += 1;
-                    const cfg = currentConfig();
-                    cfg.overlay.style.display = "flex";
+
+                    const active = activeConfig();
+                    if (active?.overlay) {{
+                        active.overlay.style.display = "flex";
+                    }}
                 }}, true);
 
                 doc.addEventListener("dragover", function (event) {{
                     if (!hasFiles(event)) return;
+
                     event.preventDefault();
-                    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-                    const cfg = currentConfig();
-                    cfg.overlay.style.display = "flex";
+
+                    if (event.dataTransfer) {{
+                        event.dataTransfer.dropEffect = "copy";
+                    }}
+
+                    const active = activeConfig();
+                    if (active?.overlay) {{
+                        active.overlay.style.display = "flex";
+                    }}
                 }}, true);
 
                 doc.addEventListener("dragleave", function (event) {{
                     if (!hasFiles(event)) return;
+
                     event.preventDefault();
                     dragDepth = Math.max(0, dragDepth - 1);
+
                     if (dragDepth === 0) {{
-                        const cfg = currentConfig();
-                        cfg.overlay.style.display = "none";
+                        const active = activeConfig();
+                        if (active?.overlay) {{
+                            active.overlay.style.display = "none";
+                        }}
                     }}
                 }}, true);
 
                 doc.addEventListener("drop", function (event) {{
                     if (!hasFiles(event)) return;
+
                     event.preventDefault();
                     event.stopPropagation();
+                    event.stopImmediatePropagation();
 
                     dragDepth = 0;
-                    const cfg = currentConfig();
-                    cfg.overlay.style.display = "none";
-                    cfg.attachFiles(event.dataTransfer.files);
+
+                    const active = activeConfig();
+                    if (active?.overlay) {{
+                        active.overlay.style.display = "none";
+                    }}
+
+                    active?.attachFiles(event.dataTransfer.files);
                 }}, true);
 
                 doc.addEventListener("paste", function (event) {{
-                    const clipboardFiles = Array.from(event.clipboardData?.files || []);
+                    const clipboardFiles =
+                        Array.from(event.clipboardData?.files || []);
+
                     if (!clipboardFiles.length) return;
 
-                    const cfg = currentConfig();
-                    const accepted = clipboardFiles.filter((file) => {{
-                        const name = (file.name || "").toLowerCase();
-                        const isImage = (file.type || "").toLowerCase().startsWith("image/");
-                        return isImage || cfg.allowedExtensions.some((ext) => name.endsWith(ext));
-                    }});
+                    const active = activeConfig();
+                    const images = clipboardFiles.filter((file) =>
+                        (file.type || "").toLowerCase().startsWith("image/")
+                    );
 
-                    if (!accepted.length) return;
+                    if (!images.length) return;
 
                     event.preventDefault();
-                    cfg.attachFiles(accepted);
+                    active?.attachFiles(images);
                 }}, true);
 
                 parentWindow.addEventListener("blur", function () {{
                     dragDepth = 0;
-                    const cfg = currentConfig();
-                    if (cfg?.overlay) cfg.overlay.style.display = "none";
+
+                    const active = activeConfig();
+                    if (active?.overlay) {{
+                        active.overlay.style.display = "none";
+                    }}
                 }});
             }}
         }})();
         </script>
         """,
-        height=0,
+        height=1,
     )
 
 
