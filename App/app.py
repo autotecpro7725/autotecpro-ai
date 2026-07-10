@@ -3338,6 +3338,42 @@ def apply_login_layout_css():
             margin-top: 8px;
             letter-spacing: 0.4px;
         }
+
+        /* Login page only: solid, high-contrast button with no fade */
+        .stFormSubmitButton > button {
+            background: #ff3b30 !important;
+            background-color: #ff3b30 !important;
+            background-image: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
+            filter: none !important;
+            border: 1px solid #ff5a50 !important;
+            box-shadow: 0 8px 20px rgba(255, 59, 48, 0.28) !important;
+        }
+
+        .stFormSubmitButton > button:hover,
+        .stFormSubmitButton > button:focus,
+        .stFormSubmitButton > button:active {
+            background: #ff3b30 !important;
+            background-color: #ff3b30 !important;
+            background-image: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
+            filter: none !important;
+            border-color: #ff6b63 !important;
+            box-shadow: 0 9px 22px rgba(255, 59, 48, 0.34) !important;
+            transform: none !important;
+        }
+
+        .stFormSubmitButton > button *,
+        .stFormSubmitButton > button p,
+        .stFormSubmitButton > button span {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
@@ -6062,49 +6098,66 @@ if assistant == "⚙️ Admin Panel":
 
     with tab2:
         st.markdown("### Upload Documents to Knowledge Base")
-
-        database_choice = st.selectbox(
-            "Choose database",
-            ["Technical Support Database", "Sales & Marketing Database"]
-        )
-
-        admin_context = st.text_area(
-            "Optional context for uploaded images",
-            placeholder=(
-                "Example: This chart is for Ford F-150 2015–2021 and should be "
-                "used to identify SYNC version and climate-control type."
-            ),
-            help=(
-                "Optional. This helps the AI interpret reference images accurately. "
-                "It is not required for PDF, TXT, or DOCX files."
-            ),
-            key="admin_upload_context"
-        )
-
-        admin_files = st.file_uploader(
-            "Upload documents or reference images",
-            type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            help=(
-                "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, and PNG "
-                "images are first analyzed and converted into searchable text knowledge."
-            ),
-            key="admin_knowledge_uploader"
-        )
-
         st.caption(
-            "Reference images are converted into searchable text before being added "
-            "to the knowledge base."
+            "Choose the target database, add optional image context, then upload. "
+            "Changing the database no longer reruns the entire Admin Panel."
         )
 
-        if st.button("Upload to Knowledge Base"):
+        with st.form(
+            "stable_admin_knowledge_upload_form",
+            clear_on_submit=False
+        ):
+            database_choice = st.selectbox(
+                "Choose database",
+                [
+                    "Technical Support Database",
+                    "Sales & Marketing Database"
+                ],
+                key="stable_admin_database_choice"
+            )
+
+            admin_context = st.text_area(
+                "Optional context for uploaded images",
+                placeholder=(
+                    "Example: This chart is for Ford F-150 2015–2021 and should be "
+                    "used to identify SYNC version and climate-control type."
+                ),
+                help=(
+                    "Optional. This helps the AI interpret reference images accurately. "
+                    "It is not required for PDF, TXT, or DOCX files."
+                ),
+                key="stable_admin_upload_context"
+            )
+
+            admin_files = st.file_uploader(
+                "Upload documents or reference images",
+                type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                help=(
+                    "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, "
+                    "and PNG images are analyzed and converted into searchable text."
+                ),
+                key="stable_admin_knowledge_uploader"
+            )
+
+            st.caption(
+                "Reference images are converted into searchable text before being "
+                "added to the knowledge base."
+            )
+
+            admin_upload_submitted = st.form_submit_button(
+                "Upload to Knowledge Base"
+            )
+
+        if admin_upload_submitted:
             if not admin_files:
                 st.warning("Please upload at least one document or image.")
             else:
-                if database_choice == "Technical Support Database":
-                    selected_vector_store_id = TECHNICAL_VECTOR_STORE_ID
-                else:
-                    selected_vector_store_id = SALES_VECTOR_STORE_ID
+                selected_vector_store_id = (
+                    TECHNICAL_VECTOR_STORE_ID
+                    if database_choice == "Technical Support Database"
+                    else SALES_VECTOR_STORE_ID
+                )
 
                 progress = st.progress(0)
                 total_files = len(admin_files)
@@ -6112,12 +6165,18 @@ if assistant == "⚙️ Admin Panel":
                 for index, admin_file in enumerate(admin_files, start=1):
                     try:
                         if is_admin_image_file(admin_file):
-                            with st.spinner(f"Analyzing image: {admin_file.name}"):
-                                searchable_file, extracted_text = convert_admin_image_to_knowledge_file(
+                            with st.spinner(
+                                f"Analyzing image: {admin_file.name}"
+                            ):
+                                (
+                                    searchable_file,
+                                    extracted_text
+                                ) = convert_admin_image_to_knowledge_file(
                                     admin_file,
                                     database_choice,
                                     admin_context
                                 )
+
                                 file_id = upload_to_vector_store(
                                     searchable_file,
                                     selected_vector_store_id
@@ -6125,10 +6184,13 @@ if assistant == "⚙️ Admin Panel":
 
                             st.success(
                                 f"Image converted and uploaded: {admin_file.name} "
-                                f"| Search file: {searchable_file.name} | File ID: {file_id}"
+                                f"| Search file: {searchable_file.name} "
+                                f"| File ID: {file_id}"
                             )
 
-                            with st.expander(f"Extracted knowledge — {admin_file.name}"):
+                            with st.expander(
+                                f"Extracted knowledge — {admin_file.name}"
+                            ):
                                 st.text(extracted_text)
                         else:
                             file_id = upload_to_vector_store(
@@ -6136,17 +6198,20 @@ if assistant == "⚙️ Admin Panel":
                                 selected_vector_store_id
                             )
                             st.success(
-                                f"Uploaded: {admin_file.name} | File ID: {file_id}"
+                                f"Uploaded: {admin_file.name} "
+                                f"| File ID: {file_id}"
                             )
 
-                    except Exception as e:
-                        st.error(f"Failed to upload {admin_file.name}: {e}")
+                    except Exception as error:
+                        st.error(
+                            f"Failed to upload {admin_file.name}: {error}"
+                        )
 
                     progress.progress(index / total_files)
 
                 st.info(
-                    "Upload completed. OpenAI may take a short time to finish indexing "
-                    "new knowledge before it appears in search results."
+                    "Upload completed. OpenAI may take a short time to finish "
+                    "indexing new knowledge before it appears in search results."
                 )
 
     with tab3:
