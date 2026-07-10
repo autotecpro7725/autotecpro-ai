@@ -4393,7 +4393,6 @@ if assistant == "⚙️ Admin Panel":
 
         if st.button(
             "Delete User",
-            type="secondary",
             key="admin_delete_user_button"
         ):
             if selected_delete_username == "— Select a user —":
@@ -4425,34 +4424,59 @@ if assistant == "⚙️ Admin Panel":
                         st.error(
                             "This is the last active administrator account and cannot be deleted."
                         )
-                        st.stop()
+                    else:
+                        try:
+                            # Disable any existing sessions before deleting the user.
+                            try:
+                                (
+                                    supabase
+                                    .table("login_sessions")
+                                    .update({"active": False})
+                                    .eq("username", selected_delete_username)
+                                    .execute()
+                                )
+                            except Exception:
+                                pass
 
-                try:
-                    # Disable any existing sessions before deleting the user.
+                            (
+                                supabase
+                                .table("users")
+                                .delete()
+                                .eq("username", selected_delete_username)
+                                .execute()
+                            )
+
+                            st.success(f"User '{selected_delete_username}' was deleted successfully.")
+                            st.rerun()
+
+                        except Exception as error:
+                            st.error(f"Unable to delete user: {error}")
+                else:
                     try:
+                        try:
+                            (
+                                supabase
+                                .table("login_sessions")
+                                .update({"active": False})
+                                .eq("username", selected_delete_username)
+                                .execute()
+                            )
+                        except Exception:
+                            pass
+
                         (
                             supabase
-                            .table("login_sessions")
-                            .update({"active": False})
+                            .table("users")
+                            .delete()
                             .eq("username", selected_delete_username)
                             .execute()
                         )
-                    except Exception:
-                        pass
 
-                    (
-                        supabase
-                        .table("users")
-                        .delete()
-                        .eq("username", selected_delete_username)
-                        .execute()
-                    )
+                        st.success(f"User '{selected_delete_username}' was deleted successfully.")
+                        st.rerun()
 
-                    st.success(f"User '{selected_delete_username}' was deleted successfully.")
-                    st.rerun()
-
-                except Exception as error:
-                    st.error(f"Unable to delete user: {error}")
+                    except Exception as error:
+                        st.error(f"Unable to delete user: {error}")
 
     with tab2:
         st.markdown("### Upload Documents to Knowledge Base")
