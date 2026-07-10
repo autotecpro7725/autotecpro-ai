@@ -3876,56 +3876,114 @@ def render_history_cards(conversations):
                             st.rerun()
 
 
-def install_global_chat_file_dropzone():
+def install_global_file_dropzone(
+    allowed_extensions,
+    overlay_title,
+    overlay_subtitle,
+    uploader_key_hint=None,
+):
     """
-    Allow users to drag files anywhere over the main app, or paste an image
-    from the clipboard, and forward those files into the existing Streamlit
-    chat file uploader.
+    Install a global drag/drop + clipboard-paste handler for the current page.
 
-    Stability notes:
-    - Uses the existing st.file_uploader; no new backend upload path.
-    - Ignores ordinary text paste.
-    - Installs only one set of parent-document event listeners.
-    - Locates the current visible uploader dynamically after Streamlit reruns.
+    The handler forwards dropped files into the correct visible Streamlit
+    file_uploader on that page. It works for both:
+    - Main chat uploader
+    - Admin Panel knowledge uploader
+
+    Parameters:
+        allowed_extensions: list such as [".jpg", ".jpeg", ".png", ".pdf", ".txt"]
+        overlay_title: text shown while dragging
+        overlay_subtitle: supported file types shown while dragging
+        uploader_key_hint: optional substring expected in the uploader's DOM path/key
     """
+    allowed_json = json.dumps([str(ext).lower() for ext in allowed_extensions])
+    title_json = json.dumps(str(overlay_title))
+    subtitle_json = json.dumps(str(overlay_subtitle))
+    hint_json = json.dumps(str(uploader_key_hint or ""))
+
     components.html(
-        """
+        f"""
         <script>
-        (function () {
+        (function () {{
             const parentWindow = window.parent;
             const doc = parentWindow.document;
+            const allowedExtensions = {allowed_json};
+            const overlayTitle = {title_json};
+            const overlaySubtitle = {subtitle_json};
+            const uploaderHint = {hint_json};
 
-            function getVisibleChatFileInput() {
-                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'));
-                const visible = inputs.filter((input) => {
-                    const rect = input.getBoundingClientRect();
-                    const style = parentWindow.getComputedStyle(input);
-                    return (
-                        rect.width >= 0 &&
-                        rect.height >= 0 &&
-                        style.display !== "none" &&
-                        style.visibility !== "hidden"
-                    );
-                });
+            function isVisible(element) {{
+                if (!element || element.disabled) return false;
+                const style = parentWindow.getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return (
+                    style.display !== "none" &&
+                    style.visibility !== "hidden" &&
+                    rect.width >= 0 &&
+                    rect.height >= 0
+                );
+            }}
 
-                // On the normal chat page, the chat uploader is the last/current
-                // visible file input. Admin uploaders are not present on this page.
-                return visible.length ? visible[visible.length - 1] : inputs[inputs.length - 1];
-            }
+            function getUploaderContainer(input) {{
+                return input.closest('[data-testid="stFileUploader"]') ||
+                       input.closest('[data-testid="stFileUploaderDropzone"]') ||
+                       input.parentElement;
+            }}
 
-            function ensureOverlay() {
+            function getTargetFileInput() {{
+                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'))
+                    .filter(isVisible);
+
+                if (!inputs.length) return null;
+
+                if (uploaderHint) {{
+                    const hinted = inputs.find((input) => {{
+                        const container = getUploaderContainer(input);
+                        const text = (
+                            (input.getAttribute("aria-label") || "") + " " +
+                            (container?.innerText || "") + " " +
+                            (container?.getAttribute("data-testid") || "")
+                        ).toLowerCase();
+
+                        return text.includes(uploaderHint.toLowerCase());
+                    }});
+
+                    if (hinted) return hinted;
+                }}
+
+                // On each page, use the last visible uploader rendered.
+                return inputs[inputs.length - 1];
+            }}
+
+            function ensureOverlay() {{
                 let overlay = doc.getElementById("atp-global-drop-overlay");
-                if (overlay) return overlay;
+                if (!overlay) {{
+                    overlay = doc.createElement("div");
+                    overlay.id = "atp-global-drop-overlay";
 
-                overlay = doc.createElement("div");
-                overlay.id = "atp-global-drop-overlay";
+                    Object.assign(overlay.style, {{
+                        position: "fixed",
+                        inset: "0",
+                        zIndex: "2147483646",
+                        display: "none",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(2,6,23,.68)",
+                        backdropFilter: "blur(6px)",
+                        WebkitBackdropFilter: "blur(6px)",
+                        pointerEvents: "none"
+                    }});
+
+                    doc.body.appendChild(overlay);
+                }}
+
                 overlay.innerHTML = `
                     <div style="
                         width:min(520px,82vw);
                         padding:34px 28px;
                         border-radius:22px;
                         border:2px dashed rgba(255,255,255,.78);
-                        background:rgba(15,23,42,.92);
+                        background:rgba(15,23,42,.94);
                         box-shadow:0 24px 70px rgba(0,0,0,.42);
                         color:#fff;
                         text-align:center;
@@ -3933,121 +3991,162 @@ def install_global_chat_file_dropzone():
                     ">
                         <div style="font-size:42px;line-height:1;margin-bottom:12px;">📎</div>
                         <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
-                            Drop files to attach
+                            ${{overlayTitle}}
                         </div>
                         <div style="font-size:14px;color:#cbd5e1;">
-                            JPG, PNG, PDF, or TXT
+                            ${{overlaySubtitle}}
                         </div>
                     </div>
                 `;
-                Object.assign(overlay.style, {
-                    position: "fixed",
-                    inset: "0",
-                    zIndex: "2147483646",
-                    display: "none",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(2,6,23,.68)",
-                    backdropFilter: "blur(6px)",
-                    WebkitBackdropFilter: "blur(6px)",
-                    pointerEvents: "none"
-                });
-                doc.body.appendChild(overlay);
-                return overlay;
-            }
 
-            function hasFiles(event) {
+                return overlay;
+            }}
+
+            function hasFiles(event) {{
                 const types = Array.from(event.dataTransfer?.types || []);
                 return types.includes("Files");
-            }
+            }}
 
-            function attachFiles(fileList) {
-                if (!fileList || !fileList.length) return false;
-
-                const input = getVisibleChatFileInput();
-                if (!input) {
-                    console.warn("AutoTecPro AI: chat file uploader was not found.");
-                    return false;
-                }
-
-                const acceptedExtensions = [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
-                const acceptedFiles = Array.from(fileList).filter((file) => {
+            function filterAcceptedFiles(fileList) {{
+                return Array.from(fileList || []).filter((file) => {{
                     const name = (file.name || "").toLowerCase();
-                    return acceptedExtensions.some((ext) => name.endsWith(ext));
-                });
+                    return allowedExtensions.some((ext) => name.endsWith(ext));
+                }});
+            }}
 
+            function attachFiles(fileList) {{
+                const acceptedFiles = filterAcceptedFiles(fileList);
                 if (!acceptedFiles.length) return false;
+
+                const input = getTargetFileInput();
+                if (!input) {{
+                    console.warn("AutoTecPro AI: target uploader was not found.");
+                    return false;
+                }}
 
                 const transfer = new DataTransfer();
 
-                // Preserve files already selected in the uploader, then append new ones.
-                Array.from(input.files || []).forEach((file) => transfer.items.add(file));
-                acceptedFiles.forEach((file) => transfer.items.add(file));
+                // Preserve already-selected files.
+                Array.from(input.files || []).forEach((file) => {{
+                    transfer.items.add(file);
+                }});
+
+                acceptedFiles.forEach((file) => {{
+                    transfer.items.add(file);
+                }});
 
                 input.files = transfer.files;
-                input.dispatchEvent(new Event("change", { bubbles: true }));
+
+                // Streamlit listens to both input and change in different versions.
+                input.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                input.dispatchEvent(new Event("change", {{ bubbles: true }}));
+
                 return true;
-            }
+            }}
 
             const overlay = ensureOverlay();
 
-            if (!parentWindow.__atpGlobalDropzoneInstalled) {
+            // Store current page configuration globally so reruns can update it.
+            parentWindow.__atpGlobalDropzoneConfig = {{
+                allowedExtensions,
+                overlayTitle,
+                overlaySubtitle,
+                uploaderHint,
+                attachFiles,
+                getTargetFileInput,
+                overlay
+            }};
+
+            if (!parentWindow.__atpGlobalDropzoneInstalled) {{
                 parentWindow.__atpGlobalDropzoneInstalled = true;
                 let dragDepth = 0;
 
-                doc.addEventListener("dragenter", function (event) {
+                function currentConfig() {{
+                    return parentWindow.__atpGlobalDropzoneConfig;
+                }}
+
+                doc.addEventListener("dragenter", function (event) {{
                     if (!hasFiles(event)) return;
                     event.preventDefault();
                     dragDepth += 1;
-                    overlay.style.display = "flex";
-                }, true);
+                    const cfg = currentConfig();
+                    cfg.overlay.style.display = "flex";
+                }}, true);
 
-                doc.addEventListener("dragover", function (event) {
+                doc.addEventListener("dragover", function (event) {{
                     if (!hasFiles(event)) return;
                     event.preventDefault();
                     if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-                    overlay.style.display = "flex";
-                }, true);
+                    const cfg = currentConfig();
+                    cfg.overlay.style.display = "flex";
+                }}, true);
 
-                doc.addEventListener("dragleave", function (event) {
+                doc.addEventListener("dragleave", function (event) {{
                     if (!hasFiles(event)) return;
                     event.preventDefault();
                     dragDepth = Math.max(0, dragDepth - 1);
-                    if (dragDepth === 0) overlay.style.display = "none";
-                }, true);
+                    if (dragDepth === 0) {{
+                        const cfg = currentConfig();
+                        cfg.overlay.style.display = "none";
+                    }}
+                }}, true);
 
-                doc.addEventListener("drop", function (event) {
+                doc.addEventListener("drop", function (event) {{
                     if (!hasFiles(event)) return;
                     event.preventDefault();
                     event.stopPropagation();
-                    dragDepth = 0;
-                    overlay.style.display = "none";
-                    attachFiles(event.dataTransfer.files);
-                }, true);
 
-                doc.addEventListener("paste", function (event) {
+                    dragDepth = 0;
+                    const cfg = currentConfig();
+                    cfg.overlay.style.display = "none";
+                    cfg.attachFiles(event.dataTransfer.files);
+                }}, true);
+
+                doc.addEventListener("paste", function (event) {{
                     const clipboardFiles = Array.from(event.clipboardData?.files || []);
                     if (!clipboardFiles.length) return;
 
-                    const imageFiles = clipboardFiles.filter((file) =>
-                        (file.type || "").toLowerCase().startsWith("image/")
-                    );
-                    if (!imageFiles.length) return;
+                    const cfg = currentConfig();
+                    const accepted = clipboardFiles.filter((file) => {{
+                        const name = (file.name || "").toLowerCase();
+                        const isImage = (file.type || "").toLowerCase().startsWith("image/");
+                        return isImage || cfg.allowedExtensions.some((ext) => name.endsWith(ext));
+                    }});
 
-                    // Only intercept paste when there is an actual image in clipboard.
+                    if (!accepted.length) return;
+
                     event.preventDefault();
-                    attachFiles(imageFiles);
-                }, true);
+                    cfg.attachFiles(accepted);
+                }}, true);
 
-                parentWindow.addEventListener("blur", function () {
+                parentWindow.addEventListener("blur", function () {{
                     dragDepth = 0;
-                    overlay.style.display = "none";
-                });
-            }
-        })();
+                    const cfg = currentConfig();
+                    if (cfg?.overlay) cfg.overlay.style.display = "none";
+                }});
+            }}
+        }})();
         </script>
         """,
         height=0,
+    )
+
+
+def install_global_chat_file_dropzone():
+    install_global_file_dropzone(
+        allowed_extensions=[".jpg", ".jpeg", ".png", ".pdf", ".txt"],
+        overlay_title="Drop files to attach",
+        overlay_subtitle="JPG, PNG, PDF, or TXT",
+        uploader_key_hint="attach files or photos",
+    )
+
+
+def install_global_admin_knowledge_dropzone():
+    install_global_file_dropzone(
+        allowed_extensions=[".pdf", ".txt", ".docx", ".jpg", ".jpeg", ".png"],
+        overlay_title="Drop files into the knowledge base",
+        overlay_subtitle="PDF, TXT, DOCX, JPG, JPEG, or PNG",
+        uploader_key_hint="upload documents or reference images",
     )
 
 
@@ -4236,6 +4335,11 @@ if assistant == "⚙️ Admin Panel":
             ),
             key="admin_knowledge_uploader"
         )
+
+        st.caption(
+            "Drag and drop files anywhere on this Admin Panel page, or paste an image with Ctrl+V."
+        )
+        install_global_admin_knowledge_dropzone()
 
         st.caption(
             "Reference images are converted into searchable text before being added "
