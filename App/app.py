@@ -1660,23 +1660,6 @@ def inject_base_css():
             display: none !important;
         }
 
-
-        /* ============================================================
-           Safe customer reply copy component spacing
-           Copy button is rendered in a Streamlit component iframe, not inside chat HTML.
-        ============================================================ */
-        .customer-reply-component-wrap {
-            margin-left: 50px;
-            margin-top: -6px;
-            margin-bottom: 16px;
-        }
-
-        @media (max-width: 768px) {
-            .customer-reply-component-wrap {
-                margin-left: 0 !important;
-            }
-        }
-
 </style>
         """,
         unsafe_allow_html=True
@@ -2042,185 +2025,15 @@ def html_from_text(text):
     return rendered
 
 
-
-def split_customer_reply_draft(content):
-    """
-    Split assistant answer into the main explanation and the customer-ready reply.
-    This prevents copy-button code from being inserted into the main chat HTML.
-    """
-    text = clean_visible_chat_text(content)
-
-    match = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
-        text
-    )
-
-    if not match:
-        return text, ""
-
-    before_text = text[:match.start()].rstrip()
-    after_text = text[match.end():].strip()
-
-    next_heading = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
-        after_text
-    )
-
-    if next_heading:
-        reply_text = after_text[:next_heading.start()].strip()
-    else:
-        reply_text = after_text.strip()
-
-    return before_text, clean_visible_chat_text(reply_text)
-
-
-def render_customer_reply_copy_component(reply_text):
-    """
-    Render a safe ChatGPT-style copy card in an iframe component.
-    This avoids Streamlit markdown sanitization issues that caused JS/text to leak vertically.
-    """
-    if not reply_text:
-        return
-
-    safe_reply = html.escape(clean_visible_chat_text(reply_text))
-    safe_reply_html = safe_reply.replace("\n", "<br>")
-    copy_payload = json.dumps(clean_visible_chat_text(reply_text))
-
-    # Estimate component height based on line count. Keep enough room for wrapped text.
-    line_count = max(3, len(clean_visible_chat_text(reply_text).splitlines()))
-    estimated_height = min(360, max(110, 70 + line_count * 22))
-
-    components.html(
-        f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                html, body {{
-                    margin: 0;
-                    padding: 0;
-                    background: transparent;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                    color: #f8fafc;
-                }}
-
-                .card {{
-                    position: relative;
-                    box-sizing: border-box;
-                    width: 100%;
-                    border-radius: 14px;
-                    padding: 14px 46px 14px 14px;
-                    background: rgba(15, 23, 42, 0.58);
-                    border: 1px solid rgba(148, 163, 184, 0.20);
-                    color: #f8fafc;
-                    line-height: 1.58;
-                    font-size: 15px;
-                }}
-
-                .title {{
-                    font-size: 15px;
-                    font-weight: 800;
-                    margin-bottom: 10px;
-                    color: #ffffff;
-                }}
-
-                .body {{
-                    white-space: normal;
-                    overflow-wrap: anywhere;
-                }}
-
-                .copy-btn {{
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 8px;
-                    border: 1px solid rgba(148, 163, 184, 0.20);
-                    background: rgba(15, 23, 42, 0.80);
-                    color: #cbd5e1;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    opacity: 0.65;
-                    transition: all 140ms ease;
-                    padding: 0;
-                }}
-
-                .copy-btn:hover {{
-                    opacity: 1;
-                    color: #ffffff;
-                    background: rgba(30, 41, 59, 0.98);
-                    border-color: rgba(148, 163, 184, 0.38);
-                }}
-
-                .copy-btn svg {{
-                    width: 16px;
-                    height: 16px;
-                    stroke-width: 2;
-                }}
-
-                .copy-btn.copied {{
-                    color: #22c55e;
-                    border-color: rgba(34, 197, 94, 0.30);
-                    opacity: 1;
-                    font-size: 17px;
-                    font-weight: 800;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <button class="copy-btn" id="copyBtn" title="Copy reply" aria-label="Copy reply">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                </button>
-                <div class="title">Customer Reply Draft</div>
-                <div class="body">{safe_reply_html}</div>
-            </div>
-
-            <script>
-                const textToCopy = {copy_payload};
-                const btn = document.getElementById("copyBtn");
-                const original = btn.innerHTML;
-
-                btn.addEventListener("click", async function() {{
-                    try {{
-                        await navigator.clipboard.writeText(textToCopy);
-                        btn.classList.add("copied");
-                        btn.textContent = "✓";
-                        setTimeout(function() {{
-                            btn.classList.remove("copied");
-                            btn.innerHTML = original;
-                        }}, 1300);
-                    }} catch (err) {{
-                        console.warn("Copy failed", err);
-                    }}
-                }});
-            </script>
-        </body>
-        </html>
-        """,
-        height=estimated_height,
-    )
-
-
-
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
-    reply_text = ""
 
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
-        display_text = visible_content
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2229,25 +2042,19 @@ def render_chat_message(role, content, images=None):
             icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
-        display_text, reply_text = split_customer_reply_draft(visible_content)
 
     st.markdown(
         f"""
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {html_from_text(display_text)}
+                {html_from_text(visible_content)}
                 {render_image_previews(final_images)}
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    if role != "user" and reply_text:
-        st.markdown('<div class="customer-reply-component-wrap">', unsafe_allow_html=True)
-        render_customer_reply_copy_component(reply_text)
-        st.markdown('</div>', unsafe_allow_html=True)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2435,33 +2242,6 @@ if logo_base64:
 else:
     st.title("AutoTecPro AI")
     st.caption("Internal AI Assistant for AutoTecPro")
-
-
-def install_keyboard_copy_guard():
-    """
-    Prevent Streamlit from treating Ctrl+C / Cmd+C as an app shortcut.
-    This allows normal text copying without opening Streamlit's Clear caches modal.
-    """
-    components.html(
-        """
-        <script>
-        const doc = window.parent.document;
-        if (!window.parent.__atpCopyShortcutGuardInstalled) {
-            window.parent.__atpCopyShortcutGuardInstalled = true;
-
-            doc.addEventListener("keydown", function(e) {
-                const key = (e.key || "").toLowerCase();
-                if ((e.ctrlKey || e.metaKey) && key === "c") {
-                    e.stopImmediatePropagation();
-                }
-            }, true);
-        }
-        </script>
-        """,
-        height=0,
-    )
-
-
 
 # ============================================================
 # Session Defaults
