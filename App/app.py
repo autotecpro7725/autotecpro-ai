@@ -2638,10 +2638,6 @@ def inject_base_css():
 
         /* Desktop layout */
         @media (min-width: 1200px) {
-            html body .block-container {
-                max-width: 1720px !important;
-            }
-
             html body div[data-testid="stChatInput"] {
                 width: calc(100% - 8px) !important;
                 margin-left: 4px !important;
@@ -2693,6 +2689,22 @@ def inject_base_css():
             html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
                 right: 4px !important;
             }
+        }
+
+
+        /* ============================================================
+           LOGIN LAYOUT SAFETY
+           Preserve the original login-page width and alignment.
+        ============================================================ */
+        body:has(.login-heading) .block-container,
+        body:has(.login-logo) .block-container {
+            max-width: 680px !important;
+            padding-top: 64px !important;
+            padding-bottom: 40px !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
         }
 
 
