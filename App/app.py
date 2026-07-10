@@ -4298,312 +4298,260 @@ if assistant != "⚙️ Admin Panel":
 # ============================================================
 
 if assistant == "⚙️ Admin Panel":
-
-    st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
-    st.subheader("⚙️ Admin Panel")
-    st.caption("Manage users, knowledge uploads, AI learning, analytics, and continuous improvement.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "👥 Users",
-        "📚 Upload Knowledge",
-        "🧠 AI Learning",
-        "🚗 Vehicle Analytics",
-        "📦 Product Analytics",
-        "🔧 Technical Analytics",
-        "📊 AI Analytics",
-        "📈 Learning Analytics"
-    ])
-
-    # Shared analytics data for all admin dashboards.
     try:
-        analytics_rows = safe_select_rows("ai_analytics", order_columns=["created_at"], limit=2000)
-    except Exception:
-        analytics_rows = []
+        st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
+        st.subheader("⚙️ Admin Panel")
+        st.caption("Manage users and upload knowledge safely.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    try:
-        learned_rows_for_analytics = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=2000)
-    except Exception:
-        learned_rows_for_analytics = []
+        tab_users, tab_upload = st.tabs([
+            "👥 Users",
+            "📚 Upload Knowledge",
+        ])
 
-    with tab1:
-        # Clear legacy widget keys from older user-management versions before
-        # rendering the current stable UI.
-        for legacy_key in (
-            "admin_user_username",
-            "admin_user_password",
-            "admin_user_role",
-            "admin_user_active",
-            "admin_edit_username",
-            "admin_edit_role_value",
-            "admin_edit_active_value",
-            "admin_edit_password",
-            "admin_edit_username_display",
-            "admin_pending_delete_user",
-            "admin_permanent_delete_confirmation",
-            "admin_permanent_delete_checkbox",
-        ):
-            st.session_state.pop(legacy_key, None)
+        with tab_users:
+            st.markdown("### Users")
 
-        st.markdown("### Users")
+            delete_flash = st.session_state.pop("admin_delete_success", None)
+            if delete_flash:
+                st.success(delete_flash)
 
-        delete_flash = st.session_state.pop("admin_delete_success", None)
-        if delete_flash:
-            st.success(delete_flash)
-
-        save_flash = st.session_state.pop("admin_user_save_success", None)
-        if save_flash:
-            st.success(save_flash)
-
-        try:
-            users = (
-                supabase
-                .table("users")
-                .select("*")
-                .order("username")
-                .execute()
-                .data
-            ) or []
-        except Exception as error:
-            users = []
-            st.error(f"Unable to load users: {error}")
-
-        # Build latest-login lookup from login_sessions.
-        latest_login_by_user = {}
-        try:
-            login_rows = (
-                supabase
-                .table("login_sessions")
-                .select("username,created_at")
-                .order("created_at", desc=True)
-                .limit(1000)
-                .execute()
-                .data
-            ) or []
-
-            for login_row in login_rows:
-                login_username = str(login_row.get("username") or "")
-                if login_username and login_username not in latest_login_by_user:
-                    latest_login_by_user[login_username] = login_row.get("created_at")
-        except Exception:
-            latest_login_by_user = {}
-
-        def format_relative_login(value):
-            if not value:
-                return "Never"
+            save_flash = st.session_state.pop("admin_user_save_success", None)
+            if save_flash:
+                st.success(save_flash)
 
             try:
-                login_dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-                if login_dt.tzinfo is None:
-                    login_dt = login_dt.replace(tzinfo=timezone.utc)
+                users = (
+                    supabase
+                    .table("users")
+                    .select("*")
+                    .order("username")
+                    .execute()
+                    .data
+                ) or []
+            except Exception as error:
+                users = []
+                st.error(f"Unable to load users: {error}")
 
-                now_dt = datetime.now(timezone.utc)
-                elapsed = now_dt - login_dt.astimezone(timezone.utc)
-                days = max(elapsed.days, 0)
+            latest_login_by_user = {}
+            try:
+                login_rows = (
+                    supabase
+                    .table("login_sessions")
+                    .select("username,created_at")
+                    .order("created_at", desc=True)
+                    .limit(1000)
+                    .execute()
+                    .data
+                ) or []
 
-                if days == 0:
-                    return "Today"
-                if days == 1:
-                    return "Yesterday"
-                if days < 7:
-                    return f"{days} days ago"
-                return login_dt.strftime("%b %d, %Y")
+                for login_row in login_rows:
+                    login_username = str(login_row.get("username") or "")
+                    if login_username and login_username not in latest_login_by_user:
+                        latest_login_by_user[login_username] = login_row.get("created_at")
             except Exception:
-                return "Unknown"
+                latest_login_by_user = {}
 
-        st.caption(f"{len(users)} user{'s' if len(users) != 1 else ''}")
+            def admin_format_last_login(value):
+                if not value:
+                    return "Never"
 
-        user_search = st.text_input(
-            "Search users",
-            placeholder="Search by username, role, or status",
-            key="admin_user_search"
-        ).strip().lower()
+                try:
+                    login_dt = datetime.fromisoformat(
+                        str(value).replace("Z", "+00:00")
+                    )
+                    if login_dt.tzinfo is None:
+                        login_dt = login_dt.replace(tzinfo=timezone.utc)
 
-        filtered_users = []
-        for user in users:
-            username_text = str(user.get("username") or "")
-            role_text = str(user.get("role") or "")
-            status_text = "Active" if bool(user.get("active")) else "Inactive"
-            searchable_text = f"{username_text} {role_text} {status_text}".lower()
+                    elapsed = (
+                        datetime.now(timezone.utc)
+                        - login_dt.astimezone(timezone.utc)
+                    )
+                    days = max(elapsed.days, 0)
 
-            if not user_search or user_search in searchable_text:
-                filtered_users.append(user)
+                    if days == 0:
+                        return "Today"
+                    if days == 1:
+                        return "Yesterday"
+                    if days < 7:
+                        return f"{days} days ago"
+                    return login_dt.strftime("%b %d, %Y")
+                except Exception:
+                    return "Unknown"
 
-        # Stable read-only table. No per-row edit/delete buttons.
-        header_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
-        header_cols[0].markdown("**Username**")
-        header_cols[1].markdown("**Role**")
-        header_cols[2].markdown("**Status**")
-        header_cols[3].markdown("**Last Login**")
-        header_cols[4].markdown("**Actions**")
-        st.divider()
+            st.caption(f"{len(users)} user{'s' if len(users) != 1 else ''}")
 
-        if not filtered_users:
-            st.info("No users match your search.")
-        else:
-            for user in filtered_users:
-                username_value = str(user.get("username") or "")
-                role_value = str(user.get("role") or "staff").capitalize()
-                status_value = "Active" if bool(user.get("active")) else "Inactive"
-                last_login_value = format_relative_login(
-                    latest_login_by_user.get(username_value)
+            user_search = st.text_input(
+                "Search users",
+                placeholder="Search by username, role, or status",
+                key="admin_safe_user_search",
+            ).strip().lower()
+
+            filtered_users = []
+            for user in users:
+                username_text = str(user.get("username") or "")
+                role_text = str(user.get("role") or "")
+                status_text = (
+                    "Active" if bool(user.get("active")) else "Inactive"
+                )
+                searchable = (
+                    f"{username_text} {role_text} {status_text}".lower()
                 )
 
-                row_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
-                row_cols[0].write(username_value)
-                row_cols[1].write(role_value)
-                row_cols[2].write(status_value)
-                row_cols[3].write(last_login_value)
+                if not user_search or user_search in searchable:
+                    filtered_users.append(user)
 
-                if username_value == st.session_state.username:
-                    row_cols[4].markdown("*Current User*")
-                else:
-                    row_cols[4].write("Managed below")
+            header_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
+            header_cols[0].markdown("**Username**")
+            header_cols[1].markdown("**Role**")
+            header_cols[2].markdown("**Status**")
+            header_cols[3].markdown("**Last Login**")
+            header_cols[4].markdown("**Actions**")
+            st.divider()
 
-                st.divider()
-
-        st.markdown("### Add New User")
-
-        new_username = st.text_input(
-            "Username",
-            key="admin_new_user_username"
-        )
-        new_password = st.text_input(
-            "Password",
-            type="password",
-            key="admin_new_user_password"
-        )
-        new_role = st.selectbox(
-            "Role",
-            ["staff", "admin"],
-            key="admin_new_user_role"
-        )
-        new_active = st.checkbox(
-            "Active",
-            value=True,
-            key="admin_new_user_active"
-        )
-
-        if st.button("Save User", key="admin_save_user_button"):
-            clean_username = new_username.strip()
-
-            if not clean_username or not new_password:
-                st.warning("Please enter username and password.")
+            if not filtered_users:
+                st.info("No users match your search.")
             else:
-                try:
-                    existing = (
-                        supabase
-                        .table("users")
-                        .select("*")
-                        .eq("username", clean_username)
-                        .execute()
-                        .data
-                    ) or []
+                for user in filtered_users:
+                    username_value = str(user.get("username") or "")
+                    role_value = str(
+                        user.get("role") or "staff"
+                    ).capitalize()
+                    status_value = (
+                        "Active" if bool(user.get("active")) else "Inactive"
+                    )
+                    last_login_value = admin_format_last_login(
+                        latest_login_by_user.get(username_value)
+                    )
 
-                    if existing:
-                        st.warning("This username already exists.")
+                    row_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
+                    row_cols[0].write(username_value)
+                    row_cols[1].write(role_value)
+                    row_cols[2].write(status_value)
+                    row_cols[3].write(last_login_value)
+
+                    if username_value == st.session_state.username:
+                        row_cols[4].markdown("*Current User*")
                     else:
-                        (
+                        row_cols[4].write("")
+
+                    st.divider()
+
+            st.markdown("### Add New User")
+
+            with st.form("admin_safe_add_user_form", clear_on_submit=True):
+                new_username = st.text_input("Username")
+                new_password = st.text_input("Password", type="password")
+                new_role = st.selectbox("Role", ["staff", "admin"])
+                new_active = st.checkbox("Active", value=True)
+                save_user_submitted = st.form_submit_button("Save User")
+
+            if save_user_submitted:
+                clean_username = new_username.strip()
+
+                if not clean_username or not new_password:
+                    st.warning("Please enter username and password.")
+                else:
+                    try:
+                        existing = (
                             supabase
                             .table("users")
-                            .insert({
-                                "username": clean_username,
-                                "password": new_password,
-                                "role": new_role,
-                                "active": new_active,
-                            })
+                            .select("username")
+                            .eq("username", clean_username)
                             .execute()
-                        )
+                            .data
+                        ) or []
 
-                        st.session_state["admin_user_save_success"] = (
-                            f"User '{clean_username}' added successfully."
-                        )
-                        st.rerun()
+                        if existing:
+                            st.warning("This username already exists.")
+                        else:
+                            (
+                                supabase
+                                .table("users")
+                                .insert({
+                                    "username": clean_username,
+                                    "password": new_password,
+                                    "role": new_role,
+                                    "active": new_active,
+                                })
+                                .execute()
+                            )
 
-                except Exception as error:
-                    st.error(f"Unable to save user: {error}")
+                            st.session_state["admin_user_save_success"] = (
+                                f"User '{clean_username}' added successfully."
+                            )
+                            st.rerun()
 
-        st.markdown("---")
-        st.markdown("### Permanently Delete User")
-        st.caption(
-            "Select a user below. The deletion runs through the database function "
-            "and permanently removes the user and all associated records."
-        )
+                    except Exception as error:
+                        st.error(f"Unable to save user: {error}")
 
-        deletable_usernames = [
-            str(user.get("username"))
-            for user in users
-            if user.get("username")
-            and str(user.get("username")) != st.session_state.username
-        ]
-
-        if not deletable_usernames:
-            st.info("There are no other users available to delete.")
-        else:
-            selected_delete_username = st.selectbox(
-                "Select user",
-                options=["— Select a user —"] + deletable_usernames,
-                key="admin_delete_user_select"
+            st.markdown("---")
+            st.markdown("### Permanently Delete User")
+            st.caption(
+                "This permanently removes the selected user and all associated "
+                "records through the database deletion function."
             )
 
-            confirm_username = st.text_input(
-                "Type the username exactly to confirm",
-                key="admin_delete_user_confirm"
-            )
+            deletable_usernames = [
+                str(user.get("username"))
+                for user in users
+                if user.get("username")
+                and str(user.get("username"))
+                != st.session_state.username
+            ]
 
-            confirm_permanent = st.checkbox(
-                "I understand this deletion is permanent and cannot be undone.",
-                key="admin_delete_user_checkbox"
-            )
-
-            if st.button(
-                "Permanently Delete User",
-                key="admin_delete_user_button"
-            ):
-                if selected_delete_username == "— Select a user —":
-                    st.warning("Please select a user to delete.")
-
-                elif confirm_username.strip() != selected_delete_username:
-                    st.warning(
-                        "The confirmation username does not match the selected user."
+            if not deletable_usernames:
+                st.info("There are no other users available to delete.")
+            else:
+                with st.form(
+                    "admin_safe_delete_user_form",
+                    clear_on_submit=True,
+                ):
+                    selected_delete_username = st.selectbox(
+                        "Select user",
+                        options=["— Select a user —"]
+                        + deletable_usernames,
+                    )
+                    confirm_username = st.text_input(
+                        "Type the username exactly to confirm"
+                    )
+                    confirm_permanent = st.checkbox(
+                        "I understand this deletion is permanent "
+                        "and cannot be undone."
+                    )
+                    delete_submitted = st.form_submit_button(
+                        "Permanently Delete User"
                     )
 
-                elif not confirm_permanent:
-                    st.warning(
-                        "Please confirm that you understand this action is permanent."
-                    )
-
-                elif supabase_admin is None:
-                    st.error(
-                        "The privileged Supabase client is not available. Confirm "
-                        "that config.py exports supabase_admin and that "
-                        "SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is set "
-                        "in Streamlit Secrets."
-                    )
-
-                else:
-                    selected_rows = [
-                        user
-                        for user in users
-                        if str(user.get("username")) == selected_delete_username
-                    ]
-                    selected_user = selected_rows[0] if selected_rows else {}
-
-                    active_admins = [
-                        user
-                        for user in users
-                        if str(user.get("role") or "").lower() == "admin"
-                        and bool(user.get("active"))
-                    ]
-
+                if delete_submitted:
                     if (
-                        str(selected_user.get("role") or "").lower() == "admin"
-                        and bool(selected_user.get("active"))
-                        and len(active_admins) <= 1
+                        selected_delete_username
+                        == "— Select a user —"
                     ):
-                        st.error(
-                            "The final active administrator account cannot be deleted."
+                        st.warning("Please select a user to delete.")
+
+                    elif (
+                        confirm_username.strip()
+                        != selected_delete_username
+                    ):
+                        st.warning(
+                            "The confirmation username does not match "
+                            "the selected user."
                         )
+
+                    elif not confirm_permanent:
+                        st.warning(
+                            "Please confirm that you understand this "
+                            "action is permanent."
+                        )
+
+                    elif supabase_admin is None:
+                        st.error(
+                            "The privileged Supabase client is unavailable. "
+                            "Confirm SUPABASE_SECRET_KEY or "
+                            "SUPABASE_SERVICE_ROLE_KEY in Streamlit Secrets."
+                        )
+
                     else:
                         try:
                             result = (
@@ -4611,8 +4559,10 @@ if assistant == "⚙️ Admin Panel":
                                 .rpc(
                                     "delete_user_permanently",
                                     {
-                                        "p_requesting_username": st.session_state.username,
-                                        "p_target_username": selected_delete_username,
+                                        "p_requesting_username":
+                                            st.session_state.username,
+                                        "p_target_username":
+                                            selected_delete_username,
                                     },
                                 )
                                 .execute()
@@ -4625,391 +4575,150 @@ if assistant == "⚙️ Admin Panel":
                                 deletion_confirmed = bool(
                                     result_data.get("success", True)
                                 )
-                            elif isinstance(result_data, list) and result_data:
-                                first_item = result_data[0]
-                                if isinstance(first_item, dict):
-                                    deletion_confirmed = bool(
-                                        first_item.get("success", True)
-                                    )
+                            elif (
+                                isinstance(result_data, list)
+                                and result_data
+                                and isinstance(result_data[0], dict)
+                            ):
+                                deletion_confirmed = bool(
+                                    result_data[0].get("success", True)
+                                )
 
                             if not deletion_confirmed:
                                 raise RuntimeError(
-                                    "The database did not confirm successful deletion."
+                                    "The database did not confirm deletion."
                                 )
 
                             st.session_state["admin_delete_success"] = (
-                                f"User '{selected_delete_username}' and all associated "
-                                "records were permanently deleted."
+                                f"User '{selected_delete_username}' and "
+                                "all associated records were permanently "
+                                "deleted."
                             )
                             st.rerun()
 
                         except Exception as error:
-                            st.error(f"Permanent deletion failed: {error}")
+                            st.error(
+                                f"Permanent deletion failed: {error}"
+                            )
 
-    with tab2:
-        st.markdown("### Upload Documents to Knowledge Base")
+        with tab_upload:
+            st.markdown("### Upload Documents to Knowledge Base")
 
-        database_choice = st.selectbox(
-            "Choose database",
-            ["Technical Support Database", "Sales & Marketing Database"]
-        )
-
-        admin_context = st.text_area(
-            "Optional context for uploaded images",
-            placeholder=(
-                "Example: This chart is for Ford F-150 2015–2021 and should be "
-                "used to identify SYNC version and climate-control type."
-            ),
-            help=(
-                "Optional. This helps the AI interpret reference images accurately. "
-                "It is not required for PDF, TXT, or DOCX files."
-            ),
-            key="admin_upload_context"
-        )
-
-        admin_files = st.file_uploader(
-            "Upload documents or reference images",
-            type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            help=(
-                "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, and PNG "
-                "images are first analyzed and converted into searchable text knowledge."
-            ),
-            key="admin_knowledge_uploader"
-        )
-
-        st.caption(
-            "Drag and drop files anywhere on this Admin Panel page, or paste an image with Ctrl+V."
-        )
-        try:
-            install_global_admin_knowledge_dropzone()
-        except Exception as dropzone_error:
-            st.caption(
-                f"Drag-and-drop helper is temporarily unavailable: {dropzone_error}"
+            database_choice = st.selectbox(
+                "Choose database",
+                [
+                    "Technical Support Database",
+                    "Sales & Marketing Database",
+                ],
+                key="admin_safe_database_choice",
             )
 
-        st.caption(
-            "Reference images are converted into searchable text before being added "
-            "to the knowledge base."
-        )
+            admin_context = st.text_area(
+                "Optional context for uploaded images",
+                placeholder=(
+                    "Example: This chart is for Ford F-150 "
+                    "2015–2021 and identifies SYNC and climate type."
+                ),
+                key="admin_safe_upload_context",
+            )
 
-        if st.button("Upload to Knowledge Base"):
-            if not admin_files:
-                st.warning("Please upload at least one document or image.")
-            else:
-                if database_choice == "Technical Support Database":
-                    selected_vector_store_id = TECHNICAL_VECTOR_STORE_ID
+            admin_files = st.file_uploader(
+                "Upload documents or reference images",
+                type=[
+                    "pdf",
+                    "txt",
+                    "docx",
+                    "jpg",
+                    "jpeg",
+                    "png",
+                ],
+                accept_multiple_files=True,
+                key="admin_safe_knowledge_uploader",
+            )
+
+            st.caption(
+                "PDF, TXT, and DOCX files upload directly. "
+                "Images are converted into searchable text knowledge."
+            )
+
+            if st.button(
+                "Upload to Knowledge Base",
+                key="admin_safe_upload_button",
+            ):
+                if not admin_files:
+                    st.warning(
+                        "Please upload at least one document or image."
+                    )
                 else:
-                    selected_vector_store_id = SALES_VECTOR_STORE_ID
+                    selected_vector_store_id = (
+                        TECHNICAL_VECTOR_STORE_ID
+                        if database_choice
+                        == "Technical Support Database"
+                        else SALES_VECTOR_STORE_ID
+                    )
 
-                progress = st.progress(0)
-                total_files = len(admin_files)
+                    progress = st.progress(0)
+                    total_files = len(admin_files)
 
-                for index, admin_file in enumerate(admin_files, start=1):
-                    try:
-                        if is_admin_image_file(admin_file):
-                            with st.spinner(f"Analyzing image: {admin_file.name}"):
-                                searchable_file, extracted_text = convert_admin_image_to_knowledge_file(
-                                    admin_file,
-                                    database_choice,
-                                    admin_context
+                    for index, admin_file in enumerate(
+                        admin_files,
+                        start=1,
+                    ):
+                        try:
+                            if is_admin_image_file(admin_file):
+                                searchable_file, extracted_text = (
+                                    convert_admin_image_to_knowledge_file(
+                                        admin_file,
+                                        database_choice,
+                                        admin_context,
+                                    )
                                 )
                                 file_id = upload_to_vector_store(
                                     searchable_file,
-                                    selected_vector_store_id
+                                    selected_vector_store_id,
+                                )
+                                st.success(
+                                    f"Image converted and uploaded: "
+                                    f"{admin_file.name} | File ID: {file_id}"
+                                )
+                                with st.expander(
+                                    f"Extracted knowledge — "
+                                    f"{admin_file.name}"
+                                ):
+                                    st.text(extracted_text)
+                            else:
+                                file_id = upload_to_vector_store(
+                                    admin_file,
+                                    selected_vector_store_id,
+                                )
+                                st.success(
+                                    f"Uploaded: {admin_file.name} | "
+                                    f"File ID: {file_id}"
                                 )
 
-                            st.success(
-                                f"Image converted and uploaded: {admin_file.name} "
-                                f"| Search file: {searchable_file.name} | File ID: {file_id}"
+                        except Exception as error:
+                            st.error(
+                                f"Failed to upload "
+                                f"{admin_file.name}: {error}"
                             )
 
-                            with st.expander(f"Extracted knowledge — {admin_file.name}"):
-                                st.text(extracted_text)
-                        else:
-                            file_id = upload_to_vector_store(
-                                admin_file,
-                                selected_vector_store_id
-                            )
-                            st.success(
-                                f"Uploaded: {admin_file.name} | File ID: {file_id}"
-                            )
+                        progress.progress(index / total_files)
 
-                    except Exception as e:
-                        st.error(f"Failed to upload {admin_file.name}: {e}")
-
-                    progress.progress(index / total_files)
-
-                st.info(
-                    "Upload completed. OpenAI may take a short time to finish indexing "
-                    "new knowledge before it appears in search results."
-                )
-
-    with tab3:
-        try:
-            st.markdown("### 🧠 AI Learning")
-            st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
-
-            total_learned = len(learned_rows_for_analytics)
-            new_today = count_today(learned_rows_for_analytics, "created_at")
-            avg_conf = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
-            synced_cases = len([r for r in learned_rows_for_analytics if r.get("synced")])
-            duplicate_rate = duplicate_detection_rate(analytics_rows)
-            total_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
-
-            render_metric_row([
-                ("Total Learned Cases", total_learned),
-                ("New Knowledge Today", new_today),
-                ("Duplicate Detection Rate", f"{duplicate_rate}%"),
-                ("Confidence Average", f"{avg_conf}%"),
-                ("Synced Cases", synced_cases),
-                ("New Vectors Created", total_vectors),
-            ])
-
-            st.markdown("#### Knowledge Growth Chart")
-            growth_data = growth_counts(learned_rows_for_analytics, "created_at", limit=30, label="Learned Cases")
-            if growth_data:
-                st.bar_chart(growth_data, x="Date", y="Learned Cases")
-            else:
-                st.info("No learned knowledge yet.")
-
-            st.markdown("#### Latest Learned Knowledge")
-            if learned_rows_for_analytics:
-                for row in learned_rows_for_analytics[:80]:
-                    issue = row.get("issue") or row.get("question") or "Learned Knowledge"
-                    vehicle = row.get("vehicle") or "Vehicle not specified"
-                    confidence = row.get("confidence_score") or 0
-                    times_seen = row.get("times_seen") or 1
-                    with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
-                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                        st.write(f"**Product:** {row.get('product') or ''}")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.write(f"**Synced:** {row.get('synced')}")
-                        st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
-                        st.markdown("**Solution**")
-                        st.write(row.get("solution") or row.get("approved_answer") or "")
-                        st.markdown("**Source Question**")
-                        st.write(row.get("source_question") or row.get("question") or "")
-                        st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
-
-                        if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-                            st.rerun()
-            else:
-                st.info("No learned knowledge saved yet.")
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
-    with tab4:
-        try:
-            st.markdown("### 🚗 Vehicle Analytics")
-            st.caption("Most common makes, models, years, and vehicle-related questions.")
-
-            combined_rows = analytics_rows + learned_rows_for_analytics
-
-            render_metric_row([
-                ("Vehicle Mentions", len([r for r in combined_rows if r.get("vehicle")])),
-                ("Unique Makes", len(set([str(r.get("make") or "").strip() for r in combined_rows if r.get("make")]))),
-                ("Unique Models", len(set([str(r.get("model") or "").strip() for r in combined_rows if r.get("model")]))),
-                ("Unique Years", len(set([str(r.get("year") or "").strip() for r in combined_rows if r.get("year")]))),
-            ])
-
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                render_count_table("Most Common Makes", top_counts(combined_rows, "make", 15), "Make")
-            with c2:
-                render_count_table("Most Common Models", top_counts(combined_rows, "model", 15), "Model")
-            with c3:
-                render_count_table("Most Common Years", top_counts(combined_rows, "year", 15), "Year")
-
-            st.markdown("#### Most Common Vehicle Strings")
-            render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
-    with tab5:
-        try:
-            st.markdown("### 📦 Product Analytics")
-            st.caption("Products staff search most often, and products associated with the most issues.")
-
-            render_metric_row([
-                ("Product Searches", len([r for r in analytics_rows if r.get("product")])),
-                ("Unique Products", len(set([str(r.get("product") or "").strip() for r in analytics_rows if r.get("product")]))),
-                ("Product-Related Issues", len([r for r in analytics_rows if r.get("product") and r.get("issue")])),
-            ])
-
-            c1, c2 = st.columns(2)
-            with c1:
-                render_count_table("Most Searched Products", top_counts(analytics_rows, "product", 20), "Product")
-            with c2:
-                product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")]
-                render_count_table("Products With Most Issues", top_counts(product_issue_rows, "product", 20), "Product")
-
-            st.markdown("#### Product Issue Details")
-            product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")][:50]
-            if product_issue_rows:
-                for row in product_issue_rows:
-                    st.write(f"**{row.get('product')}** — {row.get('issue')} | {row.get('vehicle') or 'No vehicle'}")
-            else:
-                st.info("No product issue data yet.")
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
-    with tab6:
-        try:
-            st.markdown("### 🔧 Technical Analytics")
-            st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
-
-            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")]
-            resolved_rows = [r for r in analytics_rows if r.get("resolved")]
-            avg_response = safe_avg(analytics_rows, "response_time")
-
-            render_metric_row([
-                ("Top Questions Logged", len(analytics_rows)),
-                ("Resolved Rate", f"{resolved_rate(analytics_rows)}%"),
-                ("Unanswered Questions", len(unanswered_rows)),
-                ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
-            ])
-
-            c1, c2 = st.columns(2)
-            with c1:
-                render_count_table("Top Recurring Issues", top_counts(analytics_rows + learned_rows_for_analytics, "issue", 20), "Issue")
-            with c2:
-                frequent_solutions = sorted(
-                    [r for r in learned_rows_for_analytics if r.get("solution") or r.get("approved_answer")],
-                    key=lambda r: int(r.get("times_seen") or 1),
-                    reverse=True
-                )[:15]
-
-                st.markdown("#### Most Successful / Reused Solutions")
-                if frequent_solutions:
-                    for row in frequent_solutions:
-                        st.write(
-                            f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
-                            f"| Seen: {row.get('times_seen') or 1}x | Confidence: {row.get('confidence_score') or 0}%"
-                        )
-                else:
-                    st.info("No reusable solutions yet.")
-
-            st.markdown("#### Unanswered Questions")
-            if unanswered_rows:
-                for row in unanswered_rows[:40]:
-                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
-                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                        st.write(f"**User:** {row.get('username') or ''}")
-                        st.write(f"**Product:** {row.get('product') or ''}")
-                        st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.markdown("**Question**")
-                        st.write(row.get("question") or "")
-                        st.markdown("**AI Answer**")
-                        st.write(row.get("answer") or "")
-            else:
-                st.success("No unanswered questions logged yet.")
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
-    with tab7:
-        try:
-            st.markdown("### 📊 AI Analytics")
-            st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
-
-            total_tokens = total_numeric(analytics_rows, "tokens_used")
-            duplicate_questions = len([r for r in analytics_rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
-            avg_response = safe_avg(analytics_rows, "response_time")
-            avg_confidence = round(safe_avg(analytics_rows, "confidence_score"))
-
-            render_metric_row([
-                ("Total AI Questions", len(analytics_rows)),
-                ("Avg Confidence", f"{avg_confidence}%"),
-                ("OpenAI Token Usage", total_tokens if total_tokens else "N/A"),
-                ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
-                ("Duplicate Questions", duplicate_questions),
-            ])
-
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("#### Confidence Trend")
-                trend_rows = list(reversed(analytics_rows[:80]))
-                if trend_rows:
-                    chart_data = [{"Case": idx + 1, "Confidence": int(row.get("confidence_score") or 0)} for idx, row in enumerate(trend_rows)]
-                    st.line_chart(chart_data, x="Case", y="Confidence")
-                else:
-                    st.info("No confidence trend data yet.")
-
-                st.markdown("#### Daily Question Volume")
-                daily_data = daily_question_counts(analytics_rows, limit=30)
-                if daily_data:
-                    st.bar_chart(daily_data, x="Date", y="Questions")
-                else:
-                    st.info("No volume data yet.")
-
-            with c2:
-                render_count_table("Assistant Usage", assistant_counts(analytics_rows, 15), "Assistant")
-                render_count_table("Most Active Users", user_counts(analytics_rows, 15), "User")
-
-            st.markdown("#### Most Reused Knowledge")
-            reused = sorted(
-                [r for r in learned_rows_for_analytics if r.get("times_seen")],
-                key=lambda r: int(r.get("times_seen") or 0),
-                reverse=True
-            )[:20]
-            if reused:
-                for row in reused:
-                    st.write(
-                        f"**{row.get('issue') or 'Issue'}** | {row.get('vehicle') or 'N/A'} | "
-                        f"Used/Seen: {row.get('times_seen') or 0} | Confidence: {row.get('confidence_score') or 0}%"
+                    st.info(
+                        "Upload completed. Indexing may take a short time."
                     )
-            else:
-                st.info("No reused knowledge yet.")
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
-    with tab8:
-        try:
-            st.markdown("### 📈 Learning Analytics")
-            st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
-            auto_extracted = len(learned_rows_for_analytics)
-            new_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
-            search_success_rate = resolved_rate(analytics_rows)
-            learning_accuracy = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
-            continuous_updates = len([r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"])
+    except Exception as admin_error:
+        st.error("The Admin Panel could not load safely.")
+        st.code(
+            f"{type(admin_error).__name__}: {admin_error}",
+            language="text",
+        )
+        st.caption(
+            "This error is now shown inside the page instead of crashing "
+            "the entire Streamlit app."
+        )
 
-            render_metric_row([
-                ("Auto-Extracted Knowledge", auto_extracted),
-                ("New Vectors Created", new_vectors),
-                ("Search Success Rate", f"{search_success_rate}%"),
-                ("Learning Accuracy", f"{learning_accuracy}%"),
-                ("Continuous Improvements", continuous_updates),
-            ])
-
-            st.markdown("#### Continuous Improvement Trend")
-            updated_rows = [r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"]
-            improvement_chart = growth_counts(updated_rows, "created_at", limit=30, label="Improved Records")
-            if improvement_chart:
-                st.bar_chart(improvement_chart, x="Date", y="Improved Records")
-            else:
-                st.info("No duplicate/improvement events yet.")
-
-            st.markdown("#### Learning Quality")
-            quality_rows = sorted(
-                learned_rows_for_analytics,
-                key=lambda r: int(r.get("confidence_score") or 0),
-                reverse=True
-            )[:30]
-            if quality_rows:
-                for row in quality_rows:
-                    st.write(
-                        f"**{row.get('confidence_score') or 0}%** — {row.get('vehicle') or 'N/A'} | "
-                        f"{row.get('issue') or row.get('question') or 'Knowledge'}"
-                    )
-            else:
-                st.info("No quality data yet.")
-
-        except Exception as admin_tab_error:
-            st.error("This analytics section could not load safely.")
-            st.caption(f"Technical details: {admin_tab_error}")
 
 # ============================================================
 # Main Chat UI
