@@ -2909,6 +2909,74 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V10 AUTO-GROW COMPOSER
+           Expands for long typed/pasted text like ChatGPT.
+        ============================================================ */
+        html body div[data-testid="stChatInput"] {
+            height: auto !important;
+            min-height: 64px !important;
+            max-height: 234px !important;
+            align-items: flex-end !important;
+            overflow: visible !important;
+            padding-top: 7px !important;
+            padding-bottom: 7px !important;
+        }
+
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            height: auto !important;
+            min-height: 44px !important;
+            max-height: 220px !important;
+            align-items: flex-end !important;
+            overflow: visible !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            height: auto !important;
+            min-height: 44px !important;
+            max-height: 220px !important;
+            overflow-y: hidden !important;
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            resize: none !important;
+            line-height: 22px !important;
+            padding-top: 11px !important;
+            padding-bottom: 11px !important;
+        }
+
+        /* Keep controls at the bottom as the composer expands. */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger,
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            top: auto !important;
+            bottom: 9px !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                min-height: 62px !important;
+                max-height: 210px !important;
+            }
+
+            html body div[data-testid="stChatInput"] textarea {
+                max-height: 196px !important;
+            }
+
+            html body #atp-browser-voice-dictation,
+            html body .atp-voice-trigger,
+            html body #atp-send-proxy,
+            html body .atp-send-proxy {
+                bottom: 9px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -3282,6 +3350,162 @@ def install_browser_voice_dictation():
               try {
                 if (recognition && listening) recognition.stop();
               } catch (error) {}
+            },
+            { once: true }
+          );
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def install_chat_composer_autogrow():
+    """Make the Streamlit chat composer grow with pasted or typed text.
+
+    The textarea expands up to a controlled maximum height, then becomes
+    internally scrollable. It remounts after Streamlit reruns.
+    """
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const INSTANCE_ATTR = "data-atp-autogrow";
+          const INSTANCE_TOKEN =
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+          const MIN_TEXTAREA_HEIGHT = 44;
+          const MAX_TEXTAREA_HEIGHT = 220;
+          const COMPOSER_VERTICAL_PADDING = 14;
+
+          function getParentDocument() {
+            try {
+              return window.parent.document;
+            } catch (error) {
+              return null;
+            }
+          }
+
+          function setImportant(element, property, value) {
+            if (!element) return;
+            element.style.setProperty(property, value, "important");
+          }
+
+          function resizeComposer() {
+            const doc = getParentDocument();
+            if (!doc) return;
+
+            const composer =
+              doc.querySelector('div[data-testid="stChatInput"]');
+            const textarea =
+              composer?.querySelector("textarea");
+
+            if (!composer || !textarea) return;
+
+            // Reset first so scrollHeight reflects the full current content.
+            setImportant(textarea, "height", "auto");
+            setImportant(textarea, "min-height", `${MIN_TEXTAREA_HEIGHT}px`);
+            setImportant(textarea, "max-height", `${MAX_TEXTAREA_HEIGHT}px`);
+
+            const desiredHeight = Math.min(
+              Math.max(textarea.scrollHeight, MIN_TEXTAREA_HEIGHT),
+              MAX_TEXTAREA_HEIGHT
+            );
+
+            setImportant(textarea, "height", `${desiredHeight}px`);
+            setImportant(
+              textarea,
+              "overflow-y",
+              textarea.scrollHeight > MAX_TEXTAREA_HEIGHT
+                ? "auto"
+                : "hidden"
+            );
+            setImportant(textarea, "white-space", "pre-wrap");
+            setImportant(textarea, "word-break", "break-word");
+
+            const composerHeight =
+              desiredHeight + COMPOSER_VERTICAL_PADDING;
+
+            setImportant(composer, "height", `${composerHeight}px`);
+            setImportant(composer, "min-height", "64px");
+            setImportant(
+              composer,
+              "max-height",
+              `${MAX_TEXTAREA_HEIGHT + COMPOSER_VERTICAL_PADDING}px`
+            );
+            setImportant(composer, "align-items", "flex-end");
+
+            const wrappers = composer.querySelectorAll(
+              ':scope > div:not(.atp-plus-menu), ' +
+              '[data-baseweb="textarea"], ' +
+              '[data-baseweb="base-input"]'
+            );
+
+            wrappers.forEach((wrapper) => {
+              setImportant(wrapper, "height", `${desiredHeight}px`);
+              setImportant(wrapper, "min-height", `${desiredHeight}px`);
+              setImportant(wrapper, "max-height", `${desiredHeight}px`);
+              setImportant(wrapper, "align-items", "flex-end");
+              setImportant(wrapper, "overflow", "visible");
+            });
+          }
+
+          function bindTextarea() {
+            const doc = getParentDocument();
+            if (!doc) return;
+
+            const composer =
+              doc.querySelector('div[data-testid="stChatInput"]');
+            const textarea =
+              composer?.querySelector("textarea");
+
+            if (!composer || !textarea) return;
+
+            if (textarea.getAttribute(INSTANCE_ATTR) !== INSTANCE_TOKEN) {
+              textarea.setAttribute(INSTANCE_ATTR, INSTANCE_TOKEN);
+
+              textarea.addEventListener("input", () => {
+                window.requestAnimationFrame(resizeComposer);
+              });
+
+              textarea.addEventListener("paste", () => {
+                window.setTimeout(resizeComposer, 0);
+                window.setTimeout(resizeComposer, 50);
+              });
+
+              textarea.addEventListener("change", () => {
+                window.requestAnimationFrame(resizeComposer);
+              });
+
+              textarea.addEventListener("keydown", () => {
+                window.requestAnimationFrame(resizeComposer);
+              });
+            }
+
+            resizeComposer();
+          }
+
+          bindTextarea();
+
+          const doc = getParentDocument();
+          const observer = new MutationObserver(bindTextarea);
+
+          if (doc?.body) {
+            observer.observe(doc.body, {
+              childList: true,
+              subtree: true,
+              characterData: true
+            });
+          }
+
+          const timer = window.setInterval(bindTextarea, 700);
+
+          window.addEventListener(
+            "beforeunload",
+            () => {
+              observer.disconnect();
+              window.clearInterval(timer);
             },
             { once: true }
           );
@@ -6499,6 +6723,7 @@ else:
         st.session_state.scroll_to_bottom = False
 
     install_browser_voice_dictation()
+    install_chat_composer_autogrow()
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
