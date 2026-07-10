@@ -1658,6 +1658,196 @@ def inject_base_css():
         }
 
 
+
+        /* ============================================================
+           MOBILE/DARK-MODE POLISH: uploader + bottom chat composer
+           Final overrides placed last so they safely win over old rules.
+        ============================================================ */
+
+        /* File uploader: readable text and icon on the dark app background */
+        div[data-testid="stFileUploader"] {
+            background: rgba(15, 23, 42, 0.72) !important;
+            border: 1px solid rgba(148, 163, 184, 0.24) !important;
+            border-radius: 16px !important;
+            padding: 12px !important;
+        }
+
+        div[data-testid="stFileUploader"] > label,
+        div[data-testid="stFileUploader"] > label p {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stFileUploader"] section,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+            background: rgba(2, 6, 23, 0.52) !important;
+            border: 1px dashed rgba(148, 163, 184, 0.42) !important;
+            border-radius: 13px !important;
+            min-height: 92px !important;
+        }
+
+        div[data-testid="stFileUploader"] section:hover,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"]:hover {
+            border-color: rgba(239, 68, 68, 0.72) !important;
+            background: rgba(15, 23, 42, 0.82) !important;
+        }
+
+        div[data-testid="stFileUploader"] section *,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] *,
+        div[data-testid="stFileUploader"] small,
+        div[data-testid="stFileUploader"] span,
+        div[data-testid="stFileUploader"] p {
+            color: #e5e7eb !important;
+            -webkit-text-fill-color: #e5e7eb !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stFileUploader"] svg {
+            color: #f8fafc !important;
+            fill: currentColor !important;
+            stroke: currentColor !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stFileUploader"] button {
+            min-height: 36px !important;
+            height: 36px !important;
+            width: auto !important;
+            padding: 0 14px !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(148, 163, 184, 0.28) !important;
+            background: rgba(30, 41, 59, 0.96) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: none !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stFileUploader"] button:hover {
+            background: rgba(51, 65, 85, 1) !important;
+            border-color: rgba(239, 68, 68, 0.58) !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Clean ChatGPT-style bottom composer */
+        div[data-testid="stChatInput"] {
+            background: rgba(2, 6, 23, 0.88) !important;
+            border: 1px solid rgba(148, 163, 184, 0.30) !important;
+            border-radius: 18px !important;
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.30) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+            overflow: hidden !important;
+        }
+
+        div[data-testid="stChatInput"]:focus-within {
+            border-color: rgba(239, 68, 68, 0.88) !important;
+            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.34), 0 14px 38px rgba(0, 0, 0, 0.34) !important;
+        }
+
+        div[data-testid="stChatInput"] textarea,
+        div[data-testid="stChatInput"] input {
+            background: transparent !important;
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            caret-color: #ef4444 !important;
+            border: none !important;
+            box-shadow: none !important;
+            font-size: 15px !important;
+            line-height: 1.45 !important;
+            padding-top: 13px !important;
+            padding-bottom: 13px !important;
+        }
+
+        div[data-testid="stChatInput"] textarea::placeholder,
+        div[data-testid="stChatInput"] input::placeholder {
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stChatInput"] button {
+            width: 38px !important;
+            min-width: 38px !important;
+            height: 38px !important;
+            min-height: 38px !important;
+            margin: 5px 7px 5px 4px !important;
+            padding: 0 !important;
+            border-radius: 12px !important;
+            border: none !important;
+            background: linear-gradient(135deg, #ff5a3d 0%, #ef4444 55%, #dc2626 100%) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: 0 7px 18px rgba(239, 68, 68, 0.30) !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stChatInput"] button:hover {
+            filter: brightness(1.08) !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stChatInput"] button svg {
+            color: #ffffff !important;
+            fill: currentColor !important;
+            stroke: currentColor !important;
+        }
+
+        @media (max-width: 768px) {
+            /* Override the older white mobile input rule */
+            div[data-testid="stChatInput"],
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                background: rgba(2, 6, 23, 0.96) !important;
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+            }
+
+            div[data-testid="stChatInput"] {
+                border-radius: 16px !important;
+                margin-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+            }
+
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                font-size: 16px !important; /* prevents iOS auto zoom */
+                min-height: 48px !important;
+            }
+
+            div[data-testid="stChatInput"] textarea::placeholder,
+            div[data-testid="stChatInput"] input::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+            }
+
+            div[data-testid="stFileUploader"] {
+                padding: 10px !important;
+                border-radius: 14px !important;
+            }
+
+            div[data-testid="stFileUploader"] section,
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+                background: rgba(2, 6, 23, 0.72) !important;
+                min-height: 86px !important;
+            }
+
+            div[data-testid="stFileUploader"] section *,
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] *,
+            div[data-testid="stFileUploader"] small,
+            div[data-testid="stFileUploader"] span,
+            div[data-testid="stFileUploader"] p,
+            div[data-testid="stFileUploader"] button,
+            div[data-testid="stFileUploader"] button * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+        }
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
