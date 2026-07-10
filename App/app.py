@@ -1660,13 +1660,6 @@ def inject_base_css():
             display: none !important;
         }
 
-
-        /* Stability guard: do not show accidental code blocks inside chat bubbles */
-        .chat-bubble pre,
-        .chat-bubble code {
-            display: none !important;
-        }
-
 </style>
         """,
         unsafe_allow_html=True
@@ -2050,18 +2043,20 @@ def render_chat_message(role, content, images=None):
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
-    st.markdown(
-        f"""
-        <div class="chat-row">
-            <div class="chat-icon {icon_class}">{icon_html}</div>
-            <div class="chat-bubble {bubble_class}">
-                {html_from_text(visible_content)}
-                {render_image_previews(final_images)}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+    # IMPORTANT:
+    # Keep this HTML compact and unindented. Indented closing tags can be parsed
+    # by Markdown as a code block, which is what caused visible </div> bars.
+    chat_html = (
+        f'<div class="chat-row">'
+        f'<div class="chat-icon {icon_class}">{icon_html}</div>'
+        f'<div class="chat-bubble {bubble_class}">'
+        f'{html_from_text(visible_content)}'
+        f'{render_image_previews(final_images)}'
+        f'</div>'
+        f'</div>'
     )
+
+    st.markdown(chat_html, unsafe_allow_html=True)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2285,6 +2280,12 @@ if "messages" not in st.session_state:
 if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = None
 
+# Incrementing this value gives the file uploader a fresh widget key.
+# That clears previously uploaded files after each sent message so images
+# are attached only to the message where they were actually uploaded.
+if "chat_file_uploader_generation" not in st.session_state:
+    st.session_state.chat_file_uploader_generation = 0
+
 # ============================================================
 # Sidebar
 # ============================================================
@@ -2322,6 +2323,7 @@ if st.session_state.current_assistant != assistant:
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.current_assistant = assistant
+    st.session_state.chat_file_uploader_generation += 1
     st.rerun()
 
 st.sidebar.markdown('<div class="sidebar-action-area">', unsafe_allow_html=True)
@@ -2330,6 +2332,7 @@ st.sidebar.markdown('<div class="sidebar-newcase-btn">', unsafe_allow_html=True)
 if st.sidebar.button("＋ New Case", key="new_case_button"):
     st.session_state.messages = []
     st.session_state.conversation_id = None
+    st.session_state.chat_file_uploader_generation += 1
     st.rerun()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
@@ -2355,9 +2358,7 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Final production cleaner for visible chat text.
-    Removes raw/escaped HTML artifacts from old saved messages, model output,
-    copied fragments, and accidental code blocks.
+    Remove raw/escaped HTML artifacts from model output and old saved messages.
     """
     value = str(text or "")
 
@@ -2367,67 +2368,47 @@ def clean_visible_chat_text(text):
     except Exception:
         pass
 
-    # Decode common escaped HTML entities first.
-    value = value.replace("&lt;", "<").replace("&gt;", ">")
+    value = (
+        value.replace("&lt;", "<")
+             .replace("&gt;", ">")
+             .replace("&#60;", "<")
+             .replace("&#62;", ">")
+    )
 
     tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect|style|code|pre)"
 
-    # Remove fenced code blocks that contain only / mostly HTML tags.
+    # Remove fenced blocks containing HTML fragments.
     value = re.sub(
-        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
+        r"```(?:html|HTML|text)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
         "",
         value,
         flags=re.IGNORECASE,
     )
 
-    # Remove any raw HTML tags.
+    # Remove raw tags anywhere.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
 
-    cleaned_lines = []
+    cleaned = []
     for line in value.splitlines():
         stripped = line.strip()
-        low = stripped.lower()
-
-        # Remove code fences.
-        if low in ("```", "```html", "```python", "```text"):
-            continue
-
-        # Remove lines that are only tag fragments or broken tag leftovers.
         compact = stripped.replace("`", "").replace(" ", "").lower()
-        if compact in (
+
+        if compact in {
+            "```", "```html", "```text",
             "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
             "</details>", "<details>", "</summary>", "<summary>",
             "</button>", "<button>", "</script>", "<script>",
             "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
             "</pre>", "<pre>", "</code>", "<code>"
-        ):
+        }:
             continue
 
-        # Remove lines that contain only HTML-looking fragments after cleanup.
-        no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
-        no_tags = no_tags.replace("`", "").strip()
-        if not no_tags and ("<" in stripped or ">" in stripped):
+        if re.fullmatch(r"[</>\s`]+", stripped):
             continue
 
-        # Remove remaining isolated tag characters if they are clearly artifacts.
-        if re.fullmatch(r"[</>\s]+", stripped):
-            continue
+        cleaned.append(line)
 
-        cleaned_lines.append(line)
-
-    value = "\n".join(cleaned_lines)
-
-    # Last-resort direct removals.
-    for bad in [
-        "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-        "</details>", "<details>", "</summary>", "<summary>",
-        "</button>", "<button>", "</script>", "<script>",
-        "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
-        "</pre>", "<pre>", "</code>", "<code>",
-        "&lt;/div&gt;", "&lt;div&gt;"
-    ]:
-        value = value.replace(bad, "")
-
+    value = "\n".join(cleaned)
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
@@ -4205,7 +4186,7 @@ else:
         "📎 Attach files or photos",
         type=["jpg", "jpeg", "png", "pdf", "txt"],
         accept_multiple_files=True,
-        key="chat_file_uploader"
+        key=f"chat_file_uploader_{st.session_state.chat_file_uploader_generation}"
     )
 
     for msg in st.session_state.messages:
@@ -4289,6 +4270,11 @@ else:
             log_ai_analytics(prompt, answer, assistant, learning_result, response_time=response_time, tokens_used=tokens_used)
         except Exception:
             pass
+
+        # Clear uploaded files after this message is completed.
+        # The image remains saved inside this specific user message/history item,
+        # but it will not be automatically reused in the next conversation turn.
+        st.session_state.chat_file_uploader_generation += 1
 
         st.session_state.scroll_to_bottom = True
         st.rerun()
