@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 from openai import OpenAI
 from pathlib import Path
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except Exception:
     Image = None
 import base64
@@ -2323,9 +2323,65 @@ st.sidebar.markdown('</div>', unsafe_allow_html=True)
 # AI Helper Functions
 # ============================================================
 
+
+def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90):
+    """
+    Normalize uploaded JPG/PNG images so EXIF orientation is applied consistently.
+
+    Returns:
+        normalized_bytes, mime_type
+
+    Notes:
+    - Applies ImageOps.exif_transpose() to physically rotate pixels.
+    - Converts images to RGB for JPEG output.
+    - Resizes very large images to reduce upload and preview size.
+    - Falls back to the original bytes if normalization fails.
+    """
+    try:
+        raw = uploaded_file.getvalue()
+        image = Image.open(io.BytesIO(raw))
+        image = ImageOps.exif_transpose(image)
+
+        if image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGB")
+
+        width, height = image.size
+        largest = max(width, height)
+        if largest > max_dimension:
+            scale = max_dimension / float(largest)
+            new_size = (
+                max(1, int(width * scale)),
+                max(1, int(height * scale)),
+            )
+            image = image.resize(new_size, Image.LANCZOS)
+
+        output = io.BytesIO()
+
+        # Preserve transparency for PNG; otherwise use JPEG.
+        if image.mode == "RGBA":
+            image.save(output, format="PNG", optimize=True)
+            mime_type = "image/png"
+        else:
+            image = image.convert("RGB")
+            image.save(output, format="JPEG", quality=quality, optimize=True)
+            mime_type = "image/jpeg"
+
+        return output.getvalue(), mime_type
+    except Exception:
+        try:
+            return uploaded_file.getvalue(), getattr(uploaded_file, "type", "image/jpeg")
+        except Exception:
+            return b"", "image/jpeg"
+
+
+def normalized_image_data_url(uploaded_file):
+    normalized_bytes, mime_type = normalize_uploaded_image_bytes(uploaded_file)
+    encoded = base64.b64encode(normalized_bytes).decode()
+    return f"data:{mime_type};base64,{encoded}"
+
+
 def image_to_data_url(uploaded_file):
-    encoded = base64.b64encode(uploaded_file.getvalue()).decode()
-    return f"data:{uploaded_file.type};base64,{encoded}"
+    return normalized_image_data_url(uploaded_file)
 
 
 IMAGE_MARKER_PREFIX = "[[ATP_IMAGES_JSON:"
@@ -2417,17 +2473,34 @@ def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76
 
 
 def get_uploaded_image_previews(uploaded_files):
+    """
+    Build normalized image previews for chat history.
+
+    EXIF orientation is applied before the preview is encoded, so portrait and
+    landscape photos display correctly and consistently across browsers.
+    """
     previews = []
+
     for uploaded_file in uploaded_files or []:
-        file_type = getattr(uploaded_file, "type", "") or ""
-        if file_type.startswith("image/"):
-            try:
-                previews.append({
-                    "name": getattr(uploaded_file, "name", "uploaded image"),
-                    "data_url": make_image_preview_data_url(uploaded_file)
-                })
-            except Exception:
-                pass
+        mime_type = str(getattr(uploaded_file, "type", "") or "").lower()
+        file_name = str(getattr(uploaded_file, "name", "image"))
+
+        if not mime_type.startswith("image/"):
+            continue
+
+        try:
+            normalized_bytes, normalized_mime = normalize_uploaded_image_bytes(uploaded_file)
+            if not normalized_bytes:
+                continue
+
+            previews.append({
+                "name": file_name,
+                "mime_type": normalized_mime,
+                "data_base64": base64.b64encode(normalized_bytes).decode(),
+            })
+        except Exception:
+            continue
+
     return previews
 
 
