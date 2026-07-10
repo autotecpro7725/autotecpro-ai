@@ -2218,6 +2218,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 apply_app_layout_css()
+install_keyboard_copy_guard()
 
 # ============================================================
 # Header After Login
@@ -2248,26 +2249,111 @@ else:
 
 def install_keyboard_copy_guard():
     """
-    Prevent Streamlit from opening the Clear caches dialog when users press Ctrl+C / Cmd+C.
+    Make Ctrl+C / Cmd+C copy selected text normally and prevent Streamlit's
+    built-in Clear caches shortcut from opening.
+
+    The handler is installed on both parent window and document in capture mode,
+    and it intercepts both keydown and keyup because Streamlit versions may bind
+    the shortcut at different levels/events.
     """
     components.html(
         """
         <script>
-        const doc = window.parent.document;
-        if (!window.parent.__atpCopyShortcutGuardInstalled) {
-            window.parent.__atpCopyShortcutGuardInstalled = true;
-            doc.addEventListener("keydown", function(e) {
-                const key = (e.key || "").toLowerCase();
-                if ((e.ctrlKey || e.metaKey) && key === "c") {
-                    e.stopImmediatePropagation();
+        (function () {
+            const parentWindow = window.parent;
+            const doc = parentWindow.document;
+
+            if (parentWindow.__atpRobustCopyGuardInstalled) {
+                return;
+            }
+            parentWindow.__atpRobustCopyGuardInstalled = true;
+
+            function getSelectedText() {
+                try {
+                    const active = doc.activeElement;
+
+                    // Copy selected text from input/textarea.
+                    if (
+                        active &&
+                        (active.tagName === "TEXTAREA" ||
+                         (active.tagName === "INPUT" &&
+                          /^(text|search|url|tel|email|password)$/i.test(active.type || "text")))
+                    ) {
+                        const start = active.selectionStart;
+                        const end = active.selectionEnd;
+                        if (
+                            typeof start === "number" &&
+                            typeof end === "number" &&
+                            end > start
+                        ) {
+                            return (active.value || "").slice(start, end);
+                        }
+                    }
+
+                    // Copy selected page text.
+                    const selection = parentWindow.getSelection();
+                    return selection ? selection.toString() : "";
+                } catch (error) {
+                    return "";
                 }
-            }, true);
-        }
+            }
+
+            async function copyText(text) {
+                if (!text) return;
+
+                try {
+                    await parentWindow.navigator.clipboard.writeText(text);
+                    return;
+                } catch (error) {
+                    // Fallback for browsers/environments where Clipboard API is blocked.
+                }
+
+                try {
+                    const textarea = doc.createElement("textarea");
+                    textarea.value = text;
+                    textarea.setAttribute("readonly", "");
+                    textarea.style.position = "fixed";
+                    textarea.style.left = "-9999px";
+                    textarea.style.top = "0";
+                    doc.body.appendChild(textarea);
+                    textarea.select();
+                    doc.execCommand("copy");
+                    textarea.remove();
+                } catch (error) {
+                    console.warn("AutoTecPro AI: copy fallback failed.", error);
+                }
+            }
+
+            function blockStreamlitCopyShortcut(event) {
+                const key = (event.key || "").toLowerCase();
+                const isCopyShortcut = (event.ctrlKey || event.metaKey) && key === "c";
+
+                if (!isCopyShortcut) return;
+
+                const selectedText = getSelectedText();
+
+                // Stop Streamlit's keyboard shortcut before it reaches its handler.
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+
+                if (event.type === "keydown" && !event.repeat && selectedText) {
+                    copyText(selectedText);
+                }
+
+                return false;
+            }
+
+            // Capture at both window and document level.
+            parentWindow.addEventListener("keydown", blockStreamlitCopyShortcut, true);
+            parentWindow.addEventListener("keyup", blockStreamlitCopyShortcut, true);
+            doc.addEventListener("keydown", blockStreamlitCopyShortcut, true);
+            doc.addEventListener("keyup", blockStreamlitCopyShortcut, true);
+        })();
         </script>
         """,
         height=0,
     )
-
 
 
 # ============================================================
