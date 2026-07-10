@@ -3331,6 +3331,89 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V16 MAXIMIZED TEXT AREA
+           Pin the actual input wrapper between the mic and send buttons.
+        ============================================================ */
+
+        html body div[data-testid="stChatInput"] {
+            position: relative !important;
+            display: block !important;
+            width: calc(100% - 4px) !important;
+            padding: 7px 4px !important;
+            box-sizing: border-box !important;
+        }
+
+        /* The direct wrapper that contains the textarea fills the center area */
+        html body div[data-testid="stChatInput"] > div:has(textarea) {
+            position: absolute !important;
+            left: 62px !important;
+            right: 54px !important;
+            top: 7px !important;
+            bottom: 7px !important;
+            width: auto !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: flex-end !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
+        }
+
+        html body div[data-testid="stChatInput"] > div:has(textarea) > div,
+        html body div[data-testid="stChatInput"] > div:has(textarea) [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] > div:has(textarea) [data-baseweb="base-input"] {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            flex: 1 1 auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            flex: 1 1 auto !important;
+            margin: 0 !important;
+            padding-left: 4px !important;
+            padding-right: 2px !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Keep controls pinned to their edges */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            position: absolute !important;
+            left: 6px !important;
+            bottom: 9px !important;
+            top: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            position: absolute !important;
+            right: 2px !important;
+            bottom: 9px !important;
+            top: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] > div:has(textarea) {
+                left: 58px !important;
+                right: 52px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
