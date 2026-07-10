@@ -17,6 +17,10 @@ import time
 import io
 from difflib import SequenceMatcher
 from config import supabase
+try:
+    from config import supabase_admin
+except ImportError:
+    supabase_admin = None
 
 # ============================================================
 # App Paths / API
@@ -4323,50 +4327,381 @@ if assistant == "⚙️ Admin Panel":
         learned_rows_for_analytics = []
 
     with tab1:
-        st.markdown("### Current Users")
-        users = supabase.table("users").select("*").execute().data
+        st.markdown("### Users")
 
+        delete_flash = st.session_state.pop("admin_delete_success", None)
+        if delete_flash:
+            st.success(delete_flash)
+
+        save_flash = st.session_state.pop("admin_user_save_success", None)
+        if save_flash:
+            st.success(save_flash)
+
+        try:
+            users = (
+                supabase
+                .table("users")
+                .select("*")
+                .order("username")
+                .execute()
+                .data
+            ) or []
+        except Exception as error:
+            users = []
+            st.error(f"Unable to load users: {error}")
+
+        # Build a latest-login lookup from the existing login_sessions table.
+        latest_login_by_user = {}
+        try:
+            login_rows = (
+                supabase
+                .table("login_sessions")
+                .select("username,created_at")
+                .order("created_at", desc=True)
+                .limit(1000)
+                .execute()
+                .data
+            ) or []
+
+            for login_row in login_rows:
+                login_username = str(login_row.get("username") or "")
+                if login_username and login_username not in latest_login_by_user:
+                    latest_login_by_user[login_username] = login_row.get("created_at")
+        except Exception:
+            # Keep the user table usable even if login history is unavailable.
+            latest_login_by_user = {}
+
+        def format_relative_login(value):
+            if not value:
+                return "Never"
+
+            try:
+                login_dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                if login_dt.tzinfo is None:
+                    login_dt = login_dt.replace(tzinfo=timezone.utc)
+
+                now_dt = datetime.now(timezone.utc)
+                elapsed = now_dt - login_dt.astimezone(timezone.utc)
+                days = max(elapsed.days, 0)
+
+                if days == 0:
+                    return "Today"
+                if days == 1:
+                    return "Yesterday"
+                if days < 7:
+                    return f"{days} days ago"
+                return login_dt.strftime("%b %d, %Y")
+            except Exception:
+                return "Unknown"
+
+        st.caption(f"{len(users)} user{'s' if len(users) != 1 else ''}")
+
+        user_search = st.text_input(
+            "Search users",
+            placeholder="Search by username, role, or status",
+            key="admin_user_search"
+        ).strip().lower()
+
+        filtered_users = []
         for user in users:
-            st.write(f"**{user['username']}** | {user['role']} | Active: {user['active']}")
+            username_text = str(user.get("username") or "")
+            role_text = str(user.get("role") or "")
+            status_text = "Active" if bool(user.get("active")) else "Inactive"
+            searchable_text = f"{username_text} {role_text} {status_text}".lower()
 
-        st.markdown("---")
-        st.markdown("### Add / Update User")
+            if not user_search or user_search in searchable_text:
+                filtered_users.append(user)
 
-        new_username = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
-        new_role = st.selectbox("Role", ["staff", "admin"])
-        new_active = st.checkbox("Active", value=True)
+        # Clean table header: no colored badges or status dots.
+        header_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.8])
+        header_cols[0].markdown("**Username**")
+        header_cols[1].markdown("**Role**")
+        header_cols[2].markdown("**Status**")
+        header_cols[3].markdown("**Last Login**")
+        header_cols[4].markdown("**Actions**")
+        st.divider()
 
-        if st.button("Save User"):
-            if new_username and new_password:
-                existing = (
-                    supabase
-                    .table("users")
-                    .select("*")
-                    .eq("username", new_username)
-                    .execute()
-                    .data
+        if not filtered_users:
+            st.info("No users match your search.")
+        else:
+            for user in filtered_users:
+                username_value = str(user.get("username") or "")
+                role_value = str(user.get("role") or "staff").capitalize()
+                status_value = "Active" if bool(user.get("active")) else "Inactive"
+                last_login_value = format_relative_login(
+                    latest_login_by_user.get(username_value)
                 )
 
-                if existing:
-                    supabase.table("users").update({
-                        "password": new_password,
-                        "role": new_role,
-                        "active": new_active
-                    }).eq("username", new_username).execute()
-                    st.success("User updated successfully.")
-                else:
-                    supabase.table("users").insert({
-                        "username": new_username,
-                        "password": new_password,
-                        "role": new_role,
-                        "active": new_active
-                    }).execute()
-                    st.success("User added successfully.")
+                row_cols = st.columns([2.2, 1.3, 1.4, 2.0, 1.8])
+                row_cols[0].write(username_value)
+                row_cols[1].write(role_value)
+                row_cols[2].write(status_value)
+                row_cols[3].write(last_login_value)
 
-                st.rerun()
+                if username_value == st.session_state.username:
+                    row_cols[4].markdown("*Current User*")
+                else:
+                    action_cols = row_cols[4].columns([1, 1])
+
+                    if action_cols[0].button(
+                        "✏️",
+                        key=f"edit_user_{username_value}",
+                        help=f"Edit {username_value}"
+                    ):
+                        st.session_state["admin_edit_username"] = username_value
+                        st.session_state["admin_user_username"] = username_value
+                        st.session_state["admin_user_password"] = ""
+                        st.session_state["admin_user_role"] = str(
+                            user.get("role") or "staff"
+                        ).lower()
+                        st.session_state["admin_user_active"] = bool(
+                            user.get("active")
+                        )
+                        st.rerun()
+
+                    if action_cols[1].button(
+                        "🗑️",
+                        key=f"delete_user_{username_value}",
+                        help=f"Permanently delete {username_value}"
+                    ):
+                        st.session_state["admin_pending_delete_user"] = username_value
+                        st.rerun()
+
+                st.divider()
+
+        st.markdown("### Add / Update User")
+
+        editing_username = st.session_state.get("admin_edit_username")
+        if editing_username:
+            st.caption(f"Editing: {editing_username}")
+
+        new_username = st.text_input(
+            "Username",
+            key="admin_user_username"
+        )
+        new_password = st.text_input(
+            "Password",
+            type="password",
+            key="admin_user_password",
+            help=(
+                "Enter a password when creating a user. When editing, enter a new "
+                "password only when you want to change it."
+            )
+        )
+        new_role = st.selectbox(
+            "Role",
+            ["staff", "admin"],
+            key="admin_user_role"
+        )
+        new_active = st.checkbox(
+            "Active",
+            value=True,
+            key="admin_user_active"
+        )
+
+        save_cols = st.columns([1, 1, 3])
+
+        if save_cols[0].button("Save User", key="admin_save_user_button"):
+            clean_username = new_username.strip()
+
+            if not clean_username:
+                st.warning("Please enter a username.")
             else:
-                st.warning("Please enter username and password.")
+                try:
+                    existing = (
+                        supabase
+                        .table("users")
+                        .select("*")
+                        .eq("username", clean_username)
+                        .execute()
+                        .data
+                    ) or []
+
+                    if existing:
+                        update_payload = {
+                            "role": new_role,
+                            "active": new_active,
+                        }
+                        if new_password:
+                            update_payload["password"] = new_password
+
+                        (
+                            supabase
+                            .table("users")
+                            .update(update_payload)
+                            .eq("username", clean_username)
+                            .execute()
+                        )
+                        message = f"User '{clean_username}' updated successfully."
+                    else:
+                        if not new_password:
+                            st.warning("Please enter a password for the new user.")
+                            st.stop()
+
+                        (
+                            supabase
+                            .table("users")
+                            .insert({
+                                "username": clean_username,
+                                "password": new_password,
+                                "role": new_role,
+                                "active": new_active,
+                            })
+                            .execute()
+                        )
+                        message = f"User '{clean_username}' added successfully."
+
+                    st.session_state.pop("admin_edit_username", None)
+                    st.session_state["admin_user_username"] = ""
+                    st.session_state["admin_user_password"] = ""
+                    st.session_state["admin_user_role"] = "staff"
+                    st.session_state["admin_user_active"] = True
+                    st.session_state["admin_user_save_success"] = message
+                    st.rerun()
+
+                except Exception as error:
+                    st.error(f"Unable to save user: {error}")
+
+        if editing_username and save_cols[1].button(
+            "Cancel Edit",
+            key="admin_cancel_edit_button"
+        ):
+            st.session_state.pop("admin_edit_username", None)
+            st.session_state["admin_user_username"] = ""
+            st.session_state["admin_user_password"] = ""
+            st.session_state["admin_user_role"] = "staff"
+            st.session_state["admin_user_active"] = True
+            st.rerun()
+
+        pending_delete_user = st.session_state.get("admin_pending_delete_user")
+
+        if pending_delete_user:
+            st.markdown("---")
+            st.markdown("### Permanently Delete User")
+            st.warning(
+                f"You are about to permanently delete **{pending_delete_user}** "
+                "and all associated messages, conversations, sessions, analytics, "
+                "learned knowledge, and logs. This action cannot be undone."
+            )
+
+            with st.form("permanent_delete_user_form", clear_on_submit=False):
+                confirm_username = st.text_input(
+                    "Type the username exactly to confirm",
+                    placeholder=pending_delete_user,
+                    key="admin_permanent_delete_confirmation"
+                )
+                confirm_permanent = st.checkbox(
+                    "I understand this deletion is permanent and cannot be undone.",
+                    key="admin_permanent_delete_checkbox"
+                )
+
+                confirm_cols = st.columns([1, 1, 3])
+                delete_submitted = confirm_cols[0].form_submit_button(
+                    "Delete Permanently"
+                )
+                cancel_delete = confirm_cols[1].form_submit_button("Cancel")
+
+            if cancel_delete:
+                st.session_state.pop("admin_pending_delete_user", None)
+                st.session_state.pop("admin_permanent_delete_confirmation", None)
+                st.session_state.pop("admin_permanent_delete_checkbox", None)
+                st.rerun()
+
+            if delete_submitted:
+                if pending_delete_user == st.session_state.username:
+                    st.error("You cannot delete the account you are currently using.")
+
+                elif confirm_username.strip() != pending_delete_user:
+                    st.warning(
+                        "The confirmation username does not match the selected user."
+                    )
+
+                elif not confirm_permanent:
+                    st.warning(
+                        "Please confirm that you understand this action is permanent."
+                    )
+
+                elif supabase_admin is None:
+                    st.error(
+                        "The privileged Supabase client is not available. Confirm "
+                        "that config.py exports supabase_admin and that "
+                        "SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is set "
+                        "in Streamlit Secrets."
+                    )
+
+                else:
+                    selected_rows = [
+                        user
+                        for user in users
+                        if str(user.get("username")) == pending_delete_user
+                    ]
+                    selected_user = selected_rows[0] if selected_rows else {}
+
+                    active_admins = [
+                        user
+                        for user in users
+                        if str(user.get("role") or "").lower() == "admin"
+                        and bool(user.get("active"))
+                    ]
+
+                    if (
+                        str(selected_user.get("role") or "").lower() == "admin"
+                        and bool(selected_user.get("active"))
+                        and len(active_admins) <= 1
+                    ):
+                        st.error(
+                            "The final active administrator account cannot be deleted."
+                        )
+                    else:
+                        try:
+                            result = (
+                                supabase_admin
+                                .rpc(
+                                    "delete_user_permanently",
+                                    {
+                                        "p_requesting_username": st.session_state.username,
+                                        "p_target_username": pending_delete_user,
+                                    },
+                                )
+                                .execute()
+                            )
+
+                            result_data = result.data
+                            deletion_confirmed = True
+
+                            if isinstance(result_data, dict):
+                                deletion_confirmed = bool(
+                                    result_data.get("success", True)
+                                )
+                            elif isinstance(result_data, list) and result_data:
+                                first_item = result_data[0]
+                                if isinstance(first_item, dict):
+                                    deletion_confirmed = bool(
+                                        first_item.get("success", True)
+                                    )
+
+                            if not deletion_confirmed:
+                                raise RuntimeError(
+                                    "The database did not confirm successful deletion."
+                                )
+
+                            st.session_state.pop("admin_pending_delete_user", None)
+                            st.session_state.pop(
+                                "admin_permanent_delete_confirmation",
+                                None
+                            )
+                            st.session_state.pop(
+                                "admin_permanent_delete_checkbox",
+                                None
+                            )
+                            st.session_state["admin_delete_success"] = (
+                                f"User '{pending_delete_user}' and all associated "
+                                "records were permanently deleted."
+                            )
+                            st.rerun()
+
+                        except Exception as error:
+                            st.error(f"Permanent deletion failed: {error}")
 
     with tab2:
         st.markdown("### Upload Documents to Knowledge Base")
