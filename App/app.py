@@ -2476,8 +2476,9 @@ def get_uploaded_image_previews(uploaded_files):
     """
     Build normalized image previews for chat history.
 
-    EXIF orientation is applied before the preview is encoded, so portrait and
-    landscape photos display correctly and consistently across browsers.
+    EXIF orientation is applied before the preview is encoded. The preview schema
+    intentionally remains {"name", "data_url"} because the existing history
+    parser and renderer expect those exact keys.
     """
     previews = []
 
@@ -2493,10 +2494,10 @@ def get_uploaded_image_previews(uploaded_files):
             if not normalized_bytes:
                 continue
 
+            encoded = base64.b64encode(normalized_bytes).decode()
             previews.append({
                 "name": file_name,
-                "mime_type": normalized_mime,
-                "data_base64": base64.b64encode(normalized_bytes).decode(),
+                "data_url": f"data:{normalized_mime};base64,{encoded}",
             })
         except Exception:
             continue
