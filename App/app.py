@@ -1660,17 +1660,6 @@ def inject_base_css():
             display: none !important;
         }
 
-
-        /* ============================================================
-           Option A Customer Reply copy card spacing
-           The actual copy icon/card is rendered in an iframe component.
-        ============================================================ */
-        .customer-reply-component-spacer {
-            height: 0;
-            margin: 0;
-            padding: 0;
-        }
-
 </style>
         """,
         unsafe_allow_html=True
@@ -2036,196 +2025,15 @@ def html_from_text(text):
     return rendered
 
 
-
-def split_customer_reply_draft(content):
-    """
-    Split assistant answer into:
-    - before_text: analysis / vehicle identification sections
-    - reply_text: customer-ready reply only
-
-    This keeps the main AI response stable while rendering Customer Reply Draft
-    as a separate safe copy card.
-    """
-    text = clean_visible_chat_text(content)
-
-    match = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
-        text
-    )
-
-    if not match:
-        return text, ""
-
-    before_text = text[:match.start()].rstrip()
-    after_text = text[match.end():].strip()
-
-    # Stop at the next major internal section if one exists.
-    next_heading = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
-        after_text
-    )
-
-    if next_heading:
-        reply_text = after_text[:next_heading.start()].strip()
-    else:
-        reply_text = after_text.strip()
-
-    return before_text, clean_visible_chat_text(reply_text)
-
-
-def render_customer_reply_option_a(reply_text):
-    """
-    Option A:
-    Customer Reply Draft section with a small double-square copy icon
-    in the upper-right corner.
-
-    It is rendered inside a Streamlit component iframe, completely isolated
-    from the main chat bubble HTML. This avoids the previous </div> and
-    vertical-text issues while still giving one-click copy.
-    """
-    reply_text = clean_visible_chat_text(reply_text)
-    if not reply_text:
-        return
-
-    safe_reply_html = html.escape(reply_text).replace("\n", "<br>")
-    copy_payload = json.dumps(reply_text)
-
-    # Estimate height. This avoids too much blank space but gives room for wrapped text.
-    line_count = max(3, len(reply_text.splitlines()))
-    estimated_height = min(420, max(130, 88 + line_count * 24))
-
-    components.html(
-        f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8" />
-            <style>
-                html, body {{
-                    margin: 0;
-                    padding: 0;
-                    background: transparent;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                    color: #f8fafc;
-                }}
-
-                .reply-card {{
-                    box-sizing: border-box;
-                    position: relative;
-                    width: 100%;
-                    border-radius: 16px;
-                    padding: 15px 48px 15px 16px;
-                    background: rgba(15, 23, 42, 0.58);
-                    border: 1px solid rgba(245, 158, 11, 0.22);
-                    box-shadow: 0 10px 28px rgba(0,0,0,0.14);
-                }}
-
-                .reply-title {{
-                    font-size: 17px;
-                    font-weight: 850;
-                    color: #ffffff;
-                    margin: 0 0 10px 0;
-                    line-height: 1.2;
-                }}
-
-                .reply-body {{
-                    font-size: 15px;
-                    line-height: 1.58;
-                    color: #f8fafc;
-                    overflow-wrap: anywhere;
-                }}
-
-                .copy-button {{
-                    position: absolute;
-                    top: 11px;
-                    right: 11px;
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 8px;
-                    border: 1px solid rgba(148, 163, 184, 0.22);
-                    background: rgba(15, 23, 42, 0.76);
-                    color: #cbd5e1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    opacity: 0.62;
-                    transition: all 140ms ease;
-                    padding: 0;
-                }}
-
-                .copy-button:hover {{
-                    opacity: 1;
-                    color: #ffffff;
-                    background: rgba(30, 41, 59, 0.98);
-                    border-color: rgba(148, 163, 184, 0.40);
-                }}
-
-                .copy-button svg {{
-                    width: 16px;
-                    height: 16px;
-                    stroke-width: 2;
-                }}
-
-                .copy-button.copied {{
-                    color: #22c55e;
-                    border-color: rgba(34, 197, 94, 0.35);
-                    opacity: 1;
-                    font-size: 17px;
-                    font-weight: 900;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="reply-card">
-                <button class="copy-button" id="copyBtn" title="Copy reply" aria-label="Copy reply">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                </button>
-                <div class="reply-title">Customer Reply Draft</div>
-                <div class="reply-body">{safe_reply_html}</div>
-            </div>
-
-            <script>
-                const textToCopy = {copy_payload};
-                const button = document.getElementById("copyBtn");
-                const originalHTML = button.innerHTML;
-
-                button.addEventListener("click", async function() {{
-                    try {{
-                        await navigator.clipboard.writeText(textToCopy);
-                        button.classList.add("copied");
-                        button.textContent = "✓";
-                        setTimeout(function() {{
-                            button.classList.remove("copied");
-                            button.innerHTML = originalHTML;
-                        }}, 1300);
-                    }} catch (err) {{
-                        console.warn("Copy failed", err);
-                    }}
-                }});
-            </script>
-        </body>
-        </html>
-        """,
-        height=estimated_height,
-    )
-
-
-
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
-    reply_text = ""
 
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
-        display_text = visible_content
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2234,23 +2042,21 @@ def render_chat_message(role, content, images=None):
             icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
-        display_text, reply_text = split_customer_reply_draft(visible_content)
 
-    st.markdown(
-        f"""
-        <div class="chat-row">
-            <div class="chat-icon {icon_class}">{icon_html}</div>
-            <div class="chat-bubble {bubble_class}">
-                {html_from_text(display_text)}
-                {render_image_previews(final_images)}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+    # IMPORTANT:
+    # Keep this HTML compact and unindented. Indented closing tags can be parsed
+    # by Markdown as a code block, which is what caused visible </div> bars.
+    chat_html = (
+        f'<div class="chat-row">'
+        f'<div class="chat-icon {icon_class}">{icon_html}</div>'
+        f'<div class="chat-bubble {bubble_class}">'
+        f'{html_from_text(visible_content)}'
+        f'{render_image_previews(final_images)}'
+        f'</div>'
+        f'</div>'
     )
 
-    if role != "user" and reply_text:
-        render_customer_reply_option_a(reply_text)
+    st.markdown(chat_html, unsafe_allow_html=True)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2443,7 +2249,6 @@ else:
 def install_keyboard_copy_guard():
     """
     Prevent Streamlit from opening the Clear caches dialog when users press Ctrl+C / Cmd+C.
-    This does not change normal text selection/copy behavior.
     """
     components.html(
         """
@@ -2545,9 +2350,7 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Final production cleaner for visible chat text.
-    Removes raw/escaped HTML artifacts from old saved messages, model output,
-    copied fragments, and accidental code blocks.
+    Remove raw/escaped HTML artifacts from model output and old saved messages.
     """
     value = str(text or "")
 
@@ -2557,67 +2360,47 @@ def clean_visible_chat_text(text):
     except Exception:
         pass
 
-    # Decode common escaped HTML entities first.
-    value = value.replace("&lt;", "<").replace("&gt;", ">")
+    value = (
+        value.replace("&lt;", "<")
+             .replace("&gt;", ">")
+             .replace("&#60;", "<")
+             .replace("&#62;", ">")
+    )
 
     tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect|style|code|pre)"
 
-    # Remove fenced code blocks that contain HTML layout/code tags.
+    # Remove fenced blocks containing HTML fragments.
     value = re.sub(
-        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
+        r"```(?:html|HTML|text)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
         "",
         value,
         flags=re.IGNORECASE,
     )
 
-    # Remove any raw HTML tags.
+    # Remove raw tags anywhere.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
 
-    cleaned_lines = []
+    cleaned = []
     for line in value.splitlines():
         stripped = line.strip()
-        low = stripped.lower()
-
-        # Remove code fences.
-        if low in ("```", "```html", "```python", "```text"):
-            continue
-
-        # Remove lines that are only tag fragments or broken tag leftovers.
         compact = stripped.replace("`", "").replace(" ", "").lower()
-        if compact in (
+
+        if compact in {
+            "```", "```html", "```text",
             "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
             "</details>", "<details>", "</summary>", "<summary>",
             "</button>", "<button>", "</script>", "<script>",
             "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
             "</pre>", "<pre>", "</code>", "<code>"
-        ):
+        }:
             continue
 
-        # Remove lines that contain only HTML-looking fragments after cleanup.
-        no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
-        no_tags = no_tags.replace("`", "").strip()
-        if not no_tags and ("<" in stripped or ">" in stripped):
+        if re.fullmatch(r"[</>\s`]+", stripped):
             continue
 
-        # Remove remaining isolated tag characters if they are clearly artifacts.
-        if re.fullmatch(r"[</>\s]+", stripped):
-            continue
+        cleaned.append(line)
 
-        cleaned_lines.append(line)
-
-    value = "\n".join(cleaned_lines)
-
-    # Last-resort direct removals.
-    for bad in [
-        "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-        "</details>", "<details>", "</summary>", "<summary>",
-        "</button>", "<button>", "</script>", "<script>",
-        "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
-        "</pre>", "<pre>", "</code>", "<code>",
-        "&lt;/div&gt;", "&lt;div&gt;"
-    ]:
-        value = value.replace(bad, "")
-
+    value = "\n".join(cleaned)
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
