@@ -2286,14 +2286,6 @@ if "conversation_id" not in st.session_state:
 if "chat_file_uploader_generation" not in st.session_state:
     st.session_state.chat_file_uploader_generation = 0
 
-# Structured memory for the active case. This is session-only and requires no SQL change.
-if "current_case_profile" not in st.session_state:
-    st.session_state.current_case_profile = {}
-
-# Prevent a retained Streamlit uploader value from being attached to later messages.
-if "last_consumed_upload_signature" not in st.session_state:
-    st.session_state.last_consumed_upload_signature = None
-
 # ============================================================
 # Sidebar
 # ============================================================
@@ -2332,8 +2324,6 @@ if st.session_state.current_assistant != assistant:
     st.session_state.conversation_id = None
     st.session_state.current_assistant = assistant
     st.session_state.chat_file_uploader_generation += 1
-    st.session_state.last_consumed_upload_signature = None
-    st.session_state.current_case_profile = {}
     st.rerun()
 
 st.sidebar.markdown('<div class="sidebar-action-area">', unsafe_allow_html=True)
@@ -2343,8 +2333,6 @@ if st.sidebar.button("＋ New Case", key="new_case_button"):
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.chat_file_uploader_generation += 1
-    st.session_state.last_consumed_upload_signature = None
-    st.session_state.current_case_profile = {}
     st.rerun()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
@@ -2467,25 +2455,6 @@ def get_uploaded_image_previews(uploaded_files):
     return previews
 
 
-def get_upload_batch_signature(uploaded_files):
-    """Return a stable signature for the selected upload batch."""
-    if not uploaded_files:
-        return None
-
-    signature = []
-    for uploaded_file in uploaded_files:
-        try:
-            size = len(uploaded_file.getvalue())
-        except Exception:
-            size = int(getattr(uploaded_file, "size", 0) or 0)
-        signature.append((
-            str(getattr(uploaded_file, "name", "")),
-            str(getattr(uploaded_file, "type", "")),
-            size,
-        ))
-    return tuple(signature)
-
-
 def serialize_images_marker(images):
     if not images:
         return ""
@@ -2549,56 +2518,6 @@ def render_image_previews(images):
     return f'<div class="chat-image-grid">{"".join(cards)}</div>'
 
 
-CASE_PROFILE_FIELDS = (
-    "vehicle", "year", "make", "model", "factory_system", "screen_size",
-    "climate_control", "audio_system", "product", "part_number", "kvn",
-    "issue", "likely_cause", "solution", "status", "confidence_score"
-)
-
-
-def merge_case_profile(extracted):
-    """Merge verified structured facts into session memory without overwriting with blanks."""
-    if not isinstance(extracted, dict):
-        return st.session_state.get("current_case_profile", {})
-
-    profile = dict(st.session_state.get("current_case_profile", {}) or {})
-    for key in CASE_PROFILE_FIELDS:
-        value = extracted.get(key)
-        if value is None or value == "" or value == []:
-            continue
-        if key == "confidence_score":
-            try:
-                value = max(0, min(100, int(value)))
-            except Exception:
-                continue
-        profile[key] = value
-
-    st.session_state.current_case_profile = profile
-    return profile
-
-
-def format_case_profile_for_ai():
-    """Create compact structured context for follow-up questions in the same case."""
-    profile = st.session_state.get("current_case_profile", {}) or {}
-    if not profile:
-        return ""
-
-    lines = []
-    for key in CASE_PROFILE_FIELDS:
-        value = profile.get(key)
-        if value not in (None, "", []):
-            lines.append(f"- {key.replace('_', ' ').title()}: {value}")
-
-    if not lines:
-        return ""
-
-    return (
-        "Structured facts already established in this active case. "
-        "Use them for follow-up questions, but do not treat uncertain fields as verified:\n"
-        + "\n".join(lines)
-    )
-
-
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -2606,10 +2525,7 @@ You are AutoTecPro Technical Support AI.
 
 Always search the Technical Support Vector Store first.
 
-Use previous messages and the structured active-case facts as context.
-Treat direct user corrections as higher priority than earlier AI guesses.
-When identifying a vehicle or product, extract make, model, year range, factory system, screen size, climate type, audio system, KVN/factory code, and AutoTecPro part number when supported.
-State uncertainty clearly. If confidence is below 70%, ask for the exact missing photo or identifier instead of guessing.
+Use previous messages as context.
 
 Answer in this order when useful:
 1. Vehicle Identification
@@ -2620,8 +2536,7 @@ Answer in this order when useful:
 6. Customer Reply Draft
 7. Escalation
 
-Never invent technical information, compatibility, KVN codes, part numbers, or prices.
-Separate verified documentation from visual inference.
+Never invent technical information.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
 """
@@ -2663,10 +2578,6 @@ def build_user_input(prompt_text, uploaded_files):
             memory_text += f"{msg['role'].upper()}: {clean_content}\n\n"
 
         content.append({"type": "input_text", "text": memory_text})
-
-    case_profile_text = format_case_profile_for_ai()
-    if case_profile_text:
-        content.append({"type": "input_text", "text": case_profile_text})
 
     if prompt_text:
         content.append({"type": "input_text", "text": prompt_text})
@@ -3147,16 +3058,8 @@ Return ONLY valid JSON:
   "make": "make/brand if mentioned, else empty",
   "model": "model if mentioned, else empty",
   "issue": "short issue/search topic",
-  "product": "AutoTecPro product/model/category searched, else empty",
-  "part_number": "AutoTecPro part number/SKU if supported, else empty",
-  "kvn": "KVN/factory code if supported, else empty",
-  "factory_system": "factory radio/system such as IO5, SYNC 2, Uconnect, else empty",
-  "screen_size": "factory or replacement screen size if supported, else empty",
-  "climate_control": "manual AC, auto AC, dual-zone, etc., else empty",
-  "audio_system": "BOSE, B&O, Sony, factory amp, etc., else empty",
-  "likely_cause": "short likely cause if supported, else empty",
+  "product": "product/model/category searched, else empty",
   "solution": "short reusable solution summary, else empty",
-  "status": "identified, troubleshooting, solved, needs_info, or unanswered",
   "keywords": "comma-separated keywords",
   "was_unanswered": true/false,
   "resolved": true/false,
@@ -3225,15 +3128,7 @@ Answer:
         "model": model,
         "issue": str(data.get("issue") or conversation_title_from_text(question) or "").strip()[:180],
         "product": str(data.get("product") or "").strip()[:180],
-        "part_number": str(data.get("part_number") or "").strip()[:180],
-        "kvn": str(data.get("kvn") or "").strip()[:180],
-        "factory_system": str(data.get("factory_system") or "").strip()[:180],
-        "screen_size": str(data.get("screen_size") or "").strip()[:100],
-        "climate_control": str(data.get("climate_control") or "").strip()[:100],
-        "audio_system": str(data.get("audio_system") or "").strip()[:100],
-        "likely_cause": str(data.get("likely_cause") or "").strip(),
         "solution": str(data.get("solution") or "").strip(),
-        "status": str(data.get("status") or ("solved" if data.get("resolved") else "needs_info")).strip()[:40],
         "keywords": str(data.get("keywords") or "").strip(),
         "question": str(question or ""),
         "answer": str(answer or ""),
@@ -3837,6 +3732,182 @@ def render_history_cards(conversations):
                                 st.session_state.messages = []
                             st.rerun()
 
+
+def install_global_chat_file_dropzone():
+    """
+    Allow users to drag files anywhere over the main app, or paste an image
+    from the clipboard, and forward those files into the existing Streamlit
+    chat file uploader.
+
+    Stability notes:
+    - Uses the existing st.file_uploader; no new backend upload path.
+    - Ignores ordinary text paste.
+    - Installs only one set of parent-document event listeners.
+    - Locates the current visible uploader dynamically after Streamlit reruns.
+    """
+    components.html(
+        """
+        <script>
+        (function () {
+            const parentWindow = window.parent;
+            const doc = parentWindow.document;
+
+            function getVisibleChatFileInput() {
+                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'));
+                const visible = inputs.filter((input) => {
+                    const rect = input.getBoundingClientRect();
+                    const style = parentWindow.getComputedStyle(input);
+                    return (
+                        rect.width >= 0 &&
+                        rect.height >= 0 &&
+                        style.display !== "none" &&
+                        style.visibility !== "hidden"
+                    );
+                });
+
+                // On the normal chat page, the chat uploader is the last/current
+                // visible file input. Admin uploaders are not present on this page.
+                return visible.length ? visible[visible.length - 1] : inputs[inputs.length - 1];
+            }
+
+            function ensureOverlay() {
+                let overlay = doc.getElementById("atp-global-drop-overlay");
+                if (overlay) return overlay;
+
+                overlay = doc.createElement("div");
+                overlay.id = "atp-global-drop-overlay";
+                overlay.innerHTML = `
+                    <div style="
+                        width:min(520px,82vw);
+                        padding:34px 28px;
+                        border-radius:22px;
+                        border:2px dashed rgba(255,255,255,.78);
+                        background:rgba(15,23,42,.92);
+                        box-shadow:0 24px 70px rgba(0,0,0,.42);
+                        color:#fff;
+                        text-align:center;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+                    ">
+                        <div style="font-size:42px;line-height:1;margin-bottom:12px;">📎</div>
+                        <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
+                            Drop files to attach
+                        </div>
+                        <div style="font-size:14px;color:#cbd5e1;">
+                            JPG, PNG, PDF, or TXT
+                        </div>
+                    </div>
+                `;
+                Object.assign(overlay.style, {
+                    position: "fixed",
+                    inset: "0",
+                    zIndex: "2147483646",
+                    display: "none",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(2,6,23,.68)",
+                    backdropFilter: "blur(6px)",
+                    WebkitBackdropFilter: "blur(6px)",
+                    pointerEvents: "none"
+                });
+                doc.body.appendChild(overlay);
+                return overlay;
+            }
+
+            function hasFiles(event) {
+                const types = Array.from(event.dataTransfer?.types || []);
+                return types.includes("Files");
+            }
+
+            function attachFiles(fileList) {
+                if (!fileList || !fileList.length) return false;
+
+                const input = getVisibleChatFileInput();
+                if (!input) {
+                    console.warn("AutoTecPro AI: chat file uploader was not found.");
+                    return false;
+                }
+
+                const acceptedExtensions = [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
+                const acceptedFiles = Array.from(fileList).filter((file) => {
+                    const name = (file.name || "").toLowerCase();
+                    return acceptedExtensions.some((ext) => name.endsWith(ext));
+                });
+
+                if (!acceptedFiles.length) return false;
+
+                const transfer = new DataTransfer();
+
+                // Preserve files already selected in the uploader, then append new ones.
+                Array.from(input.files || []).forEach((file) => transfer.items.add(file));
+                acceptedFiles.forEach((file) => transfer.items.add(file));
+
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                return true;
+            }
+
+            const overlay = ensureOverlay();
+
+            if (!parentWindow.__atpGlobalDropzoneInstalled) {
+                parentWindow.__atpGlobalDropzoneInstalled = true;
+                let dragDepth = 0;
+
+                doc.addEventListener("dragenter", function (event) {
+                    if (!hasFiles(event)) return;
+                    event.preventDefault();
+                    dragDepth += 1;
+                    overlay.style.display = "flex";
+                }, true);
+
+                doc.addEventListener("dragover", function (event) {
+                    if (!hasFiles(event)) return;
+                    event.preventDefault();
+                    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+                    overlay.style.display = "flex";
+                }, true);
+
+                doc.addEventListener("dragleave", function (event) {
+                    if (!hasFiles(event)) return;
+                    event.preventDefault();
+                    dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0) overlay.style.display = "none";
+                }, true);
+
+                doc.addEventListener("drop", function (event) {
+                    if (!hasFiles(event)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dragDepth = 0;
+                    overlay.style.display = "none";
+                    attachFiles(event.dataTransfer.files);
+                }, true);
+
+                doc.addEventListener("paste", function (event) {
+                    const clipboardFiles = Array.from(event.clipboardData?.files || []);
+                    if (!clipboardFiles.length) return;
+
+                    const imageFiles = clipboardFiles.filter((file) =>
+                        (file.type || "").toLowerCase().startsWith("image/")
+                    );
+                    if (!imageFiles.length) return;
+
+                    // Only intercept paste when there is an actual image in clipboard.
+                    event.preventDefault();
+                    attachFiles(imageFiles);
+                }, true);
+
+                parentWindow.addEventListener("blur", function () {
+                    dragDepth = 0;
+                    overlay.style.display = "none";
+                });
+            }
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def auto_scroll_to_latest():
     """Scroll browser to the latest chat reply after a rerun."""
     components.html(
@@ -4294,6 +4365,9 @@ else:
         key=f"chat_file_uploader_{st.session_state.chat_file_uploader_generation}"
     )
 
+    st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
+    install_global_chat_file_dropzone()
+
     for msg in st.session_state.messages:
         render_chat_message(msg["role"], msg["content"])
 
@@ -4306,19 +4380,11 @@ else:
 
     if prompt:
         user_display = clean_visible_chat_text(prompt)
+        uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
-        current_upload_signature = get_upload_batch_signature(uploaded_files)
-        is_new_upload_batch = (
-            bool(uploaded_files)
-            and current_upload_signature != st.session_state.last_consumed_upload_signature
-        )
-        files_for_this_message = list(uploaded_files) if is_new_upload_batch else []
-        uploaded_image_previews = get_uploaded_image_previews(files_for_this_message)
-
-        if files_for_this_message:
-            file_names = ", ".join([file.name for file in files_for_this_message])
+        if uploaded_files:
+            file_names = ", ".join([file.name for file in uploaded_files])
             user_display += f"\n\n📎 Attached: {file_names}"
-            st.session_state.last_consumed_upload_signature = current_upload_signature
 
         user_content_to_save = user_display + serialize_images_marker(uploaded_image_previews)
 
@@ -4347,7 +4413,7 @@ else:
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
-            answer = ask_ai(prompt, files_for_this_message)
+            answer = ask_ai(prompt, uploaded_files)
             answer = clean_visible_chat_text(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
@@ -4380,12 +4446,7 @@ else:
         # Tracks most common vehicles, recurring issues, searched products,
         # unanswered questions, confidence trend, and learning performance.
         try:
-            analytics_payload = log_ai_analytics(
-                prompt, answer, assistant, learning_result,
-                response_time=response_time, tokens_used=tokens_used
-            )
-            if analytics_payload:
-                merge_case_profile(analytics_payload)
+            log_ai_analytics(prompt, answer, assistant, learning_result, response_time=response_time, tokens_used=tokens_used)
         except Exception:
             pass
 
