@@ -3243,6 +3243,94 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V15 MIC LEFT + FULL CONTENT WIDTH
+           Keep the microphone in its original left position while
+           allowing text to use the full space up to the send button.
+        ============================================================ */
+
+        /* Return composer to a normal flex layout */
+        html body div[data-testid="stChatInput"] {
+            display: flex !important;
+            grid-template-columns: none !important;
+            align-items: flex-end !important;
+            width: calc(100% - 4px) !important;
+            padding: 7px 54px 7px 62px !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Keep the microphone fixed at the original left position */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            position: absolute !important;
+            left: 6px !important;
+            bottom: 9px !important;
+            top: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+            grid-column: auto !important;
+            grid-row: auto !important;
+            align-self: auto !important;
+            justify-self: auto !important;
+        }
+
+        /* Let the text wrappers fill all remaining space */
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            display: flex !important;
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            grid-column: auto !important;
+            grid-row: auto !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            padding-left: 4px !important;
+            padding-right: 2px !important;
+            margin: 0 !important;
+        }
+
+        /* Keep send button at the far right edge */
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            position: absolute !important;
+            right: 2px !important;
+            bottom: 9px !important;
+            top: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+            grid-column: auto !important;
+            grid-row: auto !important;
+            align-self: auto !important;
+            justify-self: auto !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                padding-left: 58px !important;
+                padding-right: 52px !important;
+            }
+
+            html body #atp-browser-voice-dictation,
+            html body .atp-voice-trigger {
+                left: 6px !important;
+            }
+
+            html body #atp-send-proxy,
+            html body .atp-send-proxy {
+                right: 2px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
