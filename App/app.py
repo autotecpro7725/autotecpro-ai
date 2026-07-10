@@ -1662,71 +1662,19 @@ def inject_base_css():
 
 
         /* ============================================================
-           Safe ChatGPT-style Customer Reply copy icon
-           No inline JavaScript; click handler is installed separately.
+           Safe customer reply copy component spacing
+           Copy button is rendered in a Streamlit component iframe, not inside chat HTML.
         ============================================================ */
-        .copyable-reply-card {
-            position: relative;
-            margin-top: 12px;
-            padding: 14px 46px 14px 14px;
-            border-radius: 14px;
-            background: rgba(15, 23, 42, 0.45);
-            border: 1px solid rgba(148, 163, 184, 0.18);
+        .customer-reply-component-wrap {
+            margin-left: 50px;
+            margin-top: -6px;
+            margin-bottom: 16px;
         }
 
-        .copyable-reply-title {
-            font-size: 15px !important;
-            font-weight: 800 !important;
-            color: #ffffff !important;
-            margin-bottom: 10px !important;
-        }
-
-        .copyable-reply-body {
-            color: #f8fafc !important;
-            line-height: 1.58 !important;
-            white-space: pre-wrap !important;
-            overflow-wrap: anywhere !important;
-            font-size: 15px !important;
-        }
-
-        .copy-icon-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 30px;
-            height: 30px;
-            border-radius: 8px;
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            background: rgba(15, 23, 42, 0.55);
-            color: #cbd5e1;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.55;
-            transition: all 140ms ease;
-            padding: 0;
-            margin: 0;
-        }
-
-        .copy-icon-btn:hover {
-            opacity: 1;
-            background: rgba(30, 41, 59, 0.95);
-            color: #ffffff;
-            border-color: rgba(148, 163, 184, 0.32);
-        }
-
-        .copy-icon-btn svg {
-            width: 16px;
-            height: 16px;
-            stroke-width: 2;
-            pointer-events: none;
-        }
-
-        .copy-icon-btn.copied {
-            color: #22c55e !important;
-            border-color: rgba(34, 197, 94, 0.28) !important;
-            opacity: 1;
+        @media (max-width: 768px) {
+            .customer-reply-component-wrap {
+                margin-left: 0 !important;
+            }
         }
 
 </style>
@@ -2097,9 +2045,8 @@ def html_from_text(text):
 
 def split_customer_reply_draft(content):
     """
-    Split assistant answer into:
-    - before_text: internal explanation / vehicle identification
-    - reply_text: only the Customer Reply Draft body
+    Split assistant answer into the main explanation and the customer-ready reply.
+    This prevents copy-button code from being inserted into the main chat HTML.
     """
     text = clean_visible_chat_text(content)
 
@@ -2124,95 +2071,141 @@ def split_customer_reply_draft(content):
     else:
         reply_text = after_text.strip()
 
-    reply_text = clean_visible_chat_text(reply_text)
-    return before_text, reply_text
+    return before_text, clean_visible_chat_text(reply_text)
 
 
-def render_customer_reply_card(reply_text):
+def render_customer_reply_copy_component(reply_text):
     """
-    Render Customer Reply Draft with a safe double-square copy icon.
-    The click logic is handled by install_copy_icon_handler(), not inline JS.
+    Render a safe ChatGPT-style copy card in an iframe component.
+    This avoids Streamlit markdown sanitization issues that caused JS/text to leak vertically.
     """
     if not reply_text:
-        return ""
+        return
 
-    safe_reply_html = html_from_text(reply_text)
-    encoded_reply = base64.b64encode(reply_text.encode("utf-8")).decode("ascii")
+    safe_reply = html.escape(clean_visible_chat_text(reply_text))
+    safe_reply_html = safe_reply.replace("\n", "<br>")
+    copy_payload = json.dumps(clean_visible_chat_text(reply_text))
 
-    copy_icon = """
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-    </svg>
-    """
+    # Estimate component height based on line count. Keep enough room for wrapped text.
+    line_count = max(3, len(clean_visible_chat_text(reply_text).splitlines()))
+    estimated_height = min(360, max(110, 70 + line_count * 22))
 
-    return f"""
-    <div class="copyable-reply-card">
-        <button class="copy-icon-btn" type="button" title="Copy reply" aria-label="Copy reply" data-copy-b64="{encoded_reply}">
-            {copy_icon}
-        </button>
-        <div class="copyable-reply-title">Customer Reply Draft</div>
-        <div class="copyable-reply-body">{safe_reply_html}</div>
-    </div>
-    """
-
-
-def install_copy_icon_handler():
-    """
-    Install one global click handler for copy icons.
-    This avoids inline JavaScript inside chat bubbles, which caused the previous layout bug.
-    """
     components.html(
-        """
-        <script>
-        (function() {
-            const doc = window.parent.document;
+        f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                html, body {{
+                    margin: 0;
+                    padding: 0;
+                    background: transparent;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                    color: #f8fafc;
+                }}
 
-            if (window.parent.__atpCopyIconHandlerInstalled) {
-                return;
-            }
-            window.parent.__atpCopyIconHandlerInstalled = true;
+                .card {{
+                    position: relative;
+                    box-sizing: border-box;
+                    width: 100%;
+                    border-radius: 14px;
+                    padding: 14px 46px 14px 14px;
+                    background: rgba(15, 23, 42, 0.58);
+                    border: 1px solid rgba(148, 163, 184, 0.20);
+                    color: #f8fafc;
+                    line-height: 1.58;
+                    font-size: 15px;
+                }}
 
-            function decodeB64Unicode(str) {
-                try {
-                    const binary = atob(str);
-                    const bytes = new Uint8Array(binary.length);
-                    for (let i = 0; i < binary.length; i++) {
-                        bytes[i] = binary.charCodeAt(i);
-                    }
-                    return new TextDecoder("utf-8").decode(bytes);
-                } catch (e) {
-                    return "";
-                }
-            }
+                .title {{
+                    font-size: 15px;
+                    font-weight: 800;
+                    margin-bottom: 10px;
+                    color: #ffffff;
+                }}
 
-            doc.addEventListener("click", async function(e) {
-                const btn = e.target.closest(".copy-icon-btn");
-                if (!btn) return;
+                .body {{
+                    white-space: normal;
+                    overflow-wrap: anywhere;
+                }}
 
-                e.preventDefault();
-                e.stopPropagation();
+                .copy-btn {{
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 8px;
+                    border: 1px solid rgba(148, 163, 184, 0.20);
+                    background: rgba(15, 23, 42, 0.80);
+                    color: #cbd5e1;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0.65;
+                    transition: all 140ms ease;
+                    padding: 0;
+                }}
 
-                const text = decodeB64Unicode(btn.getAttribute("data-copy-b64") || "");
-                if (!text) return;
+                .copy-btn:hover {{
+                    opacity: 1;
+                    color: #ffffff;
+                    background: rgba(30, 41, 59, 0.98);
+                    border-color: rgba(148, 163, 184, 0.38);
+                }}
 
-                try {
-                    await window.parent.navigator.clipboard.writeText(text);
-                    const original = btn.innerHTML;
-                    btn.classList.add("copied");
-                    btn.textContent = "✓";
-                    setTimeout(function() {
-                        btn.classList.remove("copied");
-                        btn.innerHTML = original;
-                    }, 1300);
-                } catch (err) {
-                    console.warn("Copy failed", err);
-                }
-            }, true);
-        })();
-        </script>
+                .copy-btn svg {{
+                    width: 16px;
+                    height: 16px;
+                    stroke-width: 2;
+                }}
+
+                .copy-btn.copied {{
+                    color: #22c55e;
+                    border-color: rgba(34, 197, 94, 0.30);
+                    opacity: 1;
+                    font-size: 17px;
+                    font-weight: 800;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <button class="copy-btn" id="copyBtn" title="Copy reply" aria-label="Copy reply">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+                <div class="title">Customer Reply Draft</div>
+                <div class="body">{safe_reply_html}</div>
+            </div>
+
+            <script>
+                const textToCopy = {copy_payload};
+                const btn = document.getElementById("copyBtn");
+                const original = btn.innerHTML;
+
+                btn.addEventListener("click", async function() {{
+                    try {{
+                        await navigator.clipboard.writeText(textToCopy);
+                        btn.classList.add("copied");
+                        btn.textContent = "✓";
+                        setTimeout(function() {{
+                            btn.classList.remove("copied");
+                            btn.innerHTML = original;
+                        }}, 1300);
+                    }} catch (err) {{
+                        console.warn("Copy failed", err);
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
         """,
-        height=0,
+        height=estimated_height,
     )
 
 
@@ -2221,12 +2214,13 @@ def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
+    reply_text = ""
 
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
-        bubble_html = html_from_text(visible_content)
+        display_text = visible_content
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2235,24 +2229,25 @@ def render_chat_message(role, content, images=None):
             icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
-
-        before_text, reply_text = split_customer_reply_draft(visible_content)
-        bubble_html = html_from_text(before_text)
-        if reply_text:
-            bubble_html += render_customer_reply_card(reply_text)
+        display_text, reply_text = split_customer_reply_draft(visible_content)
 
     st.markdown(
         f"""
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {bubble_html}
+                {html_from_text(display_text)}
                 {render_image_previews(final_images)}
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    if role != "user" and reply_text:
+        st.markdown('<div class="customer-reply-component-wrap">', unsafe_allow_html=True)
+        render_customer_reply_copy_component(reply_text)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
