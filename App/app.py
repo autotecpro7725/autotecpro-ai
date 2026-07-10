@@ -4570,6 +4570,9 @@ else:
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
+    st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
+    install_global_chat_file_dropzone()
+
     for msg in st.session_state.messages:
         render_chat_message(msg["role"], msg["content"])
 
