@@ -1661,29 +1661,10 @@ def inject_base_css():
         }
 
 
-        /* ============================================================
-           Customer Reply Draft native copy block
-           Safe version: no open/close HTML wrapper across Streamlit elements.
-        ============================================================ */
-        .customer-reply-title-native {
-            margin-left: 50px;
-            margin-top: -4px;
-            margin-bottom: 6px;
-            color: #ffffff !important;
-            font-size: 15px !important;
-            font-weight: 800 !important;
-        }
-
-        .customer-reply-code-wrap {
-            margin-left: 50px;
-            margin-bottom: 18px;
-        }
-
-        @media (max-width: 768px) {
-            .customer-reply-title-native,
-            .customer-reply-code-wrap {
-                margin-left: 0 !important;
-            }
+        /* Stability guard: do not show accidental code blocks inside chat bubbles */
+        .chat-bubble pre,
+        .chat-bubble code {
+            display: none !important;
         }
 
 </style>
@@ -2051,70 +2032,15 @@ def html_from_text(text):
     return rendered
 
 
-
-def split_customer_reply_draft(content):
-    """
-    Split assistant answer into main analysis and customer-ready reply.
-    Customer reply is rendered separately with Streamlit's native copy icon.
-    """
-    text = clean_visible_chat_text(content)
-
-    match = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?Customer Reply Draft\s*:?\s*$",
-        text
-    )
-
-    if not match:
-        return text, ""
-
-    before_text = text[:match.start()].rstrip()
-    after_text = text[match.end():].strip()
-
-    next_heading = re.search(
-        r"(?im)^\s*(?:#{1,3}\s*)?(?:Escalation|Notes|Internal Notes|Sources|Confidence|Learning|Vehicle Identification|Summary|AutoTecPro Model)\s*:?\s*$",
-        after_text
-    )
-
-    if next_heading:
-        reply_text = after_text[:next_heading.start()].strip()
-    else:
-        reply_text = after_text.strip()
-
-    return before_text, clean_visible_chat_text(reply_text)
-
-
-def render_customer_reply_copy_area(reply_text):
-    """
-    Safe native copy UI.
-    IMPORTANT: Do not open a custom <div> and close it after st.code.
-    Streamlit cannot keep custom HTML wrappers open across separate elements,
-    and the closing tag can appear as visible text.
-    """
-    reply_text = clean_visible_chat_text(reply_text)
-    if not reply_text:
-        return
-
-    st.markdown(
-        '<div class="customer-reply-title-native">Customer Reply Draft</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown('<div class="customer-reply-code-wrap"></div>', unsafe_allow_html=True)
-    st.code(reply_text, language=None)
-
-
-
 def render_chat_message(role, content, images=None):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
-    reply_text = ""
 
     if role == "user":
         icon_html = "👤"
         icon_class = "user-icon"
         bubble_class = "user-bubble"
-        display_text = visible_content
     else:
         logo_base64 = get_logo_base64()
         if logo_base64:
@@ -2123,23 +2049,19 @@ def render_chat_message(role, content, images=None):
             icon_html = "AI"
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
-        display_text, reply_text = split_customer_reply_draft(visible_content)
 
     st.markdown(
         f"""
         <div class="chat-row">
             <div class="chat-icon {icon_class}">{icon_html}</div>
             <div class="chat-bubble {bubble_class}">
-                {html_from_text(display_text)}
+                {html_from_text(visible_content)}
                 {render_image_previews(final_images)}
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    if role != "user" and reply_text:
-        render_customer_reply_copy_area(reply_text)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2433,9 +2355,9 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Clean visible chat text before display and before saving.
-    Removes raw/escaped HTML artifacts such as </div>, including code fences
-    that contain only HTML layout fragments.
+    Final production cleaner for visible chat text.
+    Removes raw/escaped HTML artifacts from old saved messages, model output,
+    copied fragments, and accidental code blocks.
     """
     value = str(text or "")
 
@@ -2445,50 +2367,64 @@ def clean_visible_chat_text(text):
     except Exception:
         pass
 
-    tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect)"
+    # Decode common escaped HTML entities first.
+    value = value.replace("&lt;", "<").replace("&gt;", ">")
 
-    # Remove fenced code blocks that include layout HTML tags.
+    tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect|style|code|pre)"
+
+    # Remove fenced code blocks that contain only / mostly HTML tags.
     value = re.sub(
-        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b|&lt;/?\s*" + tag_names + r"\b)[\s\S]*?```",
+        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
         "",
         value,
         flags=re.IGNORECASE,
     )
 
-    # Remove raw and escaped layout tags anywhere.
+    # Remove any raw HTML tags.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", value, flags=re.IGNORECASE)
 
     cleaned_lines = []
     for line in value.splitlines():
         stripped = line.strip()
         low = stripped.lower()
 
-        if low in ("```", "```html"):
+        # Remove code fences.
+        if low in ("```", "```html", "```python", "```text"):
             continue
 
-        artifact = stripped.replace("`", "").replace(" ", "").lower()
-        if artifact in (
+        # Remove lines that are only tag fragments or broken tag leftovers.
+        compact = stripped.replace("`", "").replace(" ", "").lower()
+        if compact in (
             "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-            "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
-            "&lt;/span&gt;", "&lt;span&gt;"
+            "</details>", "<details>", "</summary>", "<summary>",
+            "</button>", "<button>", "</script>", "<script>",
+            "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
+            "</pre>", "<pre>", "</code>", "<code>"
         ):
             continue
 
+        # Remove lines that contain only HTML-looking fragments after cleanup.
         no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
-        no_tags = re.sub(r"&lt;/?\s*" + tag_names + r"\b[^&]*&gt;", "", no_tags, flags=re.IGNORECASE)
         no_tags = no_tags.replace("`", "").strip()
-        if not no_tags and ("<" in stripped or ">" in stripped or "&lt;" in low or "&gt;" in low):
+        if not no_tags and ("<" in stripped or ">" in stripped):
+            continue
+
+        # Remove remaining isolated tag characters if they are clearly artifacts.
+        if re.fullmatch(r"[</>\s]+", stripped):
             continue
 
         cleaned_lines.append(line)
 
     value = "\n".join(cleaned_lines)
 
+    # Last-resort direct removals.
     for bad in [
         "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
-        "&lt;/div&gt;", "&lt;div&gt;", "&lt;/p&gt;", "&lt;p&gt;",
-        "&lt;/span&gt;", "&lt;span&gt;"
+        "</details>", "<details>", "</summary>", "<summary>",
+        "</button>", "<button>", "</script>", "<script>",
+        "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
+        "</pre>", "<pre>", "</code>", "<code>",
+        "&lt;/div&gt;", "&lt;div&gt;"
     ]:
         value = value.replace(bad, "")
 
