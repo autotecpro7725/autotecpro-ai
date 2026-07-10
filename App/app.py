@@ -17,10 +17,6 @@ import time
 import io
 from difflib import SequenceMatcher
 from config import supabase
-try:
-    from config import supabase_admin
-except ImportError:
-    supabase_admin = None
 
 # ============================================================
 # App Paths / API
@@ -3880,341 +3876,178 @@ def render_history_cards(conversations):
                             st.rerun()
 
 
-def install_global_file_dropzone(
-    allowed_extensions,
-    overlay_title,
-    overlay_subtitle,
-    uploader_key_hint=None,
-):
+def install_global_chat_file_dropzone():
     """
-    Install global drag/drop and image-paste support for the uploader on the
-    currently visible page.
+    Allow users to drag files anywhere over the main app, or paste an image
+    from the clipboard, and forward those files into the existing Streamlit
+    chat file uploader.
 
-    This version targets the visible Streamlit uploader CONTAINER first, then
-    finds its hidden file input. That is important because Streamlit's actual
-    <input type="file"> is often hidden and cannot be selected reliably by
-    checking the input's own dimensions.
+    Stability notes:
+    - Uses the existing st.file_uploader; no new backend upload path.
+    - Ignores ordinary text paste.
+    - Installs only one set of parent-document event listeners.
+    - Locates the current visible uploader dynamically after Streamlit reruns.
     """
-    allowed_json = json.dumps([str(ext).lower() for ext in allowed_extensions])
-    title_json = json.dumps(str(overlay_title))
-    subtitle_json = json.dumps(str(overlay_subtitle))
-    hint_json = json.dumps(str(uploader_key_hint or ""))
-
     components.html(
-        f"""
+        """
         <script>
-        (function () {{
+        (function () {
             const parentWindow = window.parent;
             const doc = parentWindow.document;
 
-            const config = {{
-                allowedExtensions: {allowed_json},
-                overlayTitle: {title_json},
-                overlaySubtitle: {subtitle_json},
-                uploaderHint: {hint_json}
-            }};
+            function getVisibleChatFileInput() {
+                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'));
+                const visible = inputs.filter((input) => {
+                    const rect = input.getBoundingClientRect();
+                    const style = parentWindow.getComputedStyle(input);
+                    return (
+                        rect.width >= 0 &&
+                        rect.height >= 0 &&
+                        style.display !== "none" &&
+                        style.visibility !== "hidden"
+                    );
+                });
 
-            function elementIsVisible(element) {{
-                if (!element) return false;
+                // On the normal chat page, the chat uploader is the last/current
+                // visible file input. Admin uploaders are not present on this page.
+                return visible.length ? visible[visible.length - 1] : inputs[inputs.length - 1];
+            }
 
-                const style = parentWindow.getComputedStyle(element);
-                const rect = element.getBoundingClientRect();
-
-                return (
-                    style.display !== "none" &&
-                    style.visibility !== "hidden" &&
-                    style.opacity !== "0" &&
-                    rect.width > 1 &&
-                    rect.height > 1
-                );
-            }}
-
-            function getVisibleUploaderContainers() {{
-                const selectors = [
-                    '[data-testid="stFileUploader"]',
-                    '[data-testid="stFileUploaderDropzone"]'
-                ];
-
-                const containers = [];
-                selectors.forEach((selector) => {{
-                    doc.querySelectorAll(selector).forEach((element) => {{
-                        const mainContainer =
-                            element.closest('[data-testid="stFileUploader"]') || element;
-
-                        if (
-                            elementIsVisible(mainContainer) &&
-                            !containers.includes(mainContainer)
-                        ) {{
-                            containers.push(mainContainer);
-                        }}
-                    }});
-                }});
-
-                return containers;
-            }}
-
-            function getTargetFileInput() {{
-                const containers = getVisibleUploaderContainers();
-
-                if (containers.length) {{
-                    const hint = (config.uploaderHint || "").toLowerCase();
-
-                    if (hint) {{
-                        const matchedContainer = containers.find((container) =>
-                            (container.innerText || "").toLowerCase().includes(hint)
-                        );
-
-                        if (matchedContainer) {{
-                            const matchedInput =
-                                matchedContainer.querySelector('input[type="file"]');
-
-                            if (matchedInput) return matchedInput;
-                        }}
-                    }}
-
-                    // The uploader installed most recently on the current visible page.
-                    for (let index = containers.length - 1; index >= 0; index -= 1) {{
-                        const input =
-                            containers[index].querySelector('input[type="file"]');
-
-                        if (input) return input;
-                    }}
-                }}
-
-                // Last-resort fallback.
-                const allInputs =
-                    Array.from(doc.querySelectorAll('input[type="file"]'));
-
-                return allInputs.length ? allInputs[allInputs.length - 1] : null;
-            }}
-
-            function ensureOverlay() {{
+            function ensureOverlay() {
                 let overlay = doc.getElementById("atp-global-drop-overlay");
+                if (overlay) return overlay;
 
-                if (!overlay) {{
-                    overlay = doc.createElement("div");
-                    overlay.id = "atp-global-drop-overlay";
-
-                    Object.assign(overlay.style, {{
-                        position: "fixed",
-                        inset: "0",
-                        zIndex: "2147483646",
-                        display: "none",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "rgba(2,6,23,.70)",
-                        backdropFilter: "blur(6px)",
-                        WebkitBackdropFilter: "blur(6px)",
-                        pointerEvents: "none"
-                    }});
-
-                    doc.body.appendChild(overlay);
-                }}
-
+                overlay = doc.createElement("div");
+                overlay.id = "atp-global-drop-overlay";
                 overlay.innerHTML = `
                     <div style="
-                        width:min(540px,84vw);
-                        padding:36px 28px;
+                        width:min(520px,82vw);
+                        padding:34px 28px;
                         border-radius:22px;
-                        border:2px dashed rgba(255,255,255,.80);
-                        background:rgba(15,23,42,.95);
-                        box-shadow:0 24px 70px rgba(0,0,0,.46);
+                        border:2px dashed rgba(255,255,255,.78);
+                        background:rgba(15,23,42,.92);
+                        box-shadow:0 24px 70px rgba(0,0,0,.42);
                         color:#fff;
                         text-align:center;
                         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
                     ">
                         <div style="font-size:42px;line-height:1;margin-bottom:12px;">📎</div>
                         <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
-                            ${{config.overlayTitle}}
+                            Drop files to attach
                         </div>
                         <div style="font-size:14px;color:#cbd5e1;">
-                            ${{config.overlaySubtitle}}
+                            JPG, PNG, PDF, or TXT
                         </div>
                     </div>
                 `;
-
+                Object.assign(overlay.style, {
+                    position: "fixed",
+                    inset: "0",
+                    zIndex: "2147483646",
+                    display: "none",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(2,6,23,.68)",
+                    backdropFilter: "blur(6px)",
+                    WebkitBackdropFilter: "blur(6px)",
+                    pointerEvents: "none"
+                });
+                doc.body.appendChild(overlay);
                 return overlay;
-            }}
+            }
 
-            function hasFiles(event) {{
+            function hasFiles(event) {
                 const types = Array.from(event.dataTransfer?.types || []);
                 return types.includes("Files");
-            }}
+            }
 
-            function acceptedFiles(fileList) {{
-                return Array.from(fileList || []).filter((file) => {{
-                    const name = (file.name || "").toLowerCase();
+            function attachFiles(fileList) {
+                if (!fileList || !fileList.length) return false;
 
-                    return config.allowedExtensions.some((extension) =>
-                        name.endsWith(extension)
-                    );
-                }});
-            }}
-
-            function attachFiles(fileList) {{
-                const files = acceptedFiles(fileList);
-                if (!files.length) return false;
-
-                const input = getTargetFileInput();
-                if (!input) {{
-                    console.warn(
-                        "AutoTecPro AI: no visible uploader input was found.",
-                        config.uploaderHint
-                    );
+                const input = getVisibleChatFileInput();
+                if (!input) {
+                    console.warn("AutoTecPro AI: chat file uploader was not found.");
                     return false;
-                }}
+                }
+
+                const acceptedExtensions = [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
+                const acceptedFiles = Array.from(fileList).filter((file) => {
+                    const name = (file.name || "").toLowerCase();
+                    return acceptedExtensions.some((ext) => name.endsWith(ext));
+                });
+
+                if (!acceptedFiles.length) return false;
 
                 const transfer = new DataTransfer();
 
-                Array.from(input.files || []).forEach((file) => {{
-                    transfer.items.add(file);
-                }});
-
-                files.forEach((file) => {{
-                    transfer.items.add(file);
-                }});
+                // Preserve files already selected in the uploader, then append new ones.
+                Array.from(input.files || []).forEach((file) => transfer.items.add(file));
+                acceptedFiles.forEach((file) => transfer.items.add(file));
 
                 input.files = transfer.files;
-
-                // React/Streamlit versions listen differently, so trigger both.
-                input.dispatchEvent(new Event("input", {{
-                    bubbles: true,
-                    composed: true
-                }}));
-
-                input.dispatchEvent(new Event("change", {{
-                    bubbles: true,
-                    composed: true
-                }}));
-
+                input.dispatchEvent(new Event("change", { bubbles: true }));
                 return true;
-            }}
+            }
 
             const overlay = ensureOverlay();
 
-            // Always refresh the active configuration when switching between
-            // Main Chat and Admin Panel.
-            parentWindow.__atpGlobalDropzoneConfig = {{
-                ...config,
-                overlay,
-                attachFiles,
-                getTargetFileInput
-            }};
-
-            if (!parentWindow.__atpGlobalDropzoneInstalledV4) {{
-                parentWindow.__atpGlobalDropzoneInstalledV4 = true;
+            if (!parentWindow.__atpGlobalDropzoneInstalled) {
+                parentWindow.__atpGlobalDropzoneInstalled = true;
                 let dragDepth = 0;
 
-                function activeConfig() {{
-                    return parentWindow.__atpGlobalDropzoneConfig;
-                }}
-
-                doc.addEventListener("dragenter", function (event) {{
+                doc.addEventListener("dragenter", function (event) {
                     if (!hasFiles(event)) return;
-
                     event.preventDefault();
                     dragDepth += 1;
+                    overlay.style.display = "flex";
+                }, true);
 
-                    const active = activeConfig();
-                    if (active?.overlay) {{
-                        active.overlay.style.display = "flex";
-                    }}
-                }}, true);
-
-                doc.addEventListener("dragover", function (event) {{
+                doc.addEventListener("dragover", function (event) {
                     if (!hasFiles(event)) return;
-
                     event.preventDefault();
+                    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+                    overlay.style.display = "flex";
+                }, true);
 
-                    if (event.dataTransfer) {{
-                        event.dataTransfer.dropEffect = "copy";
-                    }}
-
-                    const active = activeConfig();
-                    if (active?.overlay) {{
-                        active.overlay.style.display = "flex";
-                    }}
-                }}, true);
-
-                doc.addEventListener("dragleave", function (event) {{
+                doc.addEventListener("dragleave", function (event) {
                     if (!hasFiles(event)) return;
-
                     event.preventDefault();
                     dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0) overlay.style.display = "none";
+                }, true);
 
-                    if (dragDepth === 0) {{
-                        const active = activeConfig();
-                        if (active?.overlay) {{
-                            active.overlay.style.display = "none";
-                        }}
-                    }}
-                }}, true);
-
-                doc.addEventListener("drop", function (event) {{
+                doc.addEventListener("drop", function (event) {
                     if (!hasFiles(event)) return;
-
                     event.preventDefault();
                     event.stopPropagation();
-                    event.stopImmediatePropagation();
-
                     dragDepth = 0;
+                    overlay.style.display = "none";
+                    attachFiles(event.dataTransfer.files);
+                }, true);
 
-                    const active = activeConfig();
-                    if (active?.overlay) {{
-                        active.overlay.style.display = "none";
-                    }}
-
-                    active?.attachFiles(event.dataTransfer.files);
-                }}, true);
-
-                doc.addEventListener("paste", function (event) {{
-                    const clipboardFiles =
-                        Array.from(event.clipboardData?.files || []);
-
+                doc.addEventListener("paste", function (event) {
+                    const clipboardFiles = Array.from(event.clipboardData?.files || []);
                     if (!clipboardFiles.length) return;
 
-                    const active = activeConfig();
-                    const images = clipboardFiles.filter((file) =>
+                    const imageFiles = clipboardFiles.filter((file) =>
                         (file.type || "").toLowerCase().startsWith("image/")
                     );
+                    if (!imageFiles.length) return;
 
-                    if (!images.length) return;
-
+                    // Only intercept paste when there is an actual image in clipboard.
                     event.preventDefault();
-                    active?.attachFiles(images);
-                }}, true);
+                    attachFiles(imageFiles);
+                }, true);
 
-                parentWindow.addEventListener("blur", function () {{
+                parentWindow.addEventListener("blur", function () {
                     dragDepth = 0;
-
-                    const active = activeConfig();
-                    if (active?.overlay) {{
-                        active.overlay.style.display = "none";
-                    }}
-                }});
-            }}
-        }})();
+                    overlay.style.display = "none";
+                });
+            }
+        })();
         </script>
         """,
-        height=1,
-    )
-
-
-def install_global_chat_file_dropzone():
-    install_global_file_dropzone(
-        allowed_extensions=[".jpg", ".jpeg", ".png", ".pdf", ".txt"],
-        overlay_title="Drop files to attach",
-        overlay_subtitle="JPG, PNG, PDF, or TXT",
-        uploader_key_hint="attach files or photos",
-    )
-
-
-def install_global_admin_knowledge_dropzone():
-    install_global_file_dropzone(
-        allowed_extensions=[".pdf", ".txt", ".docx", ".jpg", ".jpeg", ".png"],
-        overlay_title="Drop files into the knowledge base",
-        overlay_subtitle="PDF, TXT, DOCX, JPG, JPEG, or PNG",
-        uploader_key_hint="upload documents or reference images",
+        height=0,
     )
 
 
@@ -4298,426 +4131,415 @@ if assistant != "⚙️ Admin Panel":
 # ============================================================
 
 if assistant == "⚙️ Admin Panel":
+
+    st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
+    st.subheader("⚙️ Admin Panel")
+    st.caption("Manage users, knowledge uploads, AI learning, analytics, and continuous improvement.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "👥 Users",
+        "📚 Upload Knowledge",
+        "🧠 AI Learning",
+        "🚗 Vehicle Analytics",
+        "📦 Product Analytics",
+        "🔧 Technical Analytics",
+        "📊 AI Analytics",
+        "📈 Learning Analytics"
+    ])
+
+    # Shared analytics data for all admin dashboards.
     try:
-        st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
-        st.subheader("⚙️ Admin Panel")
-        st.caption("Manage users and upload knowledge safely.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        analytics_rows = safe_select_rows("ai_analytics", order_columns=["created_at"], limit=2000)
+    except Exception:
+        analytics_rows = []
 
-        tab_users, tab_upload = st.tabs([
-            "👥 Users",
-            "📚 Upload Knowledge",
-        ])
+    try:
+        learned_rows_for_analytics = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=2000)
+    except Exception:
+        learned_rows_for_analytics = []
 
-        with tab_users:
-            st.markdown("### Users")
+    with tab1:
+        st.markdown("### Current Users")
+        users = supabase.table("users").select("*").execute().data
 
-            delete_flash = st.session_state.pop("admin_delete_success", None)
-            if delete_flash:
-                st.success(delete_flash)
+        for user in users:
+            st.write(f"**{user['username']}** | {user['role']} | Active: {user['active']}")
 
-            save_flash = st.session_state.pop("admin_user_save_success", None)
-            if save_flash:
-                st.success(save_flash)
+        st.markdown("---")
+        st.markdown("### Add / Update User")
 
-            try:
-                users = (
+        new_username = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
+        new_role = st.selectbox("Role", ["staff", "admin"])
+        new_active = st.checkbox("Active", value=True)
+
+        if st.button("Save User"):
+            if new_username and new_password:
+                existing = (
                     supabase
                     .table("users")
                     .select("*")
-                    .order("username")
+                    .eq("username", new_username)
                     .execute()
                     .data
-                ) or []
-            except Exception as error:
-                users = []
-                st.error(f"Unable to load users: {error}")
-
-            latest_login_by_user = {}
-            try:
-                login_rows = (
-                    supabase
-                    .table("login_sessions")
-                    .select("username,created_at")
-                    .order("created_at", desc=True)
-                    .limit(1000)
-                    .execute()
-                    .data
-                ) or []
-
-                for login_row in login_rows:
-                    login_username = str(login_row.get("username") or "")
-                    if login_username and login_username not in latest_login_by_user:
-                        latest_login_by_user[login_username] = login_row.get("created_at")
-            except Exception:
-                latest_login_by_user = {}
-
-            def admin_format_last_login(value):
-                if not value:
-                    return "Never"
-
-                try:
-                    login_dt = datetime.fromisoformat(
-                        str(value).replace("Z", "+00:00")
-                    )
-                    if login_dt.tzinfo is None:
-                        login_dt = login_dt.replace(tzinfo=timezone.utc)
-
-                    elapsed = (
-                        datetime.now(timezone.utc)
-                        - login_dt.astimezone(timezone.utc)
-                    )
-                    days = max(elapsed.days, 0)
-
-                    if days == 0:
-                        return "Today"
-                    if days == 1:
-                        return "Yesterday"
-                    if days < 7:
-                        return f"{days} days ago"
-                    return login_dt.strftime("%b %d, %Y")
-                except Exception:
-                    return "Unknown"
-
-            st.caption(f"{len(users)} user{'s' if len(users) != 1 else ''}")
-
-            user_search = st.text_input(
-                "Search users",
-                placeholder="Search by username, role, or status",
-                key="admin_safe_user_search",
-            ).strip().lower()
-
-            filtered_users = []
-            for user in users:
-                username_text = str(user.get("username") or "")
-                role_text = str(user.get("role") or "")
-                status_text = (
-                    "Active" if bool(user.get("active")) else "Inactive"
-                )
-                searchable = (
-                    f"{username_text} {role_text} {status_text}".lower()
                 )
 
-                if not user_search or user_search in searchable:
-                    filtered_users.append(user)
-
-            header_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
-            header_cols[0].markdown("**Username**")
-            header_cols[1].markdown("**Role**")
-            header_cols[2].markdown("**Status**")
-            header_cols[3].markdown("**Last Login**")
-            header_cols[4].markdown("**Actions**")
-            st.divider()
-
-            if not filtered_users:
-                st.info("No users match your search.")
-            else:
-                for user in filtered_users:
-                    username_value = str(user.get("username") or "")
-                    role_value = str(
-                        user.get("role") or "staff"
-                    ).capitalize()
-                    status_value = (
-                        "Active" if bool(user.get("active")) else "Inactive"
-                    )
-                    last_login_value = admin_format_last_login(
-                        latest_login_by_user.get(username_value)
-                    )
-
-                    row_cols = st.columns([2.4, 1.4, 1.5, 2.2, 1.8])
-                    row_cols[0].write(username_value)
-                    row_cols[1].write(role_value)
-                    row_cols[2].write(status_value)
-                    row_cols[3].write(last_login_value)
-
-                    if username_value == st.session_state.username:
-                        row_cols[4].markdown("*Current User*")
-                    else:
-                        row_cols[4].write("")
-
-                    st.divider()
-
-            st.markdown("### Add New User")
-
-            with st.form("admin_safe_add_user_form", clear_on_submit=True):
-                new_username = st.text_input("Username")
-                new_password = st.text_input("Password", type="password")
-                new_role = st.selectbox("Role", ["staff", "admin"])
-                new_active = st.checkbox("Active", value=True)
-                save_user_submitted = st.form_submit_button("Save User")
-
-            if save_user_submitted:
-                clean_username = new_username.strip()
-
-                if not clean_username or not new_password:
-                    st.warning("Please enter username and password.")
+                if existing:
+                    supabase.table("users").update({
+                        "password": new_password,
+                        "role": new_role,
+                        "active": new_active
+                    }).eq("username", new_username).execute()
+                    st.success("User updated successfully.")
                 else:
+                    supabase.table("users").insert({
+                        "username": new_username,
+                        "password": new_password,
+                        "role": new_role,
+                        "active": new_active
+                    }).execute()
+                    st.success("User added successfully.")
+
+                st.rerun()
+            else:
+                st.warning("Please enter username and password.")
+
+    with tab2:
+        st.markdown("### Upload Documents to Knowledge Base")
+
+        database_choice = st.selectbox(
+            "Choose database",
+            ["Technical Support Database", "Sales & Marketing Database"]
+        )
+
+        admin_context = st.text_area(
+            "Optional context for uploaded images",
+            placeholder=(
+                "Example: This chart is for Ford F-150 2015–2021 and should be "
+                "used to identify SYNC version and climate-control type."
+            ),
+            help=(
+                "Optional. This helps the AI interpret reference images accurately. "
+                "It is not required for PDF, TXT, or DOCX files."
+            ),
+            key="admin_upload_context"
+        )
+
+        admin_files = st.file_uploader(
+            "Upload documents or reference images",
+            type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            help=(
+                "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, and PNG "
+                "images are first analyzed and converted into searchable text knowledge."
+            ),
+            key="admin_knowledge_uploader"
+        )
+
+        st.caption(
+            "Reference images are converted into searchable text before being added "
+            "to the knowledge base."
+        )
+
+        if st.button("Upload to Knowledge Base"):
+            if not admin_files:
+                st.warning("Please upload at least one document or image.")
+            else:
+                if database_choice == "Technical Support Database":
+                    selected_vector_store_id = TECHNICAL_VECTOR_STORE_ID
+                else:
+                    selected_vector_store_id = SALES_VECTOR_STORE_ID
+
+                progress = st.progress(0)
+                total_files = len(admin_files)
+
+                for index, admin_file in enumerate(admin_files, start=1):
                     try:
-                        existing = (
-                            supabase
-                            .table("users")
-                            .select("username")
-                            .eq("username", clean_username)
-                            .execute()
-                            .data
-                        ) or []
-
-                        if existing:
-                            st.warning("This username already exists.")
-                        else:
-                            (
-                                supabase
-                                .table("users")
-                                .insert({
-                                    "username": clean_username,
-                                    "password": new_password,
-                                    "role": new_role,
-                                    "active": new_active,
-                                })
-                                .execute()
-                            )
-
-                            st.session_state["admin_user_save_success"] = (
-                                f"User '{clean_username}' added successfully."
-                            )
-                            st.rerun()
-
-                    except Exception as error:
-                        st.error(f"Unable to save user: {error}")
-
-            st.markdown("---")
-            st.markdown("### Permanently Delete User")
-            st.caption(
-                "This permanently removes the selected user and all associated "
-                "records through the database deletion function."
-            )
-
-            deletable_usernames = [
-                str(user.get("username"))
-                for user in users
-                if user.get("username")
-                and str(user.get("username"))
-                != st.session_state.username
-            ]
-
-            if not deletable_usernames:
-                st.info("There are no other users available to delete.")
-            else:
-                with st.form(
-                    "admin_safe_delete_user_form",
-                    clear_on_submit=True,
-                ):
-                    selected_delete_username = st.selectbox(
-                        "Select user",
-                        options=["— Select a user —"]
-                        + deletable_usernames,
-                    )
-                    confirm_username = st.text_input(
-                        "Type the username exactly to confirm"
-                    )
-                    confirm_permanent = st.checkbox(
-                        "I understand this deletion is permanent "
-                        "and cannot be undone."
-                    )
-                    delete_submitted = st.form_submit_button(
-                        "Permanently Delete User"
-                    )
-
-                if delete_submitted:
-                    if (
-                        selected_delete_username
-                        == "— Select a user —"
-                    ):
-                        st.warning("Please select a user to delete.")
-
-                    elif (
-                        confirm_username.strip()
-                        != selected_delete_username
-                    ):
-                        st.warning(
-                            "The confirmation username does not match "
-                            "the selected user."
-                        )
-
-                    elif not confirm_permanent:
-                        st.warning(
-                            "Please confirm that you understand this "
-                            "action is permanent."
-                        )
-
-                    elif supabase_admin is None:
-                        st.error(
-                            "The privileged Supabase client is unavailable. "
-                            "Confirm SUPABASE_SECRET_KEY or "
-                            "SUPABASE_SERVICE_ROLE_KEY in Streamlit Secrets."
-                        )
-
-                    else:
-                        try:
-                            result = (
-                                supabase_admin
-                                .rpc(
-                                    "delete_user_permanently",
-                                    {
-                                        "p_requesting_username":
-                                            st.session_state.username,
-                                        "p_target_username":
-                                            selected_delete_username,
-                                    },
-                                )
-                                .execute()
-                            )
-
-                            result_data = result.data
-                            deletion_confirmed = True
-
-                            if isinstance(result_data, dict):
-                                deletion_confirmed = bool(
-                                    result_data.get("success", True)
-                                )
-                            elif (
-                                isinstance(result_data, list)
-                                and result_data
-                                and isinstance(result_data[0], dict)
-                            ):
-                                deletion_confirmed = bool(
-                                    result_data[0].get("success", True)
-                                )
-
-                            if not deletion_confirmed:
-                                raise RuntimeError(
-                                    "The database did not confirm deletion."
-                                )
-
-                            st.session_state["admin_delete_success"] = (
-                                f"User '{selected_delete_username}' and "
-                                "all associated records were permanently "
-                                "deleted."
-                            )
-                            st.rerun()
-
-                        except Exception as error:
-                            st.error(
-                                f"Permanent deletion failed: {error}"
-                            )
-
-        with tab_upload:
-            st.markdown("### Upload Documents to Knowledge Base")
-
-            database_choice = st.selectbox(
-                "Choose database",
-                [
-                    "Technical Support Database",
-                    "Sales & Marketing Database",
-                ],
-                key="admin_safe_database_choice",
-            )
-
-            admin_context = st.text_area(
-                "Optional context for uploaded images",
-                placeholder=(
-                    "Example: This chart is for Ford F-150 "
-                    "2015–2021 and identifies SYNC and climate type."
-                ),
-                key="admin_safe_upload_context",
-            )
-
-            admin_files = st.file_uploader(
-                "Upload documents or reference images",
-                type=[
-                    "pdf",
-                    "txt",
-                    "docx",
-                    "jpg",
-                    "jpeg",
-                    "png",
-                ],
-                accept_multiple_files=True,
-                key="admin_safe_knowledge_uploader",
-            )
-
-            st.caption(
-                "PDF, TXT, and DOCX files upload directly. "
-                "Images are converted into searchable text knowledge."
-            )
-
-            if st.button(
-                "Upload to Knowledge Base",
-                key="admin_safe_upload_button",
-            ):
-                if not admin_files:
-                    st.warning(
-                        "Please upload at least one document or image."
-                    )
-                else:
-                    selected_vector_store_id = (
-                        TECHNICAL_VECTOR_STORE_ID
-                        if database_choice
-                        == "Technical Support Database"
-                        else SALES_VECTOR_STORE_ID
-                    )
-
-                    progress = st.progress(0)
-                    total_files = len(admin_files)
-
-                    for index, admin_file in enumerate(
-                        admin_files,
-                        start=1,
-                    ):
-                        try:
-                            if is_admin_image_file(admin_file):
-                                searchable_file, extracted_text = (
-                                    convert_admin_image_to_knowledge_file(
-                                        admin_file,
-                                        database_choice,
-                                        admin_context,
-                                    )
+                        if is_admin_image_file(admin_file):
+                            with st.spinner(f"Analyzing image: {admin_file.name}"):
+                                searchable_file, extracted_text = convert_admin_image_to_knowledge_file(
+                                    admin_file,
+                                    database_choice,
+                                    admin_context
                                 )
                                 file_id = upload_to_vector_store(
                                     searchable_file,
-                                    selected_vector_store_id,
-                                )
-                                st.success(
-                                    f"Image converted and uploaded: "
-                                    f"{admin_file.name} | File ID: {file_id}"
-                                )
-                                with st.expander(
-                                    f"Extracted knowledge — "
-                                    f"{admin_file.name}"
-                                ):
-                                    st.text(extracted_text)
-                            else:
-                                file_id = upload_to_vector_store(
-                                    admin_file,
-                                    selected_vector_store_id,
-                                )
-                                st.success(
-                                    f"Uploaded: {admin_file.name} | "
-                                    f"File ID: {file_id}"
+                                    selected_vector_store_id
                                 )
 
-                        except Exception as error:
-                            st.error(
-                                f"Failed to upload "
-                                f"{admin_file.name}: {error}"
+                            st.success(
+                                f"Image converted and uploaded: {admin_file.name} "
+                                f"| Search file: {searchable_file.name} | File ID: {file_id}"
                             )
 
-                        progress.progress(index / total_files)
+                            with st.expander(f"Extracted knowledge — {admin_file.name}"):
+                                st.text(extracted_text)
+                        else:
+                            file_id = upload_to_vector_store(
+                                admin_file,
+                                selected_vector_store_id
+                            )
+                            st.success(
+                                f"Uploaded: {admin_file.name} | File ID: {file_id}"
+                            )
 
-                    st.info(
-                        "Upload completed. Indexing may take a short time."
+                    except Exception as e:
+                        st.error(f"Failed to upload {admin_file.name}: {e}")
+
+                    progress.progress(index / total_files)
+
+                st.info(
+                    "Upload completed. OpenAI may take a short time to finish indexing "
+                    "new knowledge before it appears in search results."
+                )
+
+    with tab3:
+        st.markdown("### 🧠 AI Learning")
+        st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
+
+        total_learned = len(learned_rows_for_analytics)
+        new_today = count_today(learned_rows_for_analytics, "created_at")
+        avg_conf = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+        synced_cases = len([r for r in learned_rows_for_analytics if r.get("synced")])
+        duplicate_rate = duplicate_detection_rate(analytics_rows)
+        total_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
+
+        render_metric_row([
+            ("Total Learned Cases", total_learned),
+            ("New Knowledge Today", new_today),
+            ("Duplicate Detection Rate", f"{duplicate_rate}%"),
+            ("Confidence Average", f"{avg_conf}%"),
+            ("Synced Cases", synced_cases),
+            ("New Vectors Created", total_vectors),
+        ])
+
+        st.markdown("#### Knowledge Growth Chart")
+        growth_data = growth_counts(learned_rows_for_analytics, "created_at", limit=30, label="Learned Cases")
+        if growth_data:
+            st.bar_chart(growth_data, x="Date", y="Learned Cases")
+        else:
+            st.info("No learned knowledge yet.")
+
+        st.markdown("#### Latest Learned Knowledge")
+        if learned_rows_for_analytics:
+            for row in learned_rows_for_analytics[:80]:
+                issue = row.get("issue") or row.get("question") or "Learned Knowledge"
+                vehicle = row.get("vehicle") or "Vehicle not specified"
+                confidence = row.get("confidence_score") or 0
+                times_seen = row.get("times_seen") or 1
+                with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
+                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                    st.write(f"**Product:** {row.get('product') or ''}")
+                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                    st.write(f"**Synced:** {row.get('synced')}")
+                    st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
+                    st.markdown("**Solution**")
+                    st.write(row.get("solution") or row.get("approved_answer") or "")
+                    st.markdown("**Source Question**")
+                    st.write(row.get("source_question") or row.get("question") or "")
+                    st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+
+                    if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
+                        supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                        st.rerun()
+        else:
+            st.info("No learned knowledge saved yet.")
+
+    with tab4:
+        st.markdown("### 🚗 Vehicle Analytics")
+        st.caption("Most common makes, models, years, and vehicle-related questions.")
+
+        combined_rows = analytics_rows + learned_rows_for_analytics
+
+        render_metric_row([
+            ("Vehicle Mentions", len([r for r in combined_rows if r.get("vehicle")])),
+            ("Unique Makes", len(set([str(r.get("make") or "").strip() for r in combined_rows if r.get("make")]))),
+            ("Unique Models", len(set([str(r.get("model") or "").strip() for r in combined_rows if r.get("model")]))),
+            ("Unique Years", len(set([str(r.get("year") or "").strip() for r in combined_rows if r.get("year")]))),
+        ])
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            render_count_table("Most Common Makes", top_counts(combined_rows, "make", 15), "Make")
+        with c2:
+            render_count_table("Most Common Models", top_counts(combined_rows, "model", 15), "Model")
+        with c3:
+            render_count_table("Most Common Years", top_counts(combined_rows, "year", 15), "Year")
+
+        st.markdown("#### Most Common Vehicle Strings")
+        render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
+
+    with tab5:
+        st.markdown("### 📦 Product Analytics")
+        st.caption("Products staff search most often, and products associated with the most issues.")
+
+        render_metric_row([
+            ("Product Searches", len([r for r in analytics_rows if r.get("product")])),
+            ("Unique Products", len(set([str(r.get("product") or "").strip() for r in analytics_rows if r.get("product")]))),
+            ("Product-Related Issues", len([r for r in analytics_rows if r.get("product") and r.get("issue")])),
+        ])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            render_count_table("Most Searched Products", top_counts(analytics_rows, "product", 20), "Product")
+        with c2:
+            product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")]
+            render_count_table("Products With Most Issues", top_counts(product_issue_rows, "product", 20), "Product")
+
+        st.markdown("#### Product Issue Details")
+        product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")][:50]
+        if product_issue_rows:
+            for row in product_issue_rows:
+                st.write(f"**{row.get('product')}** — {row.get('issue')} | {row.get('vehicle') or 'No vehicle'}")
+        else:
+            st.info("No product issue data yet.")
+
+    with tab6:
+        st.markdown("### 🔧 Technical Analytics")
+        st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
+
+        unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")]
+        resolved_rows = [r for r in analytics_rows if r.get("resolved")]
+        avg_response = safe_avg(analytics_rows, "response_time")
+
+        render_metric_row([
+            ("Top Questions Logged", len(analytics_rows)),
+            ("Resolved Rate", f"{resolved_rate(analytics_rows)}%"),
+            ("Unanswered Questions", len(unanswered_rows)),
+            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+        ])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            render_count_table("Top Recurring Issues", top_counts(analytics_rows + learned_rows_for_analytics, "issue", 20), "Issue")
+        with c2:
+            frequent_solutions = sorted(
+                [r for r in learned_rows_for_analytics if r.get("solution") or r.get("approved_answer")],
+                key=lambda r: int(r.get("times_seen") or 1),
+                reverse=True
+            )[:15]
+
+            st.markdown("#### Most Successful / Reused Solutions")
+            if frequent_solutions:
+                for row in frequent_solutions:
+                    st.write(
+                        f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
+                        f"| Seen: {row.get('times_seen') or 1}x | Confidence: {row.get('confidence_score') or 0}%"
                     )
+            else:
+                st.info("No reusable solutions yet.")
 
-    except Exception as admin_error:
-        st.error("The Admin Panel could not load safely.")
-        st.code(
-            f"{type(admin_error).__name__}: {admin_error}",
-            language="text",
-        )
-        st.caption(
-            "This error is now shown inside the page instead of crashing "
-            "the entire Streamlit app."
-        )
+        st.markdown("#### Unanswered Questions")
+        if unanswered_rows:
+            for row in unanswered_rows[:40]:
+                with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
+                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                    st.write(f"**User:** {row.get('username') or ''}")
+                    st.write(f"**Product:** {row.get('product') or ''}")
+                    st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
+                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                    st.markdown("**Question**")
+                    st.write(row.get("question") or "")
+                    st.markdown("**AI Answer**")
+                    st.write(row.get("answer") or "")
+        else:
+            st.success("No unanswered questions logged yet.")
+
+    with tab7:
+        st.markdown("### 📊 AI Analytics")
+        st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
+
+        total_tokens = total_numeric(analytics_rows, "tokens_used")
+        duplicate_questions = len([r for r in analytics_rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
+        avg_response = safe_avg(analytics_rows, "response_time")
+        avg_confidence = round(safe_avg(analytics_rows, "confidence_score"))
+
+        render_metric_row([
+            ("Total AI Questions", len(analytics_rows)),
+            ("Avg Confidence", f"{avg_confidence}%"),
+            ("OpenAI Token Usage", total_tokens if total_tokens else "N/A"),
+            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+            ("Duplicate Questions", duplicate_questions),
+        ])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("#### Confidence Trend")
+            trend_rows = list(reversed(analytics_rows[:80]))
+            if trend_rows:
+                chart_data = [{"Case": idx + 1, "Confidence": int(row.get("confidence_score") or 0)} for idx, row in enumerate(trend_rows)]
+                st.line_chart(chart_data, x="Case", y="Confidence")
+            else:
+                st.info("No confidence trend data yet.")
+
+            st.markdown("#### Daily Question Volume")
+            daily_data = daily_question_counts(analytics_rows, limit=30)
+            if daily_data:
+                st.bar_chart(daily_data, x="Date", y="Questions")
+            else:
+                st.info("No volume data yet.")
+
+        with c2:
+            render_count_table("Assistant Usage", assistant_counts(analytics_rows, 15), "Assistant")
+            render_count_table("Most Active Users", user_counts(analytics_rows, 15), "User")
+
+        st.markdown("#### Most Reused Knowledge")
+        reused = sorted(
+            [r for r in learned_rows_for_analytics if r.get("times_seen")],
+            key=lambda r: int(r.get("times_seen") or 0),
+            reverse=True
+        )[:20]
+        if reused:
+            for row in reused:
+                st.write(
+                    f"**{row.get('issue') or 'Issue'}** | {row.get('vehicle') or 'N/A'} | "
+                    f"Used/Seen: {row.get('times_seen') or 0} | Confidence: {row.get('confidence_score') or 0}%"
+                )
+        else:
+            st.info("No reused knowledge yet.")
+
+    with tab8:
+        st.markdown("### 📈 Learning Analytics")
+        st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
+
+        auto_extracted = len(learned_rows_for_analytics)
+        new_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
+        search_success_rate = resolved_rate(analytics_rows)
+        learning_accuracy = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+        continuous_updates = len([r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"])
+
+        render_metric_row([
+            ("Auto-Extracted Knowledge", auto_extracted),
+            ("New Vectors Created", new_vectors),
+            ("Search Success Rate", f"{search_success_rate}%"),
+            ("Learning Accuracy", f"{learning_accuracy}%"),
+            ("Continuous Improvements", continuous_updates),
+        ])
+
+        st.markdown("#### Continuous Improvement Trend")
+        updated_rows = [r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"]
+        improvement_chart = growth_counts(updated_rows, "created_at", limit=30, label="Improved Records")
+        if improvement_chart:
+            st.bar_chart(improvement_chart, x="Date", y="Improved Records")
+        else:
+            st.info("No duplicate/improvement events yet.")
+
+        st.markdown("#### Learning Quality")
+        quality_rows = sorted(
+            learned_rows_for_analytics,
+            key=lambda r: int(r.get("confidence_score") or 0),
+            reverse=True
+        )[:30]
+        if quality_rows:
+            for row in quality_rows:
+                st.write(
+                    f"**{row.get('confidence_score') or 0}%** — {row.get('vehicle') or 'N/A'} | "
+                    f"{row.get('issue') or row.get('question') or 'Knowledge'}"
+                )
+        else:
+            st.info("No quality data yet.")
+
 
 
 # ============================================================
