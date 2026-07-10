@@ -2218,7 +2218,6 @@ if not st.session_state.logged_in:
     st.stop()
 
 apply_app_layout_css()
-install_keyboard_copy_guard()
 
 # ============================================================
 # Header After Login
@@ -2355,6 +2354,8 @@ def install_keyboard_copy_guard():
         height=0,
     )
 
+
+install_keyboard_copy_guard()
 
 # ============================================================
 # Session Defaults
