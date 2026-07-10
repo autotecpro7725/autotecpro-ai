@@ -2375,6 +2375,166 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V2 ALIGNMENT OVERRIDE
+           Fixes send-button centering, uploader icon position, and composer width.
+        ============================================================ */
+
+        /* Wider composer on desktop, full-width on mobile */
+        html body div[data-testid="stChatInput"] {
+            width: calc(100% - 12px) !important;
+            max-width: 1180px !important;
+            min-height: 64px !important;
+            height: 64px !important;
+            max-height: 64px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            padding: 7px 70px 7px 62px !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Keep all nested Streamlit wrappers vertically centered */
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            height: 44px !important;
+            min-height: 44px !important;
+            max-height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea,
+        html body div[data-testid="stChatInput"] input {
+            height: 44px !important;
+            min-height: 44px !important;
+            max-height: 44px !important;
+            line-height: 22px !important;
+            padding: 11px 8px !important;
+            margin: 0 !important;
+            display: block !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Force the native Streamlit send button into the exact vertical center */
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+            position: absolute !important;
+            top: 50% !important;
+            right: 9px !important;
+            bottom: auto !important;
+            left: auto !important;
+            transform: translate3d(0, -50%, 0) !important;
+            width: 46px !important;
+            min-width: 46px !important;
+            max-width: 46px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            align-self: center !important;
+            line-height: 1 !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) > div,
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) > span,
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) p {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 1 !important;
+        }
+
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) svg {
+            width: 22px !important;
+            height: 22px !important;
+            margin: 0 !important;
+            display: block !important;
+            transform: translateY(0) !important;
+        }
+
+        /* Voice button centered to match send button */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            top: 50% !important;
+            left: 9px !important;
+            bottom: auto !important;
+            transform: translate3d(0, -50%, 0) !important;
+            width: 46px !important;
+            min-width: 46px !important;
+            max-width: 46px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1 !important;
+        }
+
+        /* Lower uploader icon slightly without moving the text */
+        html body div[data-testid="stFileUploader"] button svg,
+        html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] svg {
+            transform: translateY(2px) !important;
+        }
+
+        html body div[data-testid="stFileUploader"] button,
+        html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+            min-height: 46px !important;
+            height: 46px !important;
+            max-height: 46px !important;
+            align-items: center !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                width: calc(100% - 8px) !important;
+                max-width: none !important;
+                min-height: 62px !important;
+                height: 62px !important;
+                max-height: 62px !important;
+                padding: 7px 66px 7px 60px !important;
+            }
+
+            html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger),
+            html body #atp-browser-voice-dictation,
+            html body .atp-voice-trigger {
+                width: 44px !important;
+                min-width: 44px !important;
+                max-width: 44px !important;
+                height: 44px !important;
+                min-height: 44px !important;
+                max-height: 44px !important;
+            }
+
+            html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+                right: 8px !important;
+            }
+
+            html body #atp-browser-voice-dictation,
+            html body .atp-voice-trigger {
+                left: 8px !important;
+            }
+
+            html body div[data-testid="stFileUploader"] button svg,
+            html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] svg {
+                transform: translateY(2px) !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
