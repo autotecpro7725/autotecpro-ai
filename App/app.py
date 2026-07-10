@@ -9,6 +9,7 @@ except Exception:
 import base64
 import html
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import tempfile
 import os
 import re
@@ -5042,8 +5043,60 @@ Do not output HTML or code-fence formatting.
 """
 
 
+
+def get_live_context():
+    """Return current live application context for every AI request."""
+    try:
+        toronto_tz = ZoneInfo("America/Toronto")
+        now_toronto = datetime.now(toronto_tz)
+
+        return {
+            "current_date": now_toronto.strftime("%A, %B %d, %Y"),
+            "current_time": now_toronto.strftime("%I:%M:%S %p"),
+            "timezone": "America/Toronto",
+            "utc_offset": now_toronto.strftime("%z"),
+            "iso_datetime": now_toronto.isoformat(),
+        }
+    except Exception:
+        now_utc = datetime.now(timezone.utc)
+        return {
+            "current_date": now_utc.strftime("%A, %B %d, %Y"),
+            "current_time": now_utc.strftime("%I:%M:%S %p"),
+            "timezone": "UTC",
+            "utc_offset": "+0000",
+            "iso_datetime": now_utc.isoformat(),
+        }
+
+
+def build_live_context_text():
+    """Create a concise system-supplied live context block."""
+    context = get_live_context()
+
+    return (
+        "LIVE APPLICATION CONTEXT — supplied by the AutoTecPro app:\n"
+        f"- Current date: {context['current_date']}\n"
+        f"- Current time: {context['current_time']}\n"
+        f"- Time zone: {context['timezone']}\n"
+        f"- UTC offset: {context['utc_offset']}\n"
+        f"- ISO date/time: {context['iso_datetime']}\n\n"
+        "Use this context whenever the user asks for the current date, "
+        "current time, today, tomorrow, yesterday, or another relative date. "
+        "Do not claim that you cannot access the current time because the app "
+        "has supplied it above. For other live information such as weather, "
+        "inventory, order status, prices, tracking, or internet news, clearly "
+        "state that a separate live API or web-search connection is required "
+        "unless that information is included elsewhere in the request."
+    )
+
+
+
 def build_user_input(prompt_text, uploaded_files):
-    content = []
+    content = [
+        {
+            "type": "input_text",
+            "text": build_live_context_text()
+        }
+    ]
 
     if st.session_state.messages:
         memory_text = "Previous conversation in this case:\n\n"
@@ -5081,7 +5134,13 @@ def build_user_input(prompt_text, uploaded_files):
 
 def ask_ai(prompt_text, uploaded_files):
     user_input = build_user_input(prompt_text, uploaded_files)
-    instructions = get_instructions(assistant)
+    instructions = (
+        get_instructions(assistant)
+        + "\n\nThe AutoTecPro application may supply a LIVE APPLICATION CONTEXT "
+          "block containing the current date, time, and timezone. Treat that "
+          "application-supplied context as authoritative for relative-date and "
+          "current-time questions."
+    )
 
     if assistant == "🔧 Technical Support":
         response = client.responses.create(
