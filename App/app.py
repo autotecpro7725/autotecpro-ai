@@ -3115,6 +3115,56 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V13 FULL-WIDTH TEXT AREA
+           Let pasted text use the full composer width up to the send button.
+        ============================================================ */
+
+        /* Reserve only the actual mic/send button space */
+        html body div[data-testid="stChatInput"] {
+            padding-left: 62px !important;
+            padding-right: 54px !important;
+        }
+
+        /* Force the editable area to consume all remaining width */
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            flex: 1 1 0% !important;
+            width: auto !important;
+            min-width: 0 !important;
+            max-width: none !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            flex: 1 1 0% !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            padding-left: 8px !important;
+            padding-right: 4px !important;
+        }
+
+        /* Keep the send button very close to the right edge */
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            right: 2px !important;
+        }
+
+        @media (max-width: 768px) {
+            html body div[data-testid="stChatInput"] {
+                padding-left: 58px !important;
+                padding-right: 52px !important;
+            }
+
+            html body #atp-send-proxy,
+            html body .atp-send-proxy {
+                right: 2px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
