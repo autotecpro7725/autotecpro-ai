@@ -2831,6 +2831,84 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V7 COLOR CLARITY FIX
+           - solid login button color
+           - solid composer background
+           - fully visible send button
+        ============================================================ */
+
+        /* Login button: remove gradient fade and keep a clear solid red-orange */
+        body:has(.login-heading) .stFormSubmitButton > button,
+        body:has(.login-logo) .stFormSubmitButton > button {
+            background: #ff3b30 !important;
+            background-image: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
+            filter: none !important;
+            box-shadow: 0 10px 26px rgba(255, 59, 48, 0.34) !important;
+        }
+
+        body:has(.login-heading) .stFormSubmitButton > button:hover,
+        body:has(.login-logo) .stFormSubmitButton > button:hover {
+            background: #ff4a3f !important;
+            background-image: none !important;
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
+        /* Composer: remove left-to-right fade and use one solid dark tone */
+        html body div[data-testid="stChatInput"] {
+            background: #151b29 !important;
+            background-image: none !important;
+        }
+
+        /* Voice button: solid and fully visible */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            background: #ff3b30 !important;
+            background-image: none !important;
+            opacity: 1 !important;
+            filter: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: 0 7px 18px rgba(255, 59, 48, 0.34) !important;
+        }
+
+        /* Send button: solid and fully visible */
+        html body #atp-send-proxy,
+        html body .atp-send-proxy {
+            background: #ff3b30 !important;
+            background-image: none !important;
+            opacity: 1 !important;
+            filter: none !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: 0 7px 18px rgba(255, 59, 48, 0.34) !important;
+        }
+
+        /* Keep the send icon visible even when the input is empty */
+        html body #atp-send-proxy.disabled,
+        html body .atp-send-proxy.disabled {
+            opacity: 1 !important;
+            filter: none !important;
+            background: #ff3b30 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            cursor: default !important;
+        }
+
+        html body #atp-send-proxy svg,
+        html body .atp-send-proxy svg,
+        html body #atp-browser-voice-dictation svg,
+        html body .atp-voice-trigger svg {
+            color: #ffffff !important;
+            stroke: #ffffff !important;
+            opacity: 1 !important;
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
