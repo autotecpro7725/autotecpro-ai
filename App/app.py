@@ -1848,6 +1848,269 @@ def inject_base_css():
             }
         }
 
+
+
+        /* ============================================================
+           FINAL MOBILE ALIGNMENT: centered upload icon + clean composer
+        ============================================================ */
+
+        /* Keep the upload button icon and label perfectly centered */
+        div[data-testid="stFileUploader"] button,
+        div[data-testid="stFileUploader"] button > div,
+        div[data-testid="stFileUploader"] button > span,
+        div[data-testid="stFileUploader"] button p {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            line-height: 1 !important;
+            vertical-align: middle !important;
+        }
+
+        div[data-testid="stFileUploader"] button svg {
+            width: 18px !important;
+            height: 18px !important;
+            min-width: 18px !important;
+            display: block !important;
+            margin: 0 !important;
+            position: static !important;
+            transform: none !important;
+        }
+
+        /* Remove Streamlit's inner rectangle so the composer reads as one pill */
+        div[data-testid="stChatInput"] > div,
+        div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        div[data-testid="stChatInput"] [data-baseweb="base-input"],
+        div[data-testid="stChatInput"] div[class*="st-emotion-cache"] {
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+
+        div[data-testid="stChatInput"] {
+            min-height: 58px !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 6px 8px 6px 16px !important;
+            background: rgba(21, 27, 41, 0.96) !important;
+            border: 1px solid rgba(148, 163, 184, 0.30) !important;
+            border-radius: 22px !important;
+            overflow: hidden !important;
+        }
+
+        div[data-testid="stChatInput"] textarea,
+        div[data-testid="stChatInput"] input {
+            min-height: 44px !important;
+            height: 44px !important;
+            padding: 11px 8px !important;
+            margin: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            resize: none !important;
+        }
+
+        div[data-testid="stChatInput"] button {
+            width: 42px !important;
+            min-width: 42px !important;
+            max-width: 42px !important;
+            height: 42px !important;
+            min-height: 42px !important;
+            max-height: 42px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: 0 0 42px !important;
+        }
+
+        div[data-testid="stChatInput"] button svg {
+            width: 21px !important;
+            height: 21px !important;
+            margin: 0 !important;
+            display: block !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 768px) {
+            div[data-testid="stChatInput"] {
+                min-height: 60px !important;
+                padding: 7px 8px 7px 16px !important;
+                border-radius: 22px !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                min-height: 44px !important;
+                height: 44px !important;
+                font-size: 16px !important;
+                padding: 10px 6px !important;
+            }
+
+            div[data-testid="stFileUploader"] button {
+                min-height: 42px !important;
+                height: 42px !important;
+                padding: 0 16px !important;
+            }
+        }
+
+
+        /* ============================================================
+           FINAL PHOTO-MATCH COMPOSER + SAFE BROWSER VOICE DICTATION
+        ============================================================ */
+        div[data-testid="stChatInput"] {
+            position: relative !important;
+            min-height: 66px !important;
+            padding: 7px 9px 7px 68px !important;
+            background: linear-gradient(90deg, rgba(28, 35, 50, 0.98), rgba(18, 25, 39, 0.98)) !important;
+            border: 1px solid rgba(248, 113, 113, 0.46) !important;
+            border-radius: 24px !important;
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.30) !important;
+            overflow: visible !important;
+        }
+
+        div[data-testid="stChatInput"]:focus-within {
+            border-color: rgba(248, 113, 113, 0.78) !important;
+            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.18), 0 14px 36px rgba(0, 0, 0, 0.34) !important;
+        }
+
+        div[data-testid="stChatInput"] > div,
+        div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        div[data-testid="stChatInput"] [data-baseweb="base-input"],
+        div[data-testid="stChatInput"] div[class*="st-emotion-cache"] {
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+
+        div[data-testid="stChatInput"] textarea,
+        div[data-testid="stChatInput"] input {
+            min-height: 50px !important;
+            height: 50px !important;
+            padding: 13px 8px !important;
+            margin: 0 !important;
+            background: transparent !important;
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+            resize: none !important;
+        }
+
+        div[data-testid="stChatInput"] textarea::placeholder,
+        div[data-testid="stChatInput"] input::placeholder {
+            color: #a8b1c1 !important;
+            -webkit-text-fill-color: #a8b1c1 !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+            width: 48px !important;
+            min-width: 48px !important;
+            max-width: 48px !important;
+            height: 48px !important;
+            min-height: 48px !important;
+            max-height: 48px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            border: none !important;
+            background: linear-gradient(135deg, #ff5a4f 0%, #ff4141 58%, #ef3038 100%) !important;
+            color: #ffffff !important;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.30) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: 0 0 48px !important;
+        }
+
+        div[data-testid="stChatInput"] button:not(.atp-voice-trigger) svg {
+            width: 23px !important;
+            height: 23px !important;
+            margin: 0 !important;
+        }
+
+        .atp-voice-trigger {
+            position: absolute !important;
+            left: 13px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            z-index: 20 !important;
+            width: 46px !important;
+            min-width: 46px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-radius: 50% !important;
+            background: rgba(71, 82, 103, 0.42) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: none !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 31px !important;
+            font-weight: 300 !important;
+            line-height: 1 !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
+        .atp-voice-trigger:hover {
+            background: rgba(91, 103, 126, 0.58) !important;
+        }
+
+        .atp-voice-trigger.listening {
+            background: rgba(239, 68, 68, 0.92) !important;
+            box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.14) !important;
+            animation: atpVoicePulse 1.25s ease-in-out infinite !important;
+        }
+
+        .atp-voice-trigger.unsupported {
+            opacity: 0.58 !important;
+            cursor: not-allowed !important;
+        }
+
+        @keyframes atpVoicePulse {
+            0%, 100% { transform: translateY(-50%) scale(1); }
+            50% { transform: translateY(-50%) scale(1.07); }
+        }
+
+        @media (max-width: 768px) {
+            div[data-testid="stChatInput"] {
+                min-height: 66px !important;
+                padding: 7px 8px 7px 68px !important;
+                border-radius: 24px !important;
+                margin-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+            }
+
+            div[data-testid="stChatInput"] textarea,
+            div[data-testid="stChatInput"] input {
+                min-height: 50px !important;
+                height: 50px !important;
+                font-size: 16px !important;
+                padding: 13px 6px !important;
+            }
+
+            .atp-voice-trigger {
+                left: 12px !important;
+                width: 46px !important;
+                min-width: 46px !important;
+                height: 46px !important;
+                min-height: 46px !important;
+            }
+        }
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
@@ -1857,6 +2120,141 @@ def inject_base_css():
 </style>
         """,
         unsafe_allow_html=True
+    )
+
+
+
+def install_browser_voice_dictation():
+    """Add a safe browser speech-to-text trigger to Streamlit's chat composer.
+
+    The feature runs entirely in the browser. Unsupported browsers simply show
+    a disabled button and the normal text input continues to work unchanged.
+    """
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const HOST_ID = "atp-browser-voice-dictation";
+          let recognition = null;
+          let listening = false;
+          let committedText = "";
+
+          function getParentDocument() {
+            try { return window.parent.document; } catch (error) { return null; }
+          }
+
+          function setComposerValue(input, value) {
+            try {
+              const proto = input.tagName === "TEXTAREA"
+                ? window.parent.HTMLTextAreaElement.prototype
+                : window.parent.HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+              setter.call(input, value);
+              input.dispatchEvent(new window.parent.Event("input", { bubbles: true }));
+              input.dispatchEvent(new window.parent.Event("change", { bubbles: true }));
+              input.focus();
+            } catch (error) {
+              input.value = value;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          }
+
+          function mount() {
+            const doc = getParentDocument();
+            if (!doc) return;
+            const composer = doc.querySelector('div[data-testid="stChatInput"]');
+            if (!composer || composer.querySelector(`#${HOST_ID}`)) return;
+
+            const button = doc.createElement("button");
+            button.id = HOST_ID;
+            button.type = "button";
+            button.className = "atp-voice-trigger";
+            button.textContent = "+";
+            button.setAttribute("aria-label", "Start voice dictation");
+            button.setAttribute("title", "Voice dictation");
+            composer.appendChild(button);
+
+            const SpeechRecognition = window.parent.SpeechRecognition || window.parent.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+              button.classList.add("unsupported");
+              button.setAttribute("title", "Voice dictation is not supported by this browser");
+              button.addEventListener("click", () => {
+                window.parent.alert("Voice dictation is not supported by this browser. You can still type your message normally.");
+              });
+              return;
+            }
+
+            button.addEventListener("click", () => {
+              const input = composer.querySelector("textarea, input");
+              if (!input) return;
+
+              if (listening && recognition) {
+                try { recognition.stop(); } catch (error) {}
+                return;
+              }
+
+              try {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.maxAlternatives = 1;
+                recognition.lang = doc.documentElement.lang || navigator.language || "en-US";
+                committedText = input.value ? input.value.trim() : "";
+
+                recognition.onstart = () => {
+                  listening = true;
+                  button.classList.add("listening");
+                  button.textContent = "●";
+                  button.setAttribute("title", "Listening — tap to stop");
+                };
+
+                recognition.onresult = (event) => {
+                  let interim = "";
+                  let finalText = "";
+                  for (let i = event.resultIndex; i < event.results.length; i += 1) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) finalText += transcript;
+                    else interim += transcript;
+                  }
+                  const prefix = committedText ? committedText + " " : "";
+                  const nextValue = (prefix + finalText + interim).trimStart();
+                  setComposerValue(input, nextValue);
+                  if (finalText) committedText = (prefix + finalText).trim();
+                };
+
+                recognition.onerror = (event) => {
+                  if (!["aborted", "no-speech"].includes(event.error)) {
+                    console.warn("Voice dictation error:", event.error);
+                  }
+                };
+
+                recognition.onend = () => {
+                  listening = false;
+                  button.classList.remove("listening");
+                  button.textContent = "+";
+                  button.setAttribute("title", "Voice dictation");
+                };
+
+                recognition.start();
+              } catch (error) {
+                listening = false;
+                button.classList.remove("listening");
+                button.textContent = "+";
+                console.warn("Could not start voice dictation:", error);
+              }
+            });
+          }
+
+          mount();
+          const observer = new MutationObserver(mount);
+          const doc = getParentDocument();
+          if (doc && doc.body) observer.observe(doc.body, { childList: true, subtree: true });
+          window.addEventListener("beforeunload", () => observer.disconnect(), { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
 
 
@@ -5000,6 +5398,7 @@ else:
         auto_scroll_to_latest()
         st.session_state.scroll_to_bottom = False
 
+    install_browser_voice_dictation()
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
