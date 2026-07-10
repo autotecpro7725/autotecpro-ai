@@ -2683,6 +2683,99 @@ def ask_ai(prompt_text, uploaded_files):
     return response.output_text
 
 
+
+def is_admin_image_file(uploaded_file):
+    mime_type = str(getattr(uploaded_file, "type", "") or "").lower()
+    suffix = Path(str(getattr(uploaded_file, "name", "") or "")).suffix.lower()
+    return mime_type.startswith("image/") or suffix in {".jpg", ".jpeg", ".png"}
+
+
+def convert_admin_image_to_knowledge_file(uploaded_file, database_choice, admin_context=""):
+    """
+    Convert an uploaded JPG/PNG reference image into a searchable TXT document.
+
+    OpenAI vector stores are optimized for text-based retrieval. This function
+    uses vision once during admin upload to extract visible text, model numbers,
+    vehicle/product relationships, and reusable rules. The generated TXT file is
+    then uploaded to the selected vector store.
+
+    Returns:
+        (file_like_object, extracted_text)
+    """
+    image_url = normalized_image_data_url(uploaded_file)
+    original_name = str(getattr(uploaded_file, "name", "reference_image"))
+    database_label = str(database_choice or "Knowledge Base")
+    extra_context = str(admin_context or "").strip()
+
+    extraction_instructions = """
+You are AutoTecPro's internal knowledge extraction specialist.
+
+Analyze the uploaded reference image carefully and convert it into accurate,
+searchable internal knowledge.
+
+Extract only information that is actually visible or strongly supported by the
+image. Do not invent missing vehicle years, part numbers, prices, compatibility,
+or technical specifications.
+
+Prioritize:
+- Document/reference title
+- Vehicle make, model, generation, and year range
+- Factory radio/SYNC/Uconnect/RPO system
+- Screen size and climate-control type
+- KVN/factory code/model number
+- AutoTecPro part number, SKU, product name, and screen size
+- Compatibility rules and visual identification rules
+- Troubleshooting steps, labels, warnings, and notes
+- Any visible table, comparison, legend, or mapping
+
+Write clean plain text with clear headings and bullet points.
+Include the original filename and selected database.
+If text is unclear, mark it as uncertain instead of guessing.
+Do not output HTML, markdown code fences, or JSON.
+"""
+
+    prompt_text = (
+        f"Original filename: {original_name}\n"
+        f"Selected database: {database_label}\n"
+    )
+    if extra_context:
+        prompt_text += f"Admin context: {extra_context}\n"
+    prompt_text += "\nExtract this image into reusable AutoTecPro knowledge."
+
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=extraction_instructions,
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt_text},
+                    {"type": "input_image", "image_url": image_url},
+                ],
+            }
+        ],
+    )
+
+    extracted_text = clean_visible_chat_text(response.output_text)
+    if not extracted_text:
+        raise ValueError("The image could not be converted into searchable knowledge.")
+
+    final_text = (
+        f"AutoTecPro Image Knowledge Record\n"
+        f"Original file: {original_name}\n"
+        f"Database: {database_label}\n"
+        f"Created at: {datetime.now(timezone.utc).isoformat()}\n\n"
+        f"{extracted_text}\n"
+    )
+
+    output = io.BytesIO(final_text.encode("utf-8"))
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original_name).stem).strip("_")
+    output.name = f"{safe_stem or 'image'}_knowledge.txt"
+    output.seek(0)
+
+    return output, final_text
+
+
 def upload_to_vector_store(uploaded_file, vector_store_id):
     openai_file = client.files.create(file=uploaded_file, purpose="assistants")
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
@@ -4120,27 +4213,86 @@ if assistant == "⚙️ Admin Panel":
             ["Technical Support Database", "Sales & Marketing Database"]
         )
 
+        admin_context = st.text_area(
+            "Optional context for uploaded images",
+            placeholder=(
+                "Example: This chart is for Ford F-150 2015–2021 and should be "
+                "used to identify SYNC version and climate-control type."
+            ),
+            help=(
+                "Optional. This helps the AI interpret reference images accurately. "
+                "It is not required for PDF, TXT, or DOCX files."
+            ),
+            key="admin_upload_context"
+        )
+
         admin_files = st.file_uploader(
-            "Upload documents",
-            type=["pdf", "txt", "docx"],
-            accept_multiple_files=True
+            "Upload documents or reference images",
+            type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            help=(
+                "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, and PNG "
+                "images are first analyzed and converted into searchable text knowledge."
+            ),
+            key="admin_knowledge_uploader"
+        )
+
+        st.caption(
+            "Reference images are converted into searchable text before being added "
+            "to the knowledge base."
         )
 
         if st.button("Upload to Knowledge Base"):
             if not admin_files:
-                st.warning("Please upload at least one document.")
+                st.warning("Please upload at least one document or image.")
             else:
                 if database_choice == "Technical Support Database":
                     selected_vector_store_id = TECHNICAL_VECTOR_STORE_ID
                 else:
                     selected_vector_store_id = SALES_VECTOR_STORE_ID
 
-                for admin_file in admin_files:
+                progress = st.progress(0)
+                total_files = len(admin_files)
+
+                for index, admin_file in enumerate(admin_files, start=1):
                     try:
-                        file_id = upload_to_vector_store(admin_file, selected_vector_store_id)
-                        st.success(f"Uploaded: {admin_file.name} | File ID: {file_id}")
+                        if is_admin_image_file(admin_file):
+                            with st.spinner(f"Analyzing image: {admin_file.name}"):
+                                searchable_file, extracted_text = convert_admin_image_to_knowledge_file(
+                                    admin_file,
+                                    database_choice,
+                                    admin_context
+                                )
+                                file_id = upload_to_vector_store(
+                                    searchable_file,
+                                    selected_vector_store_id
+                                )
+
+                            st.success(
+                                f"Image converted and uploaded: {admin_file.name} "
+                                f"| Search file: {searchable_file.name} | File ID: {file_id}"
+                            )
+
+                            with st.expander(f"Extracted knowledge — {admin_file.name}"):
+                                st.text(extracted_text)
+                        else:
+                            file_id = upload_to_vector_store(
+                                admin_file,
+                                selected_vector_store_id
+                            )
+                            st.success(
+                                f"Uploaded: {admin_file.name} | File ID: {file_id}"
+                            )
+
                     except Exception as e:
                         st.error(f"Failed to upload {admin_file.name}: {e}")
+
+                    progress.progress(index / total_files)
+
+                st.info(
+                    "Upload completed. OpenAI may take a short time to finish indexing "
+                    "new knowledge before it appears in search results."
+                )
 
     with tab3:
         st.markdown("### 🧠 AI Learning")
