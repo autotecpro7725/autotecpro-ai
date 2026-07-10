@@ -1660,6 +1660,13 @@ def inject_base_css():
             display: none !important;
         }
 
+
+        /* Stability guard: do not show accidental code blocks inside chat bubbles */
+        .chat-bubble pre,
+        .chat-bubble code {
+            display: none !important;
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -2043,20 +2050,18 @@ def render_chat_message(role, content, images=None):
         icon_class = "assistant-icon"
         bubble_class = "assistant-bubble"
 
-    # IMPORTANT:
-    # Keep this HTML compact and unindented. Indented closing tags can be parsed
-    # by Markdown as a code block, which is what caused visible </div> bars.
-    chat_html = (
-        f'<div class="chat-row">'
-        f'<div class="chat-icon {icon_class}">{icon_html}</div>'
-        f'<div class="chat-bubble {bubble_class}">'
-        f'{html_from_text(visible_content)}'
-        f'{render_image_previews(final_images)}'
-        f'</div>'
-        f'</div>'
+    st.markdown(
+        f"""
+        <div class="chat-row">
+            <div class="chat-icon {icon_class}">{icon_html}</div>
+            <div class="chat-bubble {bubble_class}">
+                {html_from_text(visible_content)}
+                {render_image_previews(final_images)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-
-    st.markdown(chat_html, unsafe_allow_html=True)
 
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
@@ -2350,7 +2355,9 @@ IMAGE_MARKER_SUFFIX = "]]"
 
 def clean_visible_chat_text(text):
     """
-    Remove raw/escaped HTML artifacts from model output and old saved messages.
+    Final production cleaner for visible chat text.
+    Removes raw/escaped HTML artifacts from old saved messages, model output,
+    copied fragments, and accidental code blocks.
     """
     value = str(text or "")
 
@@ -2360,47 +2367,67 @@ def clean_visible_chat_text(text):
     except Exception:
         pass
 
-    value = (
-        value.replace("&lt;", "<")
-             .replace("&gt;", ">")
-             .replace("&#60;", "<")
-             .replace("&#62;", ">")
-    )
+    # Decode common escaped HTML entities first.
+    value = value.replace("&lt;", "<").replace("&gt;", ">")
 
     tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect|style|code|pre)"
 
-    # Remove fenced blocks containing HTML fragments.
+    # Remove fenced code blocks that contain only / mostly HTML tags.
     value = re.sub(
-        r"```(?:html|HTML|text)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
+        r"```(?:html|HTML)?[\s\S]*?(?:</?\s*" + tag_names + r"\b)[\s\S]*?```",
         "",
         value,
         flags=re.IGNORECASE,
     )
 
-    # Remove raw tags anywhere.
+    # Remove any raw HTML tags.
     value = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", value, flags=re.IGNORECASE)
 
-    cleaned = []
+    cleaned_lines = []
     for line in value.splitlines():
         stripped = line.strip()
-        compact = stripped.replace("`", "").replace(" ", "").lower()
+        low = stripped.lower()
 
-        if compact in {
-            "```", "```html", "```text",
+        # Remove code fences.
+        if low in ("```", "```html", "```python", "```text"):
+            continue
+
+        # Remove lines that are only tag fragments or broken tag leftovers.
+        compact = stripped.replace("`", "").replace(" ", "").lower()
+        if compact in (
             "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
             "</details>", "<details>", "</summary>", "<summary>",
             "</button>", "<button>", "</script>", "<script>",
             "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
             "</pre>", "<pre>", "</code>", "<code>"
-        }:
+        ):
             continue
 
-        if re.fullmatch(r"[</>\s`]+", stripped):
+        # Remove lines that contain only HTML-looking fragments after cleanup.
+        no_tags = re.sub(r"</?\s*" + tag_names + r"\b[^>]*>", "", stripped, flags=re.IGNORECASE)
+        no_tags = no_tags.replace("`", "").strip()
+        if not no_tags and ("<" in stripped or ">" in stripped):
             continue
 
-        cleaned.append(line)
+        # Remove remaining isolated tag characters if they are clearly artifacts.
+        if re.fullmatch(r"[</>\s]+", stripped):
+            continue
 
-    value = "\n".join(cleaned)
+        cleaned_lines.append(line)
+
+    value = "\n".join(cleaned_lines)
+
+    # Last-resort direct removals.
+    for bad in [
+        "</div>", "<div>", "</p>", "<p>", "</span>", "<span>",
+        "</details>", "<details>", "</summary>", "<summary>",
+        "</button>", "<button>", "</script>", "<script>",
+        "</svg>", "<svg>", "</path>", "<path>", "</rect>", "<rect>",
+        "</pre>", "<pre>", "</code>", "<code>",
+        "&lt;/div&gt;", "&lt;div&gt;"
+    ]:
+        value = value.replace(bad, "")
+
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
