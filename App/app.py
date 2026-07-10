@@ -1662,28 +1662,26 @@ def inject_base_css():
 
 
         /* ============================================================
-           Safe Customer Reply Draft copy area
-           Uses Streamlit st.code native copy icon instead of injected JS.
+           Customer Reply Draft native copy block
+           Safe version: no open/close HTML wrapper across Streamlit elements.
         ============================================================ */
-        .customer-reply-native-wrap {
+        .customer-reply-title-native {
             margin-left: 50px;
             margin-top: -4px;
-            margin-bottom: 18px;
-            background: rgba(15, 23, 42, 0.40);
-            border: 1px solid rgba(148, 163, 184, 0.16);
-            border-radius: 14px;
-            padding: 12px 14px;
-        }
-
-        .customer-reply-native-title {
+            margin-bottom: 6px;
             color: #ffffff !important;
             font-size: 15px !important;
             font-weight: 800 !important;
-            margin-bottom: 8px !important;
+        }
+
+        .customer-reply-code-wrap {
+            margin-left: 50px;
+            margin-bottom: 18px;
         }
 
         @media (max-width: 768px) {
-            .customer-reply-native-wrap {
+            .customer-reply-title-native,
+            .customer-reply-code-wrap {
                 margin-left: 0 !important;
             }
         }
@@ -2057,8 +2055,7 @@ def html_from_text(text):
 def split_customer_reply_draft(content):
     """
     Split assistant answer into main analysis and customer-ready reply.
-    We render the customer reply with st.code so Streamlit provides a safe
-    native double-square copy icon without inline JavaScript.
+    Customer reply is rendered separately with Streamlit's native copy icon.
     """
     text = clean_visible_chat_text(content)
 
@@ -2088,21 +2085,22 @@ def split_customer_reply_draft(content):
 
 def render_customer_reply_copy_area(reply_text):
     """
-    Safe copy UI: no inline JS, no HTML button.
-    st.code includes Streamlit's native copy icon in the upper-right.
+    Safe native copy UI.
+    IMPORTANT: Do not open a custom <div> and close it after st.code.
+    Streamlit cannot keep custom HTML wrappers open across separate elements,
+    and the closing tag can appear as visible text.
     """
+    reply_text = clean_visible_chat_text(reply_text)
     if not reply_text:
         return
 
     st.markdown(
-        """
-        <div class="customer-reply-native-wrap">
-            <div class="customer-reply-native-title">Customer Reply Draft</div>
-        """,
+        '<div class="customer-reply-title-native">Customer Reply Draft</div>',
         unsafe_allow_html=True
     )
-    st.code(clean_visible_chat_text(reply_text), language=None)
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="customer-reply-code-wrap"></div>', unsafe_allow_html=True)
+    st.code(reply_text, language=None)
 
 
 
@@ -2447,7 +2445,7 @@ def clean_visible_chat_text(text):
     except Exception:
         pass
 
-    tag_names = r"(div|p|span|section|article|main|body|html)"
+    tag_names = r"(div|p|span|section|article|main|body|html|details|summary|button|script|svg|path|rect)"
 
     # Remove fenced code blocks that include layout HTML tags.
     value = re.sub(
