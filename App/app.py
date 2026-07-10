@@ -2535,6 +2535,167 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           FINAL V3 RESPONSIVE ALIGNMENT
+           - uploader button vertically centered in dropzone
+           - composer spans available width responsively
+           - send button aligned to far-right edge
+           - desktop/mobile auto-adjust
+        ============================================================ */
+
+        /* Make the uploader dropzone a true vertically-centered row */
+        html body div[data-testid="stFileUploader"] section,
+        html body div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            min-height: 112px !important;
+            height: 112px !important;
+            padding: 0 24px !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[data-testid="stFileUploader"] section > div,
+        html body div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] > div {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            width: 100% !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            gap: 24px !important;
+        }
+
+        html body div[data-testid="stFileUploader"] button,
+        html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+            align-self: center !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            transform: translateY(4px) !important;
+        }
+
+        html body div[data-testid="stFileUploader"] button svg,
+        html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] svg {
+            transform: translateY(2px) !important;
+        }
+
+        /* Composer uses nearly all available horizontal space */
+        html body div[data-testid="stChatInput"] {
+            width: calc(100% - 4px) !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            margin-left: 2px !important;
+            margin-right: 2px !important;
+            box-sizing: border-box !important;
+            padding-left: 64px !important;
+            padding-right: 64px !important;
+        }
+
+        /* Keep message field flexible between mic and send controls */
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            flex: 1 1 auto !important;
+            width: auto !important;
+            min-width: 0 !important;
+            max-width: none !important;
+        }
+
+        /* Voice button aligned with left edge */
+        html body #atp-browser-voice-dictation,
+        html body .atp-voice-trigger {
+            left: 8px !important;
+        }
+
+        /* Send button flush to right edge and vertically centered */
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+            right: 6px !important;
+            top: 50% !important;
+            bottom: auto !important;
+            transform: translate3d(0, -50%, 0) !important;
+            margin: 0 !important;
+        }
+
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) > div,
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) > span,
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) p {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) svg {
+            position: static !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        /* Desktop layout */
+        @media (min-width: 1200px) {
+            html body .block-container {
+                max-width: 1720px !important;
+            }
+
+            html body div[data-testid="stChatInput"] {
+                width: calc(100% - 8px) !important;
+                margin-left: 4px !important;
+                margin-right: 4px !important;
+            }
+        }
+
+        /* Tablet */
+        @media (min-width: 769px) and (max-width: 1199px) {
+            html body div[data-testid="stChatInput"] {
+                width: calc(100% - 6px) !important;
+                margin-left: 3px !important;
+                margin-right: 3px !important;
+            }
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            html body div[data-testid="stFileUploader"] section,
+            html body div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+                min-height: 104px !important;
+                height: 104px !important;
+                padding: 0 18px !important;
+            }
+
+            html body div[data-testid="stFileUploader"] section > div,
+            html body div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] > div {
+                gap: 18px !important;
+            }
+
+            html body div[data-testid="stFileUploader"] button,
+            html body div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+                transform: translateY(5px) !important;
+            }
+
+            html body div[data-testid="stChatInput"] {
+                width: calc(100% - 4px) !important;
+                margin-left: 2px !important;
+                margin-right: 2px !important;
+                padding-left: 60px !important;
+                padding-right: 60px !important;
+            }
+
+            html body #atp-browser-voice-dictation,
+            html body .atp-voice-trigger {
+                left: 6px !important;
+            }
+
+            html body div[data-testid="stChatInput"] button:not(.atp-voice-trigger) {
+                right: 4px !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
