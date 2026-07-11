@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_cookies_controller import CookieController
 from openai import OpenAI
 from pathlib import Path
 try:
@@ -9,7 +10,7 @@ except Exception:
 import base64
 import html
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import tempfile
 import os
@@ -53,6 +54,13 @@ st.set_page_config(
     page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded"
+)
+
+
+# One browser-cookie controller for persistent authentication.
+# It stores only a random session token, never the username or password.
+auth_cookie_controller = CookieController(
+    key="atp_auth_cookie_controller"
 )
 
 
@@ -6076,22 +6084,251 @@ def render_chat_message(role, content, images=None):
 
     st.markdown(chat_html, unsafe_allow_html=True)
 
-REMEMBER_PROFILE_VERSION = 1
+REMEMBER_COOKIE_NAME = "atp_remember_session"
 REMEMBER_SESSION_DAYS = 30
 
 
 def create_login_session(username, role):
+    """Create one revocable server-side persistent login session."""
     result = supabase.table("login_sessions").insert({
         "username": username,
         "role": role,
         "active": True,
-        "created_at": now_iso()
+        "created_at": now_iso(),
     }).execute()
-    return result.data[0]["id"]
+
+    if not result.data:
+        raise RuntimeError("Could not create the remembered login session.")
+
+    return str(result.data[0]["id"])
+
+
+def deactivate_login_session(token):
+    """Deactivate a remembered session without interrupting logout/login."""
+    if not token:
+        return
+
+    try:
+        (
+            supabase
+            .table("login_sessions")
+            .update({"active": False})
+            .eq("id", str(token))
+            .execute()
+        )
+    except Exception:
+        pass
+
+
+def get_remembered_session_token():
+    """Read the persistent browser cookie, returning an empty string on failure."""
+    try:
+        return str(
+            auth_cookie_controller.get(REMEMBER_COOKIE_NAME) or ""
+        ).strip()
+    except Exception:
+        return ""
+
+
+def set_remembered_session_cookie(token):
+    """
+    Persist only the random session token for 30 days.
+
+    The username and password are never written to browser storage.
+    """
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        days=REMEMBER_SESSION_DAYS
+    )
+
+    auth_cookie_controller.set(
+        REMEMBER_COOKIE_NAME,
+        str(token),
+        path="/",
+        expires=expires_at,
+        max_age=REMEMBER_SESSION_DAYS * 24 * 60 * 60,
+        secure=True,
+        same_site="strict",
+    )
+
+
+def remove_remembered_session_cookie():
+    """Remove the persistent authentication cookie from this browser."""
+    try:
+        auth_cookie_controller.remove(
+            REMEMBER_COOKIE_NAME,
+            path="/",
+            secure=True,
+            same_site="strict",
+        )
+    except Exception:
+        pass
+
+
+def clear_legacy_browser_login_data():
+    """
+    Remove browser data created by the earlier experimental implementations.
+
+    This cleanup does not control authentication; it only prevents old
+    localStorage values from interfering with the new cookie-based flow.
+    """
+    components.html(
+        """
+        <script>
+        (() => {
+          try {
+            const storage = window.parent.localStorage;
+            storage.removeItem("atp_remembered_credentials_v1");
+            storage.removeItem("atp_login_profile");
+            storage.removeItem("atp_remember_session");
+            storage.removeItem("atp_remember_username");
+            storage.removeItem("atp_remember_enabled");
+          } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def clear_browser_login_profile(*, deactivate=True):
+    """
+    Clear every remembered-login mechanism used by this application.
+
+    This function intentionally leaves the working login overlay untouched.
+    """
+    token = get_remembered_session_token()
+
+    if deactivate and token:
+        deactivate_login_session(token)
+
+    remove_remembered_session_cookie()
+    clear_legacy_browser_login_data()
+
+
+def install_login_autofill_support():
+    """
+    Prevent legacy browser/localStorage behavior from controlling Remember Me.
+
+    Remember Me is now a real persistent-session option:
+    checked = keep the user signed in for 30 days;
+    unchecked = do not create or keep a persistent session.
+
+    No redirect, rerun, or overlay logic is used here.
+    """
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpSecureLoginFormV1";
+
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          let stopped = false;
+          let timerId = null;
+          let attempts = 0;
+
+          function configure() {
+            if (stopped) return;
+
+            const forms = Array.from(
+              doc.querySelectorAll(
+                'form[data-testid="stForm"], div[data-testid="stForm"]'
+              )
+            );
+
+            for (const form of forms) {
+              const inputs = Array.from(form.querySelectorAll("input"));
+              const usernameInput = inputs.find(
+                (input) => input.type === "text"
+              );
+              const passwordInput = inputs.find(
+                (input) => input.type === "password"
+              );
+              const rememberCheckbox = inputs.find(
+                (input) => input.type === "checkbox"
+              );
+
+              if (
+                usernameInput &&
+                passwordInput &&
+                rememberCheckbox
+              ) {
+                // The application remembers a secure session token instead
+                // of storing the raw username/password.
+                form.setAttribute("autocomplete", "off");
+                usernameInput.setAttribute("autocomplete", "off");
+                usernameInput.setAttribute("autocapitalize", "none");
+                usernameInput.setAttribute("spellcheck", "false");
+                passwordInput.setAttribute(
+                  "autocomplete",
+                  "new-password"
+                );
+                return;
+              }
+            }
+
+            attempts += 1;
+            if (attempts < 50) {
+              timerId = root.setTimeout(configure, 100);
+            }
+          }
+
+          configure();
+
+          function cleanup() {
+            stopped = true;
+            if (timerId) {
+              try { root.clearTimeout(timerId); } catch (error) {}
+            }
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener(
+            "beforeunload",
+            cleanup,
+            { once: true }
+          );
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def _parse_session_created_at(value):
+    """Return a timezone-aware UTC datetime or None."""
+    if not value:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(
+            str(value).replace("Z", "+00:00")
+        )
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
 
 
 def restore_login_session():
-    token = st.query_params.get("session")
+    """
+    Restore authentication from a persistent cookie or legacy URL token.
+
+    Every restoration verifies:
+    - the session exists and is active;
+    - the session is not older than 30 days;
+    - the user still exists and remains active;
+    - the current role is read from the users table.
+    """
+    cookie_token = get_remembered_session_token()
+    query_token = str(st.query_params.get("session") or "").strip()
+    token = cookie_token or query_token
+
     if not token:
         return
 
@@ -6106,47 +6343,37 @@ def restore_login_session():
         )
 
         if not result.data:
-            clear_browser_login_profile()
-            st.query_params.clear()
+            clear_browser_login_profile(deactivate=False)
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
             return
 
         session = result.data[0]
+        created_at = _parse_session_created_at(
+            session.get("created_at")
+        )
 
-        # Expire remembered sessions after the configured retention period.
-        created_at_raw = session.get("created_at")
-        if created_at_raw:
+        if created_at is None:
+            deactivate_login_session(token)
+            clear_browser_login_profile(deactivate=False)
             try:
-                created_at = datetime.fromisoformat(
-                    str(created_at_raw).replace("Z", "+00:00")
-                )
-                if created_at.tzinfo is None:
-                    created_at = created_at.replace(tzinfo=timezone.utc)
-
-                age_seconds = (
-                    datetime.now(timezone.utc) -
-                    created_at.astimezone(timezone.utc)
-                ).total_seconds()
-
-                if age_seconds > REMEMBER_SESSION_DAYS * 86400:
-                    try:
-                        supabase.table("login_sessions").update({
-                            "active": False
-                        }).eq("id", token).execute()
-                    except Exception:
-                        pass
-
-                    clear_browser_login_profile()
-                    st.query_params.clear()
-                    return
-            except Exception:
-                # A malformed timestamp is treated as an invalid remembered
-                # session rather than allowing permanent access.
-                clear_browser_login_profile()
                 st.query_params.clear()
-                return
+            except Exception:
+                pass
+            return
 
-        # Validate the current user record. Deleted or inactive users must not
-        # be restored from an old browser session.
+        age = datetime.now(timezone.utc) - created_at
+        if age > timedelta(days=REMEMBER_SESSION_DAYS):
+            deactivate_login_session(token)
+            clear_browser_login_profile(deactivate=False)
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            return
+
         user_result = (
             supabase
             .table("users")
@@ -6157,15 +6384,12 @@ def restore_login_session():
         )
 
         if not user_result.data:
+            deactivate_login_session(token)
+            clear_browser_login_profile(deactivate=False)
             try:
-                supabase.table("login_sessions").update({
-                    "active": False
-                }).eq("id", token).execute()
+                st.query_params.clear()
             except Exception:
                 pass
-
-            clear_browser_login_profile()
-            st.query_params.clear()
             return
 
         user = user_result.data[0]
@@ -6179,25 +6403,34 @@ def restore_login_session():
         if "conversation_id" not in st.session_state:
             st.session_state.conversation_id = None
 
+        # Migrate a valid old URL session to the secure cookie and remove the
+        # token from the visible address bar.
+        if not cookie_token:
+            set_remembered_session_cookie(token)
+
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+
     except Exception:
-        # If the login-session check fails, do not authenticate from a stale
-        # browser token. The normal login screen remains available.
+        # A temporary database/component error must not authenticate a user.
         return
 
 
 def logout_user():
-    token = st.query_params.get("session")
+    """Log out and revoke the persistent remembered session."""
+    cookie_token = get_remembered_session_token()
+    query_token = str(st.query_params.get("session") or "").strip()
 
-    if token:
-        try:
-            supabase.table("login_sessions").update({
-                "active": False
-            }).eq("id", token).execute()
-        except Exception:
-            pass
+    deactivate_login_session(cookie_token or query_token)
+    clear_browser_login_profile(deactivate=False)
 
-    clear_browser_login_profile()
-    st.query_params.clear()
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
@@ -6207,399 +6440,6 @@ def logout_user():
 # ============================================================
 # Login Screen
 # ============================================================
-
-def clear_browser_login_profile():
-    """
-    Remove every app-created login/Remember Me value from this browser.
-
-    This is called when:
-    - Remember me is unchecked during login;
-    - login credentials are invalid;
-    - the user logs out;
-    - a remembered session is invalid, expired, deleted, or inactive.
-    """
-    components.html(
-        """
-        <script>
-        (() => {
-          try {
-            const storage = window.parent.localStorage;
-
-            // Current functional Remember Me key.
-            storage.removeItem("atp_remembered_credentials_v1");
-
-            // Legacy keys from earlier implementations.
-            storage.removeItem("atp_login_profile");
-            storage.removeItem("atp_remember_session");
-            storage.removeItem("atp_remember_username");
-            storage.removeItem("atp_remember_enabled");
-          } catch (error) {}
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def install_login_autofill_support():
-    """
-    Functional app-controlled Remember Me.
-
-    Checked:
-    - saves username and password in this browser's localStorage;
-    - restores both fields and the checked checkbox next time.
-
-    Unchecked:
-    - deletes all app-saved login information before Streamlit reruns;
-    - leaves the next login form empty and the checkbox unchecked.
-
-    This helper never redirects, calls st.stop(), triggers a Streamlit rerun,
-    or changes the working "Loading AutoTecPro AI System..." transition.
-    """
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const STORAGE_KEY = "atp_remembered_credentials_v1";
-          const INSTALL_KEY = "__atpFunctionalRememberMeV2";
-
-          try { root[INSTALL_KEY]?.cleanup?.(); } catch (error) {}
-
-          let stopped = false;
-          let retryTimer = null;
-          let rebuildTimer = null;
-          let controls = null;
-          let submitHandler = null;
-          let clickHandler = null;
-
-          function findLoginControls() {
-            const forms = Array.from(
-              doc.querySelectorAll(
-                'form[data-testid="stForm"], div[data-testid="stForm"]'
-              )
-            );
-
-            for (const form of forms) {
-              const inputs = Array.from(form.querySelectorAll("input"));
-
-              const usernameInput = inputs.find(
-                (input) => input.type === "text"
-              );
-              const passwordInput = inputs.find(
-                (input) => input.type === "password"
-              );
-              const rememberCheckbox = inputs.find(
-                (input) => input.type === "checkbox"
-              );
-              const submitButton = form.querySelector(
-                'button[type="submit"], button[kind="primaryFormSubmit"]'
-              );
-
-              if (
-                usernameInput &&
-                passwordInput &&
-                rememberCheckbox &&
-                submitButton
-              ) {
-                return {
-                  form,
-                  usernameInput,
-                  passwordInput,
-                  rememberCheckbox,
-                  submitButton,
-                };
-              }
-            }
-
-            return null;
-          }
-
-          function setReactTextValue(input, value) {
-            const descriptor = Object.getOwnPropertyDescriptor(
-              HTMLInputElement.prototype,
-              "value"
-            );
-
-            if (descriptor?.set) {
-              descriptor.set.call(input, value);
-            } else {
-              input.value = value;
-            }
-
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-
-          function setReactCheckbox(checkbox, checked) {
-            if (checkbox.checked === checked) return;
-
-            // Real click first so Streamlit's React widget state is updated.
-            try { checkbox.click(); } catch (error) {}
-
-            if (checkbox.checked === checked) return;
-
-            const descriptor = Object.getOwnPropertyDescriptor(
-              HTMLInputElement.prototype,
-              "checked"
-            );
-
-            if (descriptor?.set) {
-              descriptor.set.call(checkbox, checked);
-            } else {
-              checkbox.checked = checked;
-            }
-
-            checkbox.dispatchEvent(new Event("input", { bubbles: true }));
-            checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-
-          function readSavedCredentials() {
-            try {
-              const raw = root.localStorage.getItem(STORAGE_KEY);
-              if (!raw) return null;
-
-              const profile = JSON.parse(raw);
-
-              if (
-                !profile ||
-                profile.version !== 1 ||
-                profile.remember !== true ||
-                typeof profile.username !== "string" ||
-                typeof profile.password !== "string" ||
-                !profile.username ||
-                !profile.password
-              ) {
-                root.localStorage.removeItem(STORAGE_KEY);
-                return null;
-              }
-
-              return profile;
-            } catch (error) {
-              try { root.localStorage.removeItem(STORAGE_KEY); }
-              catch (cleanupError) {}
-              return null;
-            }
-          }
-
-          function removeAllRememberData() {
-            try {
-              const storage = root.localStorage;
-              storage.removeItem(STORAGE_KEY);
-              storage.removeItem("atp_login_profile");
-              storage.removeItem("atp_remember_session");
-              storage.removeItem("atp_remember_username");
-              storage.removeItem("atp_remember_enabled");
-            } catch (error) {}
-          }
-
-          function saveOrClearCredentials() {
-            if (!controls) return;
-
-            const username = String(
-              controls.usernameInput.value || ""
-            ).trim();
-            const password = String(
-              controls.passwordInput.value || ""
-            );
-            const remember = Boolean(
-              controls.rememberCheckbox.checked
-            );
-
-            if (remember && username && password) {
-              try {
-                root.localStorage.setItem(
-                  STORAGE_KEY,
-                  JSON.stringify({
-                    version: 1,
-                    remember: true,
-                    username,
-                    password,
-                    saved_at: new Date().toISOString(),
-                  })
-                );
-
-                // Remove old implementations so only one source of truth exists.
-                root.localStorage.removeItem("atp_login_profile");
-                root.localStorage.removeItem("atp_remember_session");
-                root.localStorage.removeItem("atp_remember_username");
-                root.localStorage.removeItem("atp_remember_enabled");
-              } catch (error) {}
-            } else {
-              removeAllRememberData();
-            }
-          }
-
-          function configureBrowserAutofill() {
-            if (!controls) return;
-
-            // The app controls whether credentials are retained.
-            // These attributes also discourage the browser password manager
-            // from independently restoring credentials after Remember Me
-            // has been turned off.
-            controls.form.setAttribute("autocomplete", "off");
-            controls.usernameInput.setAttribute("autocomplete", "off");
-            controls.usernameInput.setAttribute("autocapitalize", "none");
-            controls.usernameInput.setAttribute("spellcheck", "false");
-            controls.passwordInput.setAttribute(
-              "autocomplete",
-              "new-password"
-            );
-          }
-
-          function restoreSavedCredentials() {
-            if (!controls) return;
-
-            configureBrowserAutofill();
-
-            const profile = readSavedCredentials();
-
-            if (!profile) {
-              setReactCheckbox(controls.rememberCheckbox, false);
-              return;
-            }
-
-            setReactTextValue(
-              controls.usernameInput,
-              profile.username
-            );
-            setReactTextValue(
-              controls.passwordInput,
-              profile.password
-            );
-            setReactCheckbox(
-              controls.rememberCheckbox,
-              true
-            );
-          }
-
-          function detachListeners() {
-            if (controls && submitHandler) {
-              try {
-                controls.form.removeEventListener(
-                  "submit",
-                  submitHandler,
-                  true
-                );
-              } catch (error) {}
-            }
-
-            if (clickHandler) {
-              try {
-                doc.removeEventListener(
-                  "click",
-                  clickHandler,
-                  true
-                );
-              } catch (error) {}
-            }
-          }
-
-          function attachToControls(found) {
-            detachListeners();
-            controls = found;
-
-            submitHandler = () => {
-              saveOrClearCredentials();
-            };
-
-            clickHandler = (event) => {
-              if (
-                controls &&
-                event.target.closest("button") === controls.submitButton
-              ) {
-                saveOrClearCredentials();
-              }
-            };
-
-            controls.form.addEventListener(
-              "submit",
-              submitHandler,
-              true
-            );
-            doc.addEventListener(
-              "click",
-              clickHandler,
-              true
-            );
-
-            restoreSavedCredentials();
-          }
-
-          function initialize() {
-            if (stopped) return;
-
-            const found = findLoginControls();
-
-            if (!found) {
-              retryTimer = root.setTimeout(initialize, 100);
-              return;
-            }
-
-            attachToControls(found);
-
-            // Streamlit can rebuild the form shortly after first paint.
-            // Reattach only when the actual input nodes have changed.
-            let checks = 0;
-
-            rebuildTimer = root.setInterval(() => {
-              if (stopped) {
-                root.clearInterval(rebuildTimer);
-                return;
-              }
-
-              const latest = findLoginControls();
-
-              if (
-                latest &&
-                controls &&
-                (
-                  latest.usernameInput !== controls.usernameInput ||
-                  latest.passwordInput !== controls.passwordInput ||
-                  latest.rememberCheckbox !== controls.rememberCheckbox
-                )
-              ) {
-                attachToControls(latest);
-              }
-
-              checks += 1;
-              if (checks >= 20) {
-                root.clearInterval(rebuildTimer);
-                rebuildTimer = null;
-              }
-            }, 150);
-          }
-
-          initialize();
-
-          function cleanup() {
-            stopped = true;
-            detachListeners();
-
-            if (retryTimer) {
-              try { root.clearTimeout(retryTimer); } catch (error) {}
-            }
-
-            if (rebuildTimer) {
-              try { root.clearInterval(rebuildTimer); } catch (error) {}
-            }
-          }
-
-          root[INSTALL_KEY] = { cleanup };
-          window.addEventListener(
-            "beforeunload",
-            cleanup,
-            { once: true }
-          );
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
 
 def show_login_loading_message(placeholder):
     """
@@ -6716,7 +6556,7 @@ def login_screen():
             remember_me = st.checkbox(
                 "Remember me",
                 value=remember_default,
-                help="Keep me signed in on this browser.",
+                help="Keep me signed in on this browser for up to 30 days.",
             )
             login_submitted = st.form_submit_button(
                 "Login",
@@ -6761,22 +6601,18 @@ def login_screen():
                             user["username"],
                             user["role"],
                         )
-                        st.query_params.from_dict(
-                            {
-                                "session": session_id,
-                                "remember": "1",
-                            }
-                        )
+                        set_remembered_session_cookie(session_id)
                     except Exception:
-                        # Remember-session creation must never block login.
+                        # Persistent login failure must never block a valid
+                        # username/password login for the current browser tab.
                         pass
                 else:
                     clear_browser_login_profile()
 
-                    try:
-                        st.query_params.clear()
-                    except Exception:
-                        pass
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
 
                 st.rerun()
             else:

@@ -5,3 +5,4 @@ pandas
 pillow
 python-dotenv
 requests>=2.31.0
+streamlit-cookies-controller==0.0.4
