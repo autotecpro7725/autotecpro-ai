@@ -8114,6 +8114,145 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Final alignment-only sidebar override.
+# This block is intentionally last so it wins over older global button rules.
+st.markdown(
+    """
+    <style>
+    /* ------------------------------------------------------------
+       AutoTecPro AI navigation: one consistent left edge
+    ------------------------------------------------------------ */
+
+    section[data-testid="stSidebar"] .workspace-title {
+        width: 100% !important;
+        margin: 5px 0 8px 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
+        width: 100% !important;
+        margin: 0 0 3px 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"],
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"] .stButton {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button {
+        width: 100% !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        margin: 0 !important;
+        padding: 0 8px !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] {
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+    }
+
+    /* ------------------------------------------------------------
+       History section spacing
+    ------------------------------------------------------------ */
+
+    section[data-testid="stSidebar"] .history-title {
+        margin: 20px 0 12px 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-storage-card {
+        margin: 0 0 18px 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-section-label {
+        display: block !important;
+        width: 100% !important;
+        min-height: 20px !important;
+        height: auto !important;
+        margin: 20px 0 12px 0 !important;
+        padding: 0 !important;
+        line-height: 20px !important;
+        text-align: left !important;
+        clear: both !important;
+        overflow: visible !important;
+    }
+
+    section[data-testid="stSidebar"] .history-section-spacer {
+        display: block !important;
+        width: 100% !important;
+        height: 6px !important;
+        min-height: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-empty-state {
+        margin: 0 0 12px 0 !important;
+    }
+
+    /* Guarantee a visible gap between a section heading and its first row. */
+    section[data-testid="stSidebar"]
+    .history-section-label
+    + div {
+        margin-top: 6px !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_button_"]
+        .stButton > button {
+            padding-left: 10px !important;
+        }
+
+        section[data-testid="stSidebar"] .history-title {
+            margin-top: 22px !important;
+            margin-bottom: 14px !important;
+        }
+
+        section[data-testid="stSidebar"] .history-section-label {
+            margin-top: 22px !important;
+            margin-bottom: 14px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
     unsafe_allow_html=True,
