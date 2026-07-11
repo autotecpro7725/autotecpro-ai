@@ -243,15 +243,21 @@ def cached_oauth_token(cache_key, token_url, client_id, client_secret, *,
 
 
 def get_ups_access_token():
-    return cached_oauth_token(
+    print("[UPS OAUTH] Requesting or reusing UPS OAuth token.", flush=True)
+    token = cached_oauth_token(
         "ups_oauth_token",
         "https://onlinetools.ups.com/security/v1/oauth/token",
         UPS_CLIENT_ID,
         UPS_CLIENT_SECRET,
         data={"grant_type": "client_credentials"},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+        },
         auth=(UPS_CLIENT_ID, UPS_CLIENT_SECRET),
     )
+    print("[UPS OAUTH] Token available.", flush=True)
+    return token
 
 
 def track_ups(tracking_number):
@@ -275,6 +281,10 @@ def track_ups(tracking_number):
             "A standard UPS 1Z tracking number must contain exactly 18 characters."
         )
 
+    print(
+        f"[UPS ROUTER] Calling UPS Tracking API for {normalized_tracking}.",
+        flush=True,
+    )
     token = get_ups_access_token()
     response = requests.get(
         (
@@ -294,6 +304,11 @@ def track_ups(tracking_number):
         timeout=LIVE_HTTP_TIMEOUT,
     )
 
+    print(
+        f"[UPS TRACKING] HTTP {response.status_code} for {normalized_tracking}.",
+        flush=True,
+    )
+
     try:
         data = safe_json_response(response)
     except Exception as error:
@@ -303,7 +318,8 @@ def track_ups(tracking_number):
             "[UPS TRACKING ERROR] "
             f"status={response.status_code} "
             f"tracking={normalized_tracking} "
-            f"response={safe_body}"
+            f"response={safe_body}",
+            flush=True,
         )
         raise RuntimeError(f"UPS Tracking API error: {error}") from error
 
@@ -417,24 +433,31 @@ def detect_live_request(prompt):
         return {"type": "none"}
 
     tracking_number = extract_tracking_number(value)
+
+    # Route a valid UPS 1Z number directly to UPS even when the user only types:
+    # "1Zxxxxxxxxxxxxxxxx UPS" or just the tracking number by itself.
+    if tracking_number and tracking_number.startswith("1Z"):
+        return {
+            "type": "tracking",
+            "carrier": "ups",
+            "tracking_number": tracking_number,
+        }
+
+    # Route Canada Post when the carrier is named, even without the word "track".
+    if tracking_number and (
+        "canada post" in lower or "canadapost" in lower
+    ):
+        return {
+            "type": "tracking",
+            "carrier": "canada_post",
+            "tracking_number": tracking_number,
+        }
+
+    # For other tracking formats, require tracking-related language.
     if tracking_number and any(
         word in lower
         for word in ["track", "tracking", "shipment", "package", "parcel"]
     ):
-        if "ups" in lower or tracking_number.startswith("1Z"):
-            return {
-                "type": "tracking",
-                "carrier": "ups",
-                "tracking_number": tracking_number,
-            }
-
-        if "canada post" in lower or "canadapost" in lower:
-            return {
-                "type": "tracking",
-                "carrier": "canada_post",
-                "tracking_number": tracking_number,
-            }
-
         return {
             "type": "tracking_unknown",
             "tracking_number": tracking_number,
