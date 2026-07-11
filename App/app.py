@@ -7522,6 +7522,372 @@ for slug, icon, label in workspace_items:
 
 assistant = st.session_state.current_assistant
 
+# Final sidebar-only visual override.
+# Kept separate so legacy/global button rules cannot recolor navigation.
+st.markdown(
+    """
+    <style>
+    /* ============================================================
+       GPT-style workspace navigation: no red/orange backgrounds
+    ============================================================ */
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"],
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"] > div,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"] .stButton {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    .stButton > button {
+        width: 100% !important;
+        min-height: 43px !important;
+        height: 43px !important;
+        margin: 0 !important;
+        padding: 0 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #d7dee8 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 15px !important;
+        font-weight: 620 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    .stButton > button:hover {
+        background: rgba(255, 255, 255, 0.055) !important;
+        background-color: rgba(255, 255, 255, 0.055) !important;
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_active_"],
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_active_"] > div {
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_active_"]
+    .stButton > button {
+        background: rgba(255, 255, 255, 0.085) !important;
+        background-color: rgba(255, 255, 255, 0.085) !important;
+        background-image: none !important;
+        color: #ffffff !important;
+        font-weight: 740 !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    .stButton > button p {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        color: inherit !important;
+        font-size: 15px !important;
+        white-space: nowrap !important;
+    }
+
+    /* ============================================================
+       Pinned / Recents alignment
+    ============================================================ */
+
+    div[data-testid="stSidebar"] .history-section-label {
+        display: block !important;
+        position: relative !important;
+        width: 100% !important;
+        min-height: 20px !important;
+        height: 20px !important;
+        margin: 16px 0 0 2px !important;
+        padding: 0 !important;
+        color: #b8c2cf !important;
+        font-size: 12px !important;
+        font-weight: 780 !important;
+        line-height: 20px !important;
+        text-align: left !important;
+        overflow: visible !important;
+        z-index: 10 !important;
+    }
+
+    div[data-testid="stSidebar"] .history-section-spacer {
+        display: block !important;
+        width: 100% !important;
+        height: 8px !important;
+        min-height: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        clear: both !important;
+    }
+
+    /* ============================================================
+       Compact chat rows and exact icon/text alignment
+    ============================================================ */
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        width: 100% !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        max-height: 42px !important;
+        margin: 0 0 7px 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        width: 100% !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        gap: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="column"]:first-child {
+        flex: 1 1 auto !important;
+        width: calc(100% - 38px) !important;
+        min-width: 0 !important;
+        max-width: calc(100% - 38px) !important;
+        height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="column"]:last-child {
+        flex: 0 0 38px !important;
+        width: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    .stButton,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    .stButton > button {
+        width: 100% !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    .stButton > button {
+        padding: 0 6px 0 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        color: #dbe3ed !important;
+        font-size: 12.5px !important;
+        font-weight: 560 !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    .stButton > button p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        width: 38px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] > button,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] button {
+        width: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] svg {
+        display: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        top: 21px !important;
+        left: 7px !important;
+        transform: translateY(-50%) !important;
+        line-height: 1 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]
+    .stButton > button,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]
+    .stButton > button {
+        padding-left: 23px !important;
+    }
+
+    /* Keep desktop three dots hidden until hover. */
+    @media (hover: hover) and (pointer: fine) {
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]:hover
+        [data-testid="stPopover"],
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_active_"]
+        [data-testid="stPopover"] {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        div[data-testid="stSidebar"]
+        div[class*="st-key-workspace_nav_"]
+        .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+        }
+
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"] {
+            height: 48px !important;
+            min-height: 48px !important;
+            max-height: 48px !important;
+        }
+
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        div[data-testid="stHorizontalBlock"],
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        div[data-testid="column"],
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        .stButton,
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        .stButton > button,
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+        }
+
+        div[data-testid="stSidebar"]
+        div[class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
     unsafe_allow_html=True,
@@ -9247,6 +9613,10 @@ def render_history_cards(conversations):
                     f'{html.escape(section_name)}'
                     '</div>'
                 ),
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<div class="history-section-spacer"></div>',
                 unsafe_allow_html=True,
             )
 
