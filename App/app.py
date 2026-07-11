@@ -8,6 +8,7 @@ except Exception:
     Image = None
 import base64
 import html
+import hashlib
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import tempfile
@@ -78,24 +79,6 @@ CANADA_POST_USERNAME = get_optional_secret("CANADA_POST_USERNAME")
 CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
 
 LIVE_HTTP_TIMEOUT = 15
-
-MAX_UPLOAD_MB = 10
-MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-
-
-def validate_uploaded_files(files):
-    """Keep only files up to 10 MB and return oversized filenames separately."""
-    valid_files = []
-    oversized_files = []
-
-    for uploaded_file in files or []:
-        size = getattr(uploaded_file, "size", None)
-        if size is not None and int(size) > MAX_UPLOAD_BYTES:
-            oversized_files.append(uploaded_file.name)
-        else:
-            valid_files.append(uploaded_file)
-
-    return valid_files, oversized_files
 
 
 def safe_json_response(response):
@@ -4607,200 +4590,319 @@ def install_composer_width_safety_css():
 
 
 
-def install_modern_uploader_polish():
-    """
-    Stable ChatGPT / Claude-style uploader for chat and Admin areas.
+# ============================================================
+# Stable Python-managed upload panels
+# ============================================================
 
-    The script never moves or duplicates Streamlit-managed DOM nodes. It only
-    adds classes and applies image previews to the existing file icon area.
-    This prevents React reruns from showing duplicate uploaded-file entries.
+MAX_UPLOAD_MB = 10
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+
+
+class ManagedUploadedFile(io.BytesIO):
+    """In-memory file compatible with the app's existing upload functions."""
+
+    def __init__(self, data, name, mime_type="application/octet-stream"):
+        super().__init__(data)
+        self.name = str(name or "upload")
+        self.type = str(mime_type or "application/octet-stream")
+        self.size = len(data)
+
+    def getvalue(self):
+        position = self.tell()
+        try:
+            self.seek(0)
+            return super().getvalue()
+        finally:
+            self.seek(position)
+
+
+def _managed_upload_record(uploaded_file):
+    data = uploaded_file.getvalue()
+    digest = hashlib.sha256(data).hexdigest()
+    return {
+        "id": digest,
+        "name": str(getattr(uploaded_file, "name", "upload")),
+        "type": str(
+            getattr(uploaded_file, "type", "application/octet-stream")
+            or "application/octet-stream"
+        ),
+        "size": len(data),
+        "data": data,
+    }
+
+
+def _managed_upload_objects(records):
+    return [
+        ManagedUploadedFile(
+            record["data"],
+            record["name"],
+            record.get("type") or "application/octet-stream",
+        )
+        for record in records or []
+    ]
+
+
+def clear_managed_uploads(storage_key, generation_key):
+    st.session_state[storage_key] = []
+    st.session_state[generation_key] = (
+        int(st.session_state.get(generation_key, 0)) + 1
+    )
+
+
+def install_managed_uploader_css():
     """
+    Final uploader styling.
+
+    This intentionally avoids manipulating Streamlit's uploaded-file rows.
+    The actual file preview cards are rendered by Python, which prevents
+    duplicates after reruns.
+    """
+    st.markdown(
+        """
+        <style>
+        .atp-upload-shell {
+            width: 100%;
+            border: 1px dashed rgba(248, 113, 113, 0.78);
+            border-radius: 18px;
+            background: rgba(2, 6, 23, 0.28);
+            padding: 18px;
+            margin: 2px 0 10px 0;
+            box-sizing: border-box;
+        }
+
+        .atp-upload-heading {
+            color: #f8fafc;
+            font-size: 13px;
+            font-weight: 750;
+            margin: 0 0 10px 0;
+        }
+
+        .atp-upload-card {
+            width: min(100%, 430px);
+            margin: 0 auto 12px auto;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 15px;
+            background: rgba(15, 23, 42, 0.78);
+            overflow: hidden;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.16);
+        }
+
+        .atp-upload-card img {
+            display: block;
+            width: 100%;
+            max-height: 280px;
+            object-fit: contain;
+            background: #020617;
+        }
+
+        .atp-upload-file-icon {
+            height: 116px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            background: rgba(30, 41, 59, 0.72);
+        }
+
+        .atp-upload-meta {
+            padding: 9px 12px 10px 12px;
+            text-align: center;
+        }
+
+        .atp-upload-name {
+            color: #f8fafc;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .atp-upload-size {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .atp-add-file-label {
+            width: 100%;
+            text-align: center;
+            color: #cbd5e1;
+            font-size: 13px;
+            font-weight: 650;
+            margin: 10px 0 6px 0;
+        }
+
+        /* Center the native empty uploader control. */
+        html body div[data-testid="stFileUploader"] {
+            background: transparent !important;
+            border: 0 !important;
+            padding: 0 !important;
+        }
+
+        html body div[data-testid="stFileUploader"] section,
+        html body div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderDropzone"] {
+            min-height: 106px !important;
+            height: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+            padding: 14px !important;
+            border: 1px dashed rgba(148, 163, 184, 0.26) !important;
+            border-radius: 14px !important;
+            background: rgba(15, 23, 42, 0.34) !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[data-testid="stFileUploader"] section > div,
+        html body div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderDropzone"] > div {
+            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 7px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: center !important;
+        }
+
+        html body div[data-testid="stFileUploader"] button,
+        html body div[data-testid="stFileUploader"]
+        [data-testid="stBaseButton-secondary"] {
+            width: auto !important;
+            min-width: 126px !important;
+            height: 50px !important;
+            min-height: 50px !important;
+            margin: 0 auto !important;
+            padding: 0 19px !important;
+            border-radius: 12px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            transform: none !important;
+        }
+
+        html body div[data-testid="stFileUploader"] button svg {
+            width: 24px !important;
+            height: 24px !important;
+            transform: none !important;
+        }
+
+        html body div[data-testid="stFileUploader"] small,
+        html body div[data-testid="stFileUploader"] p,
+        html body div[data-testid="stFileUploader"] span {
+            text-align: center !important;
+        }
+
+        /* The native uploader is always reset immediately after selection,
+           so its own uploaded-file list should never be used as the preview. */
+        html body div[data-testid="stFileUploader"] ul {
+            display: none !important;
+        }
+
+        .atp-delete-upload .stButton > button {
+            width: 100% !important;
+            max-width: 430px !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            margin: 0 auto 14px auto !important;
+            border-radius: 9px !important;
+            background: rgba(239, 68, 68, 0.11) !important;
+            border: 1px solid rgba(248, 113, 113, 0.18) !important;
+            color: #fca5a5 !important;
+            box-shadow: none !important;
+            font-size: 12px !important;
+            font-weight: 650 !important;
+            transform: none !important;
+        }
+
+        .atp-delete-upload .stButton > button:hover {
+            background: rgba(239, 68, 68, 0.19) !important;
+            color: #ffffff !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .atp-upload-shell {
+                padding: 12px;
+                border-radius: 15px;
+            }
+
+            .atp-upload-card {
+                width: 100%;
+            }
+
+            .atp-upload-card img {
+                max-height: 230px;
+            }
+
+            html body div[data-testid="stFileUploader"] section,
+            html body div[data-testid="stFileUploader"]
+            [data-testid="stFileUploaderDropzone"] {
+                min-height: 98px !important;
+                padding: 11px !important;
+            }
+
+            html body div[data-testid="stFileUploader"] button,
+            html body div[data-testid="stFileUploader"]
+            [data-testid="stBaseButton-secondary"] {
+                min-width: 116px !important;
+                height: 47px !important;
+                min-height: 47px !important;
+                padding: 0 16px !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     components.html(
-        r"""
+        """
         <script>
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const GLOBAL_KEY = "__atpStableUploaderV4";
+          const KEY = "__atpManagedUploaderTextV1";
 
-          try { root[GLOBAL_KEY]?.cleanup?.(); } catch (error) {}
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
 
           let observer = null;
           let timer = null;
-          let scheduled = false;
-          const urls = new Map();
 
-          const FILE_ROW_SELECTOR = '[data-testid="stFileUploaderFile"]';
-
-          function textOf(node) {
-            return (node?.innerText || node?.textContent || "").trim();
-          }
-
-          function getFiles(uploader) {
-            const input = uploader.querySelector('input[type="file"]');
-            return input?.files ? [...input.files] : [];
-          }
-
-          function objectUrl(file) {
-            const key = `${file.name}|${file.size}|${file.lastModified}`;
-            if (!urls.has(key)) urls.set(key, URL.createObjectURL(file));
-            return urls.get(key);
-          }
-
-          function nearestDirectChild(node, parent) {
-            let current = node;
-            while (current?.parentElement && current.parentElement !== parent) {
-              current = current.parentElement;
-            }
-            return current;
-          }
-
-          function resetClasses(uploader) {
-            uploader.querySelectorAll(
-              '.atp-main-upload-button, .atp-remove-file-button, .atp-add-file-button'
-            ).forEach((element) => {
-              element.classList.remove(
-                'atp-main-upload-button',
-                'atp-remove-file-button',
-                'atp-add-file-button'
-              );
-            });
-          }
-
-          function classifyButtons(uploader, dropzone) {
-            resetClasses(uploader);
-            const buttons = [...uploader.querySelectorAll('button')];
-
-            for (const button of buttons) {
-              const label = [
-                button.getAttribute('aria-label'),
-                button.getAttribute('title'),
-                textOf(button)
-              ].filter(Boolean).join(' ').toLowerCase();
-
-              const inFileRow = Boolean(button.closest(FILE_ROW_SELECTOR));
-
-              if (inFileRow || /remove|delete|clear file/.test(label)) {
-                if (inFileRow) {
-                  button.classList.add('atp-remove-file-button');
-                }
-                continue;
-              }
-
-              if (/add|another file/.test(label) || label === '+') {
-                button.classList.add('atp-add-file-button');
-                const wrap = nearestDirectChild(button, dropzone);
-                wrap?.classList.add('atp-add-file-wrap');
-                continue;
-              }
-
-              if (/upload|browse|choose/.test(label)) {
-                button.classList.add('atp-main-upload-button');
-                const wrap = nearestDirectChild(button, dropzone);
-                wrap?.classList.add('atp-main-upload-wrap');
-              }
-            }
-
-            // In Streamlit some add-more buttons are icon-only. Classify only
-            // the last non-row button after at least one file exists.
-            if (uploader.querySelector(FILE_ROW_SELECTOR)) {
-              const candidates = buttons.filter((button) =>
-                !button.closest(FILE_ROW_SELECTOR) &&
-                !button.classList.contains('atp-main-upload-button') &&
-                !button.classList.contains('atp-add-file-button')
-              );
-              const candidate = candidates.at(-1);
-              if (candidate) {
-                candidate.classList.add('atp-add-file-button');
-                const wrap = nearestDirectChild(candidate, dropzone);
-                wrap?.classList.add('atp-add-file-wrap');
-              }
-            }
-          }
-
-          function updateLimitText(uploader) {
-            uploader.querySelectorAll('small, span, p, div').forEach((node) => {
-              if (node.children.length) return;
-              const value = textOf(node);
-              if (/200\s*MB\s*per\s*file/i.test(value)) {
-                node.textContent = value.replace(/200\s*MB/i, '10MB');
-                node.classList.add('atp-upload-limit');
-              }
-            });
-          }
-
-          function applyPreviews(uploader) {
-            const files = getFiles(uploader);
-            const rows = [...uploader.querySelectorAll(FILE_ROW_SELECTOR)];
-
-            rows.forEach((row) => {
-              row.classList.add('atp-upload-file-card');
-              const rowText = textOf(row);
-              const file = files.find((item) => rowText.includes(item.name));
-
-              const icon = row.querySelector(
-                '[data-testid="stFileUploaderFileData"] > div:first-child, div:first-child'
-              );
-              if (!icon) return;
-
-              icon.classList.add('atp-upload-file-preview');
-              icon.style.removeProperty('background-image');
-              icon.classList.remove('atp-image-preview');
-
-              if (file && /^image\//i.test(file.type || '')) {
-                icon.style.setProperty(
-                  'background-image',
-                  `url("${objectUrl(file)}")`,
-                  'important'
-                );
-                icon.classList.add('atp-image-preview');
-              }
-            });
-          }
-
-          function polish(uploader) {
-            uploader.classList.add('atp-stable-uploader');
-            const dropzone =
-              uploader.querySelector('[data-testid="stFileUploaderDropzone"]') ||
-              uploader.querySelector('section');
-            if (!dropzone) return;
-
-            dropzone.classList.add('atp-stable-dropzone');
-            updateLimitText(uploader);
-            classifyButtons(uploader, dropzone);
-            applyPreviews(uploader);
-          }
-
-          function run() {
-            scheduled = false;
+          function update() {
             doc.querySelectorAll('div[data-testid="stFileUploader"]')
-              .forEach(polish);
+              .forEach((uploader) => {
+                uploader.querySelectorAll("small, p, span").forEach((node) => {
+                  if (node.children.length) return;
+                  const value = (node.textContent || "").trim();
+                  if (/200\\s*MB\\s*per\\s*file/i.test(value)) {
+                    node.textContent = value.replace(/200\\s*MB/i, "10MB");
+                  }
+                });
+              });
           }
 
-          function schedule() {
-            if (scheduled) return;
-            scheduled = true;
-            root.requestAnimationFrame(run);
-          }
-
-          const observeRoot =
+          const target =
             doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-          observer = new MutationObserver(schedule);
-          observer.observe(observeRoot, { childList: true, subtree: true });
-          timer = root.setInterval(schedule, 1500);
-          schedule();
+
+          observer = new MutationObserver(update);
+          if (target) observer.observe(target, {childList: true, subtree: true});
+          timer = root.setInterval(update, 1800);
+          update();
 
           function cleanup() {
             try { observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(timer); } catch (error) {}
-            for (const url of urls.values()) {
-              try { URL.revokeObjectURL(url); } catch (error) {}
-            }
-            urls.clear();
           }
 
-          root[GLOBAL_KEY] = { cleanup };
-          window.addEventListener('beforeunload', cleanup, { once: true });
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
         })();
         </script>
         """,
@@ -4808,243 +4910,143 @@ def install_modern_uploader_polish():
         width=0,
     )
 
+
+def render_managed_upload_preview(record, delete_key, on_delete):
+    file_type = str(record.get("type") or "")
+    file_name = html.escape(str(record.get("name") or "upload"))
+    file_size = float(record.get("size") or 0) / (1024 * 1024)
+
+    if file_type.startswith("image/"):
+        encoded = base64.b64encode(record["data"]).decode()
+        media_html = (
+            f'<img src="data:{html.escape(file_type)};base64,{encoded}" '
+            f'alt="{file_name}">'
+        )
+    else:
+        extension = Path(record.get("name") or "").suffix.lower()
+        icon = "📄" if extension in {".pdf", ".txt", ".docx"} else "📎"
+        media_html = f'<div class="atp-upload-file-icon">{icon}</div>'
+
     st.markdown(
-        """
-        <style>
-        /* Final uploader styles. These rules intentionally appear late. */
-        html body div[data-testid="stFileUploader"].atp-stable-uploader {
-            padding: 14px !important;
-            border: 1px solid rgba(148, 163, 184, 0.20) !important;
-            border-radius: 18px !important;
-            background: rgba(15, 23, 42, 0.45) !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-stable-dropzone {
-            display: flex !important;
-            flex-direction: column !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 10px !important;
-            width: 100% !important;
-            min-height: 154px !important;
-            padding: 18px 16px !important;
-            border: 1px dashed rgba(148, 163, 184, 0.34) !important;
-            border-radius: 16px !important;
-            background: rgba(2, 6, 23, 0.22) !important;
-            box-sizing: border-box !important;
-            text-align: center !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-main-upload-wrap {
-            width: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            order: 1 !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-main-upload-button {
-            width: auto !important;
-            min-width: 130px !important;
-            height: 54px !important;
-            min-height: 54px !important;
-            margin: 0 auto !important;
-            padding: 0 21px !important;
-            border-radius: 13px !important;
-            border: 1px solid rgba(96, 165, 250, 0.36) !important;
-            background: rgba(30, 64, 175, 0.34) !important;
-            color: #f8fafc !important;
-            -webkit-text-fill-color: #f8fafc !important;
-            box-shadow: none !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 9px !important;
-            font-size: 14px !important;
-            font-weight: 700 !important;
-            transform: none !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-main-upload-button svg {
-            width: 26px !important;
-            height: 26px !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-upload-limit {
-            width: 100% !important;
-            order: 2 !important;
-            margin: 0 !important;
-            text-align: center !important;
-            color: #94a3b8 !important;
-            -webkit-text-fill-color: #94a3b8 !important;
-            font-size: 12px !important;
-            opacity: 1 !important;
-        }
-
-        /* The existing Streamlit list is centered; no rows are cloned. */
-        html body div[data-testid="stFileUploader"] ul {
-            order: 3 !important;
-            width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            gap: 9px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-upload-file-card {
-            position: relative !important;
-            width: min(520px, 100%) !important;
-            min-height: 98px !important;
-            display: grid !important;
-            grid-template-columns: 104px minmax(0, 1fr) 36px !important;
-            grid-template-rows: auto auto !important;
-            align-items: center !important;
-            column-gap: 12px !important;
-            row-gap: 3px !important;
-            margin: 0 auto !important;
-            padding: 9px !important;
-            border: 1px solid rgba(148, 163, 184, 0.16) !important;
-            border-radius: 14px !important;
-            background: rgba(15, 23, 42, 0.66) !important;
-            box-sizing: border-box !important;
-            box-shadow: none !important;
-            text-align: left !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-upload-file-preview {
-            grid-column: 1 !important;
-            grid-row: 1 / span 2 !important;
-            width: 104px !important;
-            min-width: 104px !important;
-            height: 80px !important;
-            min-height: 80px !important;
-            margin: 0 !important;
-            border-radius: 11px !important;
-            background-color: rgba(255,255,255,0.92) !important;
-            background-position: center !important;
-            background-repeat: no-repeat !important;
-            background-size: cover !important;
-            overflow: hidden !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-upload-file-preview.atp-image-preview > * {
-            opacity: 0 !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-remove-file-button {
-            width: 32px !important;
-            min-width: 32px !important;
-            max-width: 32px !important;
-            height: 32px !important;
-            min-height: 32px !important;
-            max-height: 32px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border-radius: 50% !important;
-            border: 1px solid rgba(255,255,255,0.18) !important;
-            background: rgba(255,255,255,0.90) !important;
-            color: #475569 !important;
-            -webkit-text-fill-color: #475569 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transform: none !important;
-        }
-
-        /* CSS order only: the add action stays below every existing file row. */
-        html body div[data-testid="stFileUploader"] .atp-add-file-wrap {
-            order: 99 !important;
-            width: 100% !important;
-            flex: 0 0 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            margin: 2px 0 0 0 !important;
-            padding: 0 !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-add-file-button {
-            width: auto !important;
-            min-width: 0 !important;
-            height: 36px !important;
-            min-height: 36px !important;
-            margin: 0 auto !important;
-            padding: 0 12px !important;
-            border: 1px solid transparent !important;
-            border-radius: 9px !important;
-            background: transparent !important;
-            color: transparent !important;
-            -webkit-text-fill-color: transparent !important;
-            box-shadow: none !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transform: none !important;
-            overflow: visible !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-add-file-button::after {
-            content: "+  Add another file";
-            color: #cbd5e1 !important;
-            -webkit-text-fill-color: #cbd5e1 !important;
-            font-size: 13px !important;
-            font-weight: 650 !important;
-            white-space: nowrap !important;
-        }
-
-        html body div[data-testid="stFileUploader"] .atp-add-file-button > *,
-        html body div[data-testid="stFileUploader"] .atp-add-file-button svg {
-            display: none !important;
-        }
-
-        @media (max-width: 768px) {
-            html body div[data-testid="stFileUploader"].atp-stable-uploader {
-                padding: 10px !important;
-            }
-
-            html body div[data-testid="stFileUploader"] .atp-stable-dropzone {
-                min-height: 140px !important;
-                padding: 14px 10px !important;
-            }
-
-            html body div[data-testid="stFileUploader"] .atp-main-upload-button {
-                min-width: 118px !important;
-                height: 50px !important;
-                min-height: 50px !important;
-            }
-
-            html body div[data-testid="stFileUploader"] .atp-main-upload-button svg {
-                width: 24px !important;
-                height: 24px !important;
-            }
-
-            html body div[data-testid="stFileUploader"] .atp-upload-file-card {
-                width: 100% !important;
-                min-height: 86px !important;
-                grid-template-columns: 82px minmax(0, 1fr) 32px !important;
-                column-gap: 9px !important;
-                padding: 7px !important;
-            }
-
-            html body div[data-testid="stFileUploader"] .atp-upload-file-preview {
-                width: 82px !important;
-                min-width: 82px !important;
-                height: 68px !important;
-                min-height: 68px !important;
-            }
-        }
-        </style>
+        f"""
+        <div class="atp-upload-card">
+            {media_html}
+            <div class="atp-upload-meta">
+                <div class="atp-upload-name">{file_name}</div>
+                <div class="atp-upload-size">{file_size:.1f} MB</div>
+            </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
+
+    st.markdown('<div class="atp-delete-upload">', unsafe_allow_html=True)
+    if st.button("Remove file", key=delete_key, use_container_width=True):
+        on_delete()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def managed_file_uploader(
+    *,
+    storage_key,
+    generation_key,
+    widget_prefix,
+    accepted_types,
+    heading,
+):
+    """
+    Stable upload manager with Python-rendered previews and hash deduplication.
+
+    The native Streamlit widget is used only to choose files. Selected bytes are
+    copied into session state, deduplicated, and then the widget is reset.
+    """
+    install_managed_uploader_css()
+
+    if storage_key not in st.session_state:
+        st.session_state[storage_key] = []
+    if generation_key not in st.session_state:
+        st.session_state[generation_key] = 0
+
+    records = list(st.session_state.get(storage_key) or [])
+
+    st.markdown('<div class="atp-upload-shell">', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="atp-upload-heading">{html.escape(heading)}</div>',
+        unsafe_allow_html=True,
+    )
+
+    for record in records:
+        record_id = record["id"]
+
+        def delete_record(record_id=record_id):
+            st.session_state[storage_key] = [
+                item
+                for item in st.session_state.get(storage_key, [])
+                if item.get("id") != record_id
+            ]
+            st.session_state[generation_key] += 1
+            st.rerun()
+
+        render_managed_upload_preview(
+            record,
+            delete_key=f"{widget_prefix}_delete_{record_id[:16]}",
+            on_delete=delete_record,
+        )
+
+    if records:
+        st.markdown(
+            '<div class="atp-add-file-label">＋ Add another file</div>',
+            unsafe_allow_html=True,
+        )
+
+    incoming_files = st.file_uploader(
+        "Upload files",
+        type=accepted_types,
+        accept_multiple_files=True,
+        key=f"{widget_prefix}_{st.session_state[generation_key]}",
+        label_visibility="collapsed",
+    )
+
+    st.caption(
+        "10MB per file · "
+        + ", ".join(str(item).upper() for item in accepted_types)
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if incoming_files:
+        existing_ids = {item["id"] for item in records}
+        added = False
+        oversized_names = []
+
+        for uploaded_file in incoming_files:
+            record = _managed_upload_record(uploaded_file)
+
+            if record["size"] > MAX_UPLOAD_BYTES:
+                oversized_names.append(record["name"])
+                continue
+
+            if record["id"] not in existing_ids:
+                records.append(record)
+                existing_ids.add(record["id"])
+                added = True
+
+        st.session_state[storage_key] = records
+        st.session_state[generation_key] += 1
+
+        if oversized_names:
+            st.session_state[f"{storage_key}_size_error"] = (
+                "These files exceed the 10 MB limit: "
+                + ", ".join(oversized_names)
+            )
+
+        if added or oversized_names:
+            st.rerun()
+
+    size_error = st.session_state.pop(f"{storage_key}_size_error", None)
+    if size_error:
+        st.error(size_error)
+
+    return _managed_upload_objects(st.session_state.get(storage_key) or [])
 
 
 def apply_login_layout_css():
@@ -5808,6 +5810,10 @@ if st.session_state.current_assistant != assistant:
     st.session_state.conversation_id = None
     st.session_state.current_assistant = assistant
     st.session_state.chat_file_uploader_generation += 1
+    clear_managed_uploads(
+        "chat_managed_uploads",
+        "chat_managed_upload_generation",
+    )
     st.rerun()
 
 st.sidebar.markdown('<div class="sidebar-action-area">', unsafe_allow_html=True)
@@ -5817,6 +5823,10 @@ if st.sidebar.button("＋ New Case", key="new_case_button"):
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.chat_file_uploader_generation += 1
+    clear_managed_uploads(
+        "chat_managed_uploads",
+        "chat_managed_upload_generation",
+    )
     st.rerun()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
@@ -7993,63 +8003,49 @@ if assistant == "⚙️ Admin Panel":
             "Changing the database no longer reruns the entire Admin Panel."
         )
 
-        with st.form(
-            "stable_admin_knowledge_upload_form",
-            clear_on_submit=False
-        ):
-            database_choice = st.selectbox(
-                "Choose database",
-                [
-                    "Technical Support Database",
-                    "Sales & Marketing Database"
-                ],
-                key="stable_admin_database_choice"
-            )
+        database_choice = st.selectbox(
+            "Choose database",
+            [
+                "Technical Support Database",
+                "Sales & Marketing Database"
+            ],
+            key="stable_admin_database_choice"
+        )
 
-            admin_context = st.text_area(
-                "Optional context for uploaded images",
-                placeholder=(
-                    "Example: This chart is for Ford F-150 2015–2021 and should be "
-                    "used to identify SYNC version and climate-control type."
-                ),
-                help=(
-                    "Optional. This helps the AI interpret reference images accurately. "
-                    "It is not required for PDF, TXT, or DOCX files."
-                ),
-                key="stable_admin_upload_context"
-            )
+        admin_context = st.text_area(
+            "Optional context for uploaded images",
+            placeholder=(
+                "Example: This chart is for Ford F-150 2015–2021 and should be "
+                "used to identify SYNC version and climate-control type."
+            ),
+            help=(
+                "Optional. This helps the AI interpret reference images accurately. "
+                "It is not required for PDF, TXT, or DOCX files."
+            ),
+            key="stable_admin_upload_context"
+        )
 
-            admin_files = st.file_uploader(
-                "Upload documents or reference images",
-                type=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
-                accept_multiple_files=True,
-                help=(
-                    "PDF, TXT, and DOCX files are uploaded directly. JPG, JPEG, "
-                    "and PNG images are analyzed and converted into searchable text."
-                ),
-                key="stable_admin_knowledge_uploader"
-            )
-            install_modern_uploader_polish()
-            admin_files, admin_oversized_files = validate_uploaded_files(admin_files)
-            if admin_oversized_files:
-                st.error(
-                    "These files exceed the 10 MB limit and will not be uploaded: "
-                    + ", ".join(admin_oversized_files)
-                )
+        admin_files = managed_file_uploader(
+            storage_key="admin_managed_uploads",
+            generation_key="admin_managed_upload_generation",
+            widget_prefix="admin_managed_picker",
+            accepted_types=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+            heading="Upload documents or reference images",
+        )
 
-            st.caption(
-                "Reference images are converted into searchable text before being "
-                "added to the knowledge base."
-            )
+        st.caption(
+            "Reference images are converted into searchable text before being "
+            "added to the knowledge base."
+        )
 
-            admin_upload_submitted = st.form_submit_button(
-                "Upload to Knowledge Base"
-            )
+        admin_upload_submitted = st.button(
+            "Upload to Knowledge Base",
+            key="stable_admin_knowledge_upload_submit",
+            use_container_width=True,
+        )
 
         if admin_upload_submitted:
-            if admin_oversized_files:
-                st.error("Please remove files larger than 10 MB before uploading.")
-            elif not admin_files:
+            if not admin_files:
                 st.warning("Please upload at least one document or image.")
             else:
                 selected_vector_store_id = (
@@ -8111,6 +8107,10 @@ if assistant == "⚙️ Admin Panel":
                 st.info(
                     "Upload completed. OpenAI may take a short time to finish "
                     "indexing new knowledge before it appears in search results."
+                )
+                clear_managed_uploads(
+                    "admin_managed_uploads",
+                    "admin_managed_upload_generation",
                 )
 
     with tab3:
@@ -8410,19 +8410,13 @@ else:
         unsafe_allow_html=True
     )
 
-    uploaded_files = st.file_uploader(
-        "📎 Attach files or photos",
-        type=["jpg", "jpeg", "png", "pdf", "txt"],
-        accept_multiple_files=True,
-        key=f"chat_file_uploader_{st.session_state.chat_file_uploader_generation}"
+    uploaded_files = managed_file_uploader(
+        storage_key="chat_managed_uploads",
+        generation_key="chat_managed_upload_generation",
+        widget_prefix="chat_managed_picker",
+        accepted_types=["jpg", "jpeg", "png", "pdf", "txt"],
+        heading="📎 Attach files or photos",
     )
-    install_modern_uploader_polish()
-    uploaded_files, oversized_chat_files = validate_uploaded_files(uploaded_files)
-    if oversized_chat_files:
-        st.error(
-            "These files exceed the 10 MB limit and will not be sent: "
-            + ", ".join(oversized_chat_files)
-        )
 
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
@@ -8442,13 +8436,26 @@ else:
 
     if prompt:
         user_display = clean_visible_chat_text(prompt)
-        uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
-        if uploaded_files:
-            file_names = ", ".join([file.name for file in uploaded_files])
+        # Managed uploads are deduplicated by SHA-256 and are cleared
+        # immediately after this message is completed.
+        effective_uploaded_files = list(uploaded_files or [])
+
+        uploaded_image_previews = get_uploaded_image_previews(
+            effective_uploaded_files
+        )
+
+        if effective_uploaded_files:
+            file_names = ", ".join(
+                [file.name for file in effective_uploaded_files]
+            )
             user_display += f"\n\n📎 Attached: {file_names}"
 
-        user_content_to_save = user_display + serialize_images_marker(uploaded_image_previews)
+
+        user_content_to_save = (
+            user_display
+            + serialize_images_marker(uploaded_image_previews)
+        )
 
         if st.session_state.conversation_id is None:
             try:
@@ -8475,7 +8482,7 @@ else:
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
-            answer = ask_ai(prompt, uploaded_files)
+            answer = ask_ai(prompt, effective_uploaded_files)
             answer = clean_visible_chat_text(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
@@ -8516,6 +8523,10 @@ else:
         # The image remains saved inside this specific user message/history item,
         # but it will not be automatically reused in the next conversation turn.
         st.session_state.chat_file_uploader_generation += 1
+        clear_managed_uploads(
+            "chat_managed_uploads",
+            "chat_managed_upload_generation",
+        )
 
         st.session_state.scroll_to_bottom = True
         st.rerun()
