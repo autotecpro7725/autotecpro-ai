@@ -6208,163 +6208,31 @@ def logout_user():
 # Login Screen
 # ============================================================
 
-def restore_browser_remember_token():
-    """
-    Restore a remembered login from one JSON profile in localStorage.
-
-    Stored profile fields:
-    - remember: bool
-    - username: str
-    - session: str
-
-    The raw password is never stored by the app.
-    """
-    if st.query_params.get("session"):
-        return
-
-    components.html(
-        """
-        <script>
-        (() => {
-          try {
-            const root = window.parent;
-            const raw = root.localStorage.getItem("atp_login_profile");
-            if (!raw) return;
-
-            const profile = JSON.parse(raw);
-
-            if (
-              !profile ||
-              profile.version !== 1 ||
-              profile.remember !== true ||
-              !profile.session
-            ) {
-              root.localStorage.removeItem("atp_login_profile");
-              return;
-            }
-
-            const url = new URL(root.location.href);
-
-            if (url.searchParams.get("session") === profile.session) {
-              return;
-            }
-
-            url.searchParams.set("session", profile.session);
-            url.searchParams.set("remember", "1");
-            root.location.replace(url.toString());
-          } catch (error) {
-            try {
-              window.parent.localStorage.removeItem("atp_login_profile");
-            } catch (cleanupError) {}
-          }
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def save_browser_login_profile(username, session_id):
-    """
-    Save one remembered-login profile on this browser/device.
-
-    The password is deliberately excluded. Chrome, Edge, Safari, or another
-    password manager can store and autofill it securely.
-    """
-    profile = {
-        "version": REMEMBER_PROFILE_VERSION,
-        "remember": True,
-        "username": str(username or "").strip(),
-        "session": str(session_id or "").strip(),
-        "created_at": now_iso(),
-    }
-    safe_profile = json.dumps(profile)
-
-    components.html(
-        f"""
-        <script>
-        (() => {{
-          try {{
-            window.parent.localStorage.setItem(
-              "atp_login_profile",
-              {json.dumps(safe_profile)}
-            );
-          }} catch (error) {{}}
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def save_profile_and_open_authenticated_page(username, session_id):
-    """
-    Reliably save the remembered-login profile, then redirect the parent page.
-
-    The save and redirect happen inside the same browser script. This prevents
-    Streamlit reruns from destroying the component iframe before localStorage
-    has been written.
-    """
-    profile = {
-        "version": REMEMBER_PROFILE_VERSION,
-        "remember": True,
-        "username": str(username or "").strip(),
-        "session": str(session_id or "").strip(),
-        "created_at": now_iso(),
-    }
-
-    safe_profile = json.dumps(profile)
-    safe_session = json.dumps(str(session_id or "").strip())
-
-    components.html(
-        f"""
-        <script>
-        (() => {{
-          try {{
-            const root = window.parent;
-            const profile = {safe_profile};
-            const sessionId = {safe_session};
-
-            root.localStorage.setItem(
-              "atp_login_profile",
-              JSON.stringify(profile)
-            );
-
-            // Remove legacy keys so there is only one source of truth.
-            root.localStorage.removeItem("atp_remember_session");
-            root.localStorage.removeItem("atp_remember_username");
-            root.localStorage.removeItem("atp_remember_enabled");
-
-            const url = new URL(root.location.href);
-            url.searchParams.set("session", sessionId);
-            url.searchParams.set("remember", "1");
-            root.location.replace(url.toString());
-          }} catch (error) {{
-            console.error("Could not save remembered login:", error);
-          }}
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
 def clear_browser_login_profile():
-    """Remove all app-saved login information from this browser/device."""
+    """
+    Remove every app-created login/Remember Me value from this browser.
+
+    This is called when:
+    - Remember me is unchecked during login;
+    - login credentials are invalid;
+    - the user logs out;
+    - a remembered session is invalid, expired, deleted, or inactive.
+    """
     components.html(
         """
         <script>
         (() => {
           try {
-            window.parent.localStorage.removeItem("atp_login_profile");
+            const storage = window.parent.localStorage;
 
-            // Remove legacy keys from earlier versions.
-            window.parent.localStorage.removeItem("atp_remember_session");
-            window.parent.localStorage.removeItem("atp_remember_username");
-            window.parent.localStorage.removeItem("atp_remember_enabled");
+            // Current functional Remember Me key.
+            storage.removeItem("atp_remembered_credentials_v1");
+
+            // Legacy keys from earlier implementations.
+            storage.removeItem("atp_login_profile");
+            storage.removeItem("atp_remember_session");
+            storage.removeItem("atp_remember_username");
+            storage.removeItem("atp_remember_enabled");
           } catch (error) {}
         })();
         </script>
@@ -6374,15 +6242,20 @@ def clear_browser_login_profile():
     )
 
 
-
-
 def install_login_autofill_support():
     """
-    Enable standard browser password-manager autofill without controlling
-    navigation or blocking the Streamlit login flow.
+    Functional app-controlled Remember Me.
 
-    When the browser autofills both fields, Remember me is checked through a
-    real click so Streamlit and the visible checkbox stay synchronized.
+    Checked:
+    - saves username and password in this browser's localStorage;
+    - restores both fields and the checked checkbox next time.
+
+    Unchecked:
+    - deletes all app-saved login information before Streamlit reruns;
+    - leaves the next login form empty and the checkbox unchecked.
+
+    This helper never redirects, calls st.stop(), triggers a Streamlit rerun,
+    or changes the working "Loading AutoTecPro AI System..." transition.
     """
     components.html(
         """
@@ -6390,110 +6263,336 @@ def install_login_autofill_support():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpStableLoginAutofillV2";
+          const STORAGE_KEY = "atp_remembered_credentials_v1";
+          const INSTALL_KEY = "__atpFunctionalRememberMeV2";
 
-          try { root[KEY]?.cleanup?.(); } catch (error) {}
+          try { root[INSTALL_KEY]?.cleanup?.(); } catch (error) {}
 
           let stopped = false;
-          let timerId = null;
-          let attempts = 0;
+          let retryTimer = null;
+          let rebuildTimer = null;
+          let controls = null;
+          let submitHandler = null;
+          let clickHandler = null;
 
-          function findControls() {
-            const form =
-              doc.querySelector('form[data-testid="stForm"]') ||
-              doc.querySelector('div[data-testid="stForm"]');
-
-            if (!form) return null;
-
-            const inputs = Array.from(form.querySelectorAll("input"));
-            const usernameInput = inputs.find(
-              (input) => input.type === "text"
-            );
-            const passwordInput = inputs.find(
-              (input) => input.type === "password"
-            );
-            const rememberCheckbox = inputs.find(
-              (input) => input.type === "checkbox"
+          function findLoginControls() {
+            const forms = Array.from(
+              doc.querySelectorAll(
+                'form[data-testid="stForm"], div[data-testid="stForm"]'
+              )
             );
 
-            if (!usernameInput || !passwordInput || !rememberCheckbox) {
-              return null;
+            for (const form of forms) {
+              const inputs = Array.from(form.querySelectorAll("input"));
+
+              const usernameInput = inputs.find(
+                (input) => input.type === "text"
+              );
+              const passwordInput = inputs.find(
+                (input) => input.type === "password"
+              );
+              const rememberCheckbox = inputs.find(
+                (input) => input.type === "checkbox"
+              );
+              const submitButton = form.querySelector(
+                'button[type="submit"], button[kind="primaryFormSubmit"]'
+              );
+
+              if (
+                usernameInput &&
+                passwordInput &&
+                rememberCheckbox &&
+                submitButton
+              ) {
+                return {
+                  form,
+                  usernameInput,
+                  passwordInput,
+                  rememberCheckbox,
+                  submitButton,
+                };
+              }
             }
 
-            return {
-              form,
-              usernameInput,
-              passwordInput,
-              rememberCheckbox,
+            return null;
+          }
+
+          function setReactTextValue(input, value) {
+            const descriptor = Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              "value"
+            );
+
+            if (descriptor?.set) {
+              descriptor.set.call(input, value);
+            } else {
+              input.value = value;
+            }
+
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          function setReactCheckbox(checkbox, checked) {
+            if (checkbox.checked === checked) return;
+
+            // Real click first so Streamlit's React widget state is updated.
+            try { checkbox.click(); } catch (error) {}
+
+            if (checkbox.checked === checked) return;
+
+            const descriptor = Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              "checked"
+            );
+
+            if (descriptor?.set) {
+              descriptor.set.call(checkbox, checked);
+            } else {
+              checkbox.checked = checked;
+            }
+
+            checkbox.dispatchEvent(new Event("input", { bubbles: true }));
+            checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          function readSavedCredentials() {
+            try {
+              const raw = root.localStorage.getItem(STORAGE_KEY);
+              if (!raw) return null;
+
+              const profile = JSON.parse(raw);
+
+              if (
+                !profile ||
+                profile.version !== 1 ||
+                profile.remember !== true ||
+                typeof profile.username !== "string" ||
+                typeof profile.password !== "string" ||
+                !profile.username ||
+                !profile.password
+              ) {
+                root.localStorage.removeItem(STORAGE_KEY);
+                return null;
+              }
+
+              return profile;
+            } catch (error) {
+              try { root.localStorage.removeItem(STORAGE_KEY); }
+              catch (cleanupError) {}
+              return null;
+            }
+          }
+
+          function removeAllRememberData() {
+            try {
+              const storage = root.localStorage;
+              storage.removeItem(STORAGE_KEY);
+              storage.removeItem("atp_login_profile");
+              storage.removeItem("atp_remember_session");
+              storage.removeItem("atp_remember_username");
+              storage.removeItem("atp_remember_enabled");
+            } catch (error) {}
+          }
+
+          function saveOrClearCredentials() {
+            if (!controls) return;
+
+            const username = String(
+              controls.usernameInput.value || ""
+            ).trim();
+            const password = String(
+              controls.passwordInput.value || ""
+            );
+            const remember = Boolean(
+              controls.rememberCheckbox.checked
+            );
+
+            if (remember && username && password) {
+              try {
+                root.localStorage.setItem(
+                  STORAGE_KEY,
+                  JSON.stringify({
+                    version: 1,
+                    remember: true,
+                    username,
+                    password,
+                    saved_at: new Date().toISOString(),
+                  })
+                );
+
+                // Remove old implementations so only one source of truth exists.
+                root.localStorage.removeItem("atp_login_profile");
+                root.localStorage.removeItem("atp_remember_session");
+                root.localStorage.removeItem("atp_remember_username");
+                root.localStorage.removeItem("atp_remember_enabled");
+              } catch (error) {}
+            } else {
+              removeAllRememberData();
+            }
+          }
+
+          function configureBrowserAutofill() {
+            if (!controls) return;
+
+            // The app controls whether credentials are retained.
+            // These attributes also discourage the browser password manager
+            // from independently restoring credentials after Remember Me
+            // has been turned off.
+            controls.form.setAttribute("autocomplete", "off");
+            controls.usernameInput.setAttribute("autocomplete", "off");
+            controls.usernameInput.setAttribute("autocapitalize", "none");
+            controls.usernameInput.setAttribute("spellcheck", "false");
+            controls.passwordInput.setAttribute(
+              "autocomplete",
+              "new-password"
+            );
+          }
+
+          function restoreSavedCredentials() {
+            if (!controls) return;
+
+            configureBrowserAutofill();
+
+            const profile = readSavedCredentials();
+
+            if (!profile) {
+              setReactCheckbox(controls.rememberCheckbox, false);
+              return;
+            }
+
+            setReactTextValue(
+              controls.usernameInput,
+              profile.username
+            );
+            setReactTextValue(
+              controls.passwordInput,
+              profile.password
+            );
+            setReactCheckbox(
+              controls.rememberCheckbox,
+              true
+            );
+          }
+
+          function detachListeners() {
+            if (controls && submitHandler) {
+              try {
+                controls.form.removeEventListener(
+                  "submit",
+                  submitHandler,
+                  true
+                );
+              } catch (error) {}
+            }
+
+            if (clickHandler) {
+              try {
+                doc.removeEventListener(
+                  "click",
+                  clickHandler,
+                  true
+                );
+              } catch (error) {}
+            }
+          }
+
+          function attachToControls(found) {
+            detachListeners();
+            controls = found;
+
+            submitHandler = () => {
+              saveOrClearCredentials();
             };
+
+            clickHandler = (event) => {
+              if (
+                controls &&
+                event.target.closest("button") === controls.submitButton
+              ) {
+                saveOrClearCredentials();
+              }
+            };
+
+            controls.form.addEventListener(
+              "submit",
+              submitHandler,
+              true
+            );
+            doc.addEventListener(
+              "click",
+              clickHandler,
+              true
+            );
+
+            restoreSavedCredentials();
           }
 
           function initialize() {
             if (stopped) return;
 
-            const controls = findControls();
+            const found = findLoginControls();
 
-            if (!controls) {
-              attempts += 1;
-              if (attempts < 60) {
-                timerId = root.setTimeout(initialize, 100);
-              }
+            if (!found) {
+              retryTimer = root.setTimeout(initialize, 100);
               return;
             }
 
-            const {
-              form,
-              usernameInput,
-              passwordInput,
-              rememberCheckbox,
-            } = controls;
+            attachToControls(found);
 
-            form.setAttribute("autocomplete", "on");
-
-            usernameInput.setAttribute("name", "username");
-            usernameInput.setAttribute("autocomplete", "username");
-            usernameInput.setAttribute("autocapitalize", "none");
-            usernameInput.setAttribute("spellcheck", "false");
-
-            passwordInput.setAttribute("name", "password");
-            passwordInput.setAttribute(
-              "autocomplete",
-              "current-password"
-            );
-
+            // Streamlit can rebuild the form shortly after first paint.
+            // Reattach only when the actual input nodes have changed.
             let checks = 0;
 
-            function syncAutofillState() {
-              if (stopped) return;
+            rebuildTimer = root.setInterval(() => {
+              if (stopped) {
+                root.clearInterval(rebuildTimer);
+                return;
+              }
 
-              const bothFilled = Boolean(
-                usernameInput.value && passwordInput.value
-              );
+              const latest = findLoginControls();
 
-              if (bothFilled && !rememberCheckbox.checked) {
-                rememberCheckbox.click();
+              if (
+                latest &&
+                controls &&
+                (
+                  latest.usernameInput !== controls.usernameInput ||
+                  latest.passwordInput !== controls.passwordInput ||
+                  latest.rememberCheckbox !== controls.rememberCheckbox
+                )
+              ) {
+                attachToControls(latest);
               }
 
               checks += 1;
-              if (checks < 30) {
-                timerId = root.setTimeout(syncAutofillState, 120);
+              if (checks >= 20) {
+                root.clearInterval(rebuildTimer);
+                rebuildTimer = null;
               }
-            }
-
-            syncAutofillState();
+            }, 150);
           }
 
           initialize();
 
           function cleanup() {
             stopped = true;
-            if (timerId) {
-              try { root.clearTimeout(timerId); } catch (error) {}
+            detachListeners();
+
+            if (retryTimer) {
+              try { root.clearTimeout(retryTimer); } catch (error) {}
+            }
+
+            if (rebuildTimer) {
+              try { root.clearInterval(rebuildTimer); } catch (error) {}
             }
           }
 
-          root[KEY] = { cleanup };
-          window.addEventListener("beforeunload", cleanup, { once: true });
+          root[INSTALL_KEY] = { cleanup };
+          window.addEventListener(
+            "beforeunload",
+            cleanup,
+            { once: true }
+          );
         })();
         </script>
         """,
@@ -6561,10 +6660,9 @@ def login_screen():
     # (logo, heading, form) disappears together after authentication.
     login_page_placeholder = st.empty()
 
-    remember_value = st.query_params.get("remember", "")
-    if isinstance(remember_value, (list, tuple)):
-        remember_value = remember_value[0] if remember_value else ""
-    remember_default = str(remember_value).strip() == "1"
+    # The app-controlled browser profile restores this checkbox after the
+    # form mounts. Keep the server-side default false to avoid stale URL state.
+    remember_default = False
 
     with login_page_placeholder.container():
         logo_base64 = get_logo_base64()
