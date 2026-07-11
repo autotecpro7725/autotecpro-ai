@@ -704,13 +704,13 @@ def install_gpt_uploader_css():
         /* Preview card stays centered inside the upload box. */
         html body div[class*="st-key-atp_upload_card_"] {
             position: relative !important;
-            width: min(100%, 280px) !important;
+            width: min(100%, 196px) !important;
             margin: 0 auto !important;
             padding: 0 !important;
             border: 1px solid rgba(148, 163, 184, 0.18) !important;
             border-radius: 15px !important;
             background: rgba(15, 23, 42, 0.82) !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
         }
 
@@ -721,12 +721,14 @@ def install_gpt_uploader_css():
 
         .atp-upload-preview-media {
             width: 100%;
-            height: 150px;
+            height: 105px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             background: #020617;
+            border-radius: 14px 14px 0 0;
+            overflow: hidden;
         }
 
         .atp-upload-preview-media img {
@@ -749,14 +751,14 @@ def install_gpt_uploader_css():
         }
 
         .atp-upload-meta {
-            padding: 8px 38px 8px 10px;
+            padding: 7px 32px 7px 8px;
             text-align: center;
             border-top: 1px solid rgba(148, 163, 184, 0.13);
         }
 
         .atp-upload-name {
             color: #f8fafc;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             line-height: 1.25;
             overflow-wrap: anywhere;
@@ -764,29 +766,29 @@ def install_gpt_uploader_css():
 
         .atp-upload-size {
             color: #94a3b8;
-            font-size: 10.5px;
+            font-size: 10px;
             margin-top: 2px;
         }
 
         /* Small ChatGPT-style delete icon on each card. */
         html body div[class*="st-key-atp_upload_card_"] .stButton {
             position: absolute !important;
-            top: 9px !important;
-            right: 9px !important;
+            top: 7px !important;
+            right: 7px !important;
             z-index: 30 !important;
-            width: 32px !important;
-            height: 32px !important;
+            width: 28px !important;
+            height: 28px !important;
             margin: 0 !important;
             padding: 0 !important;
         }
 
         html body div[class*="st-key-atp_upload_card_"] .stButton > button {
-            width: 32px !important;
-            min-width: 32px !important;
-            max-width: 32px !important;
-            height: 32px !important;
-            min-height: 32px !important;
-            max-height: 32px !important;
+            width: 28px !important;
+            min-width: 28px !important;
+            max-width: 28px !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
             margin: 0 !important;
             padding: 0 !important;
             border-radius: 50% !important;
@@ -795,7 +797,7 @@ def install_gpt_uploader_css():
             color: #475569 !important;
             -webkit-text-fill-color: #475569 !important;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24) !important;
-            font-size: 20px !important;
+            font-size: 18px !important;
             font-weight: 400 !important;
             line-height: 1 !important;
             display: inline-flex !important;
@@ -818,6 +820,24 @@ def install_gpt_uploader_css():
             line-height: 1 !important;
         }
 
+        /* Horizontal preview row on desktop; Streamlit stacks columns on mobile. */
+        html body div[class*="st-key-atp_preview_grid_"] {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+        html body div[class*="st-key-atp_preview_grid_"]
+        div[data-testid="stHorizontalBlock"] {
+            align-items: flex-start !important;
+            justify-content: center !important;
+            gap: 12px !important;
+        }
+
+        html body div[class*="st-key-atp_preview_grid_"]
+        div[data-testid="column"] {
+            min-width: 0 !important;
+        }
+
         .atp-add-file-label {
             width: 100%;
             text-align: center;
@@ -826,16 +846,6 @@ def install_gpt_uploader_css():
             font-weight: 650;
             margin: 2px 0 0 0;
         }
-
-        .atp-upload-helper {
-            width: 100%;
-            text-align: center;
-            color: #94a3b8;
-            font-size: 11.5px;
-            line-height: 1.35;
-            margin: 0;
-        }
-
         /* Native chooser is centered and remains inside the same box. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] {
@@ -904,13 +914,25 @@ def install_gpt_uploader_css():
             height: 25px !important;
         }
 
-        /* Hide Streamlit's 200 MB helper and native uploaded rows.
-           Our single 10 MB helper and Python previews are used instead. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] small,
+        /* Keep Streamlit's native size/type helper visible.
+           The server upload limit is set to 10 MB in .streamlit/config.toml.
+           Native uploaded rows remain hidden because Python renders previews. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] ul {
             display: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] small {
+            display: block !important;
+            width: 100% !important;
+            margin: 4px 0 0 0 !important;
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            font-size: 11.5px !important;
+            line-height: 1.35 !important;
+            text-align: center !important;
+            opacity: 1 !important;
         }
 
         @media (max-width: 768px) {
@@ -920,11 +942,11 @@ def install_gpt_uploader_css():
             }
 
             html body div[class*="st-key-atp_upload_card_"] {
-                width: min(100%, 250px) !important;
+                width: min(100%, 185px) !important;
             }
 
             .atp-upload-preview-media {
-                height: 132px;
+                height: 100px;
             }
 
             html body div[class*="st-key-atp_upload_shell_"]
@@ -1030,23 +1052,32 @@ def managed_file_uploader(
             unsafe_allow_html=True,
         )
 
-        for record in records:
-            record_id = record["id"]
+        if records:
+            # Render previews in horizontal rows. Streamlit automatically stacks
+            # these columns on narrow/mobile screens.
+            cards_per_row = 4
+            for row_start in range(0, len(records), cards_per_row):
+                row_records = records[row_start:row_start + cards_per_row]
+                with st.container(key=f"atp_preview_grid_{widget_prefix}_{row_start}"):
+                    columns = st.columns(len(row_records), gap="small")
+                    for column, record in zip(columns, row_records):
+                        record_id = record["id"]
 
-            def delete_record(record_id=record_id):
-                st.session_state[storage_key] = [
-                    item
-                    for item in st.session_state.get(storage_key, [])
-                    if item.get("id") != record_id
-                ]
-                st.session_state[generation_key] += 1
-                st.rerun()
+                        def delete_record(record_id=record_id):
+                            st.session_state[storage_key] = [
+                                item
+                                for item in st.session_state.get(storage_key, [])
+                                if item.get("id") != record_id
+                            ]
+                            st.session_state[generation_key] += 1
+                            st.rerun()
 
-            render_managed_upload_preview(
-                record,
-                delete_key=f"{widget_prefix}_delete_{record_id[:16]}",
-                on_delete=delete_record,
-            )
+                        with column:
+                            render_managed_upload_preview(
+                                record,
+                                delete_key=f"{widget_prefix}_delete_{record_id[:16]}",
+                                on_delete=delete_record,
+                            )
 
         if records:
             st.markdown(
@@ -1060,14 +1091,6 @@ def managed_file_uploader(
             accept_multiple_files=True,
             key=f"{widget_prefix}_{st.session_state[generation_key]}",
             label_visibility="collapsed",
-        )
-
-        st.markdown(
-            '<div class="atp-upload-helper">'
-            '10MB per file · '
-            + " · ".join(str(item).upper() for item in accepted_types)
-            + '</div>',
-            unsafe_allow_html=True,
         )
 
     if incoming_files:
