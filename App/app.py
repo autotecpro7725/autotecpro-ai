@@ -4027,197 +4027,180 @@ def inject_base_css():
 
 
 def install_browser_voice_dictation():
-    """Add rerun-safe voice dictation and a right-edge send proxy.
-
-    The send proxy clicks Streamlit's native submit button, so existing chat
-    behavior remains unchanged while the visible button can be positioned
-    exactly at the composer edge.
-    """
+    """Install rerun-safe voice and send controls without stacking observers."""
     components.html(
         r"""
         <script>
         (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const GLOBAL_KEY = "__atpVoiceControllerV3";
           const VOICE_ID = "atp-browser-voice-dictation";
           const SEND_ID = "atp-send-proxy";
-          const INSTANCE_TOKEN =
-            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const INSTANCE = `${Date.now()}-${Math.random()}`;
+
+          // Streamlit reruns recreate this iframe. Always tear down the previous
+          // controller first so observers/timers do not accumulate after uploads.
+          try {
+            root[GLOBAL_KEY]?.cleanup?.();
+          } catch (error) {}
+
+          let observer = null;
+          let timer = null;
+          let recognition = null;
+          let listening = false;
+          let scheduled = false;
 
           const MIC_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 14.75a3.75 3.75 0 0 0 3.75-3.75V6.75a3.75 3.75 0 1 0-7.5 0V11A3.75 3.75 0 0 0 12 14.75Z"></path>
-              <path d="M5.75 10.75v.5a6.25 6.25 0 0 0 12.5 0v-.5"></path>
-              <path d="M12 17.5V21"></path>
-              <path d="M8.75 21h6.5"></path>
+              <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Z"
+                    fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 11a7 7 0 0 1-14 0M12 18v4M8 22h8"
+                    fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
             </svg>`;
 
           const LISTENING_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="4"></circle>
-              <path d="M5 12a7 7 0 0 1 14 0"></path>
-              <path d="M7.5 12a4.5 4.5 0 0 1 9 0"></path>
+              <circle cx="12" cy="12" r="5" fill="currentColor"/>
             </svg>`;
 
           const SEND_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 19V5"></path>
-              <path d="M6.5 10.5 12 5l5.5 5.5"></path>
+              <path d="M12 19V5M5 12l7-7 7 7"
+                    fill="none" stroke="currentColor" stroke-width="2.2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
             </svg>`;
 
-          let recognition = null;
-          let listening = false;
-          let committedText = "";
+          function composer() {
+            return doc.querySelector('div[data-testid="stChatInput"]');
+          }
 
-          function getParentDocument() {
-            try {
-              return window.parent.document;
-            } catch (error) {
-              return null;
+          function nativeSend(container) {
+            if (!container) return null;
+            const buttons = [...container.querySelectorAll("button")];
+            return buttons.find(
+              (button) =>
+                button.id !== VOICE_ID &&
+                button.id !== SEND_ID &&
+                !button.classList.contains("atp-voice-trigger") &&
+                !button.classList.contains("atp-send-proxy")
+            ) || null;
+          }
+
+          function inputElement(container) {
+            return container?.querySelector("textarea, input") || null;
+          }
+
+          function setReactValue(input, value) {
+            if (!input) return;
+            const prototype = Object.getPrototypeOf(input);
+            const setter = Object.getOwnPropertyDescriptor(
+              prototype,
+              "value"
+            )?.set;
+            if (setter) setter.call(input, value);
+            else input.value = value;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          function updateSendState(container, proxy) {
+            const input = inputElement(container);
+            const active = Boolean(input?.value?.trim());
+            proxy.disabled = !active;
+            proxy.setAttribute("aria-disabled", active ? "false" : "true");
+          }
+
+          function removeStaleControls(container) {
+            for (const id of [VOICE_ID, SEND_ID]) {
+              const node = doc.getElementById(id);
+              if (node && (!container || !container.contains(node))) node.remove();
             }
           }
 
-          function setComposerValue(input, value) {
-            try {
-              const proto = input.tagName === "TEXTAREA"
-                ? window.parent.HTMLTextAreaElement.prototype
-                : window.parent.HTMLInputElement.prototype;
-              const setter =
-                Object.getOwnPropertyDescriptor(proto, "value").set;
-
-              setter.call(input, value);
-              input.dispatchEvent(
-                new window.parent.Event("input", { bubbles: true })
-              );
-              input.dispatchEvent(
-                new window.parent.Event("change", { bubbles: true })
-              );
-              input.focus();
-            } catch (error) {
-              input.value = value;
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-            }
-          }
-
-          function findNativeSendButton(composer) {
-            const buttons = Array.from(composer.querySelectorAll("button"));
-            return buttons.find((button) => {
-              if (button.id === VOICE_ID || button.id === SEND_ID) return false;
-
-              const aria = (button.getAttribute("aria-label") || "").toLowerCase();
-              const testId = (button.getAttribute("data-testid") || "").toLowerCase();
-              const kind = (button.getAttribute("kind") || "").toLowerCase();
-
-              return (
-                aria.includes("send") ||
-                testId.includes("chatinputsubmit") ||
-                kind === "primary"
-              );
-            }) || null;
-          }
-
-          function updateSendState(composer, proxy) {
-            const input = composer.querySelector("textarea, input");
-            const hasText = Boolean(input && input.value.trim());
-
-            proxy.disabled = !hasText;
-            proxy.classList.toggle("disabled", !hasText);
-            proxy.setAttribute("aria-disabled", hasText ? "false" : "true");
-          }
-
-          function createSendProxy(doc, composer) {
-            const stale = doc.getElementById(SEND_ID);
-            if (stale) stale.remove();
+          function makeSend(container) {
+            doc.getElementById(SEND_ID)?.remove();
 
             const proxy = doc.createElement("button");
             proxy.id = SEND_ID;
             proxy.type = "button";
             proxy.className = "atp-send-proxy";
-            proxy.dataset.atpSendInstance = INSTANCE_TOKEN;
+            proxy.dataset.atpInstance = INSTANCE;
             proxy.innerHTML = SEND_ICON;
+            proxy.setAttribute("title", "Send message");
             proxy.setAttribute("aria-label", "Send message");
-            proxy.setAttribute("title", "Send");
-
-            composer.appendChild(proxy);
 
             proxy.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
 
-              const currentComposer =
-                doc.querySelector('div[data-testid="stChatInput"]');
+              const current = composer();
+              const realButton = nativeSend(current);
+              const input = inputElement(current);
 
-              if (!currentComposer) return;
+              if (!input?.value?.trim()) return;
 
-              const nativeSend = findNativeSendButton(currentComposer);
-
-              if (nativeSend && !nativeSend.disabled) {
-                nativeSend.click();
+              if (realButton && !realButton.disabled) {
+                realButton.click();
                 return;
               }
 
-              const input =
-                currentComposer.querySelector("textarea, input");
-
-              if (input && input.value.trim()) {
-                input.focus();
-                input.dispatchEvent(
-                  new window.parent.KeyboardEvent("keydown", {
-                    key: "Enter",
-                    code: "Enter",
-                    keyCode: 13,
-                    which: 13,
-                    bubbles: true
-                  })
-                );
-              }
+              input.focus();
+              input.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                  key: "Enter",
+                  code: "Enter",
+                  keyCode: 13,
+                  which: 13,
+                  bubbles: true
+                })
+              );
             });
 
-            const input = composer.querySelector("textarea, input");
+            container.appendChild(proxy);
 
+            const input = inputElement(container);
             if (input) {
-              const sync = () => updateSendState(composer, proxy);
+              const sync = () => updateSendState(container, proxy);
               input.addEventListener("input", sync);
               input.addEventListener("change", sync);
               sync();
             }
-
             return proxy;
           }
 
-          function resetVoiceButton(button) {
+          function resetVoice(button) {
             listening = false;
-            button.classList.remove("listening");
-            button.innerHTML = MIC_ICON;
-            button.setAttribute("title", "Voice dictation");
-            button.setAttribute("aria-label", "Start voice dictation");
+            button?.classList.remove("listening");
+            if (button) {
+              button.innerHTML = MIC_ICON;
+              button.setAttribute("title", "Voice dictation");
+              button.setAttribute("aria-label", "Start voice dictation");
+            }
           }
 
-          function createVoiceButton(doc, composer) {
-            const stale = doc.getElementById(VOICE_ID);
-            if (stale) stale.remove();
+          function makeVoice(container) {
+            doc.getElementById(VOICE_ID)?.remove();
 
             const button = doc.createElement("button");
             button.id = VOICE_ID;
             button.type = "button";
             button.className = "atp-voice-trigger";
-            button.dataset.atpVoiceInstance = INSTANCE_TOKEN;
+            button.dataset.atpInstance = INSTANCE;
             button.innerHTML = MIC_ICON;
-            button.setAttribute("aria-label", "Start voice dictation");
             button.setAttribute("title", "Voice dictation");
-
-            composer.appendChild(button);
+            button.setAttribute("aria-label", "Start voice dictation");
+            container.appendChild(button);
 
             const SpeechRecognition =
-              window.parent.SpeechRecognition ||
-              window.parent.webkitSpeechRecognition;
+              root.SpeechRecognition || root.webkitSpeechRecognition;
 
             if (!SpeechRecognition) {
               button.classList.add("unsupported");
-              button.setAttribute(
-                "title",
-                "Voice dictation is not supported by this browser"
-              );
               button.addEventListener("click", () => {
-                window.parent.alert(
+                root.alert(
                   "Voice dictation is not supported by this browser. You can still type normally."
                 );
               });
@@ -4228,17 +4211,12 @@ def install_browser_voice_dictation():
               event.preventDefault();
               event.stopPropagation();
 
-              const currentComposer =
-                doc.querySelector('div[data-testid="stChatInput"]');
-              const input =
-                currentComposer?.querySelector("textarea, input");
-
+              const current = composer();
+              const input = inputElement(current);
               if (!input) return;
 
               if (listening && recognition) {
-                try {
-                  recognition.stop();
-                } catch (error) {}
+                try { recognition.stop(); } catch (error) {}
                 return;
               }
 
@@ -4249,19 +4227,16 @@ def install_browser_voice_dictation():
                 recognition.maxAlternatives = 1;
                 recognition.lang =
                   doc.documentElement.lang ||
-                  window.parent.navigator.language ||
+                  root.navigator.language ||
                   "en-US";
 
-                committedText = input.value ? input.value.trim() : "";
+                let committed = input.value?.trim() || "";
 
                 recognition.onstart = () => {
                   listening = true;
                   button.classList.add("listening");
                   button.innerHTML = LISTENING_ICON;
-                  button.setAttribute(
-                    "title",
-                    "Listening — tap to stop"
-                  );
+                  button.setAttribute("title", "Listening — tap to stop");
                 };
 
                 recognition.onresult = (resultEvent) => {
@@ -4273,122 +4248,99 @@ def install_browser_voice_dictation():
                     i < resultEvent.results.length;
                     i += 1
                   ) {
-                    const transcript =
-                      resultEvent.results[i][0].transcript;
-
-                    if (resultEvent.results[i].isFinal) {
-                      finalText += transcript;
-                    } else {
-                      interim += transcript;
-                    }
+                    const transcript = resultEvent.results[i][0].transcript;
+                    if (resultEvent.results[i].isFinal) finalText += transcript;
+                    else interim += transcript;
                   }
 
-                  const prefix = committedText
-                    ? committedText + " "
-                    : "";
-
-                  const nextValue =
-                    (prefix + finalText + interim).trimStart();
-
-                  setComposerValue(input, nextValue);
+                  const prefix = committed ? committed + " " : "";
+                  setReactValue(input, (prefix + finalText + interim).trimStart());
 
                   const proxy = doc.getElementById(SEND_ID);
-                  if (proxy && currentComposer) {
-                    updateSendState(currentComposer, proxy);
-                  }
+                  if (proxy && current) updateSendState(current, proxy);
 
-                  if (finalText) {
-                    committedText =
-                      (prefix + finalText).trim();
-                  }
+                  if (finalText) committed = (prefix + finalText).trim();
                 };
 
-                recognition.onerror = (errorEvent) => {
-                  if (
-                    !["aborted", "no-speech"].includes(
-                      errorEvent.error
-                    )
-                  ) {
-                    console.warn(
-                      "Voice dictation error:",
-                      errorEvent.error
-                    );
+                recognition.onerror = (event) => {
+                  if (!["aborted", "no-speech"].includes(event.error)) {
+                    console.warn("Voice dictation error:", event.error);
                   }
                 };
-
-                recognition.onend = () => {
-                  resetVoiceButton(button);
-                };
-
+                recognition.onend = () => resetVoice(button);
                 recognition.start();
               } catch (error) {
-                resetVoiceButton(button);
-                console.warn(
-                  "Could not start voice dictation:",
-                  error
-                );
+                resetVoice(button);
+                console.warn("Could not start voice dictation:", error);
               }
             });
 
             return button;
           }
 
-          function mount() {
-            const doc = getParentDocument();
-            if (!doc) return;
-
-            const composer =
-              doc.querySelector('div[data-testid="stChatInput"]');
-
-            if (!composer) return;
+          function mountNow() {
+            scheduled = false;
+            const current = composer();
+            removeStaleControls(current);
+            if (!current) return;
 
             const voice = doc.getElementById(VOICE_ID);
             if (
               !voice ||
-              voice.dataset.atpVoiceInstance !== INSTANCE_TOKEN ||
-              !composer.contains(voice)
+              voice.dataset.atpInstance !== INSTANCE ||
+              !current.contains(voice)
             ) {
-              createVoiceButton(doc, composer);
+              makeVoice(current);
             }
 
             const send = doc.getElementById(SEND_ID);
             if (
               !send ||
-              send.dataset.atpSendInstance !== INSTANCE_TOKEN ||
-              !composer.contains(send)
+              send.dataset.atpInstance !== INSTANCE ||
+              !current.contains(send)
             ) {
-              createSendProxy(doc, composer);
+              makeSend(current);
             } else {
-              updateSendState(composer, send);
+              updateSendState(current, send);
             }
           }
 
-          mount();
+          function scheduleMount() {
+            if (scheduled) return;
+            scheduled = true;
+            root.requestAnimationFrame(mountNow);
+          }
 
-          const doc = getParentDocument();
-          const observer = new MutationObserver(mount);
+          const observeRoot =
+            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
 
-          if (doc?.body) {
-            observer.observe(doc.body, {
+          observer = new MutationObserver(scheduleMount);
+          if (observeRoot) {
+            observer.observe(observeRoot, {
               childList: true,
               subtree: true
             });
           }
 
-          const mountTimer = window.setInterval(mount, 650);
+          // A slow fallback is enough; the observer handles normal rerenders.
+          timer = root.setInterval(scheduleMount, 1800);
+          scheduleMount();
 
-          window.addEventListener(
-            "beforeunload",
-            () => {
-              observer.disconnect();
-              window.clearInterval(mountTimer);
+          function cleanup() {
+            try { observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(timer); } catch (error) {}
+            try {
+              if (recognition && listening) recognition.stop();
+            } catch (error) {}
 
-              try {
-                if (recognition && listening) recognition.stop();
-              } catch (error) {}
-            },
-            { once: true }
-          );
+            for (const id of [VOICE_ID, SEND_ID]) {
+              const node = doc.getElementById(id);
+              if (node?.dataset?.atpInstance === INSTANCE) node.remove();
+            }
+          }
+
+          root[GLOBAL_KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
         })();
         </script>
         """,
@@ -4398,38 +4350,44 @@ def install_browser_voice_dictation():
 
 
 def install_chat_composer_autogrow():
-    """Make the chat composer auto-grow and use the full available width.
-
-    This version directly sizes the textarea wrapper between the mic and send
-    controls after every Streamlit rerun, paste, resize, and DOM replacement.
-    """
+    """Install one lightweight, rerun-safe auto-grow controller."""
     components.html(
         r"""
         <script>
         (() => {
-          const BIND_ATTR = "data-atp-autogrow-v17";
+          const root = window.parent;
+          const doc = root.document;
+          const GLOBAL_KEY = "__atpComposerAutogrowV3";
+          const BIND_ATTR = "data-atp-autogrow-v18";
           const MIN_HEIGHT = 44;
           const MAX_HEIGHT = 180;
 
-          function getParentDocument() {
-            try {
-              return window.parent.document;
-            } catch (error) {
-              return null;
+          try {
+            root[GLOBAL_KEY]?.cleanup?.();
+          } catch (error) {}
+
+          let observer = null;
+          let timer = null;
+          let scheduled = false;
+          let boundTextarea = null;
+          let inputHandler = null;
+          let pasteHandler = null;
+          let resizeHandler = null;
+
+          function setImportant(element, property, value) {
+            if (element) {
+              element.style.setProperty(property, value, "important");
             }
           }
 
-          function setImportant(element, property, value) {
-            if (!element) return;
-            element.style.setProperty(property, value, "important");
+          function getComposer() {
+            return doc.querySelector('div[data-testid="stChatInput"]');
           }
 
           function fixLayout() {
-            const doc = getParentDocument();
-            if (!doc) return;
+            scheduled = false;
 
-            const composer =
-              doc.querySelector('div[data-testid="stChatInput"]');
+            const composer = getComposer();
             const textarea = composer?.querySelector("textarea");
             const mic = doc.getElementById("atp-browser-voice-dictation");
             const send = doc.getElementById("atp-send-proxy");
@@ -4437,67 +4395,42 @@ def install_chat_composer_autogrow():
             if (!composer || !textarea) return;
 
             const composerRect = composer.getBoundingClientRect();
+            if (composerRect.width <= 0) return;
+
             const micWidth = mic?.getBoundingClientRect().width || 46;
             const sendWidth = send?.getBoundingClientRect().width || 46;
-
             const leftGap = micWidth + 22;
             const rightGap = sendWidth + 12;
-            const availableWidth = Math.max(
-              120,
-              composerRect.width - leftGap - rightGap
-            );
 
             setImportant(composer, "position", "relative");
             setImportant(composer, "display", "block");
             setImportant(composer, "box-sizing", "border-box");
 
-            // Find the highest wrapper directly under the composer that owns textarea.
             let owner = textarea;
-            while (
-              owner.parentElement &&
-              owner.parentElement !== composer
-            ) {
+            while (owner.parentElement && owner.parentElement !== composer) {
               owner = owner.parentElement;
             }
 
             setImportant(owner, "position", "absolute");
             setImportant(owner, "left", `${leftGap}px`);
             setImportant(owner, "right", `${rightGap}px`);
-            setImportant(owner, "top", "7px");
-            setImportant(owner, "bottom", "7px");
+            setImportant(owner, "top", "8px");
+            setImportant(owner, "bottom", "8px");
             setImportant(owner, "width", "auto");
-            setImportant(owner, "min-width", "0");
             setImportant(owner, "max-width", "none");
-            setImportant(owner, "margin", "0");
-            setImportant(owner, "padding", "0");
-            setImportant(owner, "display", "flex");
-            setImportant(owner, "align-items", "flex-end");
-            setImportant(owner, "overflow", "visible");
-
-            let current = textarea.parentElement;
-            while (current && current !== owner.parentElement) {
-              setImportant(current, "width", "100%");
-              setImportant(current, "min-width", "0");
-              setImportant(current, "max-width", "none");
-              setImportant(current, "flex", "1 1 auto");
-              setImportant(current, "margin", "0");
-              setImportant(current, "padding", "0");
-              current = current.parentElement;
-            }
+            setImportant(owner, "box-sizing", "border-box");
 
             setImportant(textarea, "display", "block");
+            setImportant(textarea, "width", "100%");
+            setImportant(textarea, "max-width", "none");
             setImportant(textarea, "box-sizing", "border-box");
-            setImportant(textarea, "width", `${availableWidth}px`);
-            setImportant(textarea, "min-width", `${availableWidth}px`);
-            setImportant(textarea, "max-width", `${availableWidth}px`);
             setImportant(textarea, "white-space", "pre-wrap");
-            setImportant(textarea, "overflow-wrap", "break-word");
+            setImportant(textarea, "overflow-wrap", "anywhere");
             setImportant(textarea, "word-break", "normal");
             setImportant(textarea, "writing-mode", "horizontal-tb");
             setImportant(textarea, "padding-left", "4px");
             setImportant(textarea, "padding-right", "4px");
 
-            // Auto-grow only after width is correctly applied.
             setImportant(textarea, "height", "auto");
             setImportant(textarea, "min-height", `${MIN_HEIGHT}px`);
             setImportant(textarea, "max-height", `${MAX_HEIGHT}px`);
@@ -4520,58 +4453,76 @@ def install_chat_composer_autogrow():
             setImportant(composer, "max-height", "196px");
           }
 
-          function bind() {
-            const doc = getParentDocument();
-            if (!doc) return;
+          function scheduleFix() {
+            if (scheduled) return;
+            scheduled = true;
+            root.requestAnimationFrame(fixLayout);
+          }
 
+          function unbindTextarea() {
+            if (!boundTextarea) return;
+            try {
+              boundTextarea.removeEventListener("input", inputHandler);
+              boundTextarea.removeEventListener("change", inputHandler);
+              boundTextarea.removeEventListener("keyup", inputHandler);
+              boundTextarea.removeEventListener("paste", pasteHandler);
+              boundTextarea.removeAttribute(BIND_ATTR);
+            } catch (error) {}
+            boundTextarea = null;
+          }
+
+          function bind() {
             const textarea =
               doc.querySelector('div[data-testid="stChatInput"] textarea');
 
             if (!textarea) return;
 
-            if (!textarea.hasAttribute(BIND_ATTR)) {
-              textarea.setAttribute(BIND_ATTR, "1");
+            if (boundTextarea !== textarea) {
+              unbindTextarea();
+              boundTextarea = textarea;
 
-              const schedule = () => {
-                window.requestAnimationFrame(fixLayout);
+              inputHandler = scheduleFix;
+              pasteHandler = () => {
+                root.setTimeout(scheduleFix, 0);
+                root.setTimeout(scheduleFix, 80);
               };
 
-              textarea.addEventListener("input", schedule);
-              textarea.addEventListener("change", schedule);
-              textarea.addEventListener("keyup", schedule);
-              textarea.addEventListener("paste", () => {
-                window.setTimeout(fixLayout, 0);
-                window.setTimeout(fixLayout, 60);
-              });
-
-              window.parent.addEventListener("resize", schedule);
+              textarea.setAttribute(BIND_ATTR, "1");
+              textarea.addEventListener("input", inputHandler);
+              textarea.addEventListener("change", inputHandler);
+              textarea.addEventListener("keyup", inputHandler);
+              textarea.addEventListener("paste", pasteHandler);
             }
 
-            fixLayout();
+            scheduleFix();
           }
 
-          bind();
+          resizeHandler = scheduleFix;
+          root.addEventListener("resize", resizeHandler);
 
-          const doc = getParentDocument();
-          const observer = new MutationObserver(bind);
+          const observeRoot =
+            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
 
-          if (doc?.body) {
-            observer.observe(doc.body, {
+          observer = new MutationObserver(bind);
+          if (observeRoot) {
+            observer.observe(observeRoot, {
               childList: true,
               subtree: true
             });
           }
 
-          const timer = window.setInterval(bind, 500);
+          timer = root.setInterval(bind, 1800);
+          bind();
 
-          window.addEventListener(
-            "beforeunload",
-            () => {
-              observer.disconnect();
-              window.clearInterval(timer);
-            },
-            { once: true }
-          );
+          function cleanup() {
+            try { observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(timer); } catch (error) {}
+            try { root.removeEventListener("resize", resizeHandler); } catch (error) {}
+            unbindTextarea();
+          }
+
+          root[GLOBAL_KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
         })();
         </script>
         """,
@@ -4660,6 +4611,63 @@ def apply_login_layout_css():
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             opacity: 1 !important;
+        }
+
+        /* Login inputs: high contrast on iPhone/Safari and desktop */
+        div[data-testid="stForm"] .stTextInput label,
+        div[data-testid="stForm"] .stTextInput label p {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            opacity: 1 !important;
+        }
+
+        div[data-testid="stForm"] .stTextInput input {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            caret-color: #ff4b43 !important;
+            opacity: 1 !important;
+            font-weight: 500 !important;
+        }
+
+        div[data-testid="stForm"] .stTextInput input::placeholder {
+            color: #aeb7c6 !important;
+            -webkit-text-fill-color: #aeb7c6 !important;
+            opacity: 1 !important;
+        }
+
+        /* Prevent iOS/Safari autofill from fading the username/password text */
+        div[data-testid="stForm"] .stTextInput input:-webkit-autofill,
+        div[data-testid="stForm"] .stTextInput input:-webkit-autofill:hover,
+        div[data-testid="stForm"] .stTextInput input:-webkit-autofill:focus,
+        div[data-testid="stForm"] .stTextInput input:-webkit-autofill:active {
+            -webkit-text-fill-color: #ffffff !important;
+            caret-color: #ff4b43 !important;
+            -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+            box-shadow: 0 0 0 1000px #0f172a inset !important;
+            transition: background-color 9999s ease-out 0s !important;
+            opacity: 1 !important;
+        }
+
+        /* Streamlit's mobile form hint was too dark on the login screen */
+        div[data-testid="stForm"] [data-testid="InputInstructions"],
+        div[data-testid="stForm"] [data-testid="stInputInstructions"],
+        div[data-testid="stForm"] small {
+            color: #cbd5e1 !important;
+            -webkit-text-fill-color: #cbd5e1 !important;
+            opacity: 1 !important;
+        }
+
+        @media (max-width: 700px) {
+            div[data-testid="stForm"] .stTextInput input {
+                font-size: 17px !important;
+            }
+
+            div[data-testid="stForm"] [data-testid="InputInstructions"],
+            div[data-testid="stForm"] [data-testid="stInputInstructions"] {
+                font-size: 12px !important;
+                color: #d5dbe5 !important;
+                -webkit-text-fill-color: #d5dbe5 !important;
+            }
         }
         </style>
         """,
