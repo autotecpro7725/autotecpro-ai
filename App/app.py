@@ -940,7 +940,19 @@ def install_gpt_uploader_css():
             height: 25px !important;
         }
 
-        /* Keep Streamlit's native size/type helper visible.
+        
+/* Hide transient upload action buttons while uploading */
+html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"],
+html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] [data-testid="stFileUploaderAddFilesButton"],
+html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[kind="secondary"]:has(svg),
+html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[aria-label*="Remove"],
+html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[aria-label*="Add"]{
+ display:none !important;
+ visibility:hidden !important;
+ pointer-events:none !important;
+}
+
+/* Keep Streamlit's native size/type helper visible.
            The server upload limit is set to 10 MB in .streamlit/config.toml.
            Native uploaded rows remain hidden because Python renders previews. */
         html body div[class*="st-key-atp_upload_shell_"]
