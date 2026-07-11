@@ -7888,6 +7888,232 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Definitive sidebar fix: target Streamlit widget key classes directly.
+st.markdown(
+    """
+    <style>
+    /* Workspace navigation — key-level selectors override global red buttons. */
+    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button,
+    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] button {
+        width: 100% !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        margin: 0 !important;
+        padding: 0 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #d7dee8 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 15px !important;
+        font-weight: 620 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button:hover,
+    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] button:hover {
+        background: rgba(255,255,255,0.055) !important;
+        background-color: rgba(255,255,255,0.055) !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-workspace_nav_active_"]
+    [class*="st-key-workspace_button_"] .stButton > button {
+        background: rgba(255,255,255,0.085) !important;
+        background-color: rgba(255,255,255,0.085) !important;
+        color: #ffffff !important;
+        font-weight: 740 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-workspace_nav_"] {
+        margin: 0 0 3px 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* History headings always sit on their own line. */
+    section[data-testid="stSidebar"] .history-section-label {
+        display: block !important;
+        position: relative !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 20px !important;
+        margin: 16px 0 8px 2px !important;
+        padding: 0 !important;
+        color: #b8c2cf !important;
+        font-size: 12px !important;
+        font-weight: 780 !important;
+        line-height: 20px !important;
+        text-align: left !important;
+        clear: both !important;
+        z-index: 3 !important;
+    }
+
+    /* One-row history card. Popover is absolutely positioned, so it cannot wrap. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        min-height: 40px !important;
+        height: 40px !important;
+        max-height: 40px !important;
+        margin: 0 0 7px 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(148,163,184,0.24) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div > div {
+        position: static !important;
+        width: 100% !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        background: transparent !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton,
+    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
+        width: 100% !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
+        padding: 0 42px 0 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #dbe3ed !important;
+        box-shadow: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 12.5px !important;
+        font-weight: 560 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button p,
+    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button div {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 4px !important;
+        right: 4px !important;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 8 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
+        width: 32px !important;
+        min-width: 32px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 7px !important;
+        background: transparent !important;
+        color: #93a1b3 !important;
+        box-shadow: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] svg {
+        display: none !important;
+    }
+
+    @media (hover:hover) and (pointer:fine) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover [data-testid="stPopover"],
+        section[data-testid="stSidebar"] [class*="st-key-history_row_active_"] [data-testid="stPopover"] {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"]::before {
+        top: 20px !important;
+        left: 7px !important;
+        transform: translateY(-50%) !important;
+        line-height: 1 !important;
+        z-index: 7 !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"] [class*="st-key-open_"] .stButton > button,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"] [class*="st-key-open_"] .stButton > button {
+        padding-left: 23px !important;
+    }
+
+    @media (max-width:768px) {
+        section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+            min-height: 46px !important;
+            height: 46px !important;
+            max-height: 46px !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton,
+        section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
+            min-height: 44px !important;
+            height: 44px !important;
+            max-height: 44px !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
+            top: 6px !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
     unsafe_allow_html=True,
@@ -9615,11 +9841,6 @@ def render_history_cards(conversations):
                 ),
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                '<div class="history-section-spacer"></div>',
-                unsafe_allow_html=True,
-            )
-
             if not section_conversations:
                 empty_label = (
                     "No pinned conversations"
@@ -9682,45 +9903,38 @@ def render_history_cards(conversations):
                 )
 
                 with row:
-                    title_col, menu_col = st.columns(
-                        [0.86, 0.14],
-                        gap=None,
-                    )
-
-                    with title_col:
-                        if st.button(
-                            history_label,
-                            key=f"open_{conversation_id}",
-                            help=title,
-                            use_container_width=True,
-                        ):
-                            st.session_state.conversation_id = (
+                    if st.button(
+                        history_label,
+                        key=f"open_{conversation_id}",
+                        help=title,
+                        use_container_width=True,
+                    ):
+                        st.session_state.conversation_id = (
+                            conversation_id
+                        )
+                        st.session_state.messages = (
+                            load_messages(
                                 conversation_id
                             )
-                            st.session_state.messages = (
-                                load_messages(
-                                    conversation_id
-                                )
-                            )
-                            st.session_state.rename_conversation_id = None
-                            st.session_state.scroll_to_bottom = True
-                            st.rerun()
+                        )
+                        st.session_state.rename_conversation_id = None
+                        st.session_state.scroll_to_bottom = True
+                        st.rerun()
 
-                        if time_label:
-                            st.markdown(
-                                (
-                                    '<div class="history-row-meta">'
-                                    f'{html.escape(time_label)}'
-                                    '</div>'
-                                ),
-                                unsafe_allow_html=True,
-                            )
+                    if time_label:
+                        st.markdown(
+                            (
+                                '<div class="history-row-meta">'
+                                f'{html.escape(time_label)}'
+                                '</div>'
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
-                    with menu_col:
-                        with st.popover(
-                            "⋯",
-                            help="Conversation actions",
-                        ):
+                    with st.popover(
+                        "⋯",
+                        help="Conversation actions",
+                    ):
                             st.markdown(
                                 (
                                     '<div class="history-menu-title">'
