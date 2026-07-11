@@ -6539,29 +6539,40 @@ def extract_images_from_message_content(content):
 
 
 def render_image_previews(images):
+    """
+    Render uploaded chat images as compact, unindented HTML.
+
+    Keeping the generated HTML on one continuous line prevents Streamlit
+    Markdown from interpreting the second image card as a code block.
+    """
     if not images:
         return ""
 
     cards = []
+
     for image in images:
-        name = html.escape(str(image.get("name") or "uploaded image"))
-        data_url = html.escape(str(image.get("data_url") or ""))
-        if not data_url:
+        name = html.escape(
+            str(image.get("name") or "uploaded image"),
+            quote=True,
+        )
+        data_url = str(image.get("data_url") or "").strip()
+
+        if not data_url.startswith("data:image/"):
             continue
 
+        safe_data_url = html.escape(data_url, quote=True)
+
         cards.append(
-            f"""
-            <div class="chat-image-card">
-                <img src="{data_url}" alt="{name}">
-                <div class="chat-image-caption">📎 {name}</div>
-            </div>
-            """
+            f'<div class="chat-image-card">'
+            f'<img src="{safe_data_url}" alt="{name}">'
+            f'<div class="chat-image-caption">📎 {name}</div>'
+            f'</div>'
         )
 
     if not cards:
         return ""
 
-    return f'<div class="chat-image-grid">{"".join(cards)}</div>'
+    return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
 
 
 def get_instructions(selected_assistant):
