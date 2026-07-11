@@ -6683,12 +6683,12 @@ st.markdown(
         box-shadow: none !important;
     }
 
-    /* Modern AutoTecPro AI navigation */
+    /* Simple ChatGPT-style AutoTecPro AI navigation */
     .workspace-heading {
-        margin: 4px 0 9px 1px !important;
+        margin: 5px 0 10px 2px !important;
         color: #f8fafc !important;
         font-size: 15px !important;
-        font-weight: 820 !important;
+        font-weight: 800 !important;
         line-height: 1.2 !important;
         letter-spacing: -0.01em !important;
         text-align: left !important;
@@ -6697,9 +6697,11 @@ st.markdown(
     div[data-testid="stSidebar"]
     [class*="st-key-workspace_nav_"] {
         width: 100% !important;
-        margin: 0 0 8px 0 !important;
+        margin: 0 0 3px 0 !important;
         padding: 0 !important;
-        border-radius: 11px !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        box-shadow: none !important;
     }
 
     div[data-testid="stSidebar"]
@@ -6713,23 +6715,22 @@ st.markdown(
     [class*="st-key-workspace_nav_"]
     .stButton > button {
         width: 100% !important;
-        min-height: 52px !important;
+        min-height: 42px !important;
         margin: 0 !important;
-        padding: 0 14px !important;
-        border-radius: 11px !important;
-        border: 1px solid rgba(148, 163, 184, 0.09) !important;
-        background: rgba(15, 23, 42, 0.18) !important;
-        color: #cbd5e1 !important;
+        padding: 0 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        color: #d4dbe5 !important;
         box-shadow: none !important;
         justify-content: flex-start !important;
         text-align: left !important;
-        font-size: 15px !important;
-        font-weight: 660 !important;
+        font-size: 14px !important;
+        font-weight: 620 !important;
         line-height: 1.2 !important;
         transition:
-            background 100ms ease,
-            border-color 100ms ease,
-            color 100ms ease !important;
+            background 90ms ease,
+            color 90ms ease !important;
     }
 
     div[data-testid="stSidebar"]
@@ -6739,7 +6740,7 @@ st.markdown(
         margin: 0 !important;
         padding: 0 !important;
         color: inherit !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: inherit !important;
         text-align: left !important;
         white-space: nowrap !important;
@@ -6748,24 +6749,24 @@ st.markdown(
     div[data-testid="stSidebar"]
     [class*="st-key-workspace_nav_idle_"]
     .stButton > button:hover {
-        background: rgba(51, 65, 85, 0.42) !important;
-        border-color: rgba(148, 163, 184, 0.15) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
         color: #ffffff !important;
     }
 
     div[data-testid="stSidebar"]
     [class*="st-key-workspace_nav_active_"] {
-        background: rgba(30, 41, 59, 0.82) !important;
-        box-shadow: inset 3px 0 0 #ef4444 !important;
+        background: rgba(255, 255, 255, 0.09) !important;
+        box-shadow: none !important;
     }
 
     div[data-testid="stSidebar"]
     [class*="st-key-workspace_nav_active_"]
     .stButton > button {
-        background: rgba(30, 41, 59, 0.82) !important;
-        border-color: rgba(239, 68, 68, 0.18) !important;
+        background: rgba(255, 255, 255, 0.09) !important;
+        border: 0 !important;
         color: #ffffff !important;
-        font-weight: 790 !important;
+        font-weight: 740 !important;
+        box-shadow: none !important;
     }
 
     .sidebar-action-area {
@@ -7145,15 +7146,15 @@ st.markdown(
         div[data-testid="stSidebar"]
         [class*="st-key-workspace_nav_"]
         .stButton > button {
-            min-height: 56px !important;
-            padding: 0 15px !important;
-            font-size: 15px !important;
+            min-height: 48px !important;
+            padding: 0 12px !important;
+            font-size: 14.5px !important;
         }
 
         div[data-testid="stSidebar"]
         [class*="st-key-workspace_nav_"]
         .stButton > button p {
-            font-size: 15px !important;
+            font-size: 14.5px !important;
         }
 
         .sidebar-newcase-btn .stButton > button {
@@ -7319,11 +7320,7 @@ for slug, icon, label in workspace_items:
     with st.sidebar.container(
         key=f"workspace_nav_{state_name}_{slug}"
     ):
-        button_label = (
-            f"🔴  {label}"
-            if is_selected
-            else f"{icon}  {label}"
-        )
+        button_label = f"{icon}  {label}"
 
         if st.button(
             button_label,
