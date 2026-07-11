@@ -6098,6 +6098,12 @@ def get_saved_login_credentials():
     No authentication occurs here. The user must still click Login.
     """
     try:
+        # Refresh once on a new Streamlit session so the controller reads the
+        # browser's current cookie values instead of an empty stale cache.
+        if not st.session_state.get("_atp_login_cookie_cache_refreshed"):
+            auth_cookie_controller.refresh()
+            st.session_state["_atp_login_cookie_cache_refreshed"] = True
+
         raw_value = auth_cookie_controller.get(
             REMEMBER_CREDENTIAL_COOKIE
         )
@@ -6217,6 +6223,50 @@ def clear_browser_login_profile():
     clear_legacy_browser_login_data()
 
 
+def queue_login_cookie_action(action, username="", password=""):
+    """
+    Queue a browser-cookie change for the next authenticated render.
+
+    Supported actions:
+    - "save": save username/password/checked state
+    - "clear": remove saved login credentials
+    """
+    st.session_state["_atp_pending_login_cookie_action"] = {
+        "action": str(action or "").strip().lower(),
+        "username": str(username or "").strip(),
+        "password": str(password or ""),
+    }
+
+
+def process_pending_login_cookie_action():
+    """
+    Execute a queued cookie action without immediately rerunning.
+
+    This lets the CookieController frontend component finish writing/removing
+    the cookie before the page is closed or refreshed.
+    """
+    pending = st.session_state.pop(
+        "_atp_pending_login_cookie_action",
+        None,
+    )
+
+    if not isinstance(pending, dict):
+        return
+
+    action = str(pending.get("action") or "").strip().lower()
+
+    if action == "save":
+        username = str(pending.get("username") or "").strip()
+        password = str(pending.get("password") or "")
+
+        if username and password:
+            save_login_credentials(username, password)
+            clear_legacy_browser_login_data()
+
+    elif action == "clear":
+        clear_browser_login_profile()
+
+
 def install_login_autofill_support():
     """
     Disable competing browser autofill behavior.
@@ -6324,6 +6374,7 @@ def logout_user():
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
+    st.session_state.pop("_atp_login_cookie_cache_refreshed", None)
     st.rerun()
 
 
@@ -6491,17 +6542,13 @@ def login_screen():
                 show_login_loading_message(login_page_placeholder)
 
                 if remember_me:
-                    try:
-                        save_login_credentials(
-                            user["username"],
-                            password,
-                        )
-                        clear_legacy_browser_login_data()
-                    except Exception:
-                        # Saving credentials must never block a valid login.
-                        pass
+                    queue_login_cookie_action(
+                        "save",
+                        user["username"],
+                        password,
+                    )
                 else:
-                    clear_browser_login_profile()
+                    queue_login_cookie_action("clear")
 
                 try:
                     st.query_params.clear()
@@ -6527,6 +6574,10 @@ if "logged_in" not in st.session_state:
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
+
+# Complete any Remember Me cookie write/removal on a stable authenticated
+# render. Do not rerun immediately after this call.
+process_pending_login_cookie_action()
 
 apply_app_layout_css()
 
