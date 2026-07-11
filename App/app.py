@@ -6683,91 +6683,89 @@ st.markdown(
         box-shadow: none !important;
     }
 
-    /* Keep every left-panel option aligned to the same left edge. */
-    div[data-testid="stSidebar"] div[role="radiogroup"] {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 9px !important;
-        margin: 6px 0 0 0 !important;
-        width: 100% !important;
+    /* Modern AutoTecPro AI navigation */
+    .workspace-heading {
+        margin: 4px 0 9px 1px !important;
+        color: #f8fafc !important;
+        font-size: 15px !important;
+        font-weight: 820 !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.01em !important;
+        text-align: left !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] {
-        position: relative !important;
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
         width: 100% !important;
-        min-height: 48px !important;
+        margin: 0 0 8px 0 !important;
+        padding: 0 !important;
+        border-radius: 11px !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    .stButton {
+        width: 100% !important;
         margin: 0 !important;
-        padding: 10px 12px 10px 14px !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(148, 163, 184, 0.10) !important;
-        background: rgba(15, 23, 42, 0.20) !important;
-        display: flex !important;
-        align-items: center !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    .stButton > button {
+        width: 100% !important;
+        min-height: 52px !important;
+        margin: 0 !important;
+        padding: 0 14px !important;
+        border-radius: 11px !important;
+        border: 1px solid rgba(148, 163, 184, 0.09) !important;
+        background: rgba(15, 23, 42, 0.18) !important;
+        color: #cbd5e1 !important;
+        box-shadow: none !important;
         justify-content: flex-start !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
+        text-align: left !important;
+        font-size: 15px !important;
+        font-weight: 660 !important;
+        line-height: 1.2 !important;
         transition:
-            background 140ms ease,
-            border-color 140ms ease,
-            transform 140ms ease,
-            box-shadow 140ms ease !important;
+            background 100ms ease,
+            border-color 100ms ease,
+            color 100ms ease !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
-        background: rgba(51, 65, 85, 0.42) !important;
-        border-color: rgba(148, 163, 184, 0.16) !important;
-        transform: translateY(-1px) !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
-        background:
-            linear-gradient(
-                90deg,
-                rgba(37, 47, 63, 0.98) 0%,
-                rgba(30, 41, 59, 0.92) 100%
-            ) !important;
-        border-color: rgba(239, 68, 68, 0.24) !important;
-        box-shadow:
-            inset 4px 0 0 #ef4444,
-            0 8px 20px rgba(0, 0, 0, 0.14) !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    .stButton > button p {
+        width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        font-size: 13.5px !important;
-        font-weight: 650 !important;
-        line-height: 1.2 !important;
+        color: inherit !important;
+        font-size: 15px !important;
+        font-weight: inherit !important;
         text-align: left !important;
-        color: #c8d2df !important;
         white-space: nowrap !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) p {
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_idle_"]
+    .stButton > button:hover {
+        background: rgba(51, 65, 85, 0.42) !important;
+        border-color: rgba(148, 163, 184, 0.15) !important;
         color: #ffffff !important;
-        font-weight: 800 !important;
     }
 
-    /* Hide the default large radio circle but keep the native input active. */
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child {
-        width: 10px !important;
-        min-width: 10px !important;
-        height: 10px !important;
-        margin-right: 10px !important;
-        border-radius: 999px !important;
-        border: 1px solid rgba(148, 163, 184, 0.46) !important;
-        background: rgba(100, 116, 139, 0.18) !important;
-        box-shadow: none !important;
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_active_"] {
+        background: rgba(30, 41, 59, 0.82) !important;
+        box-shadow: inset 3px 0 0 #ef4444 !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) > div:first-child {
-        border-color: #ef4444 !important;
-        background: #ef4444 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] input {
-        cursor: pointer !important;
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_active_"]
+    .stButton > button {
+        background: rgba(30, 41, 59, 0.82) !important;
+        border-color: rgba(239, 68, 68, 0.18) !important;
+        color: #ffffff !important;
+        font-weight: 790 !important;
     }
 
     .sidebar-action-area {
@@ -6845,27 +6843,30 @@ st.markdown(
     }
 
     .history-title {
-        margin: 18px 0 0 0 !important;
+        margin: 18px 0 10px 1px !important;
         color: #f8fafc !important;
         font-size: 14px !important;
-        font-weight: 780 !important;
+        font-weight: 800 !important;
         line-height: 1.2 !important;
+        text-align: left !important;
+    }
+
+    .history-toolbar-spacer {
+        height: 2px !important;
     }
 
     .history-count {
-        margin: 4px 0 12px 0 !important;
-        color: #7f8ea3 !important;
-        font-size: 11px !important;
-        line-height: 1.25 !important;
+        display: none !important;
     }
 
     .history-section-label {
-        margin: 12px 0 4px 1px !important;
-        color: #718096 !important;
-        font-size: 10px !important;
-        font-weight: 780 !important;
-        letter-spacing: 0.05em !important;
-        text-transform: uppercase !important;
+        margin: 14px 0 6px 2px !important;
+        color: #a9b4c3 !important;
+        font-size: 12px !important;
+        font-weight: 760 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+        text-align: left !important;
     }
 
     .history-empty-state {
@@ -6879,6 +6880,41 @@ st.markdown(
 
     .history-row-meta {
         display: none !important;
+    }
+
+    /* History rows stay visually light and flush left. */
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] {
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    .stButton > button {
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        padding-left: 3px !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    .stButton > button p,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    .stButton > button span,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    .stButton > button div {
+        width: 100% !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     /* ChatGPT-style history rows: compact, flush left, no bulky cards. */
@@ -6916,7 +6952,7 @@ st.markdown(
         min-height: 34px !important;
         height: 34px !important;
         margin: 0 !important;
-        padding: 0 5px 0 8px !important;
+        padding: 0 4px 0 2px !important;
         border: 0 !important;
         border-radius: 8px !important;
         background: transparent !important;
@@ -6930,6 +6966,16 @@ st.markdown(
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button p,
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button div,
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button span {
+        width: 100% !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button p,
@@ -6980,6 +7026,24 @@ st.markdown(
         opacity: 1 !important;
     }
 
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]:hover
+    [data-testid="stPopover"],
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_"]
+    [data-testid="stPopover"] {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button svg {
+        display: none !important;
+    }
+
     div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
         width: 30px !important;
         min-width: 30px !important;
@@ -7001,7 +7065,7 @@ st.markdown(
     }
 
     div[data-testid="stSidebar"] [data-testid="stTextInput"] {
-        margin: 0 0 16px 0 !important;
+        margin: 0 0 18px 0 !important;
     }
 
     div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
@@ -7013,6 +7077,12 @@ st.markdown(
         color: #eef2f7 !important;
         font-size: 12.5px !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+    }
+
+    div[data-testid="stSidebar"] button[kind="secondary"] {
+        min-height: 42px !important;
+        height: 42px !important;
+        border-radius: 11px !important;
     }
 
     div[data-testid="stSidebar"] [data-testid="stTextInput"] input::placeholder {
@@ -7027,18 +7097,33 @@ st.markdown(
             inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
     }
 
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"] {
         scrollbar-width: thin;
-        scrollbar-color: rgba(100, 116, 139, 0.42) transparent;
+        scrollbar-color:
+            rgba(71, 85, 105, 0.58)
+            transparent;
     }
 
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
         width: 4px;
     }
 
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
-        background: rgba(100, 116, 139, 0.42);
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
+        background: rgba(71, 85, 105, 0.58);
         border-radius: 999px;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb:hover {
+        background: rgba(239, 68, 68, 0.82);
     }
 
     /* Mobile and narrow tablets */
@@ -7057,14 +7142,18 @@ st.markdown(
                 0.65rem !important;
         }
 
-        div[data-testid="stSidebar"] label[data-baseweb="radio"] {
-            min-height: 52px !important;
-            padding: 12px 13px !important;
-            border-radius: 12px !important;
+        div[data-testid="stSidebar"]
+        [class*="st-key-workspace_nav_"]
+        .stButton > button {
+            min-height: 56px !important;
+            padding: 0 15px !important;
+            font-size: 15px !important;
         }
 
-        div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
-            font-size: 14px !important;
+        div[data-testid="stSidebar"]
+        [class*="st-key-workspace_nav_"]
+        .stButton > button p {
+            font-size: 15px !important;
         }
 
         .sidebar-newcase-btn .stButton > button {
@@ -7082,7 +7171,18 @@ st.markdown(
         }
 
         div[data-testid="stSidebar"] [data-testid="stTextInput"] {
-            margin-bottom: 18px !important;
+            margin-bottom: 20px !important;
+        }
+
+        .history-title {
+            margin-top: 20px !important;
+            margin-bottom: 12px !important;
+        }
+
+        .history-section-label {
+            margin-top: 16px !important;
+            margin-bottom: 8px !important;
+            font-size: 12.5px !important;
         }
 
         div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
@@ -7101,9 +7201,13 @@ st.markdown(
             font-size: 12.8px !important;
         }
 
-        div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
-            opacity: 1 !important;
-        }
+        div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 100ms ease !important;
+    }
 
         div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
             width: 40px !important;
@@ -7176,30 +7280,70 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-menu_items = [
-    "🔧 Technical Support",
-    "📈 Sales & Marketing",
-    "🎨 Graphic Marketing"
+workspace_items = [
+    ("technical", "🔧", "Technical Support"),
+    ("sales", "📈", "Sales & Marketing"),
+    ("graphic", "🎨", "Graphic Marketing"),
 ]
 
 if st.session_state.role == "admin":
-    menu_items.append("⚙️ Admin Panel")
-
-assistant = st.sidebar.radio("AI Workspace", menu_items)
-
-if "current_assistant" not in st.session_state:
-    st.session_state.current_assistant = assistant
-
-if st.session_state.current_assistant != assistant:
-    st.session_state.messages = []
-    st.session_state.conversation_id = None
-    st.session_state.current_assistant = assistant
-    st.session_state.chat_file_uploader_generation += 1
-    clear_managed_uploads(
-        "chat_managed_uploads",
-        "chat_managed_upload_generation",
+    workspace_items.append(
+        ("admin", "⚙️", "Admin Panel")
     )
-    st.rerun()
+
+valid_assistants = [
+    f"{icon} {label}"
+    for _, icon, label in workspace_items
+]
+
+if (
+    "current_assistant" not in st.session_state
+    or st.session_state.current_assistant not in valid_assistants
+):
+    st.session_state.current_assistant = valid_assistants[0]
+
+st.sidebar.markdown(
+    '<div class="workspace-heading">AutoTecPro AI</div>',
+    unsafe_allow_html=True,
+)
+
+for slug, icon, label in workspace_items:
+    assistant_name = f"{icon} {label}"
+    is_selected = (
+        st.session_state.current_assistant
+        == assistant_name
+    )
+
+    state_name = "active" if is_selected else "idle"
+
+    with st.sidebar.container(
+        key=f"workspace_nav_{state_name}_{slug}"
+    ):
+        button_label = (
+            f"🔴  {label}"
+            if is_selected
+            else f"{icon}  {label}"
+        )
+
+        if st.button(
+            button_label,
+            key=f"workspace_button_{slug}",
+            use_container_width=True,
+        ):
+            if not is_selected:
+                st.session_state.messages = []
+                st.session_state.conversation_id = None
+                st.session_state.current_assistant = (
+                    assistant_name
+                )
+                st.session_state.chat_file_uploader_generation += 1
+                clear_managed_uploads(
+                    "chat_managed_uploads",
+                    "chat_managed_upload_generation",
+                )
+                st.rerun()
+
+assistant = st.session_state.current_assistant
 
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
@@ -8897,9 +9041,12 @@ def render_history_cards(conversations):
     if pinned_conversations:
         sections.append(("Pinned", pinned_conversations))
 
+    recents_conversations = []
     for group_name in ("Today", "Yesterday", "Last 7 Days", "Older"):
-        if grouped[group_name]:
-            sections.append((group_name, grouped[group_name]))
+        recents_conversations.extend(grouped[group_name])
+
+    if recents_conversations:
+        sections.append(("Recents", recents_conversations))
 
     if not sections:
         empty_text = (
@@ -8949,8 +9096,8 @@ def render_history_cards(conversations):
 
                 # ChatGPT-style compact title length.
                 title_short = (
-                    title[:28].rstrip() + "…"
-                    if len(title) > 28
+                    title[:24].rstrip() + "…"
+                    if len(title) > 24
                     else title
                 )
                 time_label = _history_time_label(
@@ -9298,35 +9445,37 @@ if assistant != "⚙️ Admin Panel":
 
     st.sidebar.markdown("---")
 
-    header_left, header_right = st.sidebar.columns(
-        [0.82, 0.18],
-        gap="small",
+    st.sidebar.markdown(
+        '<div class="history-title">Recents</div>',
+        unsafe_allow_html=True,
     )
 
-    with header_left:
-        st.markdown(
-            '<div class="history-title">Conversations</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="history-count">Saved history</div>',
-            unsafe_allow_html=True,
-        )
+    st.sidebar.markdown(
+        '<div class="history-toolbar-spacer"></div>',
+        unsafe_allow_html=True,
+    )
 
-    with header_right:
+    refresh_col, search_col = st.sidebar.columns(
+        [0.16, 0.84],
+        gap="medium",
+    )
+
+    with refresh_col:
         if st.button(
             "↻",
             key="refresh_history",
             help="Refresh conversations",
+            use_container_width=True,
         ):
             st.rerun()
 
-    st.sidebar.text_input(
-        "Search conversations",
-        key="history_search_query",
-        placeholder="Search conversations…",
-        label_visibility="collapsed",
-    )
+    with search_col:
+        st.text_input(
+            "Search conversations",
+            key="history_search_query",
+            placeholder="Search conversations…",
+            label_visibility="collapsed",
+        )
 
     try:
         conversations = load_conversations(
