@@ -57,8 +57,30 @@ st.set_page_config(
 )
 
 
-# One browser-cookie controller for persistent authentication.
-# It stores only a random session token, never the username or password.
+# Hide zero-height custom-component containers before the cookie controller
+# mounts. This prevents the temporary grey bars/empty overlay blocks that can
+# appear above the login logo while cookies are loading.
+st.markdown(
+    """
+    <style>
+    .element-container:has(iframe[height="0"]),
+    div[data-testid="stElementContainer"]:has(iframe[height="0"]),
+    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# One browser-cookie controller for saved login credentials.
 auth_cookie_controller = CookieController(
     key="atp_auth_cookie_controller"
 )
@@ -6098,12 +6120,9 @@ def get_saved_login_credentials():
     No authentication occurs here. The user must still click Login.
     """
     try:
-        # Refresh once on a new Streamlit session so the controller reads the
-        # browser's current cookie values instead of an empty stale cache.
-        if not st.session_state.get("_atp_login_cookie_cache_refreshed"):
-            auth_cookie_controller.refresh()
-            st.session_state["_atp_login_cookie_cache_refreshed"] = True
-
+        # CookieController already reads the browser cookies when the Streamlit
+        # session starts. Avoid calling refresh() here because it mounts a
+        # second temporary component and delays the login form rendering.
         raw_value = auth_cookie_controller.get(
             REMEMBER_CREDENTIAL_COOKIE
         )
@@ -6374,7 +6393,6 @@ def logout_user():
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
-    st.session_state.pop("_atp_login_cookie_cache_refreshed", None)
     st.rerun()
 
 
