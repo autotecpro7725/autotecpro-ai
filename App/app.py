@@ -780,8 +780,9 @@ def install_gpt_uploader_css():
         html body div[class*="st-key-atp_upload_card_"] div[data-testid="stButton"],
         html body div[class*="st-key-atp_upload_card_"] div[data-testid="stElementContainer"]:has(button[aria-label="Remove file"]) {
             position: absolute !important;
-            top: 6px !important;
-            right: 6px !important;
+            top: 0 !important;
+            right: 0 !important;
+            transform: translate(34%, -34%) !important;
             left: auto !important;
             bottom: auto !important;
             z-index: 999 !important;
@@ -968,6 +969,31 @@ def install_gpt_uploader_css():
 
 
 
+
+        /* Keep preview cards close together in a compact centered row. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stHorizontalBlock"] {
+            width: max-content !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            gap: 6px !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stHorizontalBlock"]
+        > div[data-testid="column"] {
+            flex: 0 0 178px !important;
+            width: 178px !important;
+            min-width: 178px !important;
+            max-width: 178px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
         /* Compact preview cards. */
         html body div[class*="st-key-atp_upload_card_"] {
             position: relative !important;
@@ -978,7 +1004,7 @@ def install_gpt_uploader_css():
             border: 1px solid rgba(148, 163, 184, 0.20) !important;
             border-radius: 14px !important;
             background: rgba(15, 23, 42, 0.84) !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
             isolation: isolate !important;
         }
@@ -1090,6 +1116,21 @@ def install_gpt_uploader_css():
             display: none !important;
         }
         @media (max-width: 768px) {
+
+            html body div[class*="st-key-atp_upload_shell_"]
+            div[data-testid="stHorizontalBlock"] {
+                gap: 5px !important;
+            }
+
+            html body div[class*="st-key-atp_upload_shell_"]
+            div[data-testid="stHorizontalBlock"]
+            > div[data-testid="column"] {
+                flex: 0 0 154px !important;
+                width: 154px !important;
+                min-width: 154px !important;
+                max-width: 154px !important;
+            }
+
             html body div[class*="st-key-atp_upload_shell_"] {
                 padding: 11px !important;
                 border-radius: 15px !important;
@@ -1300,6 +1341,107 @@ def managed_file_uploader(
         st.error(size_error)
 
     return _managed_upload_objects(st.session_state.get(storage_key) or [])
+
+
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpUploaderNativeCleanupV4";
+
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          let observer = null;
+          let fastTimer = null;
+          let slowTimer = null;
+          let fastRuns = 0;
+
+          function isPrimaryUploadButton(button) {
+            const label = [
+              button.innerText,
+              button.textContent,
+              button.getAttribute("aria-label"),
+              button.getAttribute("title")
+            ].filter(Boolean).join(" ").trim().toLowerCase();
+
+            return (
+              label.includes("upload") ||
+              label.includes("browse") ||
+              label.includes("choose files")
+            );
+          }
+
+          function hideNativeUploaderControls() {
+            doc.querySelectorAll(
+              'div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"]'
+            ).forEach((uploader) => {
+              uploader.querySelectorAll("button").forEach((button) => {
+                if (!isPrimaryUploadButton(button)) {
+                  button.style.setProperty("display", "none", "important");
+                  const wrapper =
+                    button.closest('[data-testid="stElementContainer"]') ||
+                    button.parentElement;
+                  if (wrapper) {
+                    wrapper.style.setProperty("display", "none", "important");
+                  }
+                }
+              });
+
+              uploader.querySelectorAll(
+                '[data-testid="stFileUploaderFile"], [data-testid*="UploadedFile"], ul'
+              ).forEach((row) => {
+                row.style.setProperty("display", "none", "important");
+              });
+
+              uploader.querySelectorAll("div, li").forEach((node) => {
+                const buttons = node.querySelectorAll(":scope > button");
+                const text = (node.textContent || "").trim();
+                if (
+                  buttons.length >= 1 &&
+                  !/upload|browse|choose files/i.test(text) &&
+                  /\\.(jpg|jpeg|png|pdf|txt|docx)\\b/i.test(text)
+                ) {
+                  node.style.setProperty("display", "none", "important");
+                }
+              });
+            });
+          }
+
+          const target =
+            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+
+          observer = new MutationObserver(hideNativeUploaderControls);
+          if (target) {
+            observer.observe(target, { childList: true, subtree: true });
+          }
+
+          fastTimer = root.setInterval(() => {
+            hideNativeUploaderControls();
+            fastRuns += 1;
+            if (fastRuns >= 50) {
+              root.clearInterval(fastTimer);
+            }
+          }, 100);
+
+          slowTimer = root.setInterval(hideNativeUploaderControls, 1200);
+          hideNativeUploaderControls();
+
+          function cleanup() {
+            try { observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(fastTimer); } catch (error) {}
+            try { root.clearInterval(slowTimer); } catch (error) {}
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 # ============================================================
