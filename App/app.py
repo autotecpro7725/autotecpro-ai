@@ -683,7 +683,7 @@ def install_gpt_uploader_css():
             border: 1px dashed rgba(248, 113, 113, 0.72) !important;
             border-radius: 18px !important;
             background: rgba(2, 6, 23, 0.30) !important;
-            padding: 16px !important;
+            padding: 10px 12px !important;
             box-sizing: border-box !important;
             overflow: visible !important;
         }
@@ -839,28 +839,28 @@ def install_gpt_uploader_css():
         /* Horizontal preview row on desktop; Streamlit stacks columns on mobile. */
         html body div[class*="st-key-atp_preview_grid_"] {
             width: 100% !important;
-            margin: 0 auto !important;
-            display: flex !important;
-            justify-content: center !important;
+            margin: 0 auto 7px auto !important;
+            display: block !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="stHorizontalBlock"] {
-            width: max-content !important;
+            width: 100% !important;
             max-width: 100% !important;
             margin: 0 auto !important;
+            display: flex !important;
             align-items: flex-start !important;
             justify-content: center !important;
-            gap: 8px !important;
-            flex-wrap: wrap !important;
+            gap: 7px !important;
+            flex-wrap: nowrap !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="column"] {
-            flex: 0 0 196px !important;
-            width: 196px !important;
-            min-width: 196px !important;
-            max-width: 196px !important;
+            flex: 0 0 184px !important;
+            width: 184px !important;
+            min-width: 184px !important;
+            max-width: 184px !important;
             padding: 0 !important;
         }
 
@@ -1010,30 +1010,6 @@ def install_gpt_uploader_css():
 
 
 
-        /* Keep preview cards close together in a compact centered row. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stHorizontalBlock"] {
-            width: max-content !important;
-            max-width: 100% !important;
-            margin: 0 auto !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            justify-content: center !important;
-            align-items: flex-start !important;
-            gap: 6px !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stHorizontalBlock"]
-        > div[data-testid="column"] {
-            flex: 0 0 178px !important;
-            width: 178px !important;
-            min-width: 178px !important;
-            max-width: 178px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
         /* Compact preview cards. */
         html body div[class*="st-key-atp_upload_card_"] {
             position: relative !important;
@@ -1068,8 +1044,9 @@ def install_gpt_uploader_css():
             display: block;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             object-position: center;
+            background: #020617;
         }
 
         .atp-gpt-file-icon {
@@ -1172,6 +1149,20 @@ def install_gpt_uploader_css():
             display: none !important;
         }
         @media (max-width: 768px) {
+
+            html body div[class*="st-key-atp_preview_grid_"]
+            div[data-testid="stHorizontalBlock"] {
+                gap: 5px !important;
+                flex-wrap: wrap !important;
+            }
+
+            html body div[class*="st-key-atp_preview_grid_"]
+            div[data-testid="column"] {
+                flex: 0 0 154px !important;
+                width: 154px !important;
+                min-width: 154px !important;
+                max-width: 154px !important;
+            }
 
             html body div[class*="st-key-atp_upload_shell_"]
             div[data-testid="stHorizontalBlock"] {
@@ -1278,23 +1269,24 @@ def install_gpt_uploader_css():
             height: 50px;
             padding: 0 18px;
             border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.28);
-            background: rgba(51, 65, 85, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: rgba(51, 65, 85, 0.78);
             color: #ffffff;
             font-size: 15px;
             font-weight: 750;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 9px;
+            gap: 8px;
             cursor: pointer;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-            transition: background 0.16s ease, transform 0.16s ease;
+            box-shadow: none;
+            transition: background 0.16s ease, border-color 0.16s ease;
         }
 
         .atp-custom-upload-trigger:hover {
-            background: rgba(71, 85, 105, 0.96);
-            transform: translateY(-1px);
+            background: rgba(71, 85, 105, 0.92);
+            border-color: rgba(148, 163, 184, 0.46);
+            transform: none;
         }
 
         .atp-custom-upload-trigger:active {
@@ -1302,8 +1294,18 @@ def install_gpt_uploader_css():
         }
 
         .atp-custom-upload-icon {
-            font-size: 22px;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             line-height: 1;
+        }
+
+        .atp-custom-upload-icon svg {
+            width: 24px;
+            height: 24px;
+            display: block;
         }
 
         .atp-custom-upload-helper {
@@ -1457,30 +1459,44 @@ def managed_file_uploader(
         )
 
         if records:
-            preview_columns = st.columns(
-                min(len(records), 4),
-                gap="small",
-                vertical_alignment="top",
-            )
+            # Render previews row-by-row instead of cycling items down fixed
+            # columns. This keeps every row aligned horizontally and centers
+            # the final incomplete row.
+            cards_per_row = 5
 
-            for index, record in enumerate(records):
-                record_id = record["id"]
+            for row_start in range(0, len(records), cards_per_row):
+                row_records = records[row_start:row_start + cards_per_row]
 
-                def delete_record(record_id=record_id):
-                    st.session_state[storage_key] = [
-                        item
-                        for item in st.session_state.get(storage_key, [])
-                        if item.get("id") != record_id
-                    ]
-                    st.session_state[generation_key] += 1
-                    st.rerun()
-
-                with preview_columns[index % len(preview_columns)]:
-                    render_managed_upload_preview(
-                        record,
-                        delete_key=f"atp_delete_btn_{widget_prefix}_{record_id[:16]}",
-                        on_delete=delete_record,
+                with st.container(
+                    key=f"atp_preview_grid_{widget_prefix}_{row_start}"
+                ):
+                    preview_columns = st.columns(
+                        len(row_records),
+                        gap="small",
+                        vertical_alignment="top",
                     )
+
+                    for column, record in zip(preview_columns, row_records):
+                        record_id = record["id"]
+
+                        def delete_record(record_id=record_id):
+                            st.session_state[storage_key] = [
+                                item
+                                for item in st.session_state.get(storage_key, [])
+                                if item.get("id") != record_id
+                            ]
+                            st.session_state[generation_key] += 1
+                            st.rerun()
+
+                        with column:
+                            render_managed_upload_preview(
+                                record,
+                                delete_key=(
+                                    f"atp_delete_btn_{widget_prefix}_"
+                                    f"{record_id[:16]}"
+                                ),
+                                on_delete=delete_record,
+                            )
 
             st.markdown(
                 '<div class="atp-add-file-label">＋ Add another file</div>',
@@ -1495,7 +1511,15 @@ def managed_file_uploader(
                     class="atp-custom-upload-trigger"
                     data-uploader-prefix="{html.escape(widget_prefix)}"
                 >
-                    <span class="atp-custom-upload-icon">↥</span>
+                    <span class="atp-custom-upload-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 16V4"></path>
+                            <path d="m7 9 5-5 5 5"></path>
+                            <path d="M5 20h14"></path>
+                        </svg>
+                    </span>
                     <span>Upload</span>
                 </button>
                 <div class="atp-custom-upload-helper">
