@@ -4431,7 +4431,12 @@ def install_chat_composer_autogrow():
             important(textarea, "writing-mode", "horizontal-tb");
             important(textarea, "text-orientation", "mixed");
             important(textarea, "line-height", "22px");
-            important(textarea, "padding", "11px 8px");
+            const isMobile = root.matchMedia("(max-width: 700px)").matches;
+            important(
+              textarea,
+              "padding",
+              isMobile ? "11px 94px" : "11px 104px"
+            );
             important(textarea, "margin", "0");
             important(textarea, "height", "auto");
             important(textarea, "min-height", `${MIN_HEIGHT}px`);
@@ -4555,11 +4560,26 @@ def install_composer_width_safety_css():
             width: 100% !important;
             min-width: 0 !important;
             max-width: none !important;
+            box-sizing: border-box !important;
+
+            /* Keep typed text and placeholder clear of the fixed mic/send icons.
+               This changes only the textarea's inner padding and does not move,
+               resize, or absolutely position any Streamlit wrapper element. */
+            padding-left: 104px !important;
+            padding-right: 104px !important;
+
             writing-mode: horizontal-tb !important;
             text-orientation: mixed !important;
             white-space: pre-wrap !important;
             overflow-wrap: break-word !important;
             word-break: normal !important;
+        }
+
+        @media (max-width: 700px) {
+            html body div[data-testid="stChatInput"] textarea {
+                padding-left: 94px !important;
+                padding-right: 94px !important;
+            }
         }
         </style>
         """,
