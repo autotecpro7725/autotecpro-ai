@@ -4350,21 +4350,21 @@ def install_browser_voice_dictation():
 
 
 def install_chat_composer_autogrow():
-    """Install one lightweight, rerun-safe auto-grow controller."""
+    """
+    Rerun-safe composer auto-grow that preserves full textarea width after
+    Streamlit rebuilds the chat input during file uploads.
+    """
     components.html(
         r"""
         <script>
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const GLOBAL_KEY = "__atpComposerAutogrowV3";
-          const BIND_ATTR = "data-atp-autogrow-v18";
+          const GLOBAL_KEY = "__atpComposerAutogrowV4";
           const MIN_HEIGHT = 44;
           const MAX_HEIGHT = 180;
 
-          try {
-            root[GLOBAL_KEY]?.cleanup?.();
-          } catch (error) {}
+          try { root[GLOBAL_KEY]?.cleanup?.(); } catch (error) {}
 
           let observer = null;
           let timer = null;
@@ -4374,83 +4374,85 @@ def install_chat_composer_autogrow():
           let pasteHandler = null;
           let resizeHandler = null;
 
-          function setImportant(element, property, value) {
-            if (element) {
-              element.style.setProperty(property, value, "important");
-            }
+          function important(element, property, value) {
+            if (element) element.style.setProperty(property, value, "important");
           }
 
           function getComposer() {
             return doc.querySelector('div[data-testid="stChatInput"]');
           }
 
+          function restoreFullWidthWrappers(textarea, container) {
+            let node = textarea.parentElement;
+            while (node && node !== container) {
+              important(node, "position", "static");
+              important(node, "left", "auto");
+              important(node, "right", "auto");
+              important(node, "top", "auto");
+              important(node, "bottom", "auto");
+              important(node, "transform", "none");
+              important(node, "width", "100%");
+              important(node, "min-width", "0");
+              important(node, "max-width", "none");
+              important(node, "height", "auto");
+              important(node, "min-height", "0");
+              important(node, "max-height", "none");
+              important(node, "margin", "0");
+              important(node, "padding", "0");
+              important(node, "box-sizing", "border-box");
+              important(node, "overflow", "visible");
+              important(node, "flex", "1 1 auto");
+              node = node.parentElement;
+            }
+          }
+
           function fixLayout() {
             scheduled = false;
+            const container = getComposer();
+            const textarea = container?.querySelector("textarea");
+            if (!container || !textarea) return;
+            if (container.getBoundingClientRect().width <= 0) return;
 
-            const composer = getComposer();
-            const textarea = composer?.querySelector("textarea");
-            const mic = doc.getElementById("atp-browser-voice-dictation");
-            const send = doc.getElementById("atp-send-proxy");
+            important(container, "position", "relative");
+            important(container, "display", "block");
+            important(container, "box-sizing", "border-box");
 
-            if (!composer || !textarea) return;
+            restoreFullWidthWrappers(textarea, container);
 
-            const composerRect = composer.getBoundingClientRect();
-            if (composerRect.width <= 0) return;
+            important(textarea, "position", "static");
+            important(textarea, "display", "block");
+            important(textarea, "width", "100%");
+            important(textarea, "min-width", "0");
+            important(textarea, "max-width", "none");
+            important(textarea, "box-sizing", "border-box");
+            important(textarea, "white-space", "pre-wrap");
+            important(textarea, "overflow-wrap", "break-word");
+            important(textarea, "word-break", "normal");
+            important(textarea, "writing-mode", "horizontal-tb");
+            important(textarea, "text-orientation", "mixed");
+            important(textarea, "line-height", "22px");
+            important(textarea, "padding", "11px 8px");
+            important(textarea, "margin", "0");
+            important(textarea, "height", "auto");
+            important(textarea, "min-height", `${MIN_HEIGHT}px`);
+            important(textarea, "max-height", `${MAX_HEIGHT}px`);
 
-            const micWidth = mic?.getBoundingClientRect().width || 46;
-            const sendWidth = send?.getBoundingClientRect().width || 46;
-            const leftGap = micWidth + 22;
-            const rightGap = sendWidth + 12;
-
-            setImportant(composer, "position", "relative");
-            setImportant(composer, "display", "block");
-            setImportant(composer, "box-sizing", "border-box");
-
-            let owner = textarea;
-            while (owner.parentElement && owner.parentElement !== composer) {
-              owner = owner.parentElement;
-            }
-
-            setImportant(owner, "position", "absolute");
-            setImportant(owner, "left", `${leftGap}px`);
-            setImportant(owner, "right", `${rightGap}px`);
-            setImportant(owner, "top", "8px");
-            setImportant(owner, "bottom", "8px");
-            setImportant(owner, "width", "auto");
-            setImportant(owner, "max-width", "none");
-            setImportant(owner, "box-sizing", "border-box");
-
-            setImportant(textarea, "display", "block");
-            setImportant(textarea, "width", "100%");
-            setImportant(textarea, "max-width", "none");
-            setImportant(textarea, "box-sizing", "border-box");
-            setImportant(textarea, "white-space", "pre-wrap");
-            setImportant(textarea, "overflow-wrap", "anywhere");
-            setImportant(textarea, "word-break", "normal");
-            setImportant(textarea, "writing-mode", "horizontal-tb");
-            setImportant(textarea, "padding-left", "4px");
-            setImportant(textarea, "padding-right", "4px");
-
-            setImportant(textarea, "height", "auto");
-            setImportant(textarea, "min-height", `${MIN_HEIGHT}px`);
-            setImportant(textarea, "max-height", `${MAX_HEIGHT}px`);
-
-            const nextHeight = Math.min(
+            const targetHeight = Math.min(
               Math.max(textarea.scrollHeight, MIN_HEIGHT),
               MAX_HEIGHT
             );
 
-            setImportant(textarea, "height", `${nextHeight}px`);
-            setImportant(
+            important(textarea, "height", `${targetHeight}px`);
+            important(
               textarea,
               "overflow-y",
               textarea.scrollHeight > MAX_HEIGHT ? "auto" : "hidden"
             );
 
-            const composerHeight = Math.max(64, nextHeight + 16);
-            setImportant(composer, "height", `${composerHeight}px`);
-            setImportant(composer, "min-height", "64px");
-            setImportant(composer, "max-height", "196px");
+            const containerHeight = Math.max(64, targetHeight + 16);
+            important(container, "height", `${containerHeight}px`);
+            important(container, "min-height", "64px");
+            important(container, "max-height", "196px");
           }
 
           function scheduleFix() {
@@ -4459,14 +4461,13 @@ def install_chat_composer_autogrow():
             root.requestAnimationFrame(fixLayout);
           }
 
-          function unbindTextarea() {
+          function unbind() {
             if (!boundTextarea) return;
             try {
               boundTextarea.removeEventListener("input", inputHandler);
               boundTextarea.removeEventListener("change", inputHandler);
               boundTextarea.removeEventListener("keyup", inputHandler);
               boundTextarea.removeEventListener("paste", pasteHandler);
-              boundTextarea.removeAttribute(BIND_ATTR);
             } catch (error) {}
             boundTextarea = null;
           }
@@ -4474,26 +4475,22 @@ def install_chat_composer_autogrow():
           function bind() {
             const textarea =
               doc.querySelector('div[data-testid="stChatInput"] textarea');
-
             if (!textarea) return;
 
             if (boundTextarea !== textarea) {
-              unbindTextarea();
+              unbind();
               boundTextarea = textarea;
-
               inputHandler = scheduleFix;
               pasteHandler = () => {
                 root.setTimeout(scheduleFix, 0);
-                root.setTimeout(scheduleFix, 80);
+                root.setTimeout(scheduleFix, 60);
+                root.setTimeout(scheduleFix, 180);
               };
-
-              textarea.setAttribute(BIND_ATTR, "1");
               textarea.addEventListener("input", inputHandler);
               textarea.addEventListener("change", inputHandler);
               textarea.addEventListener("keyup", inputHandler);
               textarea.addEventListener("paste", pasteHandler);
             }
-
             scheduleFix();
           }
 
@@ -4505,10 +4502,7 @@ def install_chat_composer_autogrow():
 
           observer = new MutationObserver(bind);
           if (observeRoot) {
-            observer.observe(observeRoot, {
-              childList: true,
-              subtree: true
-            });
+            observer.observe(observeRoot, { childList: true, subtree: true });
           }
 
           timer = root.setInterval(bind, 1800);
@@ -4518,7 +4512,7 @@ def install_chat_composer_autogrow():
             try { observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(timer); } catch (error) {}
             try { root.removeEventListener("resize", resizeHandler); } catch (error) {}
-            unbindTextarea();
+            unbind();
           }
 
           root[GLOBAL_KEY] = { cleanup };
@@ -4528,6 +4522,48 @@ def install_chat_composer_autogrow():
         """,
         height=0,
         width=0,
+    )
+
+
+def install_composer_width_safety_css():
+    """Prevent uploader reruns from collapsing the chat textarea width."""
+    st.markdown(
+        """
+        <style>
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu),
+        html body div[data-testid="stChatInput"] > div:not(.atp-plus-menu) > div,
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            position: static !important;
+            left: auto !important;
+            right: auto !important;
+            top: auto !important;
+            bottom: auto !important;
+            transform: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            flex: 1 1 auto !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
+        }
+
+        html body div[data-testid="stChatInput"] textarea {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            white-space: pre-wrap !important;
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
 
@@ -7905,6 +7941,7 @@ else:
 
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
+    install_composer_width_safety_css()
     prompt = st.chat_input("Message AutoTecPro AI...")
 
     if prompt:
