@@ -7967,13 +7967,45 @@ else:
 
     if prompt:
         user_display = clean_visible_chat_text(prompt)
-        uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
-        if uploaded_files:
-            file_names = ", ".join([file.name for file in uploaded_files])
+        # Consume uploads only once for the current uploader generation.
+        # This protects against a Streamlit/browser rerun temporarily returning
+        # the previous uploader value again after a message has already been sent.
+        current_upload_generation = (
+            st.session_state.chat_file_uploader_generation
+        )
+        uploads_already_consumed = (
+            st.session_state.get("chat_upload_consumed_generation")
+            == current_upload_generation
+        )
+
+        effective_uploaded_files = (
+            []
+            if uploads_already_consumed
+            else list(uploaded_files or [])
+        )
+
+        uploaded_image_previews = get_uploaded_image_previews(
+            effective_uploaded_files
+        )
+
+        if effective_uploaded_files:
+            file_names = ", ".join(
+                [file.name for file in effective_uploaded_files]
+            )
             user_display += f"\n\n📎 Attached: {file_names}"
 
-        user_content_to_save = user_display + serialize_images_marker(uploaded_image_previews)
+            # Mark this uploader generation as consumed immediately, before any
+            # API/database work, so the same files cannot be attached to a
+            # later message if another rerun occurs.
+            st.session_state.chat_upload_consumed_generation = (
+                current_upload_generation
+            )
+
+        user_content_to_save = (
+            user_display
+            + serialize_images_marker(uploaded_image_previews)
+        )
 
         if st.session_state.conversation_id is None:
             try:
@@ -8000,7 +8032,7 @@ else:
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
-            answer = ask_ai(prompt, uploaded_files)
+            answer = ask_ai(prompt, effective_uploaded_files)
             answer = clean_visible_chat_text(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
