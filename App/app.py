@@ -6126,6 +6126,7 @@ def logout_user():
         except Exception:
             pass
 
+    clear_browser_remember_token()
     st.query_params.clear()
     st.session_state.logged_in = False
     st.session_state.messages = []
@@ -6137,60 +6138,223 @@ def logout_user():
 # Login Screen
 # ============================================================
 
-def show_login_transition():
-    """Cover the old login DOM while Streamlit switches to the main app."""
-    st.markdown(
+def restore_browser_remember_token():
+    """
+    Restore the remembered login token from this browser.
+
+    The token is stored in localStorage, not the username or password.
+    If the URL does not already contain a session token, redirect once to
+    the same page with the remembered token.
+    """
+    if st.query_params.get("session"):
+        return
+
+    components.html(
         """
-        <style>
-        .atp-login-transition {
-            position: fixed;
-            inset: 0;
-            z-index: 2147483647;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background:
-                radial-gradient(circle at top left, rgba(239,68,68,0.14), transparent 28%),
-                linear-gradient(135deg, #050b16 0%, #0b1220 48%, #020617 100%);
-        }
+        <script>
+        (() => {
+          try {
+            const root = window.parent;
+            const token = root.localStorage.getItem("atp_remember_session");
+            if (!token) return;
 
-        .atp-login-transition-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 20px;
-            border: 1px solid rgba(148,163,184,0.18);
-            border-radius: 16px;
-            background: rgba(15,23,42,0.88);
-            color: #f8fafc;
-            font-size: 15px;
-            font-weight: 700;
-            box-shadow: 0 18px 48px rgba(0,0,0,0.34);
-            backdrop-filter: blur(14px);
-        }
+            const url = new URL(root.location.href);
+            if (url.searchParams.get("session") === token) return;
 
-        .atp-login-spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255,255,255,0.24);
-            border-top-color: #ff4d3d;
-            border-radius: 50%;
-            animation: atpLoginSpin 0.7s linear infinite;
-        }
-
-        @keyframes atpLoginSpin {
-            to { transform: rotate(360deg); }
-        }
-        </style>
-
-        <div class="atp-login-transition">
-            <div class="atp-login-transition-card">
-                <div class="atp-login-spinner"></div>
-                <div>Opening AutoTecPro AI…</div>
-            </div>
-        </div>
+            url.searchParams.set("session", token);
+            root.location.replace(url.toString());
+          } catch (error) {}
+        })();
+        </script>
         """,
-        unsafe_allow_html=True,
+        height=0,
+        width=0,
+    )
+
+
+def save_browser_remember_token(token):
+    """Store only the persistent session token in this browser."""
+    safe_token = json.dumps(str(token))
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            window.parent.localStorage.setItem(
+              "atp_remember_session",
+              {safe_token}
+            );
+          }} catch (error) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def clear_browser_remember_token():
+    """Remove the remembered login token from this browser."""
+    components.html(
+        """
+        <script>
+        (() => {
+          try {
+            window.parent.localStorage.removeItem("atp_remember_session");
+          } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+
+def install_login_autofill_support():
+    """
+    Enable browser password-manager autofill and restore the remembered
+    username on this device. The password is never stored by the app.
+    """
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpLoginAutofillSupportV1";
+
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          let stopped = false;
+          let timerId = null;
+          let attempts = 0;
+
+          function findLoginInputs() {
+            const form =
+              doc.querySelector('form[data-testid="stForm"]') ||
+              doc.querySelector('div[data-testid="stForm"]');
+
+            if (!form) return null;
+
+            const inputs = Array.from(form.querySelectorAll("input"));
+            const usernameInput = inputs.find(
+              (input) =>
+                input.type === "text" ||
+                input.getAttribute("autocomplete") === "username"
+            );
+            const passwordInput = inputs.find(
+              (input) => input.type === "password"
+            );
+
+            if (!usernameInput || !passwordInput) return null;
+            return { form, usernameInput, passwordInput };
+          }
+
+          function setReactInputValue(input, value) {
+            const prototype = Object.getPrototypeOf(input);
+            const descriptor = Object.getOwnPropertyDescriptor(
+              prototype,
+              "value"
+            );
+            if (descriptor?.set) {
+              descriptor.set.call(input, value);
+            } else {
+              input.value = value;
+            }
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          function applyAutofillSupport() {
+            if (stopped) return;
+
+            const found = findLoginInputs();
+            if (!found) {
+              attempts += 1;
+              if (attempts < 40) {
+                timerId = root.setTimeout(applyAutofillSupport, 100);
+              }
+              return;
+            }
+
+            const { form, usernameInput, passwordInput } = found;
+
+            form.setAttribute("autocomplete", "on");
+
+            usernameInput.setAttribute("name", "username");
+            usernameInput.setAttribute("autocomplete", "username");
+            usernameInput.setAttribute("autocapitalize", "none");
+            usernameInput.setAttribute("spellcheck", "false");
+
+            passwordInput.setAttribute("name", "password");
+            passwordInput.setAttribute("autocomplete", "current-password");
+
+            const savedUsername = root.localStorage.getItem(
+              "atp_remember_username"
+            );
+
+            if (savedUsername && !usernameInput.value) {
+              setReactInputValue(usernameInput, savedUsername);
+            }
+          }
+
+          applyAutofillSupport();
+
+          function cleanup() {
+            stopped = true;
+            if (timerId) {
+              try { root.clearTimeout(timerId); } catch (error) {}
+            }
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def save_browser_username(username):
+    """Remember only the username on this browser/device."""
+    safe_username = json.dumps(str(username or "").strip())
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            window.parent.localStorage.setItem(
+              "atp_remember_username",
+              {safe_username}
+            );
+          }} catch (error) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def clear_browser_username():
+    """Remove the remembered username from this browser/device."""
+    components.html(
+        """
+        <script>
+        (() => {
+          try {
+            window.parent.localStorage.removeItem(
+              "atp_remember_username"
+            );
+          } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
 
 
@@ -6228,22 +6392,32 @@ def login_screen():
         unsafe_allow_html=True
     )
 
-    with st.form("login_form"):
-        username = st.text_input("Username", placeholder="Enter your username")
-        password = st.text_input(
-            "Password",
-            placeholder="Enter your password",
-            type="password",
-        )
-        remember_me = st.checkbox(
-            "Remember me",
-            value=False,
-            help="Keep me signed in on this browser.",
-        )
-        login_submitted = st.form_submit_button(
-            "Login",
-            use_container_width=True,
-        )
+    login_form_placeholder = st.empty()
+
+    # Enable browser password-manager autofill and restore the remembered
+    # username on this device.
+    install_login_autofill_support()
+
+    with login_form_placeholder.container():
+        with st.form("login_form"):
+            username = st.text_input(
+                "Username",
+                placeholder="Enter your username",
+            )
+            password = st.text_input(
+                "Password",
+                placeholder="Enter your password",
+                type="password",
+            )
+            remember_me = st.checkbox(
+                "Remember me",
+                value=False,
+                help="Keep me signed in on this browser.",
+            )
+            login_submitted = st.form_submit_button(
+                "Login",
+                use_container_width=True,
+            )
 
     if login_submitted:
         username = username.strip()
@@ -6274,26 +6448,31 @@ def login_screen():
                 st.session_state.role = user["role"]
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
-                st.session_state.login_transition = True
-
-                # Immediately cover the existing login form so it cannot remain
-                # visible while Streamlit replaces the page.
-                show_login_transition()
+                # Remove the old login form immediately before Streamlit
+                # builds the authenticated page.
+                login_form_placeholder.empty()
 
                 if remember_me:
+                    # Store only the username and session token. The password
+                    # remains under the browser password manager's control.
+                    save_browser_username(user["username"])
                     try:
                         session_id = create_login_session(
                             user["username"],
                             user["role"],
                         )
+                        save_browser_remember_token(session_id)
                         st.query_params["session"] = session_id
                     except Exception:
                         # If login_sessions is unavailable, the in-memory login
                         # session still works normally.
                         pass
                 else:
-                    # Session-only login: do not leave a persistent login token
-                    # in the browser URL.
+                    # Session-only login. Remove remembered app data from this
+                    # browser. Browser-saved passwords are managed separately
+                    # by Chrome, Edge, Safari, or another password manager.
+                    clear_browser_remember_token()
+                    clear_browser_username()
                     try:
                         st.query_params.clear()
                     except Exception:
@@ -6320,14 +6499,12 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
+    restore_browser_remember_token()
     restore_login_session()
 
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
-
-# The transition overlay belongs only to the previous login render.
-st.session_state.pop("login_transition", None)
 
 apply_app_layout_css()
 
