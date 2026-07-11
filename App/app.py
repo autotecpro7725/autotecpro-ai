@@ -979,6 +979,232 @@ def inject_base_css():
 
 
         /* ============================================================
+           ChatGPT / Claude-style file uploader
+           Applies to the main chat uploader and Admin learning uploader.
+           Styling only — no upload behavior or application logic changed.
+        ============================================================ */
+
+        div[data-testid="stFileUploader"] {
+            padding: 14px !important;
+            border-radius: 18px !important;
+            background: rgba(15, 23, 42, 0.45) !important;
+            border: 1px solid rgba(148, 163, 184, 0.20) !important;
+        }
+
+        div[data-testid="stFileUploader"] section {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+            padding: 12px !important;
+            border-radius: 15px !important;
+            border: 1px dashed rgba(148, 163, 184, 0.30) !important;
+            background: rgba(2, 6, 23, 0.24) !important;
+            box-shadow: none !important;
+        }
+
+        /* Uploaded-file list */
+        div[data-testid="stFileUploader"] ul {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* One clean file row */
+        div[data-testid="stFileUploader"] li,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+            position: relative !important;
+            display: grid !important;
+            grid-template-columns: 40px minmax(0, 1fr) 36px !important;
+            grid-template-rows: auto auto !important;
+            column-gap: 10px !important;
+            row-gap: 1px !important;
+            align-items: center !important;
+            width: 100% !important;
+            min-height: 58px !important;
+            margin: 0 !important;
+            padding: 8px 8px 8px 10px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(148, 163, 184, 0.14) !important;
+            background: rgba(15, 23, 42, 0.62) !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+        }
+
+        /* File-type icon */
+        div[data-testid="stFileUploader"] li > div:first-child,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] > div:first-child {
+            grid-column: 1 !important;
+            grid-row: 1 / span 2 !important;
+            align-self: center !important;
+            width: 40px !important;
+            min-width: 40px !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            margin: 0 !important;
+            border-radius: 10px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(255, 255, 255, 0.92) !important;
+            overflow: hidden !important;
+        }
+
+        /* Filename and file size */
+        div[data-testid="stFileUploader"] li [data-testid="stFileUploaderFileName"],
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] [data-testid="stFileUploaderFileName"] {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            font-size: 13px !important;
+            font-weight: 650 !important;
+            line-height: 1.25 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        div[data-testid="stFileUploader"] li small,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] small {
+            grid-column: 2 !important;
+            grid-row: 2 !important;
+            margin: 0 !important;
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
+            opacity: 1 !important;
+        }
+
+        /* Minimal delete button on the right */
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] {
+            grid-column: 3 !important;
+            grid-row: 1 / span 2 !important;
+            align-self: center !important;
+            justify-self: end !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] button,
+        div[data-testid="stFileUploader"] button[aria-label*="Remove"],
+        div[data-testid="stFileUploader"] button[title*="Remove"] {
+            width: 34px !important;
+            min-width: 34px !important;
+            max-width: 34px !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            max-height: 34px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 9px !important;
+            border: 1px solid transparent !important;
+            background: transparent !important;
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            box-shadow: none !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] button:hover,
+        div[data-testid="stFileUploader"] button[aria-label*="Remove"]:hover,
+        div[data-testid="stFileUploader"] button[title*="Remove"]:hover {
+            background: rgba(239, 68, 68, 0.12) !important;
+            border-color: rgba(248, 113, 113, 0.20) !important;
+            color: #fca5a5 !important;
+            -webkit-text-fill-color: #fca5a5 !important;
+            transform: none !important;
+        }
+
+        /* Add another file: clean text button below the file list */
+        div[data-testid="stFileUploader"] section > button,
+        div[data-testid="stFileUploader"] button[aria-label*="Add"],
+        div[data-testid="stFileUploader"] button[title*="Add"] {
+            width: auto !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            margin: 4px auto 0 auto !important;
+            padding: 0 12px !important;
+            border-radius: 9px !important;
+            border: 1px solid transparent !important;
+            background: transparent !important;
+            color: #cbd5e1 !important;
+            -webkit-text-fill-color: #cbd5e1 !important;
+            box-shadow: none !important;
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+            line-height: 1 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stFileUploader"] section > button:hover,
+        div[data-testid="stFileUploader"] button[aria-label*="Add"]:hover,
+        div[data-testid="stFileUploader"] button[title*="Add"]:hover {
+            background: rgba(148, 163, 184, 0.10) !important;
+            border-color: rgba(148, 163, 184, 0.14) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stFileUploader"] button svg {
+            width: 17px !important;
+            height: 17px !important;
+        }
+
+        @media (max-width: 768px) {
+            div[data-testid="stFileUploader"] {
+                padding: 10px !important;
+            }
+
+            div[data-testid="stFileUploader"] section {
+                padding: 9px !important;
+            }
+
+            div[data-testid="stFileUploader"] li,
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+                grid-template-columns: 38px minmax(0, 1fr) 34px !important;
+                column-gap: 8px !important;
+                min-height: 54px !important;
+                padding: 7px !important;
+            }
+
+            div[data-testid="stFileUploader"] li > div:first-child,
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] > div:first-child {
+                width: 38px !important;
+                min-width: 38px !important;
+                height: 38px !important;
+                min-height: 38px !important;
+            }
+
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] button,
+            div[data-testid="stFileUploader"] button[aria-label*="Remove"],
+            div[data-testid="stFileUploader"] button[title*="Remove"] {
+                width: 32px !important;
+                min-width: 32px !important;
+                max-width: 32px !important;
+                height: 32px !important;
+                min-height: 32px !important;
+                max-height: 32px !important;
+            }
+        }
+
+
+        /* ============================================================
            Compact ChatGPT-style UI refinements
         ============================================================ */
         .chat-row {
@@ -7967,45 +8193,13 @@ else:
 
     if prompt:
         user_display = clean_visible_chat_text(prompt)
+        uploaded_image_previews = get_uploaded_image_previews(uploaded_files)
 
-        # Consume uploads only once for the current uploader generation.
-        # This protects against a Streamlit/browser rerun temporarily returning
-        # the previous uploader value again after a message has already been sent.
-        current_upload_generation = (
-            st.session_state.chat_file_uploader_generation
-        )
-        uploads_already_consumed = (
-            st.session_state.get("chat_upload_consumed_generation")
-            == current_upload_generation
-        )
-
-        effective_uploaded_files = (
-            []
-            if uploads_already_consumed
-            else list(uploaded_files or [])
-        )
-
-        uploaded_image_previews = get_uploaded_image_previews(
-            effective_uploaded_files
-        )
-
-        if effective_uploaded_files:
-            file_names = ", ".join(
-                [file.name for file in effective_uploaded_files]
-            )
+        if uploaded_files:
+            file_names = ", ".join([file.name for file in uploaded_files])
             user_display += f"\n\n📎 Attached: {file_names}"
 
-            # Mark this uploader generation as consumed immediately, before any
-            # API/database work, so the same files cannot be attached to a
-            # later message if another rerun occurs.
-            st.session_state.chat_upload_consumed_generation = (
-                current_upload_generation
-            )
-
-        user_content_to_save = (
-            user_display
-            + serialize_images_marker(uploaded_image_previews)
-        )
+        user_content_to_save = user_display + serialize_images_marker(uploaded_image_previews)
 
         if st.session_state.conversation_id is None:
             try:
@@ -8032,7 +8226,7 @@ else:
 
         with st.spinner("Searching AutoTecPro knowledge base..."):
             response_start_time = time.time()
-            answer = ask_ai(prompt, effective_uploaded_files)
+            answer = ask_ai(prompt, uploaded_files)
             answer = clean_visible_chat_text(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
