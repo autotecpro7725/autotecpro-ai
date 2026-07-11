@@ -262,26 +262,57 @@ def track_ups(tracking_number):
             "message": "UPS credentials are not configured."
         }
 
+    # Never send surrounding words or punctuation to UPS.
+    normalized_tracking = re.sub(
+        r"[^A-Z0-9]",
+        "",
+        str(tracking_number or "").upper(),
+    )
+
+    if not re.fullmatch(r"1Z[A-Z0-9]{16}", normalized_tracking):
+        raise RuntimeError(
+            "Invalid UPS tracking-number format. "
+            "A standard UPS 1Z tracking number must contain exactly 18 characters."
+        )
+
     token = get_ups_access_token()
     response = requests.get(
         (
             "https://onlinetools.ups.com/api/track/v1/details/"
-            f"{quote(tracking_number.strip())}"
+            f"{quote(normalized_tracking, safe='')}"
         ),
-        params={"locale": "en_US", "returnSignature": "false"},
+        params={
+            "locale": "en_US",
+            "returnSignature": "false",
+        },
         headers={
             "Authorization": f"Bearer {token}",
-            "transId": f"atp-{int(time.time())}",
+            "transId": f"atp-{int(time.time() * 1000)}",
             "transactionSrc": "AutoTecProAI",
+            "Accept": "application/json",
         },
         timeout=LIVE_HTTP_TIMEOUT,
     )
+
+    try:
+        data = safe_json_response(response)
+    except Exception as error:
+        # Log only non-secret diagnostic information to Streamlit Cloud logs.
+        safe_body = response.text[:1000].replace("\n", " ").replace("\r", " ")
+        print(
+            "[UPS TRACKING ERROR] "
+            f"status={response.status_code} "
+            f"tracking={normalized_tracking} "
+            f"response={safe_body}"
+        )
+        raise RuntimeError(f"UPS Tracking API error: {error}") from error
+
     return {
         "configured": True,
         "carrier": "UPS",
-        "tracking_number": tracking_number,
+        "tracking_number": normalized_tracking,
         "source": "UPS Tracking API",
-        "data": safe_json_response(response),
+        "data": data,
     }
 
 
@@ -337,16 +368,44 @@ def track_canada_post(tracking_number):
 
 
 def extract_tracking_number(prompt):
-    candidates = re.findall(r"\b[A-Z0-9][A-Z0-9 -]{7,33}[A-Z0-9]\b", prompt.upper())
-    ignored = {
-        "TECHNICAL SUPPORT", "SALES MARKETING", "CANADA POST",
-        "TRACK MY PACKAGE", "TRACK THIS PACKAGE"
-    }
-    for candidate in candidates:
-        compact = re.sub(r"[^A-Z0-9]", "", candidate)
-        if compact not in ignored and any(char.isdigit() for char in compact):
-            if 8 <= len(compact) <= 34:
-                return compact
+    """
+    Extract a carrier tracking number without accidentally appending words
+    such as UPS, tracking, package, or shipment.
+
+    UPS 1Z numbers are always exactly 18 characters:
+    "1Z" + 16 letters/digits.
+    """
+    value = str(prompt or "").upper()
+
+    # UPS standard tracking number: exactly 18 alphanumeric characters.
+    ups_match = re.search(r"(?<![A-Z0-9])(1Z[A-Z0-9]{16})(?![A-Z0-9])", value)
+    if ups_match:
+        return ups_match.group(1)
+
+    # Canada Post domestic tracking numbers are commonly 16 digits.
+    canada_post_numeric = re.search(r"(?<!\d)(\d{16})(?!\d)", value)
+    if canada_post_numeric:
+        return canada_post_numeric.group(1)
+
+    # Canada Post international format, for example AB123456789CA.
+    canada_post_international = re.search(
+        r"(?<![A-Z0-9])([A-Z]{2}\d{9}CA)(?![A-Z0-9])",
+        value,
+    )
+    if canada_post_international:
+        return canada_post_international.group(1)
+
+    # Conservative fallback for other explicitly labelled tracking requests.
+    labelled_match = re.search(
+        r"(?:TRACK(?:ING)?(?:\s+NUMBER)?|PACKAGE|PARCEL|SHIPMENT)"
+        r"\s*[:#-]?\s*([A-Z0-9][A-Z0-9-]{7,33})",
+        value,
+    )
+    if labelled_match:
+        compact = re.sub(r"[^A-Z0-9]", "", labelled_match.group(1))
+        if 8 <= len(compact) <= 34 and any(char.isdigit() for char in compact):
+            return compact
+
     return ""
 
 
