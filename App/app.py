@@ -1789,7 +1789,12 @@ def inject_base_css():
             margin-bottom: 14px;
         }
 
-        .history-title {
+        div[data-testid="stSidebar"] hr {
+        margin: 22px 0 0 0 !important;
+        border-color: rgba(148, 163, 184, 0.13) !important;
+    }
+
+    .history-title {
             color: #cbd5e1;
             font-size: 14px;
             font-weight: 800;
@@ -6680,68 +6685,89 @@ st.markdown(
 
     /* Keep every left-panel option aligned to the same left edge. */
     div[data-testid="stSidebar"] div[role="radiogroup"] {
-        gap: 7px !important;
-        margin: 2px 0 0 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 9px !important;
+        margin: 6px 0 0 0 !important;
+        width: 100% !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] {
+        position: relative !important;
         width: 100% !important;
-        min-height: 44px !important;
+        min-height: 48px !important;
         margin: 0 !important;
-        padding: 9px 11px !important;
-        border-radius: 10px !important;
-        border: 1px solid transparent !important;
-        background: transparent !important;
+        padding: 10px 12px 10px 14px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(148, 163, 184, 0.10) !important;
+        background: rgba(15, 23, 42, 0.20) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
         box-sizing: border-box !important;
+        overflow: hidden !important;
         transition:
-            background 120ms ease,
-            border-color 120ms ease,
-            color 120ms ease !important;
+            background 140ms ease,
+            border-color 140ms ease,
+            transform 140ms ease,
+            box-shadow 140ms ease !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] > div {
-        margin: 0 !important;
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
+        background: rgba(51, 65, 85, 0.42) !important;
+        border-color: rgba(148, 163, 184, 0.16) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
+        background:
+            linear-gradient(
+                90deg,
+                rgba(37, 47, 63, 0.98) 0%,
+                rgba(30, 41, 59, 0.92) 100%
+            ) !important;
+        border-color: rgba(239, 68, 68, 0.24) !important;
+        box-shadow:
+            inset 4px 0 0 #ef4444,
+            0 8px 20px rgba(0, 0, 0, 0.14) !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
         margin: 0 !important;
         padding: 0 !important;
-        font-size: 13px !important;
+        font-size: 13.5px !important;
         font-weight: 650 !important;
         line-height: 1.2 !important;
         text-align: left !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
-        background: rgba(51, 65, 85, 0.40) !important;
-        border-color: rgba(148, 163, 184, 0.08) !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
-        background: rgba(30, 41, 59, 0.88) !important;
-        border-color: rgba(239, 68, 68, 0.20) !important;
-        box-shadow: inset 3px 0 0 #ef4444 !important;
+        color: #c8d2df !important;
+        white-space: nowrap !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) p {
         color: #ffffff !important;
-        font-weight: 760 !important;
+        font-weight: 800 !important;
     }
 
-    /* Make the selected radio indicator act as the red navigation icon. */
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked)
-    div[role="radio"] {
+    /* Hide the default large radio circle but keep the native input active. */
+    div[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child {
+        width: 10px !important;
+        min-width: 10px !important;
+        height: 10px !important;
+        margin-right: 10px !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(148, 163, 184, 0.46) !important;
+        background: rgba(100, 116, 139, 0.18) !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) > div:first-child {
         border-color: #ef4444 !important;
         background: #ef4444 !important;
-        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked)
-    div[role="radio"] > div {
-        background: #ffffff !important;
+    div[data-testid="stSidebar"] label[data-baseweb="radio"] input {
+        cursor: pointer !important;
     }
 
     .sidebar-action-area {
@@ -6756,11 +6782,11 @@ st.markdown(
 
     .sidebar-newcase-btn .stButton > button {
         width: 100% !important;
-        min-height: 44px !important;
-        border-radius: 10px !important;
+        min-height: 48px !important;
+        border-radius: 11px !important;
         justify-content: flex-start !important;
         text-align: left !important;
-        padding: 0 13px !important;
+        padding: 0 15px !important;
         background:
             linear-gradient(
                 135deg,
@@ -6769,8 +6795,16 @@ st.markdown(
             ) !important;
         border: 1px solid rgba(255, 255, 255, 0.10) !important;
         color: #ffffff !important;
-        font-weight: 760 !important;
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.01em !important;
         box-shadow: 0 10px 22px rgba(239, 35, 60, 0.18) !important;
+    }
+
+    .sidebar-newcase-btn .stButton > button p {
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        margin: 0 !important;
     }
 
     .sidebar-newcase-btn .stButton > button:hover {
@@ -6811,16 +6845,18 @@ st.markdown(
     }
 
     .history-title {
-        margin: 0 !important;
+        margin: 18px 0 0 0 !important;
         color: #f8fafc !important;
         font-size: 14px !important;
-        font-weight: 760 !important;
+        font-weight: 780 !important;
+        line-height: 1.2 !important;
     }
 
     .history-count {
-        margin: 2px 0 6px 0 !important;
-        color: #77869b !important;
+        margin: 4px 0 12px 0 !important;
+        color: #7f8ea3 !important;
         font-size: 11px !important;
+        line-height: 1.25 !important;
     }
 
     .history-section-label {
@@ -6849,7 +6885,7 @@ st.markdown(
     div[data-testid="stSidebar"] [class*="st-key-history_row_"] {
         position: relative !important;
         width: 100% !important;
-        margin: 0 !important;
+        margin: 0 0 7px 0 !important;
         padding: 0 !important;
         border-radius: 8px !important;
         background: transparent !important;
@@ -6964,13 +7000,31 @@ st.markdown(
         color: #ffffff !important;
     }
 
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] {
+        margin: 0 0 16px 0 !important;
+    }
+
     div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
-        min-height: 36px !important;
-        border-radius: 9px !important;
-        padding-left: 10px !important;
-        background: rgba(15, 23, 42, 0.38) !important;
-        border-color: rgba(148, 163, 184, 0.12) !important;
-        font-size: 12px !important;
+        min-height: 42px !important;
+        border-radius: 11px !important;
+        padding-left: 12px !important;
+        background: rgba(15, 23, 42, 0.46) !important;
+        border-color: rgba(148, 163, 184, 0.16) !important;
+        color: #eef2f7 !important;
+        font-size: 12.5px !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] input::placeholder {
+        color: #8492a6 !important;
+        opacity: 1 !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] input:focus {
+        border-color: rgba(248, 113, 113, 0.42) !important;
+        box-shadow:
+            0 0 0 1px rgba(248, 113, 113, 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
     }
 
     div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
@@ -7004,8 +7058,13 @@ st.markdown(
         }
 
         div[data-testid="stSidebar"] label[data-baseweb="radio"] {
-            min-height: 44px !important;
-            padding: 10px 9px !important;
+            min-height: 52px !important;
+            padding: 12px 13px !important;
+            border-radius: 12px !important;
+        }
+
+        div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
+            font-size: 14px !important;
         }
 
         .sidebar-newcase-btn .stButton > button {
@@ -7022,9 +7081,22 @@ st.markdown(
             margin-top: 18px !important;
         }
 
+        div[data-testid="stSidebar"] [data-testid="stTextInput"] {
+            margin-bottom: 18px !important;
+        }
+
+        div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
+            min-height: 46px !important;
+            font-size: 13px !important;
+        }
+
+        div[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+            margin-bottom: 8px !important;
+        }
+
         div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button {
-            min-height: 42px !important;
-            height: 42px !important;
+            min-height: 44px !important;
+            height: 44px !important;
             padding-left: 9px !important;
             font-size: 12.8px !important;
         }
@@ -9252,7 +9324,7 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.text_input(
         "Search conversations",
         key="history_search_query",
-        placeholder="Search history…",
+        placeholder="Search conversations…",
         label_visibility="collapsed",
     )
 
