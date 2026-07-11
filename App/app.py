@@ -6076,6 +6076,10 @@ def render_chat_message(role, content, images=None):
 
     st.markdown(chat_html, unsafe_allow_html=True)
 
+REMEMBER_PROFILE_VERSION = 1
+REMEMBER_SESSION_DAYS = 30
+
+
 def create_login_session(username, role):
     result = supabase.table("login_sessions").insert({
         "username": username,
@@ -6101,17 +6105,83 @@ def restore_login_session():
             .execute()
         )
 
-        if result.data:
-            session = result.data[0]
-            st.session_state.logged_in = True
-            st.session_state.username = session["username"]
-            st.session_state.role = session["role"]
-            if "messages" not in st.session_state:
-                st.session_state.messages = []
-            if "conversation_id" not in st.session_state:
-                st.session_state.conversation_id = None
+        if not result.data:
+            clear_browser_login_profile()
+            st.query_params.clear()
+            return
+
+        session = result.data[0]
+
+        # Expire remembered sessions after the configured retention period.
+        created_at_raw = session.get("created_at")
+        if created_at_raw:
+            try:
+                created_at = datetime.fromisoformat(
+                    str(created_at_raw).replace("Z", "+00:00")
+                )
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+
+                age_seconds = (
+                    datetime.now(timezone.utc) -
+                    created_at.astimezone(timezone.utc)
+                ).total_seconds()
+
+                if age_seconds > REMEMBER_SESSION_DAYS * 86400:
+                    try:
+                        supabase.table("login_sessions").update({
+                            "active": False
+                        }).eq("id", token).execute()
+                    except Exception:
+                        pass
+
+                    clear_browser_login_profile()
+                    st.query_params.clear()
+                    return
+            except Exception:
+                # A malformed timestamp is treated as an invalid remembered
+                # session rather than allowing permanent access.
+                clear_browser_login_profile()
+                st.query_params.clear()
+                return
+
+        # Validate the current user record. Deleted or inactive users must not
+        # be restored from an old browser session.
+        user_result = (
+            supabase
+            .table("users")
+            .select("username, role, active")
+            .eq("username", session["username"])
+            .eq("active", True)
+            .execute()
+        )
+
+        if not user_result.data:
+            try:
+                supabase.table("login_sessions").update({
+                    "active": False
+                }).eq("id", token).execute()
+            except Exception:
+                pass
+
+            clear_browser_login_profile()
+            st.query_params.clear()
+            return
+
+        user = user_result.data[0]
+
+        st.session_state.logged_in = True
+        st.session_state.username = user["username"]
+        st.session_state.role = user["role"]
+
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+        if "conversation_id" not in st.session_state:
+            st.session_state.conversation_id = None
+
     except Exception:
-        # If the login_sessions table does not exist yet, fall back to normal login.
+        # If the login-session check fails, do not authenticate from a stale
+        # browser token. The normal login screen remains available.
         return
 
 
@@ -6126,9 +6196,7 @@ def logout_user():
         except Exception:
             pass
 
-    clear_browser_remember_enabled()
-    clear_browser_remember_token()
-    clear_browser_username()
+    clear_browser_login_profile()
     st.query_params.clear()
     st.session_state.logged_in = False
     st.session_state.messages = []
@@ -6142,7 +6210,14 @@ def logout_user():
 
 def restore_browser_remember_token():
     """
-    Restore the remembered login only when Remember me was explicitly enabled.
+    Restore a remembered login from one JSON profile in localStorage.
+
+    Stored profile fields:
+    - remember: bool
+    - username: str
+    - session: str
+
+    The raw password is never stored by the app.
     """
     if st.query_params.get("session"):
         return
@@ -6153,25 +6228,35 @@ def restore_browser_remember_token():
         (() => {
           try {
             const root = window.parent;
-            const enabled =
-              root.localStorage.getItem("atp_remember_enabled") === "1";
+            const raw = root.localStorage.getItem("atp_login_profile");
+            if (!raw) return;
 
-            if (!enabled) return;
+            const profile = JSON.parse(raw);
 
-            const token = root.localStorage.getItem(
-              "atp_remember_session"
-            );
-
-            if (!token) return;
+            if (
+              !profile ||
+              profile.version !== 1 ||
+              profile.remember !== true ||
+              !profile.session
+            ) {
+              root.localStorage.removeItem("atp_login_profile");
+              return;
+            }
 
             const url = new URL(root.location.href);
 
-            if (url.searchParams.get("session") === token) return;
+            if (url.searchParams.get("session") === profile.session) {
+              return;
+            }
 
-            url.searchParams.set("session", token);
+            url.searchParams.set("session", profile.session);
             url.searchParams.set("remember", "1");
             root.location.replace(url.toString());
-          } catch (error) {}
+          } catch (error) {
+            try {
+              window.parent.localStorage.removeItem("atp_login_profile");
+            } catch (cleanupError) {}
+          }
         })();
         </script>
         """,
@@ -6180,17 +6265,30 @@ def restore_browser_remember_token():
     )
 
 
-def save_browser_remember_token(token):
-    """Store only the persistent session token in this browser."""
-    safe_token = json.dumps(str(token))
+def save_browser_login_profile(username, session_id):
+    """
+    Save one remembered-login profile on this browser/device.
+
+    The password is deliberately excluded. Chrome, Edge, Safari, or another
+    password manager can store and autofill it securely.
+    """
+    profile = {
+        "version": REMEMBER_PROFILE_VERSION,
+        "remember": True,
+        "username": str(username or "").strip(),
+        "session": str(session_id or "").strip(),
+        "created_at": now_iso(),
+    }
+    safe_profile = json.dumps(profile)
+
     components.html(
         f"""
         <script>
         (() => {{
           try {{
             window.parent.localStorage.setItem(
-              "atp_remember_session",
-              {safe_token}
+              "atp_login_profile",
+              {json.dumps(safe_profile)}
             );
           }} catch (error) {{}}
         }})();
@@ -6201,14 +6299,19 @@ def save_browser_remember_token(token):
     )
 
 
-def clear_browser_remember_token():
-    """Remove the remembered login token from this browser."""
+def clear_browser_login_profile():
+    """Remove all app-saved login information from this browser/device."""
     components.html(
         """
         <script>
         (() => {
           try {
+            window.parent.localStorage.removeItem("atp_login_profile");
+
+            // Remove legacy keys from earlier versions.
             window.parent.localStorage.removeItem("atp_remember_session");
+            window.parent.localStorage.removeItem("atp_remember_username");
+            window.parent.localStorage.removeItem("atp_remember_enabled");
           } catch (error) {}
         })();
         </script>
@@ -6219,16 +6322,12 @@ def clear_browser_remember_token():
 
 
 
+
 def install_login_autofill_support():
     """
-    Enable username/password autofill only when Remember me is selected.
+    Restore username and Remember me state from one JSON profile.
 
-    The app stores only:
-    - a remember-enabled flag,
-    - the username,
-    - the persistent session token.
-
-    The raw password is never stored by the app.
+    The password remains under the browser password manager's control.
     """
     components.html(
         """
@@ -6236,16 +6335,15 @@ def install_login_autofill_support():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpConditionalLoginAutofillV2";
+          const KEY = "__atpLoginProfileAutofillV1";
 
           try { root[KEY]?.cleanup?.(); } catch (error) {}
 
           let stopped = false;
           let timerId = null;
           let attempts = 0;
-          let checkboxHandler = null;
 
-          function findLoginControls() {
+          function findControls() {
             const form =
               doc.querySelector('form[data-testid="stForm"]') ||
               doc.querySelector('div[data-testid="stForm"]');
@@ -6271,7 +6369,7 @@ def install_login_autofill_support():
               form,
               usernameInput,
               passwordInput,
-              rememberCheckbox
+              rememberCheckbox,
             };
           }
 
@@ -6292,15 +6390,40 @@ def install_login_autofill_support():
             input.dispatchEvent(new Event("change", { bubbles: true }));
           }
 
-          function applyRememberMode(controls, enabled) {
+          function initialize() {
+            if (stopped) return;
+
+            const controls = findControls();
+
+            if (!controls) {
+              attempts += 1;
+              if (attempts < 50) {
+                timerId = root.setTimeout(initialize, 100);
+              }
+              return;
+            }
+
             const {
               form,
               usernameInput,
               passwordInput,
-              rememberCheckbox
+              rememberCheckbox,
             } = controls;
 
-            rememberCheckbox.checked = enabled;
+            let profile = null;
+
+            try {
+              const raw = root.localStorage.getItem("atp_login_profile");
+              profile = raw ? JSON.parse(raw) : null;
+            } catch (error) {
+              root.localStorage.removeItem("atp_login_profile");
+            }
+
+            const enabled = Boolean(
+              profile &&
+              profile.version === 1 &&
+              profile.remember === true
+            );
 
             if (enabled) {
               form.setAttribute("autocomplete", "on");
@@ -6312,76 +6435,34 @@ def install_login_autofill_support():
                 "current-password"
               );
 
-              const savedUsername = root.localStorage.getItem(
-                "atp_remember_username"
-              );
-
-              if (savedUsername && !usernameInput.value) {
-                setReactInputValue(usernameInput, savedUsername);
+              if (profile.username && !usernameInput.value) {
+                setReactInputValue(
+                  usernameInput,
+                  profile.username
+                );
               }
             } else {
               form.setAttribute("autocomplete", "off");
-              usernameInput.setAttribute(
-                "autocomplete",
-                "off"
-              );
+              usernameInput.setAttribute("autocomplete", "off");
               passwordInput.setAttribute(
                 "autocomplete",
                 "new-password"
               );
-
-              root.localStorage.removeItem("atp_remember_username");
-              root.localStorage.removeItem("atp_remember_session");
-              root.localStorage.removeItem("atp_remember_enabled");
-            }
-          }
-
-          function initialize() {
-            if (stopped) return;
-
-            const controls = findLoginControls();
-
-            if (!controls) {
-              attempts += 1;
-              if (attempts < 50) {
-                timerId = root.setTimeout(initialize, 100);
-              }
-              return;
             }
 
-            const rememberWasEnabled =
-              root.localStorage.getItem("atp_remember_enabled") === "1";
-
-            applyRememberMode(controls, rememberWasEnabled);
-
-            checkboxHandler = () => {
-              applyRememberMode(
-                controls,
-                controls.rememberCheckbox.checked
-              );
-            };
-
-            controls.rememberCheckbox.addEventListener(
-              "change",
-              checkboxHandler
-            );
+            // Streamlit checkbox is React-controlled. Use a real click so
+            // the visible state and Streamlit state remain synchronized.
+            if (rememberCheckbox.checked !== enabled) {
+              rememberCheckbox.click();
+            }
           }
 
           initialize();
 
           function cleanup() {
             stopped = true;
-
             if (timerId) {
               try { root.clearTimeout(timerId); } catch (error) {}
-            }
-
-            const controls = findLoginControls();
-            if (controls && checkboxHandler) {
-              controls.rememberCheckbox.removeEventListener(
-                "change",
-                checkboxHandler
-              );
             }
           }
 
@@ -6393,86 +6474,6 @@ def install_login_autofill_support():
         height=0,
         width=0,
     )
-
-
-def save_browser_username(username):
-    """Remember only the username on this browser/device."""
-    safe_username = json.dumps(str(username or "").strip())
-    components.html(
-        f"""
-        <script>
-        (() => {{
-          try {{
-            window.parent.localStorage.setItem(
-              "atp_remember_username",
-              {safe_username}
-            );
-          }} catch (error) {{}}
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def save_browser_remember_enabled():
-    """Record that Remember me was explicitly selected."""
-    components.html(
-        """
-        <script>
-        (() => {
-          try {
-            window.parent.localStorage.setItem(
-              "atp_remember_enabled",
-              "1"
-            );
-          } catch (error) {}
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def clear_browser_remember_enabled():
-    """Remove the explicit Remember me preference."""
-    components.html(
-        """
-        <script>
-        (() => {
-          try {
-            window.parent.localStorage.removeItem(
-              "atp_remember_enabled"
-            );
-          } catch (error) {}
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-def clear_browser_username():
-    """Remove the remembered username from this browser/device."""
-    components.html(
-        """
-        <script>
-        (() => {
-          try {
-            window.parent.localStorage.removeItem(
-              "atp_remember_username"
-            );
-          } catch (error) {}
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
 
 
 def show_login_loading_message(placeholder):
@@ -6631,15 +6632,15 @@ def login_screen():
                 show_login_loading_message(login_page_placeholder)
 
                 if remember_me:
-                    save_browser_remember_enabled()
-                    save_browser_username(user["username"])
-
                     try:
                         session_id = create_login_session(
                             user["username"],
                             user["role"],
                         )
-                        save_browser_remember_token(session_id)
+                        save_browser_login_profile(
+                            user["username"],
+                            session_id,
+                        )
                         st.query_params.from_dict(
                             {
                                 "session": session_id,
@@ -6649,9 +6650,7 @@ def login_screen():
                     except Exception:
                         pass
                 else:
-                    clear_browser_remember_enabled()
-                    clear_browser_remember_token()
-                    clear_browser_username()
+                    clear_browser_login_profile()
 
                     try:
                         st.query_params.clear()
@@ -6660,6 +6659,11 @@ def login_screen():
 
                 st.rerun()
             else:
+                clear_browser_login_profile()
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
                 st.error("Invalid username or password.")
 
         except Exception as e:
