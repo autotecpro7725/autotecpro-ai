@@ -6654,124 +6654,97 @@ if "chat_file_uploader_generation" not in st.session_state:
 st.markdown(
     """
     <style>
-    /* ============================================================
-       AutoTecPro ChatGPT-style responsive sidebar
-       Presentation only: all backend actions remain unchanged.
-    ============================================================ */
+    /* Stable AutoTecPro AI sidebar upgrade — native Streamlit only. */
 
     div[data-testid="stSidebar"] {
         border-right: 1px solid rgba(148, 163, 184, 0.12);
     }
 
     div[data-testid="stSidebar"] > div:first-child {
-        padding-top: 0.7rem;
+        padding-top: 0.70rem;
         padding-left: 0.72rem;
         padding-right: 0.72rem;
     }
 
     .sidebar-profile {
         padding: 12px 13px !important;
-        margin: 0 0 12px 0 !important;
+        margin: 0 0 14px 0 !important;
         border-radius: 15px !important;
         border: 1px solid rgba(148, 163, 184, 0.14) !important;
-        background:
-            linear-gradient(
-                145deg,
-                rgba(30, 64, 175, 0.17),
-                rgba(15, 23, 42, 0.58)
-            ) !important;
+        background: linear-gradient(
+            145deg,
+            rgba(30, 64, 175, 0.17),
+            rgba(15, 23, 42, 0.58)
+        ) !important;
         box-shadow: none !important;
     }
 
-    /* Keep every left-panel option aligned to the same left edge. */
     div[data-testid="stSidebar"] div[role="radiogroup"] {
         display: flex !important;
         flex-direction: column !important;
-        gap: 9px !important;
-        margin: 6px 0 0 0 !important;
+        gap: 5px !important;
         width: 100% !important;
+        margin: 7px 0 0 0 !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] {
         position: relative !important;
         width: 100% !important;
-        min-height: 48px !important;
+        min-height: 45px !important;
         margin: 0 !important;
-        padding: 10px 12px 10px 14px !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(148, 163, 184, 0.10) !important;
-        background: rgba(15, 23, 42, 0.20) !important;
+        padding: 10px 12px !important;
+        border: 0 !important;
+        border-radius: 9px !important;
+        background: transparent !important;
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
         box-sizing: border-box !important;
-        overflow: hidden !important;
-        transition:
-            background 140ms ease,
-            border-color 140ms ease,
-            transform 140ms ease,
-            box-shadow 140ms ease !important;
+        cursor: pointer !important;
+        transition: background 100ms ease, color 100ms ease !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
-        background: rgba(51, 65, 85, 0.42) !important;
-        border-color: rgba(148, 163, 184, 0.16) !important;
-        transform: translateY(-1px) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
-        background:
-            linear-gradient(
-                90deg,
-                rgba(37, 47, 63, 0.98) 0%,
-                rgba(30, 41, 59, 0.92) 100%
-            ) !important;
-        border-color: rgba(239, 68, 68, 0.24) !important;
-        box-shadow:
-            inset 4px 0 0 #ef4444,
-            0 8px 20px rgba(0, 0, 0, 0.14) !important;
+        background: rgba(255, 255, 255, 0.09) !important;
+        box-shadow: inset 3px 0 0 #ef4444 !important;
+    }
+
+    div[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child {
+        position: absolute !important;
+        width: 1px !important;
+        min-width: 1px !important;
+        height: 1px !important;
+        min-height: 1px !important;
+        margin: 0 !important;
+        opacity: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
+        width: 100% !important;
         margin: 0 !important;
-        padding: 0 !important;
-        font-size: 13.5px !important;
-        font-weight: 650 !important;
-        line-height: 1.2 !important;
+        padding: 0 0 0 2px !important;
+        color: #d4dbe5 !important;
+        font-size: 15px !important;
+        font-weight: 640 !important;
+        line-height: 1.22 !important;
         text-align: left !important;
-        color: #c8d2df !important;
         white-space: nowrap !important;
     }
 
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) p {
+    div[data-testid="stSidebar"]
+    label[data-baseweb="radio"]:has(input:checked) p {
         color: #ffffff !important;
-        font-weight: 800 !important;
-    }
-
-    /* Hide the default large radio circle but keep the native input active. */
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child {
-        width: 10px !important;
-        min-width: 10px !important;
-        height: 10px !important;
-        margin-right: 10px !important;
-        border-radius: 999px !important;
-        border: 1px solid rgba(148, 163, 184, 0.46) !important;
-        background: rgba(100, 116, 139, 0.18) !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) > div:first-child {
-        border-color: #ef4444 !important;
-        background: #ef4444 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
-    }
-
-    div[data-testid="stSidebar"] label[data-baseweb="radio"] input {
-        cursor: pointer !important;
+        font-weight: 760 !important;
     }
 
     .sidebar-action-area {
-        margin: 18px 0 20px 0 !important;
+        margin: 23px 0 21px 0 !important;
         padding: 0 !important;
     }
 
@@ -6782,34 +6755,279 @@ st.markdown(
 
     .sidebar-newcase-btn .stButton > button {
         width: 100% !important;
-        min-height: 48px !important;
+        min-height: 50px !important;
         border-radius: 11px !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
+        justify-content: center !important;
+        text-align: center !important;
         padding: 0 15px !important;
-        background:
-            linear-gradient(
-                135deg,
-                #ff4b2b 0%,
-                #ef233c 100%
-            ) !important;
+        background: linear-gradient(
+            135deg,
+            #ff4b2b 0%,
+            #ef233c 100%
+        ) !important;
         border: 1px solid rgba(255, 255, 255, 0.10) !important;
         color: #ffffff !important;
-        font-size: 15px !important;
+        font-size: 15.5px !important;
         font-weight: 800 !important;
-        letter-spacing: 0.01em !important;
         box-shadow: 0 10px 22px rgba(239, 35, 60, 0.18) !important;
     }
 
     .sidebar-newcase-btn .stButton > button p {
-        font-size: 15px !important;
-        font-weight: 800 !important;
         margin: 0 !important;
+        color: #ffffff !important;
+        font-size: 15.5px !important;
+        font-weight: 800 !important;
+        text-align: center !important;
     }
 
     .sidebar-newcase-btn .stButton > button:hover {
         filter: brightness(1.05) !important;
-        transform: translateY(-1px) !important;
+        transform: none !important;
+    }
+
+    .history-title {
+        margin: 17px 0 8px 1px !important;
+        color: #f8fafc !important;
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        line-height: 1.2 !important;
+        text-align: left !important;
+    }
+
+    .history-count {
+        display: none !important;
+    }
+
+    .history-storage-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        margin: 1px 0 15px 0;
+        padding: 10px 11px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 11px;
+        background: rgba(15, 23, 42, 0.22);
+        box-sizing: border-box;
+    }
+
+    .history-storage-label {
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 650;
+    }
+
+    .history-storage-value {
+        color: #f8fafc;
+        font-size: 12px;
+        font-weight: 760;
+        white-space: nowrap;
+    }
+
+    .history-section-label {
+        margin: 15px 0 7px 2px !important;
+        color: #a8b3c2 !important;
+        font-size: 12px !important;
+        font-weight: 760 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+        text-align: left !important;
+    }
+
+    .history-empty-state {
+        padding: 7px 3px 11px 3px !important;
+        color: #748298 !important;
+        font-size: 11.5px !important;
+        text-align: left !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] {
+        margin: 0 0 17px 0 !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
+        min-height: 41px !important;
+        border-radius: 10px !important;
+        padding-left: 11px !important;
+        background: rgba(15, 23, 42, 0.40) !important;
+        border-color: rgba(148, 163, 184, 0.16) !important;
+        color: #eef2f7 !important;
+        font-size: 12.5px !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stTextInput"] input::placeholder {
+        color: #8492a6 !important;
+        opacity: 1 !important;
+    }
+
+    .history-row-meta {
+        display: none !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+        position: relative !important;
+        width: 100% !important;
+        margin: 0 0 6px 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(148, 163, 184, 0.22) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] > div,
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"],
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="column"] {
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        background: transparent !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton {
+        width: 100% !important;
+        margin: 0 !important;
+        background: transparent !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button {
+        width: 100% !important;
+        min-height: 36px !important;
+        height: 36px !important;
+        margin: 0 !important;
+        padding: 0 4px 0 8px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        color: #d7e0eb !important;
+        box-shadow: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 12.5px !important;
+        font-weight: 540 !important;
+        line-height: 1.1 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button p,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button span,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button div {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover {
+        background: rgba(255, 255, 255, 0.055) !important;
+        border-color: rgba(148, 163, 184, 0.32) !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_active_"] {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(239, 68, 68, 0.28) !important;
+        box-shadow: inset 2px 0 0 #ef4444 !important;
+    }
+
+    div[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"]::before,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_pinned_"]::before {
+        content: "📌";
+        position: absolute;
+        left: 7px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 10px;
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_pinned_"] .stButton > button,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_pinned_"] .stButton > button {
+        padding-left: 22px !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] [data-testid="stPopover"] {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 90ms ease !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]:hover [data-testid="stPopover"],
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_"] [data-testid="stPopover"] {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] [data-testid="stPopover"] button {
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 7px !important;
+        background: transparent !important;
+        color: #93a1b3 !important;
+        box-shadow: none !important;
+        justify-content: center !important;
+        font-size: 17px !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] [data-testid="stPopover"] button:hover {
+        background: rgba(71, 85, 105, 0.46) !important;
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(71, 85, 105, 0.58) transparent;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
+        background: rgba(71, 85, 105, 0.58);
+        border-radius: 999px;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb:hover {
+        background: rgba(239, 68, 68, 0.82);
     }
 
     .sidebar-logout-divider {
@@ -6839,209 +7057,10 @@ st.markdown(
     }
 
     .sidebar-logout-btn .stButton > button:hover {
-        background: rgba(51, 65, 85, 0.36) !important;
-        border-color: rgba(148, 163, 184, 0.08) !important;
+        background: rgba(51, 65, 85, 0.30) !important;
         color: #ffffff !important;
     }
 
-    .history-title {
-        margin: 18px 0 0 0 !important;
-        color: #f8fafc !important;
-        font-size: 14px !important;
-        font-weight: 780 !important;
-        line-height: 1.2 !important;
-    }
-
-    .history-count {
-        margin: 4px 0 12px 0 !important;
-        color: #7f8ea3 !important;
-        font-size: 11px !important;
-        line-height: 1.25 !important;
-    }
-
-    .history-section-label {
-        margin: 12px 0 4px 1px !important;
-        color: #718096 !important;
-        font-size: 10px !important;
-        font-weight: 780 !important;
-        letter-spacing: 0.05em !important;
-        text-transform: uppercase !important;
-    }
-
-    .history-empty-state {
-        padding: 16px 8px !important;
-        color: #748298 !important;
-        font-size: 11.5px !important;
-        text-align: left !important;
-        border: 0 !important;
-        background: transparent !important;
-    }
-
-    .history-row-meta {
-        display: none !important;
-    }
-
-    /* ChatGPT-style history rows: compact, flush left, no bulky cards. */
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] {
-        position: relative !important;
-        width: 100% !important;
-        margin: 0 0 7px 0 !important;
-        padding: 0 !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] > div {
-        gap: 0 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] div[data-testid="stHorizontalBlock"] {
-        gap: 2px !important;
-        align-items: center !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] div[data-testid="column"] {
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton {
-        margin: 0 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button {
-        width: 100% !important;
-        min-height: 34px !important;
-        height: 34px !important;
-        margin: 0 !important;
-        padding: 0 5px 0 8px !important;
-        border: 0 !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-        color: #d7e0eb !important;
-        box-shadow: none !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        font-size: 12.2px !important;
-        font-weight: 520 !important;
-        line-height: 1.1 !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button p,
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button div {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover {
-        background: rgba(51, 65, 85, 0.34) !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_active_"] {
-        background: rgba(71, 85, 105, 0.38) !important;
-        box-shadow: inset 2px 0 0 #ef4444 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"]::before,
-    div[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"]::before {
-        content: "📌";
-        position: absolute;
-        left: 7px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 10px;
-        z-index: 2;
-        pointer-events: none;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"] .stButton > button,
-    div[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"] .stButton > button {
-        padding-left: 22px !important;
-    }
-
-    /* Three-dot menu is subtle on desktop and always tappable on mobile. */
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
-        opacity: 0.18 !important;
-        transition: opacity 120ms ease !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover [data-testid="stPopover"],
-    div[data-testid="stSidebar"] [class*="st-key-history_row_active_"] [data-testid="stPopover"] {
-        opacity: 1 !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
-        width: 30px !important;
-        min-width: 30px !important;
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 0 !important;
-        border: 0 !important;
-        border-radius: 7px !important;
-        background: transparent !important;
-        color: #93a1b3 !important;
-        box-shadow: none !important;
-        justify-content: center !important;
-        font-size: 17px !important;
-    }
-
-    div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button:hover {
-        background: rgba(71, 85, 105, 0.56) !important;
-        color: #ffffff !important;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stTextInput"] {
-        margin: 0 0 16px 0 !important;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
-        min-height: 42px !important;
-        border-radius: 11px !important;
-        padding-left: 12px !important;
-        background: rgba(15, 23, 42, 0.46) !important;
-        border-color: rgba(148, 163, 184, 0.16) !important;
-        color: #eef2f7 !important;
-        font-size: 12.5px !important;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stTextInput"] input::placeholder {
-        color: #8492a6 !important;
-        opacity: 1 !important;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stTextInput"] input:focus {
-        border-color: rgba(248, 113, 113, 0.42) !important;
-        box-shadow:
-            0 0 0 1px rgba(248, 113, 113, 0.14),
-            inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
-        scrollbar-width: thin;
-        scrollbar-color: rgba(100, 116, 139, 0.42) transparent;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar {
-        width: 4px;
-    }
-
-    div[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar-thumb {
-        background: rgba(100, 116, 139, 0.42);
-        border-radius: 999px;
-    }
-
-    /* Mobile and narrow tablets */
     @media (max-width: 768px) {
         div[data-testid="stSidebar"] {
             width: min(90vw, 340px) !important;
@@ -7058,34 +7077,21 @@ st.markdown(
         }
 
         div[data-testid="stSidebar"] label[data-baseweb="radio"] {
-            min-height: 52px !important;
+            min-height: 50px !important;
             padding: 12px 13px !important;
-            border-radius: 12px !important;
         }
 
         div[data-testid="stSidebar"] label[data-baseweb="radio"] p {
-            font-size: 14px !important;
+            font-size: 15px !important;
         }
 
         .sidebar-newcase-btn .stButton > button {
-            min-height: 48px !important;
-            font-size: 13.5px !important;
+            min-height: 51px !important;
+            font-size: 15.5px !important;
         }
 
-        .sidebar-logout-btn .stButton > button {
-            min-height: 46px !important;
-            font-size: 13px !important;
-        }
-
-        .sidebar-logout-divider {
-            margin-top: 18px !important;
-        }
-
-        div[data-testid="stSidebar"] [data-testid="stTextInput"] {
-            margin-bottom: 18px !important;
-        }
-
-        div[data-testid="stSidebar"] [data-testid="stTextInput"] input {
+        div[data-testid="stSidebar"]
+        [data-testid="stTextInput"] input {
             min-height: 46px !important;
             font-size: 13px !important;
         }
@@ -7094,18 +7100,22 @@ st.markdown(
             margin-bottom: 8px !important;
         }
 
-        div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button {
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] .stButton > button {
             min-height: 44px !important;
             height: 44px !important;
             padding-left: 9px !important;
-            font-size: 12.8px !important;
+            font-size: 13px !important;
         }
 
-        div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] [data-testid="stPopover"] {
             opacity: 1 !important;
+            pointer-events: auto !important;
         }
 
-        div[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] [data-testid="stPopover"] button {
             width: 40px !important;
             min-width: 40px !important;
             height: 40px !important;
@@ -7185,7 +7195,7 @@ menu_items = [
 if st.session_state.role == "admin":
     menu_items.append("⚙️ Admin Panel")
 
-assistant = st.sidebar.radio("AI Workspace", menu_items)
+assistant = st.sidebar.radio("AutoTecPro AI", menu_items)
 
 if "current_assistant" not in st.session_state:
     st.session_state.current_assistant = assistant
@@ -8892,16 +8902,16 @@ def render_history_cards(conversations):
     for conversation in normal_conversations:
         grouped[_history_group_name(conversation)].append(conversation)
 
-    sections = []
-
-    if pinned_conversations:
-        sections.append(("Pinned", pinned_conversations))
-
+    recent_conversations = []
     for group_name in ("Today", "Yesterday", "Last 7 Days", "Older"):
-        if grouped[group_name]:
-            sections.append((group_name, grouped[group_name]))
+        recent_conversations.extend(grouped[group_name])
 
-    if not sections:
+    sections = [
+        ("Pinned", pinned_conversations),
+        ("Recents", recent_conversations),
+    ]
+
+    if not pinned_conversations and not recent_conversations:
         empty_text = (
             "No matching conversations."
             if search_value
@@ -8929,6 +8939,22 @@ def render_history_cards(conversations):
                 unsafe_allow_html=True,
             )
 
+            if not section_conversations:
+                empty_label = (
+                    "No pinned conversations"
+                    if section_name == "Pinned"
+                    else "No recent conversations"
+                )
+                st.markdown(
+                    (
+                        '<div class="history-empty-state">'
+                        f'{html.escape(empty_label)}'
+                        '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+                continue
+
             for conversation in section_conversations:
                 conversation_id = conversation["id"]
                 title = str(
@@ -8949,8 +8975,8 @@ def render_history_cards(conversations):
 
                 # ChatGPT-style compact title length.
                 title_short = (
-                    title[:28].rstrip() + "…"
-                    if len(title) > 28
+                    title[:25].rstrip() + "…"
+                    if len(title) > 25
                     else title
                 )
                 time_label = _history_time_label(
@@ -9297,35 +9323,9 @@ if assistant != "⚙️ Admin Panel":
         st.session_state.rename_conversation_value = ""
 
     st.sidebar.markdown("---")
-
-    header_left, header_right = st.sidebar.columns(
-        [0.82, 0.18],
-        gap="small",
-    )
-
-    with header_left:
-        st.markdown(
-            '<div class="history-title">Conversations</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="history-count">Saved history</div>',
-            unsafe_allow_html=True,
-        )
-
-    with header_right:
-        if st.button(
-            "↻",
-            key="refresh_history",
-            help="Refresh conversations",
-        ):
-            st.rerun()
-
-    st.sidebar.text_input(
-        "Search conversations",
-        key="history_search_query",
-        placeholder="Search conversations…",
-        label_visibility="collapsed",
+    st.sidebar.markdown(
+        '<div class="history-title">History</div>',
+        unsafe_allow_html=True,
     )
 
     try:
@@ -9334,15 +9334,43 @@ if assistant != "⚙️ Admin Panel":
             st.session_state.role
         )
 
-        if conversations:
-            render_history_cards(conversations)
-        else:
-            st.sidebar.caption("No saved cases yet.")
-
+        storage_count = len(conversations)
         st.sidebar.markdown(
-            f'<div class="history-count">{len(conversations)} saved conversation(s)</div>',
-            unsafe_allow_html=True
+            (
+                '<div class="history-storage-card">'
+                '<div class="history-storage-label">Storage</div>'
+                f'<div class="history-storage-value">'
+                f'{storage_count} saved case'
+                f'{"s" if storage_count != 1 else ""}'
+                '</div>'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
         )
+
+        refresh_col, search_col = st.sidebar.columns(
+            [0.17, 0.83],
+            gap="medium",
+        )
+
+        with refresh_col:
+            if st.button(
+                "↻",
+                key="refresh_history",
+                help="Refresh conversations",
+                use_container_width=True,
+            ):
+                st.rerun()
+
+        with search_col:
+            st.text_input(
+                "Search conversations",
+                key="history_search_query",
+                placeholder="Search conversations…",
+                label_visibility="collapsed",
+            )
+
+        render_history_cards(conversations)
 
         render_rename_form(conversations)
 
