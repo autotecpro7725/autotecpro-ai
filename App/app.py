@@ -7131,6 +7131,283 @@ st.markdown(
             max-width: 92vw !important;
         }
     }
+    /* ============================================================
+       Final alignment and navigation override
+    ============================================================ */
+
+    .workspace-title {
+        margin: 4px 0 8px 2px !important;
+        color: #f8fafc !important;
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        line-height: 1.2 !important;
+        text-align: left !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
+        width: 100% !important;
+        margin: 0 0 3px 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton > button {
+        width: 100% !important;
+        min-height: 43px !important;
+        height: 43px !important;
+        margin: 0 !important;
+        padding: 0 11px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        color: #d5dde8 !important;
+        box-shadow: none !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 15px !important;
+        font-weight: 640 !important;
+        line-height: 1.2 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton > button p {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        font-size: 15px !important;
+        font-weight: inherit !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_idle_"] .stButton > button:hover {
+        background: rgba(255, 255, 255, 0.055) !important;
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_active_"] {
+        background: rgba(255, 255, 255, 0.085) !important;
+        box-shadow: inset 3px 0 0 #ef4444 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_active_"] .stButton > button {
+        background: transparent !important;
+        color: #ffffff !important;
+        font-weight: 760 !important;
+    }
+
+    /* Section headings must occupy their own row and never be covered. */
+    div[data-testid="stSidebar"] .history-section-label {
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 18px !important;
+        margin: 15px 0 8px 2px !important;
+        padding: 0 !important;
+        color: #b7c1cf !important;
+        font-size: 12px !important;
+        font-weight: 780 !important;
+        line-height: 18px !important;
+        text-align: left !important;
+        overflow: visible !important;
+        z-index: 5 !important;
+        clear: both !important;
+    }
+
+    div[data-testid="stSidebar"] .history-empty-state {
+        position: relative !important;
+        display: block !important;
+        min-height: 18px !important;
+        margin: 0 0 8px 3px !important;
+        padding: 0 !important;
+        line-height: 18px !important;
+        z-index: 4 !important;
+    }
+
+    /* Remove legacy vertical inflation and force a compact row. */
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] {
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        margin: 0 0 7px 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+        z-index: 1 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] > div,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        align-items: center !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    div[data-testid="column"] {
+        min-width: 0 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button {
+        padding: 0 5px 0 9px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        font-size: 12.5px !important;
+        font-weight: 560 !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button p,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button span,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button div {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Keep the three-dot control centered in the same 40px row. */
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] [data-testid="stPopover"] {
+        height: 38px !important;
+        min-height: 38px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] [data-testid="stPopover"] button {
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Align the pin marker vertically inside the compact row. */
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_pinned_"]::before,
+    div[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_pinned_"]::before {
+        top: 20px !important;
+        transform: translateY(-50%) !important;
+        line-height: 1 !important;
+    }
+
+    /* Prevent horizontal history scrolling caused by legacy widths. */
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        overflow-x: hidden !important;
+    }
+
+    div[data-testid="stSidebar"]
+    [data-testid="stVerticalBlockBorderWrapper"] > div {
+        overflow-x: hidden !important;
+    }
+
+    @media (max-width: 768px) {
+        div[data-testid="stSidebar"]
+        [class*="st-key-workspace_nav_"] .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+            font-size: 15px !important;
+        }
+
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] {
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
+        }
+
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] > div,
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"]
+        div[data-testid="stHorizontalBlock"],
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"]
+        div[data-testid="column"],
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] .stButton,
+        div[data-testid="stSidebar"]
+        [class*="st-key-history_row_"] .stButton > button {
+            height: 44px !important;
+            min-height: 44px !important;
+            max-height: 44px !important;
+        }
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -7186,30 +7463,64 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-menu_items = [
-    "🔧 Technical Support",
-    "📈 Sales & Marketing",
-    "🎨 Graphic Marketing"
+workspace_items = [
+    ("technical", "🔧", "Technical Support"),
+    ("sales", "📈", "Sales & Marketing"),
+    ("graphic", "🎨", "Graphic Marketing"),
 ]
 
 if st.session_state.role == "admin":
-    menu_items.append("⚙️ Admin Panel")
-
-assistant = st.sidebar.radio("AutoTecPro AI", menu_items)
-
-if "current_assistant" not in st.session_state:
-    st.session_state.current_assistant = assistant
-
-if st.session_state.current_assistant != assistant:
-    st.session_state.messages = []
-    st.session_state.conversation_id = None
-    st.session_state.current_assistant = assistant
-    st.session_state.chat_file_uploader_generation += 1
-    clear_managed_uploads(
-        "chat_managed_uploads",
-        "chat_managed_upload_generation",
+    workspace_items.append(
+        ("admin", "⚙️", "Admin Panel")
     )
-    st.rerun()
+
+valid_assistants = [
+    f"{icon} {label}"
+    for _, icon, label in workspace_items
+]
+
+if (
+    "current_assistant" not in st.session_state
+    or st.session_state.current_assistant not in valid_assistants
+):
+    st.session_state.current_assistant = valid_assistants[0]
+
+st.sidebar.markdown(
+    '<div class="workspace-title">AutoTecPro AI</div>',
+    unsafe_allow_html=True,
+)
+
+for slug, icon, label in workspace_items:
+    assistant_name = f"{icon} {label}"
+    is_selected = (
+        st.session_state.current_assistant
+        == assistant_name
+    )
+
+    nav_state = "active" if is_selected else "idle"
+
+    with st.sidebar.container(
+        key=f"workspace_nav_{nav_state}_{slug}"
+    ):
+        if st.button(
+            f"{icon}  {label}",
+            key=f"workspace_button_{slug}",
+            use_container_width=True,
+        ):
+            if not is_selected:
+                st.session_state.messages = []
+                st.session_state.conversation_id = None
+                st.session_state.current_assistant = (
+                    assistant_name
+                )
+                st.session_state.chat_file_uploader_generation += 1
+                clear_managed_uploads(
+                    "chat_managed_uploads",
+                    "chat_managed_upload_generation",
+                )
+                st.rerun()
+
+assistant = st.session_state.current_assistant
 
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
@@ -9002,8 +9313,8 @@ def render_history_cards(conversations):
 
                 with row:
                     title_col, menu_col = st.columns(
-                        [0.88, 0.12],
-                        gap="small",
+                        [0.86, 0.14],
+                        gap=None,
                     )
 
                     with title_col:
