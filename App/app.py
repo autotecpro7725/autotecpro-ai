@@ -7503,7 +7503,7 @@ for slug, icon, label in workspace_items:
         key=f"workspace_nav_{nav_state}_{slug}"
     ):
         if st.button(
-            f"{icon}  {label}",
+            label,
             key=f"workspace_button_{slug}",
             use_container_width=True,
         ):
@@ -8246,6 +8246,336 @@ st.markdown(
         section[data-testid="stSidebar"] .history-section-label {
             margin-top: 22px !important;
             margin-bottom: 14px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final workspace spacing and left-alignment override.
+st.markdown(
+    """
+    <style>
+    /* ------------------------------------------------------------
+       Prevent AutoTecPro AI heading from touching/overlapping first item
+    ------------------------------------------------------------ */
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 8px 0 14px 0 !important;
+        padding: 0 !important;
+        line-height: 1.25 !important;
+        text-align: left !important;
+        clear: both !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]:first-of-type {
+        margin-top: 0 !important;
+    }
+
+    /* ------------------------------------------------------------
+       Force every workspace row to align to the same far-left edge
+    ------------------------------------------------------------ */
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
+        width: 100% !important;
+        margin: 0 0 5px 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"],
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"] .stButton {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button {
+        width: 100% !important;
+        min-height: 44px !important;
+        height: 44px !important;
+        margin: 0 !important;
+        padding: 0 10px !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] {
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Extra breathing room before New Case after the last workspace item. */
+    .sidebar-action-area {
+        margin-top: 26px !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] .workspace-title {
+            margin-top: 10px !important;
+            margin-bottom: 16px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_button_"]
+        .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+            padding-left: 11px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final fixed-column workspace alignment and heading spacing override.
+st.markdown(
+    """
+    <style>
+    /* ============================================================
+       Workspace navigation — fixed icon column + aligned wording
+    ============================================================ */
+
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 7px 0 13px 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        line-height: 1.25 !important;
+        text-align: left !important;
+        clear: both !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
+        width: 100% !important;
+        margin: 0 0 5px 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"],
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"] .stButton {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button {
+        display: flex !important;
+        width: 100% !important;
+        min-height: 44px !important;
+        height: 44px !important;
+        margin: 0 !important;
+        padding: 0 10px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        gap: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* Every icon occupies exactly the same 34px column. */
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button::before {
+        display: inline-flex !important;
+        flex: 0 0 34px !important;
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        height: 22px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        font-size: 19px !important;
+        line-height: 22px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_technical"]
+    .stButton > button::before {
+        content: "🔧";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_sales"]
+    .stButton > button::before {
+        content: "📈";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_graphic"]
+    .stButton > button::before {
+        content: "🎨";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_admin"]
+    .stButton > button::before {
+        content: "⚙️";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] {
+        display: flex !important;
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        font-size: 15px !important;
+        font-weight: inherit !important;
+        line-height: 1.2 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ============================================================
+       History / Pinned / Recents heading hierarchy and spacing
+    ============================================================ */
+
+    section[data-testid="stSidebar"] .history-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 8px 0 12px 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        line-height: 20px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"] .history-storage-card {
+        display: flex !important;
+        width: 100% !important;
+        margin: 0 0 18px 0 !important;
+        padding: 10px 12px !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+    }
+
+    section[data-testid="stSidebar"] .history-storage-label {
+        margin: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"] .history-storage-value {
+        margin: 0 0 0 auto !important;
+        text-align: right !important;
+        white-space: nowrap !important;
+    }
+
+    section[data-testid="stSidebar"] .history-section-label {
+        display: block !important;
+        position: relative !important;
+        width: 100% !important;
+        min-height: 20px !important;
+        height: auto !important;
+        margin: 20px 0 12px 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        line-height: 20px !important;
+        text-align: left !important;
+        clear: both !important;
+        overflow: visible !important;
+        z-index: 8 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-section-spacer {
+        display: block !important;
+        width: 100% !important;
+        height: 6px !important;
+        min-height: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_button_"]
+        .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+            padding-left: 11px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_button_"]
+        .stButton > button::before {
+            flex-basis: 36px !important;
+            width: 36px !important;
+            min-width: 36px !important;
+            max-width: 36px !important;
+        }
+
+        section[data-testid="stSidebar"] .history-title,
+        section[data-testid="stSidebar"] .history-section-label {
+            font-size: 14px !important;
         }
     }
     </style>
