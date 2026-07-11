@@ -690,7 +690,7 @@ def install_gpt_uploader_css():
 
         html body div[class*="st-key-atp_upload_shell_"]
         > div[data-testid="stVerticalBlock"] {
-            gap: 10px !important;
+            gap: 7px !important;
         }
 
         .atp-upload-heading {
@@ -770,34 +770,49 @@ def install_gpt_uploader_css():
             margin-top: 2px;
         }
 
-        /* Small ChatGPT-style delete icon on each card. */
-        html body div[class*="st-key-atp_upload_card_"] .stButton {
+        /* Small ChatGPT-style delete icon over each image. */
+        html body div[class*="st-key-atp_upload_card_"] {
+            position: relative !important;
+            isolation: isolate !important;
+        }
+
+        html body div[class*="st-key-atp_upload_card_"] .stButton,
+        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stButton"],
+        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stElementContainer"]:has(button[aria-label="Remove file"]) {
             position: absolute !important;
-            top: 7px !important;
-            right: 7px !important;
-            z-index: 30 !important;
-            width: 28px !important;
-            height: 28px !important;
+            top: 6px !important;
+            right: 6px !important;
+            left: auto !important;
+            bottom: auto !important;
+            z-index: 999 !important;
+            width: 27px !important;
+            min-width: 27px !important;
+            max-width: 27px !important;
+            height: 27px !important;
+            min-height: 27px !important;
+            max-height: 27px !important;
             margin: 0 !important;
             padding: 0 !important;
         }
 
-        html body div[class*="st-key-atp_upload_card_"] .stButton > button {
-            width: 28px !important;
-            min-width: 28px !important;
-            max-width: 28px !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            max-height: 28px !important;
+        html body div[class*="st-key-atp_upload_card_"] button[aria-label="Remove file"],
+        html body div[class*="st-key-atp_upload_card_"] .stButton > button,
+        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stButton"] > button {
+            width: 27px !important;
+            min-width: 27px !important;
+            max-width: 27px !important;
+            height: 27px !important;
+            min-height: 27px !important;
+            max-height: 27px !important;
             margin: 0 !important;
             padding: 0 !important;
-            border-radius: 50% !important;
-            border: 1px solid rgba(15, 23, 42, 0.14) !important;
+            border-radius: 999px !important;
+            border: 1px solid rgba(15, 23, 42, 0.16) !important;
             background: rgba(255, 255, 255, 0.94) !important;
             color: #475569 !important;
             -webkit-text-fill-color: #475569 !important;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24) !important;
-            font-size: 18px !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
+            font-size: 17px !important;
             font-weight: 400 !important;
             line-height: 1 !important;
             display: inline-flex !important;
@@ -823,19 +838,29 @@ def install_gpt_uploader_css():
         /* Horizontal preview row on desktop; Streamlit stacks columns on mobile. */
         html body div[class*="st-key-atp_preview_grid_"] {
             width: 100% !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
+            display: flex !important;
+            justify-content: center !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="stHorizontalBlock"] {
+            width: max-content !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
             align-items: flex-start !important;
             justify-content: center !important;
-            gap: 12px !important;
+            gap: 8px !important;
+            flex-wrap: wrap !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="column"] {
-            min-width: 0 !important;
+            flex: 0 0 196px !important;
+            width: 196px !important;
+            min-width: 196px !important;
+            max-width: 196px !important;
+            padding: 0 !important;
         }
 
         .atp-add-file-label {
@@ -918,7 +943,13 @@ def install_gpt_uploader_css():
            The server upload limit is set to 10 MB in .streamlit/config.toml.
            Native uploaded rows remain hidden because Python renders previews. */
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] ul {
+        div[data-testid="stFileUploader"] ul,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section > div:has([data-testid="stFileUploaderFile"]) {
             display: none !important;
         }
 
@@ -942,7 +973,20 @@ def install_gpt_uploader_css():
             }
 
             html body div[class*="st-key-atp_upload_card_"] {
-                width: min(100%, 185px) !important;
+                width: min(100%, 168px) !important;
+            }
+
+            html body div[class*="st-key-atp_preview_grid_"]
+            div[data-testid="stHorizontalBlock"] {
+                gap: 7px !important;
+            }
+
+            html body div[class*="st-key-atp_preview_grid_"]
+            div[data-testid="column"] {
+                flex: 0 0 168px !important;
+                width: 168px !important;
+                min-width: 168px !important;
+                max-width: 168px !important;
             }
 
             .atp-upload-preview-media {
