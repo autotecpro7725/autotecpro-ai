@@ -6084,78 +6084,99 @@ def render_chat_message(role, content, images=None):
 
     st.markdown(chat_html, unsafe_allow_html=True)
 
-REMEMBER_COOKIE_NAME = "atp_remember_session"
-REMEMBER_SESSION_DAYS = 30
+REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
+REMEMBER_CREDENTIAL_DAYS = 30
 
 
-def create_login_session(username, role):
-    """Create one revocable server-side persistent login session."""
-    result = supabase.table("login_sessions").insert({
-        "username": username,
-        "role": role,
-        "active": True,
-        "created_at": now_iso(),
-    }).execute()
+def get_saved_login_credentials():
+    """
+    Read manually remembered login credentials from this browser.
 
-    if not result.data:
-        raise RuntimeError("Could not create the remembered login session.")
+    Returns:
+        {"remember": bool, "username": str, "password": str}
 
-    return str(result.data[0]["id"])
-
-
-def deactivate_login_session(token):
-    """Deactivate a remembered session without interrupting logout/login."""
-    if not token:
-        return
-
+    No authentication occurs here. The user must still click Login.
+    """
     try:
-        (
-            supabase
-            .table("login_sessions")
-            .update({"active": False})
-            .eq("id", str(token))
-            .execute()
+        raw_value = auth_cookie_controller.get(
+            REMEMBER_CREDENTIAL_COOKIE
         )
+
+        if not raw_value:
+            return {
+                "remember": False,
+                "username": "",
+                "password": "",
+            }
+
+        if isinstance(raw_value, dict):
+            profile = raw_value
+        else:
+            profile = json.loads(str(raw_value))
+
+        if (
+            not isinstance(profile, dict)
+            or profile.get("version") != 1
+            or profile.get("remember") is not True
+            or not isinstance(profile.get("username"), str)
+            or not isinstance(profile.get("password"), str)
+        ):
+            remove_saved_login_credentials()
+            return {
+                "remember": False,
+                "username": "",
+                "password": "",
+            }
+
+        return {
+            "remember": True,
+            "username": profile.get("username", ""),
+            "password": profile.get("password", ""),
+        }
+
     except Exception:
-        pass
+        return {
+            "remember": False,
+            "username": "",
+            "password": "",
+        }
 
 
-def get_remembered_session_token():
-    """Read the persistent browser cookie, returning an empty string on failure."""
-    try:
-        return str(
-            auth_cookie_controller.get(REMEMBER_COOKIE_NAME) or ""
-        ).strip()
-    except Exception:
-        return ""
-
-
-def set_remembered_session_cookie(token):
+def save_login_credentials(username, password):
     """
-    Persist only the random session token for 30 days.
+    Save credentials only after a successful login with Remember me checked.
 
-    The username and password are never written to browser storage.
+    The saved values are used only to prefill the next login page. They never
+    authenticate the user automatically.
     """
+    profile = {
+        "version": 1,
+        "remember": True,
+        "username": str(username or "").strip(),
+        "password": str(password or ""),
+        "saved_at": now_iso(),
+    }
+
     expires_at = datetime.now(timezone.utc) + timedelta(
-        days=REMEMBER_SESSION_DAYS
+        days=REMEMBER_CREDENTIAL_DAYS
     )
 
     auth_cookie_controller.set(
-        REMEMBER_COOKIE_NAME,
-        str(token),
+        REMEMBER_CREDENTIAL_COOKIE,
+        json.dumps(profile),
         path="/",
         expires=expires_at,
-        max_age=REMEMBER_SESSION_DAYS * 24 * 60 * 60,
+        max_age=REMEMBER_CREDENTIAL_DAYS * 24 * 60 * 60,
         secure=True,
         same_site="strict",
     )
 
 
-def remove_remembered_session_cookie():
-    """Remove the persistent authentication cookie from this browser."""
+def remove_saved_login_credentials():
+    """Remove all app-saved login credentials from this browser."""
     try:
         auth_cookie_controller.remove(
-            REMEMBER_COOKIE_NAME,
+            REMEMBER_CREDENTIAL_COOKIE,
             path="/",
             secure=True,
             same_site="strict",
@@ -6166,10 +6187,7 @@ def remove_remembered_session_cookie():
 
 def clear_legacy_browser_login_data():
     """
-    Remove browser data created by the earlier experimental implementations.
-
-    This cleanup does not control authentication; it only prevents old
-    localStorage values from interfering with the new cookie-based flow.
+    Remove storage values left by earlier experimental Remember Me versions.
     """
     components.html(
         """
@@ -6191,30 +6209,21 @@ def clear_legacy_browser_login_data():
     )
 
 
-def clear_browser_login_profile(*, deactivate=True):
+def clear_browser_login_profile():
     """
-    Clear every remembered-login mechanism used by this application.
-
-    This function intentionally leaves the working login overlay untouched.
+    Clear credentials only when Remember me is unchecked or login is invalid.
     """
-    token = get_remembered_session_token()
-
-    if deactivate and token:
-        deactivate_login_session(token)
-
-    remove_remembered_session_cookie()
+    remove_saved_login_credentials()
     clear_legacy_browser_login_data()
 
 
 def install_login_autofill_support():
     """
-    Prevent legacy browser/localStorage behavior from controlling Remember Me.
+    Disable competing browser autofill behavior.
 
-    Remember Me is now a real persistent-session option:
-    checked = keep the user signed in for 30 days;
-    unchecked = do not create or keep a persistent session.
-
-    No redirect, rerun, or overlay logic is used here.
+    The login fields are prefilled by Python from the saved cookie, so no
+    browser-side redirect, auto-login, st.stop(), or checkbox manipulation is
+    needed.
     """
     components.html(
         """
@@ -6222,7 +6231,7 @@ def install_login_autofill_support():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpSecureLoginFormV1";
+          const KEY = "__atpManualCredentialLoginV1";
 
           try { root[KEY]?.cleanup?.(); } catch (error) {}
 
@@ -6247,17 +6256,8 @@ def install_login_autofill_support():
               const passwordInput = inputs.find(
                 (input) => input.type === "password"
               );
-              const rememberCheckbox = inputs.find(
-                (input) => input.type === "checkbox"
-              );
 
-              if (
-                usernameInput &&
-                passwordInput &&
-                rememberCheckbox
-              ) {
-                // The application remembers a secure session token instead
-                // of storing the raw username/password.
+              if (usernameInput && passwordInput) {
                 form.setAttribute("autocomplete", "off");
                 usernameInput.setAttribute("autocomplete", "off");
                 usernameInput.setAttribute("autocapitalize", "none");
@@ -6299,133 +6299,23 @@ def install_login_autofill_support():
     )
 
 
-def _parse_session_created_at(value):
-    """Return a timezone-aware UTC datetime or None."""
-    if not value:
-        return None
-
-    try:
-        parsed = datetime.fromisoformat(
-            str(value).replace("Z", "+00:00")
-        )
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-    except Exception:
-        return None
-
-
 def restore_login_session():
     """
-    Restore authentication from a persistent cookie or legacy URL token.
+    Auto-login is intentionally disabled.
 
-    Every restoration verifies:
-    - the session exists and is active;
-    - the session is not older than 30 days;
-    - the user still exists and remains active;
-    - the current role is read from the users table.
+    Remember me now only prefills the login form. The user must always press
+    the Login button.
     """
-    cookie_token = get_remembered_session_token()
-    query_token = str(st.query_params.get("session") or "").strip()
-    token = cookie_token or query_token
-
-    if not token:
-        return
-
-    try:
-        result = (
-            supabase
-            .table("login_sessions")
-            .select("*")
-            .eq("id", token)
-            .eq("active", True)
-            .execute()
-        )
-
-        if not result.data:
-            clear_browser_login_profile(deactivate=False)
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            return
-
-        session = result.data[0]
-        created_at = _parse_session_created_at(
-            session.get("created_at")
-        )
-
-        if created_at is None:
-            deactivate_login_session(token)
-            clear_browser_login_profile(deactivate=False)
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            return
-
-        age = datetime.now(timezone.utc) - created_at
-        if age > timedelta(days=REMEMBER_SESSION_DAYS):
-            deactivate_login_session(token)
-            clear_browser_login_profile(deactivate=False)
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            return
-
-        user_result = (
-            supabase
-            .table("users")
-            .select("username, role, active")
-            .eq("username", session["username"])
-            .eq("active", True)
-            .execute()
-        )
-
-        if not user_result.data:
-            deactivate_login_session(token)
-            clear_browser_login_profile(deactivate=False)
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            return
-
-        user = user_result.data[0]
-
-        st.session_state.logged_in = True
-        st.session_state.username = user["username"]
-        st.session_state.role = user["role"]
-
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-        if "conversation_id" not in st.session_state:
-            st.session_state.conversation_id = None
-
-        # Migrate a valid old URL session to the secure cookie and remove the
-        # token from the visible address bar.
-        if not cookie_token:
-            set_remembered_session_cookie(token)
-
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-
-    except Exception:
-        # A temporary database/component error must not authenticate a user.
-        return
+    return
 
 
 def logout_user():
-    """Log out and revoke the persistent remembered session."""
-    cookie_token = get_remembered_session_token()
-    query_token = str(st.query_params.get("session") or "").strip()
+    """
+    Log out of the current Streamlit session.
 
-    deactivate_login_session(cookie_token or query_token)
-    clear_browser_login_profile(deactivate=False)
-
+    Saved credentials are intentionally kept so a user who previously checked
+    Remember me can return to a prefilled login page and manually sign in.
+    """
     try:
         st.query_params.clear()
     except Exception:
@@ -6500,9 +6390,12 @@ def login_screen():
     # (logo, heading, form) disappears together after authentication.
     login_page_placeholder = st.empty()
 
-    # The app-controlled browser profile restores this checkbox after the
-    # form mounts. Keep the server-side default false to avoid stale URL state.
-    remember_default = False
+    # Read saved credentials only to prefill the form. This never logs the
+    # user in automatically.
+    saved_login = get_saved_login_credentials()
+    remember_default = bool(saved_login.get("remember"))
+    saved_username = str(saved_login.get("username") or "")
+    saved_password = str(saved_login.get("password") or "")
 
     with login_page_placeholder.container():
         logo_base64 = get_logo_base64()
@@ -6546,17 +6439,19 @@ def login_screen():
         with st.form("login_form"):
             username = st.text_input(
                 "Username",
+                value=saved_username,
                 placeholder="Enter your username",
             )
             password = st.text_input(
                 "Password",
+                value=saved_password,
                 placeholder="Enter your password",
                 type="password",
             )
             remember_me = st.checkbox(
                 "Remember me",
                 value=remember_default,
-                help="Keep me signed in on this browser for up to 30 days.",
+                help="Save my username and password on this browser for 30 days.",
             )
             login_submitted = st.form_submit_button(
                 "Login",
@@ -6597,14 +6492,13 @@ def login_screen():
 
                 if remember_me:
                     try:
-                        session_id = create_login_session(
+                        save_login_credentials(
                             user["username"],
-                            user["role"],
+                            password,
                         )
-                        set_remembered_session_cookie(session_id)
+                        clear_legacy_browser_login_data()
                     except Exception:
-                        # Persistent login failure must never block a valid
-                        # username/password login for the current browser tab.
+                        # Saving credentials must never block a valid login.
                         pass
                 else:
                     clear_browser_login_profile()
@@ -6629,9 +6523,6 @@ def login_screen():
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-
-if not st.session_state.logged_in:
-    restore_login_session()
 
 if not st.session_state.logged_in:
     login_screen()
