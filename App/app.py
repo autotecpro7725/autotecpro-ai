@@ -4269,11 +4269,11 @@ def install_browser_voice_dictation():
 
 def install_chat_composer_autogrow():
     """
-    Keep the textarea exactly between the microphone and send buttons.
+    Keep the editable text area exactly between the microphone and send icons.
 
-    Only the direct Streamlit child that owns the textarea is positioned.
-    Its internal textarea wrappers stay full width, so uploads/reruns do not
-    collapse the text into a narrow vertical column.
+    This controller also neutralizes older grid/flex rules that may remain in
+    the page stylesheet, without changing the uploader, chat history, or any
+    business logic.
     """
     components.html(
         r"""
@@ -4281,7 +4281,7 @@ def install_chat_composer_autogrow():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const GLOBAL_KEY = "__atpComposerBetweenIconsV5";
+          const GLOBAL_KEY = "__atpComposerBetweenIconsV6";
           const MIN_HEIGHT = 44;
           const MAX_HEIGHT = 180;
 
@@ -4291,19 +4291,14 @@ def install_chat_composer_autogrow():
           let timer = null;
           let scheduled = false;
           let boundTextarea = null;
-          let owner = null;
+          let currentOwner = null;
           let inputHandler = null;
           let pasteHandler = null;
           let resizeHandler = null;
 
           function important(element, property, value) {
-            if (element) element.style.setProperty(property, value, "important");
-          }
-
-          function clearInline(element, properties) {
-            if (!element) return;
-            for (const property of properties) {
-              element.style.removeProperty(property);
+            if (element) {
+              element.style.setProperty(property, value, "important");
             }
           }
 
@@ -4311,7 +4306,7 @@ def install_chat_composer_autogrow():
             return doc.querySelector('div[data-testid="stChatInput"]');
           }
 
-          function directOwner(textarea, container) {
+          function getDirectOwner(textarea, container) {
             let node = textarea;
             while (node.parentElement && node.parentElement !== container) {
               node = node.parentElement;
@@ -4319,28 +4314,74 @@ def install_chat_composer_autogrow():
             return node;
           }
 
-          function normalizeInnerWrappers(textarea, directChild) {
+          function normalizeElement(element, displayValue = "block") {
+            if (!element) return;
+
+            important(element, "position", "static");
+            important(element, "left", "auto");
+            important(element, "right", "auto");
+            important(element, "top", "auto");
+            important(element, "bottom", "auto");
+            important(element, "transform", "none");
+
+            important(element, "display", displayValue);
+            important(element, "grid-column", "auto");
+            important(element, "grid-row", "auto");
+            important(element, "grid-template-columns", "none");
+            important(element, "grid-template-rows", "none");
+
+            important(element, "flex", "1 1 auto");
+            important(element, "flex-basis", "auto");
+            important(element, "align-self", "stretch");
+            important(element, "justify-self", "stretch");
+
+            important(element, "width", "100%");
+            important(element, "min-width", "0");
+            important(element, "max-width", "none");
+            important(element, "height", "auto");
+            important(element, "min-height", "0");
+            important(element, "max-height", "none");
+
+            important(element, "margin", "0");
+            important(element, "padding", "0");
+            important(element, "box-sizing", "border-box");
+            important(element, "overflow", "visible");
+          }
+
+          function normalizeInnerTree(textarea, owner) {
             let node = textarea.parentElement;
-            while (node && node !== directChild) {
-              important(node, "position", "static");
-              important(node, "left", "auto");
-              important(node, "right", "auto");
-              important(node, "top", "auto");
-              important(node, "bottom", "auto");
-              important(node, "transform", "none");
-              important(node, "width", "100%");
-              important(node, "min-width", "0");
-              important(node, "max-width", "none");
-              important(node, "height", "auto");
-              important(node, "min-height", "0");
-              important(node, "max-height", "none");
-              important(node, "margin", "0");
-              important(node, "padding", "0");
-              important(node, "box-sizing", "border-box");
-              important(node, "overflow", "visible");
-              important(node, "flex", "1 1 auto");
+            while (node && node !== owner) {
+              normalizeElement(node, "block");
               node = node.parentElement;
             }
+          }
+
+          function positionOwner(owner, left, right) {
+            important(owner, "position", "absolute");
+            important(owner, "left", `${left}px`);
+            important(owner, "right", `${right}px`);
+            important(owner, "top", "8px");
+            important(owner, "bottom", "8px");
+            important(owner, "transform", "none");
+
+            important(owner, "display", "block");
+            important(owner, "grid-column", "auto");
+            important(owner, "grid-row", "auto");
+            important(owner, "flex", "none");
+            important(owner, "align-self", "auto");
+            important(owner, "justify-self", "auto");
+
+            important(owner, "width", "auto");
+            important(owner, "min-width", "0");
+            important(owner, "max-width", "none");
+            important(owner, "height", "auto");
+            important(owner, "min-height", "0");
+            important(owner, "max-height", "none");
+
+            important(owner, "margin", "0");
+            important(owner, "padding", "0");
+            important(owner, "box-sizing", "border-box");
+            important(owner, "overflow", "visible");
           }
 
           function fixLayout() {
@@ -4363,11 +4404,10 @@ def install_chat_composer_autogrow():
               sendRect.width <= 0
             ) return;
 
-            const currentOwner = directOwner(textarea, container);
-            if (!currentOwner) return;
-            owner = currentOwner;
+            const owner = getDirectOwner(textarea, container);
+            if (!owner) return;
+            currentOwner = owner;
 
-            // Exact available horizontal area between the two circular controls.
             const left = Math.max(
               0,
               Math.ceil(micRect.right - containerRect.left + 12)
@@ -4379,32 +4419,28 @@ def install_chat_composer_autogrow():
 
             important(container, "position", "relative");
             important(container, "display", "block");
+            important(container, "grid-template-columns", "none");
+            important(container, "width", "calc(100% - 4px)");
+            important(container, "min-width", "0");
             important(container, "box-sizing", "border-box");
             important(container, "padding-left", "0");
             important(container, "padding-right", "0");
+            important(container, "overflow", "hidden");
 
-            important(owner, "position", "absolute");
-            important(owner, "left", `${left}px`);
-            important(owner, "right", `${right}px`);
-            important(owner, "top", "8px");
-            important(owner, "bottom", "8px");
-            important(owner, "width", "auto");
-            important(owner, "min-width", "0");
-            important(owner, "max-width", "none");
-            important(owner, "margin", "0");
-            important(owner, "padding", "0");
-            important(owner, "box-sizing", "border-box");
-            important(owner, "overflow", "visible");
-            important(owner, "display", "block");
-
-            normalizeInnerWrappers(textarea, owner);
+            positionOwner(owner, left, right);
+            normalizeInnerTree(textarea, owner);
 
             important(textarea, "position", "static");
             important(textarea, "display", "block");
+            important(textarea, "grid-column", "auto");
+            important(textarea, "grid-row", "auto");
+            important(textarea, "flex", "1 1 auto");
+
             important(textarea, "width", "100%");
             important(textarea, "min-width", "0");
             important(textarea, "max-width", "none");
             important(textarea, "box-sizing", "border-box");
+
             important(textarea, "padding", "11px 4px");
             important(textarea, "margin", "0");
             important(textarea, "white-space", "pre-wrap");
@@ -4413,6 +4449,7 @@ def install_chat_composer_autogrow():
             important(textarea, "writing-mode", "horizontal-tb");
             important(textarea, "text-orientation", "mixed");
             important(textarea, "line-height", "22px");
+
             important(textarea, "height", "auto");
             important(textarea, "min-height", `${MIN_HEIGHT}px`);
             important(textarea, "max-height", `${MAX_HEIGHT}px`);
@@ -4442,25 +4479,15 @@ def install_chat_composer_autogrow():
           }
 
           function unbind() {
-            if (boundTextarea) {
-              try {
-                boundTextarea.removeEventListener("input", inputHandler);
-                boundTextarea.removeEventListener("change", inputHandler);
-                boundTextarea.removeEventListener("keyup", inputHandler);
-                boundTextarea.removeEventListener("paste", pasteHandler);
-              } catch (error) {}
-            }
-
-            if (owner) {
-              clearInline(owner, [
-                "position", "left", "right", "top", "bottom", "width",
-                "min-width", "max-width", "margin", "padding",
-                "box-sizing", "overflow", "display"
-              ]);
-            }
-
+            if (!boundTextarea) return;
+            try {
+              boundTextarea.removeEventListener("input", inputHandler);
+              boundTextarea.removeEventListener("change", inputHandler);
+              boundTextarea.removeEventListener("keyup", inputHandler);
+              boundTextarea.removeEventListener("paste", pasteHandler);
+            } catch (error) {}
             boundTextarea = null;
-            owner = null;
+            currentOwner = null;
           }
 
           function bind() {
@@ -4472,6 +4499,7 @@ def install_chat_composer_autogrow():
             if (boundTextarea !== textarea) {
               unbind();
               boundTextarea = textarea;
+
               inputHandler = scheduleFix;
               pasteHandler = () => {
                 root.setTimeout(scheduleFix, 0);
@@ -4496,16 +4524,21 @@ def install_chat_composer_autogrow():
 
           observer = new MutationObserver(bind);
           if (observeRoot) {
-            observer.observe(observeRoot, { childList: true, subtree: true });
+            observer.observe(observeRoot, {
+              childList: true,
+              subtree: true
+            });
           }
 
-          timer = root.setInterval(bind, 1500);
+          timer = root.setInterval(bind, 1200);
           bind();
 
           function cleanup() {
             try { observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(timer); } catch (error) {}
-            try { root.removeEventListener("resize", resizeHandler); } catch (error) {}
+            try {
+              root.removeEventListener("resize", resizeHandler);
+            } catch (error) {}
             unbind();
           }
 
@@ -4521,10 +4554,10 @@ def install_chat_composer_autogrow():
 
 def install_composer_width_safety_css():
     """
-    Safety rules for inner textarea elements only.
+    Final inner-element safety rules.
 
-    The direct textarea owner is positioned dynamically by JavaScript between
-    the mic and send icons; this CSS does not move that owner.
+    These rules do not position the textarea owner; JavaScript places that
+    owner precisely between the microphone and send controls.
     """
     st.markdown(
         """
