@@ -6137,6 +6137,63 @@ def logout_user():
 # Login Screen
 # ============================================================
 
+def show_login_transition():
+    """Cover the old login DOM while Streamlit switches to the main app."""
+    st.markdown(
+        """
+        <style>
+        .atp-login-transition {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at top left, rgba(239,68,68,0.14), transparent 28%),
+                linear-gradient(135deg, #050b16 0%, #0b1220 48%, #020617 100%);
+        }
+
+        .atp-login-transition-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            border: 1px solid rgba(148,163,184,0.18);
+            border-radius: 16px;
+            background: rgba(15,23,42,0.88);
+            color: #f8fafc;
+            font-size: 15px;
+            font-weight: 700;
+            box-shadow: 0 18px 48px rgba(0,0,0,0.34);
+            backdrop-filter: blur(14px);
+        }
+
+        .atp-login-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.24);
+            border-top-color: #ff4d3d;
+            border-radius: 50%;
+            animation: atpLoginSpin 0.7s linear infinite;
+        }
+
+        @keyframes atpLoginSpin {
+            to { transform: rotate(360deg); }
+        }
+        </style>
+
+        <div class="atp-login-transition">
+            <div class="atp-login-transition-card">
+                <div class="atp-login-spinner"></div>
+                <div>Opening AutoTecPro AI…</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def login_screen():
     apply_login_layout_css()
     logo_base64 = get_logo_base64()
@@ -6196,18 +6253,32 @@ def login_screen():
 
             if result.data:
                 user = result.data[0]
-                try:
-                    session_id = create_login_session(user["username"], user["role"])
-                    st.query_params["session"] = session_id
-                except Exception:
-                    # If login_sessions table is not created yet, login still works for this session.
-                    pass
 
+                # Commit authentication state first. Updating query parameters
+                # may itself trigger a frontend rerun, so logged_in must already
+                # be True before that happens.
                 st.session_state.logged_in = True
                 st.session_state.username = user["username"]
                 st.session_state.role = user["role"]
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
+                st.session_state.login_transition = True
+
+                # Immediately cover the existing login form so it cannot remain
+                # visible while Streamlit replaces the page.
+                show_login_transition()
+
+                try:
+                    session_id = create_login_session(
+                        user["username"],
+                        user["role"],
+                    )
+                    st.query_params["session"] = session_id
+                except Exception:
+                    # If login_sessions is unavailable, the in-memory login
+                    # session still works normally.
+                    pass
+
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -6234,6 +6305,9 @@ if not st.session_state.logged_in:
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
+
+# The transition overlay belongs only to the previous login render.
+st.session_state.pop("login_transition", None)
 
 apply_app_layout_css()
 
