@@ -944,6 +944,26 @@ def install_gpt_uploader_css():
 
 
 
+
+        /* Additional safe fallback for temporary icon-only controls.
+           This does not affect the real Upload/Browse button. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        button[aria-label="Remove file"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        button[aria-label="Add file"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        button[title="Remove file"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        button[title="Add file"] {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
         /* Safely hide only temporary row controls.
            The main Upload/Browse button remains clickable. */
         html body div[class*="st-key-atp_upload_shell_"]
@@ -1225,6 +1245,101 @@ def install_gpt_uploader_css():
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpFiniteUploaderCleanupV1";
+
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          const timers = [];
+
+          function labelOf(button) {
+            return [
+              button.innerText,
+              button.textContent,
+              button.getAttribute("aria-label"),
+              button.getAttribute("title")
+            ].filter(Boolean).join(" ").trim().toLowerCase();
+          }
+
+          function isRealPickerButton(button) {
+            const label = labelOf(button);
+            return (
+              label.includes("upload") ||
+              label.includes("browse") ||
+              label.includes("choose file") ||
+              label.includes("choose files")
+            );
+          }
+
+          function hideLoadingControls(input) {
+            const uploader = input?.closest('div[data-testid="stFileUploader"]');
+            if (!uploader) return;
+
+            // Hide only the temporary icon buttons. Keep the real picker button.
+            uploader.querySelectorAll("button").forEach((button) => {
+              if (isRealPickerButton(button)) return;
+
+              button.style.setProperty("display", "none", "important");
+              button.style.setProperty("visibility", "hidden", "important");
+              button.style.setProperty("pointer-events", "none", "important");
+
+              const wrapper =
+                button.closest('[data-testid="stButton"]') ||
+                button.closest('[data-testid="stElementContainer"]');
+
+              if (wrapper) {
+                wrapper.style.setProperty("display", "none", "important");
+                wrapper.style.setProperty("visibility", "hidden", "important");
+                wrapper.style.setProperty("pointer-events", "none", "important");
+              }
+            });
+          }
+
+          function runFiniteCleanup(input) {
+            [0, 30, 80, 150, 300, 550, 900, 1400, 2000].forEach((delay) => {
+              const timer = root.setTimeout(
+                () => hideLoadingControls(input),
+                delay
+              );
+              timers.push(timer);
+            });
+          }
+
+          function onFileChange(event) {
+            const input = event.target;
+            if (
+              input instanceof HTMLInputElement &&
+              input.type === "file" &&
+              input.closest('div[class*="st-key-atp_upload_shell_"]')
+            ) {
+              runFiniteCleanup(input);
+            }
+          }
+
+          doc.addEventListener("change", onFileChange, true);
+
+          function cleanup() {
+            doc.removeEventListener("change", onFileChange, true);
+            timers.forEach((timer) => {
+              try { root.clearTimeout(timer); } catch (error) {}
+            });
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
 
 
