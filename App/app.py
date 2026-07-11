@@ -966,6 +966,112 @@ def install_gpt_uploader_css():
             opacity: 1 !important;
         }
 
+
+        /* Final pure-HTML GPT preview grid. */
+        .atp-gpt-preview-grid {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 8px;
+            margin: 0 auto;
+        }
+
+        .atp-gpt-upload-card {
+            position: relative;
+            flex: 0 0 172px;
+            width: 172px;
+            max-width: 172px;
+            border: 1px solid rgba(148, 163, 184, 0.20);
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.84);
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+        }
+
+        .atp-gpt-upload-media {
+            width: 100%;
+            height: 108px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #020617;
+        }
+
+        .atp-gpt-upload-media img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+
+        .atp-gpt-file-icon {
+            font-size: 34px;
+        }
+
+        .atp-gpt-upload-meta {
+            padding: 7px 8px 8px 8px;
+            text-align: center;
+            border-top: 1px solid rgba(148, 163, 184, 0.12);
+        }
+
+        .atp-gpt-upload-name {
+            color: #f8fafc;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .atp-gpt-upload-size {
+            color: #94a3b8;
+            font-size: 10px;
+            margin-top: 2px;
+        }
+
+        .atp-gpt-delete {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 50;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.16);
+            background: rgba(255, 255, 255, 0.94);
+            color: #475569 !important;
+            text-decoration: none !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.26);
+            cursor: pointer;
+        }
+
+        .atp-gpt-delete:hover {
+            background: #ffffff;
+            color: #dc2626 !important;
+        }
+
+        /* Hide temporary Streamlit file-row controls while uploading. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] ul,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[aria-label*="Remove"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[title*="Remove"] {
+            display: none !important;
+        }
+
         @media (max-width: 768px) {
             html body div[class*="st-key-atp_upload_shell_"] {
                 padding: 11px !important;
@@ -1027,44 +1133,130 @@ def install_gpt_uploader_css():
         unsafe_allow_html=True,
     )
 
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpHideNativeUploaderControlsV3";
 
-def render_managed_upload_preview(record, delete_key, on_delete):
-    file_type = str(record.get("type") or "")
-    file_name = html.escape(str(record.get("name") or "upload"))
-    file_size = float(record.get("size") or 0) / (1024 * 1024)
-    card_key = f"atp_upload_card_{record['id'][:16]}"
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
 
-    with st.container(key=card_key):
+          let observer = null;
+          let timer = null;
+
+          function hideTemporaryControls() {
+            doc.querySelectorAll(
+              'div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"]'
+            ).forEach((uploader) => {
+              uploader.querySelectorAll("button").forEach((button) => {
+                const label = [
+                  button.getAttribute("aria-label"),
+                  button.getAttribute("title"),
+                  button.innerText
+                ].filter(Boolean).join(" ").trim().toLowerCase();
+
+                if (
+                  label === "+" ||
+                  label.includes("remove") ||
+                  label.includes("delete") ||
+                  label.includes("clear file") ||
+                  label.includes("add file")
+                ) {
+                  button.style.setProperty("display", "none", "important");
+                }
+              });
+            });
+          }
+
+          const target =
+            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+
+          observer = new MutationObserver(hideTemporaryControls);
+          if (target) {
+            observer.observe(target, { childList: true, subtree: true });
+          }
+
+          timer = root.setInterval(hideTemporaryControls, 500);
+          hideTemporaryControls();
+
+          function cleanup() {
+            try { observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(timer); } catch (error) {}
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+
+
+def _render_upload_cards_html(records, widget_prefix):
+    cards = []
+
+    for record in records:
+        file_type = str(record.get("type") or "")
+        file_name_raw = str(record.get("name") or "upload")
+        file_name = html.escape(file_name_raw)
+        file_size = float(record.get("size") or 0) / (1024 * 1024)
+        record_id = str(record["id"])
+        delete_token = f"{widget_prefix}:{record_id}"
+
         if file_type.startswith("image/"):
             encoded = base64.b64encode(record["data"]).decode()
             media_html = (
-                '<div class="atp-upload-preview-media">'
+                '<div class="atp-gpt-upload-media">'
                 f'<img src="data:{html.escape(file_type)};base64,{encoded}" '
                 f'alt="{file_name}">'
-                '</div>'
+                "</div>"
             )
         else:
-            extension = Path(record.get("name") or "").suffix.lower()
+            extension = Path(file_name_raw).suffix.lower()
             icon = "📄" if extension in {".pdf", ".txt", ".docx"} else "📎"
             media_html = (
-                '<div class="atp-upload-preview-media">'
-                f'<div class="atp-upload-file-icon">{icon}</div>'
-                '</div>'
+                '<div class="atp-gpt-upload-media">'
+                f'<div class="atp-gpt-file-icon">{icon}</div>'
+                "</div>"
             )
 
-        st.markdown(
-            f"""
-            {media_html}
-            <div class="atp-upload-meta">
-                <div class="atp-upload-name">{file_name}</div>
-                <div class="atp-upload-size">{file_size:.1f} MB</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        delete_js = (
+            "const u=new URL(window.location.href);"
+            f"u.searchParams.set('atp_delete_upload','{delete_token}');"
+            "window.location.href=u.toString();"
+            "return false;"
         )
 
-        if st.button("×", key=delete_key, help="Remove file"):
-            on_delete()
+        cards.append(
+            f"""
+            <div class="atp-gpt-upload-card">
+                <a
+                    class="atp-gpt-delete"
+                    href="#"
+                    title="Remove file"
+                    aria-label="Remove file"
+                    onclick="{delete_js}"
+                >×</a>
+                {media_html}
+                <div class="atp-gpt-upload-meta">
+                    <div class="atp-gpt-upload-name">{file_name}</div>
+                    <div class="atp-gpt-upload-size">{file_size:.1f} MB</div>
+                </div>
+            </div>
+            """
+        )
+
+    return (
+        '<div class="atp-gpt-preview-grid">'
+        + "".join(cards)
+        + "</div>"
+    )
 
 
 def managed_file_uploader(
@@ -1076,9 +1268,14 @@ def managed_file_uploader(
     heading,
 ):
     """
-    Stable file manager with centered previews and SHA-256 deduplication.
+    Stable GPT-style upload manager.
 
-    All visible content is kept inside one keyed Streamlit container.
+    Improvements:
+    - previews render in the same Streamlit run as file selection
+    - no extra rerun after upload
+    - no Streamlit delete buttons inside preview cards
+    - exact top-right delete icon placement
+    - compact horizontal flex layout
     """
     install_gpt_uploader_css()
 
@@ -1088,6 +1285,29 @@ def managed_file_uploader(
         st.session_state[generation_key] = 0
 
     records = list(st.session_state.get(storage_key) or [])
+
+    # Handle GPT-style delete links while preserving all other query parameters.
+    delete_token = st.query_params.get("atp_delete_upload")
+    if isinstance(delete_token, list):
+        delete_token = delete_token[0] if delete_token else None
+
+    prefix = f"{widget_prefix}:"
+    if delete_token and str(delete_token).startswith(prefix):
+        target_id = str(delete_token)[len(prefix):]
+        st.session_state[storage_key] = [
+            item
+            for item in records
+            if str(item.get("id")) != target_id
+        ]
+        st.session_state[generation_key] += 1
+
+        try:
+            del st.query_params["atp_delete_upload"]
+        except Exception:
+            pass
+
+        st.rerun()
+
     shell_key = f"atp_upload_shell_{widget_prefix}"
 
     with st.container(key=shell_key):
@@ -1096,38 +1316,7 @@ def managed_file_uploader(
             unsafe_allow_html=True,
         )
 
-        if records:
-            # Render previews in horizontal rows. Streamlit automatically stacks
-            # these columns on narrow/mobile screens.
-            cards_per_row = 4
-            for row_start in range(0, len(records), cards_per_row):
-                row_records = records[row_start:row_start + cards_per_row]
-                with st.container(key=f"atp_preview_grid_{widget_prefix}_{row_start}"):
-                    columns = st.columns(len(row_records), gap="small")
-                    for column, record in zip(columns, row_records):
-                        record_id = record["id"]
-
-                        def delete_record(record_id=record_id):
-                            st.session_state[storage_key] = [
-                                item
-                                for item in st.session_state.get(storage_key, [])
-                                if item.get("id") != record_id
-                            ]
-                            st.session_state[generation_key] += 1
-                            st.rerun()
-
-                        with column:
-                            render_managed_upload_preview(
-                                record,
-                                delete_key=f"{widget_prefix}_delete_{record_id[:16]}",
-                                on_delete=delete_record,
-                            )
-
-        if records:
-            st.markdown(
-                '<div class="atp-add-file-label">＋ Add another file</div>',
-                unsafe_allow_html=True,
-            )
+        preview_slot = st.empty()
 
         incoming_files = st.file_uploader(
             "Upload files",
@@ -1137,40 +1326,44 @@ def managed_file_uploader(
             label_visibility="collapsed",
         )
 
-    if incoming_files:
-        existing_ids = {item["id"] for item in records}
-        added = False
         oversized_names = []
 
-        for uploaded_file in incoming_files:
-            record = _managed_upload_record(uploaded_file)
+        if incoming_files:
+            existing_ids = {item["id"] for item in records}
 
-            if record["size"] > MAX_UPLOAD_BYTES:
-                oversized_names.append(record["name"])
-                continue
+            for uploaded_file in incoming_files:
+                record = _managed_upload_record(uploaded_file)
 
-            if record["id"] not in existing_ids:
-                records.append(record)
-                existing_ids.add(record["id"])
-                added = True
+                if record["size"] > MAX_UPLOAD_BYTES:
+                    oversized_names.append(record["name"])
+                    continue
 
-        st.session_state[storage_key] = records
-        st.session_state[generation_key] += 1
+                if record["id"] not in existing_ids:
+                    records.append(record)
+                    existing_ids.add(record["id"])
+
+            # Store immediately, but do not trigger another rerun.
+            st.session_state[storage_key] = records
+            st.session_state[generation_key] += 1
+
+        with preview_slot.container():
+            if records:
+                st.markdown(
+                    _render_upload_cards_html(records, widget_prefix),
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    '<div class="atp-add-file-label">＋ Add another file</div>',
+                    unsafe_allow_html=True,
+                )
 
         if oversized_names:
-            st.session_state[f"{storage_key}_size_error"] = (
+            st.error(
                 "These files exceed the 10 MB limit: "
                 + ", ".join(oversized_names)
             )
 
-        if added or oversized_names:
-            st.rerun()
-
-    size_error = st.session_state.pop(f"{storage_key}_size_error", None)
-    if size_error:
-        st.error(size_error)
-
-    return _managed_upload_objects(st.session_state.get(storage_key) or [])
+    return _managed_upload_objects(st.session_state.get(storage_key) or records)
 
 
 # ============================================================
