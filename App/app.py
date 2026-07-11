@@ -6680,22 +6680,26 @@ st.markdown(
 
     /* Keep every left-panel option aligned to the same left edge. */
     div[data-testid="stSidebar"] div[role="radiogroup"] {
-        gap: 2px !important;
-        margin: 0 !important;
+        gap: 7px !important;
+        margin: 2px 0 0 0 !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] {
         width: 100% !important;
-        min-height: 40px !important;
+        min-height: 44px !important;
         margin: 0 !important;
-        padding: 8px 9px !important;
-        border-radius: 9px !important;
+        padding: 9px 11px !important;
+        border-radius: 10px !important;
         border: 1px solid transparent !important;
         background: transparent !important;
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
         box-sizing: border-box !important;
+        transition:
+            background 120ms ease,
+            border-color 120ms ease,
+            color 120ms ease !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] > div {
@@ -6712,52 +6716,97 @@ st.markdown(
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
-        background: rgba(51, 65, 85, 0.36) !important;
+        background: rgba(51, 65, 85, 0.40) !important;
+        border-color: rgba(148, 163, 184, 0.08) !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
-        background: rgba(71, 85, 105, 0.36) !important;
-        border-color: rgba(148, 163, 184, 0.08) !important;
-        box-shadow: inset 2px 0 0 #ef4444 !important;
+        background: rgba(30, 41, 59, 0.88) !important;
+        border-color: rgba(239, 68, 68, 0.20) !important;
+        box-shadow: inset 3px 0 0 #ef4444 !important;
+    }
+
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) p {
+        color: #ffffff !important;
+        font-weight: 760 !important;
+    }
+
+    /* Make the selected radio indicator act as the red navigation icon. */
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked)
+    div[role="radio"] {
+        border-color: #ef4444 !important;
+        background: #ef4444 !important;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12) !important;
+    }
+
+    div[data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked)
+    div[role="radio"] > div {
+        background: #ffffff !important;
     }
 
     .sidebar-action-area {
-        margin: 12px 0 16px 0 !important;
+        margin: 18px 0 20px 0 !important;
         padding: 0 !important;
     }
 
-    .sidebar-newcase-btn,
-    .sidebar-logout-btn {
+    .sidebar-newcase-btn {
         width: 100% !important;
-        margin: 0 0 7px 0 !important;
+        margin: 0 !important;
     }
 
-    .sidebar-newcase-btn .stButton > button,
+    .sidebar-newcase-btn .stButton > button {
+        width: 100% !important;
+        min-height: 44px !important;
+        border-radius: 10px !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        padding: 0 13px !important;
+        background:
+            linear-gradient(
+                135deg,
+                #ff4b2b 0%,
+                #ef233c 100%
+            ) !important;
+        border: 1px solid rgba(255, 255, 255, 0.10) !important;
+        color: #ffffff !important;
+        font-weight: 760 !important;
+        box-shadow: 0 10px 22px rgba(239, 35, 60, 0.18) !important;
+    }
+
+    .sidebar-newcase-btn .stButton > button:hover {
+        filter: brightness(1.05) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    .sidebar-logout-divider {
+        height: 1px !important;
+        margin: 16px 0 10px 0 !important;
+        background: rgba(148, 163, 184, 0.14) !important;
+    }
+
+    .sidebar-logout-btn {
+        width: 100% !important;
+        margin: 0 0 6px 0 !important;
+    }
+
     .sidebar-logout-btn .stButton > button {
         width: 100% !important;
         min-height: 40px !important;
         border-radius: 9px !important;
         justify-content: flex-start !important;
         text-align: left !important;
-        padding-left: 11px !important;
-    }
-
-    .sidebar-newcase-btn .stButton > button {
-        background: rgba(239, 68, 68, 0.14) !important;
-        border: 1px solid rgba(248, 113, 113, 0.22) !important;
-        color: #ffffff !important;
-        box-shadow: none !important;
-    }
-
-    .sidebar-logout-btn .stButton > button {
+        padding: 0 11px !important;
         background: transparent !important;
         border: 1px solid transparent !important;
-        color: #aeb9c8 !important;
+        color: #9ba8b9 !important;
+        font-size: 12.5px !important;
+        font-weight: 560 !important;
         box-shadow: none !important;
     }
 
     .sidebar-logout-btn .stButton > button:hover {
-        background: rgba(51, 65, 85, 0.34) !important;
+        background: rgba(51, 65, 85, 0.36) !important;
+        border-color: rgba(148, 163, 184, 0.08) !important;
         color: #ffffff !important;
     }
 
@@ -6959,9 +7008,18 @@ st.markdown(
             padding: 10px 9px !important;
         }
 
-        .sidebar-newcase-btn .stButton > button,
+        .sidebar-newcase-btn .stButton > button {
+            min-height: 48px !important;
+            font-size: 13.5px !important;
+        }
+
         .sidebar-logout-btn .stButton > button {
-            min-height: 44px !important;
+            min-height: 46px !important;
+            font-size: 13px !important;
+        }
+
+        .sidebar-logout-divider {
+            margin-top: 18px !important;
         }
 
         div[data-testid="stSidebar"] [class*="st-key-history_row_"] .stButton > button {
@@ -7071,10 +7129,21 @@ if st.session_state.current_assistant != assistant:
     )
     st.rerun()
 
-st.sidebar.markdown('<div class="sidebar-action-area">', unsafe_allow_html=True)
+st.sidebar.markdown(
+    '<div class="sidebar-action-area">',
+    unsafe_allow_html=True,
+)
 
-st.sidebar.markdown('<div class="sidebar-newcase-btn">', unsafe_allow_html=True)
-if st.sidebar.button("＋ New Case", key="new_case_button"):
+st.sidebar.markdown(
+    '<div class="sidebar-newcase-btn">',
+    unsafe_allow_html=True,
+)
+
+if st.sidebar.button(
+    "＋  New Case",
+    key="new_case_button",
+    use_container_width=True,
+):
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.chat_file_uploader_generation += 1
@@ -7083,13 +7152,8 @@ if st.sidebar.button("＋ New Case", key="new_case_button"):
         "chat_managed_upload_generation",
     )
     st.rerun()
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-st.sidebar.markdown('<div class="sidebar-logout-btn">', unsafe_allow_html=True)
-if st.sidebar.button("Logout", key="logout_button"):
-    logout_user()
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
-
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
@@ -9223,6 +9287,25 @@ if assistant != "⚙️ Admin Panel":
 
     except Exception as e:
         st.sidebar.error(f"Chat history error: {e}")
+
+    st.sidebar.markdown(
+        '<div class="sidebar-logout-divider"></div>',
+        unsafe_allow_html=True,
+    )
+
+    st.sidebar.markdown(
+        '<div class="sidebar-logout-btn">',
+        unsafe_allow_html=True,
+    )
+
+    if st.sidebar.button(
+        "↪  Log out",
+        key="logout_button",
+        use_container_width=True,
+    ):
+        logout_user()
+
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
 # ============================================================
