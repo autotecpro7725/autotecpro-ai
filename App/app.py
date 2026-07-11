@@ -6299,6 +6299,59 @@ def save_browser_login_profile(username, session_id):
     )
 
 
+def save_profile_and_open_authenticated_page(username, session_id):
+    """
+    Reliably save the remembered-login profile, then redirect the parent page.
+
+    The save and redirect happen inside the same browser script. This prevents
+    Streamlit reruns from destroying the component iframe before localStorage
+    has been written.
+    """
+    profile = {
+        "version": REMEMBER_PROFILE_VERSION,
+        "remember": True,
+        "username": str(username or "").strip(),
+        "session": str(session_id or "").strip(),
+        "created_at": now_iso(),
+    }
+
+    safe_profile = json.dumps(profile)
+    safe_session = json.dumps(str(session_id or "").strip())
+
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            const root = window.parent;
+            const profile = {safe_profile};
+            const sessionId = {safe_session};
+
+            root.localStorage.setItem(
+              "atp_login_profile",
+              JSON.stringify(profile)
+            );
+
+            // Remove legacy keys so there is only one source of truth.
+            root.localStorage.removeItem("atp_remember_session");
+            root.localStorage.removeItem("atp_remember_username");
+            root.localStorage.removeItem("atp_remember_enabled");
+
+            const url = new URL(root.location.href);
+            url.searchParams.set("session", sessionId);
+            url.searchParams.set("remember", "1");
+            root.location.replace(url.toString());
+          }} catch (error) {{
+            console.error("Could not save remembered login:", error);
+          }}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def clear_browser_login_profile():
     """Remove all app-saved login information from this browser/device."""
     components.html(
@@ -6637,18 +6690,19 @@ def login_screen():
                             user["username"],
                             user["role"],
                         )
-                        save_browser_login_profile(
+
+                        # Save and redirect in one browser operation. Do not
+                        # rerun immediately, or Streamlit may remove the iframe
+                        # before localStorage is written.
+                        save_profile_and_open_authenticated_page(
                             user["username"],
                             session_id,
                         )
-                        st.query_params.from_dict(
-                            {
-                                "session": session_id,
-                                "remember": "1",
-                            }
-                        )
+                        st.stop()
                     except Exception:
-                        pass
+                        # Persistent session failed; continue as a normal
+                        # in-memory login without storing browser details.
+                        st.rerun()
                 else:
                     clear_browser_login_profile()
 
@@ -6657,7 +6711,7 @@ def login_screen():
                     except Exception:
                         pass
 
-                st.rerun()
+                    st.rerun()
             else:
                 clear_browser_login_profile()
                 try:
