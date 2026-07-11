@@ -941,16 +941,24 @@ def install_gpt_uploader_css():
         }
 
         
-/* Hide transient upload action buttons while uploading */
-html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"],
-html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] [data-testid="stFileUploaderAddFilesButton"],
-html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[kind="secondary"]:has(svg),
-html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[aria-label*="Remove"],
-html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"] button[aria-label*="Add"]{
- display:none !important;
- visibility:hidden !important;
- pointer-events:none !important;
-}
+
+
+
+        /* Safely hide only temporary row controls.
+           The main Upload/Browse button remains clickable. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderFile"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid*="UploadedFile"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid*="FileUploaderFile"] button {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
 
 /* Keep Streamlit's native size/type helper visible.
            The server upload limit is set to 10 MB in .streamlit/config.toml.
@@ -1221,189 +1229,7 @@ html body div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader
 
 
 
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const KEY = "__atpUploaderNativeCleanupV6";
 
-          try { root[KEY]?.cleanup?.(); } catch (error) {}
-
-          let observer = null;
-          let animationId = null;
-          let slowTimer = null;
-          let animationRuns = 0;
-
-          function buttonText(button) {
-            return [
-              button.innerText,
-              button.textContent,
-              button.getAttribute("aria-label"),
-              button.getAttribute("title")
-            ].filter(Boolean).join(" ").trim().toLowerCase();
-          }
-
-          function isMainPickerButton(button, uploader) {
-            const text = buttonText(button);
-            const inDropzone = Boolean(
-              button.closest(
-                '[data-testid="stFileUploaderDropzone"], section'
-              )
-            );
-
-            if (!inDropzone) return false;
-
-            if (
-              text.includes("upload") ||
-              text.includes("browse") ||
-              text.includes("choose file") ||
-              text.includes("choose files")
-            ) {
-              return true;
-            }
-
-            // Fallback: keep only the first button inside the actual dropzone.
-            const dropzone =
-              uploader.querySelector('[data-testid="stFileUploaderDropzone"]') ||
-              uploader.querySelector("section");
-
-            return Boolean(
-              dropzone &&
-              dropzone.querySelector("button") === button
-            );
-          }
-
-          function hideElement(element) {
-            if (!element) return;
-            element.style.setProperty("display", "none", "important");
-            element.style.setProperty("visibility", "hidden", "important");
-            element.style.setProperty("pointer-events", "none", "important");
-            element.setAttribute("aria-hidden", "true");
-          }
-
-          function hideTransientUploaderUI() {
-            doc.querySelectorAll(
-              'div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"]'
-            ).forEach((uploader) => {
-              // Hide every native uploader button except the real picker button.
-              uploader.querySelectorAll("button").forEach((button) => {
-                if (!isMainPickerButton(button, uploader)) {
-                  hideElement(button);
-
-                  const buttonContainer =
-                    button.closest('[data-testid="stButton"]') ||
-                    button.closest('[data-testid="stElementContainer"]');
-
-                  if (buttonContainer) {
-                    hideElement(buttonContainer);
-                  }
-                }
-              });
-
-              // Hide known temporary native file rows.
-              uploader.querySelectorAll(
-                [
-                  '[data-testid="stFileUploaderFile"]',
-                  '[data-testid*="UploadedFile"]',
-                  '[data-testid*="FileUploaderFile"]',
-                  'ul',
-                  'li'
-                ].join(",")
-              ).forEach((row) => hideElement(row));
-
-              // Streamlit versions may not expose a stable test id. Hide any
-              // non-dropzone row containing a filename and one or more buttons.
-              uploader.querySelectorAll("div").forEach((node) => {
-                if (
-                  node.closest(
-                    '[data-testid="stFileUploaderDropzone"], section'
-                  )
-                ) {
-                  return;
-                }
-
-                const value = (node.textContent || "").trim();
-                const hasFilename =
-                  /\\.(jpg|jpeg|png|pdf|txt|docx)\\b/i.test(value);
-                const hasButton = Boolean(node.querySelector("button"));
-
-                if (hasFilename && hasButton) {
-                  hideElement(node);
-                }
-              });
-            });
-          }
-
-          function fastCleanupLoop() {
-            hideTransientUploaderUI();
-            animationRuns += 1;
-
-            // Run every animation frame for roughly four seconds after changes.
-            if (animationRuns < 420) {
-              animationId = root.requestAnimationFrame(fastCleanupLoop);
-            }
-          }
-
-          function restartFastCleanup() {
-            try { root.cancelAnimationFrame(animationId); } catch (error) {}
-            animationRuns = 0;
-            animationId = root.requestAnimationFrame(fastCleanupLoop);
-          }
-
-          const target =
-            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-
-          observer = new MutationObserver(() => {
-            hideTransientUploaderUI();
-            restartFastCleanup();
-          });
-
-          if (target) {
-            observer.observe(target, {
-              childList: true,
-              subtree: true,
-              attributes: true
-            });
-          }
-
-          // Capture file-selection changes before Streamlit finishes painting
-          // its temporary add/remove controls.
-          doc.addEventListener(
-            "change",
-            (event) => {
-              const input = event.target;
-              if (
-                input instanceof HTMLInputElement &&
-                input.type === "file" &&
-                input.closest('div[data-testid="stFileUploader"]')
-              ) {
-                hideTransientUploaderUI();
-                restartFastCleanup();
-              }
-            },
-            true
-          );
-
-          slowTimer = root.setInterval(hideTransientUploaderUI, 700);
-          hideTransientUploaderUI();
-          restartFastCleanup();
-
-          function cleanup() {
-            try { observer?.disconnect(); } catch (error) {}
-            try { root.cancelAnimationFrame(animationId); } catch (error) {}
-            try { root.clearInterval(slowTimer); } catch (error) {}
-          }
-
-          root[KEY] = { cleanup };
-          window.addEventListener("beforeunload", cleanup, { once: true });
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 
 
