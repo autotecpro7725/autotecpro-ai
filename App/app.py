@@ -16,6 +16,9 @@ import re
 import json
 import time
 import io
+import requests
+import xml.etree.ElementTree as ET
+from urllib.parse import quote
 from difflib import SequenceMatcher
 from config import supabase
 try:
@@ -51,6 +54,478 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
+# ============================================================
+# Optional Live Integrations
+# ============================================================
+
+def get_optional_secret(name, default=""):
+    """Read an optional Streamlit secret without crashing the app."""
+    try:
+        value = st.secrets.get(name, default)
+        return str(value).strip() if value is not None else str(default)
+    except Exception:
+        return str(default)
+
+
+
+UPS_CLIENT_ID = get_optional_secret("UPS_CLIENT_ID")
+UPS_CLIENT_SECRET = get_optional_secret("UPS_CLIENT_SECRET")
+
+
+
+CANADA_POST_USERNAME = get_optional_secret("CANADA_POST_USERNAME")
+CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
+
+LIVE_HTTP_TIMEOUT = 15
+
+
+def safe_json_response(response):
+    """Return JSON or a readable error without exposing credentials."""
+    try:
+        payload = response.json()
+    except Exception:
+        payload = {"message": response.text[:500]}
+
+    if response.ok:
+        return payload
+
+    message = (
+        payload.get("message")
+        or payload.get("error_description")
+        or payload.get("error")
+        or payload.get("errors")
+        or f"HTTP {response.status_code}"
+    )
+    raise RuntimeError(str(message))
+
+
+
+def geocode_open_meteo(location):
+    response = requests.get(
+        "https://geocoding-api.open-meteo.com/v1/search",
+        params={
+            "name": location,
+            "count": 1,
+            "language": "en",
+            "format": "json",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    data = safe_json_response(response)
+    results = data.get("results") or []
+    if not results:
+        raise RuntimeError(f"Location not found: {location}")
+    return results[0]
+
+
+def get_live_weather(location):
+    place = geocode_open_meteo(location)
+    response = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": place["latitude"],
+            "longitude": place["longitude"],
+            "current": (
+                "temperature_2m,apparent_temperature,relative_humidity_2m,"
+                "precipitation,weather_code,wind_speed_10m"
+            ),
+            "daily": (
+                "weather_code,temperature_2m_max,temperature_2m_min,"
+                "precipitation_probability_max"
+            ),
+            "temperature_unit": "celsius",
+            "wind_speed_unit": "kmh",
+            "timezone": "auto",
+            "forecast_days": 5,
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    data = safe_json_response(response)
+
+    return {
+        "source": "Open-Meteo",
+        "location": {
+            "name": place.get("name"),
+            "admin1": place.get("admin1"),
+            "country": place.get("country"),
+            "timezone": data.get("timezone"),
+        },
+        "current": data.get("current", {}),
+        "current_units": data.get("current_units", {}),
+        "daily": data.get("daily", {}),
+        "daily_units": data.get("daily_units", {}),
+    }
+
+
+
+
+
+def get_live_exchange_rate(base_currency, quote_currency):
+    """Fetch the latest available reference exchange rate without an API key."""
+    base = str(base_currency or "").strip().upper()
+    quote_currency = str(quote_currency or "").strip().upper()
+
+    if not re.fullmatch(r"[A-Z]{3}", base):
+        raise RuntimeError("Invalid base currency code.")
+    if not re.fullmatch(r"[A-Z]{3}", quote_currency):
+        raise RuntimeError("Invalid quote currency code.")
+    if base == quote_currency:
+        return {
+            "source": "Frankfurter",
+            "base": base,
+            "quote": quote_currency,
+            "rate": 1.0,
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "note": "The currencies are identical.",
+        }
+
+    response = requests.get(
+        f"https://api.frankfurter.dev/v2/rate/{base}/{quote_currency}",
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    data = safe_json_response(response)
+
+    rate = data.get("rate")
+    if rate is None:
+        raise RuntimeError(
+            f"No exchange rate was returned for {base}/{quote_currency}."
+        )
+
+    return {
+        "source": "Frankfurter",
+        "base": data.get("base", base),
+        "quote": data.get("quote", quote_currency),
+        "rate": rate,
+        "date": data.get("date"),
+        "provider": data.get("provider"),
+        "note": (
+            "Latest available central-bank reference rate. "
+            "This may not equal a bank, card, or cash-conversion rate."
+        ),
+    }
+
+
+
+def cached_oauth_token(cache_key, token_url, client_id, client_secret, *,
+                       data=None, headers=None, auth=None):
+    if not client_id or not client_secret:
+        raise RuntimeError("API credentials are not configured.")
+
+    token_record = st.session_state.get(cache_key) or {}
+    if (
+        token_record.get("access_token")
+        and float(token_record.get("expires_at", 0)) > time.time() + 60
+    ):
+        return token_record["access_token"]
+
+    request_data = dict(data or {})
+    request_headers = dict(headers or {})
+
+    response = requests.post(
+        token_url,
+        data=request_data,
+        headers=request_headers,
+        auth=auth,
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    token = payload.get("access_token")
+    if not token:
+        raise RuntimeError("OAuth response did not include an access token.")
+
+    expires_in = int(payload.get("expires_in", 3300))
+    st.session_state[cache_key] = {
+        "access_token": token,
+        "expires_at": time.time() + max(expires_in, 300),
+    }
+    return token
+
+
+def get_ups_access_token():
+    return cached_oauth_token(
+        "ups_oauth_token",
+        "https://onlinetools.ups.com/security/v1/oauth/token",
+        UPS_CLIENT_ID,
+        UPS_CLIENT_SECRET,
+        data={"grant_type": "client_credentials"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        auth=(UPS_CLIENT_ID, UPS_CLIENT_SECRET),
+    )
+
+
+def track_ups(tracking_number):
+    if not UPS_CLIENT_ID or not UPS_CLIENT_SECRET:
+        return {
+            "configured": False,
+            "carrier": "UPS",
+            "message": "UPS credentials are not configured."
+        }
+
+    token = get_ups_access_token()
+    response = requests.get(
+        (
+            "https://onlinetools.ups.com/api/track/v1/details/"
+            f"{quote(tracking_number.strip())}"
+        ),
+        params={"locale": "en_US", "returnSignature": "false"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "transId": f"atp-{int(time.time())}",
+            "transactionSrc": "AutoTecProAI",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    return {
+        "configured": True,
+        "carrier": "UPS",
+        "tracking_number": tracking_number,
+        "source": "UPS Tracking API",
+        "data": safe_json_response(response),
+    }
+
+
+
+
+
+
+def xml_to_dict(element):
+    result = {}
+    for child in list(element):
+        tag = child.tag.split("}")[-1]
+        value = xml_to_dict(child) if list(child) else (child.text or "").strip()
+        if tag in result:
+            if not isinstance(result[tag], list):
+                result[tag] = [result[tag]]
+            result[tag].append(value)
+        else:
+            result[tag] = value
+    return result
+
+
+def track_canada_post(tracking_number):
+    if not CANADA_POST_USERNAME or not CANADA_POST_PASSWORD:
+        return {
+            "configured": False,
+            "carrier": "Canada Post",
+            "message": "Canada Post credentials are not configured."
+        }
+
+    response = requests.get(
+        (
+            "https://soa-gw.canadapost.ca/vis/track/pin/"
+            f"{quote(tracking_number.strip())}/detail"
+        ),
+        auth=(CANADA_POST_USERNAME, CANADA_POST_PASSWORD),
+        headers={
+            "Accept": "application/vnd.cpc.track+xml",
+            "Accept-language": "en-CA",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    if not response.ok:
+        safe_json_response(response)
+
+    root = ET.fromstring(response.content)
+    return {
+        "configured": True,
+        "carrier": "Canada Post",
+        "tracking_number": tracking_number,
+        "source": "Canada Post Tracking Web Service",
+        "data": xml_to_dict(root),
+    }
+
+
+def extract_tracking_number(prompt):
+    candidates = re.findall(r"\b[A-Z0-9][A-Z0-9 -]{7,33}[A-Z0-9]\b", prompt.upper())
+    ignored = {
+        "TECHNICAL SUPPORT", "SALES MARKETING", "CANADA POST",
+        "TRACK MY PACKAGE", "TRACK THIS PACKAGE"
+    }
+    for candidate in candidates:
+        compact = re.sub(r"[^A-Z0-9]", "", candidate)
+        if compact not in ignored and any(char.isdigit() for char in compact):
+            if 8 <= len(compact) <= 34:
+                return compact
+    return ""
+
+
+def detect_live_request(prompt):
+    value = str(prompt or "").strip()
+    lower = value.lower()
+
+    if not value:
+        return {"type": "none"}
+
+    tracking_number = extract_tracking_number(value)
+    if tracking_number and any(
+        word in lower
+        for word in ["track", "tracking", "shipment", "package", "parcel"]
+    ):
+        if "ups" in lower or tracking_number.startswith("1Z"):
+            return {
+                "type": "tracking",
+                "carrier": "ups",
+                "tracking_number": tracking_number,
+            }
+
+        if "canada post" in lower or "canadapost" in lower:
+            return {
+                "type": "tracking",
+                "carrier": "canada_post",
+                "tracking_number": tracking_number,
+            }
+
+        return {
+            "type": "tracking_unknown",
+            "tracking_number": tracking_number,
+        }
+
+    weather_match = re.search(
+        r"(?:weather|temperature|forecast|rain|snow)"
+        r"\s+(?:in|for|at)\s+([A-Za-z .,'-]{2,80})",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if weather_match:
+        location = re.split(
+            r"\b(?:today|tomorrow|now|right now|this week|next week)\b",
+            weather_match.group(1),
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip(" ,.?")
+
+        if location:
+            return {"type": "weather", "location": location}
+
+    fx_match = re.search(
+        r"\b([A-Z]{3})\s*(?:/|to|into|-)\s*([A-Z]{3})\b",
+        value.upper(),
+    )
+    if fx_match and any(
+        word in lower
+        for word in [
+            "rate", "exchange", "convert", "currency", "fx",
+            "worth", "how much"
+        ]
+    ):
+        return {
+            "type": "fx",
+            "base": fx_match.group(1),
+            "quote": fx_match.group(2),
+        }
+
+    if any(
+        phrase in lower
+        for phrase in [
+            "search the internet",
+            "browse the web",
+            "look online",
+            "latest news",
+            "latest update",
+            "current news",
+            "what happened today",
+            "search online",
+        ]
+    ):
+        return {"type": "web", "query": value}
+
+    return {"type": "none"}
+
+
+
+def get_live_data_for_prompt(prompt):
+    request_type = detect_live_request(prompt)
+    kind = request_type.get("type")
+
+    try:
+        if kind == "weather":
+            return get_live_weather(request_type["location"])
+
+        if kind == "fx":
+            return get_live_exchange_rate(
+                request_type["base"],
+                request_type["quote"],
+            )
+
+        if kind == "tracking":
+            carrier = request_type["carrier"]
+            tracking_number = request_type["tracking_number"]
+
+            if carrier == "ups":
+                return track_ups(tracking_number)
+
+            if carrier == "canada_post":
+                return track_canada_post(tracking_number)
+
+        if kind == "tracking_unknown":
+            return {
+                "source": "Live tracking router",
+                "tracking_number": request_type.get("tracking_number"),
+                "message": (
+                    "A tracking number was detected, but the carrier is unclear. "
+                    "Ask the user to specify UPS or Canada Post."
+                ),
+            }
+
+        # OpenAI web_search handles public internet browsing.
+        if kind == "web":
+            return None
+
+    except requests.Timeout:
+        return {
+            "source": "Live integration",
+            "error": "The live service timed out. Please try again.",
+        }
+    except requests.RequestException as error:
+        return {
+            "source": "Live integration",
+            "error": f"Network error: {error}",
+        }
+    except Exception as error:
+        return {
+            "source": "Live integration",
+            "error": str(error),
+        }
+
+    return None
+
+
+
+
+def live_integration_statuses():
+    return [
+        (
+            "OpenAI web search / internet browsing",
+            True,
+            "Uses the existing OPENAI_API_KEY",
+        ),
+        (
+            "Open-Meteo live weather",
+            True,
+            "No additional API key required",
+        ),
+        (
+            "Frankfurter exchange rates",
+            True,
+            "No additional API key required",
+        ),
+        (
+            "UPS tracking",
+            bool(UPS_CLIENT_ID and UPS_CLIENT_SECRET),
+            "UPS_CLIENT_ID + UPS_CLIENT_SECRET",
+        ),
+        (
+            "Canada Post tracking",
+            bool(CANADA_POST_USERNAME and CANADA_POST_PASSWORD),
+            "CANADA_POST_USERNAME + CANADA_POST_PASSWORD",
+        ),
+    ]
+
+
+
+# ============================================================
+# Styling
 # ============================================================
 # Styling
 # ============================================================
@@ -5098,6 +5573,19 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
+    live_data = get_live_data_for_prompt(prompt_text)
+    if live_data is not None:
+        content.append({
+            "type": "input_text",
+            "text": (
+                "LIVE DATA RESULT — retrieved by the AutoTecPro application:\n"
+                + json.dumps(live_data, ensure_ascii=False, default=str)
+                + "\n\nUse this live result exactly as supplied. Mention its source. "
+                  "Do not invent any missing fields, status, price, rate, date, "
+                  "delivery estimate, or tracking event."
+            )
+        })
+
     if st.session_state.messages:
         memory_text = "Previous conversation in this case:\n\n"
 
@@ -5136,34 +5624,41 @@ def ask_ai(prompt_text, uploaded_files):
     user_input = build_user_input(prompt_text, uploaded_files)
     instructions = (
         get_instructions(assistant)
-        + "\n\nThe AutoTecPro application may supply a LIVE APPLICATION CONTEXT "
-          "block containing the current date, time, and timezone. Treat that "
-          "application-supplied context as authoritative for relative-date and "
-          "current-time questions."
+        + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
+          "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
+          "as authoritative. Use web search for current public information, "
+          "recent news, recalls, software updates, laws, specifications, or facts "
+          "that may have changed. Use file_search first for AutoTecPro internal "
+          "technical and sales knowledge. Always name the source of live data. "
+          "Never invent a tracking event, exchange rate, weather condition, "
+          "or delivery estimate."
     )
 
+    tools = [{"type": "web_search"}]
+
     if assistant == "🔧 Technical Support":
-        response = client.responses.create(
-            model="gpt-5.5",
-            instructions=instructions,
-            tools=[{"type": "file_search", "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID]}],
-            input=user_input
+        tools.insert(
+            0,
+            {
+                "type": "file_search",
+                "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID]
+            }
         )
-
     elif assistant == "📈 Sales & Marketing":
-        response = client.responses.create(
-            model="gpt-5.5",
-            instructions=instructions,
-            tools=[{"type": "file_search", "vector_store_ids": [SALES_VECTOR_STORE_ID]}],
-            input=user_input
+        tools.insert(
+            0,
+            {
+                "type": "file_search",
+                "vector_store_ids": [SALES_VECTOR_STORE_ID]
+            }
         )
 
-    else:
-        response = client.responses.create(
-            model="gpt-5.5",
-            instructions=instructions,
-            input=user_input
-        )
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=instructions,
+        tools=tools,
+        input=user_input
+    )
 
     return response.output_text
 
@@ -6622,7 +7117,7 @@ if assistant == "⚙️ Admin Panel":
     st.caption("Manage users, knowledge uploads, AI learning, analytics, and continuous improvement.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "👥 Users",
         "📚 Upload Knowledge",
         "🧠 AI Learning",
@@ -6630,7 +7125,8 @@ if assistant == "⚙️ Admin Panel":
         "📦 Product Analytics",
         "🔧 Technical Analytics",
         "📊 AI Analytics",
-        "📈 Learning Analytics"
+        "📈 Learning Analytics",
+        "🔌 Live Integrations"
     ])
 
     # Shared analytics data for all admin dashboards.
@@ -7247,6 +7743,37 @@ if assistant == "⚙️ Admin Panel":
                 )
         else:
             st.info("No quality data yet.")
+
+
+
+    with tab9:
+        st.markdown("### 🔌 Live Integrations")
+        st.caption(
+            "Connection status only. Secret values are never displayed. "
+            "Missing credentials do not crash the app."
+        )
+
+        for service_name, connected, requirement in live_integration_statuses():
+            status_text = "✅ Connected / Available" if connected else "❌ Not configured"
+            st.write(f"**{service_name}** — {status_text}")
+            st.caption(f"Configuration: {requirement}")
+
+        st.markdown("---")
+        st.markdown("#### Required Streamlit secret names")
+        st.code(
+            """UPS_CLIENT_ID = ""
+UPS_CLIENT_SECRET = ""
+
+CANADA_POST_USERNAME = ""
+CANADA_POST_PASSWORD = """"",
+            language="toml",
+        )
+
+        st.info(
+            "OpenAI web search, Open-Meteo weather, and Frankfurter exchange "
+            "rates are available without additional secrets. UPS and Canada "
+            "Post tracking become active after their credentials are added."
+        )
 
 
 
