@@ -6169,6 +6169,7 @@ def restore_browser_remember_token():
             if (url.searchParams.get("session") === token) return;
 
             url.searchParams.set("session", token);
+            url.searchParams.set("remember", "1");
             root.location.replace(url.toString());
           } catch (error) {}
         })();
@@ -6527,45 +6528,52 @@ def show_login_loading_message():
 
 def login_screen():
     apply_login_layout_css()
-    logo_base64 = get_logo_base64()
 
-    if logo_base64:
-        st.markdown(
-            f"""
-            <div class="login-logo">
-                <img src="data:image/png;base64,{logo_base64}">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    else:
+    # Keep the complete login page in one placeholder so every login element
+    # (logo, heading, form) disappears together after authentication.
+    login_page_placeholder = st.empty()
+
+    remember_default = str(st.query_params.get("remember", "")) == "1"
+
+    with login_page_placeholder.container():
+        logo_base64 = get_logo_base64()
+
+        if logo_base64:
+            st.markdown(
+                f"""
+                <div class="login-logo">
+                    <img src="data:image/png;base64,{logo_base64}">
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                """
+                <div class="login-logo">
+                    <h1 style="font-size:48px;margin:0;color:white;">
+                        AutoTecPro
+                    </h1>
+                    <p style="color:#94a3b8;margin-top:6px;">
+                        Driven by Innovation
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         st.markdown(
             """
-            <div class="login-logo">
-                <h1 style="font-size:48px;margin:0;color:white;">AutoTecPro</h1>
-                <p style="color:#94a3b8;margin-top:6px;">Driven by Innovation</p>
+            <div class="login-heading">
+                <div class="login-heading-main">AutoTecPro AI Login</div>
+                <div class="login-heading-sub">Internal AI Assistant</div>
             </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
-    st.markdown(
-        """
-        <div class="login-heading">
-            <div class="login-heading-main">AutoTecPro AI Login</div>
-            <div class="login-heading-sub">Internal AI Assistant</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+        install_login_autofill_support()
 
-    login_form_placeholder = st.empty()
-
-    # Enable browser password-manager autofill and restore the remembered
-    # username on this device.
-    install_login_autofill_support()
-
-    with login_form_placeholder.container():
         with st.form("login_form"):
             username = st.text_input(
                 "Username",
@@ -6578,7 +6586,7 @@ def login_screen():
             )
             remember_me = st.checkbox(
                 "Remember me",
-                value=False,
+                value=remember_default,
                 help="Keep me signed in on this browser.",
             )
             login_submitted = st.form_submit_button(
@@ -6607,21 +6615,19 @@ def login_screen():
             if result.data:
                 user = result.data[0]
 
-                # Commit authentication state first. Updating query parameters
-                # may itself trigger a frontend rerun, so logged_in must already
-                # be True before that happens.
                 st.session_state.logged_in = True
                 st.session_state.username = user["username"]
                 st.session_state.role = user["role"]
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
-                # Remove the old login form immediately, then show the
-                # previous text-only loading state instead of a large logo.
-                login_form_placeholder.empty()
+
+                # Remove the full login page before showing the loading state.
+                login_page_placeholder.empty()
+
+                # Show only the requested text loading message.
                 show_login_loading_message()
 
                 if remember_me:
-                    # Save login information only when the checkbox is checked.
                     save_browser_remember_enabled()
                     save_browser_username(user["username"])
 
@@ -6632,12 +6638,10 @@ def login_screen():
                         )
                         save_browser_remember_token(session_id)
                         st.query_params["session"] = session_id
+                        st.query_params["remember"] = "1"
                     except Exception:
-                        # If login_sessions is unavailable, the in-memory login
-                        # session still works normally.
                         pass
                 else:
-                    # Unchecked means nothing from this app is remembered.
                     clear_browser_remember_enabled()
                     clear_browser_remember_token()
                     clear_browser_username()
@@ -6654,15 +6658,6 @@ def login_screen():
         except Exception as e:
             st.error(f"Login failed: {e}")
 
-    st.markdown(
-        '<div class="footer-note">© 2026 AutoTecPro. All rights reserved.</div>',
-        unsafe_allow_html=True
-    )
-
-
-# ============================================================
-# Login Check
-# ============================================================
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
