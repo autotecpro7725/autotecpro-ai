@@ -6475,25 +6475,26 @@ def clear_browser_username():
 
 
 
-def show_login_loading_message():
-    """Hide the old login form with a simple text-only loading screen."""
-    st.markdown(
+def show_login_loading_message(placeholder):
+    """
+    Replace the complete login page with a small text-only loading state.
+
+    Rendering inside the same placeholder guarantees the login logo and form
+    are removed before the authenticated page appears.
+    """
+    placeholder.markdown(
         """
         <style>
-        .atp-login-loading-screen {
-            position: fixed;
-            inset: 0;
-            z-index: 2147483647;
+        .atp-inline-login-loading {
+            width: 100%;
+            min-height: 220px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background:
-                radial-gradient(circle at top left, rgba(239,68,68,0.12), transparent 28%),
-                linear-gradient(135deg, #050b16 0%, #0b1220 48%, #020617 100%);
         }
 
-        .atp-login-loading-content {
-            display: flex;
+        .atp-inline-login-loading-content {
+            display: inline-flex;
             align-items: center;
             gap: 12px;
             color: #f8fafc;
@@ -6501,23 +6502,23 @@ def show_login_loading_message():
             font-weight: 750;
         }
 
-        .atp-login-loading-spinner {
+        .atp-inline-login-spinner {
             width: 21px;
             height: 21px;
             border: 2px solid rgba(255,255,255,0.22);
             border-top-color: #ff4d3d;
             border-radius: 50%;
-            animation: atpLoginLoadingSpin 0.72s linear infinite;
+            animation: atpInlineLoginSpin 0.72s linear infinite;
         }
 
-        @keyframes atpLoginLoadingSpin {
+        @keyframes atpInlineLoginSpin {
             to { transform: rotate(360deg); }
         }
         </style>
 
-        <div class="atp-login-loading-screen">
-            <div class="atp-login-loading-content">
-                <div class="atp-login-loading-spinner"></div>
+        <div class="atp-inline-login-loading">
+            <div class="atp-inline-login-loading-content">
+                <div class="atp-inline-login-spinner"></div>
                 <div>Loading AutoTecPro AI System...</div>
             </div>
         </div>
@@ -6533,7 +6534,10 @@ def login_screen():
     # (logo, heading, form) disappears together after authentication.
     login_page_placeholder = st.empty()
 
-    remember_default = str(st.query_params.get("remember", "")) == "1"
+    remember_value = st.query_params.get("remember", "")
+    if isinstance(remember_value, (list, tuple)):
+        remember_value = remember_value[0] if remember_value else ""
+    remember_default = str(remember_value).strip() == "1"
 
     with login_page_placeholder.container():
         logo_base64 = get_logo_base64()
@@ -6621,11 +6625,10 @@ def login_screen():
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
 
-                # Remove the full login page before showing the loading state.
+                # Replace the complete login page (logo, heading, and form)
+                # with the requested text-only loading message.
                 login_page_placeholder.empty()
-
-                # Show only the requested text loading message.
-                show_login_loading_message()
+                show_login_loading_message(login_page_placeholder)
 
                 if remember_me:
                     save_browser_remember_enabled()
@@ -6637,8 +6640,12 @@ def login_screen():
                             user["role"],
                         )
                         save_browser_remember_token(session_id)
-                        st.query_params["session"] = session_id
-                        st.query_params["remember"] = "1"
+                        st.query_params.from_dict(
+                            {
+                                "session": session_id,
+                                "remember": "1",
+                            }
+                        )
                     except Exception:
                         pass
                 else:
