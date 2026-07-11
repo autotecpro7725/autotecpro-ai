@@ -6378,9 +6378,11 @@ def clear_browser_login_profile():
 
 def install_login_autofill_support():
     """
-    Restore username and Remember me state from one JSON profile.
+    Enable standard browser password-manager autofill without controlling
+    navigation or blocking the Streamlit login flow.
 
-    The password remains under the browser password manager's control.
+    When the browser autofills both fields, Remember me is checked through a
+    real click so Streamlit and the visible checkbox stay synchronized.
     """
     components.html(
         """
@@ -6388,7 +6390,7 @@ def install_login_autofill_support():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpLoginProfileAutofillV1";
+          const KEY = "__atpStableLoginAutofillV2";
 
           try { root[KEY]?.cleanup?.(); } catch (error) {}
 
@@ -6426,23 +6428,6 @@ def install_login_autofill_support():
             };
           }
 
-          function setReactInputValue(input, value) {
-            const prototype = Object.getPrototypeOf(input);
-            const descriptor = Object.getOwnPropertyDescriptor(
-              prototype,
-              "value"
-            );
-
-            if (descriptor?.set) {
-              descriptor.set.call(input, value);
-            } else {
-              input.value = value;
-            }
-
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-
           function initialize() {
             if (stopped) return;
 
@@ -6450,7 +6435,7 @@ def install_login_autofill_support():
 
             if (!controls) {
               attempts += 1;
-              if (attempts < 50) {
+              if (attempts < 60) {
                 timerId = root.setTimeout(initialize, 100);
               }
               return;
@@ -6463,51 +6448,39 @@ def install_login_autofill_support():
               rememberCheckbox,
             } = controls;
 
-            let profile = null;
+            form.setAttribute("autocomplete", "on");
 
-            try {
-              const raw = root.localStorage.getItem("atp_login_profile");
-              profile = raw ? JSON.parse(raw) : null;
-            } catch (error) {
-              root.localStorage.removeItem("atp_login_profile");
-            }
+            usernameInput.setAttribute("name", "username");
+            usernameInput.setAttribute("autocomplete", "username");
+            usernameInput.setAttribute("autocapitalize", "none");
+            usernameInput.setAttribute("spellcheck", "false");
 
-            const enabled = Boolean(
-              profile &&
-              profile.version === 1 &&
-              profile.remember === true
+            passwordInput.setAttribute("name", "password");
+            passwordInput.setAttribute(
+              "autocomplete",
+              "current-password"
             );
 
-            if (enabled) {
-              form.setAttribute("autocomplete", "on");
-              usernameInput.setAttribute("name", "username");
-              usernameInput.setAttribute("autocomplete", "username");
-              passwordInput.setAttribute("name", "password");
-              passwordInput.setAttribute(
-                "autocomplete",
-                "current-password"
+            let checks = 0;
+
+            function syncAutofillState() {
+              if (stopped) return;
+
+              const bothFilled = Boolean(
+                usernameInput.value && passwordInput.value
               );
 
-              if (profile.username && !usernameInput.value) {
-                setReactInputValue(
-                  usernameInput,
-                  profile.username
-                );
+              if (bothFilled && !rememberCheckbox.checked) {
+                rememberCheckbox.click();
               }
-            } else {
-              form.setAttribute("autocomplete", "off");
-              usernameInput.setAttribute("autocomplete", "off");
-              passwordInput.setAttribute(
-                "autocomplete",
-                "new-password"
-              );
+
+              checks += 1;
+              if (checks < 30) {
+                timerId = root.setTimeout(syncAutofillState, 120);
+              }
             }
 
-            // Streamlit checkbox is React-controlled. Use a real click so
-            // the visible state and Streamlit state remain synchronized.
-            if (rememberCheckbox.checked !== enabled) {
-              rememberCheckbox.click();
-            }
+            syncAutofillState();
           }
 
           initialize();
@@ -6690,19 +6663,15 @@ def login_screen():
                             user["username"],
                             user["role"],
                         )
-
-                        # Save and redirect in one browser operation. Do not
-                        # rerun immediately, or Streamlit may remove the iframe
-                        # before localStorage is written.
-                        save_profile_and_open_authenticated_page(
-                            user["username"],
-                            session_id,
+                        st.query_params.from_dict(
+                            {
+                                "session": session_id,
+                                "remember": "1",
+                            }
                         )
-                        st.stop()
                     except Exception:
-                        # Persistent session failed; continue as a normal
-                        # in-memory login without storing browser details.
-                        st.rerun()
+                        # Remember-session creation must never block login.
+                        pass
                 else:
                     clear_browser_login_profile()
 
@@ -6711,7 +6680,7 @@ def login_screen():
                     except Exception:
                         pass
 
-                    st.rerun()
+                st.rerun()
             else:
                 clear_browser_login_profile()
                 try:
@@ -6728,7 +6697,6 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    restore_browser_remember_token()
     restore_login_session()
 
 if not st.session_state.logged_in:
