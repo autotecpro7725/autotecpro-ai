@@ -945,43 +945,6 @@ def install_gpt_uploader_css():
 
 
 
-
-        /* Reliable loading state:
-           after file selection, hide the entire native uploader UI visually
-           while keeping it mounted so the browser upload continues normally. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"].atp-native-uploading {
-            position: relative !important;
-            min-height: 100px !important;
-            overflow: hidden !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"].atp-native-uploading > * {
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"].atp-native-uploading::after {
-            content: "Uploading…";
-            position: absolute;
-            inset: 0;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #cbd5e1;
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-            background: rgba(15, 23, 42, 0.28);
-            border: 1px dashed rgba(148, 163, 184, 0.25);
-            border-radius: 13px;
-            pointer-events: none;
-        }
-
         /* Additional safe fallback for temporary icon-only controls.
            This does not affect the real Upload/Browse button. */
         html body div[class*="st-key-atp_upload_shell_"]
@@ -1280,64 +1243,82 @@ def install_gpt_uploader_css():
             }
         }
         
-        /* FINAL native-control rule.
-           Hide every native uploader button, then explicitly restore only the
-           real Browse/Upload button inside the dropzone. This removes the
-           temporary X and + controls regardless of their internal labels. */
+        /* FINAL RELIABLE APPROACH:
+           Hide Streamlit's native uploader UI completely. The actual file
+           input remains mounted and is opened by our custom Upload button. */
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            width: 0 !important;
-            min-width: 0 !important;
-            max-width: 0 !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            max-height: 0 !important;
+        div[data-testid="stFileUploader"] {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            min-width: 1px !important;
+            min-height: 1px !important;
+            max-width: 1px !important;
+            max-height: 1px !important;
             margin: 0 !important;
             padding: 0 !important;
-            border: 0 !important;
-            box-shadow: none !important;
             overflow: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            border: 0 !important;
         }
 
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderDropzone"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] {
-            display: inline-flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            width: auto !important;
-            min-width: 126px !important;
-            max-width: none !important;
-            height: 50px !important;
-            min-height: 50px !important;
-            max-height: 50px !important;
-            margin: 0 auto !important;
-            padding: 0 18px !important;
-            border-radius: 12px !important;
-            border: 1px solid rgba(148, 163, 184, 0.28) !important;
-            overflow: visible !important;
+        .atp-custom-upload-controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            margin: 2px 0 0 0;
         }
 
-        /* Remove the empty wrappers left behind by hidden native controls. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderFile"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid*="UploadedFile"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] ul,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] li {
-            display: none !important;
+        .atp-custom-upload-trigger {
+            min-width: 126px;
+            height: 50px;
+            padding: 0 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            background: rgba(51, 65, 85, 0.82);
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 750;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+            transition: background 0.16s ease, transform 0.16s ease;
+        }
+
+        .atp-custom-upload-trigger:hover {
+            background: rgba(71, 85, 105, 0.96);
+            transform: translateY(-1px);
+        }
+
+        .atp-custom-upload-trigger:active {
+            transform: scale(0.98);
+        }
+
+        .atp-custom-upload-icon {
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .atp-custom-upload-helper {
+            color: #94a3b8;
+            font-size: 11.5px;
+            line-height: 1.35;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .atp-custom-upload-trigger {
+                min-width: 116px;
+                height: 47px;
+                padding: 0 16px;
+            }
         }
 </style>
         """,
@@ -1345,7 +1326,50 @@ def install_gpt_uploader_css():
     )
 
 
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpCustomUploaderTriggerV1";
 
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          function onClick(event) {
+            const trigger = event.target.closest(".atp-custom-upload-trigger");
+            if (!trigger) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const shell = trigger.closest(
+              'div[class*="st-key-atp_upload_shell_"]'
+            );
+            if (!shell) return;
+
+            const input = shell.querySelector(
+              'div[data-testid="stFileUploader"] input[type="file"]'
+            );
+            if (!input) return;
+
+            input.click();
+          }
+
+          doc.addEventListener("click", onClick, true);
+
+          function cleanup() {
+            doc.removeEventListener("click", onClick, true);
+          }
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 
@@ -1463,6 +1487,25 @@ def managed_file_uploader(
                 unsafe_allow_html=True,
             )
 
+        st.markdown(
+            f"""
+            <div class="atp-custom-upload-controls">
+                <button
+                    type="button"
+                    class="atp-custom-upload-trigger"
+                    data-uploader-prefix="{html.escape(widget_prefix)}"
+                >
+                    <span class="atp-custom-upload-icon">↥</span>
+                    <span>Upload</span>
+                </button>
+                <div class="atp-custom-upload-helper">
+                    10MB per file · JPG, JPEG, PNG, PDF, TXT
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         incoming_files = st.file_uploader(
             "Upload files",
             type=accepted_types,
@@ -1495,8 +1538,8 @@ def managed_file_uploader(
                 + ", ".join(oversized_names)
             )
 
-        # Intentional single rerun: clears Streamlit's native temporary
-        # upload row and replaces it with the custom preview cards.
+        # Intentional single rerun after selection: refreshes the custom
+        # preview cards and resets the hidden native uploader input.
         st.rerun()
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
