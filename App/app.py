@@ -6230,8 +6230,20 @@ def login_screen():
 
     with st.form("login_form"):
         username = st.text_input("Username", placeholder="Enter your username")
-        password = st.text_input("Password", placeholder="Enter your password", type="password")
-        login_submitted = st.form_submit_button("Login", use_container_width=True)
+        password = st.text_input(
+            "Password",
+            placeholder="Enter your password",
+            type="password",
+        )
+        remember_me = st.checkbox(
+            "Remember me",
+            value=False,
+            help="Keep me signed in on this browser.",
+        )
+        login_submitted = st.form_submit_button(
+            "Login",
+            use_container_width=True,
+        )
 
     if login_submitted:
         username = username.strip()
@@ -6268,16 +6280,24 @@ def login_screen():
                 # visible while Streamlit replaces the page.
                 show_login_transition()
 
-                try:
-                    session_id = create_login_session(
-                        user["username"],
-                        user["role"],
-                    )
-                    st.query_params["session"] = session_id
-                except Exception:
-                    # If login_sessions is unavailable, the in-memory login
-                    # session still works normally.
-                    pass
+                if remember_me:
+                    try:
+                        session_id = create_login_session(
+                            user["username"],
+                            user["role"],
+                        )
+                        st.query_params["session"] = session_id
+                    except Exception:
+                        # If login_sessions is unavailable, the in-memory login
+                        # session still works normally.
+                        pass
+                else:
+                    # Session-only login: do not leave a persistent login token
+                    # in the browser URL.
+                    try:
+                        st.query_params.clear()
+                    except Exception:
+                        pass
 
                 st.rerun()
             else:
