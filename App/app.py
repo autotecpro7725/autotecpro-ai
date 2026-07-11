@@ -967,27 +967,25 @@ def install_gpt_uploader_css():
         }
 
 
-        /* Final pure-HTML GPT preview grid. */
-        .atp-gpt-preview-grid {
-            width: 100%;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: flex-start;
-            justify-content: center;
-            gap: 8px;
-            margin: 0 auto;
+
+        /* Compact preview cards. */
+        html body div[class*="st-key-atp_upload_card_"] {
+            position: relative !important;
+            width: 100% !important;
+            max-width: 178px !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            border: 1px solid rgba(148, 163, 184, 0.20) !important;
+            border-radius: 14px !important;
+            background: rgba(15, 23, 42, 0.84) !important;
+            overflow: hidden !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+            isolation: isolate !important;
         }
 
-        .atp-gpt-upload-card {
-            position: relative;
-            flex: 0 0 172px;
-            width: 172px;
-            max-width: 172px;
-            border: 1px solid rgba(148, 163, 184, 0.20);
-            border-radius: 14px;
-            background: rgba(15, 23, 42, 0.84);
-            overflow: hidden;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+        html body div[class*="st-key-atp_upload_card_"]
+        > div[data-testid="stVerticalBlock"] {
+            gap: 0 !important;
         }
 
         .atp-gpt-upload-media {
@@ -1032,46 +1030,65 @@ def install_gpt_uploader_css():
             margin-top: 2px;
         }
 
-        .atp-gpt-delete {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            z-index: 50;
-            width: 26px;
-            height: 26px;
-            border-radius: 999px;
-            border: 1px solid rgba(15, 23, 42, 0.16);
-            background: rgba(255, 255, 255, 0.94);
+        /* Real Streamlit delete button pinned to upper-right of each image. */
+        html body div[class*="st-key-atp_delete_btn_"] {
+            position: absolute !important;
+            top: 6px !important;
+            right: 6px !important;
+            z-index: 999 !important;
+            width: 27px !important;
+            height: 27px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        html body div[class*="st-key-atp_delete_btn_"] .stButton,
+        html body div[class*="st-key-atp_delete_btn_"] div[data-testid="stButton"] {
+            width: 27px !important;
+            height: 27px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        html body div[class*="st-key-atp_delete_btn_"] button {
+            width: 27px !important;
+            min-width: 27px !important;
+            max-width: 27px !important;
+            height: 27px !important;
+            min-height: 27px !important;
+            max-height: 27px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            border: 1px solid rgba(15, 23, 42, 0.16) !important;
+            background: rgba(255, 255, 255, 0.95) !important;
             color: #475569 !important;
-            text-decoration: none !important;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            line-height: 1;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.26);
-            cursor: pointer;
+            -webkit-text-fill-color: #475569 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 17px !important;
+            line-height: 1 !important;
+            transform: none !important;
         }
 
-        .atp-gpt-delete:hover {
-            background: #ffffff;
+        html body div[class*="st-key-atp_delete_btn_"] button:hover {
+            background: #ffffff !important;
             color: #dc2626 !important;
+            -webkit-text-fill-color: #dc2626 !important;
+            transform: none !important;
         }
 
-        /* Hide temporary Streamlit file-row controls while uploading. */
+        /* Hide every native temporary uploaded-file row/control. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] ul,
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button[aria-label*="Remove"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button[title*="Remove"] {
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"] {
             display: none !important;
         }
-
         @media (max-width: 768px) {
             html body div[class*="st-key-atp_upload_shell_"] {
                 padding: 11px !important;
@@ -1133,82 +1150,18 @@ def install_gpt_uploader_css():
         unsafe_allow_html=True,
     )
 
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const KEY = "__atpHideNativeUploaderControlsV3";
-
-          try { root[KEY]?.cleanup?.(); } catch (error) {}
-
-          let observer = null;
-          let timer = null;
-
-          function hideTemporaryControls() {
-            doc.querySelectorAll(
-              'div[class*="st-key-atp_upload_shell_"] div[data-testid="stFileUploader"]'
-            ).forEach((uploader) => {
-              uploader.querySelectorAll("button").forEach((button) => {
-                const label = [
-                  button.getAttribute("aria-label"),
-                  button.getAttribute("title"),
-                  button.innerText
-                ].filter(Boolean).join(" ").trim().toLowerCase();
-
-                if (
-                  label === "+" ||
-                  label.includes("remove") ||
-                  label.includes("delete") ||
-                  label.includes("clear file") ||
-                  label.includes("add file")
-                ) {
-                  button.style.setProperty("display", "none", "important");
-                }
-              });
-            });
-          }
-
-          const target =
-            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-
-          observer = new MutationObserver(hideTemporaryControls);
-          if (target) {
-            observer.observe(target, { childList: true, subtree: true });
-          }
-
-          timer = root.setInterval(hideTemporaryControls, 500);
-          hideTemporaryControls();
-
-          function cleanup() {
-            try { observer?.disconnect(); } catch (error) {}
-            try { root.clearInterval(timer); } catch (error) {}
-          }
-
-          root[KEY] = { cleanup };
-          window.addEventListener("beforeunload", cleanup, { once: true });
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 
 
 
-def _render_upload_cards_html(records, widget_prefix):
-    cards = []
+def render_managed_upload_preview(record, delete_key, on_delete):
+    """Render one preview card with a real Streamlit delete button."""
+    file_type = str(record.get("type") or "")
+    file_name = html.escape(str(record.get("name") or "upload"))
+    file_size = float(record.get("size") or 0) / (1024 * 1024)
+    card_key = f"atp_upload_card_{record['id'][:16]}"
 
-    for record in records:
-        file_type = str(record.get("type") or "")
-        file_name_raw = str(record.get("name") or "upload")
-        file_name = html.escape(file_name_raw)
-        file_size = float(record.get("size") or 0) / (1024 * 1024)
-        record_id = str(record["id"])
-        delete_token = f"{widget_prefix}:{record_id}"
-
+    with st.container(key=card_key):
         if file_type.startswith("image/"):
             encoded = base64.b64encode(record["data"]).decode()
             media_html = (
@@ -1218,7 +1171,7 @@ def _render_upload_cards_html(records, widget_prefix):
                 "</div>"
             )
         else:
-            extension = Path(file_name_raw).suffix.lower()
+            extension = Path(record.get("name") or "").suffix.lower()
             icon = "📄" if extension in {".pdf", ".txt", ".docx"} else "📎"
             media_html = (
                 '<div class="atp-gpt-upload-media">'
@@ -1226,37 +1179,23 @@ def _render_upload_cards_html(records, widget_prefix):
                 "</div>"
             )
 
-        delete_js = (
-            "const u=new URL(window.location.href);"
-            f"u.searchParams.set('atp_delete_upload','{delete_token}');"
-            "window.location.href=u.toString();"
-            "return false;"
-        )
-
-        cards.append(
+        st.markdown(
             f"""
-            <div class="atp-gpt-upload-card">
-                <a
-                    class="atp-gpt-delete"
-                    href="#"
-                    title="Remove file"
-                    aria-label="Remove file"
-                    onclick="{delete_js}"
-                >×</a>
-                {media_html}
-                <div class="atp-gpt-upload-meta">
-                    <div class="atp-gpt-upload-name">{file_name}</div>
-                    <div class="atp-gpt-upload-size">{file_size:.1f} MB</div>
-                </div>
+            {media_html}
+            <div class="atp-gpt-upload-meta">
+                <div class="atp-gpt-upload-name">{file_name}</div>
+                <div class="atp-gpt-upload-size">{file_size:.1f} MB</div>
             </div>
-            """
+            """,
+            unsafe_allow_html=True,
         )
 
-    return (
-        '<div class="atp-gpt-preview-grid">'
-        + "".join(cards)
-        + "</div>"
-    )
+        if st.button(
+            "×",
+            key=delete_key,
+            help="Remove file",
+        ):
+            on_delete()
 
 
 def managed_file_uploader(
@@ -1270,12 +1209,9 @@ def managed_file_uploader(
     """
     Stable GPT-style upload manager.
 
-    Improvements:
-    - previews render in the same Streamlit run as file selection
-    - no extra rerun after upload
-    - no Streamlit delete buttons inside preview cards
-    - exact top-right delete icon placement
-    - compact horizontal flex layout
+    A short rerun is intentionally used after selection so Streamlit's native
+    temporary file row disappears completely. This is more reliable than
+    trying to hide every temporary control with browser-side JavaScript.
     """
     install_gpt_uploader_css()
 
@@ -1285,29 +1221,6 @@ def managed_file_uploader(
         st.session_state[generation_key] = 0
 
     records = list(st.session_state.get(storage_key) or [])
-
-    # Handle GPT-style delete links while preserving all other query parameters.
-    delete_token = st.query_params.get("atp_delete_upload")
-    if isinstance(delete_token, list):
-        delete_token = delete_token[0] if delete_token else None
-
-    prefix = f"{widget_prefix}:"
-    if delete_token and str(delete_token).startswith(prefix):
-        target_id = str(delete_token)[len(prefix):]
-        st.session_state[storage_key] = [
-            item
-            for item in records
-            if str(item.get("id")) != target_id
-        ]
-        st.session_state[generation_key] += 1
-
-        try:
-            del st.query_params["atp_delete_upload"]
-        except Exception:
-            pass
-
-        st.rerun()
-
     shell_key = f"atp_upload_shell_{widget_prefix}"
 
     with st.container(key=shell_key):
@@ -1316,7 +1229,36 @@ def managed_file_uploader(
             unsafe_allow_html=True,
         )
 
-        preview_slot = st.empty()
+        if records:
+            preview_columns = st.columns(
+                min(len(records), 4),
+                gap="small",
+                vertical_alignment="top",
+            )
+
+            for index, record in enumerate(records):
+                record_id = record["id"]
+
+                def delete_record(record_id=record_id):
+                    st.session_state[storage_key] = [
+                        item
+                        for item in st.session_state.get(storage_key, [])
+                        if item.get("id") != record_id
+                    ]
+                    st.session_state[generation_key] += 1
+                    st.rerun()
+
+                with preview_columns[index % len(preview_columns)]:
+                    render_managed_upload_preview(
+                        record,
+                        delete_key=f"atp_delete_btn_{widget_prefix}_{record_id[:16]}",
+                        on_delete=delete_record,
+                    )
+
+            st.markdown(
+                '<div class="atp-add-file-label">＋ Add another file</div>',
+                unsafe_allow_html=True,
+            )
 
         incoming_files = st.file_uploader(
             "Upload files",
@@ -1326,44 +1268,38 @@ def managed_file_uploader(
             label_visibility="collapsed",
         )
 
+    if incoming_files:
+        existing_ids = {item["id"] for item in records}
         oversized_names = []
 
-        if incoming_files:
-            existing_ids = {item["id"] for item in records}
+        for uploaded_file in incoming_files:
+            record = _managed_upload_record(uploaded_file)
 
-            for uploaded_file in incoming_files:
-                record = _managed_upload_record(uploaded_file)
+            if record["size"] > MAX_UPLOAD_BYTES:
+                oversized_names.append(record["name"])
+                continue
 
-                if record["size"] > MAX_UPLOAD_BYTES:
-                    oversized_names.append(record["name"])
-                    continue
+            if record["id"] not in existing_ids:
+                records.append(record)
+                existing_ids.add(record["id"])
 
-                if record["id"] not in existing_ids:
-                    records.append(record)
-                    existing_ids.add(record["id"])
-
-            # Store immediately, but do not trigger another rerun.
-            st.session_state[storage_key] = records
-            st.session_state[generation_key] += 1
-
-        with preview_slot.container():
-            if records:
-                st.markdown(
-                    _render_upload_cards_html(records, widget_prefix),
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    '<div class="atp-add-file-label">＋ Add another file</div>',
-                    unsafe_allow_html=True,
-                )
+        st.session_state[storage_key] = records
+        st.session_state[generation_key] += 1
 
         if oversized_names:
-            st.error(
+            st.session_state[f"{storage_key}_size_error"] = (
                 "These files exceed the 10 MB limit: "
                 + ", ".join(oversized_names)
             )
 
-    return _managed_upload_objects(st.session_state.get(storage_key) or records)
+        # Required to clear Streamlit's temporary native file controls.
+        st.rerun()
+
+    size_error = st.session_state.pop(f"{storage_key}_size_error", None)
+    if size_error:
+        st.error(size_error)
+
+    return _managed_upload_objects(st.session_state.get(storage_key) or [])
 
 
 # ============================================================
