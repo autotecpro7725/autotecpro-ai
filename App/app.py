@@ -945,6 +945,43 @@ def install_gpt_uploader_css():
 
 
 
+
+        /* Reliable loading state:
+           after file selection, hide the entire native uploader UI visually
+           while keeping it mounted so the browser upload continues normally. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"].atp-native-uploading {
+            position: relative !important;
+            min-height: 100px !important;
+            overflow: hidden !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"].atp-native-uploading > * {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"].atp-native-uploading::after {
+            content: "Uploading…";
+            position: absolute;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            background: rgba(15, 23, 42, 0.28);
+            border: 1px dashed rgba(148, 163, 184, 0.25);
+            border-radius: 13px;
+            pointer-events: none;
+        }
+
         /* Additional safe fallback for temporary icon-only controls.
            This does not affect the real Upload/Browse button. */
         html body div[class*="st-key-atp_upload_shell_"]
@@ -1254,83 +1291,44 @@ def install_gpt_uploader_css():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpFiniteUploaderCleanupV1";
+          const KEY = "__atpUploaderLoadingOverlayV1";
 
           try { root[KEY]?.cleanup?.(); } catch (error) {}
 
-          const timers = [];
-
-          function labelOf(button) {
-            return [
-              button.innerText,
-              button.textContent,
-              button.getAttribute("aria-label"),
-              button.getAttribute("title")
-            ].filter(Boolean).join(" ").trim().toLowerCase();
-          }
-
-          function isRealPickerButton(button) {
-            const label = labelOf(button);
-            return (
-              label.includes("upload") ||
-              label.includes("browse") ||
-              label.includes("choose file") ||
-              label.includes("choose files")
-            );
-          }
-
-          function hideLoadingControls(input) {
-            const uploader = input?.closest('div[data-testid="stFileUploader"]');
-            if (!uploader) return;
-
-            // Hide only the temporary icon buttons. Keep the real picker button.
-            uploader.querySelectorAll("button").forEach((button) => {
-              if (isRealPickerButton(button)) return;
-
-              button.style.setProperty("display", "none", "important");
-              button.style.setProperty("visibility", "hidden", "important");
-              button.style.setProperty("pointer-events", "none", "important");
-
-              const wrapper =
-                button.closest('[data-testid="stButton"]') ||
-                button.closest('[data-testid="stElementContainer"]');
-
-              if (wrapper) {
-                wrapper.style.setProperty("display", "none", "important");
-                wrapper.style.setProperty("visibility", "hidden", "important");
-                wrapper.style.setProperty("pointer-events", "none", "important");
-              }
-            });
-          }
-
-          function runFiniteCleanup(input) {
-            [0, 30, 80, 150, 300, 550, 900, 1400, 2000].forEach((delay) => {
-              const timer = root.setTimeout(
-                () => hideLoadingControls(input),
-                delay
-              );
-              timers.push(timer);
-            });
-          }
-
           function onFileChange(event) {
             const input = event.target;
+
             if (
-              input instanceof HTMLInputElement &&
-              input.type === "file" &&
-              input.closest('div[class*="st-key-atp_upload_shell_"]')
+              !(input instanceof HTMLInputElement) ||
+              input.type !== "file"
             ) {
-              runFiniteCleanup(input);
+              return;
             }
+
+            const shell = input.closest(
+              'div[class*="st-key-atp_upload_shell_"]'
+            );
+
+            if (!shell) return;
+
+            const uploader = input.closest(
+              'div[data-testid="stFileUploader"]'
+            );
+
+            if (!uploader) return;
+
+            uploader.classList.add("atp-native-uploading");
+
+            // Safety fallback in case Streamlit does not rerun due to an error.
+            root.setTimeout(() => {
+              uploader.classList.remove("atp-native-uploading");
+            }, 15000);
           }
 
           doc.addEventListener("change", onFileChange, true);
 
           function cleanup() {
             doc.removeEventListener("change", onFileChange, true);
-            timers.forEach((timer) => {
-              try { root.clearTimeout(timer); } catch (error) {}
-            });
           }
 
           root[KEY] = { cleanup };
@@ -1341,6 +1339,9 @@ def install_gpt_uploader_css():
         height=0,
         width=0,
     )
+
+
+
 
 
 
@@ -1487,7 +1488,8 @@ def managed_file_uploader(
                 + ", ".join(oversized_names)
             )
 
-        # Required to clear Streamlit's temporary native file controls.
+        # Intentional single rerun: clears Streamlit's native temporary
+        # upload row and replaces it with the custom preview cards.
         st.rerun()
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
