@@ -1279,66 +1279,73 @@ def install_gpt_uploader_css():
                 -webkit-text-fill-color: #ffffff !important;
             }
         }
-        </style>
+        
+        /* FINAL native-control rule.
+           Hide every native uploader button, then explicitly restore only the
+           real Browse/Upload button inside the dropzone. This removes the
+           temporary X and + controls regardless of their internal labels. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            max-width: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderDropzone"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] {
+            display: inline-flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            width: auto !important;
+            min-width: 126px !important;
+            max-width: none !important;
+            height: 50px !important;
+            min-height: 50px !important;
+            max-height: 50px !important;
+            margin: 0 auto !important;
+            padding: 0 18px !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(148, 163, 184, 0.28) !important;
+            overflow: visible !important;
+        }
+
+        /* Remove the empty wrappers left behind by hidden native controls. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]
+        [data-testid*="UploadedFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] ul,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] li {
+            display: none !important;
+        }
+</style>
         """,
         unsafe_allow_html=True,
     )
 
 
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const KEY = "__atpUploaderLoadingOverlayV1";
 
-          try { root[KEY]?.cleanup?.(); } catch (error) {}
-
-          function onFileChange(event) {
-            const input = event.target;
-
-            if (
-              !(input instanceof HTMLInputElement) ||
-              input.type !== "file"
-            ) {
-              return;
-            }
-
-            const shell = input.closest(
-              'div[class*="st-key-atp_upload_shell_"]'
-            );
-
-            if (!shell) return;
-
-            const uploader = input.closest(
-              'div[data-testid="stFileUploader"]'
-            );
-
-            if (!uploader) return;
-
-            uploader.classList.add("atp-native-uploading");
-
-            // Safety fallback in case Streamlit does not rerun due to an error.
-            root.setTimeout(() => {
-              uploader.classList.remove("atp-native-uploading");
-            }, 15000);
-          }
-
-          doc.addEventListener("change", onFileChange, true);
-
-          function cleanup() {
-            doc.removeEventListener("change", onFileChange, true);
-          }
-
-          root[KEY] = { cleanup };
-          window.addEventListener("beforeunload", cleanup, { once: true });
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 
 
