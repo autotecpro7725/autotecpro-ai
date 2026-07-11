@@ -6126,7 +6126,9 @@ def logout_user():
         except Exception:
             pass
 
+    clear_browser_remember_enabled()
     clear_browser_remember_token()
+    clear_browser_username()
     st.query_params.clear()
     st.session_state.logged_in = False
     st.session_state.messages = []
@@ -6140,11 +6142,7 @@ def logout_user():
 
 def restore_browser_remember_token():
     """
-    Restore the remembered login token from this browser.
-
-    The token is stored in localStorage, not the username or password.
-    If the URL does not already contain a session token, redirect once to
-    the same page with the remembered token.
+    Restore the remembered login only when Remember me was explicitly enabled.
     """
     if st.query_params.get("session"):
         return
@@ -6155,10 +6153,19 @@ def restore_browser_remember_token():
         (() => {
           try {
             const root = window.parent;
-            const token = root.localStorage.getItem("atp_remember_session");
+            const enabled =
+              root.localStorage.getItem("atp_remember_enabled") === "1";
+
+            if (!enabled) return;
+
+            const token = root.localStorage.getItem(
+              "atp_remember_session"
+            );
+
             if (!token) return;
 
             const url = new URL(root.location.href);
+
             if (url.searchParams.get("session") === token) return;
 
             url.searchParams.set("session", token);
@@ -6213,8 +6220,14 @@ def clear_browser_remember_token():
 
 def install_login_autofill_support():
     """
-    Enable browser password-manager autofill and restore the remembered
-    username on this device. The password is never stored by the app.
+    Enable username/password autofill only when Remember me is selected.
+
+    The app stores only:
+    - a remember-enabled flag,
+    - the username,
+    - the persistent session token.
+
+    The raw password is never stored by the app.
     """
     components.html(
         """
@@ -6222,15 +6235,16 @@ def install_login_autofill_support():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpLoginAutofillSupportV1";
+          const KEY = "__atpConditionalLoginAutofillV2";
 
           try { root[KEY]?.cleanup?.(); } catch (error) {}
 
           let stopped = false;
           let timerId = null;
           let attempts = 0;
+          let checkboxHandler = null;
 
-          function findLoginInputs() {
+          function findLoginControls() {
             const form =
               doc.querySelector('form[data-testid="stForm"]') ||
               doc.querySelector('div[data-testid="stForm"]');
@@ -6239,16 +6253,25 @@ def install_login_autofill_support():
 
             const inputs = Array.from(form.querySelectorAll("input"));
             const usernameInput = inputs.find(
-              (input) =>
-                input.type === "text" ||
-                input.getAttribute("autocomplete") === "username"
+              (input) => input.type === "text"
             );
             const passwordInput = inputs.find(
               (input) => input.type === "password"
             );
+            const rememberCheckbox = inputs.find(
+              (input) => input.type === "checkbox"
+            );
 
-            if (!usernameInput || !passwordInput) return null;
-            return { form, usernameInput, passwordInput };
+            if (!usernameInput || !passwordInput || !rememberCheckbox) {
+              return null;
+            }
+
+            return {
+              form,
+              usernameInput,
+              passwordInput,
+              rememberCheckbox
+            };
           }
 
           function setReactInputValue(input, value) {
@@ -6257,54 +6280,107 @@ def install_login_autofill_support():
               prototype,
               "value"
             );
+
             if (descriptor?.set) {
               descriptor.set.call(input, value);
             } else {
               input.value = value;
             }
+
             input.dispatchEvent(new Event("input", { bubbles: true }));
             input.dispatchEvent(new Event("change", { bubbles: true }));
           }
 
-          function applyAutofillSupport() {
+          function applyRememberMode(controls, enabled) {
+            const {
+              form,
+              usernameInput,
+              passwordInput,
+              rememberCheckbox
+            } = controls;
+
+            rememberCheckbox.checked = enabled;
+
+            if (enabled) {
+              form.setAttribute("autocomplete", "on");
+              usernameInput.setAttribute("name", "username");
+              usernameInput.setAttribute("autocomplete", "username");
+              passwordInput.setAttribute("name", "password");
+              passwordInput.setAttribute(
+                "autocomplete",
+                "current-password"
+              );
+
+              const savedUsername = root.localStorage.getItem(
+                "atp_remember_username"
+              );
+
+              if (savedUsername && !usernameInput.value) {
+                setReactInputValue(usernameInput, savedUsername);
+              }
+            } else {
+              form.setAttribute("autocomplete", "off");
+              usernameInput.setAttribute(
+                "autocomplete",
+                "off"
+              );
+              passwordInput.setAttribute(
+                "autocomplete",
+                "new-password"
+              );
+
+              root.localStorage.removeItem("atp_remember_username");
+              root.localStorage.removeItem("atp_remember_session");
+              root.localStorage.removeItem("atp_remember_enabled");
+            }
+          }
+
+          function initialize() {
             if (stopped) return;
 
-            const found = findLoginInputs();
-            if (!found) {
+            const controls = findLoginControls();
+
+            if (!controls) {
               attempts += 1;
-              if (attempts < 40) {
-                timerId = root.setTimeout(applyAutofillSupport, 100);
+              if (attempts < 50) {
+                timerId = root.setTimeout(initialize, 100);
               }
               return;
             }
 
-            const { form, usernameInput, passwordInput } = found;
+            const rememberWasEnabled =
+              root.localStorage.getItem("atp_remember_enabled") === "1";
 
-            form.setAttribute("autocomplete", "on");
+            applyRememberMode(controls, rememberWasEnabled);
 
-            usernameInput.setAttribute("name", "username");
-            usernameInput.setAttribute("autocomplete", "username");
-            usernameInput.setAttribute("autocapitalize", "none");
-            usernameInput.setAttribute("spellcheck", "false");
+            checkboxHandler = () => {
+              applyRememberMode(
+                controls,
+                controls.rememberCheckbox.checked
+              );
+            };
 
-            passwordInput.setAttribute("name", "password");
-            passwordInput.setAttribute("autocomplete", "current-password");
-
-            const savedUsername = root.localStorage.getItem(
-              "atp_remember_username"
+            controls.rememberCheckbox.addEventListener(
+              "change",
+              checkboxHandler
             );
-
-            if (savedUsername && !usernameInput.value) {
-              setReactInputValue(usernameInput, savedUsername);
-            }
           }
 
-          applyAutofillSupport();
+          initialize();
 
           function cleanup() {
             stopped = true;
+
             if (timerId) {
               try { root.clearTimeout(timerId); } catch (error) {}
+            }
+
+            const controls = findLoginControls();
+            if (controls && checkboxHandler) {
+              controls.rememberCheckbox.removeEventListener(
+                "change",
+                checkboxHandler
+              );
             }
           }
 
@@ -6339,6 +6415,45 @@ def save_browser_username(username):
     )
 
 
+def save_browser_remember_enabled():
+    """Record that Remember me was explicitly selected."""
+    components.html(
+        """
+        <script>
+        (() => {
+          try {
+            window.parent.localStorage.setItem(
+              "atp_remember_enabled",
+              "1"
+            );
+          } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def clear_browser_remember_enabled():
+    """Remove the explicit Remember me preference."""
+    components.html(
+        """
+        <script>
+        (() => {
+          try {
+            window.parent.localStorage.removeItem(
+              "atp_remember_enabled"
+            );
+          } catch (error) {}
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def clear_browser_username():
     """Remove the remembered username from this browser/device."""
     components.html(
@@ -6355,6 +6470,58 @@ def clear_browser_username():
         """,
         height=0,
         width=0,
+    )
+
+
+
+def show_login_loading_message():
+    """Hide the old login form with a simple text-only loading screen."""
+    st.markdown(
+        """
+        <style>
+        .atp-login-loading-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at top left, rgba(239,68,68,0.12), transparent 28%),
+                linear-gradient(135deg, #050b16 0%, #0b1220 48%, #020617 100%);
+        }
+
+        .atp-login-loading-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #f8fafc;
+            font-size: 16px;
+            font-weight: 750;
+        }
+
+        .atp-login-loading-spinner {
+            width: 21px;
+            height: 21px;
+            border: 2px solid rgba(255,255,255,0.22);
+            border-top-color: #ff4d3d;
+            border-radius: 50%;
+            animation: atpLoginLoadingSpin 0.72s linear infinite;
+        }
+
+        @keyframes atpLoginLoadingSpin {
+            to { transform: rotate(360deg); }
+        }
+        </style>
+
+        <div class="atp-login-loading-screen">
+            <div class="atp-login-loading-content">
+                <div class="atp-login-loading-spinner"></div>
+                <div>Loading AutoTecPro AI System...</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 
@@ -6448,14 +6615,16 @@ def login_screen():
                 st.session_state.role = user["role"]
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
-                # Remove the old login form immediately before Streamlit
-                # builds the authenticated page.
+                # Remove the old login form immediately, then show the
+                # previous text-only loading state instead of a large logo.
                 login_form_placeholder.empty()
+                show_login_loading_message()
 
                 if remember_me:
-                    # Store only the username and session token. The password
-                    # remains under the browser password manager's control.
+                    # Save login information only when the checkbox is checked.
+                    save_browser_remember_enabled()
                     save_browser_username(user["username"])
+
                     try:
                         session_id = create_login_session(
                             user["username"],
@@ -6468,11 +6637,11 @@ def login_screen():
                         # session still works normally.
                         pass
                 else:
-                    # Session-only login. Remove remembered app data from this
-                    # browser. Browser-saved passwords are managed separately
-                    # by Chrome, Edge, Safari, or another password manager.
+                    # Unchecked means nothing from this app is remembered.
+                    clear_browser_remember_enabled()
                     clear_browser_remember_token()
                     clear_browser_username()
+
                     try:
                         st.query_params.clear()
                     except Exception:
