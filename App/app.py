@@ -7500,38 +7500,25 @@ for slug, icon, label in workspace_items:
     nav_state = "active" if is_selected else "idle"
 
     with st.sidebar.container(
-        key=f"workspace_row_{nav_state}_{slug}"
+        key=f"workspace_nav_{nav_state}_{slug}"
     ):
-        icon_col, label_col = st.columns(
-            [0.16, 0.84],
-            gap="small",
-            vertical_alignment="center",
-        )
-
-        with icon_col:
-            st.markdown(
-                f'<div class="workspace-nav-icon-cell">{icon}</div>',
-                unsafe_allow_html=True,
-            )
-
-        with label_col:
-            if st.button(
-                label,
-                key=f"workspace_textbutton_{slug}",
-                use_container_width=True,
-            ):
-                if not is_selected:
-                    st.session_state.messages = []
-                    st.session_state.conversation_id = None
-                    st.session_state.current_assistant = (
-                        assistant_name
-                    )
-                    st.session_state.chat_file_uploader_generation += 1
-                    clear_managed_uploads(
-                        "chat_managed_uploads",
-                        "chat_managed_upload_generation",
-                    )
-                    st.rerun()
+        if st.button(
+            label,
+            key=f"workspace_button_{slug}",
+            use_container_width=True,
+        ):
+            if not is_selected:
+                st.session_state.messages = []
+                st.session_state.conversation_id = None
+                st.session_state.current_assistant = (
+                    assistant_name
+                )
+                st.session_state.chat_file_uploader_generation += 1
+                clear_managed_uploads(
+                    "chat_managed_uploads",
+                    "chat_managed_upload_generation",
+                )
+                st.rerun()
 
 assistant = st.session_state.current_assistant
 
@@ -11914,203 +11901,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-# ============================================================
-# Final isolated workspace navigation alignment
-# ============================================================
-# This override only affects the AutoTecPro AI workspace heading,
-# the four workspace navigation rows, and the New Case button text.
-st.markdown(
-    """
-    <style>
-    section[data-testid="stSidebar"] .workspace-title {
-        display: block !important;
-        width: 100% !important;
-        margin: 9px 0 16px 0 !important;
-        padding: 0 !important;
-        color: #f8fafc !important;
-        font-size: 20px !important;
-        font-weight: 850 !important;
-        line-height: 1.2 !important;
-        letter-spacing: -0.2px !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_row_"] {
-        width: 100% !important;
-        min-height: 44px !important;
-        margin: 0 0 6px 0 !important;
-        padding: 0 10px !important;
-        border: 1px solid transparent !important;
-        border-radius: 11px !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_row_active_"] {
-        background: rgba(71, 85, 105, 0.52) !important;
-        border-color: rgba(148, 163, 184, 0.10) !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_row_idle_"]:hover {
-        background: rgba(255, 255, 255, 0.055) !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_row_"]
-    div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        align-items: center !important;
-        width: 100% !important;
-        min-height: 44px !important;
-        gap: 10px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_row_"]
-    div[data-testid="column"] {
-        min-height: 44px !important;
-        display: flex !important;
-        align-items: center !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    section[data-testid="stSidebar"] .workspace-nav-icon-cell {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 34px !important;
-        min-width: 34px !important;
-        height: 34px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 22px !important;
-        line-height: 1 !important;
-        text-align: center !important;
-        pointer-events: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"] .stButton {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        width: 100% !important;
-        min-height: 44px !important;
-        height: 44px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        background-image: none !important;
-        box-shadow: none !important;
-        color: #f1f5f9 !important;
-        -webkit-text-fill-color: #f1f5f9 !important;
-        text-align: left !important;
-        font-size: 15px !important;
-        font-weight: 700 !important;
-        line-height: 1.2 !important;
-        transform: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button:hover,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button:active,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button:focus {
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        transform: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-workspace_textbutton_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"] p {
-        display: block !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        color: inherit !important;
-        -webkit-text-fill-color: inherit !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-new_case_button"]
-    .stButton > button,
-    section[data-testid="stSidebar"]
-    .sidebar-newcase-btn .stButton > button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        font-size: 19px !important;
-        font-weight: 820 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-new_case_button"]
-    .stButton > button p,
-    section[data-testid="stSidebar"]
-    .sidebar-newcase-btn .stButton > button p {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: center !important;
-    }
-
-    @media (max-width: 768px) {
-        section[data-testid="stSidebar"]
-        div[class*="st-key-workspace_row_"],
-        section[data-testid="stSidebar"]
-        div[class*="st-key-workspace_row_"]
-        div[data-testid="stHorizontalBlock"] {
-            min-height: 48px !important;
-        }
-
-        section[data-testid="stSidebar"]
-        div[class*="st-key-workspace_textbutton_"]
-        .stButton > button {
-            min-height: 48px !important;
-            height: 48px !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
