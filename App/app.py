@@ -7502,36 +7502,23 @@ for slug, icon, label in workspace_items:
     with st.sidebar.container(
         key=f"workspace_nav_{nav_state}_{slug}"
     ):
-        icon_column, label_column = st.columns(
-            [0.16, 0.84],
-            gap="small",
-            vertical_alignment="center",
-        )
-
-        with icon_column:
-            st.markdown(
-                f'<div class="workspace-nav-icon">{icon}</div>',
-                unsafe_allow_html=True,
-            )
-
-        with label_column:
-            if st.button(
-                label,
-                key=f"workspace_button_{slug}",
-                use_container_width=True,
-            ):
-                if not is_selected:
-                    st.session_state.messages = []
-                    st.session_state.conversation_id = None
-                    st.session_state.current_assistant = (
-                        assistant_name
-                    )
-                    st.session_state.chat_file_uploader_generation += 1
-                    clear_managed_uploads(
-                        "chat_managed_uploads",
-                        "chat_managed_upload_generation",
-                    )
-                    st.rerun()
+        if st.button(
+            label,
+            key=f"workspace_button_{slug}",
+            use_container_width=True,
+        ):
+            if not is_selected:
+                st.session_state.messages = []
+                st.session_state.conversation_id = None
+                st.session_state.current_assistant = (
+                    assistant_name
+                )
+                st.session_state.chat_file_uploader_generation += 1
+                clear_managed_uploads(
+                    "chat_managed_uploads",
+                    "chat_managed_upload_generation",
+                )
+                st.rerun()
 
 assistant = st.session_state.current_assistant
 
@@ -8695,160 +8682,6 @@ st.markdown(
         background-color: rgba(255, 255, 255, 0.08) !important;
         box-shadow: none !important;
         transform: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Definitive workspace alignment override.
-# Uses a real icon column and a separate label column, so emoji glyph widths
-# can no longer shift the wording horizontally.
-st.markdown(
-    """
-    <style>
-    section[data-testid="stSidebar"] .workspace-title {
-        margin: 8px 0 17px 0 !important;
-        font-size: 20px !important;
-        font-weight: 850 !important;
-        line-height: 1.2 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"] {
-        width: 100% !important;
-        min-height: 48px !important;
-        margin: 0 0 5px 0 !important;
-        padding: 0 10px !important;
-        border-radius: 12px !important;
-        background: transparent !important;
-        box-sizing: border-box !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"]
-    > div[data-testid="stVerticalBlock"] {
-        gap: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"]
-    div[data-testid="stHorizontalBlock"] {
-        display: grid !important;
-        grid-template-columns: 42px minmax(0, 1fr) !important;
-        column-gap: 12px !important;
-        width: 100% !important;
-        min-height: 48px !important;
-        margin: 0 !important;
-        align-items: center !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"]
-    div[data-testid="column"] {
-        width: auto !important;
-        min-width: 0 !important;
-        max-width: none !important;
-        flex: none !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"] .workspace-nav-icon {
-        width: 42px !important;
-        height: 48px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: 21px !important;
-        line-height: 1 !important;
-        white-space: nowrap !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton,
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton > button {
-        width: 100% !important;
-        margin: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton > button {
-        min-height: 48px !important;
-        height: 48px !important;
-        padding: 0 !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        transform: none !important;
-    }
-
-    /* Disable every legacy generated icon now that a real icon column exists. */
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton > button::before,
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton > button::after {
-        content: none !important;
-        display: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    div[data-testid="stMarkdownContainer"],
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    div[data-testid="stMarkdownContainer"] p {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        font-size: 15px !important;
-        line-height: 1.2 !important;
-        white-space: nowrap !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_active_"] {
-        background: rgba(75, 157, 214, 0.30) !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_idle_"]:hover {
-        background: rgba(255, 255, 255, 0.055) !important;
-    }
-
-    .sidebar-newcase-btn .stButton > button,
-    .sidebar-newcase-btn .stButton > button p {
-        font-size: 20px !important;
-        font-weight: 800 !important;
-        text-align: center !important;
-        justify-content: center !important;
-    }
-
-    @media (max-width: 768px) {
-        section[data-testid="stSidebar"]
-        [class*="st-key-workspace_nav_"]
-        div[data-testid="stHorizontalBlock"] {
-            grid-template-columns: 40px minmax(0, 1fr) !important;
-            column-gap: 11px !important;
-        }
-
-        section[data-testid="stSidebar"] .workspace-nav-icon {
-            width: 40px !important;
-        }
     }
     </style>
     """,
@@ -11857,3 +11690,214 @@ else:
 
         st.session_state.scroll_to_bottom = True
         st.rerun()
+
+# ============================================================
+# FINAL HISTORY NAVIGATION OVERRIDE
+# Matches the AI Workspace navigation style without changing logic.
+# ============================================================
+st.markdown(
+    """
+    <style>
+    /* The history list should behave like the workspace navigation:
+       transparent by default, one subtle hover/active surface only. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+        position: relative !important;
+        width: 100% !important;
+        min-height: 42px !important;
+        margin: 0 0 5px 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 11px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] > div,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stElementContainer"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stButton"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Conversation title — same clean row treatment as workspace items. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    button[kind="secondary"] {
+        display: flex !important;
+        width: 100% !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        margin: 0 !important;
+        padding: 0 42px 0 12px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 11px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #e8edf5 !important;
+        -webkit-text-fill-color: #e8edf5 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        text-align: left !important;
+        font-size: 14px !important;
+        font-weight: 560 !important;
+        line-height: 1.2 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button::before,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button::after {
+        content: none !important;
+        display: none !important;
+        background: none !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button div[data-testid="stMarkdownContainer"] p {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Only hover or the currently opened conversation receives a surface. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+    .stButton > button {
+        background: rgba(148, 163, 184, 0.10) !important;
+        background-color: rgba(148, 163, 184, 0.10) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_"]
+    .stButton > button {
+        background: rgba(100, 116, 139, 0.34) !important;
+        background-color: rgba(100, 116, 139, 0.34) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+
+    /* Keep metadata visually light and inside the clean row. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .history-row-meta {
+        position: absolute !important;
+        left: 12px !important;
+        bottom: 3px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #7f8b9d !important;
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        pointer-events: none !important;
+        display: none !important;
+    }
+
+    /* Three-dot action remains overlaid, never creates a second grey box. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 50% !important;
+        right: 7px !important;
+        z-index: 20 !important;
+        width: 28px !important;
+        height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: translateY(-50%) !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button {
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #cbd5e1 !important;
+        -webkit-text-fill-color: #cbd5e1 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button:hover {
+        background: rgba(148, 163, 184, 0.16) !important;
+        background-color: rgba(148, 163, 184, 0.16) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            transition: opacity 0.14s ease !important;
+        }
+
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+        [data-testid="stPopover"],
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"]:has([aria-expanded="true"]) {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+    }
+
+    /* Touch devices need the action control available because hover is absent. */
+    @media (hover: none), (pointer: coarse) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
