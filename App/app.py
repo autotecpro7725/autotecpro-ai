@@ -11690,3 +11690,214 @@ else:
 
         st.session_state.scroll_to_bottom = True
         st.rerun()
+
+# ============================================================
+# FINAL HISTORY NAVIGATION OVERRIDE
+# Matches the AI Workspace navigation style without changing logic.
+# ============================================================
+st.markdown(
+    """
+    <style>
+    /* The history list should behave like the workspace navigation:
+       transparent by default, one subtle hover/active surface only. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+        position: relative !important;
+        width: 100% !important;
+        min-height: 42px !important;
+        margin: 0 0 5px 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 11px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] > div,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stElementContainer"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stButton"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Conversation title — same clean row treatment as workspace items. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    button[kind="secondary"] {
+        display: flex !important;
+        width: 100% !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        margin: 0 !important;
+        padding: 0 42px 0 12px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 11px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #e8edf5 !important;
+        -webkit-text-fill-color: #e8edf5 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        text-align: left !important;
+        font-size: 14px !important;
+        font-weight: 560 !important;
+        line-height: 1.2 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button::before,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button::after {
+        content: none !important;
+        display: none !important;
+        background: none !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .stButton > button div[data-testid="stMarkdownContainer"] p {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Only hover or the currently opened conversation receives a surface. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+    .stButton > button {
+        background: rgba(148, 163, 184, 0.10) !important;
+        background-color: rgba(148, 163, 184, 0.10) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_"]
+    .stButton > button {
+        background: rgba(100, 116, 139, 0.34) !important;
+        background-color: rgba(100, 116, 139, 0.34) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+
+    /* Keep metadata visually light and inside the clean row. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    .history-row-meta {
+        position: absolute !important;
+        left: 12px !important;
+        bottom: 3px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #7f8b9d !important;
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        pointer-events: none !important;
+        display: none !important;
+    }
+
+    /* Three-dot action remains overlaid, never creates a second grey box. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 50% !important;
+        right: 7px !important;
+        z-index: 20 !important;
+        width: 28px !important;
+        height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: translateY(-50%) !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button {
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        color: #cbd5e1 !important;
+        -webkit-text-fill-color: #cbd5e1 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button:hover {
+        background: rgba(148, 163, 184, 0.16) !important;
+        background-color: rgba(148, 163, 184, 0.16) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            transition: opacity 0.14s ease !important;
+        }
+
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+        [data-testid="stPopover"],
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"]:has([aria-expanded="true"]) {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+    }
+
+    /* Touch devices need the action control available because hover is absent. */
+    @media (hover: none), (pointer: coarse) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
