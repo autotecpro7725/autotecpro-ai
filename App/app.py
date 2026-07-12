@@ -7502,6 +7502,11 @@ for slug, icon, label in workspace_items:
     with st.sidebar.container(
         key=f"workspace_nav_{nav_state}_{slug}"
     ):
+        st.markdown(
+            f'<div class="workspace-nav-fixed-icon">{icon}</div>',
+            unsafe_allow_html=True,
+        )
+
         if st.button(
             label,
             key=f"workspace_button_{slug}",
@@ -11895,6 +11900,142 @@ st.markdown(
             opacity: 1 !important;
             visibility: visible !important;
             pointer-events: auto !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# Final isolated workspace navigation alignment
+# ============================================================
+# This override only affects the AutoTecPro AI workspace heading,
+# the four workspace navigation rows, and the New Case button text.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 8px 0 16px 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 20px !important;
+        font-weight: 850 !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.2px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"] {
+        position: relative !important;
+        width: 100% !important;
+        margin: 0 0 6px 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    div[data-testid="stElementContainer"]:has(.workspace-nav-fixed-icon) {
+        position: absolute !important;
+        left: 13px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        z-index: 5 !important;
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        height: 34px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"] .workspace-nav-fixed-icon {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 34px !important;
+        height: 34px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 22px !important;
+        line-height: 1 !important;
+        text-align: center !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_button_"]
+    .stButton > button::before {
+        content: none !important;
+        display: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_button_"]
+    .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-height: 44px !important;
+        height: 44px !important;
+        margin: 0 !important;
+        padding: 0 12px 0 58px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        line-height: 1.2 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-new_case_button"]
+    .stButton > button,
+    section[data-testid="stSidebar"]
+    .sidebar-newcase-btn .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        font-size: 19px !important;
+        font-weight: 820 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-new_case_button"]
+    .stButton > button p,
+    section[data-testid="stSidebar"]
+    .sidebar-newcase-btn .stButton > button p {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: center !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        div[class*="st-key-workspace_button_"]
+        .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+            padding-left: 58px !important;
         }
     }
     </style>
