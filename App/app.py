@@ -8583,6 +8583,111 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# Final Pinned / Recent History visual-only cleanup.
+# This override intentionally changes styling only; all existing history,
+# pin, rename, delete, open, and popover functionality remains unchanged.
+st.markdown(
+    """
+    <style>
+    /* Match the clean AI Workspace navigation: no grey boxed cards. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        filter: none !important;
+        margin-bottom: 4px !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div > div,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"],
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    div[data-testid="column"] {
+        border: 0 !important;
+        outline: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [class*="st-key-open_"] .stButton > button {
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+    }
+
+    /* Same subtle hover treatment used by AI Workspace navigation. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover,
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+    [class*="st-key-open_"] .stButton > button {
+        background: rgba(255, 255, 255, 0.055) !important;
+        background-color: rgba(255, 255, 255, 0.055) !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    /* Current conversation follows the AI Workspace active-row treatment. */
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_"] {
+        border: 0 !important;
+        background: rgba(255, 255, 255, 0.085) !important;
+        background-color: rgba(255, 255, 255, 0.085) !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_active_"]
+    [class*="st-key-open_"] .stButton > button {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #ffffff !important;
+        font-weight: 650 !important;
+    }
+
+    /* Preserve the three-dot menu, but reveal it only on row hover. */
+    @media (hover: hover) and (pointer: fine) {
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            transition: opacity 0.14s ease !important;
+        }
+
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover
+        [data-testid="stPopover"],
+        section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+        [data-testid="stPopover"]:has([aria-expanded="true"]) {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+    }
+
+    section[data-testid="stSidebar"] [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button:hover {
+        background: rgba(255, 255, 255, 0.08) !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
     unsafe_allow_html=True,
