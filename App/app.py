@@ -8583,6 +8583,150 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Final workspace grid alignment override.
+# Uses the actual workspace_nav container keys rendered by Streamlit.
+st.markdown(
+    """
+    <style>
+    /* Add a clear gap below the AutoTecPro AI heading. */
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 8px 0 20px 0 !important;
+        padding: 0 !important;
+        line-height: 1.25 !important;
+        text-align: left !important;
+        clear: both !important;
+    }
+
+    /* Keep all navigation rows on the same outer left edge. */
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] {
+        width: 100% !important;
+        margin: 0 0 6px 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton,
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton > button {
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    /*
+       Fixed two-column layout:
+       34px icon column + flexible wording column.
+       Every first letter therefore begins on exactly the same vertical line.
+    */
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton > button {
+        display: grid !important;
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        column-gap: 0 !important;
+        align-items: center !important;
+        justify-items: start !important;
+        min-height: 46px !important;
+        height: 46px !important;
+        padding: 0 12px !important;
+        text-align: left !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"] .stButton > button::before {
+        grid-column: 1 !important;
+        display: flex !important;
+        width: 34px !important;
+        min-width: 34px !important;
+        height: 24px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        font-size: 19px !important;
+        line-height: 24px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_technical"]
+    .stButton > button::before {
+        content: "🔧";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_sales"]
+    .stButton > button::before {
+        content: "📈";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_graphic"]
+    .stButton > button::before {
+        content: "🎨";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_admin"]
+    .stButton > button::before {
+        content: "⚙️";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    .stButton > button div[data-testid="stMarkdownContainer"] {
+        grid-column: 2 !important;
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    .stButton > button div[data-testid="stMarkdownContainer"] p {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 15px !important;
+        line-height: 1.2 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] .workspace-title {
+            margin-bottom: 22px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_nav_"] .stButton > button {
+            grid-template-columns: 36px minmax(0, 1fr) !important;
+            min-height: 50px !important;
+            height: 50px !important;
+            padding: 0 13px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        [class*="st-key-workspace_nav_"] .stButton > button::before {
+            width: 36px !important;
+            min-width: 36px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.sidebar.markdown(
     '<div class="sidebar-action-area">',
     unsafe_allow_html=True,
