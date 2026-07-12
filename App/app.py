@@ -7522,857 +7522,18 @@ for slug, icon, label in workspace_items:
 
 assistant = st.session_state.current_assistant
 
-# Final sidebar-only visual override.
-# Kept separate so legacy/global button rules cannot recolor navigation.
+
+# ============================================================
+# Final repaired sidebar CSS
+# ============================================================
+
 st.markdown(
     """
     <style>
-    /* ============================================================
-       GPT-style workspace navigation: no red/orange backgrounds
-    ============================================================ */
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"],
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"] > div,
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"] .stButton {
-        background: transparent !important;
-        background-color: transparent !important;
-        border: 0 !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"]
-    .stButton > button {
-        width: 100% !important;
-        min-height: 43px !important;
-        height: 43px !important;
-        margin: 0 !important;
-        padding: 0 10px !important;
-        border: 0 !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        background-image: none !important;
-        color: #d7dee8 !important;
-        box-shadow: none !important;
-        filter: none !important;
-        transform: none !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        font-size: 15px !important;
-        font-weight: 620 !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"]
-    .stButton > button:hover {
-        background: rgba(255, 255, 255, 0.055) !important;
-        background-color: rgba(255, 255, 255, 0.055) !important;
-        color: #ffffff !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_active_"],
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_active_"] > div {
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_active_"]
-    .stButton > button {
-        background: rgba(255, 255, 255, 0.085) !important;
-        background-color: rgba(255, 255, 255, 0.085) !important;
-        background-image: none !important;
-        color: #ffffff !important;
-        font-weight: 740 !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"],
-    div[data-testid="stSidebar"]
-    div[class*="st-key-workspace_nav_"]
-    .stButton > button p {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        color: inherit !important;
-        font-size: 15px !important;
-        white-space: nowrap !important;
-    }
-
-    /* ============================================================
-       Pinned / Recents alignment
-    ============================================================ */
-
-    div[data-testid="stSidebar"] .history-section-label {
-        display: block !important;
-        position: relative !important;
-        width: 100% !important;
-        min-height: 20px !important;
-        height: 20px !important;
-        margin: 16px 0 0 2px !important;
-        padding: 0 !important;
-        color: #b8c2cf !important;
-        font-size: 12px !important;
-        font-weight: 780 !important;
-        line-height: 20px !important;
-        text-align: left !important;
-        overflow: visible !important;
-        z-index: 10 !important;
-    }
-
-    div[data-testid="stSidebar"] .history-section-spacer {
-        display: block !important;
-        width: 100% !important;
-        height: 8px !important;
-        min-height: 8px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        clear: both !important;
-    }
-
-    /* ============================================================
-       Compact chat rows and exact icon/text alignment
-    ============================================================ */
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"] {
-        width: 100% !important;
-        height: 42px !important;
-        min-height: 42px !important;
-        max-height: 42px !important;
-        margin: 0 0 7px 0 !important;
-        padding: 0 !important;
-        border: 1px solid rgba(148, 163, 184, 0.24) !important;
-        border-radius: 9px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        width: 100% !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        max-height: 40px !important;
-        gap: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="column"]:first-child {
-        flex: 1 1 auto !important;
-        width: calc(100% - 38px) !important;
-        min-width: 0 !important;
-        max-width: calc(100% - 38px) !important;
-        height: 40px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="column"]:last-child {
-        flex: 0 0 38px !important;
-        width: 38px !important;
-        min-width: 38px !important;
-        max-width: 38px !important;
-        height: 40px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    .stButton,
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    .stButton > button {
-        width: 100% !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        max-height: 40px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    .stButton > button {
-        padding: 0 6px 0 10px !important;
-        border: 0 !important;
-        border-radius: 8px !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        color: #dbe3ed !important;
-        font-size: 12.5px !important;
-        font-weight: 560 !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"],
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    .stButton > button p {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] {
-        width: 38px !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        overflow: hidden !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] > button,
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] button {
-        width: 32px !important;
-        min-width: 32px !important;
-        max-width: 32px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        max-height: 32px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        line-height: 1 !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] svg {
-        display: none !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_pinned_"]::before,
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_pinned_"]::before {
-        top: 21px !important;
-        left: 7px !important;
-        transform: translateY(-50%) !important;
-        line-height: 1 !important;
-    }
-
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_pinned_"]
-    .stButton > button,
-    div[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_pinned_"]
-    .stButton > button {
-        padding-left: 23px !important;
-    }
-
-    /* Keep desktop three dots hidden until hover. */
-    @media (hover: hover) and (pointer: fine) {
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"] {
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]:hover
-        [data-testid="stPopover"],
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_active_"]
-        [data-testid="stPopover"] {
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }
-    }
-
-    @media (max-width: 768px) {
-        div[data-testid="stSidebar"]
-        div[class*="st-key-workspace_nav_"]
-        .stButton > button {
-            min-height: 48px !important;
-            height: 48px !important;
-        }
-
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"] {
-            height: 48px !important;
-            min-height: 48px !important;
-            max-height: 48px !important;
-        }
-
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[data-testid="stHorizontalBlock"],
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[data-testid="column"],
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        .stButton,
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        .stButton > button,
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"] {
-            height: 46px !important;
-            min-height: 46px !important;
-            max-height: 46px !important;
-        }
-
-        div[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"] {
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Definitive sidebar fix: target Streamlit widget key classes directly.
-st.markdown(
-    """
-    <style>
-    /* Workspace navigation — key-level selectors override global red buttons. */
-    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button,
-    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] button {
-        width: 100% !important;
-        min-height: 42px !important;
-        height: 42px !important;
-        margin: 0 !important;
-        padding: 0 10px !important;
-        border: 0 !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        background-image: none !important;
-        color: #d7dee8 !important;
-        box-shadow: none !important;
-        filter: none !important;
-        transform: none !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        font-size: 15px !important;
-        font-weight: 620 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button:hover,
-    section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] button:hover {
-        background: rgba(255,255,255,0.055) !important;
-        background-color: rgba(255,255,255,0.055) !important;
-        color: #ffffff !important;
-        box-shadow: none !important;
-        transform: none !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-workspace_nav_active_"]
-    [class*="st-key-workspace_button_"] .stButton > button {
-        background: rgba(255,255,255,0.085) !important;
-        background-color: rgba(255,255,255,0.085) !important;
-        color: #ffffff !important;
-        font-weight: 740 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-workspace_nav_"] {
-        margin: 0 0 3px 0 !important;
-        padding: 0 !important;
-        background: transparent !important;
-        border: 0 !important;
-        box-shadow: none !important;
-    }
-
-    /* History headings always sit on their own line. */
-    section[data-testid="stSidebar"] .history-section-label {
-        display: block !important;
-        position: relative !important;
-        width: 100% !important;
-        height: auto !important;
-        min-height: 20px !important;
-        margin: 16px 0 8px 2px !important;
-        padding: 0 !important;
-        color: #b8c2cf !important;
-        font-size: 12px !important;
-        font-weight: 780 !important;
-        line-height: 20px !important;
-        text-align: left !important;
-        clear: both !important;
-        z-index: 3 !important;
-    }
-
-    /* One-row history card. Popover is absolutely positioned, so it cannot wrap. */
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
-        position: relative !important;
-        display: block !important;
-        width: 100% !important;
-        min-height: 40px !important;
-        height: 40px !important;
-        max-height: 40px !important;
-        margin: 0 0 7px 0 !important;
-        padding: 0 !important;
-        border: 1px solid rgba(148,163,184,0.24) !important;
-        border-radius: 9px !important;
-        background: transparent !important;
-        overflow: hidden !important;
-        box-shadow: none !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div,
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] > div > div {
-        position: static !important;
-        width: 100% !important;
-        min-height: 38px !important;
-        height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        gap: 0 !important;
-        background: transparent !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton,
-    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
-        width: 100% !important;
-        min-height: 38px !important;
-        height: 38px !important;
-        max-height: 38px !important;
-        margin: 0 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
-        padding: 0 42px 0 10px !important;
-        border: 0 !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        color: #dbe3ed !important;
-        box-shadow: none !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        font-size: 12.5px !important;
-        font-weight: 560 !important;
-        overflow: hidden !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button p,
-    section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button div {
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
-        position: absolute !important;
-        top: 4px !important;
-        right: 4px !important;
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
-        min-height: 32px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        z-index: 8 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] button {
-        width: 32px !important;
-        min-width: 32px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        border-radius: 7px !important;
-        background: transparent !important;
-        color: #93a1b3 !important;
-        box-shadow: none !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        line-height: 1 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] svg {
-        display: none !important;
-    }
-
-    @media (hover:hover) and (pointer:fine) {
-        section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-history_row_"]:hover [data-testid="stPopover"],
-        section[data-testid="stSidebar"] [class*="st-key-history_row_active_"] [data-testid="stPopover"] {
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"]::before,
-    section[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"]::before {
-        top: 20px !important;
-        left: 7px !important;
-        transform: translateY(-50%) !important;
-        line-height: 1 !important;
-        z-index: 7 !important;
-    }
-
-    section[data-testid="stSidebar"] [class*="st-key-history_row_pinned_"] [class*="st-key-open_"] .stButton > button,
-    section[data-testid="stSidebar"] [class*="st-key-history_row_active_pinned_"] [class*="st-key-open_"] .stButton > button {
-        padding-left: 23px !important;
-    }
-
-    @media (max-width:768px) {
-        section[data-testid="stSidebar"] [class*="st-key-workspace_button_"] .stButton > button {
-            min-height: 48px !important;
-            height: 48px !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-history_row_"] {
-            min-height: 46px !important;
-            height: 46px !important;
-            max-height: 46px !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton,
-        section[data-testid="stSidebar"] [class*="st-key-open_"] .stButton > button {
-            min-height: 44px !important;
-            height: 44px !important;
-            max-height: 44px !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-history_row_"] [data-testid="stPopover"] {
-            top: 6px !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Final alignment-only sidebar override.
-# This block is intentionally last so it wins over older global button rules.
-st.markdown(
-    """
-    <style>
-    /* ------------------------------------------------------------
-       AutoTecPro AI navigation: one consistent left edge
-    ------------------------------------------------------------ */
-
-    section[data-testid="stSidebar"] .workspace-title {
-        width: 100% !important;
-        margin: 5px 0 8px 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"] {
-        width: 100% !important;
-        margin: 0 0 3px 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"],
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button {
-        width: 100% !important;
-        min-height: 42px !important;
-        height: 42px !important;
-        margin: 0 !important;
-        padding: 0 8px !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"] {
-        display: flex !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"] p {
-        display: block !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-    }
-
-    /* ------------------------------------------------------------
-       History section spacing
-    ------------------------------------------------------------ */
-
-    section[data-testid="stSidebar"] .history-title {
-        margin: 20px 0 12px 0 !important;
-        padding: 0 !important;
-        line-height: 1.2 !important;
-    }
-
-    section[data-testid="stSidebar"] .history-storage-card {
-        margin: 0 0 18px 0 !important;
-    }
-
-    section[data-testid="stSidebar"] .history-section-label {
-        display: block !important;
-        width: 100% !important;
-        min-height: 20px !important;
-        height: auto !important;
-        margin: 20px 0 12px 0 !important;
-        padding: 0 !important;
-        line-height: 20px !important;
-        text-align: left !important;
-        clear: both !important;
-        overflow: visible !important;
-    }
-
-    section[data-testid="stSidebar"] .history-section-spacer {
-        display: block !important;
-        width: 100% !important;
-        height: 6px !important;
-        min-height: 6px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"] .history-empty-state {
-        margin: 0 0 12px 0 !important;
-    }
-
-    /* Guarantee a visible gap between a section heading and its first row. */
-    section[data-testid="stSidebar"]
-    .history-section-label
-    + div {
-        margin-top: 6px !important;
-    }
-
-    @media (max-width: 768px) {
-        section[data-testid="stSidebar"]
-        [class*="st-key-workspace_button_"]
-        .stButton > button {
-            padding-left: 10px !important;
-        }
-
-        section[data-testid="stSidebar"] .history-title {
-            margin-top: 22px !important;
-            margin-bottom: 14px !important;
-        }
-
-        section[data-testid="stSidebar"] .history-section-label {
-            margin-top: 22px !important;
-            margin-bottom: 14px !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Final workspace spacing and left-alignment override.
-st.markdown(
-    """
-    <style>
-    /* ------------------------------------------------------------
-       Prevent AutoTecPro AI heading from touching/overlapping first item
-    ------------------------------------------------------------ */
     section[data-testid="stSidebar"] .workspace-title {
         display: block !important;
         width: 100% !important;
-        margin: 8px 0 14px 0 !important;
-        padding: 0 !important;
-        line-height: 1.25 !important;
-        text-align: left !important;
-        clear: both !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"]:first-of-type {
-        margin-top: 0 !important;
-    }
-
-    /* ------------------------------------------------------------
-       Force every workspace row to align to the same far-left edge
-    ------------------------------------------------------------ */
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_nav_"] {
-        width: 100% !important;
-        margin: 0 0 5px 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"],
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"] .stButton {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button {
-        width: 100% !important;
-        min-height: 44px !important;
-        height: 44px !important;
-        margin: 0 !important;
-        padding: 0 10px !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        overflow: hidden !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"] {
-        display: flex !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    [class*="st-key-workspace_button_"]
-    .stButton > button
-    div[data-testid="stMarkdownContainer"] p {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    /* Extra breathing room before New Case after the last workspace item. */
-    .sidebar-action-area {
-        margin-top: 26px !important;
-    }
-
-    @media (max-width: 768px) {
-        section[data-testid="stSidebar"] .workspace-title {
-            margin-top: 10px !important;
-            margin-bottom: 16px !important;
-        }
-
-        section[data-testid="stSidebar"]
-        [class*="st-key-workspace_button_"]
-        .stButton > button {
-            min-height: 48px !important;
-            height: 48px !important;
-            padding-left: 11px !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Final fixed-column workspace alignment and heading spacing override.
-st.markdown(
-    """
-    <style>
-    /* ============================================================
-       Workspace navigation — fixed icon column + aligned wording
-    ============================================================ */
-
-    section[data-testid="stSidebar"] .workspace-title {
-        display: block !important;
-        width: 100% !important;
-        margin: 7px 0 13px 0 !important;
+        margin: 8px 0 16px 0 !important;
         padding: 0 !important;
         color: #f8fafc !important;
         font-size: 15px !important;
@@ -8387,6 +7548,9 @@ st.markdown(
         width: 100% !important;
         margin: 0 0 5px 0 !important;
         padding: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
     }
 
     section[data-testid="stSidebar"]
@@ -8396,109 +7560,128 @@ st.markdown(
         width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
     }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_"]
     .stButton > button {
+        position: relative !important;
         display: flex !important;
         width: 100% !important;
         min-height: 44px !important;
         height: 44px !important;
         margin: 0 !important;
-        padding: 0 10px !important;
+        padding: 0 10px 0 54px !important;
         align-items: center !important;
         justify-content: flex-start !important;
         text-align: left !important;
-        gap: 0 !important;
+        border: 0 !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        background-image: none !important;
+        color: #d9e1eb !important;
+        box-shadow: none !important;
+        transform: none !important;
         overflow: hidden !important;
     }
 
-    /* Every icon occupies exactly the same 34px column. */
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button:hover {
+        background: rgba(255, 255, 255, 0.055) !important;
+        color: #ffffff !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_active_"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button {
+        background: rgba(255, 255, 255, 0.085) !important;
+        color: #ffffff !important;
+        font-weight: 760 !important;
+    }
+
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_"]
     .stButton > button::before {
-        display: inline-flex !important;
-        flex: 0 0 34px !important;
+        position: absolute !important;
+        left: 10px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        display: flex !important;
         width: 34px !important;
         min-width: 34px !important;
-        max-width: 34px !important;
-        height: 22px !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        height: 24px !important;
         align-items: center !important;
         justify-content: flex-start !important;
         font-size: 19px !important;
-        line-height: 22px !important;
-        text-align: left !important;
+        line-height: 24px !important;
+        pointer-events: none !important;
     }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_technical"]
-    .stButton > button::before {
-        content: "🔧";
-    }
+    .stButton > button::before { content: "🔧"; }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_sales"]
-    .stButton > button::before {
-        content: "📈";
-    }
+    .stButton > button::before { content: "📈"; }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_graphic"]
-    .stButton > button::before {
-        content: "🎨";
-    }
+    .stButton > button::before { content: "🎨"; }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_admin"]
-    .stButton > button::before {
-        content: "⚙️";
-    }
+    .stButton > button::before { content: "⚙️"; }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_"]
     .stButton > button
-    div[data-testid="stMarkdownContainer"] {
-        display: flex !important;
-        flex: 1 1 auto !important;
-        width: auto !important;
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        width: 100% !important;
         min-width: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
         text-align: left !important;
+        justify-content: flex-start !important;
     }
 
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_"]
     .stButton > button
     div[data-testid="stMarkdownContainer"] p {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
         color: inherit !important;
         font-size: 15px !important;
         font-weight: inherit !important;
         line-height: 1.2 !important;
-        text-align: left !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
 
-    /* ============================================================
-       History / Pinned / Recents heading hierarchy and spacing
-    ============================================================ */
+    .sidebar-action-area {
+        margin-top: 22px !important;
+    }
+
+    section[data-testid="stSidebar"] hr {
+        margin: 13px 0 5px 0 !important;
+        border-color: rgba(148, 163, 184, 0.18) !important;
+    }
 
     section[data-testid="stSidebar"] .history-title {
         display: block !important;
         width: 100% !important;
-        margin: 8px 0 12px 0 !important;
+        margin: 0 0 10px 0 !important;
         padding: 0 !important;
         color: #f8fafc !important;
         font-size: 14px !important;
@@ -8510,31 +7693,19 @@ st.markdown(
     section[data-testid="stSidebar"] .history-storage-card {
         display: flex !important;
         width: 100% !important;
-        margin: 0 0 18px 0 !important;
-        padding: 10px 12px !important;
+        margin: 0 0 14px 0 !important;
+        padding: 9px 11px !important;
         align-items: center !important;
         justify-content: space-between !important;
         gap: 12px !important;
     }
 
-    section[data-testid="stSidebar"] .history-storage-label {
-        margin: 0 !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"] .history-storage-value {
-        margin: 0 0 0 auto !important;
-        text-align: right !important;
-        white-space: nowrap !important;
-    }
-
     section[data-testid="stSidebar"] .history-section-label {
         display: block !important;
-        position: relative !important;
         width: 100% !important;
         min-height: 20px !important;
-        height: auto !important;
-        margin: 20px 0 12px 0 !important;
+        height: 20px !important;
+        margin: 10px 0 8px 0 !important;
         padding: 0 !important;
         color: #f8fafc !important;
         font-size: 14px !important;
@@ -8543,16 +7714,204 @@ st.markdown(
         text-align: left !important;
         clear: both !important;
         overflow: visible !important;
-        z-index: 8 !important;
+        position: relative !important;
+        z-index: 5 !important;
     }
 
-    section[data-testid="stSidebar"] .history-section-spacer {
-        display: block !important;
+    section[data-testid="stSidebar"] .history-empty-state {
+        margin: 0 0 10px 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] {
+        position: relative !important;
         width: 100% !important;
-        height: 6px !important;
-        min-height: 6px !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 0 7px 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] {
+        width: 100% !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
         margin: 0 !important;
         padding: 0 !important;
+        gap: 0 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        align-items: center !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    div[data-testid="column"]:first-child {
+        flex: 1 1 auto !important;
+        width: calc(100% - 38px) !important;
+        min-width: 0 !important;
+        max-width: calc(100% - 38px) !important;
+        height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    div[data-testid="column"]:last-child {
+        flex: 0 0 38px !important;
+        width: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton,
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
+        margin: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button {
+        padding: 0 6px 0 9px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        color: #dbe3ed !important;
+        font-size: 12.5px !important;
+        font-weight: 560 !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"] .stButton > button p {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .history-row-meta { display: none !important; }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        width: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 90ms ease !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]:hover
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_"]
+    [data-testid="stPopover"] {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_"]
+    [data-testid="stPopover"] button {
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        max-height: 30px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 7px !important;
+        background: transparent !important;
+        color: #9aa7b8 !important;
+        box-shadow: none !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 17px !important;
+        line-height: 1 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_pinned_"]::before {
+        content: "📌";
+        position: absolute !important;
+        left: 7px !important;
+        top: 19px !important;
+        transform: translateY(-50%) !important;
+        font-size: 10px !important;
+        z-index: 2 !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_pinned_"]
+    .stButton > button,
+    section[data-testid="stSidebar"]
+    [class*="st-key-history_row_active_pinned_"]
+    .stButton > button {
+        padding-left: 22px !important;
     }
 
     @media (max-width: 768px) {
@@ -8561,21 +7920,22 @@ st.markdown(
         .stButton > button {
             min-height: 48px !important;
             height: 48px !important;
-            padding-left: 11px !important;
+            padding-left: 58px !important;
         }
 
         section[data-testid="stSidebar"]
         [class*="st-key-workspace_button_"]
         .stButton > button::before {
-            flex-basis: 36px !important;
+            left: 11px !important;
             width: 36px !important;
             min-width: 36px !important;
-            max-width: 36px !important;
         }
 
-        section[data-testid="stSidebar"] .history-title,
-        section[data-testid="stSidebar"] .history-section-label {
-            font-size: 14px !important;
+        section[data-testid="stSidebar"]
+        [class*="st-key-history_row_"]
+        [data-testid="stPopover"] {
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }
     }
     </style>
@@ -10372,112 +9732,119 @@ def render_history_cards(conversations):
                 )
 
                 with row:
-                    if st.button(
-                        history_label,
-                        key=f"open_{conversation_id}",
-                        help=title,
-                        use_container_width=True,
-                    ):
-                        st.session_state.conversation_id = (
-                            conversation_id
-                        )
-                        st.session_state.messages = (
-                            load_messages(
+                    title_col, menu_col = st.columns(
+                        [0.86, 0.14],
+                        gap=None,
+                        vertical_alignment="center",
+                    )
+
+                    with title_col:
+                        if st.button(
+                            history_label,
+                            key=f"open_{conversation_id}",
+                            help=title,
+                            use_container_width=True,
+                        ):
+                            st.session_state.conversation_id = (
                                 conversation_id
                             )
-                        )
-                        st.session_state.rename_conversation_id = None
-                        st.session_state.scroll_to_bottom = True
-                        st.rerun()
+                            st.session_state.messages = (
+                                load_messages(
+                                    conversation_id
+                                )
+                            )
+                            st.session_state.rename_conversation_id = None
+                            st.session_state.scroll_to_bottom = True
+                            st.rerun()
 
-                    if time_label:
-                        st.markdown(
-                            (
-                                '<div class="history-row-meta">'
-                                f'{html.escape(time_label)}'
-                                '</div>'
-                            ),
-                            unsafe_allow_html=True,
-                        )
-
-                    with st.popover(
-                        "⋯",
-                        help="Conversation actions",
-                    ):
+                        if time_label:
                             st.markdown(
                                 (
-                                    '<div class="history-menu-title">'
-                                    f'{html.escape(title_short)}'
+                                    '<div class="history-row-meta">'
+                                    f'{html.escape(time_label)}'
                                     '</div>'
                                 ),
                                 unsafe_allow_html=True,
                             )
 
-                            if st.button(
-                                "Rename",
-                                key=f"rename_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                st.session_state.rename_conversation_id = str(
-                                    conversation_id
+                    with menu_col:
+                        with st.popover(
+                            "⋯",
+                            help="Conversation actions",
+                        ):
+                                st.markdown(
+                                    (
+                                        '<div class="history-menu-title">'
+                                        f'{html.escape(title_short)}'
+                                        '</div>'
+                                    ),
+                                    unsafe_allow_html=True,
                                 )
-                                st.session_state.rename_conversation_value = title
-                                st.rerun()
 
-                            pin_label = (
-                                "Unpin chat"
-                                if pinned
-                                else "Pin chat"
-                            )
-
-                            if st.button(
-                                pin_label,
-                                key=f"pin_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                try:
-                                    toggle_pin_conversation(
-                                        conversation_id,
-                                        not pinned,
+                                if st.button(
+                                    "Rename",
+                                    key=f"rename_{conversation_id}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state.rename_conversation_id = str(
+                                        conversation_id
                                     )
+                                    st.session_state.rename_conversation_value = title
                                     st.rerun()
-                                except Exception:
-                                    st.toast(
-                                        "Pin needs the pinned column in Supabase."
+
+                                pin_label = (
+                                    "Unpin chat"
+                                    if pinned
+                                    else "Pin chat"
+                                )
+
+                                if st.button(
+                                    pin_label,
+                                    key=f"pin_{conversation_id}",
+                                    use_container_width=True,
+                                ):
+                                    try:
+                                        toggle_pin_conversation(
+                                            conversation_id,
+                                            not pinned,
+                                        )
+                                        st.rerun()
+                                    except Exception:
+                                        st.toast(
+                                            "Pin needs the pinned column in Supabase."
+                                        )
+
+                                if st.button(
+                                    "Archive",
+                                    key=f"archive_{conversation_id}",
+                                    use_container_width=True,
+                                ):
+                                    archive_conversation(
+                                        conversation_id
                                     )
+                                    if (
+                                        st.session_state.conversation_id
+                                        == conversation_id
+                                    ):
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
 
-                            if st.button(
-                                "Archive",
-                                key=f"archive_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                archive_conversation(
-                                    conversation_id
-                                )
-                                if (
-                                    st.session_state.conversation_id
-                                    == conversation_id
+                                if st.button(
+                                    "Delete",
+                                    key=f"delete_{conversation_id}",
+                                    use_container_width=True,
                                 ):
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
-
-                            if st.button(
-                                "Delete",
-                                key=f"delete_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                delete_conversation(
-                                    conversation_id
-                                )
-                                if (
-                                    st.session_state.conversation_id
-                                    == conversation_id
-                                ):
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
-
+                                    delete_conversation(
+                                        conversation_id
+                                    )
+                                    if (
+                                        st.session_state.conversation_id
+                                        == conversation_id
+                                    ):
+                                        st.session_state.conversation_id = None
+                                        st.session_state.messages = []
+                                    st.rerun()
 
 def install_global_chat_file_dropzone():
     """
