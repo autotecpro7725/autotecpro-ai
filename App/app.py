@@ -13652,7 +13652,104 @@ if assistant == "⚙️ Admin Panel":
 
         st.markdown("#### Latest Learned Knowledge")
         if learned_rows_for_analytics:
-            for row in learned_rows_for_analytics[:80]:
+            learned_page_size = 100
+            learned_total_records = len(learned_rows_for_analytics)
+            learned_total_pages = max(
+                1,
+                (learned_total_records + learned_page_size - 1)
+                // learned_page_size,
+            )
+
+            learned_page_key = "latest_learned_knowledge_page"
+            current_learned_page = int(
+                st.session_state.get(learned_page_key, 1)
+            )
+            current_learned_page = max(
+                1,
+                min(current_learned_page, learned_total_pages),
+            )
+            st.session_state[learned_page_key] = current_learned_page
+
+            def previous_learned_page():
+                st.session_state[learned_page_key] = max(
+                    1,
+                    int(st.session_state.get(learned_page_key, 1)) - 1,
+                )
+
+            def next_learned_page():
+                st.session_state[learned_page_key] = min(
+                    learned_total_pages,
+                    int(st.session_state.get(learned_page_key, 1)) + 1,
+                )
+
+            learned_start_index = (
+                current_learned_page - 1
+            ) * learned_page_size
+            learned_end_index = min(
+                learned_start_index + learned_page_size,
+                learned_total_records,
+            )
+            learned_page_rows = learned_rows_for_analytics[
+                learned_start_index:learned_end_index
+            ]
+
+            st.caption(
+                f"Showing {learned_start_index + 1:,}–"
+                f"{learned_end_index:,} of "
+                f"{learned_total_records:,} learned records"
+            )
+
+            page_previous, page_selector, page_next = st.columns(
+                [1, 2, 1],
+                gap="small",
+            )
+
+            with page_previous:
+                st.button(
+                    "Previous",
+                    key="latest_learned_previous",
+                    use_container_width=True,
+                    disabled=current_learned_page <= 1,
+                    on_click=previous_learned_page,
+                )
+
+            with page_selector:
+                selected_learned_page = st.selectbox(
+                    "Page",
+                    options=list(range(1, learned_total_pages + 1)),
+                    key=learned_page_key,
+                    format_func=lambda page_number: (
+                        f"Page {page_number} of {learned_total_pages}"
+                    ),
+                    label_visibility="collapsed",
+                )
+
+            with page_next:
+                st.button(
+                    "Next",
+                    key="latest_learned_next",
+                    use_container_width=True,
+                    disabled=current_learned_page >= learned_total_pages,
+                    on_click=next_learned_page,
+                )
+
+            # The selectbox updates session state automatically. Recalculate
+            # the visible rows immediately if the user selected another page.
+            selected_learned_page = int(selected_learned_page)
+            if selected_learned_page != current_learned_page:
+                current_learned_page = selected_learned_page
+                learned_start_index = (
+                    current_learned_page - 1
+                ) * learned_page_size
+                learned_end_index = min(
+                    learned_start_index + learned_page_size,
+                    learned_total_records,
+                )
+                learned_page_rows = learned_rows_for_analytics[
+                    learned_start_index:learned_end_index
+                ]
+
+            for row in learned_page_rows:
                 issue = row.get("issue") or row.get("question") or "Learned Knowledge"
                 vehicle = display_learning_vehicle(row)
                 confidence = row.get("confidence_score") or 0
@@ -13671,6 +13768,20 @@ if assistant == "⚙️ Admin Panel":
 
                     if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
                         supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                        remaining_records = max(0, learned_total_records - 1)
+                        remaining_pages = max(
+                            1,
+                            (
+                                remaining_records
+                                + learned_page_size
+                                - 1
+                            )
+                            // learned_page_size,
+                        )
+                        st.session_state[learned_page_key] = min(
+                            current_learned_page,
+                            remaining_pages,
+                        )
                         st.rerun()
         else:
             st.info("No learned knowledge saved yet.")
