@@ -13722,6 +13722,125 @@ if assistant == "⚙️ Admin Panel":
                         )
                         st.rerun()
 
+            st.markdown(
+                """
+                <style>
+                /* Latest Learned Knowledge pagination only.
+                   Plain clickable text with no inherited global button style. */
+                html body div[class*="st-key-latest_learned_text_pagination"] {
+                    width: 100% !important;
+                    margin: 8px 0 0 auto !important;
+                    padding: 0 !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    justify-content: flex-end !important;
+                    align-items: center !important;
+                    gap: 10px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                div[data-testid="column"] {
+                    flex: 0 0 auto !important;
+                    width: auto !important;
+                    min-width: 0 !important;
+                    max-width: none !important;
+                    padding: 0 !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                .stButton,
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                div[data-testid="stButton"] {
+                    width: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button {
+                    width: auto !important;
+                    min-width: 0 !important;
+                    max-width: none !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    margin: 0 !important;
+                    padding: 2px 1px !important;
+                    border: 0 !important;
+                    border-radius: 0 !important;
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    color: #cbd5e1 !important;
+                    -webkit-text-fill-color: #cbd5e1 !important;
+                    font-size: 13px !important;
+                    font-weight: 500 !important;
+                    line-height: 1.2 !important;
+                    transform: none !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button:hover:not(:disabled) {
+                    border: 0 !important;
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    color: #ffffff !important;
+                    -webkit-text-fill-color: #ffffff !important;
+                    text-decoration: underline !important;
+                    transform: none !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button:disabled {
+                    opacity: 1 !important;
+                    border: 0 !important;
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    color: #ffffff !important;
+                    -webkit-text-fill-color: #ffffff !important;
+                    font-weight: 800 !important;
+                    text-decoration: underline !important;
+                    cursor: default !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button p {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    font-size: 13px !important;
+                    line-height: 1.2 !important;
+                }
+
+                .latest-learned-ellipsis {
+                    color: #94a3b8;
+                    font-size: 13px;
+                    line-height: 1.2;
+                    text-align: center;
+                    padding: 2px 0;
+                }
+
+                @media (max-width: 768px) {
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    div[data-testid="stHorizontalBlock"] {
+                        gap: 8px !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button,
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button p,
+                    .latest-learned-ellipsis {
+                        font-size: 12px !important;
+                    }
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
             # Compact page-number navigation at the very bottom-right.
             # Only page numbers are shown; no Previous/Next buttons or
             # top selector are rendered.
@@ -13761,51 +13880,55 @@ if assistant == "⚙️ Admin Panel":
                     previous_number = page_number
 
                 pagination_spacer, pagination_area = st.columns(
-                    [7, 3],
+                    [8, 2],
                     gap="small",
                 )
 
                 with pagination_area:
-                    pagination_columns = st.columns(
-                        len(pagination_items),
-                        gap="small",
-                    )
-
-                    for column, item in zip(
-                        pagination_columns,
-                        pagination_items,
+                    with st.container(
+                        key="latest_learned_text_pagination"
                     ):
-                        with column:
-                            if item == "ellipsis":
-                                st.markdown(
-                                    "<div style='text-align:center;"
-                                    "padding-top:8px;color:#94a3b8;'>…</div>",
-                                    unsafe_allow_html=True,
-                                )
-                            else:
-                                page_number = int(item)
-                                is_current_page = (
-                                    page_number == current_learned_page
-                                )
+                        pagination_columns = st.columns(
+                            len(pagination_items),
+                            gap="small",
+                        )
 
-                                if st.button(
-                                    str(page_number),
-                                    key=(
-                                        "latest_learned_page_"
-                                        f"{page_number}"
-                                    ),
-                                    use_container_width=True,
-                                    disabled=is_current_page,
-                                    type=(
-                                        "primary"
-                                        if is_current_page
-                                        else "secondary"
-                                    ),
-                                ):
-                                    st.session_state[
-                                        learned_page_key
-                                    ] = page_number
-                                    st.rerun()
+                        for column, item in zip(
+                            pagination_columns,
+                            pagination_items,
+                        ):
+                            with column:
+                                if item == "ellipsis":
+                                    st.markdown(
+                                        "<div class='latest-learned-ellipsis'>"
+                                        "…</div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                else:
+                                    page_number = int(item)
+                                    is_current_page = (
+                                        page_number
+                                        == current_learned_page
+                                    )
+
+                                    if st.button(
+                                        str(page_number),
+                                        key=(
+                                            "latest_learned_page_"
+                                            f"{page_number}"
+                                        ),
+                                        use_container_width=False,
+                                        disabled=is_current_page,
+                                        help=(
+                                            f"Open page {page_number}"
+                                            if not is_current_page
+                                            else f"Current page {page_number}"
+                                        ),
+                                    ):
+                                        st.session_state[
+                                            learned_page_key
+                                        ] = page_number
+                                        st.rerun()
         else:
             st.info("No learned knowledge saved yet.")
 
