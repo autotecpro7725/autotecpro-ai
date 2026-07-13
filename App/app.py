@@ -11671,6 +11671,142 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
+def _admin_upload_fragment_decorator(function):
+    """
+    Use a fragment when supported so database selection reruns only the
+    Upload Knowledge section. Older Streamlit versions safely fall back to
+    the original full-page behavior without changing the interface.
+    """
+    fragment = getattr(st, "fragment", None)
+    if callable(fragment):
+        return fragment(function)
+    return function
+
+
+@_admin_upload_fragment_decorator
+def render_admin_upload_knowledge_tab():
+    st.markdown("### Upload Documents to Knowledge Base")
+    st.caption(
+        "Choose the target database, add optional image context, then upload. "
+        "Changing the database no longer reruns the entire Admin Panel."
+    )
+
+    database_choice = st.selectbox(
+        "Choose database",
+        [
+            "Technical Support Database",
+            "Sales & Marketing Database"
+        ],
+        key="stable_admin_database_choice"
+    )
+
+    admin_context = st.text_area(
+        "Optional context for uploaded images",
+        placeholder=(
+            "Example: This chart is for Ford F-150 2015–2021 and should be "
+            "used to identify SYNC version and climate-control type."
+        ),
+        help=(
+            "Optional. This helps the AI interpret reference images accurately. "
+            "It is not required for PDF, TXT, or DOCX files."
+        ),
+        key="stable_admin_upload_context"
+    )
+
+    admin_files = managed_file_uploader(
+        storage_key="admin_managed_uploads",
+        generation_key="admin_managed_upload_generation",
+        widget_prefix="admin_knowledge",
+        accepted_types=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+        heading="Upload documents or reference images",
+    )
+
+    st.caption(
+        "Reference images are converted into searchable text before being "
+        "added to the knowledge base."
+    )
+
+    _admin_upload_left, _admin_upload_center, _admin_upload_right = st.columns(
+        [3, 4, 3],
+        gap="small",
+    )
+    with _admin_upload_center:
+        admin_upload_submitted = st.button(
+            "Upload to Knowledge Base",
+            key="stable_admin_knowledge_upload_submit",
+            use_container_width=True,
+        )
+
+    if admin_upload_submitted:
+        if not admin_files:
+            st.warning("Please upload at least one document or image.")
+        else:
+            selected_vector_store_id = (
+                TECHNICAL_VECTOR_STORE_ID
+                if database_choice == "Technical Support Database"
+                else SALES_VECTOR_STORE_ID
+            )
+
+            progress = st.progress(0)
+            total_files = len(admin_files)
+
+            for index, admin_file in enumerate(admin_files, start=1):
+                try:
+                    if is_admin_image_file(admin_file):
+                        with st.spinner(
+                            f"Analyzing image: {admin_file.name}"
+                        ):
+                            (
+                                searchable_file,
+                                extracted_text
+                            ) = convert_admin_image_to_knowledge_file(
+                                admin_file,
+                                database_choice,
+                                admin_context
+                            )
+
+                            file_id = upload_to_vector_store(
+                                searchable_file,
+                                selected_vector_store_id
+                            )
+
+                        st.success(
+                            f"Image converted and uploaded: {admin_file.name} "
+                            f"| Search file: {searchable_file.name} "
+                            f"| File ID: {file_id}"
+                        )
+
+                        with st.expander(
+                            f"Extracted knowledge — {admin_file.name}"
+                        ):
+                            st.text(extracted_text)
+                    else:
+                        file_id = upload_to_vector_store(
+                            admin_file,
+                            selected_vector_store_id
+                        )
+                        st.success(
+                            f"Uploaded: {admin_file.name} "
+                            f"| File ID: {file_id}"
+                        )
+
+                except Exception as error:
+                    st.error(
+                        f"Failed to upload {admin_file.name}: {error}"
+                    )
+
+                progress.progress(index / total_files)
+
+            st.info(
+                "Upload completed. OpenAI may take a short time to finish "
+                "indexing new knowledge before it appears in search results."
+            )
+            clear_managed_uploads(
+                "admin_managed_uploads",
+                "admin_managed_upload_generation",
+            )
+
+
 # ============================================================
 # Admin Panel
 # ============================================================
@@ -11947,126 +12083,7 @@ if assistant == "⚙️ Admin Panel":
                             )
 
     with tab2:
-        st.markdown("### Upload Documents to Knowledge Base")
-        st.caption(
-            "Choose the target database, add optional image context, then upload. "
-            "Changing the database no longer reruns the entire Admin Panel."
-        )
-
-        database_choice = st.selectbox(
-            "Choose database",
-            [
-                "Technical Support Database",
-                "Sales & Marketing Database"
-            ],
-            key="stable_admin_database_choice"
-        )
-
-        admin_context = st.text_area(
-            "Optional context for uploaded images",
-            placeholder=(
-                "Example: This chart is for Ford F-150 2015–2021 and should be "
-                "used to identify SYNC version and climate-control type."
-            ),
-            help=(
-                "Optional. This helps the AI interpret reference images accurately. "
-                "It is not required for PDF, TXT, or DOCX files."
-            ),
-            key="stable_admin_upload_context"
-        )
-
-        admin_files = managed_file_uploader(
-            storage_key="admin_managed_uploads",
-            generation_key="admin_managed_upload_generation",
-            widget_prefix="admin_knowledge",
-            accepted_types=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
-            heading="Upload documents or reference images",
-        )
-
-        st.caption(
-            "Reference images are converted into searchable text before being "
-            "added to the knowledge base."
-        )
-
-        _admin_upload_left, _admin_upload_center, _admin_upload_right = st.columns(
-            [3, 4, 3],
-            gap="small",
-        )
-        with _admin_upload_center:
-            admin_upload_submitted = st.button(
-                "Upload to Knowledge Base",
-                key="stable_admin_knowledge_upload_submit",
-                use_container_width=True,
-            )
-
-        if admin_upload_submitted:
-            if not admin_files:
-                st.warning("Please upload at least one document or image.")
-            else:
-                selected_vector_store_id = (
-                    TECHNICAL_VECTOR_STORE_ID
-                    if database_choice == "Technical Support Database"
-                    else SALES_VECTOR_STORE_ID
-                )
-
-                progress = st.progress(0)
-                total_files = len(admin_files)
-
-                for index, admin_file in enumerate(admin_files, start=1):
-                    try:
-                        if is_admin_image_file(admin_file):
-                            with st.spinner(
-                                f"Analyzing image: {admin_file.name}"
-                            ):
-                                (
-                                    searchable_file,
-                                    extracted_text
-                                ) = convert_admin_image_to_knowledge_file(
-                                    admin_file,
-                                    database_choice,
-                                    admin_context
-                                )
-
-                                file_id = upload_to_vector_store(
-                                    searchable_file,
-                                    selected_vector_store_id
-                                )
-
-                            st.success(
-                                f"Image converted and uploaded: {admin_file.name} "
-                                f"| Search file: {searchable_file.name} "
-                                f"| File ID: {file_id}"
-                            )
-
-                            with st.expander(
-                                f"Extracted knowledge — {admin_file.name}"
-                            ):
-                                st.text(extracted_text)
-                        else:
-                            file_id = upload_to_vector_store(
-                                admin_file,
-                                selected_vector_store_id
-                            )
-                            st.success(
-                                f"Uploaded: {admin_file.name} "
-                                f"| File ID: {file_id}"
-                            )
-
-                    except Exception as error:
-                        st.error(
-                            f"Failed to upload {admin_file.name}: {error}"
-                        )
-
-                    progress.progress(index / total_files)
-
-                st.info(
-                    "Upload completed. OpenAI may take a short time to finish "
-                    "indexing new knowledge before it appears in search results."
-                )
-                clear_managed_uploads(
-                    "admin_managed_uploads",
-                    "admin_managed_upload_generation",
-                )
+        render_admin_upload_knowledge_tab()
 
     with tab3:
         st.markdown("### 🧠 AI Learning")
