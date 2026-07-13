@@ -12091,3 +12091,38 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+# Final isolated AutoTecPro AI heading spacing override.
+# This changes only the heading size and the space above/below it.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin-top: 18px !important;
+        margin-right: 0 !important;
+        margin-bottom: 18px !important;
+        margin-left: 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 21px !important;
+        font-weight: 850 !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.2px !important;
+        text-align: left !important;
+        clear: both !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] .workspace-title {
+            margin-top: 16px !important;
+            margin-bottom: 16px !important;
+            font-size: 20px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
