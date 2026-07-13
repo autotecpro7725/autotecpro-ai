@@ -10099,24 +10099,23 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
 
 def get_conversation_storage_count(username, role=None):
     """
-    Count every active saved conversation.
+    Count active saved conversations for the currently signed-in account.
 
-    This is intentionally separate from load_conversations(), which returns
-    only the latest 50 rows for fast sidebar rendering.
+    Admin and staff histories are intentionally separated by username.
     """
+    username = str(username or "").strip()
+    if not username:
+        return 0
+
     try:
-        query = (
+        result = (
             supabase
             .table("conversations")
             .select("id", count="exact")
+            .eq("username", username)
+            .or_("archived.is.null,archived.eq.false")
+            .execute()
         )
-
-        if str(role or "").lower() != "admin":
-            query = query.eq("username", username)
-
-        query = query.or_("archived.is.null,archived.eq.false")
-        result = query.execute()
-
         if result.count is not None:
             return int(result.count)
     except Exception:
@@ -10128,30 +10127,144 @@ def get_conversation_storage_count(username, role=None):
             order_columns=["updated_at", "created_at"],
             limit=5000,
         )
-
-        active_rows = [
-            row for row in rows
-            if not (
+        return len([
+            row
+            for row in rows
+            if str(row.get("username", "")).lower() == username.lower()
+            and not (
                 row.get("archived") is True
                 or str(row.get("archived")).lower() == "true"
             )
-        ]
-
-        if str(role or "").lower() != "admin":
-            own_rows = [
-                row for row in active_rows
-                if str(row.get("username", "")).lower()
-                == str(username or "").lower()
-            ]
-            return len(own_rows)
-
-        return len(active_rows)
+        ])
     except Exception:
         return 0
 
 
+def detach_learning_records_from_conversation(conversation_id):
+    """
+    Preserve learned knowledge before an old chat is removed.
+
+    The learning record remains in learned_knowledge and only its optional
+    source-conversation reference is cleared. Vector-store files and OpenAI
+    knowledge are not touched.
+    """
+    if not conversation_id:
+        return
+
+    columns = set(get_table_columns("learned_knowledge"))
+    if "source_conversation_id" not in columns:
+        return
+
+    try:
+        (
+            supabase
+            .table("learned_knowledge")
+            .update({"source_conversation_id": None})
+            .eq("source_conversation_id", conversation_id)
+            .execute()
+        )
+    except Exception as error:
+        # Automatic cleanup must stop rather than risk deleting learning data.
+        raise RuntimeError(
+            "Could not safely detach learned knowledge from the oldest chat. "
+            "No automatic conversation deletion was performed."
+        ) from error
+
+
+def delete_conversation_for_retention(username, conversation_id):
+    """
+    Delete one old unpinned conversation belonging to one specific user.
+
+    Only learned-reference links, message rows, and the conversation row are
+    affected. AI knowledge records and vector-store content remain intact.
+    """
+    username = str(username or "").strip()
+    if not username or not conversation_id:
+        return
+
+    # Confirm that this row belongs to the user and is not pinned.
+    result = (
+        supabase
+        .table("conversations")
+        .select("id, username, pinned")
+        .eq("id", conversation_id)
+        .eq("username", username)
+        .limit(1)
+        .execute()
+    )
+    rows = list(result.data or [])
+    if not rows:
+        return
+
+    if bool(rows[0].get("pinned", False)):
+        return
+
+    # Protect long-term learning before deleting short-term chat history.
+    detach_learning_records_from_conversation(conversation_id)
+
+    (
+        supabase
+        .table("messages")
+        .delete()
+        .eq("conversation_id", conversation_id)
+        .execute()
+    )
+    (
+        supabase
+        .table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+        .eq("username", username)
+        .eq("pinned", False)
+        .execute()
+    )
+
+
+def make_room_for_new_unpinned_conversation(
+    username,
+    max_unpinned=MAX_UNPINNED_CONVERSATIONS_PER_USER,
+):
+    """
+    Keep at most 100 unpinned conversations for one user account.
+
+    Pinned conversations are unlimited and never included in automatic
+    deletion. When the user already has 100 unpinned chats, the oldest
+    unpinned chat is removed before the new chat is created.
+    """
+    username = str(username or "").strip()
+    if not username:
+        raise RuntimeError("A valid username is required to save chat history.")
+
+    try:
+        max_unpinned = max(1, int(max_unpinned))
+    except (TypeError, ValueError):
+        max_unpinned = MAX_UNPINNED_CONVERSATIONS_PER_USER
+
+    result = (
+        supabase
+        .table("conversations")
+        .select("id, username, pinned, created_at, updated_at")
+        .eq("username", username)
+        .eq("pinned", False)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    unpinned_rows = list(result.data or [])
+    delete_count = max(0, len(unpinned_rows) - max_unpinned + 1)
+
+    for conversation in unpinned_rows[:delete_count]:
+        delete_conversation_for_retention(
+            username,
+            conversation.get("id"),
+        )
+
+
 def create_conversation(username, assistant_name, first_message=None):
     """Create a new conversation and return its ID."""
+    # Histories are isolated by username. Pinned chats are unlimited; only
+    # unpinned chats are capped at 100 for this account.
+    make_room_for_new_unpinned_conversation(username)
     payload = {
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
@@ -10217,22 +10330,27 @@ def load_messages(conversation_id):
 
 def load_conversations(username, role=None):
     """
-    Reliable history loader.
+    Load only the signed-in user's active conversation history.
 
-    Important: this intentionally does NOT filter by assistant.
-    Earlier versions filtered by assistant label and username too strictly,
-    which caused saved cases to disappear from the sidebar.
+    Pinned conversations are unlimited and displayed first. Up to the latest
+    100 unpinned conversations are displayed beneath them. Assistant type does
+    not restrict visibility.
     """
+    username = str(username or "").strip()
+    if not username:
+        return []
+
     result = (
         supabase
         .table("conversations")
         .select("*")
+        .eq("username", username)
         .order("updated_at", desc=True)
-        .limit(100)
+        .limit(1000)
         .execute()
     )
 
-    rows = result.data or []
+    rows = list(result.data or [])
 
     def is_active(row):
         value = row.get("archived")
@@ -10240,32 +10358,35 @@ def load_conversations(username, role=None):
 
     active_rows = [row for row in rows if is_active(row)]
 
-    # Pinned conversations stay at the top; newest first inside each group.
-    active_rows = sorted(
-        active_rows,
-        key=lambda row: (
-            0 if bool(row.get("pinned", False)) else 1,
-            str(row.get("updated_at") or row.get("created_at") or "")
+    pinned_rows = sorted(
+        [
+            row
+            for row in active_rows
+            if bool(row.get("pinned", False))
+        ],
+        key=lambda row: str(
+            row.get("updated_at")
+            or row.get("created_at")
+            or ""
         ),
-        reverse=False
+        reverse=True,
     )
-    pinned_rows = [r for r in active_rows if bool(r.get("pinned", False))]
-    normal_rows = [r for r in active_rows if not bool(r.get("pinned", False))]
-    pinned_rows = sorted(pinned_rows, key=lambda r: str(r.get("updated_at") or r.get("created_at") or ""), reverse=True)
-    normal_rows = sorted(normal_rows, key=lambda r: str(r.get("updated_at") or r.get("created_at") or ""), reverse=True)
-    active_rows = pinned_rows + normal_rows
 
-    # Admin can see all cases. Staff sees their own cases first.
-    if str(role or "").lower() == "admin":
-        return active_rows[:50]
+    normal_rows = sorted(
+        [
+            row
+            for row in active_rows
+            if not bool(row.get("pinned", False))
+        ],
+        key=lambda row: str(
+            row.get("updated_at")
+            or row.get("created_at")
+            or ""
+        ),
+        reverse=True,
+    )[:MAX_UNPINNED_CONVERSATIONS_PER_USER]
 
-    own_rows = [
-        row for row in active_rows
-        if str(row.get("username", "")).lower() == str(username or "").lower()
-    ]
-
-    # Fallback: if username changed during testing, show all active rows.
-    return (own_rows or active_rows)[:50]
+    return pinned_rows + normal_rows
 
 
 def archive_conversation(conversation_id):
