@@ -182,11 +182,127 @@ def woocommerce_api_request(endpoint, params=None):
     return safe_json_response(response)
 
 
-def sanitize_woocommerce_order(order):
-    """Keep only fields needed for internal order support."""
+def _clean_woocommerce_meta_text(value):
+    """Convert WooCommerce metadata labels and values to readable plain text."""
+    if value is None:
+        return ""
+
+    if isinstance(value, (dict, list, tuple)):
+        try:
+            value = json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            value = str(value)
+
+    cleaned = html.unescape(str(value))
+    cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _friendly_woocommerce_meta_label(label):
+    """Shorten common product-option questions into support-friendly labels."""
+    cleaned = _clean_woocommerce_meta_text(label)
+    lowered = cleaned.lower()
+
+    label_rules = [
+        (
+            ("which year", "year is your truck", "vehicle year", "truck year"),
+            "Vehicle Year",
+        ),
+        (
+            ("microsoft sync", "sync version", "original sync"),
+            "Original Microsoft SYNC Version",
+        ),
+        (
+            ("climate control", "a/c system", "ac system"),
+            "Climate Control",
+        ),
+        (
+            ("left-hand drive", "right-hand drive", "drive side", "steering side"),
+            "Drive Side",
+        ),
+        (
+            ("hardware version", "select the hardware", "ram", "storage"),
+            "Hardware Version",
+        ),
+        (
+            ("dash camera", "dvr", "usb dash camera"),
+            "DVR / Dash Camera",
+        ),
+        (
+            ("dashboard picture", "original dashboard", "picture required"),
+            "Original Dashboard Picture",
+        ),
+    ]
+
+    for keywords, friendly_label in label_rules:
+        if any(keyword in lowered for keyword in keywords):
+            return friendly_label
+
+    cleaned = cleaned.strip(" :-")
+    return cleaned or "Product Option"
+
+
+def _sanitize_woocommerce_item_metadata(metadata, technical_view=False):
+    """
+    Return visible customer-selected WooCommerce product options.
+
+    Hidden/internal keys are excluded. Technical Support also excludes
+    metadata that appears to contain pricing or payment information.
+    """
+    clean_metadata = []
+
+    financial_terms = {
+        "price", "cost", "subtotal", "total", "tax", "fee",
+        "discount", "coupon", "payment", "currency", "refund amount",
+    }
+
+    for entry in metadata or []:
+        if not isinstance(entry, dict):
+            continue
+
+        raw_key = str(entry.get("key") or "").strip()
+        if not raw_key or raw_key.startswith("_"):
+            continue
+
+        raw_label = entry.get("display_key") or raw_key
+        raw_value = (
+            entry.get("display_value")
+            if entry.get("display_value") not in (None, "")
+            else entry.get("value")
+        )
+
+        label = _friendly_woocommerce_meta_label(raw_label)
+        value = _clean_woocommerce_meta_text(raw_value)
+
+        if not value:
+            continue
+
+        if technical_view:
+            searchable = f"{raw_key} {label}".lower()
+            if any(term in searchable for term in financial_terms):
+                continue
+
+        clean_metadata.append({
+            "label": label,
+            "value": value,
+        })
+
+    return clean_metadata
+
+
+def sanitize_woocommerce_order(order, access_level="sales"):
+    """
+    Return a WooCommerce order with fields appropriate for the workspace.
+
+    Technical Support receives order, customer, shipping, product, SKU,
+    quantity, status, notes, and selected product options, but no financial
+    fields. Sales & Marketing keeps the existing full commercial order view.
+    """
     if not isinstance(order, dict):
         return {}
 
+    technical_view = str(access_level or "").strip().lower() == "technical"
     billing = order.get("billing") or {}
     shipping = order.get("shipping") or {}
 
@@ -194,42 +310,62 @@ def sanitize_woocommerce_order(order):
     for item in order.get("line_items") or []:
         if not isinstance(item, dict):
             continue
-        line_items.append({
+
+        clean_item = {
             "product_id": item.get("product_id"),
             "variation_id": item.get("variation_id"),
             "name": item.get("name"),
             "sku": item.get("sku"),
             "quantity": item.get("quantity"),
-            "subtotal": item.get("subtotal"),
-            "total": item.get("total"),
-            "tax": item.get("total_tax"),
-        })
+            "selected_options": _sanitize_woocommerce_item_metadata(
+                item.get("meta_data") or [],
+                technical_view=technical_view,
+            ),
+        }
+
+        if not technical_view:
+            clean_item.update({
+                "subtotal": item.get("subtotal"),
+                "total": item.get("total"),
+                "tax": item.get("total_tax"),
+            })
+
+        line_items.append(clean_item)
 
     shipping_lines = []
     for item in order.get("shipping_lines") or []:
         if not isinstance(item, dict):
             continue
-        shipping_lines.append({
+
+        clean_shipping = {
             "method_title": item.get("method_title"),
             "method_id": item.get("method_id"),
-            "total": item.get("total"),
-        })
+        }
+
+        if not technical_view:
+            clean_shipping["total"] = item.get("total")
+
+        shipping_lines.append(clean_shipping)
 
     refunds = []
     for item in order.get("refunds") or []:
         if not isinstance(item, dict):
             continue
-        refunds.append({
+
+        clean_refund = {
             "id": item.get("id"),
             "reason": item.get("reason"),
-            "total": item.get("total"),
-        })
+        }
 
-    return {
+        if not technical_view:
+            clean_refund["total"] = item.get("total")
+
+        refunds.append(clean_refund)
+
+    clean_order = {
         "id": order.get("id"),
         "number": order.get("number"),
         "status": order.get("status"),
-        "currency": order.get("currency"),
         "date_created": order.get("date_created"),
         "date_modified": order.get("date_modified"),
         "date_paid": order.get("date_paid"),
@@ -261,20 +397,32 @@ def sanitize_woocommerce_order(order):
             "country": shipping.get("country"),
             "phone": shipping.get("phone"),
         },
-        "payment_method_title": order.get("payment_method_title"),
-        "shipping_total": order.get("shipping_total"),
-        "discount_total": order.get("discount_total"),
-        "total_tax": order.get("total_tax"),
-        "total": order.get("total"),
-        "prices_include_tax": order.get("prices_include_tax"),
         "line_items": line_items,
         "shipping_lines": shipping_lines,
-        "coupon_lines": order.get("coupon_lines") or [],
         "refunds": refunds,
+        "refund_status": (
+            "refunded"
+            if str(order.get("status") or "").lower() == "refunded"
+            else ("partial_or_recorded" if refunds else "none")
+        ),
     }
 
+    if not technical_view:
+        clean_order.update({
+            "currency": order.get("currency"),
+            "payment_method_title": order.get("payment_method_title"),
+            "shipping_total": order.get("shipping_total"),
+            "discount_total": order.get("discount_total"),
+            "total_tax": order.get("total_tax"),
+            "total": order.get("total"),
+            "prices_include_tax": order.get("prices_include_tax"),
+            "coupon_lines": order.get("coupon_lines") or [],
+        })
 
-def get_woocommerce_order_by_id(order_id):
+    return clean_order
+
+
+def get_woocommerce_order_by_id(order_id, access_level="sales"):
     """Retrieve one WooCommerce order using its numeric internal ID."""
     clean_order_id = str(order_id or "").strip()
     if not re.fullmatch(r"\d{1,12}", clean_order_id):
@@ -285,18 +433,22 @@ def get_woocommerce_order_by_id(order_id):
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "order_id",
-        "order": sanitize_woocommerce_order(order),
+        "access_level": access_level,
+        "order": sanitize_woocommerce_order(order, access_level),
     }
 
 
-def search_woocommerce_order_number(order_number):
+def search_woocommerce_order_number(order_number, access_level="sales"):
     """Find an order by internal ID or displayed WooCommerce order number."""
     clean_number = re.sub(r"[^0-9]", "", str(order_number or ""))
     if not clean_number:
         raise RuntimeError("A valid order number was not provided.")
 
     try:
-        direct_result = get_woocommerce_order_by_id(clean_number)
+        direct_result = get_woocommerce_order_by_id(
+            clean_number,
+            access_level=access_level,
+        )
         order = direct_result.get("order") or {}
         if str(order.get("number") or order.get("id") or "") == clean_number:
             return direct_result
@@ -318,19 +470,22 @@ def search_woocommerce_order_number(order_number):
         displayed_number = str(order.get("number") or "")
         internal_id = str(order.get("id") or "")
         if clean_number in {displayed_number, internal_id}:
-            matches.append(sanitize_woocommerce_order(order))
+            matches.append(
+                sanitize_woocommerce_order(order, access_level)
+            )
 
     return {
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "order_number",
+        "access_level": access_level,
         "searched_order_number": clean_number,
         "count": len(matches),
         "orders": matches,
     }
 
 
-def search_woocommerce_orders_by_email(email_address):
+def search_woocommerce_orders_by_email(email_address, access_level="sales"):
     """Search recent orders by exact billing email address."""
     email_value = str(email_address or "").strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email_value):
@@ -352,19 +507,22 @@ def search_woocommerce_orders_by_email(email_address):
             (order.get("billing") or {}).get("email") or ""
         ).strip().lower()
         if order_email == email_value:
-            matches.append(sanitize_woocommerce_order(order))
+            matches.append(
+                sanitize_woocommerce_order(order, access_level)
+            )
 
     return {
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "customer_email",
+        "access_level": access_level,
         "searched_email": email_value,
         "count": len(matches),
         "orders": matches,
     }
 
 
-def get_recent_woocommerce_orders(limit=10, status="any"):
+def get_recent_woocommerce_orders(limit=10, status="any", access_level="sales"):
     """Retrieve a small list of recent WooCommerce orders."""
     try:
         clean_limit = int(limit)
@@ -390,7 +548,7 @@ def get_recent_woocommerce_orders(limit=10, status="any"):
 
     orders = woocommerce_api_request("orders", params=params)
     clean_orders = [
-        sanitize_woocommerce_order(order)
+        sanitize_woocommerce_order(order, access_level)
         for order in orders if isinstance(order, dict)
     ] if isinstance(orders, list) else []
 
@@ -398,6 +556,7 @@ def get_recent_woocommerce_orders(limit=10, status="any"):
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "recent_orders",
+        "access_level": access_level,
         "status_filter": clean_status,
         "count": len(clean_orders),
         "orders": clean_orders,
@@ -435,7 +594,6 @@ def get_woocommerce_order_notes(order_id):
         "count": len(clean_notes),
         "notes": clean_notes,
     }
-
 
 
 def geocode_open_meteo(location):
@@ -775,12 +933,18 @@ def detect_live_request(prompt, selected_assistant=None):
         or ""
     )
 
-    # WooCommerce order data is intentionally available only in
-    # the Sales & Marketing workspace.
-    if (
-        active_assistant == "📈 Sales & Marketing"
-        and woocommerce_is_configured()
-    ):
+    woo_allowed_assistants = {
+        "🔧 Technical Support",
+        "📈 Sales & Marketing",
+    }
+
+    if active_assistant in woo_allowed_assistants:
+        access_level = (
+            "technical"
+            if active_assistant == "🔧 Technical Support"
+            else "sales"
+        )
+
         notes_match = re.search(
             r"\b(?:notes?|order\s+notes?)\b.*?"
             r"\b(?:order|order\s*#|#)\s*[:#-]?\s*(\d{3,12})\b",
@@ -791,6 +955,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_order_notes",
                 "order_id": notes_match.group(1),
+                "access_level": access_level,
             }
 
         email_match = re.search(
@@ -808,6 +973,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_customer_email",
                 "email": email_match.group(0),
+                "access_level": access_level,
             }
 
         recent_order_match = re.search(
@@ -820,6 +986,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_recent_orders",
                 "limit": int(recent_order_match.group(1) or 10),
+                "access_level": access_level,
             }
 
         order_match = re.search(
@@ -832,12 +999,11 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_order",
                 "order_number": order_match.group(1),
+                "access_level": access_level,
             }
 
     tracking_number = extract_tracking_number(value)
 
-    # Route a valid UPS 1Z number directly to UPS even when the user only types:
-    # "1Zxxxxxxxxxxxxxxxx UPS" or just the tracking number by itself.
     if tracking_number and tracking_number.startswith("1Z"):
         return {
             "type": "tracking",
@@ -845,7 +1011,6 @@ def detect_live_request(prompt, selected_assistant=None):
             "tracking_number": tracking_number,
         }
 
-    # Route Canada Post when the carrier is named, even without the word "track".
     if tracking_number and (
         "canada post" in lower or "canadapost" in lower
     ):
@@ -855,7 +1020,6 @@ def detect_live_request(prompt, selected_assistant=None):
             "tracking_number": tracking_number,
         }
 
-    # For other tracking formats, require tracking-related language.
     if tracking_number and any(
         word in lower
         for word in ["track", "tracking", "shipment", "package", "parcel"]
@@ -890,7 +1054,7 @@ def detect_live_request(prompt, selected_assistant=None):
         word in lower
         for word in [
             "rate", "exchange", "convert", "currency", "fx",
-            "worth", "how much"
+            "worth", "how much",
         ]
     ):
         return {
@@ -920,21 +1084,25 @@ def detect_live_request(prompt, selected_assistant=None):
 def get_live_data_for_prompt(prompt, selected_assistant=None):
     request_type = detect_live_request(prompt, selected_assistant)
     kind = request_type.get("type")
+    access_level = request_type.get("access_level", "sales")
 
     try:
         if kind == "woocommerce_order":
             return search_woocommerce_order_number(
-                request_type["order_number"]
+                request_type["order_number"],
+                access_level=access_level,
             )
 
         if kind == "woocommerce_customer_email":
             return search_woocommerce_orders_by_email(
-                request_type["email"]
+                request_type["email"],
+                access_level=access_level,
             )
 
         if kind == "woocommerce_recent_orders":
             return get_recent_woocommerce_orders(
-                request_type.get("limit", 10)
+                request_type.get("limit", 10),
+                access_level=access_level,
             )
 
         if kind == "woocommerce_order_notes":
@@ -971,7 +1139,6 @@ def get_live_data_for_prompt(prompt, selected_assistant=None):
                 ),
             }
 
-        # OpenAI web_search handles public internet browsing.
         if kind == "web":
             return None
 
@@ -992,8 +1159,6 @@ def get_live_data_for_prompt(prompt, selected_assistant=None):
         }
 
     return None
-
-
 
 
 def live_integration_statuses():
@@ -10307,6 +10472,25 @@ You are AutoTecPro Technical Support AI.
 
 Always search the Technical Support Vector Store first.
 
+The AutoTecPro application may also provide a verified WooCommerce REST API
+order result for Technical Support.
+
+When WooCommerce data is provided:
+- Treat it as the authoritative live order record.
+- Clearly identify the order number and current WooCommerce order status.
+- Show customer, shipping, product, SKU, quantity, shipping method, customer
+  note, order notes, and customer-selected product configuration options.
+- Product options may include vehicle year, original SYNC version, climate
+  control, drive side, hardware version, DVR choice, and dashboard picture.
+- Use the purchased product, SKU, and selected options to guide the Technical
+  Support Vector Store search.
+- Never show or infer product price, subtotal, order total, tax, shipping cost,
+  discounts, coupons, payment method, transaction details, or refund amount.
+- Do not claim shipped, delivered, paid, or refunded unless supplied live data
+  supports it.
+- Never create, modify, cancel, refund, or delete an order.
+- Mention WooCommerce REST API as the order-data source.
+
 Use previous messages as context.
 
 Answer in this order when useful:
@@ -10336,7 +10520,7 @@ The AutoTecPro application may provide a verified WooCommerce REST API result.
 When WooCommerce data is provided:
 - Treat it as the authoritative live order record.
 - Clearly identify the order number and current order status.
-- Summarize purchased products, quantities, totals, shipping, and payment data.
+- Summarize purchased products, quantities, customer-selected product options, totals, shipping, and payment data.
 - Use customer details only when needed to answer the staff member's question.
 - Do not invent missing order information.
 - Do not claim an order was shipped, delivered, refunded, or paid unless the
