@@ -10099,9 +10099,11 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
 
 def get_conversation_storage_count(username, role=None):
     """
-    Count active saved conversations for the currently signed-in account.
+    Count active saved conversations for the signed-in user only.
 
-    Admin and staff histories are intentionally separated by username.
+    Every account has an independent history, including admin accounts.
+    Pinned and unpinned active conversations are both included in the
+    displayed storage count.
     """
     username = str(username or "").strip()
     if not username:
@@ -10140,13 +10142,16 @@ def get_conversation_storage_count(username, role=None):
         return 0
 
 
-def detach_learning_records_from_conversation(conversation_id):
-    """
-    Preserve learned knowledge before an old chat is removed.
+MAX_UNPINNED_CONVERSATIONS_PER_USER = 100
 
-    The learning record remains in learned_knowledge and only its optional
-    source-conversation reference is cleared. Vector-store files and OpenAI
-    knowledge are not touched.
+
+def _detach_learning_reference_before_history_delete(conversation_id):
+    """
+    Preserve learned knowledge before deleting old chat history.
+
+    Only the optional source_conversation_id link is cleared. The learned
+    record, uploaded knowledge file, OpenAI file, and vector-store content
+    remain untouched.
     """
     if not conversation_id:
         return
@@ -10164,26 +10169,24 @@ def detach_learning_records_from_conversation(conversation_id):
             .execute()
         )
     except Exception as error:
-        # Automatic cleanup must stop rather than risk deleting learning data.
         raise RuntimeError(
-            "Could not safely detach learned knowledge from the oldest chat. "
-            "No automatic conversation deletion was performed."
+            "Could not safely preserve learned knowledge before deleting "
+            "the oldest conversation. No automatic deletion was performed."
         ) from error
 
 
-def delete_conversation_for_retention(username, conversation_id):
+def _delete_old_unpinned_conversation(username, conversation_id):
     """
-    Delete one old unpinned conversation belonging to one specific user.
+    Delete one old unpinned conversation belonging to one user account.
 
-    Only learned-reference links, message rows, and the conversation row are
-    affected. AI knowledge records and vector-store content remain intact.
+    Pinned conversations are protected. Only that conversation and its
+    message rows are deleted.
     """
     username = str(username or "").strip()
     if not username or not conversation_id:
-        return
+        return False
 
-    # Confirm that this row belongs to the user and is not pinned.
-    result = (
+    check = (
         supabase
         .table("conversations")
         .select("id, username, pinned")
@@ -10192,15 +10195,11 @@ def delete_conversation_for_retention(username, conversation_id):
         .limit(1)
         .execute()
     )
-    rows = list(result.data or [])
-    if not rows:
-        return
+    rows = list(check.data or [])
+    if not rows or bool(rows[0].get("pinned", False)):
+        return False
 
-    if bool(rows[0].get("pinned", False)):
-        return
-
-    # Protect long-term learning before deleting short-term chat history.
-    detach_learning_records_from_conversation(conversation_id)
+    _detach_learning_reference_before_history_delete(conversation_id)
 
     (
         supabase
@@ -10218,18 +10217,19 @@ def delete_conversation_for_retention(username, conversation_id):
         .eq("pinned", False)
         .execute()
     )
+    return True
 
 
-def make_room_for_new_unpinned_conversation(
+def make_room_for_new_conversation(
     username,
     max_unpinned=MAX_UNPINNED_CONVERSATIONS_PER_USER,
 ):
     """
-    Keep at most 100 unpinned conversations for one user account.
+    Keep at most 100 unpinned conversations for one user.
 
-    Pinned conversations are unlimited and never included in automatic
-    deletion. When the user already has 100 unpinned chats, the oldest
-    unpinned chat is removed before the new chat is created.
+    Pinned conversations are unlimited, do not count toward the 100 limit,
+    and are never automatically deleted. Before a new unpinned conversation
+    is created, the oldest unpinned conversation is removed when necessary.
     """
     username = str(username or "").strip()
     if not username:
@@ -10254,7 +10254,7 @@ def make_room_for_new_unpinned_conversation(
     delete_count = max(0, len(unpinned_rows) - max_unpinned + 1)
 
     for conversation in unpinned_rows[:delete_count]:
-        delete_conversation_for_retention(
+        _delete_old_unpinned_conversation(
             username,
             conversation.get("id"),
         )
@@ -10262,9 +10262,9 @@ def make_room_for_new_unpinned_conversation(
 
 def create_conversation(username, assistant_name, first_message=None):
     """Create a new conversation and return its ID."""
-    # Histories are isolated by username. Pinned chats are unlimited; only
-    # unpinned chats are capped at 100 for this account.
-    make_room_for_new_unpinned_conversation(username)
+    # History is isolated by username. Pinned chats are unlimited; only
+    # unpinned chats are limited to the newest 100 for this account.
+    make_room_for_new_conversation(username)
     payload = {
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
@@ -10330,11 +10330,11 @@ def load_messages(conversation_id):
 
 def load_conversations(username, role=None):
     """
-    Load only the signed-in user's active conversation history.
+    Load active conversation history for the signed-in user only.
 
-    Pinned conversations are unlimited and displayed first. Up to the latest
-    100 unpinned conversations are displayed beneath them. Assistant type does
-    not restrict visibility.
+    Pinned conversations are unlimited and shown first. The newest 100
+    unpinned conversations are shown below them. Assistant type does not
+    restrict history visibility.
     """
     username = str(username or "").strip()
     if not username:
