@@ -12159,3 +12159,68 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Final reliable spacing for History / Pinned / Recents headings.
+# Streamlit wraps each markdown heading in its own element container, so the
+# spacing is applied to that wrapper instead of relying on collapsing margins.
+st.markdown(
+    """
+    <style>
+    /* Keep the heading itself compact; spacing is controlled by its wrapper. */
+    section[data-testid="stSidebar"] .history-title,
+    section[data-testid="stSidebar"] .history-section-label {
+        margin-bottom: 0 !important;
+    }
+
+    /* History -> Storage card */
+    section[data-testid="stSidebar"]
+    div[data-testid="stElementContainer"]:has(.history-title) {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 0 14px 0 !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+    }
+
+    /* Pinned / Recents -> first conversation row */
+    section[data-testid="stSidebar"]
+    div[data-testid="stElementContainer"]:has(.history-section-label) {
+        display: block !important;
+        width: 100% !important;
+        margin: 14px 0 0 0 !important;
+        padding: 0 0 12px 0 !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Prevent the next Streamlit element from being pulled upward. */
+    section[data-testid="stSidebar"]
+    div[data-testid="stElementContainer"]:has(.history-title)
+    + div[data-testid="stElementContainer"],
+    section[data-testid="stSidebar"]
+    div[data-testid="stElementContainer"]:has(.history-section-label)
+    + div[data-testid="stElementContainer"],
+    section[data-testid="stSidebar"]
+    div[data-testid="stElementContainer"]:has(.history-section-label)
+    + div[class*="st-key-history_row_"] {
+        margin-top: 0 !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        div[data-testid="stElementContainer"]:has(.history-title) {
+            padding-bottom: 13px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        div[data-testid="stElementContainer"]:has(.history-section-label) {
+            margin-top: 13px !important;
+            padding-bottom: 11px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
