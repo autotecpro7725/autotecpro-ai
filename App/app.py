@@ -9951,36 +9951,47 @@ def conversation_title_from_text(text):
 
 def history_display_title(title):
     """
-    Return a compact ChatGPT-style sidebar title.
+    Return a clean sidebar title.
 
-    Saved AI titles remain unchanged. Older first-message titles are shortened
-    only for display, without modifying or deleting the stored conversation.
+    New chats use their saved AI-generated title. Older raw-message titles are
+    compacted for display until they receive an AI-generated title.
     """
     clean = re.sub(r"\s+", " ", str(title or "")).strip()
-    clean = re.sub(r"📎\s*Attached:.*$", "", clean, flags=re.IGNORECASE).strip()
-
-    if not clean:
-        return "New Case"
-
-    # Remove common conversational filler from older first-message titles.
     clean = re.sub(
-        r"^(?:please\s+|can you\s+|could you\s+|would you\s+|"
-        r"i want to\s+|i would like to\s+|help me\s+)",
+        r"📎\s*Attached:.*$",
         "",
         clean,
         flags=re.IGNORECASE,
     ).strip()
 
-    words = clean.split()
-    compact = " ".join(words[:6]).strip(" .,:;!?-")
+    if not clean:
+        return "New Case"
 
-    if not compact:
-        compact = clean
+    lower = clean.lower()
 
-    if len(compact) > 34:
-        compact = compact[:34].rstrip(" .,:;!?-")
+    common_titles = [
+        (r"which model supports?.*2013.*(?:dodge|ram)", "2013 RAM Compatibility"),
+        (r"which model is it", "Vehicle Model Identification"),
+        (r"france.*spain.*world cup", "France vs Spain Odds"),
+        (r"what is this", "Image Identification"),
+        (r"what are these", "Part Identification"),
+        (r"this is the document", "Document Review"),
+        (r"extract|extrac", "Document Data Extraction"),
+    ]
+    for pattern, replacement in common_titles:
+        if re.search(pattern, lower):
+            return replacement
 
-    return compact or "New Case"
+    if re.fullmatch(r"1Z[A-Z0-9]{16}", clean.upper()):
+        return "UPS Package Tracking"
+
+    # Already-clean AI/manual titles remain as saved.
+    if len(clean.split()) <= 5 and len(clean) <= 36:
+        return clean
+
+    compact = conversation_title_from_text(clean)
+    words = compact.split()[:5]
+    return " ".join(words)[:36].rstrip(" .,:;!?-") or "New Case"
 
 
 def generate_ai_conversation_title(first_message, assistant_answer=""):
@@ -9999,11 +10010,13 @@ def generate_ai_conversation_title(first_message, assistant_answer=""):
         response = client.responses.create(
             model="gpt-5.5",
             instructions=(
-                "Create a concise conversation title for a chat-history sidebar. "
-                "Return only the title, with no quotation marks, punctuation at "
-                "the end, explanation, prefix, or markdown. Use 3 to 7 words. "
-                "Keep it under 48 characters. Preserve useful vehicle models, "
-                "product names, tracking numbers, or document topics when relevant."
+                "Create a clean professional title for a chat-history sidebar. "
+                "Return only the title. Use 2 to 5 words. Do not use emoji. "
+                "Do not use quotation marks, markdown, a prefix, or ending "
+                "punctuation. Do not repeat the user's full sentence. Summarize "
+                "the actual topic or task. Keep it under 36 characters. Preserve "
+                "important vehicle models, product names, document types, or "
+                "tracking context when useful."
             ),
             input=(
                 f"User message: {user_text[:1200]}\n"
@@ -10014,8 +10027,17 @@ def generate_ai_conversation_title(first_message, assistant_answer=""):
         title = title.strip(" \"'`“”‘’")
         title = re.sub(r"[.!?:;,-]+$", "", title).strip()
 
+        # Safety cleanup: no emoji/symbol decorations and no oversized titles.
+        title = re.sub(
+            r"[^A-Za-z0-9&/+\- ]+",
+            "",
+            title,
+        )
+        title = re.sub(r"\s+", " ", title).strip()
+
         if title:
-            return title[:48]
+            words = title.split()[:5]
+            return " ".join(words)[:36].rstrip()
     except Exception:
         pass
 
@@ -10046,17 +10068,17 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
             " ",
             str(first_message or ""),
         ).strip()
-        legacy_title = normalized_message[:55].strip()
 
-        # Do not overwrite a title the user has manually renamed.
-        # Both the current short fallback and the older 55-character
-        # first-message format are recognized as automatic titles.
-        automatic_titles = {
+        # Recognize both the current fallback and the older raw-message title
+        # formats as automatic titles. Manually renamed titles stay untouched.
+        legacy_titles = {
             "New Case",
             fallback_title,
-            legacy_title,
+            normalized_message[:55].strip(),
+            normalized_message[:48].strip(),
+            normalized_message[:40].strip(),
         }
-        if current_title and current_title not in automatic_titles:
+        if current_title and current_title not in legacy_titles:
             return
 
         ai_title = generate_ai_conversation_title(
@@ -10637,8 +10659,8 @@ def render_history_cards(conversations):
                     == str(conversation_id)
                 )
 
-                # Use the saved AI title when available. Older long
-                # first-message titles are compacted for sidebar display.
+                # Display the saved AI title. Older raw-message titles are
+                # compacted until they receive an AI-generated title.
                 title_short = history_display_title(title)
                 time_label = _history_time_label(
                     conversation
@@ -12500,74 +12522,64 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Final reliable Pinned / Recents title presentation.
-# Targets the actual keyed Streamlit button wrappers rather than only the row.
+# Final Pinned / Recents left-alignment and single-line title display.
+# This targets the actual keyed Streamlit title buttons at the end of the file.
 st.markdown(
     """
     <style>
-    /* Remove the reserved pin-icon indentation so Pinned and Recents share
-       the exact same left starting position. */
+    /* Remove the old pin-icon indentation so both sections share one left edge. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_pinned_"]::before,
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_active_pinned_"]::before {
         display: none !important;
         content: none !important;
+        width: 0 !important;
     }
 
+    /* Actual keyed title-button wrapper. */
     section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_pinned_"] .stButton > button,
+    div[class*="st-key-open_"],
     section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_pinned_"] .stButton > button {
-        padding-left: 10px !important;
-    }
-
-    /* The open_<conversation_id> keyed wrapper is the real title container. */
+    div[class*="st-key-open_"] .stButton,
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] {
+    div[class*="st-key-open_"] div[data-testid="stButton"] {
+        display: block !important;
         width: 100% !important;
         min-width: 0 !important;
+        max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         text-align: left !important;
     }
 
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] .stButton {
-        width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        text-align: left !important;
-    }
-
+    div[class*="st-key-open_"] .stButton > button,
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] .stButton > button {
+    div[class*="st-key-open_"] div[data-testid="stButton"] > button {
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
         width: 100% !important;
         min-width: 0 !important;
+        max-width: 100% !important;
         height: 36px !important;
         min-height: 36px !important;
         margin: 0 !important;
-        padding: 0 40px 0 10px !important;
+        padding: 0 40px 0 8px !important;
         text-align: left !important;
         white-space: nowrap !important;
         overflow: hidden !important;
     }
 
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] .stButton > button
-    div[data-testid="stMarkdownContainer"],
+    div[class*="st-key-open_"] .stButton > button *,
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] .stButton > button
-    div[data-testid="stMarkdownContainer"] p,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-open_"] .stButton > button span {
+    div[class*="st-key-open_"] div[data-testid="stButton"] > button * {
         display: block !important;
         width: 100% !important;
         min-width: 0 !important;
+        max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         text-align: left !important;
@@ -12575,6 +12587,11 @@ st.markdown(
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        text-align: left !important;
     }
     </style>
     """,
