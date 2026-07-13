@@ -1026,6 +1026,27 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
+        # Short internal-staff format:
+        #   42560
+        #   42560 no sound
+        #   42560 CarPlay not working
+        #   42560 backup camera issue
+        #
+        # Only treat a leading 4-12 digit number as an order number inside
+        # Technical Support or Sales & Marketing. This avoids changing routing
+        # in Graphic Marketing, Admin, login, tracking, weather, or other areas.
+        short_order_match = re.match(
+            r"^\s*(\d{4,12})(?=\s|$)",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if short_order_match:
+            return {
+                "type": "woocommerce_order",
+                "order_number": short_order_match.group(1),
+                "access_level": access_level,
+            }
+
     tracking_number = extract_tracking_number(value)
 
     if tracking_number and tracking_number.startswith("1Z"):
