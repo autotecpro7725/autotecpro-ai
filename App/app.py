@@ -11078,10 +11078,11 @@ if assistant != "⚙️ Admin Panel":
 
 if assistant == "⚙️ Admin Panel":
 
-    st.markdown('<div class="workspace-card">', unsafe_allow_html=True)
     st.subheader("⚙️ Admin Panel")
-    st.caption("Manage users, knowledge uploads, AI learning, analytics, and continuous improvement.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.caption(
+        "Manage users, knowledge uploads, AI learning, analytics, "
+        "and continuous improvement."
+    )
 
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "👥 Users",
@@ -12175,6 +12176,50 @@ st.markdown(
             height: 11px !important;
             min-height: 11px !important;
             flex-basis: 11px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final authenticated main-page spacing cleanup.
+# Collapses invisible style-only Streamlit wrappers that otherwise create
+# large blank gaps between the AutoTecPro AI header and each page body.
+st.markdown(
+    """
+    <style>
+    /* Style-only markdown elements do not need layout height. */
+    div[data-testid="stMain"]
+    div[data-testid="stElementContainer"]:has(style) {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* Keep a clean, modest gap below the main AutoTecPro AI header. */
+    div[data-testid="stMain"] .app-header {
+        margin-bottom: 14px !important;
+    }
+
+    /* Prevent the first page card from adding another large top gap. */
+    div[data-testid="stMain"] .assistant-section-card {
+        margin-top: 0 !important;
+    }
+
+    /* Admin heading begins directly below the main header. */
+    div[data-testid="stMain"] h2:first-of-type {
+        margin-top: 0 !important;
+    }
+
+    @media (max-width: 900px) {
+        div[data-testid="stMain"] .app-header {
+            margin-bottom: 12px !important;
         }
     }
     </style>
