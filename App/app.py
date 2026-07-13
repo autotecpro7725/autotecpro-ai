@@ -20,7 +20,10 @@ import time
 import io
 import requests
 import xml.etree.ElementTree as ET
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, urljoin
+from html.parser import HTMLParser
+import socket
+import ipaddress
 from difflib import SequenceMatcher
 from config import supabase
 try:
@@ -12390,6 +12393,547 @@ if assistant != "⚙️ Admin Panel":
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
+
+WEBSITE_FETCH_TIMEOUT_SECONDS = 25
+WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+WEBSITE_MAX_EXTRACTED_CHARS = 120000
+
+
+class KnowledgePageHTMLParser(HTMLParser):
+    """Extract readable page text while excluding common non-content areas."""
+
+    SKIP_TAGS = {
+        "script", "style", "noscript", "svg", "canvas", "iframe",
+        "nav", "footer", "form", "button",
+    }
+    BLOCK_TAGS = {
+        "article", "section", "main", "header", "div", "p", "br",
+        "li", "ul", "ol", "table", "tr", "td", "th",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "blockquote", "pre", "title",
+    }
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._skip_depth = 0
+        self._parts = []
+        self.title = ""
+        self._inside_title = False
+
+    def handle_starttag(self, tag, attrs):
+        tag = str(tag or "").lower()
+        if tag in self.SKIP_TAGS:
+            self._skip_depth += 1
+            return
+
+        if self._skip_depth:
+            return
+
+        if tag == "title":
+            self._inside_title = True
+
+        if tag in self.BLOCK_TAGS:
+            self._parts.append("\n")
+
+        if tag == "img":
+            attributes = dict(attrs or [])
+            alt_text = str(attributes.get("alt") or "").strip()
+            if alt_text:
+                self._parts.append(f"\nImage description: {alt_text}\n")
+
+    def handle_endtag(self, tag):
+        tag = str(tag or "").lower()
+
+        if tag in self.SKIP_TAGS:
+            if self._skip_depth:
+                self._skip_depth -= 1
+            return
+
+        if self._skip_depth:
+            return
+
+        if tag == "title":
+            self._inside_title = False
+
+        if tag in self.BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_data(self, data):
+        if self._skip_depth:
+            return
+
+        value = str(data or "").strip()
+        if not value:
+            return
+
+        if self._inside_title and not self.title:
+            self.title = value
+
+        self._parts.append(value + " ")
+
+    def text(self):
+        return "".join(self._parts)
+
+
+def normalize_website_url(raw_url):
+    """Validate and normalize one public HTTP(S) webpage URL."""
+    value = str(raw_url or "").strip()
+    if not value:
+        raise ValueError("Please enter a website URL.")
+
+    if "://" not in value:
+        value = "https://" + value
+
+    parsed = urlparse(value)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError("Only HTTP and HTTPS website links are supported.")
+
+    if not parsed.hostname:
+        raise ValueError("The website URL is invalid.")
+
+    if parsed.username or parsed.password:
+        raise ValueError("Website URLs containing credentials are not allowed.")
+
+    return parsed.geturl()
+
+
+def validate_public_website_host(url):
+    """
+    Block localhost, private networks, link-local ranges, and metadata services.
+
+    This prevents the Admin URL field from being used to access internal
+    services from the Streamlit server.
+    """
+    parsed = urlparse(url)
+    hostname = str(parsed.hostname or "").strip().lower()
+
+    if hostname in {"localhost", "localhost.localdomain"}:
+        raise ValueError("Local or private website addresses are not allowed.")
+
+    try:
+        address_info = socket.getaddrinfo(
+            hostname,
+            parsed.port or (443 if parsed.scheme == "https" else 80),
+            type=socket.SOCK_STREAM,
+        )
+    except socket.gaierror as error:
+        raise ValueError(f"The website hostname could not be resolved: {error}")
+
+    resolved_addresses = {
+        item[4][0].split("%", 1)[0]
+        for item in address_info
+        if item and item[4]
+    }
+
+    if not resolved_addresses:
+        raise ValueError("The website hostname did not resolve to an address.")
+
+    for address in resolved_addresses:
+        ip_value = ipaddress.ip_address(address)
+        if (
+            ip_value.is_private
+            or ip_value.is_loopback
+            or ip_value.is_link_local
+            or ip_value.is_multicast
+            or ip_value.is_reserved
+            or ip_value.is_unspecified
+        ):
+            raise ValueError(
+                "Local, private, reserved, or internal website addresses "
+                "are not allowed."
+            )
+
+
+def clean_extracted_website_text(raw_text):
+    """Normalize spacing and remove common repeated webpage noise."""
+    text_value = str(raw_text or "").replace("\x00", " ")
+    lines = []
+
+    noise_exact = {
+        "accept cookies", "reject cookies", "manage cookies",
+        "cookie settings", "privacy choices", "skip to content",
+        "back to top", "sign in", "log in", "subscribe",
+    }
+
+    previous = None
+    for raw_line in text_value.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            if lines and lines[-1] != "":
+                lines.append("")
+            continue
+
+        if line.lower() in noise_exact:
+            continue
+
+        # Remove immediate repeated navigation/header lines.
+        if line == previous:
+            continue
+
+        lines.append(line)
+        previous = line
+
+    cleaned = "\n".join(lines)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+    if len(cleaned) > WEBSITE_MAX_EXTRACTED_CHARS:
+        cleaned = cleaned[:WEBSITE_MAX_EXTRACTED_CHARS].rstrip()
+        cleaned += "\n\n[Content truncated at the extraction safety limit.]"
+
+    return cleaned
+
+
+def extract_public_webpage(url):
+    """Download and extract readable knowledge from one public webpage."""
+    normalized_url = normalize_website_url(url)
+    validate_public_website_host(normalized_url)
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; AutoTecProKnowledgeBot/1.0; "
+            "+https://autotecpro.com)"
+        ),
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    response = requests.get(
+        normalized_url,
+        headers=headers,
+        timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
+        allow_redirects=True,
+        stream=True,
+    )
+    response.raise_for_status()
+
+    final_url = normalize_website_url(response.url)
+    validate_public_website_host(final_url)
+
+    content_type = str(response.headers.get("Content-Type") or "").lower()
+    if not (
+        "text/html" in content_type
+        or "application/xhtml+xml" in content_type
+        or "text/plain" in content_type
+        or not content_type
+    ):
+        raise ValueError(
+            "This link is not a supported webpage. "
+            f"Returned content type: {content_type or 'unknown'}"
+        )
+
+    declared_length = response.headers.get("Content-Length")
+    if declared_length:
+        try:
+            if int(declared_length) > WEBSITE_MAX_RESPONSE_BYTES:
+                raise ValueError(
+                    "The webpage is larger than the 5 MB extraction limit."
+                )
+        except ValueError as error:
+            if "larger than" in str(error):
+                raise
+
+    chunks = []
+    total_bytes = 0
+    for chunk in response.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total_bytes += len(chunk)
+        if total_bytes > WEBSITE_MAX_RESPONSE_BYTES:
+            raise ValueError(
+                "The webpage exceeded the 5 MB extraction limit."
+            )
+        chunks.append(chunk)
+
+    raw_bytes = b"".join(chunks)
+    encoding = response.encoding or response.apparent_encoding or "utf-8"
+    page_text = raw_bytes.decode(encoding, errors="replace")
+
+    title = ""
+    if "text/plain" in content_type:
+        extracted_text = page_text
+    else:
+        parser = KnowledgePageHTMLParser()
+        parser.feed(page_text)
+        parser.close()
+        title = parser.title
+        extracted_text = parser.text()
+
+    cleaned_text = clean_extracted_website_text(extracted_text)
+    if len(cleaned_text) < 120:
+        raise ValueError(
+            "Not enough readable content could be extracted. "
+            "The page may require login, JavaScript, or may block automated access."
+        )
+
+    page_title = clean_extracted_website_text(title)[:300]
+    if not page_title:
+        page_title = urlparse(final_url).path.rstrip("/").split("/")[-1]
+        page_title = page_title or urlparse(final_url).hostname or "Website"
+
+    extracted_at = datetime.now(timezone.utc).isoformat()
+    content_hash = hashlib.sha256(
+        cleaned_text.encode("utf-8")
+    ).hexdigest()
+
+    return {
+        "source_url": final_url,
+        "title": page_title,
+        "content": cleaned_text,
+        "extracted_at": extracted_at,
+        "content_hash": content_hash,
+        "character_count": len(cleaned_text),
+        "word_count": len(cleaned_text.split()),
+    }
+
+
+def website_knowledge_filename(extraction):
+    """Create a stable checksum-based filename for duplicate protection."""
+    parsed = urlparse(str(extraction.get("source_url") or ""))
+    host = re.sub(r"[^A-Za-z0-9]+", "_", parsed.hostname or "website")
+    title = re.sub(
+        r"[^A-Za-z0-9]+",
+        "_",
+        str(extraction.get("title") or "page"),
+    ).strip("_")
+    title = title[:55] or "page"
+    digest = str(extraction.get("content_hash") or "")[:16]
+    return f"website_{host}_{title}_{digest}.txt"
+
+
+def build_website_knowledge_document(extraction, database_choice):
+    """Build the reviewed text file that is sent to the vector store."""
+    header = (
+        "AUTOTECPRO WEBSITE KNOWLEDGE\n"
+        f"Destination: {database_choice}\n"
+        f"Page title: {extraction.get('title')}\n"
+        f"Source URL: {extraction.get('source_url')}\n"
+        f"Extracted at (UTC): {extraction.get('extracted_at')}\n"
+        f"Content SHA-256: {extraction.get('content_hash')}\n"
+        f"Word count: {extraction.get('word_count')}\n"
+        "\n"
+        "EXTRACTED CONTENT\n"
+        "=================\n"
+    )
+    return header + str(extraction.get("content") or "").strip() + "\n"
+
+
+def vector_store_has_filename(vector_store_id, filename):
+    """
+    Check whether a checksum-based website filename is already attached.
+
+    API errors do not block saving; they are logged and upload continues.
+    """
+    try:
+        after = None
+        for _ in range(100):
+            request = {
+                "vector_store_id": vector_store_id,
+                "limit": 100,
+            }
+            if after:
+                request["after"] = after
+
+            page = client.vector_stores.files.list(**request)
+            records = list(getattr(page, "data", None) or [])
+
+            for record in records:
+                file_id = (
+                    getattr(record, "file_id", None)
+                    or getattr(record, "id", None)
+                    or (
+                        record.get("file_id") or record.get("id")
+                        if isinstance(record, dict)
+                        else None
+                    )
+                )
+                if not file_id:
+                    continue
+
+                try:
+                    file_record = client.files.retrieve(file_id)
+                    existing_name = str(
+                        getattr(file_record, "filename", "") or ""
+                    )
+                    if existing_name == filename:
+                        return True
+                except Exception:
+                    continue
+
+            if not bool(getattr(page, "has_more", False)) or not records:
+                break
+
+            last_record = records[-1]
+            after = (
+                getattr(last_record, "id", None)
+                or (
+                    last_record.get("id")
+                    if isinstance(last_record, dict)
+                    else None
+                )
+            )
+            if not after:
+                break
+    except Exception as error:
+        print(
+            f"[WEBSITE DUPLICATE CHECK] Unable to inspect vector store: {error}",
+            flush=True,
+        )
+
+    return False
+
+
+def render_learn_from_website(database_choice):
+    """Render the isolated Extract → Review → Approve website workflow."""
+    st.markdown("---")
+    st.markdown("### Learn from Website")
+    st.caption(
+        "Extract one public webpage, review the cleaned content, then approve "
+        "it for the selected knowledge database above."
+    )
+
+    website_url = st.text_input(
+        "Website URL",
+        placeholder="https://example.com/product-page",
+        key="stable_admin_website_url",
+    )
+
+    extract_left, extract_center, extract_right = st.columns(
+        [3, 4, 3],
+        gap="small",
+    )
+    with extract_center:
+        extract_submitted = st.button(
+            "Extract and Preview",
+            key="stable_admin_website_extract",
+            use_container_width=True,
+            type="secondary",
+        )
+
+    if extract_submitted:
+        try:
+            with st.spinner("Extracting and cleaning webpage content..."):
+                extraction = extract_public_webpage(website_url)
+            st.session_state.admin_website_extraction = extraction
+            st.success("Website content extracted. Review it before saving.")
+        except Exception as error:
+            st.session_state.pop("admin_website_extraction", None)
+            st.error(f"Unable to extract website: {error}")
+
+    extraction = st.session_state.get("admin_website_extraction")
+    if not extraction:
+        return
+
+    # Prevent a stale extraction from silently pointing to a newly typed URL.
+    normalized_current = ""
+    try:
+        normalized_current = normalize_website_url(website_url)
+    except Exception:
+        pass
+
+    if (
+        normalized_current
+        and normalized_current != extraction.get("source_url")
+    ):
+        st.info(
+            "The URL field changed. Click Extract and Preview again before saving."
+        )
+        return
+
+    st.markdown(
+        f"**Page title:** {html.escape(str(extraction.get('title') or ''))}"
+    )
+    st.caption(
+        f"Source: {extraction.get('source_url')}  |  "
+        f"{extraction.get('word_count', 0):,} words  |  "
+        f"{extraction.get('character_count', 0):,} characters"
+    )
+
+    reviewed_content = st.text_area(
+        "Review extracted content",
+        value=str(extraction.get("content") or ""),
+        height=360,
+        key=(
+            "stable_admin_website_review_"
+            + str(extraction.get("content_hash") or "")[:12]
+        ),
+        help=(
+            "Remove outdated prices, unrelated text, or anything you do not "
+            "want the AI to use before approving."
+        ),
+    )
+
+    save_left, save_center, save_right = st.columns(
+        [3, 4, 3],
+        gap="small",
+    )
+    with save_center:
+        save_submitted = st.button(
+            "Approve and Save",
+            key="stable_admin_website_save",
+            use_container_width=True,
+        )
+
+    if not save_submitted:
+        return
+
+    reviewed_content = clean_extracted_website_text(reviewed_content)
+    if len(reviewed_content) < 120:
+        st.warning(
+            "The reviewed content is too short to save as useful knowledge."
+        )
+        return
+
+    reviewed_extraction = dict(extraction)
+    reviewed_extraction["content"] = reviewed_content
+    reviewed_extraction["character_count"] = len(reviewed_content)
+    reviewed_extraction["word_count"] = len(reviewed_content.split())
+    reviewed_extraction["content_hash"] = hashlib.sha256(
+        reviewed_content.encode("utf-8")
+    ).hexdigest()
+
+    selected_vector_store_id = (
+        TECHNICAL_VECTOR_STORE_ID
+        if database_choice == "Technical Support Database"
+        else SALES_VECTOR_STORE_ID
+    )
+
+    filename = website_knowledge_filename(reviewed_extraction)
+
+    if vector_store_has_filename(selected_vector_store_id, filename):
+        st.info(
+            "This exact reviewed webpage content is already saved in the "
+            "selected knowledge database."
+        )
+        return
+
+    document_text = build_website_knowledge_document(
+        reviewed_extraction,
+        database_choice,
+    )
+    website_file = ManagedUploadedFile(
+        document_text.encode("utf-8"),
+        filename,
+        "text/plain",
+    )
+
+    try:
+        with st.spinner("Saving website knowledge..."):
+            file_id = upload_to_vector_store(
+                website_file,
+                selected_vector_store_id,
+            )
+
+        st.success(
+            f"Website knowledge saved to {database_choice}. File ID: {file_id}"
+        )
+        st.info(
+            "OpenAI may take a short time to finish indexing the new knowledge."
+        )
+        st.session_state.pop("admin_website_extraction", None)
+    except Exception as error:
+        st.error(f"Unable to save website knowledge: {error}")
+
+
 def _admin_upload_fragment_decorator(function):
     """
     Use a fragment when supported so database selection reruns only the
@@ -12524,6 +13068,8 @@ def render_admin_upload_knowledge_tab():
                 "admin_managed_uploads",
                 "admin_managed_upload_generation",
             )
+
+    render_learn_from_website(database_choice)
 
 
 # ============================================================
