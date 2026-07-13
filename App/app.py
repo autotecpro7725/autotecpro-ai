@@ -10687,7 +10687,7 @@ def render_history_cards(conversations):
                     title_column, action_column = st.columns(
                         [0.91, 0.09],
                         gap=None,
-                        vertical_alignment="top",
+                        vertical_alignment="center",
                     )
 
                     with title_column:
@@ -12607,11 +12607,10 @@ st.markdown(
 )
 
 # Final isolated history-row presentation.
-# One-line titles use all available width; the action menu stays at far right.
+# Full-width single-line title with a centered hover menu at the far right.
 st.markdown(
     """
     <style>
-    /* Each Pinned/Recent row is one compact horizontal line. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"] {
         position: relative !important;
@@ -12619,7 +12618,7 @@ st.markdown(
         min-height: 38px !important;
         height: 38px !important;
         margin: 0 0 4px 0 !important;
-        padding: 0 4px !important;
+        padding: 0 3px !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
         text-align: left !important;
@@ -12637,12 +12636,14 @@ st.markdown(
         overflow: hidden !important;
     }
 
+    /* True two-column row: title fills all remaining width,
+       menu occupies only 30px at the far right. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="stHorizontalBlock"] {
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) 30px !important;
-        align-items: start !important;
+        align-items: center !important;
         width: 100% !important;
         min-height: 38px !important;
         height: 38px !important;
@@ -12659,6 +12660,7 @@ st.markdown(
         width: auto !important;
         min-width: 0 !important;
         max-width: none !important;
+        height: 38px !important;
         margin: 0 !important;
         padding: 0 !important;
         flex: none !important;
@@ -12670,24 +12672,23 @@ st.markdown(
         grid-column: 1 !important;
         width: 100% !important;
         min-width: 0 !important;
-        height: 38px !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="column"]:last-child {
         grid-column: 2 !important;
-        position: relative !important;
         width: 30px !important;
         min-width: 30px !important;
         max-width: 30px !important;
         height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         overflow: visible !important;
     }
 
-    /* Title button fills the complete title column. */
+    /* Title fills the entire first column and truncates only at the far right. */
     section[data-testid="stSidebar"]
     div[class*="st-key-open_"],
     section[data-testid="stSidebar"]
@@ -12717,7 +12718,7 @@ st.markdown(
         min-height: 38px !important;
         max-height: 38px !important;
         margin: 0 !important;
-        padding: 0 5px !important;
+        padding: 0 4px !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
         text-align: left !important;
@@ -12749,7 +12750,7 @@ st.markdown(
         line-height: 1.2 !important;
     }
 
-    /* Same left edge for Pinned and Recent rows. */
+    /* Pinned and Recent rows share the same left edge. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_pinned_"]::before,
     section[data-testid="stSidebar"]
@@ -12759,13 +12760,14 @@ st.markdown(
         width: 0 !important;
     }
 
-    /* Three-dot menu stays at the far right, slightly below the row top. */
+    /* Three-dot control at the far right, vertically centered, hover-only. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     [data-testid="stPopover"] {
-        position: relative !important;
-        top: 4px !important;
-        right: 0 !important;
+        position: static !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         width: 28px !important;
         min-width: 28px !important;
         max-width: 28px !important;
@@ -12802,7 +12804,7 @@ st.markdown(
         min-height: 28px !important;
         max-height: 28px !important;
         margin: 0 !important;
-        padding: 0 0 3px 0 !important;
+        padding: 0 0 2px 0 !important;
         border-radius: 7px !important;
         line-height: 1 !important;
     }
