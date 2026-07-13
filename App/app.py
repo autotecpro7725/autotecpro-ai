@@ -12699,8 +12699,9 @@ st.markdown(
     div[class*="st-key-history_row_"]
     [data-testid="stPopover"] {
         position: absolute !important;
-        top: 5px !important;
+        top: 50% !important;
         right: 3px !important;
+        transform: translateY(-50%) !important;
         z-index: 80 !important;
         display: block !important;
         width: 28px !important;
@@ -12771,7 +12772,7 @@ st.markdown(
         min-height: 28px !important;
         max-height: 28px !important;
         margin: 0 !important;
-        padding: 0 0 2px 0 !important;
+        padding: 0 !important;
         border-radius: 7px !important;
         line-height: 1 !important;
     }
