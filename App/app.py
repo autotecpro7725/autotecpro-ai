@@ -9511,10 +9511,8 @@ def generated_image_answer_text(images, regenerated=False):
 
 def show_generated_image_full_size(image):
     """
-    Display the original generated image in a Streamlit dialog.
-
-    This avoids opening a large base64 data URL in a browser tab, which can
-    produce a blank page in some browsers.
+    Display the original generated image in the largest available Streamlit
+    dialog while preserving the original image bytes and resolution.
     """
     data_url = str((image or {}).get("data_url") or "")
     image_bytes, _ = data_url_to_bytes(data_url)
@@ -9529,15 +9527,49 @@ def show_generated_image_full_size(image):
         or "Generated Image"
     )
 
+    # Expand only the generated-image dialog. This does not affect any other
+    # Streamlit modal, page layout, or chat content.
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDialog"] > div[role="dialog"] {
+            width: min(96vw, 1500px) !important;
+            max-width: min(96vw, 1500px) !important;
+        }
+
+        div[data-testid="stDialog"] div[data-testid="stImage"] {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        div[data-testid="stDialog"] div[data-testid="stImage"] img {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin: 0 auto !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     dialog_factory = getattr(st, "dialog", None)
+
     if callable(dialog_factory):
-        @dialog_factory(filename)
-        def _generated_image_dialog():
+        def render_dialog_body():
             st.image(image_bytes, use_container_width=True)
 
-        _generated_image_dialog()
+        # Newer Streamlit versions support width="large". Keep a fallback so
+        # the deployed app remains compatible with older versions.
+        try:
+            large_dialog = dialog_factory(filename, width="large")
+        except TypeError:
+            large_dialog = dialog_factory(filename)
+
+        large_dialog(render_dialog_body)()
     else:
-        # Compatibility fallback for older Streamlit versions.
         st.image(
             image_bytes,
             caption=filename,
