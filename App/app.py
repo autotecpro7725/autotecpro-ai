@@ -10660,7 +10660,7 @@ def render_history_cards(conversations):
                 )
 
                 # Display the complete saved AI title. CSS keeps it on one
-                # line and adds an ellipsis only when the row is actually full.
+                # line and adds an ellipsis only at the actual row boundary.
                 title_short = history_display_title(title)
                 time_label = _history_time_label(
                     conversation
@@ -10684,119 +10684,103 @@ def render_history_cards(conversations):
                 )
 
                 with row:
-                    title_column, action_column = st.columns(
-                        [0.91, 0.09],
-                        gap=None,
-                        vertical_alignment="center",
-                    )
+                    if st.button(
+                        history_label,
+                        key=f"open_{conversation_id}",
+                        help=title,
+                        use_container_width=True,
+                    ):
+                        st.session_state.conversation_id = conversation_id
+                        st.session_state.messages = load_messages(
+                            conversation_id
+                        )
+                        st.session_state.rename_conversation_id = None
+                        st.session_state.scroll_to_bottom = True
+                        st.rerun()
 
-                    with title_column:
+                    if time_label:
+                        st.markdown(
+                            (
+                                '<div class="history-row-meta">'
+                                f'{html.escape(time_label)}'
+                                '</div>'
+                            ),
+                            unsafe_allow_html=True,
+                        )
+
+                    with st.popover(
+                        "⋯",
+                        help="Conversation actions",
+                    ):
+                        st.markdown(
+                            (
+                                '<div class="history-menu-title">'
+                                f'{html.escape(title_short)}'
+                                '</div>'
+                            ),
+                            unsafe_allow_html=True,
+                        )
+
                         if st.button(
-                            history_label,
-                            key=f"open_{conversation_id}",
-                            help=title,
+                            "Rename",
+                            key=f"rename_{conversation_id}",
                             use_container_width=True,
                         ):
-                            st.session_state.conversation_id = (
+                            st.session_state.rename_conversation_id = str(
                                 conversation_id
                             )
-                            st.session_state.messages = (
-                                load_messages(
-                                    conversation_id
-                                )
-                            )
-                            st.session_state.rename_conversation_id = None
-                            st.session_state.scroll_to_bottom = True
+                            st.session_state.rename_conversation_value = title
                             st.rerun()
 
-                        if time_label:
-                            st.markdown(
-                                (
-                                    '<div class="history-row-meta">'
-                                    f'{html.escape(time_label)}'
-                                    '</div>'
-                                ),
-                                unsafe_allow_html=True,
-                            )
+                        pin_label = (
+                            "Unpin chat"
+                            if pinned
+                            else "Pin chat"
+                        )
 
-                    with action_column:
-                        with st.popover(
-                            "⋯",
-                            help="Conversation actions",
+                        if st.button(
+                            pin_label,
+                            key=f"pin_{conversation_id}",
+                            use_container_width=True,
                         ):
-                            st.markdown(
-                                (
-                                    '<div class="history-menu-title">'
-                                    f'{html.escape(title_short)}'
-                                    '</div>'
-                                ),
-                                unsafe_allow_html=True,
-                            )
-
-                            if st.button(
-                                "Rename",
-                                key=f"rename_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                st.session_state.rename_conversation_id = str(
-                                    conversation_id
+                            try:
+                                toggle_pin_conversation(
+                                    conversation_id,
+                                    not pinned,
                                 )
-                                st.session_state.rename_conversation_value = title
                                 st.rerun()
-
-                            pin_label = (
-                                "Unpin chat"
-                                if pinned
-                                else "Pin chat"
-                            )
-
-                            if st.button(
-                                pin_label,
-                                key=f"pin_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                try:
-                                    toggle_pin_conversation(
-                                        conversation_id,
-                                        not pinned,
-                                    )
-                                    st.rerun()
-                                except Exception:
-                                    st.toast(
-                                        "Pin needs the pinned column in Supabase."
-                                    )
-
-                            if st.button(
-                                "Archive",
-                                key=f"archive_{conversation_id}",
-                                use_container_width=True,
-                            ):
-                                archive_conversation(
-                                    conversation_id
+                            except Exception:
+                                st.toast(
+                                    "Pin needs the pinned column in Supabase."
                                 )
-                                if (
-                                    st.session_state.conversation_id
-                                    == conversation_id
-                                ):
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
 
-                            if st.button(
-                                "Delete",
-                                key=f"delete_{conversation_id}",
-                                use_container_width=True,
+                        if st.button(
+                            "Archive",
+                            key=f"archive_{conversation_id}",
+                            use_container_width=True,
+                        ):
+                            archive_conversation(conversation_id)
+                            if (
+                                st.session_state.conversation_id
+                                == conversation_id
                             ):
-                                delete_conversation(
-                                    conversation_id
-                                )
-                                if (
-                                    st.session_state.conversation_id
-                                    == conversation_id
-                                ):
-                                    st.session_state.conversation_id = None
-                                    st.session_state.messages = []
-                                st.rerun()
+                                st.session_state.conversation_id = None
+                                st.session_state.messages = []
+                            st.rerun()
+
+                        if st.button(
+                            "Delete",
+                            key=f"delete_{conversation_id}",
+                            use_container_width=True,
+                        ):
+                            delete_conversation(conversation_id)
+                            if (
+                                st.session_state.conversation_id
+                                == conversation_id
+                            ):
+                                st.session_state.conversation_id = None
+                                st.session_state.messages = []
+                            st.rerun()
 
 
 def install_global_chat_file_dropzone():
@@ -12607,7 +12591,7 @@ st.markdown(
 )
 
 # Final isolated history-row presentation.
-# Full-width single-line title with a centered hover menu at the far right.
+# The title and action menu are siblings; no Streamlit columns are used.
 st.markdown(
     """
     <style>
@@ -12615,8 +12599,9 @@ st.markdown(
     div[class*="st-key-history_row_"] {
         position: relative !important;
         width: 100% !important;
-        min-height: 38px !important;
         height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
         margin: 0 0 4px 0 !important;
         padding: 0 3px !important;
         box-sizing: border-box !important;
@@ -12627,73 +12612,27 @@ st.markdown(
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     > div[data-testid="stVerticalBlock"] {
+        position: relative !important;
+        display: block !important;
         width: 100% !important;
-        min-height: 38px !important;
         height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
         margin: 0 !important;
         padding: 0 !important;
         gap: 0 !important;
-        overflow: hidden !important;
-    }
-
-    /* True two-column row: title fills all remaining width,
-       menu occupies only 30px at the far right. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="stHorizontalBlock"] {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 30px !important;
-        align-items: center !important;
-        width: 100% !important;
-        min-height: 38px !important;
-        height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        gap: 2px !important;
-        overflow: hidden !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="column"] {
-        display: block !important;
-        width: auto !important;
-        min-width: 0 !important;
-        max-width: none !important;
-        height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        flex: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="column"]:first-child {
-        grid-column: 1 !important;
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="column"]:last-child {
-        grid-column: 2 !important;
-        width: 30px !important;
-        min-width: 30px !important;
-        max-width: 30px !important;
-        height: 38px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
         overflow: visible !important;
     }
 
-    /* Title fills the entire first column and truncates only at the far right. */
+    /* The title control occupies the complete row width. */
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"],
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] .stButton,
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] div[data-testid="stButton"] {
         display: block !important;
         width: 100% !important;
@@ -12707,6 +12646,7 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] button {
         display: flex !important;
         align-items: center !important;
@@ -12718,7 +12658,7 @@ st.markdown(
         min-height: 38px !important;
         max-height: 38px !important;
         margin: 0 !important;
-        padding: 0 4px !important;
+        padding: 0 34px 0 5px !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
         text-align: left !important;
@@ -12728,12 +12668,15 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] button
     div[data-testid="stMarkdownContainer"],
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] button
     div[data-testid="stMarkdownContainer"] p,
     section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
     div[class*="st-key-open_"] button span {
         display: block !important;
         width: 100% !important;
@@ -12750,30 +12693,23 @@ st.markdown(
         line-height: 1.2 !important;
     }
 
-    /* Pinned and Recent rows share the same left edge. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_pinned_"]::before,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_pinned_"]::before {
-        display: none !important;
-        content: none !important;
-        width: 0 !important;
-    }
-
-    /* Three-dot control at the far right, vertically centered, hover-only. */
+    /* Anchor the entire popover element container to the far-right center. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] {
-        position: static !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        position: absolute !important;
+        top: 5px !important;
+        right: 3px !important;
+        z-index: 80 !important;
         width: 28px !important;
         min-width: 28px !important;
         max-width: 28px !important;
         height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
         opacity: 0 !important;
         visibility: hidden !important;
         pointer-events: none !important;
@@ -12782,13 +12718,26 @@ st.markdown(
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]:hover
-    [data-testid="stPopover"],
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]:focus-within
-    [data-testid="stPopover"] {
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: static !important;
+        display: block !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     section[data-testid="stSidebar"]
@@ -12807,6 +12756,16 @@ st.markdown(
         padding: 0 0 2px 0 !important;
         border-radius: 7px !important;
         line-height: 1 !important;
+    }
+
+    /* Pinned and Recent titles share the exact same left edge. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        display: none !important;
+        content: none !important;
+        width: 0 !important;
     }
 
     section[data-testid="stSidebar"] .history-row-meta {
