@@ -920,6 +920,29 @@ def extract_tracking_number(prompt):
     return ""
 
 
+def _woocommerce_access_level_for_assistant(selected_assistant=None):
+    """
+    Resolve WooCommerce access from the active workspace defensively.
+
+    This intentionally does not rely on an exact emoji-prefixed label because
+    Streamlit session state or restored conversations may contain a plain label.
+    """
+    active_value = (
+        selected_assistant
+        or st.session_state.get("current_assistant")
+        or ""
+    )
+    normalized = re.sub(r"\s+", " ", str(active_value)).strip().lower()
+
+    if "technical support" in normalized:
+        return "technical"
+
+    if "sales & marketing" in normalized or "sales and marketing" in normalized:
+        return "sales"
+
+    return ""
+
+
 def detect_live_request(prompt, selected_assistant=None):
     value = str(prompt or "").strip()
     lower = value.lower()
@@ -927,27 +950,18 @@ def detect_live_request(prompt, selected_assistant=None):
     if not value:
         return {"type": "none"}
 
-    active_assistant = (
+    access_level = _woocommerce_access_level_for_assistant(
         selected_assistant
-        or st.session_state.get("current_assistant")
-        or ""
     )
 
-    woo_allowed_assistants = {
-        "🔧 Technical Support",
-        "📈 Sales & Marketing",
-    }
-
-    if active_assistant in woo_allowed_assistants:
-        access_level = (
-            "technical"
-            if active_assistant == "🔧 Technical Support"
-            else "sales"
-        )
-
+    # Detect WooCommerce requests in both Technical Support and Sales.
+    # Detection does not depend on credentials being loaded; configuration or
+    # API errors are returned clearly by get_live_data_for_prompt().
+    if access_level:
         notes_match = re.search(
             r"\b(?:notes?|order\s+notes?)\b.*?"
-            r"\b(?:order|order\s*#|#)\s*[:#-]?\s*(\d{3,12})\b",
+            r"(?:\border(?:\s*(?:number|#))?\b|#)"
+            r"\s*[:#-]?\s*(\d{3,12})\b",
             value,
             flags=re.IGNORECASE,
         )
@@ -989,8 +1003,18 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
+        # Supports all of these:
+        #   Show order #42693
+        #   Show #42693
+        #   Order 42693
+        #   WooCommerce 42693
+        #   #42693
         order_match = re.search(
-            r"\b(?:order|order\s*number|order\s*#|#)"
+            r"(?:"
+            r"\border(?:\s*(?:number|#))?\b"
+            r"|\bwoocommerce\b"
+            r"|#"
+            r")"
             r"\s*[:#-]?\s*(\d{3,12})\b",
             value,
             flags=re.IGNORECASE,
@@ -10606,7 +10630,19 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
+    detected_live_request = detect_live_request(prompt_text, assistant)
     live_data = get_live_data_for_prompt(prompt_text, assistant)
+
+    if str(detected_live_request.get("type") or "").startswith("woocommerce_") and live_data is None:
+        live_data = {
+            "source": "AutoTecPro WooCommerce router",
+            "error": (
+                "A WooCommerce request was detected, but no live result was returned. "
+                "Do not provide a generic admin-lookup path; report this routing error."
+            ),
+            "detected_request": detected_live_request,
+        }
+
     if live_data is not None:
         content.append({
             "type": "input_text",
