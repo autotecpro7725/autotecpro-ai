@@ -9292,10 +9292,10 @@ def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
 
 def choose_graphic_image_size(prompt_text):
     """
-    Use the confirmed 1536x1536 square output for all Graphic Marketing
-    image generations.
+    Use the supported high-resolution landscape output for every
+    Graphic Marketing image generation.
     """
-    return "1536x1536"
+    return "1536x1024"
 
 
 def graphic_image_filename(prompt_text, created_at=None):
