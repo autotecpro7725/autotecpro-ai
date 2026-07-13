@@ -13670,18 +13670,6 @@ if assistant == "⚙️ Admin Panel":
             )
             st.session_state[learned_page_key] = current_learned_page
 
-            def previous_learned_page():
-                st.session_state[learned_page_key] = max(
-                    1,
-                    int(st.session_state.get(learned_page_key, 1)) - 1,
-                )
-
-            def next_learned_page():
-                st.session_state[learned_page_key] = min(
-                    learned_total_pages,
-                    int(st.session_state.get(learned_page_key, 1)) + 1,
-                )
-
             learned_start_index = (
                 current_learned_page - 1
             ) * learned_page_size
@@ -13698,56 +13686,6 @@ if assistant == "⚙️ Admin Panel":
                 f"{learned_end_index:,} of "
                 f"{learned_total_records:,} learned records"
             )
-
-            page_previous, page_selector, page_next = st.columns(
-                [1, 2, 1],
-                gap="small",
-            )
-
-            with page_previous:
-                st.button(
-                    "Previous",
-                    key="latest_learned_previous",
-                    use_container_width=True,
-                    disabled=current_learned_page <= 1,
-                    on_click=previous_learned_page,
-                )
-
-            with page_selector:
-                selected_learned_page = st.selectbox(
-                    "Page",
-                    options=list(range(1, learned_total_pages + 1)),
-                    key=learned_page_key,
-                    format_func=lambda page_number: (
-                        f"Page {page_number} of {learned_total_pages}"
-                    ),
-                    label_visibility="collapsed",
-                )
-
-            with page_next:
-                st.button(
-                    "Next",
-                    key="latest_learned_next",
-                    use_container_width=True,
-                    disabled=current_learned_page >= learned_total_pages,
-                    on_click=next_learned_page,
-                )
-
-            # The selectbox updates session state automatically. Recalculate
-            # the visible rows immediately if the user selected another page.
-            selected_learned_page = int(selected_learned_page)
-            if selected_learned_page != current_learned_page:
-                current_learned_page = selected_learned_page
-                learned_start_index = (
-                    current_learned_page - 1
-                ) * learned_page_size
-                learned_end_index = min(
-                    learned_start_index + learned_page_size,
-                    learned_total_records,
-                )
-                learned_page_rows = learned_rows_for_analytics[
-                    learned_start_index:learned_end_index
-                ]
 
             for row in learned_page_rows:
                 issue = row.get("issue") or row.get("question") or "Learned Knowledge"
@@ -13783,6 +13721,91 @@ if assistant == "⚙️ Admin Panel":
                             remaining_pages,
                         )
                         st.rerun()
+
+            # Compact page-number navigation at the very bottom-right.
+            # Only page numbers are shown; no Previous/Next buttons or
+            # top selector are rendered.
+            if learned_total_pages > 1:
+                visible_page_numbers = []
+
+                if learned_total_pages <= 7:
+                    visible_page_numbers = list(
+                        range(1, learned_total_pages + 1)
+                    )
+                else:
+                    candidate_pages = {
+                        1,
+                        learned_total_pages,
+                        current_learned_page - 2,
+                        current_learned_page - 1,
+                        current_learned_page,
+                        current_learned_page + 1,
+                        current_learned_page + 2,
+                    }
+                    visible_page_numbers = sorted(
+                        page_number
+                        for page_number in candidate_pages
+                        if 1 <= page_number <= learned_total_pages
+                    )
+
+                pagination_items = []
+                previous_number = None
+
+                for page_number in visible_page_numbers:
+                    if (
+                        previous_number is not None
+                        and page_number - previous_number > 1
+                    ):
+                        pagination_items.append("ellipsis")
+                    pagination_items.append(page_number)
+                    previous_number = page_number
+
+                pagination_spacer, pagination_area = st.columns(
+                    [7, 3],
+                    gap="small",
+                )
+
+                with pagination_area:
+                    pagination_columns = st.columns(
+                        len(pagination_items),
+                        gap="small",
+                    )
+
+                    for column, item in zip(
+                        pagination_columns,
+                        pagination_items,
+                    ):
+                        with column:
+                            if item == "ellipsis":
+                                st.markdown(
+                                    "<div style='text-align:center;"
+                                    "padding-top:8px;color:#94a3b8;'>…</div>",
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                page_number = int(item)
+                                is_current_page = (
+                                    page_number == current_learned_page
+                                )
+
+                                if st.button(
+                                    str(page_number),
+                                    key=(
+                                        "latest_learned_page_"
+                                        f"{page_number}"
+                                    ),
+                                    use_container_width=True,
+                                    disabled=is_current_page,
+                                    type=(
+                                        "primary"
+                                        if is_current_page
+                                        else "secondary"
+                                    ),
+                                ):
+                                    st.session_state[
+                                        learned_page_key
+                                    ] = page_number
+                                    st.rerun()
         else:
             st.info("No learned knowledge saved yet.")
 
