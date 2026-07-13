@@ -10684,38 +10684,46 @@ def render_history_cards(conversations):
                 )
 
                 with row:
-                    if st.button(
-                        history_label,
-                        key=f"open_{conversation_id}",
-                        help=title,
-                        use_container_width=True,
-                    ):
-                        st.session_state.conversation_id = (
-                            conversation_id
-                        )
-                        st.session_state.messages = (
-                            load_messages(
+                    title_column, action_column = st.columns(
+                        [0.88, 0.12],
+                        gap="small",
+                        vertical_alignment="center",
+                    )
+
+                    with title_column:
+                        if st.button(
+                            history_label,
+                            key=f"open_{conversation_id}",
+                            help=title,
+                            use_container_width=True,
+                        ):
+                            st.session_state.conversation_id = (
                                 conversation_id
                             )
-                        )
-                        st.session_state.rename_conversation_id = None
-                        st.session_state.scroll_to_bottom = True
-                        st.rerun()
+                            st.session_state.messages = (
+                                load_messages(
+                                    conversation_id
+                                )
+                            )
+                            st.session_state.rename_conversation_id = None
+                            st.session_state.scroll_to_bottom = True
+                            st.rerun()
 
-                    if time_label:
-                        st.markdown(
-                            (
-                                '<div class="history-row-meta">'
-                                f'{html.escape(time_label)}'
-                                '</div>'
-                            ),
-                            unsafe_allow_html=True,
-                        )
+                        if time_label:
+                            st.markdown(
+                                (
+                                    '<div class="history-row-meta">'
+                                    f'{html.escape(time_label)}'
+                                    '</div>'
+                                ),
+                                unsafe_allow_html=True,
+                            )
 
-                    with st.popover(
-                        "⋯",
-                        help="Conversation actions",
-                    ):
+                    with action_column:
+                        with st.popover(
+                            "⋯",
+                            help="Conversation actions",
+                        ):
                             st.markdown(
                                 (
                                     '<div class="history-menu-title">'
@@ -12592,6 +12600,182 @@ st.markdown(
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"] {
         text-align: left !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final structural history-row alignment.
+# The row is now a true title column plus action column.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        width: 100% !important;
+        margin: 0 0 4px 0 !important;
+        padding: 0 6px !important;
+        box-sizing: border-box !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] {
+        width: 100% !important;
+        gap: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 34px !important;
+        align-items: center !important;
+        gap: 4px !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="column"] {
+        display: block !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="column"]:first-child {
+        grid-column: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="column"]:last-child {
+        grid-column: 2 !important;
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+    }
+
+    /* Conversation-title button: true left edge. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] div[data-testid="stButton"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"]
+    .stButton > button,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"]
+    div[data-testid="stButton"] > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        margin: 0 !important;
+        padding: 0 4px !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"]
+    .stButton > button span {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Pinned and Recent rows use the same left edge. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        display: none !important;
+        content: none !important;
+        width: 0 !important;
+    }
+
+    /* Action menu remains on the far right and hover-only. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: static !important;
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_"]
+    [data-testid="stPopover"] {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] > button {
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     </style>
     """,
