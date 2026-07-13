@@ -5770,6 +5770,214 @@ def apply_app_layout_css():
 
 inject_base_css()
 
+
+# Final isolated history-row presentation.
+# The title and action menu are siblings; no Streamlit columns are used.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        position: relative !important;
+        width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 0 4px 0 !important;
+        padding: 0 3px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] {
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* The title control occupies the complete row width. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] .stButton,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] div[data-testid="stButton"] {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 34px 0 5px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button
+    div[data-testid="stMarkdownContainer"] p,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button span {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        line-height: 1.2 !important;
+    }
+
+    /* Anchor the popover itself at the far-right center.
+       This selector works across the current Streamlit DOM structure. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 50% !important;
+        right: 3px !important;
+        transform: translateY(-50%) !important;
+        z-index: 80 !important;
+        display: block !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: opacity 0.12s ease !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"]:has(button[aria-expanded="true"]) {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+
+    /* Prevent the popover's Streamlit wrapper from hiding or clipping it. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        position: static !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 7px !important;
+        line-height: 1 !important;
+    }
+
+    /* Pinned and Recent titles share the exact same left edge. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        display: none !important;
+        content: none !important;
+        width: 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-row-meta {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
 # ============================================================
 # Helpers
 # ============================================================
@@ -12711,208 +12919,4 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Final isolated history-row presentation.
-# The title and action menu are siblings; no Streamlit columns are used.
-st.markdown(
-    """
-    <style>
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"] {
-        position: relative !important;
-        width: 100% !important;
-        height: 38px !important;
-        min-height: 38px !important;
-        max-height: 38px !important;
-        margin: 0 0 4px 0 !important;
-        padding: 0 3px !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    > div[data-testid="stVerticalBlock"] {
-        position: relative !important;
-        display: block !important;
-        width: 100% !important;
-        height: 38px !important;
-        min-height: 38px !important;
-        max-height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        gap: 0 !important;
-        overflow: visible !important;
-    }
-
-    /* The title control occupies the complete row width. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] .stButton,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] div[data-testid="stButton"] {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        height: 38px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        text-align: left !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        height: 38px !important;
-        min-height: 38px !important;
-        max-height: 38px !important;
-        margin: 0 !important;
-        padding: 0 34px 0 5px !important;
-        box-sizing: border-box !important;
-        overflow: hidden !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] button
-    div[data-testid="stMarkdownContainer"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] button
-    div[data-testid="stMarkdownContainer"] p,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[class*="st-key-open_"] button span {
-        display: block !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        text-align: left !important;
-        white-space: nowrap !important;
-        text-overflow: ellipsis !important;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-        line-height: 1.2 !important;
-    }
-
-    /* Anchor the popover itself at the far-right center.
-       This selector works across the current Streamlit DOM structure. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] {
-        position: absolute !important;
-        top: 50% !important;
-        right: 3px !important;
-        transform: translateY(-50%) !important;
-        z-index: 80 !important;
-        display: block !important;
-        width: 28px !important;
-        min-width: 28px !important;
-        max-width: 28px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        max-height: 28px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        transition: opacity 0.12s ease !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]:hover
-    [data-testid="stPopover"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]:focus-within
-    [data-testid="stPopover"],
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"]:has(button[aria-expanded="true"]) {
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
-    }
-
-    /* Prevent the popover's Streamlit wrapper from hiding or clipping it. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
-        position: static !important;
-        width: 0 !important;
-        height: 0 !important;
-        min-width: 0 !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: none !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]:hover
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]:focus-within
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
-        pointer-events: auto !important;
-    }
-
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] > button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 28px !important;
-        min-width: 28px !important;
-        max-width: 28px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        max-height: 28px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border-radius: 7px !important;
-        line-height: 1 !important;
-    }
-
-    /* Pinned and Recent titles share the exact same left edge. */
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_pinned_"]::before,
-    section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_pinned_"]::before {
-        display: none !important;
-        content: none !important;
-        width: 0 !important;
-    }
-
-    section[data-testid="stSidebar"] .history-row-meta {
-        display: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
