@@ -12189,8 +12189,13 @@ st.markdown(
 st.markdown(
     """
     <style>
-    /* Style-only markdown elements do not need layout height. */
-    div[data-testid="stMain"]
+    /* Style-only markdown elements do not need layout height.
+       Use selectors compatible with current and older Streamlit DOM versions. */
+    [data-testid="stMainBlockContainer"]
+    div[data-testid="stElementContainer"]:has(style),
+    [data-testid="stAppViewContainer"]
+    div[data-testid="stElementContainer"]:has(style),
+    .block-container
     div[data-testid="stElementContainer"]:has(style) {
         display: none !important;
         visibility: hidden !important;
@@ -12200,25 +12205,34 @@ st.markdown(
         margin: 0 !important;
         padding: 0 !important;
         overflow: hidden !important;
+        flex: 0 0 0 !important;
     }
 
     /* Keep a clean, modest gap below the main AutoTecPro AI header. */
-    div[data-testid="stMain"] .app-header {
+    [data-testid="stMainBlockContainer"] .app-header,
+    [data-testid="stAppViewContainer"] .app-header,
+    .block-container .app-header {
         margin-bottom: 14px !important;
     }
 
     /* Prevent the first page card from adding another large top gap. */
-    div[data-testid="stMain"] .assistant-section-card {
+    [data-testid="stMainBlockContainer"] .assistant-section-card,
+    [data-testid="stAppViewContainer"] .assistant-section-card,
+    .block-container .assistant-section-card {
         margin-top: 0 !important;
     }
 
     /* Admin heading begins directly below the main header. */
-    div[data-testid="stMain"] h2:first-of-type {
+    [data-testid="stMainBlockContainer"] h2:first-of-type,
+    [data-testid="stAppViewContainer"] h2:first-of-type,
+    .block-container h2:first-of-type {
         margin-top: 0 !important;
     }
 
     @media (max-width: 900px) {
-        div[data-testid="stMain"] .app-header {
+        [data-testid="stMainBlockContainer"] .app-header,
+        [data-testid="stAppViewContainer"] .app-header,
+        .block-container .app-header {
             margin-bottom: 12px !important;
         }
     }
