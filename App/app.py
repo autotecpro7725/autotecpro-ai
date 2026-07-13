@@ -12607,47 +12607,57 @@ st.markdown(
 )
 
 # Final structural history-row alignment.
-# The row is now a true title column plus action column.
+# Titles stay on one line; the action menu sits inside the upper-right corner.
 st.markdown(
     """
     <style>
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"] {
+        position: relative !important;
         width: 100% !important;
+        min-height: 38px !important;
+        height: 38px !important;
         margin: 0 0 4px 0 !important;
         padding: 0 6px !important;
         box-sizing: border-box !important;
+        overflow: hidden !important;
         text-align: left !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     > div[data-testid="stVerticalBlock"] {
+        position: relative !important;
         width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
         gap: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
     }
 
+    /* Remove the Streamlit two-column width restriction.
+       The title uses the full row and the menu floats inside the upper-right. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="stHorizontalBlock"] {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 34px !important;
-        align-items: center !important;
-        gap: 4px !important;
+        position: relative !important;
+        display: block !important;
         width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="column"] {
-        display: block !important;
-        width: auto !important;
+        width: 100% !important;
         min-width: 0 !important;
-        max-width: none !important;
+        max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         flex: none !important;
@@ -12656,67 +12666,76 @@ st.markdown(
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="column"]:first-child {
-        grid-column: 1 !important;
+        position: relative !important;
         width: 100% !important;
         min-width: 0 !important;
+        max-width: 100% !important;
+        height: 38px !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     div[data-testid="column"]:last-child {
-        grid-column: 2 !important;
-        width: 34px !important;
-        min-width: 34px !important;
-        max-width: 34px !important;
+        position: absolute !important;
+        top: 3px !important;
+        right: 3px !important;
+        z-index: 30 !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        pointer-events: none !important;
     }
 
-    /* Conversation-title button: true left edge. */
+    /* Conversation title: one line, full width, ellipsis before the menu. */
     section[data-testid="stSidebar"]
     div[class*="st-key-open_"],
     section[data-testid="stSidebar"]
     div[class*="st-key-open_"] .stButton,
     section[data-testid="stSidebar"]
     div[class*="st-key-open_"] div[data-testid="stButton"] {
+        display: block !important;
         width: 100% !important;
         min-width: 0 !important;
         max-width: 100% !important;
+        height: 38px !important;
         margin: 0 !important;
         padding: 0 !important;
         text-align: left !important;
+        overflow: hidden !important;
     }
 
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"]
-    .stButton > button,
+    div[class*="st-key-open_"] .stButton > button,
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"]
-    div[data-testid="stButton"] > button {
+    div[class*="st-key-open_"] div[data-testid="stButton"] > button {
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
         width: 100% !important;
         min-width: 0 !important;
         max-width: 100% !important;
-        height: 36px !important;
-        min-height: 36px !important;
+        height: 38px !important;
+        min-height: 38px !important;
         margin: 0 !important;
-        padding: 0 4px !important;
+        padding: 0 38px 0 4px !important;
         text-align: left !important;
         white-space: nowrap !important;
         overflow: hidden !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
     }
 
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"]
-    .stButton > button
+    div[class*="st-key-open_"] .stButton > button
     div[data-testid="stMarkdownContainer"],
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"]
-    .stButton > button
+    div[class*="st-key-open_"] .stButton > button
     div[data-testid="stMarkdownContainer"] p,
     section[data-testid="stSidebar"]
-    div[class*="st-key-open_"]
-    .stButton > button span {
+    div[class*="st-key-open_"] .stButton > button span {
         display: block !important;
         width: 100% !important;
         min-width: 0 !important;
@@ -12727,6 +12746,9 @@ st.markdown(
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        line-height: 1.2 !important;
     }
 
     /* Pinned and Recent rows use the same left edge. */
@@ -12739,43 +12761,63 @@ st.markdown(
         width: 0 !important;
     }
 
-    /* Action menu remains on the far right and hover-only. */
+    /* Three-dot menu: inside the upper-right corner and hover-only. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     [data-testid="stPopover"] {
-        position: static !important;
-        width: 34px !important;
-        min-width: 34px !important;
-        max-width: 34px !important;
+        position: absolute !important;
+        top: 0 !important;
+        right: 0 !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
         margin: 0 !important;
         padding: 0 !important;
         opacity: 0 !important;
+        visibility: hidden !important;
         pointer-events: none !important;
+        transition: opacity 0.12s ease !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]:hover
     [data-testid="stPopover"],
     section[data-testid="stSidebar"]
-    div[class*="st-key-history_row_active_"]
+    div[class*="st-key-history_row_"]:focus-within
     [data-testid="stPopover"] {
         opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    div[data-testid="column"]:last-child,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    div[data-testid="column"]:last-child {
         pointer-events: auto !important;
     }
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
     [data-testid="stPopover"] > button {
-        width: 34px !important;
-        min-width: 34px !important;
-        max-width: 34px !important;
-        height: 34px !important;
-        min-height: 34px !important;
-        margin: 0 !important;
-        padding: 0 !important;
         display: flex !important;
-        align-items: center !important;
+        align-items: flex-start !important;
         justify-content: center !important;
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        margin: 0 !important;
+        padding: 1px 0 0 0 !important;
+        border-radius: 7px !important;
+    }
+
+    section[data-testid="stSidebar"] .history-row-meta {
+        display: none !important;
     }
     </style>
     """,
