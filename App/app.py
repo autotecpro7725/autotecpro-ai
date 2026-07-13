@@ -12126,3 +12126,36 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Final isolated History / Pinned / Recents heading spacing.
+# Visual spacing only; no history behavior or other UI is changed.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] .history-title {
+        margin-top: 12px !important;
+        margin-right: 0 !important;
+        margin-bottom: 12px !important;
+        margin-left: 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-section-label {
+        margin-top: 16px !important;
+        margin-right: 0 !important;
+        margin-bottom: 10px !important;
+        margin-left: 2px !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] .history-title {
+            margin-bottom: 11px !important;
+        }
+
+        section[data-testid="stSidebar"] .history-section-label {
+            margin-bottom: 9px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
