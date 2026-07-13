@@ -11563,6 +11563,76 @@ if assistant != "⚙️ Admin Panel":
                 label_visibility="collapsed",
             )
 
+        # Final history-row color override loaded immediately before the
+        # rows are rendered. This prevents older sidebar button CSS from
+        # restoring grey backgrounds while the AI is processing.
+        st.sidebar.markdown(
+            """
+            <style>
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"],
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"] > div,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"] div[data-testid="stElementContainer"],
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"] div[data-testid="stButton"],
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"] .stButton {
+                background: transparent !important;
+                background-color: transparent !important;
+                background-image: none !important;
+                border-color: transparent !important;
+                box-shadow: none !important;
+            }
+
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]
+            div[class*="st-key-open_"] button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]
+            div[data-testid="stButton"] > button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]
+            .stButton > button {
+                background: transparent !important;
+                background-color: transparent !important;
+                background-image: none !important;
+                border-color: transparent !important;
+                box-shadow: none !important;
+                filter: none !important;
+            }
+
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]:hover
+            div[class*="st-key-open_"] button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]:hover
+            div[data-testid="stButton"] > button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_"]:hover
+            .stButton > button {
+                background: rgba(148, 163, 184, 0.10) !important;
+                background-color: rgba(148, 163, 184, 0.10) !important;
+            }
+
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_active_"]
+            div[class*="st-key-open_"] button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_active_"]
+            div[data-testid="stButton"] > button,
+            section[data-testid="stSidebar"]
+            div[class*="st-key-history_row_active_"]
+            .stButton > button {
+                background: rgba(100, 116, 139, 0.34) !important;
+                background-color: rgba(100, 116, 139, 0.34) !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         render_history_cards(conversations)
 
         render_rename_form(conversations)
