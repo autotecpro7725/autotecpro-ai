@@ -9949,6 +9949,40 @@ def conversation_title_from_text(text):
     return fallback[:48]
 
 
+def history_display_title(title):
+    """
+    Return a compact ChatGPT-style sidebar title.
+
+    Saved AI titles remain unchanged. Older first-message titles are shortened
+    only for display, without modifying or deleting the stored conversation.
+    """
+    clean = re.sub(r"\s+", " ", str(title or "")).strip()
+    clean = re.sub(r"📎\s*Attached:.*$", "", clean, flags=re.IGNORECASE).strip()
+
+    if not clean:
+        return "New Case"
+
+    # Remove common conversational filler from older first-message titles.
+    clean = re.sub(
+        r"^(?:please\s+|can you\s+|could you\s+|would you\s+|"
+        r"i want to\s+|i would like to\s+|help me\s+)",
+        "",
+        clean,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    words = clean.split()
+    compact = " ".join(words[:6]).strip(" .,:;!?-")
+
+    if not compact:
+        compact = clean
+
+    if len(compact) > 34:
+        compact = compact[:34].rstrip(" .,:;!?-")
+
+    return compact or "New Case"
+
+
 def generate_ai_conversation_title(first_message, assistant_answer=""):
     """
     Generate a concise ChatGPT-style conversation title.
@@ -10007,9 +10041,22 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
             current_title = str(current.data[0].get("title") or "").strip()
 
         fallback_title = conversation_title_from_text(first_message)
+        normalized_message = re.sub(
+            r"\s+",
+            " ",
+            str(first_message or ""),
+        ).strip()
+        legacy_title = normalized_message[:55].strip()
 
         # Do not overwrite a title the user has manually renamed.
-        if current_title and current_title not in {"New Case", fallback_title}:
+        # Both the current short fallback and the older 55-character
+        # first-message format are recognized as automatic titles.
+        automatic_titles = {
+            "New Case",
+            fallback_title,
+            legacy_title,
+        }
+        if current_title and current_title not in automatic_titles:
             return
 
         ai_title = generate_ai_conversation_title(
@@ -10590,12 +10637,9 @@ def render_history_cards(conversations):
                     == str(conversation_id)
                 )
 
-                # ChatGPT-style compact title length.
-                title_short = (
-                    title[:25].rstrip() + "…"
-                    if len(title) > 25
-                    else title
-                )
+                # Use the saved AI title when available. Older long
+                # first-message titles are compacted for sidebar display.
+                title_short = history_display_title(title)
                 time_label = _history_time_label(
                     conversation
                 )
@@ -12440,6 +12484,87 @@ st.markdown(
     div[class*="st-key-open_"]
     .stButton > button
     div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final reliable Pinned / Recents title presentation.
+# Targets the actual keyed Streamlit button wrappers rather than only the row.
+st.markdown(
+    """
+    <style>
+    /* Remove the reserved pin-icon indentation so Pinned and Recents share
+       the exact same left starting position. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        display: none !important;
+        content: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"] .stButton > button,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"] .stButton > button {
+        padding-left: 10px !important;
+    }
+
+    /* The open_<conversation_id> keyed wrapper is the real title container. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        margin: 0 !important;
+        padding: 0 40px 0 10px !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton > button
+    div[data-testid="stMarkdownContainer"] p,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-open_"] .stButton > button span {
         display: block !important;
         width: 100% !important;
         min-width: 0 !important;
