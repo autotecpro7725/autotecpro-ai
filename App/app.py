@@ -12497,6 +12497,57 @@ def normalize_website_url(raw_url):
     return parsed.geturl()
 
 
+
+def canonical_website_url_identity(raw_url):
+    """
+    Return a stable identity used only to compare website URLs.
+
+    Harmless presentation and redirect differences are ignored:
+    - http versus https
+    - optional www prefix
+    - hostname capitalization
+    - default ports 80 and 443
+    - URL fragments
+    - duplicate slashes and a trailing slash
+
+    The actual hostname, non-default port, path, and query remain significant,
+    so changing to a genuinely different page still requires extraction again.
+    """
+    normalized = normalize_website_url(raw_url)
+    parsed = urlparse(normalized)
+
+    hostname = str(parsed.hostname or "").strip().lower().rstrip(".")
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+
+    try:
+        hostname = hostname.encode("idna").decode("ascii")
+    except Exception:
+        pass
+
+    port = parsed.port
+    if port in {80, 443}:
+        port = None
+
+    host_identity = hostname
+    if port is not None:
+        host_identity = f"{hostname}:{port}"
+
+    path = re.sub(r"/{2,}", "/", str(parsed.path or "/"))
+    if path != "/":
+        path = path.rstrip("/")
+    if not path:
+        path = "/"
+
+    query = str(parsed.query or "").strip()
+
+    identity = host_identity + path
+    if query:
+        identity += "?" + query
+
+    return identity
+
+
 def validate_public_website_host(url):
     """
     Block localhost, private networks, link-local ranges, and metadata services.
@@ -12823,16 +12874,23 @@ def render_learn_from_website(database_choice):
     if not extraction:
         return
 
-    # Prevent a stale extraction from silently pointing to a newly typed URL.
-    normalized_current = ""
+    # Prevent stale content from being saved after the user genuinely changes
+    # the page, while treating harmless redirect/format differences as equal.
+    current_url_identity = ""
+    extracted_url_identity = ""
+
     try:
-        normalized_current = normalize_website_url(website_url)
+        current_url_identity = canonical_website_url_identity(website_url)
+        extracted_url_identity = canonical_website_url_identity(
+            extraction.get("source_url")
+        )
     except Exception:
         pass
 
     if (
-        normalized_current
-        and normalized_current != extraction.get("source_url")
+        current_url_identity
+        and extracted_url_identity
+        and current_url_identity != extracted_url_identity
     ):
         st.info(
             "The URL field changed. Click Extract and Preview again before saving."
