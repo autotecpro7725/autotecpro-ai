@@ -182,11 +182,18 @@ def woocommerce_api_request(endpoint, params=None):
     return safe_json_response(response)
 
 
-def sanitize_woocommerce_order(order):
-    """Keep only fields needed for internal order support."""
+def sanitize_woocommerce_order(order, access_level="sales"):
+    """
+    Return a WooCommerce order with fields appropriate for the workspace.
+
+    access_level="technical" removes all pricing, payment, discount, tax,
+    coupon, shipping-cost, and refund-amount fields before the data is sent
+    to the AI. access_level="sales" preserves the existing full order view.
+    """
     if not isinstance(order, dict):
         return {}
 
+    technical_view = str(access_level or "").strip().lower() == "technical"
     billing = order.get("billing") or {}
     shipping = order.get("shipping") or {}
 
@@ -194,42 +201,58 @@ def sanitize_woocommerce_order(order):
     for item in order.get("line_items") or []:
         if not isinstance(item, dict):
             continue
-        line_items.append({
+
+        clean_item = {
             "product_id": item.get("product_id"),
             "variation_id": item.get("variation_id"),
             "name": item.get("name"),
             "sku": item.get("sku"),
             "quantity": item.get("quantity"),
-            "subtotal": item.get("subtotal"),
-            "total": item.get("total"),
-            "tax": item.get("total_tax"),
-        })
+        }
+
+        if not technical_view:
+            clean_item.update({
+                "subtotal": item.get("subtotal"),
+                "total": item.get("total"),
+                "tax": item.get("total_tax"),
+            })
+
+        line_items.append(clean_item)
 
     shipping_lines = []
     for item in order.get("shipping_lines") or []:
         if not isinstance(item, dict):
             continue
-        shipping_lines.append({
+
+        clean_shipping = {
             "method_title": item.get("method_title"),
             "method_id": item.get("method_id"),
-            "total": item.get("total"),
-        })
+        }
+
+        if not technical_view:
+            clean_shipping["total"] = item.get("total")
+
+        shipping_lines.append(clean_shipping)
 
     refunds = []
     for item in order.get("refunds") or []:
         if not isinstance(item, dict):
             continue
-        refunds.append({
+
+        clean_refund = {
             "id": item.get("id"),
             "reason": item.get("reason"),
-            "total": item.get("total"),
-        })
+        }
 
-    return {
+        if not technical_view:
+            clean_refund["total"] = item.get("total")
+
+        refunds.append(clean_refund)
+
+    clean_order = {
         "id": order.get("id"),
         "number": order.get("number"),
         "status": order.get("status"),
-        "currency": order.get("currency"),
         "date_created": order.get("date_created"),
         "date_modified": order.get("date_modified"),
         "date_paid": order.get("date_paid"),
@@ -261,20 +284,30 @@ def sanitize_woocommerce_order(order):
             "country": shipping.get("country"),
             "phone": shipping.get("phone"),
         },
-        "payment_method_title": order.get("payment_method_title"),
-        "shipping_total": order.get("shipping_total"),
-        "discount_total": order.get("discount_total"),
-        "total_tax": order.get("total_tax"),
-        "total": order.get("total"),
-        "prices_include_tax": order.get("prices_include_tax"),
         "line_items": line_items,
         "shipping_lines": shipping_lines,
-        "coupon_lines": order.get("coupon_lines") or [],
         "refunds": refunds,
+        "refund_status": "refunded" if str(order.get("status") or "").lower() == "refunded" else (
+            "partial_or_recorded" if refunds else "none"
+        ),
     }
 
+    if not technical_view:
+        clean_order.update({
+            "currency": order.get("currency"),
+            "payment_method_title": order.get("payment_method_title"),
+            "shipping_total": order.get("shipping_total"),
+            "discount_total": order.get("discount_total"),
+            "total_tax": order.get("total_tax"),
+            "total": order.get("total"),
+            "prices_include_tax": order.get("prices_include_tax"),
+            "coupon_lines": order.get("coupon_lines") or [],
+        })
 
-def get_woocommerce_order_by_id(order_id):
+    return clean_order
+
+
+def get_woocommerce_order_by_id(order_id, access_level="sales"):
     """Retrieve one WooCommerce order using its numeric internal ID."""
     clean_order_id = str(order_id or "").strip()
     if not re.fullmatch(r"\d{1,12}", clean_order_id):
@@ -285,18 +318,22 @@ def get_woocommerce_order_by_id(order_id):
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "order_id",
-        "order": sanitize_woocommerce_order(order),
+        "access_level": access_level,
+        "order": sanitize_woocommerce_order(order, access_level),
     }
 
 
-def search_woocommerce_order_number(order_number):
+def search_woocommerce_order_number(order_number, access_level="sales"):
     """Find an order by internal ID or displayed WooCommerce order number."""
     clean_number = re.sub(r"[^0-9]", "", str(order_number or ""))
     if not clean_number:
         raise RuntimeError("A valid order number was not provided.")
 
     try:
-        direct_result = get_woocommerce_order_by_id(clean_number)
+        direct_result = get_woocommerce_order_by_id(
+            clean_number,
+            access_level=access_level,
+        )
         order = direct_result.get("order") or {}
         if str(order.get("number") or order.get("id") or "") == clean_number:
             return direct_result
@@ -318,19 +355,22 @@ def search_woocommerce_order_number(order_number):
         displayed_number = str(order.get("number") or "")
         internal_id = str(order.get("id") or "")
         if clean_number in {displayed_number, internal_id}:
-            matches.append(sanitize_woocommerce_order(order))
+            matches.append(
+                sanitize_woocommerce_order(order, access_level)
+            )
 
     return {
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "order_number",
+        "access_level": access_level,
         "searched_order_number": clean_number,
         "count": len(matches),
         "orders": matches,
     }
 
 
-def search_woocommerce_orders_by_email(email_address):
+def search_woocommerce_orders_by_email(email_address, access_level="sales"):
     """Search recent orders by exact billing email address."""
     email_value = str(email_address or "").strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email_value):
@@ -352,19 +392,22 @@ def search_woocommerce_orders_by_email(email_address):
             (order.get("billing") or {}).get("email") or ""
         ).strip().lower()
         if order_email == email_value:
-            matches.append(sanitize_woocommerce_order(order))
+            matches.append(
+                sanitize_woocommerce_order(order, access_level)
+            )
 
     return {
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "customer_email",
+        "access_level": access_level,
         "searched_email": email_value,
         "count": len(matches),
         "orders": matches,
     }
 
 
-def get_recent_woocommerce_orders(limit=10, status="any"):
+def get_recent_woocommerce_orders(limit=10, status="any", access_level="sales"):
     """Retrieve a small list of recent WooCommerce orders."""
     try:
         clean_limit = int(limit)
@@ -390,7 +433,7 @@ def get_recent_woocommerce_orders(limit=10, status="any"):
 
     orders = woocommerce_api_request("orders", params=params)
     clean_orders = [
-        sanitize_woocommerce_order(order)
+        sanitize_woocommerce_order(order, access_level)
         for order in orders if isinstance(order, dict)
     ] if isinstance(orders, list) else []
 
@@ -398,6 +441,7 @@ def get_recent_woocommerce_orders(limit=10, status="any"):
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "recent_orders",
+        "access_level": access_level,
         "status_filter": clean_status,
         "count": len(clean_orders),
         "orders": clean_orders,
@@ -775,12 +819,21 @@ def detect_live_request(prompt, selected_assistant=None):
         or ""
     )
 
-    # WooCommerce order data is intentionally available only in
-    # the Sales & Marketing workspace.
+    woo_allowed_assistants = {
+        "🔧 Technical Support",
+        "📈 Sales & Marketing",
+    }
+
     if (
-        active_assistant == "📈 Sales & Marketing"
+        active_assistant in woo_allowed_assistants
         and woocommerce_is_configured()
     ):
+        access_level = (
+            "technical"
+            if active_assistant == "🔧 Technical Support"
+            else "sales"
+        )
+
         notes_match = re.search(
             r"\b(?:notes?|order\s+notes?)\b.*?"
             r"\b(?:order|order\s*#|#)\s*[:#-]?\s*(\d{3,12})\b",
@@ -791,6 +844,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_order_notes",
                 "order_id": notes_match.group(1),
+                "access_level": access_level,
             }
 
         email_match = re.search(
@@ -808,6 +862,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_customer_email",
                 "email": email_match.group(0),
+                "access_level": access_level,
             }
 
         recent_order_match = re.search(
@@ -820,6 +875,7 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_recent_orders",
                 "limit": int(recent_order_match.group(1) or 10),
+                "access_level": access_level,
             }
 
         order_match = re.search(
@@ -832,12 +888,11 @@ def detect_live_request(prompt, selected_assistant=None):
             return {
                 "type": "woocommerce_order",
                 "order_number": order_match.group(1),
+                "access_level": access_level,
             }
 
     tracking_number = extract_tracking_number(value)
 
-    # Route a valid UPS 1Z number directly to UPS even when the user only types:
-    # "1Zxxxxxxxxxxxxxxxx UPS" or just the tracking number by itself.
     if tracking_number and tracking_number.startswith("1Z"):
         return {
             "type": "tracking",
@@ -845,7 +900,6 @@ def detect_live_request(prompt, selected_assistant=None):
             "tracking_number": tracking_number,
         }
 
-    # Route Canada Post when the carrier is named, even without the word "track".
     if tracking_number and (
         "canada post" in lower or "canadapost" in lower
     ):
@@ -855,7 +909,6 @@ def detect_live_request(prompt, selected_assistant=None):
             "tracking_number": tracking_number,
         }
 
-    # For other tracking formats, require tracking-related language.
     if tracking_number and any(
         word in lower
         for word in ["track", "tracking", "shipment", "package", "parcel"]
@@ -890,7 +943,7 @@ def detect_live_request(prompt, selected_assistant=None):
         word in lower
         for word in [
             "rate", "exchange", "convert", "currency", "fx",
-            "worth", "how much"
+            "worth", "how much",
         ]
     ):
         return {
@@ -920,21 +973,25 @@ def detect_live_request(prompt, selected_assistant=None):
 def get_live_data_for_prompt(prompt, selected_assistant=None):
     request_type = detect_live_request(prompt, selected_assistant)
     kind = request_type.get("type")
+    access_level = request_type.get("access_level", "sales")
 
     try:
         if kind == "woocommerce_order":
             return search_woocommerce_order_number(
-                request_type["order_number"]
+                request_type["order_number"],
+                access_level=access_level,
             )
 
         if kind == "woocommerce_customer_email":
             return search_woocommerce_orders_by_email(
-                request_type["email"]
+                request_type["email"],
+                access_level=access_level,
             )
 
         if kind == "woocommerce_recent_orders":
             return get_recent_woocommerce_orders(
-                request_type.get("limit", 10)
+                request_type.get("limit", 10),
+                access_level=access_level,
             )
 
         if kind == "woocommerce_order_notes":
@@ -971,7 +1028,6 @@ def get_live_data_for_prompt(prompt, selected_assistant=None):
                 ),
             }
 
-        # OpenAI web_search handles public internet browsing.
         if kind == "web":
             return None
 
@@ -10307,18 +10363,33 @@ You are AutoTecPro Technical Support AI.
 
 Always search the Technical Support Vector Store first.
 
+The AutoTecPro application may also provide a verified, read-only WooCommerce
+order result. Use it to identify the customer's purchased product, SKU,
+quantity, order status, shipping method, customer note, and order notes.
+
+For Technical Support WooCommerce results:
+- Clearly show the real WooCommerce order status.
+- Use the purchased product and SKU to guide the technical database search.
+- Never show or infer product price, subtotal, total, tax, shipping charge,
+  discount, coupon value, payment method, transaction data, or refund amount.
+- Do not claim an order is shipped or delivered unless supplied order or
+  tracking data supports that statement.
+- Never create, modify, cancel, refund, or delete an order.
+- Mention WooCommerce REST API as the source of live order information.
+
 Use previous messages as context.
 
 Answer in this order when useful:
 1. Vehicle Identification
-2. Summary
-3. Likely Cause
-4. Troubleshooting
-5. Information to Request
-6. Customer Reply Draft
-7. Escalation
+2. Order Summary
+3. Summary
+4. Likely Cause
+5. Troubleshooting
+6. Information to Request
+7. Customer Reply Draft
+8. Escalation
 
-Never invent technical information.
+Never invent technical information or order details.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
 """
