@@ -9498,6 +9498,42 @@ def generated_image_answer_text(images, regenerated=False):
     return "\n".join(details)
 
 
+def show_generated_image_full_size(image):
+    """
+    Display the original generated image in a Streamlit dialog.
+
+    This avoids opening a large base64 data URL in a browser tab, which can
+    produce a blank page in some browsers.
+    """
+    data_url = str((image or {}).get("data_url") or "")
+    image_bytes, _ = data_url_to_bytes(data_url)
+
+    if not image_bytes:
+        st.error("The full-size image data is unavailable.")
+        return
+
+    filename = str(
+        (image or {}).get("filename")
+        or (image or {}).get("name")
+        or "Generated Image"
+    )
+
+    dialog_factory = getattr(st, "dialog", None)
+    if callable(dialog_factory):
+        @dialog_factory(filename)
+        def _generated_image_dialog():
+            st.image(image_bytes, use_container_width=True)
+
+        _generated_image_dialog()
+    else:
+        # Compatibility fallback for older Streamlit versions.
+        st.image(
+            image_bytes,
+            caption=filename,
+            use_container_width=True,
+        )
+
+
 def generated_image_action_key(image, message_index, image_index, action):
     seed = (
         str(image.get("data_url") or "")
@@ -9512,10 +9548,10 @@ def generated_image_action_key(image, message_index, image_index, action):
 
 def render_generated_image_actions(images, message_index=None):
     """
-    Render Full Size, Download PNG, and Regenerate controls.
+    Render equal-size Full Size, Download, and Regenerate controls.
 
-    The image itself remains a standard HTML <img>, so desktop users may also
-    right-click and choose Save Image As or Copy Image.
+    The displayed image remains a standard HTML image, so desktop users can
+    still right-click and use Save Image As or Copy Image.
     """
     generated_images = [
         image
@@ -9541,19 +9577,76 @@ def render_generated_image_actions(images, message_index=None):
             filename = f"{Path(filename).stem}.png"
 
         open_key = generated_image_action_key(
-            image, message_index, image_index, "open"
+            image,
+            message_index,
+            image_index,
+            "open",
         )
         download_key = generated_image_action_key(
-            image, message_index, image_index, "download"
+            image,
+            message_index,
+            image_index,
+            "download",
         )
         regenerate_key = generated_image_action_key(
-            image, message_index, image_index, "regenerate"
+            image,
+            message_index,
+            image_index,
+            "regenerate",
         )
 
-        with st.container(key=f"generated_image_actions_{open_key}"):
+        container_key = f"generated_image_actions_{open_key}"
+
+        with st.container(key=container_key):
             st.markdown(
                 """
                 <style>
+                /* Force three genuinely equal columns. */
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stHorizontalBlock"] {
+                    width: 100% !important;
+                    display: flex !important;
+                    align-items: stretch !important;
+                    gap: 10px !important;
+                }
+
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stHorizontalBlock"]
+                > div[data-testid="column"] {
+                    flex: 1 1 0 !important;
+                    width: 0 !important;
+                    min-width: 0 !important;
+                    max-width: none !important;
+                    padding: 0 !important;
+                }
+
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stHorizontalBlock"]
+                > div[data-testid="column"]
+                > div[data-testid="stVerticalBlock"] {
+                    width: 100% !important;
+                    height: 100% !important;
+                    gap: 0 !important;
+                }
+
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stElementContainer"],
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stButton"],
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stDownloadButton"],
+                div[class*="st-key-generated_image_actions_"]
+                .stButton,
+                div[class*="st-key-generated_image_actions_"]
+                .stDownloadButton {
+                    width: 100% !important;
+                    height: 44px !important;
+                    min-height: 44px !important;
+                    max-height: 44px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
                 div[class*="st-key-generated_image_actions_"]
                 div[data-testid="stButton"] > button,
                 div[class*="st-key-generated_image_actions_"]
@@ -9562,16 +9655,80 @@ def render_generated_image_actions(images, message_index=None):
                 .stButton > button,
                 div[class*="st-key-generated_image_actions_"]
                 .stDownloadButton > button {
+                    box-sizing: border-box !important;
+                    width: 100% !important;
+                    min-width: 100% !important;
+                    max-width: 100% !important;
+                    height: 44px !important;
+                    min-height: 44px !important;
+                    max-height: 44px !important;
+                    margin: 0 !important;
+                    padding: 0 14px !important;
+                    border-radius: 9px !important;
+                    border: 1px solid rgba(148, 163, 184, 0.30) !important;
+                    background: rgba(30, 41, 59, 0.72) !important;
+                    background-image: none !important;
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                    font-family: inherit !important;
+                    font-size: 14px !important;
+                    font-weight: 650 !important;
+                    line-height: 1 !important;
+                    box-shadow: none !important;
+                    transform: none !important;
                     display: inline-flex !important;
                     align-items: center !important;
                     justify-content: center !important;
                     text-align: center !important;
+                    white-space: nowrap !important;
+                }
+
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stButton"] > button:hover,
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stDownloadButton"] > button:hover,
+                div[class*="st-key-generated_image_actions_"]
+                .stButton > button:hover,
+                div[class*="st-key-generated_image_actions_"]
+                .stDownloadButton > button:hover {
+                    background: rgba(51, 65, 85, 0.92) !important;
+                    background-image: none !important;
+                    border-color: rgba(148, 163, 184, 0.48) !important;
+                    color: #ffffff !important;
+                    -webkit-text-fill-color: #ffffff !important;
+                    box-shadow: none !important;
+                    transform: none !important;
                 }
 
                 div[class*="st-key-generated_image_actions_"] button p {
                     width: 100% !important;
                     margin: 0 !important;
+                    padding: 0 !important;
+                    color: inherit !important;
+                    -webkit-text-fill-color: inherit !important;
+                    font: inherit !important;
+                    line-height: 1 !important;
                     text-align: center !important;
+                    white-space: nowrap !important;
+                }
+
+                @media (max-width: 768px) {
+                    div[class*="st-key-generated_image_actions_"]
+                    div[data-testid="stHorizontalBlock"] {
+                        gap: 6px !important;
+                    }
+
+                    div[class*="st-key-generated_image_actions_"]
+                    div[data-testid="stButton"] > button,
+                    div[class*="st-key-generated_image_actions_"]
+                    div[data-testid="stDownloadButton"] > button,
+                    div[class*="st-key-generated_image_actions_"]
+                    .stButton > button,
+                    div[class*="st-key-generated_image_actions_"]
+                    .stDownloadButton > button {
+                        padding: 0 6px !important;
+                        font-size: 12px !important;
+                    }
                 }
                 </style>
                 """,
@@ -9579,28 +9736,19 @@ def render_generated_image_actions(images, message_index=None):
             )
 
             open_column, download_column, regenerate_column = st.columns(
-                [1, 1, 1],
+                3,
                 gap="small",
+                vertical_alignment="center",
             )
 
             with open_column:
-                safe_url = html.escape(
-                    str(image.get("data_url") or ""),
-                    quote=True,
-                )
-                st.markdown(
-                    (
-                        '<a href="'
-                        + safe_url
-                        + '" target="_blank" rel="noopener noreferrer" '
-                          'style="display:flex;align-items:center;'
-                          'justify-content:center;width:100%;min-height:38px;'
-                          'border-radius:9px;border:1px solid rgba(148,163,184,.22);'
-                          'text-decoration:none;color:inherit;font-weight:650;">'
-                          'Open Full Size</a>'
-                    ),
-                    unsafe_allow_html=True,
-                )
+                if st.button(
+                    "Open Full Size",
+                    key=open_key,
+                    use_container_width=True,
+                    type="secondary",
+                ):
+                    show_generated_image_full_size(image)
 
             with download_column:
                 st.download_button(
@@ -9610,6 +9758,7 @@ def render_generated_image_actions(images, message_index=None):
                     mime="image/png",
                     key=download_key,
                     use_container_width=True,
+                    type="secondary",
                 )
 
             with regenerate_column:
@@ -9617,6 +9766,7 @@ def render_generated_image_actions(images, message_index=None):
                     "Regenerate",
                     key=regenerate_key,
                     use_container_width=True,
+                    type="secondary",
                 ):
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
