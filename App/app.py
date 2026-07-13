@@ -10412,6 +10412,8 @@ def render_history_cards(conversations):
                     '<div class="history-section-label">'
                     f'{html.escape(section_name)}'
                     '</div>'
+                    '<div class="history-section-heading-gap" '
+                    'aria-hidden="true"></div>'
                 ),
                 unsafe_allow_html=True,
             )
@@ -10983,7 +10985,10 @@ if assistant != "⚙️ Admin Panel":
 
     st.sidebar.markdown("---")
     st.sidebar.markdown(
-        '<div class="history-title">History</div>',
+        (
+            '<div class="history-title">History</div>'
+            '<div class="history-heading-gap" aria-hidden="true"></div>'
+        ),
         unsafe_allow_html=True,
     )
 
@@ -12126,97 +12131,50 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Final isolated History / Pinned / Recents heading spacing.
-# Visual spacing only; no history behavior or other UI is changed.
+# Structural spacing below History / Pinned / Recents headings.
+# The spacing is created by real rendered spacer elements, not collapsing margins.
 st.markdown(
     """
     <style>
-    section[data-testid="stSidebar"] .history-title {
-        margin-top: 12px !important;
-        margin-right: 0 !important;
-        margin-bottom: 12px !important;
-        margin-left: 0 !important;
+    section[data-testid="stSidebar"] .history-heading-gap {
+        display: block !important;
+        width: 100% !important;
+        height: 14px !important;
+        min-height: 14px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: 0 0 14px !important;
+        pointer-events: none !important;
     }
 
-    section[data-testid="stSidebar"] .history-section-label {
-        margin-top: 16px !important;
-        margin-right: 0 !important;
-        margin-bottom: 10px !important;
-        margin-left: 2px !important;
+    section[data-testid="stSidebar"] .history-section-heading-gap {
+        display: block !important;
+        width: 100% !important;
+        height: 12px !important;
+        min-height: 12px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: 0 0 12px !important;
+        pointer-events: none !important;
     }
 
-    @media (max-width: 768px) {
-        section[data-testid="stSidebar"] .history-title {
-            margin-bottom: 11px !important;
-        }
-
-        section[data-testid="stSidebar"] .history-section-label {
-            margin-bottom: 9px !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Final reliable spacing for History / Pinned / Recents headings.
-# Streamlit wraps each markdown heading in its own element container, so the
-# spacing is applied to that wrapper instead of relying on collapsing margins.
-st.markdown(
-    """
-    <style>
-    /* Keep the heading itself compact; spacing is controlled by its wrapper. */
+    /* Remove competing bottom margins; the real spacers control the gap. */
     section[data-testid="stSidebar"] .history-title,
     section[data-testid="stSidebar"] .history-section-label {
         margin-bottom: 0 !important;
     }
 
-    /* History -> Storage card */
-    section[data-testid="stSidebar"]
-    div[data-testid="stElementContainer"]:has(.history-title) {
-        display: block !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 0 14px 0 !important;
-        box-sizing: border-box !important;
-        overflow: visible !important;
-    }
-
-    /* Pinned / Recents -> first conversation row */
-    section[data-testid="stSidebar"]
-    div[data-testid="stElementContainer"]:has(.history-section-label) {
-        display: block !important;
-        width: 100% !important;
-        margin: 14px 0 0 0 !important;
-        padding: 0 0 12px 0 !important;
-        box-sizing: border-box !important;
-        overflow: visible !important;
-        flex: 0 0 auto !important;
-    }
-
-    /* Prevent the next Streamlit element from being pulled upward. */
-    section[data-testid="stSidebar"]
-    div[data-testid="stElementContainer"]:has(.history-title)
-    + div[data-testid="stElementContainer"],
-    section[data-testid="stSidebar"]
-    div[data-testid="stElementContainer"]:has(.history-section-label)
-    + div[data-testid="stElementContainer"],
-    section[data-testid="stSidebar"]
-    div[data-testid="stElementContainer"]:has(.history-section-label)
-    + div[class*="st-key-history_row_"] {
-        margin-top: 0 !important;
-    }
-
     @media (max-width: 768px) {
-        section[data-testid="stSidebar"]
-        div[data-testid="stElementContainer"]:has(.history-title) {
-            padding-bottom: 13px !important;
+        section[data-testid="stSidebar"] .history-heading-gap {
+            height: 13px !important;
+            min-height: 13px !important;
+            flex-basis: 13px !important;
         }
 
-        section[data-testid="stSidebar"]
-        div[data-testid="stElementContainer"]:has(.history-section-label) {
-            margin-top: 13px !important;
-            padding-bottom: 11px !important;
+        section[data-testid="stSidebar"] .history-section-heading-gap {
+            height: 11px !important;
+            min-height: 11px !important;
+            flex-basis: 11px !important;
         }
     }
     </style>
