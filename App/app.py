@@ -6286,7 +6286,13 @@ def html_from_text(text):
     return rendered
 
 
-def render_chat_message(role, content, images=None):
+def render_chat_message(
+    role,
+    content,
+    images=None,
+    message_index=None,
+    show_generated_actions=True,
+):
     visible_content, stored_images = extract_images_from_message_content(content)
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
@@ -6318,6 +6324,16 @@ def render_chat_message(role, content, images=None):
     )
 
     st.markdown(chat_html, unsafe_allow_html=True)
+
+    if (
+        role != "user"
+        and show_generated_actions
+        and final_images
+    ):
+        render_generated_image_actions(
+            final_images,
+            message_index=message_index,
+        )
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
 REMEMBER_CREDENTIAL_DAYS = 30
@@ -9137,11 +9153,30 @@ def extract_images_from_message_content(content):
 
     clean_images = []
     for image in images:
-        if isinstance(image, dict) and image.get("data_url"):
-            clean_images.append({
-                "name": str(image.get("name") or "uploaded image"),
-                "data_url": str(image.get("data_url"))
-            })
+        if not isinstance(image, dict) or not image.get("data_url"):
+            continue
+
+        clean_image = {
+            "name": str(image.get("name") or "uploaded image"),
+            "data_url": str(image.get("data_url")),
+        }
+
+        # Preserve optional generated-image metadata while remaining fully
+        # backward compatible with older uploaded-image history records.
+        for key in (
+            "generated",
+            "prompt",
+            "created_at",
+            "model",
+            "size",
+            "resolution",
+            "mime_type",
+            "filename",
+        ):
+            if key in image:
+                clean_image[key] = image.get(key)
+
+        clean_images.append(clean_image)
 
     return visible_text, clean_images
 
@@ -9170,10 +9205,11 @@ def render_image_previews(images):
 
         safe_data_url = html.escape(data_url, quote=True)
 
+        caption_icon = "🖼️" if image.get("generated") else "📎"
         cards.append(
             f'<div class="chat-image-card">'
             f'<img src="{safe_data_url}" alt="{name}">'
-            f'<div class="chat-image-caption">📎 {name}</div>'
+            f'<div class="chat-image-caption">{caption_icon} {name}</div>'
             f'</div>'
         )
 
@@ -9181,6 +9217,407 @@ def render_image_previews(images):
         return ""
 
     return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
+
+
+GRAPHIC_IMAGE_COUNT = 1
+GRAPHIC_IMAGE_MODELS = (
+    "gpt-image-2",
+    "gpt-image-1.5",
+    "gpt-image-1",
+)
+
+
+def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
+    """
+    Detect an explicit request to create or edit an image.
+
+    Graphic Marketing can still answer ordinary text questions. Image
+    generation activates only when the prompt clearly asks for visual output.
+    """
+    text = str(prompt_text or "").strip().lower()
+    if not text:
+        return False
+
+    visual_nouns = (
+        "image", "photo", "picture", "graphic", "artwork", "banner",
+        "thumbnail", "poster", "flyer", "ad", "advertisement", "logo",
+        "background", "social media post", "instagram post",
+        "facebook post", "facebook cover", "youtube cover",
+        "product shot", "product photography", "render",
+    )
+    action_words = (
+        "create", "generate", "make", "design", "draw", "render",
+        "produce", "edit", "modify", "change", "replace", "remove",
+        "add", "transform", "recreate", "enhance", "retouch",
+    )
+
+    has_visual_noun = any(term in text for term in visual_nouns)
+    has_action_word = any(term in text for term in action_words)
+
+    # Common direct commands that may omit the word "image."
+    direct_phrases = (
+        "turn this into", "use this photo", "use this image",
+        "change the background", "remove the background",
+        "make it look", "make this look", "create a 16:9",
+        "create a 1:1", "create a 9:16",
+    )
+
+    return (
+        (has_visual_noun and has_action_word)
+        or any(phrase in text for phrase in direct_phrases)
+    )
+
+
+def choose_graphic_image_size(prompt_text):
+    """Choose a practical output orientation from the user's command."""
+    text = str(prompt_text or "").lower()
+
+    portrait_terms = (
+        "portrait", "vertical", "9:16", "story", "reel",
+        "tiktok", "phone wallpaper", "instagram story",
+    )
+    landscape_terms = (
+        "landscape", "horizontal", "16:9", "youtube",
+        "thumbnail", "banner", "facebook cover", "website hero",
+        "wide", "header",
+    )
+
+    if any(term in text for term in portrait_terms):
+        return "1024x1536"
+    if any(term in text for term in landscape_terms):
+        return "1536x1024"
+    return "1024x1024"
+
+
+def graphic_image_filename(prompt_text, created_at=None):
+    """Create a readable, filesystem-safe PNG filename."""
+    timestamp = created_at or datetime.now(timezone.utc)
+    words = re.findall(r"[A-Za-z0-9]+", str(prompt_text or ""))[:6]
+    stem = "_".join(words).strip("_") or "AutoTecPro_Generated_Image"
+    stem = stem[:72]
+    return f"{stem}_{timestamp.strftime('%Y-%m-%d_%H-%M-%S')}.png"
+
+
+def data_url_to_bytes(data_url):
+    """Decode an image data URL into raw bytes and its MIME type."""
+    value = str(data_url or "")
+    match = re.match(
+        r"^data:(image/[A-Za-z0-9.+-]+);base64,(.+)$",
+        value,
+        flags=re.DOTALL,
+    )
+    if not match:
+        return b"", "image/png"
+
+    try:
+        return base64.b64decode(match.group(2)), match.group(1)
+    except Exception:
+        return b"", match.group(1)
+
+
+def image_bytes_to_png(image_bytes):
+    """
+    Normalize generated output to PNG without changing its resolution.
+
+    The API currently returns base64 image data. This helper guarantees the
+    Download PNG button always serves PNG, even if a future model returns a
+    different raster format.
+    """
+    raw = bytes(image_bytes or b"")
+    if not raw or Image is None:
+        return raw
+
+    try:
+        with Image.open(io.BytesIO(raw)) as generated_image:
+            output = io.BytesIO()
+            if generated_image.mode not in ("RGB", "RGBA"):
+                generated_image = generated_image.convert("RGBA")
+            generated_image.save(output, format="PNG", optimize=True)
+            return output.getvalue()
+    except Exception:
+        return raw
+
+
+def prepare_graphic_reference_images(uploaded_files):
+    """Convert uploaded reference images into SDK-compatible in-memory files."""
+    references = []
+
+    for index, uploaded_file in enumerate(uploaded_files or []):
+        mime_type = str(getattr(uploaded_file, "type", "") or "").lower()
+        if not mime_type.startswith("image/"):
+            continue
+
+        normalized_bytes, normalized_mime = normalize_uploaded_image_bytes(
+            uploaded_file
+        )
+        if not normalized_bytes:
+            continue
+
+        extension = ".png" if normalized_mime == "image/png" else ".jpg"
+        reference = io.BytesIO(normalized_bytes)
+        reference.name = (
+            Path(str(getattr(uploaded_file, "name", "") or "")).name
+            or f"reference_{index + 1}{extension}"
+        )
+        if not Path(reference.name).suffix:
+            reference.name += extension
+        reference.seek(0)
+        references.append(reference)
+
+    return references
+
+
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
+    """
+    Generate or reference-edit Graphic Marketing images through the Image API.
+
+    Returns a list using the app's existing image-history schema, expanded with
+    optional metadata. The function tries current GPT Image models in order for
+    compatibility across projects and account access.
+    """
+    prompt_text = str(prompt_text or "").strip()
+    if not prompt_text:
+        raise ValueError("Please enter an image-generation command.")
+
+    output_size = choose_graphic_image_size(prompt_text)
+    reference_images = prepare_graphic_reference_images(uploaded_files)
+    errors = []
+
+    for model_name in GRAPHIC_IMAGE_MODELS:
+        try:
+            if reference_images:
+                # Reset every in-memory file before each model attempt.
+                for reference in reference_images:
+                    reference.seek(0)
+
+                image_input = (
+                    reference_images
+                    if len(reference_images) > 1
+                    else reference_images[0]
+                )
+                result = client.images.edit(
+                    model=model_name,
+                    image=image_input,
+                    prompt=prompt_text,
+                    n=GRAPHIC_IMAGE_COUNT,
+                    size=output_size,
+                )
+            else:
+                result = client.images.generate(
+                    model=model_name,
+                    prompt=prompt_text,
+                    n=GRAPHIC_IMAGE_COUNT,
+                    size=output_size,
+                )
+
+            result_items = list(getattr(result, "data", None) or [])
+            generated_images = []
+
+            for item in result_items:
+                encoded = (
+                    getattr(item, "b64_json", None)
+                    or (
+                        item.get("b64_json")
+                        if isinstance(item, dict)
+                        else None
+                    )
+                )
+                if not encoded:
+                    continue
+
+                raw_bytes = base64.b64decode(encoded)
+                png_bytes = image_bytes_to_png(raw_bytes)
+                if not png_bytes:
+                    continue
+
+                created_at = datetime.now(timezone.utc)
+                filename = graphic_image_filename(prompt_text, created_at)
+                data_url = (
+                    "data:image/png;base64,"
+                    + base64.b64encode(png_bytes).decode()
+                )
+
+                generated_images.append({
+                    "name": filename,
+                    "filename": filename,
+                    "data_url": data_url,
+                    "generated": True,
+                    "prompt": prompt_text,
+                    "created_at": created_at.isoformat(),
+                    "model": model_name,
+                    "size": output_size,
+                    "resolution": output_size,
+                    "mime_type": "image/png",
+                })
+
+            if generated_images:
+                return generated_images
+
+            errors.append(f"{model_name}: no image data returned")
+        except Exception as error:
+            errors.append(f"{model_name}: {error}")
+
+    raise RuntimeError(
+        "Image generation was unsuccessful. "
+        + " | ".join(errors[-3:])
+    )
+
+
+def generated_image_answer_text(images, regenerated=False):
+    """Create the concise assistant text stored beside generated artwork."""
+    if not images:
+        return "The image could not be generated."
+
+    image = images[0]
+    action = "Generated another version" if regenerated else "Created your image"
+    details = [
+        f"{action}.",
+        f"Resolution: {image.get('resolution') or image.get('size') or 'Original'}",
+        f"Format: PNG",
+    ]
+    return "\n".join(details)
+
+
+def generated_image_action_key(image, message_index, image_index, action):
+    seed = (
+        str(image.get("data_url") or "")
+        + str(image.get("prompt") or "")
+        + str(message_index)
+        + str(image_index)
+        + action
+    )
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:20]
+    return f"graphic_{action}_{digest}"
+
+
+def render_generated_image_actions(images, message_index=None):
+    """
+    Render Full Size, Download PNG, and Regenerate controls.
+
+    The image itself remains a standard HTML <img>, so desktop users may also
+    right-click and choose Save Image As or Copy Image.
+    """
+    generated_images = [
+        image
+        for image in (images or [])
+        if isinstance(image, dict)
+        and image.get("generated")
+        and str(image.get("data_url") or "").startswith("data:image/")
+    ]
+    if not generated_images:
+        return
+
+    for image_index, image in enumerate(generated_images):
+        image_bytes, _ = data_url_to_bytes(image.get("data_url"))
+        if not image_bytes:
+            continue
+
+        filename = str(
+            image.get("filename")
+            or image.get("name")
+            or "AutoTecPro_Generated_Image.png"
+        )
+        if not filename.lower().endswith(".png"):
+            filename = f"{Path(filename).stem}.png"
+
+        open_key = generated_image_action_key(
+            image, message_index, image_index, "open"
+        )
+        download_key = generated_image_action_key(
+            image, message_index, image_index, "download"
+        )
+        regenerate_key = generated_image_action_key(
+            image, message_index, image_index, "regenerate"
+        )
+
+        with st.container(key=f"generated_image_actions_{open_key}"):
+            open_column, download_column, regenerate_column = st.columns(
+                [1, 1, 1],
+                gap="small",
+            )
+
+            with open_column:
+                safe_url = html.escape(
+                    str(image.get("data_url") or ""),
+                    quote=True,
+                )
+                st.markdown(
+                    (
+                        '<a href="'
+                        + safe_url
+                        + '" target="_blank" rel="noopener noreferrer" '
+                          'style="display:flex;align-items:center;'
+                          'justify-content:center;width:100%;min-height:38px;'
+                          'border-radius:9px;border:1px solid rgba(148,163,184,.22);'
+                          'text-decoration:none;color:inherit;font-weight:650;">'
+                          '🖼️ Open Full Size</a>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            with download_column:
+                st.download_button(
+                    "⬇️ Download PNG",
+                    data=image_bytes,
+                    file_name=filename,
+                    mime="image/png",
+                    key=download_key,
+                    use_container_width=True,
+                )
+
+            with regenerate_column:
+                if st.button(
+                    "🔄 Regenerate",
+                    key=regenerate_key,
+                    use_container_width=True,
+                ):
+                    st.session_state.pending_graphic_regeneration = {
+                        "prompt": str(image.get("prompt") or "").strip(),
+                    }
+                    st.rerun()
+
+
+def process_pending_graphic_regeneration():
+    """Generate another version from a saved image's original prompt."""
+    pending = st.session_state.pop(
+        "pending_graphic_regeneration",
+        None,
+    )
+    if not pending:
+        return False
+
+    prompt_text = str(pending.get("prompt") or "").strip()
+    if not prompt_text:
+        st.warning("The original generation prompt is unavailable.")
+        return False
+
+    with st.spinner("🎨 Creating another image version..."):
+        images = generate_graphic_marketing_images(prompt_text, [])
+        answer_text = generated_image_answer_text(
+            images,
+            regenerated=True,
+        )
+        stored_content = answer_text + serialize_images_marker(images)
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": stored_content,
+        })
+
+        try:
+            save_message(
+                st.session_state.conversation_id,
+                "assistant",
+                stored_content,
+            )
+        except Exception as error:
+            st.warning(
+                f"Generated image was not saved to history: {error}"
+            )
+
+    st.session_state.scroll_to_bottom = True
+    st.rerun()
+    return True
 
 
 def get_instructions(selected_assistant):
@@ -12393,8 +12830,17 @@ else:
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
-    for msg in st.session_state.messages:
-        render_chat_message(msg["role"], msg["content"])
+    for message_index, msg in enumerate(st.session_state.messages):
+        render_chat_message(
+            msg["role"],
+            msg["content"],
+            message_index=message_index,
+        )
+
+    # Regenerate is processed after existing messages render, preserving the
+    # current conversation and adding a new assistant image message.
+    if assistant == "🎨 Graphic Marketing":
+        process_pending_graphic_regeneration()
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
@@ -12452,22 +12898,56 @@ else:
 
         render_chat_message("user", user_display, uploaded_image_previews)
 
-        with st.spinner("Searching AutoTecPro knowledge base..."):
-            response_start_time = time.time()
-            answer = ask_ai(prompt, effective_uploaded_files)
-            answer = clean_visible_chat_text(answer)
-            response_time = round(time.time() - response_start_time, 2)
-            tokens_used = None
+        generated_images = []
+        is_graphic_generation = (
+            assistant == "🎨 Graphic Marketing"
+            and is_graphic_image_generation_request(
+                prompt,
+                effective_uploaded_files,
+            )
+        )
 
-        render_chat_message("assistant", answer)
+        if is_graphic_generation:
+            with st.spinner("🎨 Creating your image..."):
+                response_start_time = time.time()
+                generated_images = generate_graphic_marketing_images(
+                    prompt,
+                    effective_uploaded_files,
+                )
+                answer = generated_image_answer_text(generated_images)
+                response_time = round(time.time() - response_start_time, 2)
+                tokens_used = None
+        else:
+            with st.spinner("Searching AutoTecPro knowledge base..."):
+                response_start_time = time.time()
+                answer = ask_ai(prompt, effective_uploaded_files)
+                answer = clean_visible_chat_text(answer)
+                response_time = round(time.time() - response_start_time, 2)
+                tokens_used = None
+
+        assistant_content_to_save = (
+            answer
+            + serialize_images_marker(generated_images)
+        )
+
+        render_chat_message(
+            "assistant",
+            answer,
+            generated_images,
+            message_index=len(st.session_state.messages),
+        )
 
         st.session_state.messages.append({
             "role": "assistant",
-            "content": answer
+            "content": assistant_content_to_save
         })
 
         try:
-            save_message(st.session_state.conversation_id, "assistant", answer)
+            save_message(
+                st.session_state.conversation_id,
+                "assistant",
+                assistant_content_to_save,
+            )
         except Exception as e:
             st.warning(f"AI answer was not saved to history: {e}")
 
@@ -12486,13 +12966,21 @@ else:
         # Automatically extracts reusable knowledge, detects duplicates,
         # improves existing records, and syncs final knowledge to OpenAI Vector Store.
         learning_result = None
-        try:
-            learning_result = auto_learn_from_latest_answer(prompt, answer, assistant)
-            if learning_result and learning_result.get("learned"):
-                mode = learning_result.get("mode", "saved")
-                st.toast(f"AI learned from this case ({mode}).", icon="🧠")
-        except Exception as e:
-            st.caption(f"AI learning skipped: {e}")
+        if not is_graphic_generation:
+            try:
+                learning_result = auto_learn_from_latest_answer(
+                    prompt,
+                    answer,
+                    assistant,
+                )
+                if learning_result and learning_result.get("learned"):
+                    mode = learning_result.get("mode", "saved")
+                    st.toast(
+                        f"AI learned from this case ({mode}).",
+                        icon="🧠",
+                    )
+            except Exception as e:
+                st.caption(f"AI learning skipped: {e}")
 
         # Analytics:
         # Tracks most common vehicles, recurring issues, searched products,
