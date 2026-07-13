@@ -10237,27 +10237,152 @@ def extract_json_object(raw_text):
 
 
 def detect_vehicle_basic(text):
-    value = str(text or "").lower()
-    years = re.findall(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", value)
-    vehicles = [
-        "silverado", "sierra", "tahoe", "suburban", "yukon",
-        "f150", "f-150", "f250", "f-250", "f350", "f-350",
-        "ram", "tundra", "durango", "q50", "q60",
-        "a4", "a5", "glc", "mercedes", "audi", "ford",
-        "chevy", "gmc", "toyota", "dodge", "infiniti"
+    """
+    Detect the most specific AutoTecPro vehicle/model mentioned in text.
+
+    Model names are checked before broad manufacturers so a phrase such as
+    "2013 Dodge RAM" is classified as "2013 Dodge RAM", not only "DODGE".
+    """
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not value:
+        return ""
+
+    lower_value = value.lower()
+    year_match = re.search(r"\b(19[8-9]\d|20[0-2]\d)\b", lower_value)
+    year = year_match.group(1) if year_match else ""
+
+    vehicle_patterns = [
+        (r"\b(?:chevrolet|chevy)\s+silverado\b|\bsilverado\b", "Chevrolet Silverado"),
+        (r"\b(?:gmc\s+)?sierra\b", "GMC Sierra"),
+        (r"\b(?:chevrolet|chevy)\s+tahoe\b|\btahoe\b", "Chevrolet Tahoe"),
+        (r"\b(?:chevrolet|chevy)\s+suburban\b|\bsuburban\b", "Chevrolet Suburban"),
+        (r"\b(?:gmc\s+)?yukon\b", "GMC Yukon"),
+        (r"\bford\s+f[\s-]?150\b|\bf[\s-]?150\b", "Ford F-150"),
+        (r"\bford\s+f[\s-]?250\b|\bf[\s-]?250\b", "Ford F-250"),
+        (r"\bford\s+f[\s-]?350\b|\bf[\s-]?350\b", "Ford F-350"),
+        (r"\bford\s+f[\s-]?450\b|\bf[\s-]?450\b", "Ford F-450"),
+        (r"\b(?:dodge|ram)\s+ram\b|\bdodge\s+ram\b|\bram\s+(?:1500|2500|3500)\b|\bram\b", "Dodge RAM"),
+        (r"\bdodge\s+durango\b|\bdurango\b", "Dodge Durango"),
+        (r"\btoyota\s+tundra\b|\btundra\b", "Toyota Tundra"),
+        (r"\binfiniti\s+q50\b|\bq50\b", "Infiniti Q50"),
+        (r"\binfiniti\s+q60\b|\bq60\b", "Infiniti Q60"),
+        (r"\baudi\s+a4\b|\ba4\b", "Audi A4"),
+        (r"\baudi\s+a5\b|\ba5\b", "Audi A5"),
+        (r"\bmercedes(?:-benz)?\s+(?:c[\s-]?class|c300)\b|\bc300\b", "Mercedes C-Class"),
+        (r"\bmercedes(?:-benz)?\s+glc\b|\bglc\b", "Mercedes GLC"),
+        (r"\bjeep\s+grand\s+cherokee\b|\bgrand\s+cherokee\b", "Jeep Grand Cherokee"),
     ]
-    found = ""
-    for vehicle in vehicles:
-        if vehicle in value:
-            found = vehicle.upper()
-            break
-    if years and found:
-        return f"{years[0]} {found}"
-    if found:
-        return found
-    if years:
-        return years[0]
+
+    for pattern, label in vehicle_patterns:
+        if re.search(pattern, lower_value, flags=re.IGNORECASE):
+            return f"{year} {label}".strip()
+
+    manufacturer_patterns = [
+        (r"\bchevrolet\b|\bchevy\b", "Chevrolet"),
+        (r"\bgmc\b", "GMC"),
+        (r"\bford\b", "Ford"),
+        (r"\bdodge\b", "Dodge"),
+        (r"\bram\b", "Dodge RAM"),
+        (r"\btoyota\b", "Toyota"),
+        (r"\binfiniti\b", "Infiniti"),
+        (r"\baudi\b", "Audi"),
+        (r"\bmercedes(?:-benz)?\b", "Mercedes-Benz"),
+        (r"\bjeep\b", "Jeep"),
+    ]
+
+    for pattern, label in manufacturer_patterns:
+        if re.search(pattern, lower_value, flags=re.IGNORECASE):
+            return f"{year} {label}".strip()
+
     return ""
+
+
+def is_missing_learning_vehicle(value):
+    """Return True when an extracted vehicle value is empty or non-informative."""
+    normalized = re.sub(
+        r"[^a-z0-9]+",
+        " ",
+        str(value or "").lower(),
+    ).strip()
+
+    missing_values = {
+        "",
+        "n a",
+        "na",
+        "none",
+        "null",
+        "unknown",
+        "unspecified",
+        "not specified",
+        "vehicle not specified",
+        "not applicable",
+        "general",
+        "general knowledge",
+    }
+    return normalized in missing_values
+
+
+def general_learning_label(selected_assistant):
+    """Choose a meaningful label for reusable knowledge with no vehicle."""
+    assistant_label = clean_assistant_label(selected_assistant).lower()
+
+    if "sales" in assistant_label or "marketing" in assistant_label:
+        return "General Sales"
+    if "technical" in assistant_label or "support" in assistant_label:
+        return "General Technical"
+    return "General Knowledge"
+
+
+def resolve_learning_vehicle(
+    extracted_vehicle,
+    question="",
+    answer="",
+    issue="",
+    keywords="",
+    product="",
+    selected_assistant="",
+):
+    """
+    Resolve the best learning metadata label without inventing a vehicle.
+
+    The AI-extracted value is accepted only when informative. Otherwise the
+    original conversation fields are scanned. Truly non-vehicle knowledge is
+    assigned a workspace-specific general label.
+    """
+    extracted_value = str(extracted_vehicle or "").strip()
+    if not is_missing_learning_vehicle(extracted_value):
+        # Prefer a standardized model name when the AI value contains one.
+        detected_from_extracted = detect_vehicle_basic(extracted_value)
+        return detected_from_extracted or extracted_value[:160]
+
+    combined_text = " ".join(
+        str(value or "")
+        for value in (question, answer, issue, keywords, product)
+    )
+    detected = detect_vehicle_basic(combined_text)
+    if detected:
+        return detected
+
+    return general_learning_label(selected_assistant)
+
+
+def display_learning_vehicle(row):
+    """
+    Return a useful Admin display label for old and new learned records.
+
+    Existing Supabase rows are not rewritten. Missing legacy metadata is
+    inferred at display time from the source fields.
+    """
+    row = row or {}
+    return resolve_learning_vehicle(
+        row.get("vehicle"),
+        question=row.get("source_question") or row.get("question"),
+        answer=row.get("source_answer") or row.get("approved_answer"),
+        issue=row.get("issue"),
+        keywords=row.get("keywords"),
+        product=row.get("product"),
+        selected_assistant=row.get("assistant"),
+    )
 
 
 def extract_learning_candidate(question, answer, selected_assistant):
@@ -10269,7 +10394,7 @@ Convert this latest support conversation into a clean reusable knowledge record.
 Return ONLY valid JSON with this exact schema:
 {{
   "should_learn": true/false,
-  "vehicle": "vehicle/product/year if known",
+  "vehicle": "specific vehicle make/model/year if known, otherwise empty",
   "issue": "short reusable issue title",
   "solution": "clean final solution that future staff can reuse",
   "keywords": "comma-separated keywords",
@@ -10281,6 +10406,8 @@ Rules:
 - should_learn should be true only if the answer contains a reusable solution, compatibility fact, troubleshooting step, product fact, warranty/sales policy, or customer reply that can help future cases.
 - should_learn should be false for greetings, vague chats, uncertain answers, purely emotional messages, or cases where the answer says documentation is unavailable without useful next steps.
 - Keep the solution accurate and concise.
+- For vehicle, prefer the most specific supported make/model/year mentioned in the Q&A.
+- Do not return placeholders such as "not specified", "unknown", "N/A", or "general" for vehicle; return an empty string instead.
 - Never invent details not supported by the Q&A.
 
 Assistant: {clean_assistant_label(selected_assistant)}
@@ -10302,10 +10429,17 @@ Answer:
         data = {}
 
     should_learn = bool(data.get("should_learn", False))
-    vehicle = str(data.get("vehicle") or "").strip() or detect_vehicle_basic(question + " " + answer)
     issue = str(data.get("issue") or conversation_title_from_text(question)).strip()
     solution = str(data.get("solution") or answer).strip()
     keywords = str(data.get("keywords") or "").strip()
+    vehicle = resolve_learning_vehicle(
+        data.get("vehicle"),
+        question=question,
+        answer=answer,
+        issue=issue,
+        keywords=keywords,
+        selected_assistant=selected_assistant,
+    )
 
     try:
         confidence_score = int(data.get("confidence_score", 70))
@@ -10489,11 +10623,36 @@ Confidence: {candidate.get("confidence_score", 70)}
     new_confidence = int(candidate.get("confidence_score") or 70)
     merged_confidence = max(old_confidence, min(98, round((old_confidence + new_confidence) / 2 + min(old_times_seen, 10))))
 
+    merged_issue = str(
+        data.get("issue")
+        or candidate.get("issue")
+        or existing_row.get("issue")
+        or ""
+    ).strip()[:180]
+    merged_keywords = str(
+        data.get("keywords")
+        or candidate.get("keywords")
+        or existing_row.get("keywords")
+        or ""
+    ).strip()
+
+    merged_vehicle = resolve_learning_vehicle(
+        data.get("vehicle")
+        or candidate.get("vehicle")
+        or existing_row.get("vehicle"),
+        question=candidate.get("source_question") or existing_row.get("source_question"),
+        answer=candidate.get("solution") or existing_row.get("source_answer"),
+        issue=merged_issue,
+        keywords=merged_keywords,
+        product=existing_row.get("product"),
+        selected_assistant=existing_row.get("assistant"),
+    )
+
     return {
-        "vehicle": str(data.get("vehicle") or candidate.get("vehicle") or existing_row.get("vehicle") or "").strip(),
-        "issue": str(data.get("issue") or candidate.get("issue") or existing_row.get("issue") or "").strip()[:180],
+        "vehicle": merged_vehicle,
+        "issue": merged_issue,
         "solution": str(data.get("solution") or candidate.get("solution") or existing_row.get("solution") or "").strip(),
-        "keywords": str(data.get("keywords") or candidate.get("keywords") or existing_row.get("keywords") or "").strip(),
+        "keywords": merged_keywords,
         "confidence_score": int(data.get("confidence_score") or merged_confidence),
         "times_seen": old_times_seen + 1
     }
@@ -13495,7 +13654,7 @@ if assistant == "⚙️ Admin Panel":
         if learned_rows_for_analytics:
             for row in learned_rows_for_analytics[:80]:
                 issue = row.get("issue") or row.get("question") or "Learned Knowledge"
-                vehicle = row.get("vehicle") or "Vehicle not specified"
+                vehicle = display_learning_vehicle(row)
                 confidence = row.get("confidence_score") or 0
                 times_seen = row.get("times_seen") or 1
                 with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
