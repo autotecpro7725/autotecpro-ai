@@ -12693,14 +12693,16 @@ st.markdown(
         line-height: 1.2 !important;
     }
 
-    /* Anchor the entire popover element container to the far-right center. */
+    /* Anchor the popover itself at the far-right center.
+       This selector works across the current Streamlit DOM structure. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+    [data-testid="stPopover"] {
         position: absolute !important;
         top: 5px !important;
         right: 3px !important;
         z-index: 80 !important;
+        display: block !important;
         width: 28px !important;
         min-width: 28px !important;
         max-width: 28px !important;
@@ -12718,26 +12720,42 @@ st.markdown(
 
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]:hover
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
+    [data-testid="stPopover"],
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]:focus-within
-    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"]:has(button[aria-expanded="true"]) {
         opacity: 1 !important;
         visibility: visible !important;
         pointer-events: auto !important;
     }
 
+    /* Prevent the popover's Streamlit wrapper from hiding or clipping it. */
     section[data-testid="stSidebar"]
     div[class*="st-key-history_row_"]
-    [data-testid="stPopover"] {
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
         position: static !important;
-        display: block !important;
-        width: 28px !important;
-        min-width: 28px !important;
-        max-width: 28px !important;
-        height: 28px !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        pointer-events: auto !important;
     }
 
     section[data-testid="stSidebar"]
