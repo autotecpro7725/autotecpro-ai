@@ -13736,20 +13736,27 @@ if assistant == "⚙️ Admin Panel":
                 html body div[class*="st-key-latest_learned_text_pagination"]
                 div[data-testid="stHorizontalBlock"] {
                     display: flex !important;
+                    width: fit-content !important;
+                    max-width: 100% !important;
                     justify-content: flex-end !important;
                     align-items: center !important;
-                    gap: 10px !important;
-                    margin: 0 !important;
+                    gap: 5px !important;
+                    margin: 0 0 0 auto !important;
                     padding: 0 !important;
                 }
 
                 html body div[class*="st-key-latest_learned_text_pagination"]
-                div[data-testid="column"] {
-                    flex: 0 0 auto !important;
-                    width: auto !important;
-                    min-width: 0 !important;
-                    max-width: none !important;
+                div[data-testid="stHorizontalBlock"]
+                > div[data-testid="column"] {
+                    flex: 0 0 22px !important;
+                    flex-grow: 0 !important;
+                    flex-shrink: 0 !important;
+                    flex-basis: 22px !important;
+                    width: 22px !important;
+                    min-width: 22px !important;
+                    max-width: 22px !important;
                     padding: 0 !important;
+                    margin: 0 !important;
                 }
 
                 html body div[class*="st-key-latest_learned_text_pagination"]
@@ -13825,7 +13832,16 @@ if assistant == "⚙️ Admin Panel":
                 @media (max-width: 768px) {
                     html body div[class*="st-key-latest_learned_text_pagination"]
                     div[data-testid="stHorizontalBlock"] {
-                        gap: 8px !important;
+                        gap: 4px !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    div[data-testid="stHorizontalBlock"]
+                    > div[data-testid="column"] {
+                        flex-basis: 20px !important;
+                        width: 20px !important;
+                        min-width: 20px !important;
+                        max-width: 20px !important;
                     }
 
                     html body div[class*="st-key-latest_learned_text_pagination"]
