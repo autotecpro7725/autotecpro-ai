@@ -12637,6 +12637,7 @@ def clean_extracted_website_text(raw_text):
 def extract_public_webpage(url):
     """Download and extract readable knowledge from one public webpage."""
     normalized_url = normalize_website_url(url)
+    requested_url = normalized_url
     validate_public_website_host(normalized_url)
 
     headers = {
@@ -12727,6 +12728,11 @@ def extract_public_webpage(url):
     ).hexdigest()
 
     return {
+        # Keep both values:
+        # - requested_url is used only to detect whether the user edited the
+        #   URL field after extraction.
+        # - source_url is the final redirected page saved for traceability.
+        "requested_url": requested_url,
         "source_url": final_url,
         "title": page_title,
         "content": cleaned_text,
@@ -12757,7 +12763,8 @@ def build_website_knowledge_document(extraction, database_choice):
         "AUTOTECPRO WEBSITE KNOWLEDGE\n"
         f"Destination: {database_choice}\n"
         f"Page title: {extraction.get('title')}\n"
-        f"Source URL: {extraction.get('source_url')}\n"
+        f"Requested URL: {extraction.get('requested_url') or extraction.get('source_url')}\n"
+        f"Final source URL: {extraction.get('source_url')}\n"
         f"Extracted at (UTC): {extraction.get('extracted_at')}\n"
         f"Content SHA-256: {extraction.get('content_hash')}\n"
         f"Word count: {extraction.get('word_count')}\n"
@@ -12874,23 +12881,25 @@ def render_learn_from_website(database_choice):
     if not extraction:
         return
 
-    # Prevent stale content from being saved after the user genuinely changes
-    # the page, while treating harmless redirect/format differences as equal.
+    # Prevent stale content from being saved only when the user actually edits
+    # the URL field after extraction. Compare against the originally entered
+    # URL, not the final redirected page.
     current_url_identity = ""
-    extracted_url_identity = ""
+    requested_url_identity = ""
 
     try:
         current_url_identity = canonical_website_url_identity(website_url)
-        extracted_url_identity = canonical_website_url_identity(
-            extraction.get("source_url")
+        requested_url_identity = canonical_website_url_identity(
+            extraction.get("requested_url")
+            or extraction.get("source_url")
         )
     except Exception:
         pass
 
     if (
         current_url_identity
-        and extracted_url_identity
-        and current_url_identity != extracted_url_identity
+        and requested_url_identity
+        and current_url_identity != requested_url_identity
     ):
         st.info(
             "The URL field changed. Click Extract and Preview again before saving."
