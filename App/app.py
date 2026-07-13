@@ -9589,6 +9589,48 @@ def generated_image_action_key(image, message_index, image_index, action):
     return f"graphic_{action}_{digest}"
 
 
+def render_generated_png_download(
+    image_bytes,
+    filename,
+    download_key,
+):
+    """
+    Render a PNG download that does not rerun the Streamlit application.
+
+    Recent Streamlit versions support on_click="ignore", which lets the
+    browser complete the download without triggering a page rerun. A fallback
+    preserves compatibility with older Streamlit versions.
+    """
+    download_data = bytes(image_bytes or b"")
+    if not download_data:
+        st.error("The generated PNG data is unavailable.")
+        return
+
+    safe_filename = Path(str(filename or "AutoTecPro_Generated_Image.png")).name
+    if not safe_filename.lower().endswith(".png"):
+        safe_filename = f"{Path(safe_filename).stem}.png"
+
+    button_kwargs = {
+        "label": "Download PNG",
+        "data": download_data,
+        "file_name": safe_filename,
+        "mime": "image/png",
+        "key": download_key,
+        "use_container_width": True,
+        "type": "secondary",
+    }
+
+    try:
+        st.download_button(
+            **button_kwargs,
+            on_click="ignore",
+        )
+    except TypeError:
+        # Compatibility fallback for older Streamlit releases that do not
+        # support on_click="ignore".
+        st.download_button(**button_kwargs)
+
+
 def render_generated_image_actions(images, message_index=None):
     """
     Render equal-size Full Size, Download, and Regenerate controls.
@@ -9794,14 +9836,10 @@ def render_generated_image_actions(images, message_index=None):
                     show_generated_image_full_size(image)
 
             with download_column:
-                st.download_button(
-                    "Download PNG",
-                    data=image_bytes,
-                    file_name=filename,
-                    mime="image/png",
-                    key=download_key,
-                    use_container_width=True,
-                    type="secondary",
+                render_generated_png_download(
+                    image_bytes=image_bytes,
+                    filename=filename,
+                    download_key=download_key,
                 )
 
             with regenerate_column:
