@@ -10586,177 +10586,367 @@ def render_history_cards(conversations):
 
 def install_global_chat_file_dropzone():
     """
-    Allow users to drag files anywhere over the main app, or paste an image
-    from the clipboard, and forward those files into the existing Streamlit
-    chat file uploader.
+    Reliably forward files dropped anywhere over the main chat, or pasted
+    images, into the existing Streamlit chat file uploader.
 
-    Stability notes:
-    - Uses the existing st.file_uploader; no new backend upload path.
-    - Ignores ordinary text paste.
-    - Installs only one set of parent-document event listeners.
-    - Locates the current visible uploader dynamically after Streamlit reruns.
+    The browser listeners are replaced on every Streamlit rerun, and the
+    current chat uploader input is located dynamically inside its keyed
+    container. No separate backend upload path is introduced.
     """
     components.html(
         """
         <script>
-        (function () {
+        (() => {
             const parentWindow = window.parent;
             const doc = parentWindow.document;
+            const CONTROLLER_KEY = "__atpGlobalChatDropzoneV2";
+            const CHAT_SHELL_SELECTOR =
+                'div[class*="st-key-atp_upload_shell_chat_files"]';
+            const ACCEPTED_EXTENSIONS =
+                [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
 
-            function getVisibleChatFileInput() {
-                const inputs = Array.from(doc.querySelectorAll('input[type="file"]'));
-                const visible = inputs.filter((input) => {
-                    const rect = input.getBoundingClientRect();
-                    const style = parentWindow.getComputedStyle(input);
-                    return (
-                        rect.width >= 0 &&
-                        rect.height >= 0 &&
-                        style.display !== "none" &&
-                        style.visibility !== "hidden"
-                    );
-                });
-
-                // On the normal chat page, the chat uploader is the last/current
-                // visible file input. Admin uploaders are not present on this page.
-                return visible.length ? visible[visible.length - 1] : inputs[inputs.length - 1];
+            // Streamlit reruns can destroy the component iframe while leaving
+            // listeners on the parent document. Always remove the previous
+            // listener set before installing the current one.
+            try {
+                parentWindow[CONTROLLER_KEY]?.cleanup?.();
+            } catch (error) {
+                console.warn(
+                    "AutoTecPro AI: previous dropzone cleanup failed.",
+                    error
+                );
             }
+
+            let disposed = false;
+            let dragActive = false;
+            let hideTimer = null;
 
             function ensureOverlay() {
                 let overlay = doc.getElementById("atp-global-drop-overlay");
-                if (overlay) return overlay;
 
-                overlay = doc.createElement("div");
-                overlay.id = "atp-global-drop-overlay";
-                overlay.innerHTML = `
-                    <div style="
-                        width:min(520px,82vw);
-                        padding:34px 28px;
-                        border-radius:22px;
-                        border:2px dashed rgba(255,255,255,.78);
-                        background:rgba(15,23,42,.92);
-                        box-shadow:0 24px 70px rgba(0,0,0,.42);
-                        color:#fff;
-                        text-align:center;
-                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-                    ">
-                        <div style="font-size:42px;line-height:1;margin-bottom:12px;">📎</div>
-                        <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
-                            Drop files to attach
+                if (!overlay) {
+                    overlay = doc.createElement("div");
+                    overlay.id = "atp-global-drop-overlay";
+                    overlay.innerHTML = `
+                        <div style="
+                            width:min(520px,82vw);
+                            padding:34px 28px;
+                            border-radius:22px;
+                            border:2px dashed rgba(255,255,255,.78);
+                            background:rgba(15,23,42,.92);
+                            box-shadow:0 24px 70px rgba(0,0,0,.42);
+                            color:#fff;
+                            text-align:center;
+                            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+                        ">
+                            <div style="font-size:42px;line-height:1;margin-bottom:12px;">
+                                📎
+                            </div>
+                            <div style="font-size:22px;font-weight:800;margin-bottom:7px;">
+                                Drop files to attach
+                            </div>
+                            <div style="font-size:14px;color:#cbd5e1;">
+                                JPG, PNG, PDF, or TXT
+                            </div>
                         </div>
-                        <div style="font-size:14px;color:#cbd5e1;">
-                            JPG, PNG, PDF, or TXT
-                        </div>
-                    </div>
-                `;
-                Object.assign(overlay.style, {
-                    position: "fixed",
-                    inset: "0",
-                    zIndex: "2147483646",
-                    display: "none",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(2,6,23,.68)",
-                    backdropFilter: "blur(6px)",
-                    WebkitBackdropFilter: "blur(6px)",
-                    pointerEvents: "none"
-                });
-                doc.body.appendChild(overlay);
-                return overlay;
-            }
+                    `;
 
-            function hasFiles(event) {
-                const types = Array.from(event.dataTransfer?.types || []);
-                return types.includes("Files");
-            }
+                    Object.assign(overlay.style, {
+                        position: "fixed",
+                        inset: "0",
+                        zIndex: "2147483646",
+                        display: "none",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(2,6,23,.68)",
+                        backdropFilter: "blur(6px)",
+                        WebkitBackdropFilter: "blur(6px)",
+                        pointerEvents: "none"
+                    });
 
-            function attachFiles(fileList) {
-                if (!fileList || !fileList.length) return false;
-
-                const input = getVisibleChatFileInput();
-                if (!input) {
-                    console.warn("AutoTecPro AI: chat file uploader was not found.");
-                    return false;
+                    doc.body.appendChild(overlay);
                 }
 
-                const acceptedExtensions = [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
-                const acceptedFiles = Array.from(fileList).filter((file) => {
-                    const name = (file.name || "").toLowerCase();
-                    return acceptedExtensions.some((ext) => name.endsWith(ext));
-                });
-
-                if (!acceptedFiles.length) return false;
-
-                const transfer = new DataTransfer();
-
-                // Preserve files already selected in the uploader, then append new ones.
-                Array.from(input.files || []).forEach((file) => transfer.items.add(file));
-                acceptedFiles.forEach((file) => transfer.items.add(file));
-
-                input.files = transfer.files;
-                input.dispatchEvent(new Event("change", { bubbles: true }));
-                return true;
+                return overlay;
             }
 
             const overlay = ensureOverlay();
 
-            if (!parentWindow.__atpGlobalDropzoneInstalled) {
-                parentWindow.__atpGlobalDropzoneInstalled = true;
-                let dragDepth = 0;
+            function showOverlay() {
+                if (disposed) return;
+                dragActive = true;
+                if (hideTimer) {
+                    parentWindow.clearTimeout(hideTimer);
+                    hideTimer = null;
+                }
+                overlay.style.display = "flex";
+            }
 
-                doc.addEventListener("dragenter", function (event) {
-                    if (!hasFiles(event)) return;
-                    event.preventDefault();
-                    dragDepth += 1;
-                    overlay.style.display = "flex";
-                }, true);
+            function hideOverlay() {
+                dragActive = false;
+                if (hideTimer) {
+                    parentWindow.clearTimeout(hideTimer);
+                    hideTimer = null;
+                }
+                overlay.style.display = "none";
+            }
 
-                doc.addEventListener("dragover", function (event) {
-                    if (!hasFiles(event)) return;
-                    event.preventDefault();
-                    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-                    overlay.style.display = "flex";
-                }, true);
+            function scheduleOverlayHide() {
+                if (hideTimer) {
+                    parentWindow.clearTimeout(hideTimer);
+                }
 
-                doc.addEventListener("dragleave", function (event) {
-                    if (!hasFiles(event)) return;
-                    event.preventDefault();
-                    dragDepth = Math.max(0, dragDepth - 1);
-                    if (dragDepth === 0) overlay.style.display = "none";
-                }, true);
+                hideTimer = parentWindow.setTimeout(() => {
+                    if (!dragActive) {
+                        overlay.style.display = "none";
+                    }
+                }, 90);
+            }
 
-                doc.addEventListener("drop", function (event) {
-                    if (!hasFiles(event)) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    dragDepth = 0;
-                    overlay.style.display = "none";
-                    attachFiles(event.dataTransfer.files);
-                }, true);
+            function eventContainsFiles(event) {
+                const transfer = event.dataTransfer;
+                if (!transfer) return false;
 
-                doc.addEventListener("paste", function (event) {
-                    const clipboardFiles = Array.from(event.clipboardData?.files || []);
-                    if (!clipboardFiles.length) return;
+                const types = Array.from(transfer.types || []);
+                if (types.includes("Files")) return true;
 
-                    const imageFiles = clipboardFiles.filter((file) =>
-                        (file.type || "").toLowerCase().startsWith("image/")
+                return Array.from(transfer.items || []).some(
+                    (item) => item.kind === "file"
+                );
+            }
+
+            function getCurrentChatFileInput() {
+                const shells = Array.from(
+                    doc.querySelectorAll(CHAT_SHELL_SELECTOR)
+                ).filter((shell) => shell.isConnected);
+
+                // During a Streamlit rerun, an old shell can briefly coexist
+                // with the newly mounted one. Prefer the newest connected shell.
+                for (let index = shells.length - 1; index >= 0; index -= 1) {
+                    const inputs = Array.from(
+                        shells[index].querySelectorAll('input[type="file"]')
+                    ).filter(
+                        (input) =>
+                            input.isConnected &&
+                            !input.disabled
                     );
-                    if (!imageFiles.length) return;
 
-                    // Only intercept paste when there is an actual image in clipboard.
-                    event.preventDefault();
-                    attachFiles(imageFiles);
-                }, true);
+                    if (inputs.length) {
+                        return inputs[inputs.length - 1];
+                    }
+                }
 
-                parentWindow.addEventListener("blur", function () {
-                    dragDepth = 0;
-                    overlay.style.display = "none";
+                return null;
+            }
+
+            function acceptedFiles(fileList) {
+                return Array.from(fileList || []).filter((file) => {
+                    const name = String(file?.name || "").toLowerCase();
+                    return ACCEPTED_EXTENSIONS.some(
+                        (extension) => name.endsWith(extension)
+                    );
                 });
             }
+
+            function setInputFiles(input, files) {
+                const transfer = new DataTransfer();
+                const seen = new Set();
+
+                // Preserve files already present in the current uploader.
+                for (const file of Array.from(input.files || [])) {
+                    const signature = [
+                        file.name,
+                        file.size,
+                        file.lastModified,
+                        file.type
+                    ].join("|");
+
+                    if (!seen.has(signature)) {
+                        seen.add(signature);
+                        transfer.items.add(file);
+                    }
+                }
+
+                for (const file of files) {
+                    const signature = [
+                        file.name,
+                        file.size,
+                        file.lastModified,
+                        file.type
+                    ].join("|");
+
+                    if (!seen.has(signature)) {
+                        seen.add(signature);
+                        transfer.items.add(file);
+                    }
+                }
+
+                const filesSetter = Object.getOwnPropertyDescriptor(
+                    parentWindow.HTMLInputElement.prototype,
+                    "files"
+                )?.set;
+
+                if (filesSetter) {
+                    filesSetter.call(input, transfer.files);
+                } else {
+                    input.files = transfer.files;
+                }
+
+                // Dispatch both events because Streamlit/React versions can
+                // listen to either one.
+                input.dispatchEvent(
+                    new parentWindow.Event("input", {
+                        bubbles: true,
+                        composed: true
+                    })
+                );
+                input.dispatchEvent(
+                    new parentWindow.Event("change", {
+                        bubbles: true,
+                        composed: true
+                    })
+                );
+            }
+
+            function attachFilesWithRetry(fileList, attempt = 0) {
+                if (disposed) return;
+
+                const files = acceptedFiles(fileList);
+                if (!files.length) return;
+
+                const input = getCurrentChatFileInput();
+
+                if (!input) {
+                    // Streamlit may be between unmounting the old uploader and
+                    // mounting the new generation. Retry briefly instead of
+                    // silently failing and requiring a browser refresh.
+                    if (attempt < 20) {
+                        parentWindow.setTimeout(
+                            () => attachFilesWithRetry(files, attempt + 1),
+                            75
+                        );
+                    } else {
+                        console.warn(
+                            "AutoTecPro AI: chat uploader was not available after retries."
+                        );
+                    }
+                    return;
+                }
+
+                try {
+                    setInputFiles(input, files);
+                } catch (error) {
+                    // A stale input can disappear between lookup and assignment.
+                    // Retry against the newest mounted input.
+                    if (attempt < 20) {
+                        parentWindow.setTimeout(
+                            () => attachFilesWithRetry(files, attempt + 1),
+                            75
+                        );
+                    } else {
+                        console.error(
+                            "AutoTecPro AI: could not attach dropped files.",
+                            error
+                        );
+                    }
+                }
+            }
+
+            function onDragEnter(event) {
+                if (!eventContainsFiles(event)) return;
+                event.preventDefault();
+                showOverlay();
+            }
+
+            function onDragOver(event) {
+                if (!eventContainsFiles(event)) return;
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = "copy";
+                }
+
+                showOverlay();
+            }
+
+            function onDragLeave(event) {
+                if (!eventContainsFiles(event)) return;
+                event.preventDefault();
+
+                // Avoid an error-prone drag-depth counter. Hide only after a
+                // short delay; another dragover immediately cancels the hide.
+                dragActive = false;
+                scheduleOverlayHide();
+            }
+
+            function onDrop(event) {
+                if (!eventContainsFiles(event)) return;
+
+                event.preventDefault();
+                event.stopPropagation();
+                hideOverlay();
+
+                const files = Array.from(event.dataTransfer?.files || []);
+                attachFilesWithRetry(files);
+            }
+
+            function onPaste(event) {
+                const clipboardFiles = Array.from(
+                    event.clipboardData?.files || []
+                );
+                if (!clipboardFiles.length) return;
+
+                const imageFiles = clipboardFiles.filter((file) =>
+                    String(file.type || "").toLowerCase().startsWith("image/")
+                );
+                if (!imageFiles.length) return;
+
+                event.preventDefault();
+                attachFilesWithRetry(imageFiles);
+            }
+
+            function onWindowBlur() {
+                hideOverlay();
+            }
+
+            function cleanup() {
+                if (disposed) return;
+                disposed = true;
+
+                doc.removeEventListener("dragenter", onDragEnter, true);
+                doc.removeEventListener("dragover", onDragOver, true);
+                doc.removeEventListener("dragleave", onDragLeave, true);
+                doc.removeEventListener("drop", onDrop, true);
+                doc.removeEventListener("paste", onPaste, true);
+                parentWindow.removeEventListener("blur", onWindowBlur);
+
+                if (hideTimer) {
+                    parentWindow.clearTimeout(hideTimer);
+                    hideTimer = null;
+                }
+
+                overlay.style.display = "none";
+            }
+
+            doc.addEventListener("dragenter", onDragEnter, true);
+            doc.addEventListener("dragover", onDragOver, true);
+            doc.addEventListener("dragleave", onDragLeave, true);
+            doc.addEventListener("drop", onDrop, true);
+            doc.addEventListener("paste", onPaste, true);
+            parentWindow.addEventListener("blur", onWindowBlur);
+
+            parentWindow[CONTROLLER_KEY] = { cleanup };
+
+            // Cleanup when this particular component iframe is destroyed.
+            window.addEventListener("beforeunload", cleanup, { once: true });
         })();
         </script>
         """,
         height=0,
+        width=0,
     )
+
 
 
 def auto_scroll_to_latest():
