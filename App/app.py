@@ -9220,11 +9220,9 @@ def render_image_previews(images):
 
 
 GRAPHIC_IMAGE_COUNT = 1
-GRAPHIC_IMAGE_MODELS = (
-    "gpt-image-2",
-    "gpt-image-1.5",
-    "gpt-image-1",
-)
+GRAPHIC_IMAGE_MODEL = "gpt-image-1"
+GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
+GRAPHIC_IMAGE_MAX_RETRIES = 0
 
 
 def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
@@ -9371,9 +9369,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
     """
     Generate or reference-edit Graphic Marketing images through the Image API.
 
-    Returns a list using the app's existing image-history schema, expanded with
-    optional metadata. The function tries current GPT Image models in order for
-    compatibility across projects and account access.
+    Image calls use one supported model, no automatic retries, and a bounded
+    timeout so Streamlit cannot remain in a loading state indefinitely.
     """
     prompt_text = str(prompt_text or "").strip()
     if not prompt_text:
@@ -9381,86 +9378,109 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
 
     output_size = choose_graphic_image_size(prompt_text)
     reference_images = prepare_graphic_reference_images(uploaded_files)
-    errors = []
 
-    for model_name in GRAPHIC_IMAGE_MODELS:
-        try:
-            if reference_images:
-                # Reset every in-memory file before each model attempt.
-                for reference in reference_images:
-                    reference.seek(0)
-
-                image_input = (
-                    reference_images
-                    if len(reference_images) > 1
-                    else reference_images[0]
-                )
-                result = client.images.edit(
-                    model=model_name,
-                    image=image_input,
-                    prompt=prompt_text,
-                    n=GRAPHIC_IMAGE_COUNT,
-                    size=output_size,
-                )
-            else:
-                result = client.images.generate(
-                    model=model_name,
-                    prompt=prompt_text,
-                    n=GRAPHIC_IMAGE_COUNT,
-                    size=output_size,
-                )
-
-            result_items = list(getattr(result, "data", None) or [])
-            generated_images = []
-
-            for item in result_items:
-                encoded = (
-                    getattr(item, "b64_json", None)
-                    or (
-                        item.get("b64_json")
-                        if isinstance(item, dict)
-                        else None
-                    )
-                )
-                if not encoded:
-                    continue
-
-                raw_bytes = base64.b64decode(encoded)
-                png_bytes = image_bytes_to_png(raw_bytes)
-                if not png_bytes:
-                    continue
-
-                created_at = datetime.now(timezone.utc)
-                filename = graphic_image_filename(prompt_text, created_at)
-                data_url = (
-                    "data:image/png;base64,"
-                    + base64.b64encode(png_bytes).decode()
-                )
-
-                generated_images.append({
-                    "name": filename,
-                    "filename": filename,
-                    "data_url": data_url,
-                    "generated": True,
-                    "prompt": prompt_text,
-                    "created_at": created_at.isoformat(),
-                    "model": model_name,
-                    "size": output_size,
-                    "resolution": output_size,
-                    "mime_type": "image/png",
-                })
-
-            if generated_images:
-                return generated_images
-
-            errors.append(f"{model_name}: no image data returned")
-        except Exception as error:
-            errors.append(f"{model_name}: {error}")
-
-    raise RuntimeError(
-        "Image generation was unsuccessful. "
-        + " | ".join(errors[-3:])
+    # Apply reliability settings only to image requests. The shared client and
+    # every other OpenAI feature in the application remain unchanged.
+    image_client = client.with_options(
+        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,
+        max_retries=GRAPHIC_IMAGE_MAX_RETRIES,
     )
+
+    try:
+        if reference_images:
+            for reference in reference_images:
+                reference.seek(0)
+
+            image_input = (
+                reference_images
+                if len(reference_images) > 1
+                else reference_images[0]
+            )
+            result = image_client.images.edit(
+                model=GRAPHIC_IMAGE_MODEL,
+                image=image_input,
+                prompt=prompt_text,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
+            )
+        else:
+            result = image_client.images.generate(
+                model=GRAPHIC_IMAGE_MODEL,
+                prompt=prompt_text,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
+            )
+    except Exception as error:
+        error_name = type(error).__name__
+        safe_error = str(error).strip() or "No additional details were returned."
+        print(
+            "[GRAPHIC IMAGE ERROR] "
+            f"type={error_name} model={GRAPHIC_IMAGE_MODEL} "
+            f"details={safe_error}",
+            flush=True,
+        )
+
+        if error_name == "APITimeoutError":
+            raise RuntimeError(
+                "Image generation timed out after 3 minutes. "
+                "Please try again with one clear prompt or a smaller number "
+                "of reference images."
+            ) from error
+
+        raise RuntimeError(
+            f"Image generation failed: {safe_error}"
+        ) from error
+
+    result_items = list(getattr(result, "data", None) or [])
+    generated_images = []
+
+    for item in result_items:
+        encoded = (
+            getattr(item, "b64_json", None)
+            or (
+                item.get("b64_json")
+                if isinstance(item, dict)
+                else None
+            )
+        )
+        if not encoded:
+            continue
+
+        try:
+            raw_bytes = base64.b64decode(encoded)
+        except Exception:
+            continue
+
+        png_bytes = image_bytes_to_png(raw_bytes)
+        if not png_bytes:
+            continue
+
+        created_at = datetime.now(timezone.utc)
+        filename = graphic_image_filename(prompt_text, created_at)
+        data_url = (
+            "data:image/png;base64,"
+            + base64.b64encode(png_bytes).decode()
+        )
+
+        generated_images.append({
+            "name": filename,
+            "filename": filename,
+            "data_url": data_url,
+            "generated": True,
+            "prompt": prompt_text,
+            "created_at": created_at.isoformat(),
+            "model": GRAPHIC_IMAGE_MODEL,
+            "size": output_size,
+            "resolution": output_size,
+            "mime_type": "image/png",
+        })
+
+    if not generated_images:
+        raise RuntimeError(
+            "OpenAI completed the request but did not return usable image data."
+        )
+
+    return generated_images
 
 
 def generated_image_answer_text(images, regenerated=False):
@@ -9531,6 +9551,33 @@ def render_generated_image_actions(images, message_index=None):
         )
 
         with st.container(key=f"generated_image_actions_{open_key}"):
+            st.markdown(
+                """
+                <style>
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stButton"] > button,
+                div[class*="st-key-generated_image_actions_"]
+                div[data-testid="stDownloadButton"] > button,
+                div[class*="st-key-generated_image_actions_"]
+                .stButton > button,
+                div[class*="st-key-generated_image_actions_"]
+                .stDownloadButton > button {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    text-align: center !important;
+                }
+
+                div[class*="st-key-generated_image_actions_"] button p {
+                    width: 100% !important;
+                    margin: 0 !important;
+                    text-align: center !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
             open_column, download_column, regenerate_column = st.columns(
                 [1, 1, 1],
                 gap="small",
@@ -9550,14 +9597,14 @@ def render_generated_image_actions(images, message_index=None):
                           'justify-content:center;width:100%;min-height:38px;'
                           'border-radius:9px;border:1px solid rgba(148,163,184,.22);'
                           'text-decoration:none;color:inherit;font-weight:650;">'
-                          '🖼️ Open Full Size</a>'
+                          'Open Full Size</a>'
                     ),
                     unsafe_allow_html=True,
                 )
 
             with download_column:
                 st.download_button(
-                    "⬇️ Download PNG",
+                    "Download PNG",
                     data=image_bytes,
                     file_name=filename,
                     mime="image/png",
@@ -9567,7 +9614,7 @@ def render_generated_image_actions(images, message_index=None):
 
             with regenerate_column:
                 if st.button(
-                    "🔄 Regenerate",
+                    "Regenerate",
                     key=regenerate_key,
                     use_container_width=True,
                 ):
@@ -9591,29 +9638,33 @@ def process_pending_graphic_regeneration():
         st.warning("The original generation prompt is unavailable.")
         return False
 
-    with st.spinner("🎨 Creating another image version..."):
-        images = generate_graphic_marketing_images(prompt_text, [])
-        answer_text = generated_image_answer_text(
-            images,
-            regenerated=True,
-        )
-        stored_content = answer_text + serialize_images_marker(images)
-
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": stored_content,
-        })
-
-        try:
-            save_message(
-                st.session_state.conversation_id,
-                "assistant",
-                stored_content,
+    try:
+        with st.spinner("Creating another image version..."):
+            images = generate_graphic_marketing_images(prompt_text, [])
+            answer_text = generated_image_answer_text(
+                images,
+                regenerated=True,
             )
-        except Exception as error:
-            st.warning(
-                f"Generated image was not saved to history: {error}"
-            )
+            stored_content = answer_text + serialize_images_marker(images)
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": stored_content,
+            })
+
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "assistant",
+                    stored_content,
+                )
+            except Exception as error:
+                st.warning(
+                    f"Generated image was not saved to history: {error}"
+                )
+    except Exception as error:
+        st.error(str(error))
+        return False
 
     st.session_state.scroll_to_bottom = True
     st.rerun()
@@ -12908,15 +12959,24 @@ else:
         )
 
         if is_graphic_generation:
-            with st.spinner("🎨 Creating your image..."):
-                response_start_time = time.time()
-                generated_images = generate_graphic_marketing_images(
-                    prompt,
-                    effective_uploaded_files,
-                )
+            response_start_time = time.time()
+            try:
+                with st.spinner("Creating your image..."):
+                    generated_images = generate_graphic_marketing_images(
+                        prompt,
+                        effective_uploaded_files,
+                    )
                 answer = generated_image_answer_text(generated_images)
-                response_time = round(time.time() - response_start_time, 2)
-                tokens_used = None
+            except Exception as error:
+                generated_images = []
+                answer = (
+                    "Image generation was not completed.\n\n"
+                    + str(error)
+                )
+                st.error(str(error))
+
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
         else:
             with st.spinner("Searching AutoTecPro knowledge base..."):
                 response_start_time = time.time()
