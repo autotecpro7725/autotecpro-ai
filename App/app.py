@@ -7499,26 +7499,42 @@ for slug, icon, label in workspace_items:
 
     nav_state = "active" if is_selected else "idle"
 
+    # Dedicated two-column workspace row:
+    # fixed icon column + independent text-button column.
+    # Existing assistant-switching behavior remains unchanged.
     with st.sidebar.container(
-        key=f"workspace_nav_{nav_state}_{slug}"
+        key=f"atp_workspace_row_{nav_state}_{slug}"
     ):
-        if st.button(
-            label,
-            key=f"workspace_button_{slug}",
-            use_container_width=True,
-        ):
-            if not is_selected:
-                st.session_state.messages = []
-                st.session_state.conversation_id = None
-                st.session_state.current_assistant = (
-                    assistant_name
-                )
-                st.session_state.chat_file_uploader_generation += 1
-                clear_managed_uploads(
-                    "chat_managed_uploads",
-                    "chat_managed_upload_generation",
-                )
-                st.rerun()
+        icon_column, text_column = st.columns(
+            [40, 220],
+            gap="small",
+            vertical_alignment="center",
+        )
+
+        with icon_column:
+            st.markdown(
+                f'<div class="atp-workspace-icon">{icon}</div>',
+                unsafe_allow_html=True,
+            )
+
+        with text_column:
+            if st.button(
+                label,
+                key=f"atp_workspace_label_{slug}",
+                use_container_width=True,
+            ):
+                if not is_selected:
+                    st.session_state.messages = []
+                    st.session_state.conversation_id = None
+                    st.session_state.current_assistant = (
+                        assistant_name
+                    )
+                    st.session_state.chat_file_uploader_generation += 1
+                    clear_managed_uploads(
+                        "chat_managed_uploads",
+                        "chat_managed_upload_generation",
+                    )
+                    st.rerun()
 
 assistant = st.session_state.current_assistant
 
@@ -8682,6 +8698,233 @@ st.markdown(
         background-color: rgba(255, 255, 255, 0.08) !important;
         box-shadow: none !important;
         transform: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# Final isolated workspace alignment.
+# This block is intentionally placed after the existing modern History cleanup.
+# It targets only the new workspace row keys and the existing New Case key.
+st.markdown(
+    """
+    <style>
+    /* AutoTecPro AI heading */
+    section[data-testid="stSidebar"] .workspace-title {
+        display: block !important;
+        width: 100% !important;
+        margin: 8px 0 16px 0 !important;
+        padding: 0 !important;
+        color: #f8fafc !important;
+        font-size: 20px !important;
+        font-weight: 850 !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.2px !important;
+        text-align: left !important;
+    }
+
+    /* Entire workspace row */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_"] {
+        width: 100% !important;
+        min-height: 46px !important;
+        margin: 0 0 6px 0 !important;
+        padding: 0 10px !important;
+        border: 1px solid transparent !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_active_"] {
+        background: rgba(255, 255, 255, 0.085) !important;
+        border-color: rgba(148, 163, 184, 0.08) !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_idle_"]:hover {
+        background: rgba(255, 255, 255, 0.055) !important;
+    }
+
+    /* Override older global sidebar column rules only inside these rows. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_"]
+    div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: 40px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 12px !important;
+        width: 100% !important;
+        min-height: 46px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_"]
+    div[data-testid="column"] {
+        display: flex !important;
+        align-items: center !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 46px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_"]
+    div[data-testid="column"]:first-child {
+        grid-column: 1 !important;
+        width: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+        justify-content: center !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_row_"]
+    div[data-testid="column"]:last-child {
+        grid-column: 2 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        justify-content: flex-start !important;
+    }
+
+    /* Fixed icon box: every icon shares the same center line. */
+    section[data-testid="stSidebar"] .atp-workspace-icon {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        min-width: 40px !important;
+        height: 40px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 22px !important;
+        line-height: 1 !important;
+        text-align: center !important;
+        pointer-events: none !important;
+    }
+
+    /* Independent text column: every label starts at exactly the same X position. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"] .stButton {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 46px !important;
+        height: 46px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        color: #eef2f7 !important;
+        -webkit-text-fill-color: #eef2f7 !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button:hover,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button:focus,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button:active {
+        background: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-atp_workspace_label_"]
+    .stButton > button div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* New Case: text only. Existing button dimensions, colors and behavior stay intact. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-new_case_button"]
+    .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        font-size: 19px !important;
+        font-weight: 820 !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-new_case_button"]
+    .stButton > button div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-new_case_button"]
+    .stButton > button p {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: center !important;
+    }
+
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        div[class*="st-key-atp_workspace_row_"],
+        section[data-testid="stSidebar"]
+        div[class*="st-key-atp_workspace_row_"]
+        div[data-testid="stHorizontalBlock"],
+        section[data-testid="stSidebar"]
+        div[class*="st-key-atp_workspace_row_"]
+        div[data-testid="column"],
+        section[data-testid="stSidebar"]
+        div[class*="st-key-atp_workspace_label_"]
+        .stButton > button {
+            min-height: 48px !important;
+            height: 48px !important;
+        }
     }
     </style>
     """,
