@@ -9936,10 +9936,149 @@ def clean_assistant_label(assistant_name):
 
 
 def conversation_title_from_text(text):
-    clean = str(text or "").replace("\n", " ").strip()
+    """Fast fallback title used before the AI-generated title is available."""
+    clean = re.sub(r"\s+", " ", str(text or "")).strip()
+    clean = re.sub(r"📎\s*Attached:.*$", "", clean, flags=re.IGNORECASE).strip()
     if not clean:
         return "New Case"
-    return clean[:55]
+
+    words = clean.split()
+    fallback = " ".join(words[:7]).strip(" .,:;!?-")
+    if not fallback:
+        return "New Case"
+    return fallback[:48]
+
+
+def generate_ai_conversation_title(first_message, assistant_answer=""):
+    """
+    Generate a concise ChatGPT-style conversation title.
+
+    Failure is non-fatal: the existing fallback title remains unchanged.
+    """
+    user_text = re.sub(r"\s+", " ", str(first_message or "")).strip()
+    answer_text = re.sub(r"\s+", " ", str(assistant_answer or "")).strip()
+
+    if not user_text:
+        return "New Case"
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=(
+                "Create a concise conversation title for a chat-history sidebar. "
+                "Return only the title, with no quotation marks, punctuation at "
+                "the end, explanation, prefix, or markdown. Use 3 to 7 words. "
+                "Keep it under 48 characters. Preserve useful vehicle models, "
+                "product names, tracking numbers, or document topics when relevant."
+            ),
+            input=(
+                f"User message: {user_text[:1200]}\n"
+                f"Assistant response context: {answer_text[:800]}"
+            ),
+        )
+        title = re.sub(r"\s+", " ", str(response.output_text or "")).strip()
+        title = title.strip(" \"'`“”‘’")
+        title = re.sub(r"[.!?:;,-]+$", "", title).strip()
+
+        if title:
+            return title[:48]
+    except Exception:
+        pass
+
+    return conversation_title_from_text(user_text)
+
+
+def update_conversation_ai_title(conversation_id, first_message, assistant_answer=""):
+    """Generate and store an AI title once the first answer is complete."""
+    if not conversation_id:
+        return
+
+    try:
+        current = (
+            supabase
+            .table("conversations")
+            .select("title")
+            .eq("id", conversation_id)
+            .limit(1)
+            .execute()
+        )
+        current_title = ""
+        if current.data:
+            current_title = str(current.data[0].get("title") or "").strip()
+
+        fallback_title = conversation_title_from_text(first_message)
+
+        # Do not overwrite a title the user has manually renamed.
+        if current_title and current_title not in {"New Case", fallback_title}:
+            return
+
+        ai_title = generate_ai_conversation_title(
+            first_message,
+            assistant_answer,
+        )
+        if not ai_title:
+            return
+
+        supabase.table("conversations").update({
+            "title": ai_title,
+            "updated_at": now_iso(),
+        }).eq("id", conversation_id).execute()
+    except Exception:
+        # Title generation must never interrupt the conversation.
+        pass
+
+
+def get_conversation_storage_count(username, role=None):
+    """
+    Count every active saved conversation.
+
+    This is intentionally separate from load_conversations(), which returns
+    only the latest 50 rows for fast sidebar rendering.
+    """
+    try:
+        query = (
+            supabase
+            .table("conversations")
+            .select("id", count="exact")
+        )
+
+        if str(role or "").lower() != "admin":
+            query = query.eq("username", username)
+
+        query = query.or_("archived.is.null,archived.eq.false")
+        result = query.execute()
+
+        if result.count is not None:
+            return int(result.count)
+    except Exception:
+        pass
+
+    try:
+        rows = safe_select_rows(
+            "conversations",
+            order_columns=["updated_at", "created_at"],
+            limit=5000,
+        )
+
+        active_rows = [
+            row for row in rows
+            if not (
+                row.get("archived") is True
+                or str(row.get("archived")).lower() == "true"
+            )
+        ]
+
+        if str(role or "").lower() != "admin":
+            own_rows = [
+                row for row in active_rows
+                if str(row.get("username", "")).lower()
+                == str(username or "").lower()
+            ]
+            return len(own_rows)
+
+        return len(active_rows)
+    except Exception:
+        return 0
 
 
 def create_conversation(username, assistant_name, first_message=None):
@@ -10998,7 +11137,10 @@ if assistant != "⚙️ Admin Panel":
             st.session_state.role
         )
 
-        storage_count = len(conversations)
+        storage_count = get_conversation_storage_count(
+            st.session_state.username,
+            st.session_state.role,
+        )
         st.sidebar.markdown(
             (
                 '<div class="history-storage-card">'
@@ -11855,6 +11997,17 @@ else:
         except Exception as e:
             st.warning(f"AI answer was not saved to history: {e}")
 
+        # Generate a concise ChatGPT-style title after the first completed answer.
+        if len([
+            item for item in st.session_state.messages
+            if item.get("role") == "user"
+        ]) == 1:
+            update_conversation_ai_title(
+                st.session_state.conversation_id,
+                prompt,
+                answer,
+            )
+
         # Continuous Learning:
         # Automatically extracts reusable knowledge, detects duplicates,
         # improves existing records, and syncs final knowledge to OpenAI Vector Store.
@@ -12235,6 +12388,68 @@ st.markdown(
         .block-container .app-header {
             margin-bottom: 12px !important;
         }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Final isolated Pinned / Recents text alignment.
+# This affects only history-row titles and does not change row actions or colors.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] .stButton {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"]
+    .stButton > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding-right: 42px !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"]
+    .stButton > button
+    div[data-testid="stMarkdownContainer"] p {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     </style>
     """,
