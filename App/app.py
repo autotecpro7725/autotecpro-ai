@@ -2828,6 +2828,20 @@ def inject_base_css():
             object-fit: contain;
         }
 
+        /* Generated artwork uses a large chat preview. Uploaded reference
+           images keep their existing compact 260px preview. */
+        .chat-generated-image-card {
+            width: min(100%, 800px) !important;
+            max-width: 800px !important;
+        }
+
+        .chat-generated-image-card img {
+            width: 100% !important;
+            max-width: 800px !important;
+            height: auto !important;
+            object-fit: contain !important;
+        }
+
         .chat-image-caption {
             padding: 7px 9px;
             font-size: 11px !important;
@@ -2839,9 +2853,14 @@ def inject_base_css():
         }
 
         @media (max-width: 768px) {
-            .chat-image-card {
+            .chat-image-card,
+            .chat-generated-image-card {
                 max-width: 100% !important;
                 width: 100% !important;
+            }
+
+            .chat-generated-image-card img {
+                max-width: 100% !important;
             }
         }
 
@@ -9206,8 +9225,13 @@ def render_image_previews(images):
         safe_data_url = html.escape(data_url, quote=True)
 
         caption_icon = "🖼️" if image.get("generated") else "📎"
+        card_class = (
+            "chat-image-card chat-generated-image-card"
+            if image.get("generated")
+            else "chat-image-card"
+        )
         cards.append(
-            f'<div class="chat-image-card">'
+            f'<div class="{card_class}">'
             f'<img src="{safe_data_url}" alt="{name}">'
             f'<div class="chat-image-caption">{caption_icon} {name}</div>'
             f'</div>'
@@ -9267,24 +9291,11 @@ def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
 
 
 def choose_graphic_image_size(prompt_text):
-    """Choose a practical output orientation from the user's command."""
-    text = str(prompt_text or "").lower()
-
-    portrait_terms = (
-        "portrait", "vertical", "9:16", "story", "reel",
-        "tiktok", "phone wallpaper", "instagram story",
-    )
-    landscape_terms = (
-        "landscape", "horizontal", "16:9", "youtube",
-        "thumbnail", "banner", "facebook cover", "website hero",
-        "wide", "header",
-    )
-
-    if any(term in text for term in portrait_terms):
-        return "1024x1536"
-    if any(term in text for term in landscape_terms):
-        return "1536x1024"
-    return "1024x1024"
+    """
+    Use the confirmed 1536x1536 square output for all Graphic Marketing
+    image generations.
+    """
+    return "1536x1536"
 
 
 def graphic_image_filename(prompt_text, created_at=None):
