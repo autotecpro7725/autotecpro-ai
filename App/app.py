@@ -12929,76 +12929,123 @@ def render_learn_from_website(database_choice):
         ),
     )
 
+    # Show any result from the previous save-processing rerun.
+    website_save_notice = st.session_state.pop(
+        "admin_website_save_notice",
+        None,
+    )
+    if website_save_notice:
+        notice_type = str(website_save_notice.get("type") or "info")
+        notice_message = str(website_save_notice.get("message") or "")
+        if notice_type == "success":
+            st.success(notice_message)
+        elif notice_type == "warning":
+            st.warning(notice_message)
+        elif notice_type == "error":
+            st.error(notice_message)
+        else:
+            st.info(notice_message)
+
+    if "admin_website_save_in_progress" not in st.session_state:
+        st.session_state.admin_website_save_in_progress = False
+
+    def begin_website_knowledge_save():
+        """Set the processing state before Streamlit renders the next run."""
+        if not st.session_state.get("admin_website_save_in_progress", False):
+            st.session_state.admin_website_save_in_progress = True
+
+    website_save_in_progress = bool(
+        st.session_state.get("admin_website_save_in_progress", False)
+    )
+
     save_left, save_center, save_right = st.columns(
         [3, 4, 3],
         gap="small",
     )
     with save_center:
-        save_submitted = st.button(
-            "Approve and Save",
+        st.button(
+            "Saving..." if website_save_in_progress else "Approve and Save",
             key="stable_admin_website_save",
             use_container_width=True,
+            disabled=website_save_in_progress,
+            on_click=begin_website_knowledge_save,
         )
 
-    if not save_submitted:
+    if not website_save_in_progress:
         return
-
-    reviewed_content = clean_extracted_website_text(reviewed_content)
-    if len(reviewed_content) < 120:
-        st.warning(
-            "The reviewed content is too short to save as useful knowledge."
-        )
-        return
-
-    reviewed_extraction = dict(extraction)
-    reviewed_extraction["content"] = reviewed_content
-    reviewed_extraction["character_count"] = len(reviewed_content)
-    reviewed_extraction["word_count"] = len(reviewed_content.split())
-    reviewed_extraction["content_hash"] = hashlib.sha256(
-        reviewed_content.encode("utf-8")
-    ).hexdigest()
-
-    selected_vector_store_id = (
-        TECHNICAL_VECTOR_STORE_ID
-        if database_choice == "Technical Support Database"
-        else SALES_VECTOR_STORE_ID
-    )
-
-    filename = website_knowledge_filename(reviewed_extraction)
-
-    if vector_store_has_filename(selected_vector_store_id, filename):
-        st.info(
-            "This exact reviewed webpage content is already saved in the "
-            "selected knowledge database."
-        )
-        return
-
-    document_text = build_website_knowledge_document(
-        reviewed_extraction,
-        database_choice,
-    )
-    website_file = ManagedUploadedFile(
-        document_text.encode("utf-8"),
-        filename,
-        "text/plain",
-    )
 
     try:
+        reviewed_content = clean_extracted_website_text(reviewed_content)
+        if len(reviewed_content) < 120:
+            st.session_state.admin_website_save_notice = {
+                "type": "warning",
+                "message": (
+                    "The reviewed content is too short to save as useful "
+                    "knowledge."
+                ),
+            }
+            return
+
+        reviewed_extraction = dict(extraction)
+        reviewed_extraction["content"] = reviewed_content
+        reviewed_extraction["character_count"] = len(reviewed_content)
+        reviewed_extraction["word_count"] = len(reviewed_content.split())
+        reviewed_extraction["content_hash"] = hashlib.sha256(
+            reviewed_content.encode("utf-8")
+        ).hexdigest()
+
+        selected_vector_store_id = (
+            TECHNICAL_VECTOR_STORE_ID
+            if database_choice == "Technical Support Database"
+            else SALES_VECTOR_STORE_ID
+        )
+
+        filename = website_knowledge_filename(reviewed_extraction)
+
         with st.spinner("Saving website knowledge..."):
+            if vector_store_has_filename(selected_vector_store_id, filename):
+                st.session_state.admin_website_save_notice = {
+                    "type": "info",
+                    "message": (
+                        "This exact reviewed webpage content is already saved "
+                        "in the selected knowledge database."
+                    ),
+                }
+                return
+
+            document_text = build_website_knowledge_document(
+                reviewed_extraction,
+                database_choice,
+            )
+            website_file = ManagedUploadedFile(
+                document_text.encode("utf-8"),
+                filename,
+                "text/plain",
+            )
             file_id = upload_to_vector_store(
                 website_file,
                 selected_vector_store_id,
             )
 
-        st.success(
-            f"Website knowledge saved to {database_choice}. File ID: {file_id}"
-        )
-        st.info(
-            "OpenAI may take a short time to finish indexing the new knowledge."
-        )
+        st.session_state.admin_website_save_notice = {
+            "type": "success",
+            "message": (
+                f"Website knowledge saved to {database_choice}. "
+                f"File ID: {file_id}. OpenAI may take a short time to finish "
+                "indexing the new knowledge."
+            ),
+        }
         st.session_state.pop("admin_website_extraction", None)
+
     except Exception as error:
-        st.error(f"Unable to save website knowledge: {error}")
+        st.session_state.admin_website_save_notice = {
+            "type": "error",
+            "message": f"Unable to save website knowledge: {error}",
+        }
+
+    finally:
+        st.session_state.admin_website_save_in_progress = False
+        st.rerun()
 
 
 def _admin_upload_fragment_decorator(function):
