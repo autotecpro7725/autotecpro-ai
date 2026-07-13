@@ -106,6 +106,15 @@ def get_optional_secret(name, default=""):
 UPS_CLIENT_ID = get_optional_secret("UPS_CLIENT_ID")
 UPS_CLIENT_SECRET = get_optional_secret("UPS_CLIENT_SECRET")
 
+WOOCOMMERCE_STORE_URL = get_optional_secret(
+    "WOOCOMMERCE_STORE_URL"
+).rstrip("/")
+WOOCOMMERCE_CONSUMER_KEY = get_optional_secret(
+    "WOOCOMMERCE_CONSUMER_KEY"
+)
+WOOCOMMERCE_CONSUMER_SECRET = get_optional_secret(
+    "WOOCOMMERCE_CONSUMER_SECRET"
+)
 
 
 CANADA_POST_USERNAME = get_optional_secret("CANADA_POST_USERNAME")
@@ -132,6 +141,300 @@ def safe_json_response(response):
         or f"HTTP {response.status_code}"
     )
     raise RuntimeError(str(message))
+
+
+def woocommerce_is_configured():
+    """Return True when all required WooCommerce secrets are configured."""
+    return bool(
+        WOOCOMMERCE_STORE_URL
+        and WOOCOMMERCE_CONSUMER_KEY
+        and WOOCOMMERCE_CONSUMER_SECRET
+    )
+
+
+def woocommerce_api_request(endpoint, params=None):
+    """
+    Make a read-only WooCommerce REST API request.
+
+    Only GET requests are implemented, so this integration cannot modify,
+    cancel, refund, create, or delete WooCommerce orders.
+    """
+    if not woocommerce_is_configured():
+        raise RuntimeError("WooCommerce order access is not configured.")
+
+    clean_endpoint = str(endpoint or "").strip().lstrip("/")
+    if not clean_endpoint:
+        raise RuntimeError("WooCommerce API endpoint is missing.")
+
+    response = requests.get(
+        f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/v3/{clean_endpoint}",
+        params=params or {},
+        auth=(
+            WOOCOMMERCE_CONSUMER_KEY,
+            WOOCOMMERCE_CONSUMER_SECRET,
+        ),
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "AutoTecPro-AI/1.0",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    return safe_json_response(response)
+
+
+def sanitize_woocommerce_order(order):
+    """Keep only fields needed for internal order support."""
+    if not isinstance(order, dict):
+        return {}
+
+    billing = order.get("billing") or {}
+    shipping = order.get("shipping") or {}
+
+    line_items = []
+    for item in order.get("line_items") or []:
+        if not isinstance(item, dict):
+            continue
+        line_items.append({
+            "product_id": item.get("product_id"),
+            "variation_id": item.get("variation_id"),
+            "name": item.get("name"),
+            "sku": item.get("sku"),
+            "quantity": item.get("quantity"),
+            "subtotal": item.get("subtotal"),
+            "total": item.get("total"),
+            "tax": item.get("total_tax"),
+        })
+
+    shipping_lines = []
+    for item in order.get("shipping_lines") or []:
+        if not isinstance(item, dict):
+            continue
+        shipping_lines.append({
+            "method_title": item.get("method_title"),
+            "method_id": item.get("method_id"),
+            "total": item.get("total"),
+        })
+
+    refunds = []
+    for item in order.get("refunds") or []:
+        if not isinstance(item, dict):
+            continue
+        refunds.append({
+            "id": item.get("id"),
+            "reason": item.get("reason"),
+            "total": item.get("total"),
+        })
+
+    return {
+        "id": order.get("id"),
+        "number": order.get("number"),
+        "status": order.get("status"),
+        "currency": order.get("currency"),
+        "date_created": order.get("date_created"),
+        "date_modified": order.get("date_modified"),
+        "date_paid": order.get("date_paid"),
+        "date_completed": order.get("date_completed"),
+        "customer_id": order.get("customer_id"),
+        "customer_note": order.get("customer_note"),
+        "billing": {
+            "first_name": billing.get("first_name"),
+            "last_name": billing.get("last_name"),
+            "company": billing.get("company"),
+            "address_1": billing.get("address_1"),
+            "address_2": billing.get("address_2"),
+            "city": billing.get("city"),
+            "state": billing.get("state"),
+            "postcode": billing.get("postcode"),
+            "country": billing.get("country"),
+            "email": billing.get("email"),
+            "phone": billing.get("phone"),
+        },
+        "shipping": {
+            "first_name": shipping.get("first_name"),
+            "last_name": shipping.get("last_name"),
+            "company": shipping.get("company"),
+            "address_1": shipping.get("address_1"),
+            "address_2": shipping.get("address_2"),
+            "city": shipping.get("city"),
+            "state": shipping.get("state"),
+            "postcode": shipping.get("postcode"),
+            "country": shipping.get("country"),
+            "phone": shipping.get("phone"),
+        },
+        "payment_method_title": order.get("payment_method_title"),
+        "shipping_total": order.get("shipping_total"),
+        "discount_total": order.get("discount_total"),
+        "total_tax": order.get("total_tax"),
+        "total": order.get("total"),
+        "prices_include_tax": order.get("prices_include_tax"),
+        "line_items": line_items,
+        "shipping_lines": shipping_lines,
+        "coupon_lines": order.get("coupon_lines") or [],
+        "refunds": refunds,
+    }
+
+
+def get_woocommerce_order_by_id(order_id):
+    """Retrieve one WooCommerce order using its numeric internal ID."""
+    clean_order_id = str(order_id or "").strip()
+    if not re.fullmatch(r"\d{1,12}", clean_order_id):
+        raise RuntimeError("Invalid WooCommerce order ID.")
+
+    order = woocommerce_api_request(f"orders/{clean_order_id}")
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "order_id",
+        "order": sanitize_woocommerce_order(order),
+    }
+
+
+def search_woocommerce_order_number(order_number):
+    """Find an order by internal ID or displayed WooCommerce order number."""
+    clean_number = re.sub(r"[^0-9]", "", str(order_number or ""))
+    if not clean_number:
+        raise RuntimeError("A valid order number was not provided.")
+
+    try:
+        direct_result = get_woocommerce_order_by_id(clean_number)
+        order = direct_result.get("order") or {}
+        if str(order.get("number") or order.get("id") or "") == clean_number:
+            return direct_result
+    except Exception:
+        pass
+
+    orders = woocommerce_api_request(
+        "orders",
+        params={
+            "search": clean_number,
+            "per_page": 20,
+            "orderby": "date",
+            "order": "desc",
+        },
+    )
+
+    matches = []
+    for order in orders if isinstance(orders, list) else []:
+        displayed_number = str(order.get("number") or "")
+        internal_id = str(order.get("id") or "")
+        if clean_number in {displayed_number, internal_id}:
+            matches.append(sanitize_woocommerce_order(order))
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "order_number",
+        "searched_order_number": clean_number,
+        "count": len(matches),
+        "orders": matches,
+    }
+
+
+def search_woocommerce_orders_by_email(email_address):
+    """Search recent orders by exact billing email address."""
+    email_value = str(email_address or "").strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email_value):
+        raise RuntimeError("A valid customer email address is required.")
+
+    orders = woocommerce_api_request(
+        "orders",
+        params={
+            "search": email_value,
+            "per_page": 20,
+            "orderby": "date",
+            "order": "desc",
+        },
+    )
+
+    matches = []
+    for order in orders if isinstance(orders, list) else []:
+        order_email = str(
+            (order.get("billing") or {}).get("email") or ""
+        ).strip().lower()
+        if order_email == email_value:
+            matches.append(sanitize_woocommerce_order(order))
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "customer_email",
+        "searched_email": email_value,
+        "count": len(matches),
+        "orders": matches,
+    }
+
+
+def get_recent_woocommerce_orders(limit=10, status="any"):
+    """Retrieve a small list of recent WooCommerce orders."""
+    try:
+        clean_limit = int(limit)
+    except (TypeError, ValueError):
+        clean_limit = 10
+    clean_limit = max(1, min(clean_limit, 20))
+
+    allowed_statuses = {
+        "any", "pending", "processing", "on-hold", "completed",
+        "cancelled", "refunded", "failed", "trash",
+    }
+    clean_status = str(status or "any").strip().lower()
+    if clean_status not in allowed_statuses:
+        clean_status = "any"
+
+    params = {
+        "per_page": clean_limit,
+        "orderby": "date",
+        "order": "desc",
+    }
+    if clean_status != "any":
+        params["status"] = clean_status
+
+    orders = woocommerce_api_request("orders", params=params)
+    clean_orders = [
+        sanitize_woocommerce_order(order)
+        for order in orders if isinstance(order, dict)
+    ] if isinstance(orders, list) else []
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "recent_orders",
+        "status_filter": clean_status,
+        "count": len(clean_orders),
+        "orders": clean_orders,
+    }
+
+
+def get_woocommerce_order_notes(order_id):
+    """Retrieve notes associated with one WooCommerce order."""
+    clean_order_id = str(order_id or "").strip()
+    if not re.fullmatch(r"\d{1,12}", clean_order_id):
+        raise RuntimeError("Invalid WooCommerce order ID.")
+
+    notes = woocommerce_api_request(
+        f"orders/{clean_order_id}/notes",
+        params={"per_page": 50},
+    )
+
+    clean_notes = []
+    for note in notes if isinstance(notes, list) else []:
+        if not isinstance(note, dict):
+            continue
+        clean_notes.append({
+            "id": note.get("id"),
+            "date_created": note.get("date_created"),
+            "note": note.get("note"),
+            "customer_note": note.get("customer_note"),
+            "added_by_user": note.get("added_by_user"),
+        })
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "order_notes",
+        "order_id": clean_order_id,
+        "count": len(clean_notes),
+        "notes": clean_notes,
+    }
 
 
 
@@ -459,12 +762,77 @@ def extract_tracking_number(prompt):
     return ""
 
 
-def detect_live_request(prompt):
+def detect_live_request(prompt, selected_assistant=None):
     value = str(prompt or "").strip()
     lower = value.lower()
 
     if not value:
         return {"type": "none"}
+
+    active_assistant = (
+        selected_assistant
+        or st.session_state.get("current_assistant")
+        or ""
+    )
+
+    # WooCommerce order data is intentionally available only in
+    # the Sales & Marketing workspace.
+    if (
+        active_assistant == "📈 Sales & Marketing"
+        and woocommerce_is_configured()
+    ):
+        notes_match = re.search(
+            r"\b(?:notes?|order\s+notes?)\b.*?"
+            r"\b(?:order|order\s*#|#)\s*[:#-]?\s*(\d{3,12})\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if notes_match:
+            return {
+                "type": "woocommerce_order_notes",
+                "order_id": notes_match.group(1),
+            }
+
+        email_match = re.search(
+            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if email_match and any(
+            word in lower
+            for word in [
+                "order", "customer", "purchase", "bought",
+                "email", "shipping", "refund",
+            ]
+        ):
+            return {
+                "type": "woocommerce_customer_email",
+                "email": email_match.group(0),
+            }
+
+        recent_order_match = re.search(
+            r"\b(?:show|find|get|list)?\s*(?:the\s+)?"
+            r"(?:latest|recent|newest)\s+(?:(\d{1,2})\s+)?orders?\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if recent_order_match:
+            return {
+                "type": "woocommerce_recent_orders",
+                "limit": int(recent_order_match.group(1) or 10),
+            }
+
+        order_match = re.search(
+            r"\b(?:order|order\s*number|order\s*#|#)"
+            r"\s*[:#-]?\s*(\d{3,12})\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if order_match:
+            return {
+                "type": "woocommerce_order",
+                "order_number": order_match.group(1),
+            }
 
     tracking_number = extract_tracking_number(value)
 
@@ -549,12 +917,31 @@ def detect_live_request(prompt):
     return {"type": "none"}
 
 
-
-def get_live_data_for_prompt(prompt):
-    request_type = detect_live_request(prompt)
+def get_live_data_for_prompt(prompt, selected_assistant=None):
+    request_type = detect_live_request(prompt, selected_assistant)
     kind = request_type.get("type")
 
     try:
+        if kind == "woocommerce_order":
+            return search_woocommerce_order_number(
+                request_type["order_number"]
+            )
+
+        if kind == "woocommerce_customer_email":
+            return search_woocommerce_orders_by_email(
+                request_type["email"]
+            )
+
+        if kind == "woocommerce_recent_orders":
+            return get_recent_woocommerce_orders(
+                request_type.get("limit", 10)
+            )
+
+        if kind == "woocommerce_order_notes":
+            return get_woocommerce_order_notes(
+                request_type["order_id"]
+            )
+
         if kind == "weather":
             return get_live_weather(request_type["location"])
 
@@ -625,6 +1012,14 @@ def live_integration_statuses():
             "Frankfurter exchange rates",
             True,
             "No additional API key required",
+        ),
+        (
+            "WooCommerce live order information",
+            woocommerce_is_configured(),
+            (
+                "WOOCOMMERCE_STORE_URL + WOOCOMMERCE_CONSUMER_KEY + "
+                "WOOCOMMERCE_CONSUMER_SECRET"
+            ),
         ),
         (
             "UPS tracking",
@@ -9932,13 +10327,32 @@ Do not output HTML or code-fence formatting.
         return """
 You are AutoTecPro Sales & Marketing AI.
 
-Always search the Sales & Marketing Vector Store before answering.
+Always search the Sales & Marketing Vector Store before answering questions
+about AutoTecPro products, policies, compatibility, sales, marketing, dealer
+communications, customer replies, listings, promotions, warranty, and returns.
+
+The AutoTecPro application may provide a verified WooCommerce REST API result.
+
+When WooCommerce data is provided:
+- Treat it as the authoritative live order record.
+- Clearly identify the order number and current order status.
+- Summarize purchased products, quantities, totals, shipping, and payment data.
+- Use customer details only when needed to answer the staff member's question.
+- Do not invent missing order information.
+- Do not claim an order was shipped, delivered, refunded, or paid unless the
+  supplied WooCommerce data supports it.
+- Never expose API credentials, authentication information, customer IP
+  addresses, or unnecessary internal metadata.
+- Never create, modify, cancel, refund, or delete an order.
+- If multiple orders match, provide a concise comparison.
+- If no order is found, say no matching WooCommerce order was returned.
+- Mention WooCommerce REST API as the source.
 
 Help with product recommendations, compatibility, specifications,
 dealer messages, customer replies, Amazon listings, website copy,
-social media, promotions, warranty, and return policy.
+social media, promotions, warranty, return policy, and live order inquiries.
 
-Never invent pricing or compatibility.
+Never invent pricing, order details, or compatibility.
 Do not output HTML or code-fence formatting.
 """
 
@@ -10008,7 +10422,7 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
-    live_data = get_live_data_for_prompt(prompt_text)
+    live_data = get_live_data_for_prompt(prompt_text, assistant)
     if live_data is not None:
         content.append({
             "type": "input_text",
@@ -10016,8 +10430,9 @@ def build_user_input(prompt_text, uploaded_files):
                 "LIVE DATA RESULT — retrieved by the AutoTecPro application:\n"
                 + json.dumps(live_data, ensure_ascii=False, default=str)
                 + "\n\nUse this live result exactly as supplied. Mention its source. "
-                  "Do not invent any missing fields, status, price, rate, date, "
-                  "delivery estimate, or tracking event."
+                  "Do not invent any missing fields, order status, payment status, "
+                  "shipment status, refund status, customer detail, price, "
+                  "rate, date, delivery estimate, or tracking event."
             )
         })
 
@@ -10065,8 +10480,9 @@ def ask_ai(prompt_text, uploaded_files):
           "recent news, recalls, software updates, laws, specifications, or facts "
           "that may have changed. Use file_search first for AutoTecPro internal "
           "technical and sales knowledge. Always name the source of live data. "
-          "Never invent a tracking event, exchange rate, weather condition, "
-          "or delivery estimate."
+          "Never invent an order status, payment status, shipment status, refund "
+          "status, tracking event, exchange rate, weather condition, or "
+          "delivery estimate."
     )
 
     tools = [{"type": "web_search"}]
@@ -10661,6 +11077,16 @@ Confidence: {candidate.get("confidence_score", 70)}
 def auto_learn_from_latest_answer(question, answer, selected_assistant):
     if selected_assistant == "⚙️ Admin Panel":
         return None
+
+    live_request = detect_live_request(question, selected_assistant)
+    if str(live_request.get("type") or "").startswith("woocommerce_"):
+        return {
+            "learned": False,
+            "reason": (
+                "WooCommerce order inquiries are excluded from automatic "
+                "learning to protect customer information."
+            ),
+        }
 
     candidate = extract_learning_candidate(question, answer, selected_assistant)
 
@@ -14345,11 +14771,18 @@ else:
                 answer,
             )
 
+        # Customer order lookups must not enter continuous learning or
+        # detailed analytics because they may contain private customer data.
+        live_request_type = str(
+            detect_live_request(prompt, assistant).get("type") or ""
+        )
+        is_woocommerce_request = live_request_type.startswith("woocommerce_")
+
         # Continuous Learning:
         # Automatically extracts reusable knowledge, detects duplicates,
         # improves existing records, and syncs final knowledge to OpenAI Vector Store.
         learning_result = None
-        if not is_graphic_generation:
+        if not is_graphic_generation and not is_woocommerce_request:
             try:
                 learning_result = auto_learn_from_latest_answer(
                     prompt,
@@ -14368,10 +14801,18 @@ else:
         # Analytics:
         # Tracks most common vehicles, recurring issues, searched products,
         # unanswered questions, confidence trend, and learning performance.
-        try:
-            log_ai_analytics(prompt, answer, assistant, learning_result, response_time=response_time, tokens_used=tokens_used)
-        except Exception:
-            pass
+        if not is_woocommerce_request:
+            try:
+                log_ai_analytics(
+                    prompt,
+                    answer,
+                    assistant,
+                    learning_result,
+                    response_time=response_time,
+                    tokens_used=tokens_used,
+                )
+            except Exception:
+                pass
 
         # Clear uploaded files after this message is completed.
         # The image remains saved inside this specific user message/history item,
