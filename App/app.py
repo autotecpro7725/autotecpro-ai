@@ -11592,6 +11592,13 @@ Help with Amazon listings, website copy, SEO, Google Ads, Facebook and
 Instagram content, email campaigns, blogs, dealer campaigns, video scripts,
 product launches, promotional materials, and live sales analysis.
 
+When the application identifies a MARKETING TOOL request:
+- Follow the requested output structure completely.
+- Apply verified AutoTecPro brand guidance and product facts from file_search.
+- Clearly identify unverified details that require staff confirmation.
+- Produce a ready-to-use final version in addition to analysis.
+- Never treat generic marketing assumptions as verified AutoTecPro facts.
+
 Do not output HTML or code-fence formatting.
 """
 
@@ -16806,6 +16813,441 @@ def render_knowledge_submission_workspace():
 
 
 # ============================================================
+# Marketing AI Tools
+# ============================================================
+
+MARKETING_TOOL_OPTIONS = {
+    "💬 Marketing Chat": "chat",
+    "🛡️ Brand Consistency": "brand",
+    "📝 Product Listing Generator": "listing",
+    "🔎 SEO Optimizer": "seo",
+}
+
+
+def _clean_marketing_form_value(value, max_length=12000):
+    """Normalize user-entered Marketing tool fields without changing meaning."""
+    cleaned = str(value or "").replace("\x00", "").strip()
+    return cleaned[:max(1, int(max_length or 12000))]
+
+
+def _marketing_tool_request(tool_key, display_text, prompt_text):
+    """Return a stable request payload consumed by the existing chat pipeline."""
+    return {
+        "tool": str(tool_key or "").strip(),
+        "display_text": _clean_marketing_form_value(display_text, 4000),
+        "prompt": _clean_marketing_form_value(prompt_text, 24000),
+    }
+
+
+def build_brand_consistency_request(content, content_type, target_audience, notes):
+    """Build a grounded brand-review request for the existing Marketing AI."""
+    content = _clean_marketing_form_value(content, 16000)
+    content_type = _clean_marketing_form_value(content_type, 120)
+    target_audience = _clean_marketing_form_value(target_audience, 300)
+    notes = _clean_marketing_form_value(notes, 2000)
+
+    display_text = (
+        f"Brand Consistency Review — {content_type}\n\n"
+        f"{content[:1200]}"
+    )
+    prompt_text = f"""
+MARKETING TOOL: AUTOTECPRO BRAND CONSISTENCY ENGINE
+
+Review the supplied content against the AutoTecPro Marketing Vector Store and
+Sales Vector Store. Use retrieved brand guidance, approved product facts,
+warranty language, dealer rules, promotions, and customer-facing policies as
+the source of truth.
+
+Content type: {content_type}
+Target audience: {target_audience or "Not specified"}
+Additional instructions: {notes or "None"}
+
+CONTENT TO REVIEW:
+{content}
+
+Return these sections:
+1. Brand Compliance Score (0-100)
+2. What Already Matches the AutoTecPro Brand
+3. Brand, Accuracy, or Policy Issues
+4. Unsupported or Risky Claims
+5. Recommended Corrections
+6. Revised Final Version
+
+Rules:
+- Do not invent specifications, compatibility, prices, promotions, warranty
+  terms, support promises, or policies.
+- Clearly mark any point that cannot be verified from AutoTecPro knowledge.
+- Preserve the original language unless a different language is requested.
+- The revised version must be ready to use and should not include analysis
+  notes inside the final copy.
+"""
+    return _marketing_tool_request("brand_consistency", display_text, prompt_text)
+
+
+def build_product_listing_request(
+    product_name,
+    compatibility,
+    specifications,
+    platforms,
+    tone,
+    audience,
+    keywords,
+    notes,
+):
+    """Build one multi-platform listing request using existing product knowledge."""
+    product_name = _clean_marketing_form_value(product_name, 300)
+    compatibility = _clean_marketing_form_value(compatibility, 2000)
+    specifications = _clean_marketing_form_value(specifications, 8000)
+    platforms = [
+        _clean_marketing_form_value(item, 80)
+        for item in (platforms or [])
+        if str(item or "").strip()
+    ]
+    tone = _clean_marketing_form_value(tone, 120)
+    audience = _clean_marketing_form_value(audience, 500)
+    keywords = _clean_marketing_form_value(keywords, 1500)
+    notes = _clean_marketing_form_value(notes, 2500)
+
+    platform_text = ", ".join(platforms) or "WooCommerce"
+    display_text = (
+        f"Generate Product Listing — {product_name}\n"
+        f"Platforms: {platform_text}"
+    )
+    prompt_text = f"""
+MARKETING TOOL: AUTOTECPRO PRODUCT LISTING GENERATOR
+
+Create accurate, platform-specific product listings using the AutoTecPro
+Marketing Vector Store and Sales Vector Store. Search the knowledge stores
+before writing. Treat the supplied fields as context, but verify factual
+product claims against AutoTecPro knowledge.
+
+Product name / model: {product_name}
+Vehicle compatibility: {compatibility or "Use verified AutoTecPro knowledge"}
+Specifications and features:
+{specifications or "Use verified AutoTecPro knowledge"}
+
+Target platforms: {platform_text}
+Tone: {tone or "Professional and conversion-focused"}
+Target audience: {audience or "Vehicle owners and qualified dealers"}
+Priority keywords: {keywords or "Derive from verified product information"}
+Additional instructions: {notes or "None"}
+
+For EACH selected platform, produce:
+1. Optimized Title
+2. Short Description
+3. Key Feature Bullets
+4. Full Product Description
+5. Compatibility / Fitment Section
+6. What's Included
+7. Installation and Support Wording
+8. Warranty / Policy Wording only when verified
+9. Search Keywords / Tags
+10. Platform-specific compliance notes
+
+Then provide:
+- A Product Fact Verification section listing facts confirmed from AutoTecPro
+  knowledge and any details still requiring staff confirmation.
+- A concise reusable master listing.
+
+Rules:
+- Never invent compatibility, technical specifications, retained factory
+  features, prices, promotions, warranty terms, or included accessories.
+- Do not claim universal fitment.
+- Keep platform versions meaningfully different instead of duplicating one
+  generic listing.
+- Do not output HTML unless the staff explicitly requests it.
+"""
+    return _marketing_tool_request("product_listing", display_text, prompt_text)
+
+
+def build_seo_optimizer_request(
+    page_type,
+    product_or_topic,
+    primary_keyword,
+    secondary_keywords,
+    market,
+    existing_content,
+    page_url,
+    notes,
+):
+    """Build an SEO audit and rewrite request without requiring another service."""
+    page_type = _clean_marketing_form_value(page_type, 120)
+    product_or_topic = _clean_marketing_form_value(product_or_topic, 500)
+    primary_keyword = _clean_marketing_form_value(primary_keyword, 300)
+    secondary_keywords = _clean_marketing_form_value(secondary_keywords, 1200)
+    market = _clean_marketing_form_value(market, 200)
+    existing_content = _clean_marketing_form_value(existing_content, 16000)
+    page_url = _clean_marketing_form_value(page_url, 1000)
+    notes = _clean_marketing_form_value(notes, 2500)
+
+    display_text = (
+        f"SEO Optimization — {product_or_topic or page_type}\n"
+        f"Primary keyword: {primary_keyword or 'AI to recommend'}"
+    )
+    prompt_text = f"""
+MARKETING TOOL: AUTOTECPRO SEO OPTIMIZER
+
+Optimize this page using the AutoTecPro Marketing Vector Store and Sales Vector
+Store for factual and brand accuracy. Use web search only when a supplied public
+URL or current public search information is materially useful.
+
+Page type: {page_type}
+Product / topic: {product_or_topic}
+Primary keyword: {primary_keyword or "Recommend the best primary keyword"}
+Secondary keywords: {secondary_keywords or "Recommend relevant secondary keywords"}
+Target market / region: {market or "Canada and United States"}
+Existing page URL: {page_url or "Not supplied"}
+Additional instructions: {notes or "None"}
+
+EXISTING CONTENT:
+{existing_content or "No existing copy supplied. Create a new SEO-ready draft."}
+
+Return:
+1. SEO Audit Summary
+2. Search Intent
+3. Recommended Primary and Secondary Keywords
+4. SEO Title (include character count)
+5. Meta Description (include character count)
+6. Recommended URL Slug
+7. H1
+8. H2 / H3 Structure
+9. Optimized Page Copy
+10. FAQ Section
+11. Image Alt-Text Suggestions
+12. Internal-Link Suggestions
+13. Structured-Data / Schema Recommendations
+14. Accuracy and Brand Verification Notes
+15. Final SEO Checklist
+
+Rules:
+- Do not claim live keyword volume, ranking position, or competitor traffic
+  unless verified live data is actually available.
+- Never invent product facts, compatibility, pricing, warranty, promotions, or
+  policies.
+- Separate verified recommendations from assumptions requiring staff review.
+- Write for humans first and avoid keyword stuffing.
+"""
+    return _marketing_tool_request("seo_optimizer", display_text, prompt_text)
+
+
+def render_marketing_tools_panel():
+    """
+    Render only the selected Marketing tool.
+
+    Streamlit tabs evaluate all tab bodies on each rerun. A selectbox keeps this
+    feature lazy: only one form is created and no AI call occurs until submit.
+    """
+    selected_label = st.selectbox(
+        "Marketing mode",
+        options=list(MARKETING_TOOL_OPTIONS),
+        key="marketing_tool_mode",
+        help=(
+            "Choose a structured Marketing tool or keep the normal Marketing chat."
+        ),
+    )
+    selected_tool = MARKETING_TOOL_OPTIONS[selected_label]
+
+    if selected_tool == "chat":
+        st.caption(
+            "Use the normal chat below for campaigns, dealer messages, blogs, "
+            "advertising, launches, and general marketing work."
+        )
+        return None
+
+    if selected_tool == "brand":
+        with st.form("marketing_brand_consistency_form", clear_on_submit=False):
+            st.markdown("#### 🛡️ AI Brand Consistency Engine")
+            content_type = st.selectbox(
+                "Content type",
+                [
+                    "Product Listing",
+                    "Website Copy",
+                    "Social Media Post",
+                    "Email Campaign",
+                    "Dealer Communication",
+                    "Advertisement",
+                    "Blog / Article",
+                    "Other",
+                ],
+            )
+            target_audience = st.text_input(
+                "Target audience",
+                placeholder="Example: Silverado owners in Canada and the U.S.",
+            )
+            content = st.text_area(
+                "Content to review",
+                height=220,
+                placeholder="Paste the marketing content you want checked and revised.",
+            )
+            notes = st.text_area(
+                "Additional instructions (optional)",
+                height=90,
+                placeholder="Example: Keep the tone premium and concise.",
+            )
+            submitted = st.form_submit_button(
+                "Analyze Brand Consistency",
+                type="primary",
+                use_container_width=True,
+                disabled=len(str(content or "").strip()) < 10,
+            )
+        if submitted:
+            return build_brand_consistency_request(
+                content,
+                content_type,
+                target_audience,
+                notes,
+            )
+        return None
+
+    if selected_tool == "listing":
+        with st.form("marketing_product_listing_form", clear_on_submit=False):
+            st.markdown("#### 📝 AI Product Listing Generator")
+            product_name = st.text_input(
+                "Product name / model",
+                placeholder="Example: Silverado 17.2-inch Elite Android Screen",
+            )
+            compatibility = st.text_area(
+                "Vehicle compatibility",
+                height=90,
+                placeholder="Enter confirmed years, models, trims, or factory systems.",
+            )
+            specifications = st.text_area(
+                "Confirmed specifications and features",
+                height=180,
+                placeholder=(
+                    "Enter known screen size, Android version, memory, retained "
+                    "factory features, included accessories, and other verified facts."
+                ),
+            )
+            platforms = st.multiselect(
+                "Target platforms",
+                [
+                    "WooCommerce",
+                    "Amazon",
+                    "eBay",
+                    "Facebook Marketplace",
+                    "Google Shopping",
+                    "Dealer Catalog",
+                ],
+                default=["WooCommerce"],
+            )
+            col1, col2 = st.columns(2)
+            with col1:
+                tone = st.selectbox(
+                    "Tone",
+                    [
+                        "Professional",
+                        "Premium",
+                        "Technical",
+                        "Conversion-Focused",
+                        "Dealer / Wholesale",
+                    ],
+                )
+            with col2:
+                audience = st.text_input(
+                    "Target audience",
+                    placeholder="Truck owners, installers, dealers...",
+                )
+            keywords = st.text_input(
+                "Priority keywords (optional)",
+                placeholder="Comma-separated SEO or marketplace keywords",
+            )
+            notes = st.text_area(
+                "Additional instructions (optional)",
+                height=90,
+            )
+            submitted = st.form_submit_button(
+                "Generate Listings",
+                type="primary",
+                use_container_width=True,
+                disabled=(
+                    len(str(product_name or "").strip()) < 3
+                    or not platforms
+                ),
+            )
+        if submitted:
+            return build_product_listing_request(
+                product_name,
+                compatibility,
+                specifications,
+                platforms,
+                tone,
+                audience,
+                keywords,
+                notes,
+            )
+        return None
+
+    with st.form("marketing_seo_optimizer_form", clear_on_submit=False):
+        st.markdown("#### 🔎 SEO Optimization Tool")
+        col1, col2 = st.columns(2)
+        with col1:
+            page_type = st.selectbox(
+                "Page type",
+                [
+                    "Product Page",
+                    "Category Page",
+                    "Landing Page",
+                    "Blog Article",
+                    "Dealer Page",
+                    "Home Page",
+                    "Other",
+                ],
+            )
+        with col2:
+            market = st.text_input(
+                "Target market / region",
+                value="Canada and United States",
+            )
+        product_or_topic = st.text_input(
+            "Product or topic",
+            placeholder="Example: Ford F-150 15.1-inch Digital Gauge Cluster",
+        )
+        page_url = st.text_input(
+            "Existing public page URL (optional)",
+            placeholder="https://...",
+        )
+        primary_keyword = st.text_input(
+            "Primary keyword (optional)",
+            placeholder="Leave blank for an AI recommendation",
+        )
+        secondary_keywords = st.text_input(
+            "Secondary keywords (optional)",
+            placeholder="Comma-separated",
+        )
+        existing_content = st.text_area(
+            "Existing content (optional)",
+            height=220,
+            placeholder="Paste the current page copy, or leave blank to create new copy.",
+        )
+        notes = st.text_area(
+            "Additional instructions (optional)",
+            height=90,
+        )
+        submitted = st.form_submit_button(
+            "Run SEO Optimization",
+            type="primary",
+            use_container_width=True,
+            disabled=(
+                len(str(product_or_topic or "").strip()) < 3
+                and len(str(existing_content or "").strip()) < 20
+                and len(str(page_url or "").strip()) < 8
+            ),
+        )
+    if submitted:
+        return build_seo_optimizer_request(
+            page_type,
+            product_or_topic,
+            primary_keyword,
+            secondary_keywords,
+            market,
+            existing_content,
+            page_url,
+            notes,
+        )
+    return None
+
+# ============================================================
 # Admin Panel
 # ============================================================
 
@@ -17795,6 +18237,10 @@ else:
         unsafe_allow_html=True
     )
 
+    marketing_tool_request = None
+    if assistant == "📣 Marketing":
+        marketing_tool_request = render_marketing_tools_panel()
+
     uploaded_files = managed_file_uploader(
         storage_key="chat_managed_uploads",
         generation_key="chat_managed_upload_generation",
@@ -17826,10 +18272,20 @@ else:
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
-    prompt = st.chat_input("Message AutoTecPro AI...")
+    chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    prompt = (
+        marketing_tool_request.get("prompt")
+        if isinstance(marketing_tool_request, dict)
+        else chat_prompt
+    )
 
     if prompt:
-        user_display = clean_visible_chat_text(prompt)
+        user_display = (
+            marketing_tool_request.get("display_text")
+            if isinstance(marketing_tool_request, dict)
+            else clean_visible_chat_text(prompt)
+        )
+        interaction_prompt = str(user_display or prompt).strip()
 
         # Managed uploads are SHA-256 deduplicated and are cleared
         # immediately after this message is completed.
@@ -17956,7 +18412,7 @@ else:
             ]) == 1:
                 update_conversation_ai_title(
                     st.session_state.conversation_id,
-                    prompt,
+                    interaction_prompt,
                     answer,
                     detected_live_request=detected_request,
                 )
@@ -17967,15 +18423,23 @@ else:
             detected_request.get("type") or ""
         )
         is_woocommerce_request = live_request_type.startswith("woocommerce_")
+        is_structured_marketing_tool = isinstance(
+            marketing_tool_request,
+            dict,
+        )
 
         # Continuous Learning:
         # Automatically extracts reusable knowledge, detects duplicates,
         # improves existing records, and syncs final knowledge to OpenAI Vector Store.
         learning_result = None
-        if not is_graphic_generation and not is_woocommerce_request:
+        if (
+            not is_graphic_generation
+            and not is_woocommerce_request
+            and not is_structured_marketing_tool
+        ):
             try:
                 learning_result = auto_learn_from_latest_answer(
-                    prompt,
+                    interaction_prompt,
                     answer,
                     assistant,
                     detected_live_request=detected_request,
@@ -18002,7 +18466,7 @@ else:
         if not is_woocommerce_request:
             try:
                 log_ai_analytics(
-                    prompt,
+                    interaction_prompt,
                     answer,
                     assistant,
                     learning_result,
