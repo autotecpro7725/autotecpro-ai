@@ -16957,6 +16957,35 @@ def apply_marketing_tools_form_css():
             }
 
             /*
+             * Exact accessibility-attribute protection for the new Competitor
+             * Analysis controls on mobile Safari. This follows the same method
+             * that fixed the Marketing Mode selected-value issue.
+             */
+            input[aria-label="Competitor company"],
+            input[aria-label="Target market / region"],
+            input[aria-label="Competitor product / model"],
+            input[aria-label="Competitor public product URL (optional)"],
+            input[aria-label="AutoTecPro product / model"],
+            textarea[aria-label="Competitor specifications or page content (optional)"],
+            textarea[aria-label="Additional instructions (optional)"] {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            input[aria-label="Competitor company"]::placeholder,
+            input[aria-label="Competitor product / model"]::placeholder,
+            input[aria-label="Competitor public product URL (optional)"]::placeholder,
+            input[aria-label="AutoTecPro product / model"]::placeholder,
+            textarea[aria-label="Competitor specifications or page content (optional)"]::placeholder,
+            textarea[aria-label="Additional instructions (optional)"]::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+            /*
              * Marketing mode selector outside the form, plus every selectbox
              * and multiselect inside the currently rendered Marketing form.
              * BaseWeb uses different nested nodes for the closed value on iOS
@@ -17062,6 +17091,7 @@ MARKETING_TOOL_OPTIONS = {
     "🛡️ Brand Consistency": "brand",
     "📝 Product Listing Generator": "listing",
     "🔎 SEO Optimizer": "seo",
+    "📊 Competitor Analysis": "competitor",
 }
 
 
@@ -17271,6 +17301,107 @@ Rules:
     return _marketing_tool_request("seo_optimizer", display_text, prompt_text)
 
 
+
+def build_competitor_analysis_request(
+    competitor_name,
+    competitor_url,
+    competitor_product,
+    autotecpro_product,
+    target_market,
+    comparison_focus,
+    competitor_details,
+    notes,
+):
+    """Build a grounded, one-competitor comparison request."""
+    competitor_name = _clean_marketing_form_value(competitor_name, 300)
+    competitor_url = _clean_marketing_form_value(competitor_url, 1500)
+    competitor_product = _clean_marketing_form_value(competitor_product, 500)
+    autotecpro_product = _clean_marketing_form_value(autotecpro_product, 500)
+    target_market = _clean_marketing_form_value(target_market, 300)
+    comparison_focus = [
+        _clean_marketing_form_value(item, 120)
+        for item in (comparison_focus or [])
+        if str(item or "").strip()
+    ]
+    competitor_details = _clean_marketing_form_value(competitor_details, 12000)
+    notes = _clean_marketing_form_value(notes, 3000)
+
+    focus_text = ", ".join(comparison_focus) or (
+        "Product features, compatibility, pricing and value, warranty, support, "
+        "installation, product-page quality, SEO, messaging, and dealer advantages"
+    )
+
+    display_text = (
+        f"Competitor Analysis — {competitor_name or competitor_product or 'Competitor'}\n"
+        f"Compared with: {autotecpro_product}"
+    )
+
+    prompt_text = f"""
+MARKETING TOOL: AUTOTECPRO COMPETITOR ANALYSIS
+
+Analyze one competitor product against one AutoTecPro product.
+
+Use the AutoTecPro Marketing Vector Store and Sales Vector Store as the source
+of truth for AutoTecPro product facts, compatibility, support language,
+warranty/policy wording, dealer information, and brand positioning.
+
+Use web search for current public competitor information when a competitor URL
+or public competitor details are supplied. Treat competitor information as
+unverified until supported by the public source. Do not infer missing prices,
+specifications, compatibility, warranty terms, availability, or policies.
+
+Competitor company: {competitor_name or "Not specified"}
+Competitor product: {competitor_product or "Not specified"}
+Competitor public URL: {competitor_url or "Not supplied"}
+AutoTecPro product / model: {autotecpro_product}
+Target market / region: {target_market or "Canada and United States"}
+Comparison priorities: {focus_text}
+Additional instructions: {notes or "None"}
+
+SUPPLIED COMPETITOR DETAILS:
+{competitor_details or "No additional competitor text supplied."}
+
+Return these sections:
+
+1. Executive Summary
+2. Information Sources and Verification Status
+3. Side-by-Side Product Comparison
+4. Feature and Vehicle-Compatibility Comparison
+5. Pricing and Value Analysis
+6. Warranty, Installation, and Support Comparison
+7. Competitor Strengths
+8. Competitor Weaknesses
+9. AutoTecPro Advantages
+10. AutoTecPro Gaps or Areas to Improve
+11. Product-Page and Marketing Message Comparison
+12. SEO Opportunities
+13. Dealer / Distributor Positioning Opportunities
+14. Recommended Sales Positioning
+15. Suggested Sales Pitch
+16. Suggested AutoTecPro Product Title
+17. Suggested AutoTecPro Website Copy
+18. Campaign Message Ideas
+19. Facts Requiring Manual Verification
+20. Confidence Summary
+
+Rules:
+- Clearly label verified facts, source-supported competitor claims, assumptions,
+  and unavailable information.
+- Never invent competitor or AutoTecPro specifications, compatibility, prices,
+  promotions, warranty terms, support promises, availability, or policies.
+- If the URL cannot be accessed, say so and continue only with supplied text
+  and verified AutoTecPro knowledge.
+- Do not present opinions as measured market facts.
+- Do not claim keyword rankings, traffic, sales volume, or market share unless
+  verified live data is available.
+- Keep the final recommendations practical and specific to AutoTecPro.
+"""
+    return _marketing_tool_request(
+        "competitor_analysis",
+        display_text,
+        prompt_text,
+    )
+
 def render_marketing_tools_panel():
     """
     Render only the selected Marketing tool.
@@ -17312,7 +17443,8 @@ def render_marketing_tools_panel():
                     "Instagram Post",
                     "YouTube Video Title",
                     "YouTube Description",
-                    "Google Ad",
+                    "YouTube Reply",
+                    "Google Ads",
                     "Email Campaign",
                     "Dealer Communication",
                     "Advertisement",
@@ -17423,6 +17555,110 @@ def render_marketing_tools_panel():
                 tone,
                 audience,
                 keywords,
+                notes,
+            )
+        return None
+
+    if selected_tool == "competitor":
+        with st.form(
+            "marketing_competitor_analysis_form",
+            clear_on_submit=False,
+        ):
+            st.markdown("#### 📊 Competitor Analysis AI")
+            st.caption(
+                "Compare one competitor product with one AutoTecPro product. "
+                "No web or AI request runs until Analyze Competitor is clicked."
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                competitor_name = st.text_input(
+                    "Competitor company",
+                    placeholder="Example: Competitor brand or company",
+                )
+            with col2:
+                target_market = st.text_input(
+                    "Target market / region",
+                    value="Canada and United States",
+                )
+
+            competitor_product = st.text_input(
+                "Competitor product / model",
+                placeholder="Enter the competitor product name or model",
+            )
+            competitor_url = st.text_input(
+                "Competitor public product URL (optional)",
+                placeholder="https://...",
+            )
+            autotecpro_product = st.text_input(
+                "AutoTecPro product / model",
+                placeholder="Example: Silverado 17.2-inch Elite Android Screen",
+            )
+
+            comparison_focus = st.multiselect(
+                "Comparison priorities",
+                [
+                    "Product Features",
+                    "Vehicle Compatibility",
+                    "Price and Value",
+                    "Warranty",
+                    "Technical Support",
+                    "Installation",
+                    "Product Page Quality",
+                    "SEO",
+                    "Marketing Message",
+                    "Dealer / Distributor Program",
+                ],
+                default=[
+                    "Product Features",
+                    "Vehicle Compatibility",
+                    "Price and Value",
+                    "Warranty",
+                    "Technical Support",
+                    "Marketing Message",
+                ],
+            )
+
+            competitor_details = st.text_area(
+                "Competitor specifications or page content (optional)",
+                height=180,
+                placeholder=(
+                    "Paste competitor specifications, warranty wording, pricing, "
+                    "or product-page text when available."
+                ),
+            )
+            notes = st.text_area(
+                "Additional instructions (optional)",
+                height=90,
+                placeholder=(
+                    "Example: Focus on Canadian support and dealer positioning."
+                ),
+            )
+
+            has_competitor_source = bool(
+                str(competitor_url or "").strip()
+                or str(competitor_details or "").strip()
+                or str(competitor_product or "").strip()
+            )
+            submitted = st.form_submit_button(
+                "Analyze Competitor",
+                type="primary",
+                use_container_width=True,
+                disabled=(
+                    len(str(autotecpro_product or "").strip()) < 3
+                    or not has_competitor_source
+                ),
+            )
+
+        if submitted:
+            return build_competitor_analysis_request(
+                competitor_name,
+                competitor_url,
+                competitor_product,
+                autotecpro_product,
+                target_market,
+                comparison_focus,
+                competitor_details,
                 notes,
             )
         return None
