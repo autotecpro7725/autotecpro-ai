@@ -53,6 +53,182 @@ TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
 MARKETING_VECTOR_STORE_ID = "vs_6a55b9a2d1008191aa045f745fb489df"
 
+
+WORKSPACE_LABELS = {
+    "technical": "Technical Support",
+    "sales": "Sales",
+    "marketing": "Marketing",
+    "graphic": "Graphic Marketing",
+    "knowledge": "Knowledge Submission",
+    "admin": "Admin Panel",
+}
+
+FEATURE_LABELS = {
+    "history": "Conversation History",
+    "woocommerce": "WooCommerce",
+    "knowledge_upload": "Knowledge Upload",
+    "web_search": "Internet Search",
+    "weather": "Weather",
+    "exchange_rate": "Exchange Rate",
+    "tracking": "Shipment Tracking",
+}
+
+ROLE_OPTIONS = [
+    "admin",
+    "manager",
+    "staff",
+    "technician",
+    "sales",
+    "marketing",
+    "customer",
+    "distributor",
+]
+
+ROLE_DEFAULT_WORKSPACES = {
+    "admin": {
+        "technical", "sales", "marketing", "graphic", "knowledge", "admin",
+    },
+    "manager": {
+        "technical", "sales", "marketing", "graphic", "knowledge",
+    },
+    # Preserve broad access for legacy staff accounts.
+    "staff": {
+        "technical", "sales", "marketing", "graphic", "knowledge",
+    },
+    "technician": {"technical"},
+    "sales": {"sales", "marketing", "graphic", "knowledge"},
+    "marketing": {"marketing", "graphic", "knowledge"},
+    "customer": {"technical"},
+    "distributor": {"technical"},
+}
+
+ROLE_DEFAULT_FEATURES = {
+    "admin": set(FEATURE_LABELS),
+    "manager": set(FEATURE_LABELS),
+    "staff": set(FEATURE_LABELS),
+    "technician": {
+        "history", "woocommerce", "web_search", "weather",
+        "exchange_rate", "tracking",
+    },
+    "sales": set(FEATURE_LABELS),
+    "marketing": set(FEATURE_LABELS),
+    "customer": {"web_search", "weather", "exchange_rate", "tracking"},
+    "distributor": {"web_search", "weather", "exchange_rate", "tracking"},
+}
+
+STRICT_EXTERNAL_ROLES = {"customer", "distributor"}
+
+
+def _permission_dict(value):
+    """Normalize Supabase JSONB values and tolerate legacy/null records."""
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def default_workspace_permissions(role):
+    clean_role = str(role or "staff").strip().lower()
+    allowed = ROLE_DEFAULT_WORKSPACES.get(
+        clean_role,
+        ROLE_DEFAULT_WORKSPACES["staff"],
+    )
+    return {
+        key: key in allowed
+        for key in WORKSPACE_LABELS
+    }
+
+
+def default_feature_permissions(role):
+    clean_role = str(role or "staff").strip().lower()
+    allowed = ROLE_DEFAULT_FEATURES.get(
+        clean_role,
+        ROLE_DEFAULT_FEATURES["staff"],
+    )
+    return {
+        key: key in allowed
+        for key in FEATURE_LABELS
+    }
+
+
+def effective_workspace_permissions(role=None, stored=None):
+    clean_role = str(
+        role if role is not None else st.session_state.get("role", "staff")
+    ).strip().lower()
+
+    if clean_role == "admin":
+        return {key: True for key in WORKSPACE_LABELS}
+
+    defaults = default_workspace_permissions(clean_role)
+    supplied = _permission_dict(
+        stored if stored is not None
+        else st.session_state.get("workspace_permissions")
+    )
+    permissions = {
+        key: bool(supplied.get(key, defaults[key]))
+        for key in WORKSPACE_LABELS
+    }
+
+    # Customer and Distributor are always Technical-only.
+    if clean_role in STRICT_EXTERNAL_ROLES:
+        permissions = {key: key == "technical" for key in WORKSPACE_LABELS}
+
+    # Every account must retain at least one safe workspace.
+    if not any(permissions.values()):
+        permissions["technical"] = True
+
+    return permissions
+
+
+def effective_feature_permissions(role=None, stored=None):
+    clean_role = str(
+        role if role is not None else st.session_state.get("role", "staff")
+    ).strip().lower()
+
+    if clean_role == "admin":
+        return {key: True for key in FEATURE_LABELS}
+
+    defaults = default_feature_permissions(clean_role)
+    supplied = _permission_dict(
+        stored if stored is not None
+        else st.session_state.get("feature_permissions")
+    )
+    permissions = {
+        key: bool(supplied.get(key, defaults[key]))
+        for key in FEATURE_LABELS
+    }
+
+    # Customer and Distributor never receive persistent history,
+    # WooCommerce, or knowledge-upload capabilities.
+    if clean_role in STRICT_EXTERNAL_ROLES:
+        permissions["history"] = False
+        permissions["woocommerce"] = False
+        permissions["knowledge_upload"] = False
+
+    return permissions
+
+
+def user_can_access_workspace(workspace_key):
+    return bool(
+        effective_workspace_permissions().get(str(workspace_key), False)
+    )
+
+
+def user_can_use_feature(feature_key):
+    return bool(
+        effective_feature_permissions().get(str(feature_key), False)
+    )
+
+
+def history_is_enabled():
+    return user_can_use_feature("history")
+
+
 st.set_page_config(
     page_title="AutoTecPro AI",
     page_icon=PAGE_ICON,
@@ -1289,6 +1465,9 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
     This intentionally does not rely on an exact emoji-prefixed label because
     Streamlit session state or restored conversations may contain a plain label.
     """
+    if not user_can_use_feature("woocommerce"):
+        return ""
+
     active_value = (
         selected_assistant
         or st.session_state.get("current_assistant")
@@ -7986,7 +8165,19 @@ def login_screen():
 
                 st.session_state.logged_in = True
                 st.session_state.username = user["username"]
-                st.session_state.role = user["role"]
+                st.session_state.role = str(user.get("role") or "staff").lower()
+                st.session_state.workspace_permissions = (
+                    effective_workspace_permissions(
+                        st.session_state.role,
+                        user.get("workspace_permissions"),
+                    )
+                )
+                st.session_state.feature_permissions = (
+                    effective_feature_permissions(
+                        st.session_state.role,
+                        user.get("feature_permissions"),
+                    )
+                )
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
 
@@ -8894,18 +9085,24 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-workspace_items = [
+all_workspace_items = [
     ("technical", "🔧", "Technical Support"),
     ("sales", "📈", "Sales"),
     ("marketing", "📣", "Marketing"),
     ("graphic", "🎨", "Graphic Marketing"),
     ("knowledge", "🧠", "Knowledge Submission"),
+    ("admin", "⚙️", "Admin Panel"),
 ]
 
-if st.session_state.role == "admin":
-    workspace_items.append(
-        ("admin", "⚙️", "Admin Panel")
-    )
+workspace_items = [
+    item
+    for item in all_workspace_items
+    if user_can_access_workspace(item[0])
+]
+
+# Defensive fallback; effective permissions normally guarantee one workspace.
+if not workspace_items:
+    workspace_items = [("technical", "🔧", "Technical Support")]
 
 valid_assistants = [
     f"{icon} {label}"
@@ -11085,16 +11282,17 @@ def process_pending_graphic_regeneration():
                 "content": stored_content,
             })
 
-            try:
-                save_message(
-                    st.session_state.conversation_id,
-                    "assistant",
-                    stored_content,
-                )
-            except Exception as error:
-                st.warning(
-                    f"Generated image was not saved to history: {error}"
-                )
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        stored_content,
+                    )
+                except Exception as error:
+                    st.warning(
+                        f"Generated image was not saved to history: {error}"
+                    )
     except Exception as error:
         st.error(str(error))
         return False
@@ -14082,10 +14280,13 @@ def auto_scroll_to_latest():
 # Chat History Sidebar
 # ============================================================
 
-if assistant not in {
-    "⚙️ Admin Panel",
-    "🧠 Knowledge Submission",
-}:
+if (
+    history_is_enabled()
+    and assistant not in {
+        "⚙️ Admin Panel",
+        "🧠 Knowledge Submission",
+    }
+):
     if "rename_conversation_id" not in st.session_state:
         st.session_state.rename_conversation_id = None
     if "rename_conversation_value" not in st.session_state:
@@ -14251,6 +14452,17 @@ if assistant not in {
 
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
+if not history_is_enabled():
+    st.sidebar.markdown(
+        '<div class="sidebar-logout-divider"></div>',
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.button(
+        "↪  Log out",
+        key="logout_button_no_history",
+        use_container_width=True,
+    ):
+        logout_user()
 
 
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
@@ -14950,7 +15162,10 @@ def load_admin_users():
         result = (
             supabase
             .table("users")
-            .select("username,role,active")
+            .select(
+                "username,role,active,"
+                "workspace_permissions,feature_permissions"
+            )
             .order("username")
             .execute()
         )
@@ -16302,7 +16517,10 @@ def render_knowledge_submission_workspace():
 # Admin Panel
 # ============================================================
 
-if assistant == "⚙️ Admin Panel":
+if (
+    assistant == "⚙️ Admin Panel"
+    and user_can_access_workspace("admin")
+):
 
     st.subheader("⚙️ Admin Panel")
     st.caption(
@@ -16362,73 +16580,214 @@ if assistant == "⚙️ Admin Panel":
         st.markdown("---")
         st.markdown("### Add / Update User")
 
+        user_lookup = {
+            str(user.get("username") or ""): user
+            for user in users
+            if user.get("username")
+        }
+        edit_options = ["— New user —"] + sorted(user_lookup)
+        selected_edit_user = st.selectbox(
+            "Edit existing user (optional)",
+            edit_options,
+            key="stable_admin_edit_user",
+        )
+        selected_record = user_lookup.get(selected_edit_user, {})
+
+        editor_key = (
+            re.sub(r"[^a-zA-Z0-9_-]", "_", selected_edit_user)
+            if selected_edit_user != "— New user —"
+            else "new"
+        )
+
+        default_username = (
+            selected_edit_user
+            if selected_edit_user != "— New user —"
+            else ""
+        )
+        default_role = str(selected_record.get("role") or "staff").lower()
+        if default_role not in ROLE_OPTIONS:
+            default_role = "staff"
+        default_active = bool(selected_record.get("active", True))
+
+        stored_workspace_permissions = effective_workspace_permissions(
+            default_role,
+            selected_record.get("workspace_permissions"),
+        )
+        stored_feature_permissions = effective_feature_permissions(
+            default_role,
+            selected_record.get("feature_permissions"),
+        )
+
         new_username = st.text_input(
             "Username",
-            key="stable_admin_username"
+            value=default_username,
+            disabled=selected_edit_user != "— New user —",
+            key=f"stable_admin_username_{editor_key}",
         )
         new_password = st.text_input(
-            "Password",
+            (
+                "New Password (leave blank to keep current password)"
+                if selected_edit_user != "— New user —"
+                else "Password"
+            ),
             type="password",
-            key="stable_admin_password"
+            key=f"stable_admin_password_{editor_key}",
         )
         new_role = st.selectbox(
             "Role",
-            ["staff", "admin"],
-            key="stable_admin_role"
+            ROLE_OPTIONS,
+            index=ROLE_OPTIONS.index(default_role),
+            key=f"stable_admin_role_{editor_key}",
         )
         new_active = st.checkbox(
             "Active",
-            value=True,
-            key="stable_admin_active"
+            value=default_active,
+            key=f"stable_admin_active_{editor_key}",
         )
 
-        if st.button("Save User", key="stable_admin_save_user"):
-            if new_username and new_password:
+        st.markdown("#### Workspace Access")
+        workspace_columns = st.columns(2)
+        workspace_values = {}
+        for index, (permission_key, permission_label) in enumerate(
+            WORKSPACE_LABELS.items()
+        ):
+            with workspace_columns[index % 2]:
+                workspace_values[permission_key] = st.checkbox(
+                    permission_label,
+                    value=bool(
+                        stored_workspace_permissions.get(permission_key)
+                    ),
+                    key=(
+                        f"stable_workspace_permission_"
+                        f"{editor_key}_{permission_key}"
+                    ),
+                    disabled=(
+                        new_role == "admin"
+                        or (
+                            new_role in STRICT_EXTERNAL_ROLES
+                            and permission_key != "technical"
+                        )
+                    ),
+                )
+
+        st.markdown("#### Feature Access")
+        feature_columns = st.columns(2)
+        feature_values = {}
+        for index, (permission_key, permission_label) in enumerate(
+            FEATURE_LABELS.items()
+        ):
+            forced_external_off = (
+                new_role in STRICT_EXTERNAL_ROLES
+                and permission_key in {
+                    "history", "woocommerce", "knowledge_upload"
+                }
+            )
+            with feature_columns[index % 2]:
+                feature_values[permission_key] = st.checkbox(
+                    permission_label,
+                    value=bool(
+                        stored_feature_permissions.get(permission_key)
+                    ),
+                    key=(
+                        f"stable_feature_permission_"
+                        f"{editor_key}_{permission_key}"
+                    ),
+                    disabled=new_role == "admin" or forced_external_off,
+                )
+
+        if new_role == "admin":
+            workspace_values = {
+                key: True for key in WORKSPACE_LABELS
+            }
+            feature_values = {
+                key: True for key in FEATURE_LABELS
+            }
+        elif new_role in STRICT_EXTERNAL_ROLES:
+            workspace_values = {
+                key: key == "technical"
+                for key in WORKSPACE_LABELS
+            }
+            feature_values["history"] = False
+            feature_values["woocommerce"] = False
+            feature_values["knowledge_upload"] = False
+
+        if st.button(
+            "Save User",
+            key=f"stable_admin_save_user_{editor_key}",
+        ):
+            clean_username = str(new_username or "").strip()
+
+            if not clean_username:
+                st.warning("Please enter a username.")
+            elif selected_edit_user == "— New user —" and not new_password:
+                st.warning("Please enter a password for the new user.")
+            elif not any(workspace_values.values()):
+                st.warning("Please allow at least one workspace.")
+            else:
                 try:
-                    clean_username = new_username.strip()
                     existing = (
                         supabase
                         .table("users")
-                        .select("*")
+                        .select("username")
                         .eq("username", clean_username)
                         .execute()
                         .data
                     )
 
+                    payload = {
+                        "role": new_role,
+                        "active": new_active,
+                        "workspace_permissions": workspace_values,
+                        "feature_permissions": feature_values,
+                    }
+                    if new_password:
+                        payload["password"] = new_password
+
                     if existing:
                         (
                             supabase
                             .table("users")
-                            .update({
-                                "password": new_password,
-                                "role": new_role,
-                                "active": new_active
-                            })
+                            .update(payload)
                             .eq("username", clean_username)
                             .execute()
                         )
                         st.success("User updated successfully.")
                     else:
+                        payload.update({
+                            "username": clean_username,
+                            "password": new_password,
+                        })
                         (
                             supabase
                             .table("users")
-                            .insert({
-                                "username": clean_username,
-                                "password": new_password,
-                                "role": new_role,
-                                "active": new_active
-                            })
+                            .insert(payload)
                             .execute()
                         )
                         st.success("User added successfully.")
+
+                    # Apply permission changes immediately to the current user.
+                    if clean_username == st.session_state.username:
+                        st.session_state.role = new_role
+                        st.session_state.workspace_permissions = (
+                            effective_workspace_permissions(
+                                new_role,
+                                workspace_values,
+                            )
+                        )
+                        st.session_state.feature_permissions = (
+                            effective_feature_permissions(
+                                new_role,
+                                feature_values,
+                            )
+                        )
+                        if not history_is_enabled():
+                            st.session_state.conversation_id = None
 
                     invalidate_admin_read_caches()
                     st.rerun()
 
                 except Exception as error:
                     st.error(f"Unable to save user: {error}")
-            else:
-                st.warning("Please enter username and password.")
 
         st.markdown("---")
         st.markdown("### Permanently Delete User")
@@ -17200,7 +17559,7 @@ else:
             + serialize_images_marker(uploaded_image_previews)
         )
 
-        if st.session_state.conversation_id is None:
+        if history_is_enabled() and st.session_state.conversation_id is None:
             try:
                 st.session_state.conversation_id = create_conversation(
                     st.session_state.username,
@@ -17216,10 +17575,15 @@ else:
             "content": user_content_to_save
         })
 
-        try:
-            save_message(st.session_state.conversation_id, "user", user_content_to_save)
-        except Exception as e:
-            st.warning(f"User message was not saved to history: {e}")
+        if history_is_enabled():
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "user",
+                    user_content_to_save,
+                )
+            except Exception as e:
+                st.warning(f"User message was not saved to history: {e}")
 
         render_chat_message("user", user_display, uploaded_image_previews)
 
