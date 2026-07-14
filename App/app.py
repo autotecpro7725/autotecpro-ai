@@ -16776,19 +16776,11 @@ def render_knowledge_submission_workspace():
         clean_issue = str(issue or "").strip()
         clean_solution = str(solution or "").strip()
 
-        form_ready = (
-            bool(clean_subject)
-            and len(clean_issue) >= 5
-            and len(clean_solution) >= 5
-        )
-        submit_visual_state = "ready" if form_ready else "waiting"
-
-        # Keep the button technically clickable so the final field value can be
-        # committed on the same click. Its state is shown visually as grey until
-        # the three required fields satisfy validation, then blue when ready.
-        with st.container(
-            key=f"knowledge_submit_button_{submit_visual_state}"
-        ):
+        # Keep the action visually active at all times. Streamlit does not
+        # rerun a normal text widget on every keystroke, so a live grey/blue
+        # state can remain stale until the user clicks elsewhere. Required-field
+        # validation still runs immediately after Submit Knowledge is clicked.
+        with st.container(key="knowledge_submit_button_ready"):
             submit_clicked = st.button(
                 "🧠 Submit Knowledge",
                 key="submit_staff_knowledge",
