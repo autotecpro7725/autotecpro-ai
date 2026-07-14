@@ -598,6 +598,366 @@ def get_woocommerce_order_notes(order_id):
     }
 
 
+
+WOOCOMMERCE_ANALYTICS_INCLUDED_STATUSES = {
+    "processing",
+    "on-hold",
+    "completed",
+}
+
+
+def _safe_decimal(value):
+    """Convert WooCommerce numeric text to float without raising."""
+    try:
+        return float(str(value or "0").replace(",", "").strip())
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _month_date_range(year, month):
+    """Return an inclusive start and exclusive end ISO date range."""
+    start = datetime(int(year), int(month), 1, tzinfo=timezone.utc)
+    if int(month) == 12:
+        end = datetime(int(year) + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end = datetime(int(year), int(month) + 1, 1, tzinfo=timezone.utc)
+    return start, end
+
+
+def _resolve_analytics_date_range(prompt):
+    """
+    Resolve common business date phrases.
+
+    A month without a year uses the current Toronto year. If that month is
+    still in the future, the previous year is used.
+    """
+    value = str(prompt or "")
+    lower = value.lower()
+    try:
+        now_local = datetime.now(ZoneInfo("America/Toronto"))
+    except Exception:
+        now_local = datetime.now(timezone.utc)
+
+    month_names = {
+        "january": 1, "jan": 1,
+        "february": 2, "feb": 2,
+        "march": 3, "mar": 3,
+        "april": 4, "apr": 4,
+        "may": 5,
+        "june": 6, "jun": 6,
+        "july": 7, "jul": 7,
+        "august": 8, "aug": 8,
+        "september": 9, "sep": 9, "sept": 9,
+        "october": 10, "oct": 10,
+        "november": 11, "nov": 11,
+        "december": 12, "dec": 12,
+    }
+
+    explicit_range = re.search(
+        r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\s+(?:to|through|-)\s+"
+        r"(20\d{2})-(\d{1,2})-(\d{1,2})\b",
+        lower,
+    )
+    if explicit_range:
+        start = datetime(
+            int(explicit_range.group(1)),
+            int(explicit_range.group(2)),
+            int(explicit_range.group(3)),
+            tzinfo=timezone.utc,
+        )
+        end_inclusive = datetime(
+            int(explicit_range.group(4)),
+            int(explicit_range.group(5)),
+            int(explicit_range.group(6)),
+            tzinfo=timezone.utc,
+        )
+        end = end_inclusive + timedelta(days=1)
+        return start, end, f"{start.date()} to {end_inclusive.date()}"
+
+    if "this month" in lower:
+        start, end = _month_date_range(now_local.year, now_local.month)
+        return start, end, start.strftime("%B %Y")
+
+    if "last month" in lower or "previous month" in lower:
+        if now_local.month == 1:
+            year, month = now_local.year - 1, 12
+        else:
+            year, month = now_local.year, now_local.month - 1
+        start, end = _month_date_range(year, month)
+        return start, end, start.strftime("%B %Y")
+
+    month_pattern = "|".join(
+        sorted(month_names.keys(), key=len, reverse=True)
+    )
+    month_match = re.search(
+        rf"\b({month_pattern})\b(?:\s+(20\d{{2}}))?",
+        lower,
+    )
+    if month_match:
+        month = month_names[month_match.group(1)]
+        explicit_year = month_match.group(2)
+        year = int(explicit_year) if explicit_year else now_local.year
+        if not explicit_year and month > now_local.month:
+            year -= 1
+        start, end = _month_date_range(year, month)
+        return start, end, start.strftime("%B %Y")
+
+    year_match = re.search(r"\b(20\d{2})\b", lower)
+    if year_match:
+        year = int(year_match.group(1))
+        start = datetime(year, 1, 1, tzinfo=timezone.utc)
+        end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        return start, end, str(year)
+
+    # Safe default for questions such as "top products" without a period.
+    start, end = _month_date_range(now_local.year, now_local.month)
+    return start, end, start.strftime("%B %Y")
+
+
+def _extract_analytics_product_query(prompt):
+    """Extract a product ID, SKU, or product-name phrase from a sales question."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    lower = value.lower()
+
+    labelled = re.search(
+        r"\b(?:product|sku|model|item)\s*(?:id|number|#)?\s*[:#-]?\s*"
+        r"([a-z0-9][a-z0-9._/-]{1,40})\b",
+        lower,
+    )
+    if labelled:
+        return labelled.group(1).strip()
+
+    patterns = [
+        r"\bhow many\s+(.+?)\s+(?:units?\s+)?(?:sold|were sold|did we sell)\b",
+        r"\b(?:sales|revenue|orders?)\s+(?:for|of)\s+(.+?)\s+"
+        r"(?:in|during|for|this month|last month|$)",
+        r"\bshow\s+(?:me\s+)?(?:all\s+)?(?:sales|orders?)\s+"
+        r"(?:for|containing)\s+(.+?)\s+(?:in|during|for|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, lower, flags=re.IGNORECASE)
+        if match:
+            candidate = match.group(1).strip(" ?.,")
+            candidate = re.sub(
+                r"\b(?:this month|last month|previous month)\b.*$",
+                "",
+                candidate,
+            ).strip()
+            if candidate:
+                return candidate
+
+    # A standalone short number in an analytics sentence is usually a product
+    # ID/SKU, e.g. "How many 836 sold in July?"
+    numeric = re.search(
+        r"\b(?:how many|sales|revenue|sold|sell)\b.*?\b(\d{2,10})\b",
+        lower,
+    )
+    if numeric:
+        return numeric.group(1)
+
+    return ""
+
+
+def _woocommerce_analytics_allowed(selected_assistant=None):
+    """Allow analytics only in Sales and Marketing workspaces."""
+    active = (
+        selected_assistant
+        or st.session_state.get("current_assistant")
+        or ""
+    )
+    normalized = re.sub(r"\s+", " ", str(active)).strip().lower()
+    normalized = re.sub(r"^[^a-z0-9]+", "", normalized).strip()
+    return normalized in {
+        "sales",
+        "marketing",
+        "sales & marketing",
+        "sales and marketing",
+    }
+
+
+def _analytics_item_matches(item, product_query):
+    """Match product query against ID, variation ID, SKU, and product name."""
+    query = str(product_query or "").strip().lower()
+    if not query:
+        return True
+
+    product_id = str(item.get("product_id") or "").strip().lower()
+    variation_id = str(item.get("variation_id") or "").strip().lower()
+    sku = str(item.get("sku") or "").strip().lower()
+    name = re.sub(r"\s+", " ", str(item.get("name") or "")).strip().lower()
+
+    if query in {product_id, variation_id, sku}:
+        return True
+
+    query_tokens = [token for token in re.split(r"\s+", query) if token]
+    haystack = f"{name} {sku} {product_id} {variation_id}"
+    return bool(query_tokens) and all(token in haystack for token in query_tokens)
+
+
+@st.cache_data(ttl=300, max_entries=64, show_spinner=False)
+def _fetch_woocommerce_orders_for_analytics(
+    after_iso,
+    before_iso,
+    max_pages=100,
+):
+    """
+    Retrieve all orders for one date range using WooCommerce pagination.
+
+    This function remains read-only and calls only woocommerce_api_request(),
+    whose WooCommerce implementation uses requests.get().
+    """
+    orders = []
+    page = 1
+    max_pages = max(1, min(int(max_pages or 100), 100))
+
+    while page <= max_pages:
+        batch = woocommerce_api_request(
+            "orders",
+            params={
+                "after": after_iso,
+                "before": before_iso,
+                "dates_are_gmt": "true",
+                "per_page": 100,
+                "page": page,
+                "orderby": "date",
+                "order": "asc",
+                "status": "any",
+            },
+        )
+        if not isinstance(batch, list):
+            break
+
+        orders.extend(order for order in batch if isinstance(order, dict))
+        if len(batch) < 100:
+            break
+        page += 1
+
+    return orders
+
+
+def analyze_woocommerce_sales(
+    product_query,
+    start_iso,
+    end_iso,
+    period_label,
+    include_top_products=False,
+    top_limit=10,
+):
+    """Aggregate units, orders, and gross line-item revenue from live orders."""
+    orders = _fetch_woocommerce_orders_for_analytics(start_iso, end_iso)
+
+    matched_units = 0
+    matched_order_ids = set()
+    matched_revenue = 0.0
+    currencies = set()
+    product_breakdown = {}
+
+    included_orders = 0
+    excluded_status_counts = {}
+
+    for order in orders:
+        status = str(order.get("status") or "").strip().lower()
+        if status not in WOOCOMMERCE_ANALYTICS_INCLUDED_STATUSES:
+            excluded_status_counts[status or "unknown"] = (
+                excluded_status_counts.get(status or "unknown", 0) + 1
+            )
+            continue
+
+        included_orders += 1
+        currency = str(order.get("currency") or "").strip().upper()
+        if currency:
+            currencies.add(currency)
+
+        order_matched = False
+        for item in order.get("line_items") or []:
+            if not isinstance(item, dict):
+                continue
+
+            if not _analytics_item_matches(item, product_query):
+                continue
+
+            quantity = int(item.get("quantity") or 0)
+            line_total = _safe_decimal(item.get("total"))
+            matched_units += quantity
+            matched_revenue += line_total
+            order_matched = True
+
+            key = (
+                str(item.get("sku") or "").strip()
+                or str(item.get("product_id") or "").strip()
+                or str(item.get("name") or "Unknown product").strip()
+            )
+            record = product_breakdown.setdefault(
+                key,
+                {
+                    "name": item.get("name"),
+                    "sku": item.get("sku"),
+                    "product_id": item.get("product_id"),
+                    "variation_id": item.get("variation_id"),
+                    "units": 0,
+                    "orders": set(),
+                    "revenue": 0.0,
+                },
+            )
+            record["units"] += quantity
+            record["orders"].add(str(order.get("id") or order.get("number")))
+            record["revenue"] += line_total
+
+        if order_matched:
+            matched_order_ids.add(str(order.get("id") or order.get("number")))
+
+    ranked_products = []
+    for record in product_breakdown.values():
+        ranked_products.append({
+            "name": record["name"],
+            "sku": record["sku"],
+            "product_id": record["product_id"],
+            "variation_id": record["variation_id"],
+            "units": record["units"],
+            "order_count": len(record["orders"]),
+            "revenue": round(record["revenue"], 2),
+        })
+    ranked_products.sort(
+        key=lambda record: (record["units"], record["revenue"]),
+        reverse=True,
+    )
+
+    try:
+        clean_top_limit = max(1, min(int(top_limit or 10), 25))
+    except (TypeError, ValueError):
+        clean_top_limit = 10
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "sales_analytics",
+        "read_only": True,
+        "period": period_label,
+        "after": start_iso,
+        "before": end_iso,
+        "product_query": product_query or "all products",
+        "included_statuses": sorted(WOOCOMMERCE_ANALYTICS_INCLUDED_STATUSES),
+        "orders_retrieved": len(orders),
+        "orders_included": included_orders,
+        "excluded_status_counts": excluded_status_counts,
+        "matched_order_count": len(matched_order_ids),
+        "units_sold": matched_units,
+        "gross_line_item_revenue": round(matched_revenue, 2),
+        "currencies": sorted(currencies),
+        "top_products": (
+            ranked_products[:clean_top_limit]
+            if include_top_products or not product_query
+            else ranked_products[:10]
+        ),
+        "calculation_note": (
+            "Counts processing, on-hold, and completed orders. "
+            "Cancelled, failed, pending, trashed, and fully refunded orders are "
+            "excluded. Revenue is based on WooCommerce line-item totals and is "
+            "not a net-profit calculation."
+        ),
+    }
+
+
 def geocode_open_meteo(location):
     response = requests.get(
         "https://geocoding-api.open-meteo.com/v1/search",
@@ -975,9 +1335,50 @@ def detect_live_request(prompt, selected_assistant=None):
         selected_assistant
     )
 
-    # Detect WooCommerce requests in Technical Support, Sales, and Marketing.
-    # Detection does not depend on credentials being loaded; configuration or
-    # API errors are returned clearly by get_live_data_for_prompt().
+    # WooCommerce sales analytics are intentionally available only in Sales
+    # and Marketing. Technical Support keeps read-only order lookup access.
+    if access_level == "sales" and _woocommerce_analytics_allowed(
+        selected_assistant
+    ):
+        analytics_terms = [
+            "how many",
+            "units sold",
+            "did we sell",
+            "sales for",
+            "sales of",
+            "revenue",
+            "top product",
+            "top-selling",
+            "best selling",
+            "best-selling",
+        ]
+        looks_like_analytics = any(term in lower for term in analytics_terms)
+
+        if looks_like_analytics:
+            start, end, period_label = _resolve_analytics_date_range(value)
+            product_query = _extract_analytics_product_query(value)
+            include_top_products = any(
+                term in lower
+                for term in [
+                    "top product",
+                    "top-selling",
+                    "best selling",
+                    "best-selling",
+                ]
+            )
+            return {
+                "type": "woocommerce_sales_analytics",
+                "access_level": "sales",
+                "product_query": product_query,
+                "start_iso": start.isoformat(),
+                "end_iso": end.isoformat(),
+                "period_label": period_label,
+                "include_top_products": include_top_products,
+                "top_limit": 10,
+            }
+
+    # Detect ordinary WooCommerce order requests in Technical Support, Sales,
+    # and Marketing. Detection does not depend on credentials being loaded.
     if access_level:
         notes_match = re.search(
             r"\b(?:notes?|order\s+notes?)\b.*?"
@@ -1161,6 +1562,19 @@ def get_live_data_for_prompt(
     access_level = request_type.get("access_level", "sales")
 
     try:
+        if kind == "woocommerce_sales_analytics":
+            return analyze_woocommerce_sales(
+                request_type.get("product_query", ""),
+                request_type["start_iso"],
+                request_type["end_iso"],
+                request_type.get("period_label", ""),
+                include_top_products=request_type.get(
+                    "include_top_products",
+                    False,
+                ),
+                top_limit=request_type.get("top_limit", 10),
+            )
+
         if kind == "woocommerce_order":
             return search_woocommerce_order_number(
                 request_type["order_number"],
@@ -10751,8 +11165,12 @@ When WooCommerce data is provided:
 - If multiple orders match, provide a concise comparison.
 - If no order is found, say so clearly.
 - Mention WooCommerce REST API as the source.
+- When a sales-analytics result is provided, report the exact date period,
+  matched units, matched order count, revenue, currency, included statuses,
+  and any calculation note.
+- Do not describe gross line-item revenue as profit or net revenue.
 
-Never invent pricing, order details, or compatibility.
+Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
 """
 
@@ -10781,6 +11199,10 @@ When WooCommerce data is provided:
   information.
 - Never create, modify, cancel, refund, or delete an order.
 - Mention WooCommerce REST API as the live-data source when relevant.
+- When a sales-analytics result is provided, report the exact date period,
+  matched units, matched order count, revenue, currency, included statuses,
+  and any calculation note.
+- Do not describe gross line-item revenue as profit or net revenue.
 
 Never invent product specifications, pricing, compatibility, promotions,
 warranty terms, policies, or WooCommerce results.
