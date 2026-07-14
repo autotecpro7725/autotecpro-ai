@@ -14919,7 +14919,6 @@ def _admin_upload_fragment_decorator(function):
     return function
 
 
-@_admin_upload_fragment_decorator
 @st.cache_data(ttl=30, max_entries=32, show_spinner=False)
 def load_admin_analytics_rows():
     """Load large Admin analytics datasets with a short cache."""
@@ -14972,6 +14971,7 @@ def invalidate_admin_read_caches():
             pass
 
 
+@_admin_upload_fragment_decorator
 def render_admin_upload_knowledge_tab():
     st.markdown("### Upload Documents to Knowledge Base")
     st.caption(
