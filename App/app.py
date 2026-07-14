@@ -14687,6 +14687,78 @@ def _delete_pending_openai_files(attachments):
             pass
 
 
+
+def get_pending_review_admin_client():
+    """
+    Use the existing privileged Supabase connection for the Admin review queue.
+
+    Staff submissions continue to use the normal client. Only Admin review
+    reads and mutations use service-role access so Row Level Security cannot
+    hide one staff member's pending record from the administrator.
+    """
+    if str(st.session_state.get("role") or "").strip().lower() != "admin":
+        raise PermissionError("Admin access is required.")
+
+    return get_supabase_admin_client()
+
+
+def select_pending_knowledge_rows(limit=500):
+    """Load pending-review candidates through the privileged Admin client."""
+    admin_client = get_pending_review_admin_client()
+    last_error = None
+
+    for order_column in ("created_at", "updated_at"):
+        try:
+            result = (
+                admin_client
+                .table("learned_knowledge")
+                .select("*")
+                .order(order_column, desc=True)
+                .limit(max(1, min(int(limit or 500), 1000)))
+                .execute()
+            )
+            return list(result.data or [])
+        except Exception as error:
+            last_error = error
+
+    try:
+        result = (
+            admin_client
+            .table("learned_knowledge")
+            .select("*")
+            .limit(max(1, min(int(limit or 500), 1000)))
+            .execute()
+        )
+        return list(result.data or [])
+    except Exception:
+        if last_error:
+            raise last_error
+        raise
+
+
+def admin_update_pending_row(row_id, payload):
+    """Update a pending/approved row through the privileged Admin client."""
+    clean_payload = filter_payload_for_table("learned_knowledge", payload)
+    return (
+        get_pending_review_admin_client()
+        .table("learned_knowledge")
+        .update(clean_payload)
+        .eq("id", row_id)
+        .execute()
+    )
+
+
+def admin_delete_pending_row(row_id):
+    """Delete a pending row through the privileged Admin client."""
+    return (
+        get_pending_review_admin_client()
+        .table("learned_knowledge")
+        .delete()
+        .eq("id", row_id)
+        .execute()
+    )
+
+
 def approve_pending_knowledge(row, edited_solution=None):
     """Approve one pending row, merge duplicates, and sync to vector stores."""
     if not is_pending_knowledge_row(row):
@@ -14776,14 +14848,11 @@ def approve_pending_knowledge(row, edited_solution=None):
             "staff_confirmed": True,
             "updated_at": now_iso(),
         }
-        safe_update_row(
-            "learned_knowledge",
-            update_payload,
+        admin_update_pending_row(
             duplicate_row["id"],
+            update_payload,
         )
-        supabase.table("learned_knowledge").delete().eq(
-            "id", row.get("id")
-        ).execute()
+        admin_delete_pending_row(row.get("id"))
 
         return {
             "mode": "merged",
@@ -14824,10 +14893,9 @@ def approve_pending_knowledge(row, edited_solution=None):
     approved_record["synced"] = True
     approved_record["embedding_status"] = "synced"
 
-    safe_update_row(
-        "learned_knowledge",
-        approved_record,
+    admin_update_pending_row(
         row.get("id"),
+        approved_record,
     )
 
     return {
@@ -14841,9 +14909,7 @@ def reject_pending_knowledge(row):
     """Reject one pending submission and remove its temporary attachments."""
     _, attachments = _pending_submission_metadata(row)
     _delete_pending_openai_files(attachments)
-    supabase.table("learned_knowledge").delete().eq(
-        "id", row.get("id")
-    ).execute()
+    admin_delete_pending_row(row.get("id"))
 
 
 def render_pending_knowledge_review():
@@ -14861,13 +14927,10 @@ def render_pending_knowledge_review():
         st.session_state.pending_knowledge_refresh_token = (
             int(st.session_state.get("pending_knowledge_refresh_token", 0)) + 1
         )
+        st.rerun()
 
     try:
-        rows = safe_select_rows(
-            "learned_knowledge",
-            order_columns=["created_at", "updated_at"],
-            limit=500,
-        )
+        rows = select_pending_knowledge_rows(limit=500)
         pending_rows = [row for row in rows if is_pending_knowledge_row(row)]
     except Exception as error:
         st.error(f"Unable to load pending submissions: {error}")
