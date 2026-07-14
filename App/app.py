@@ -5577,8 +5577,29 @@ def inject_base_css():
             div[data-baseweb="select"] > div,
             div[class*="st-key-stable_admin_role"]
             div[data-baseweb="select"] span,
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] input,
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] [role="combobox"],
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] [aria-selected="true"],
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] div[class],
             div[data-baseweb="popover"] ul[role="listbox"] li,
             div[data-baseweb="popover"] ul[role="listbox"] li span {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* iOS Safari can render the closed BaseWeb Select value through
+               an internal input/value node instead of the visible span. */
+            div[class*="st-key-stable_admin_role"]
+            [data-testid="stSelectbox"] input,
+            div[class*="st-key-stable_admin_role"]
+            [data-testid="stSelectbox"] [role="combobox"],
+            div[class*="st-key-stable_admin_role"]
+            [data-testid="stSelectbox"] div[data-baseweb="select"] * {
                 color: #f8fafc !important;
                 -webkit-text-fill-color: #f8fafc !important;
                 opacity: 1 !important;
