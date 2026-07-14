@@ -16817,116 +16817,101 @@ def render_knowledge_submission_workspace():
 # ============================================================
 
 def apply_marketing_tools_form_css():
-    """Keep Marketing tool form text readable, especially on iOS Safari."""
+    """Keep Marketing tool form text readable on narrow mobile screens."""
     st.markdown(
         """
         <style>
-        /* Scoped to the structured Marketing tools only. The existing chat,
-           login, Admin, Sales, Technical and Graphic workspaces are untouched. */
-        div[class*="st-key-marketing_tool_mode"]
-        div[data-baseweb="select"],
-        div[class*="st-key-marketing_tool_mode"]
-        div[data-baseweb="select"] *,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        div[data-baseweb="select"],
-        div[class*="st-key-marketing_brand_consistency_form"]
-        div[data-baseweb="select"] *,
-        div[class*="st-key-marketing_product_listing_form"]
-        div[data-baseweb="select"],
-        div[class*="st-key-marketing_product_listing_form"]
-        div[data-baseweb="select"] *,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        div[data-baseweb="select"],
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        div[data-baseweb="select"] * {
-            color: #f8fafc !important;
-            -webkit-text-fill-color: #f8fafc !important;
-            opacity: 1 !important;
-        }
+        /*
+         * Mobile-only Marketing form compatibility fix.
+         *
+         * This stylesheet is injected only while the Marketing workspace is
+         * rendered. Desktop styling and every non-Marketing workspace remain
+         * unchanged.
+         */
+        @media screen and (max-width: 768px) {
+            /*
+             * Marketing mode selector outside the form, plus every selectbox
+             * and multiselect inside the currently rendered Marketing form.
+             * BaseWeb uses different nested nodes for the closed value on iOS
+             * Safari, so cover the combobox, value container and descendants.
+             */
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"],
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"] > div,
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"] [role="combobox"],
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"] span,
+            div[data-testid="stForm"] [data-baseweb="select"],
+            div[data-testid="stForm"] [data-baseweb="select"] > div,
+            div[data-testid="stForm"]
+            [data-baseweb="select"] [role="combobox"],
+            div[data-testid="stForm"] [data-baseweb="select"] span {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
 
-        /* Closed BaseWeb select values can be rendered through an internal
-           input/combobox node on Mobile Safari. */
-        div[class*="st-key-marketing_tool_mode"] input,
-        div[class*="st-key-marketing_tool_mode"] [role="combobox"],
-        div[class*="st-key-marketing_brand_consistency_form"]
-        [data-testid="stSelectbox"] input,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        [data-testid="stSelectbox"] [role="combobox"],
-        div[class*="st-key-marketing_product_listing_form"]
-        [data-testid="stSelectbox"] input,
-        div[class*="st-key-marketing_product_listing_form"]
-        [data-testid="stSelectbox"] [role="combobox"],
-        div[class*="st-key-marketing_product_listing_form"]
-        [data-testid="stMultiSelect"] input,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        [data-testid="stSelectbox"] input,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        [data-testid="stSelectbox"] [role="combobox"] {
-            color: #f8fafc !important;
-            -webkit-text-fill-color: #f8fafc !important;
-            caret-color: #f87171 !important;
-            opacity: 1 !important;
-        }
+            /*
+             * Closed select values may be drawn through an input or a nested
+             * div rather than a span, depending on the Streamlit/BaseWeb build.
+             */
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"] input,
+            div[class*="st-key-marketing_tool_mode"]
+            [data-baseweb="select"] div,
+            div[data-testid="stForm"] [data-baseweb="select"] input,
+            div[data-testid="stForm"] [data-baseweb="select"] div {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
 
-        /* Typed values in all structured Marketing inputs and textareas. */
-        div[class*="st-key-marketing_brand_consistency_form"]
-        input,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        textarea,
-        div[class*="st-key-marketing_product_listing_form"]
-        input,
-        div[class*="st-key-marketing_product_listing_form"]
-        textarea,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        input,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        textarea {
-            color: #f8fafc !important;
-            -webkit-text-fill-color: #f8fafc !important;
-            caret-color: #f87171 !important;
-            opacity: 1 !important;
-        }
+            /* Typed values in Marketing text inputs and text areas. */
+            div[data-testid="stForm"] [data-testid="stTextInput"] input,
+            div[data-testid="stForm"]
+            div[data-testid="stTextInputRootElement"] input,
+            div[data-testid="stForm"] [data-testid="stTextArea"] textarea,
+            div[data-testid="stForm"] input[type="text"],
+            div[data-testid="stForm"] input[type="url"],
+            div[data-testid="stForm"] textarea {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
 
-        /* Placeholders remain visibly different from entered text. */
-        div[class*="st-key-marketing_brand_consistency_form"]
-        input::placeholder,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        textarea::placeholder,
-        div[class*="st-key-marketing_product_listing_form"]
-        input::placeholder,
-        div[class*="st-key-marketing_product_listing_form"]
-        textarea::placeholder,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        input::placeholder,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        textarea::placeholder {
-            color: #94a3b8 !important;
-            -webkit-text-fill-color: #94a3b8 !important;
-            opacity: 1 !important;
-        }
+            /* Keep placeholder text readable but distinct from entered text. */
+            div[data-testid="stForm"] [data-testid="stTextInput"] input::placeholder,
+            div[data-testid="stForm"]
+            div[data-testid="stTextInputRootElement"] input::placeholder,
+            div[data-testid="stForm"]
+            [data-testid="stTextArea"] textarea::placeholder,
+            div[data-testid="stForm"] input[type="text"]::placeholder,
+            div[data-testid="stForm"] input[type="url"]::placeholder,
+            div[data-testid="stForm"] textarea::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
 
-        /* Prevent Safari autofill from restoring black text. */
-        div[class*="st-key-marketing_brand_consistency_form"]
-        input:-webkit-autofill,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        input:-webkit-autofill:hover,
-        div[class*="st-key-marketing_brand_consistency_form"]
-        input:-webkit-autofill:focus,
-        div[class*="st-key-marketing_product_listing_form"]
-        input:-webkit-autofill,
-        div[class*="st-key-marketing_product_listing_form"]
-        input:-webkit-autofill:hover,
-        div[class*="st-key-marketing_product_listing_form"]
-        input:-webkit-autofill:focus,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        input:-webkit-autofill,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        input:-webkit-autofill:hover,
-        div[class*="st-key-marketing_seo_optimizer_form"]
-        input:-webkit-autofill:focus {
-            -webkit-text-fill-color: #f8fafc !important;
-            caret-color: #f87171 !important;
-            transition: background-color 9999s ease-out 0s !important;
+            /*
+             * Safari autofill and disabled/read-only states can otherwise
+             * restore a black text fill after a rerun or field selection.
+             */
+            div[data-testid="stForm"] input:-webkit-autofill,
+            div[data-testid="stForm"] input:-webkit-autofill:hover,
+            div[data-testid="stForm"] input:-webkit-autofill:focus,
+            div[data-testid="stForm"] input:disabled,
+            div[data-testid="stForm"] textarea:disabled {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+                transition: background-color 9999s ease-out 0s !important;
+            }
         }
         </style>
         """,
