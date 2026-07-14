@@ -5634,6 +5634,40 @@ def inject_base_css():
                 opacity: 1 !important;
             }
 
+            /* Admin: Permanent Delete username confirmation text.
+               Mobile-only and scoped to this exact keyed input. */
+            div[class*="st-key-stable_permanent_delete_username_confirm"]
+            input {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            div[class*="st-key-stable_permanent_delete_username_confirm"]
+            input::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+            /* Admin: Upload Knowledge optional image context text.
+               Mobile-only and scoped to the existing stable textarea key. */
+            div[class*="st-key-stable_admin_upload_context"]
+            textarea {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            div[class*="st-key-stable_admin_upload_context"]
+            textarea::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
             /* Knowledge Submission: Subject, Issue, and Solution */
             div[class*="st-key-knowledge_structured_fields"] input,
             div[class*="st-key-knowledge_structured_fields"] textarea {
@@ -15911,7 +15945,8 @@ if assistant == "⚙️ Admin Panel":
                 )
 
                 typed_delete_username = st.text_input(
-                    "Type the username exactly to confirm"
+                    "Type the username exactly to confirm",
+                    key="stable_permanent_delete_username_confirm",
                 )
 
                 confirm_permanent_delete = st.checkbox(
