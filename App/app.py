@@ -16816,6 +16816,124 @@ def render_knowledge_submission_workspace():
 # Marketing AI Tools
 # ============================================================
 
+def apply_marketing_tools_form_css():
+    """Keep Marketing tool form text readable, especially on iOS Safari."""
+    st.markdown(
+        """
+        <style>
+        /* Scoped to the structured Marketing tools only. The existing chat,
+           login, Admin, Sales, Technical and Graphic workspaces are untouched. */
+        div[class*="st-key-marketing_tool_mode"]
+        div[data-baseweb="select"],
+        div[class*="st-key-marketing_tool_mode"]
+        div[data-baseweb="select"] *,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        div[data-baseweb="select"],
+        div[class*="st-key-marketing_brand_consistency_form"]
+        div[data-baseweb="select"] *,
+        div[class*="st-key-marketing_product_listing_form"]
+        div[data-baseweb="select"],
+        div[class*="st-key-marketing_product_listing_form"]
+        div[data-baseweb="select"] *,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        div[data-baseweb="select"],
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        div[data-baseweb="select"] * {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            opacity: 1 !important;
+        }
+
+        /* Closed BaseWeb select values can be rendered through an internal
+           input/combobox node on Mobile Safari. */
+        div[class*="st-key-marketing_tool_mode"] input,
+        div[class*="st-key-marketing_tool_mode"] [role="combobox"],
+        div[class*="st-key-marketing_brand_consistency_form"]
+        [data-testid="stSelectbox"] input,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        [data-testid="stSelectbox"] [role="combobox"],
+        div[class*="st-key-marketing_product_listing_form"]
+        [data-testid="stSelectbox"] input,
+        div[class*="st-key-marketing_product_listing_form"]
+        [data-testid="stSelectbox"] [role="combobox"],
+        div[class*="st-key-marketing_product_listing_form"]
+        [data-testid="stMultiSelect"] input,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        [data-testid="stSelectbox"] input,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        [data-testid="stSelectbox"] [role="combobox"] {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            caret-color: #f87171 !important;
+            opacity: 1 !important;
+        }
+
+        /* Typed values in all structured Marketing inputs and textareas. */
+        div[class*="st-key-marketing_brand_consistency_form"]
+        input,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        textarea,
+        div[class*="st-key-marketing_product_listing_form"]
+        input,
+        div[class*="st-key-marketing_product_listing_form"]
+        textarea,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        input,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        textarea {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            caret-color: #f87171 !important;
+            opacity: 1 !important;
+        }
+
+        /* Placeholders remain visibly different from entered text. */
+        div[class*="st-key-marketing_brand_consistency_form"]
+        input::placeholder,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        textarea::placeholder,
+        div[class*="st-key-marketing_product_listing_form"]
+        input::placeholder,
+        div[class*="st-key-marketing_product_listing_form"]
+        textarea::placeholder,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        input::placeholder,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        textarea::placeholder {
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            opacity: 1 !important;
+        }
+
+        /* Prevent Safari autofill from restoring black text. */
+        div[class*="st-key-marketing_brand_consistency_form"]
+        input:-webkit-autofill,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        input:-webkit-autofill:hover,
+        div[class*="st-key-marketing_brand_consistency_form"]
+        input:-webkit-autofill:focus,
+        div[class*="st-key-marketing_product_listing_form"]
+        input:-webkit-autofill,
+        div[class*="st-key-marketing_product_listing_form"]
+        input:-webkit-autofill:hover,
+        div[class*="st-key-marketing_product_listing_form"]
+        input:-webkit-autofill:focus,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        input:-webkit-autofill,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        input:-webkit-autofill:hover,
+        div[class*="st-key-marketing_seo_optimizer_form"]
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f8fafc !important;
+            caret-color: #f87171 !important;
+            transition: background-color 9999s ease-out 0s !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 MARKETING_TOOL_OPTIONS = {
     "💬 Marketing Chat": "chat",
     "🛡️ Brand Consistency": "brand",
@@ -17037,6 +17155,8 @@ def render_marketing_tools_panel():
     Streamlit tabs evaluate all tab bodies on each rerun. A selectbox keeps this
     feature lazy: only one form is created and no AI call occurs until submit.
     """
+    apply_marketing_tools_form_css()
+
     selected_label = st.selectbox(
         "Marketing mode",
         options=list(MARKETING_TOOL_OPTIONS),
