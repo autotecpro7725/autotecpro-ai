@@ -1274,6 +1274,21 @@ def live_integration_statuses():
         ),
     ]
 
+class ManagedUploadedFile(io.BytesIO):
+    """Reusable in-memory upload object with Streamlit-compatible metadata."""
+
+    def __init__(self, data, name, mime_type="application/octet-stream"):
+        file_bytes = bytes(data or b"")
+        super().__init__(file_bytes)
+        self.name = str(name or "upload")
+        self.type = str(mime_type or "application/octet-stream")
+        self.size = len(file_bytes)
+
+    def getvalue(self):
+        """Return the complete file bytes without changing the current position."""
+        return super().getvalue()
+
+
 def _managed_upload_record(uploaded_file):
     data = uploaded_file.getvalue()
     digest = hashlib.sha256(data).hexdigest()
