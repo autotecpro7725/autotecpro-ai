@@ -7432,7 +7432,6 @@ st.markdown(
 # ============================================================
 
 @st.cache_data(show_spinner=False)
-@st.cache_data(show_spinner=False)
 def get_logo_base64():
     """Read and encode the static application logo once."""
     if LOGO_FILE.exists():
@@ -7639,6 +7638,7 @@ def table_to_html(table_lines):
     return "\n".join(html_rows)
 
 
+@st.cache_data(ttl=900, max_entries=512, show_spinner=False)
 def html_from_text(text):
     """Small markdown-like renderer for custom chat bubbles, including basic tables."""
     if text is None:
@@ -8072,7 +8072,6 @@ def logout_user():
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
-    st.rerun()
 
 
 # ============================================================
@@ -10423,11 +10422,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-if st.sidebar.button(
-    "＋  New Case",
-    key="new_case_button",
-    use_container_width=True,
-):
+def _start_new_case_callback():
+    """Reset the current case before Streamlit performs the button rerun."""
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.chat_file_uploader_generation += 1
@@ -10435,7 +10431,14 @@ if st.sidebar.button(
         "chat_managed_uploads",
         "chat_managed_upload_generation",
     )
-    st.rerun()
+
+
+st.sidebar.button(
+    "＋  New Case",
+    key="new_case_button",
+    use_container_width=True,
+    on_click=_start_new_case_callback,
+)
 
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
@@ -10718,14 +10721,15 @@ def extract_images_from_message_content(content):
     return visible_text, clean_images
 
 
-def render_image_previews(images):
-    """
-    Render uploaded chat images as compact, unindented HTML.
+@st.cache_data(ttl=900, max_entries=256, show_spinner=False)
+def _render_image_previews_cached(images_json):
+    """Build deterministic image-preview HTML from immutable JSON."""
+    try:
+        images = json.loads(images_json)
+    except Exception:
+        images = []
 
-    Keeping the generated HTML on one continuous line prevents Streamlit
-    Markdown from interpreting the second image card as a code block.
-    """
-    if not images:
+    if not isinstance(images, list) or not images:
         return ""
 
     cards = []
@@ -10759,6 +10763,17 @@ def render_image_previews(images):
         return ""
 
     return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
+
+
+def render_image_previews(images):
+    """Render uploaded chat images using cached deterministic markup."""
+    if not images:
+        return ""
+    try:
+        images_json = json.dumps(images, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        images_json = "[]"
+    return _render_image_previews_cached(images_json)
 
 
 GRAPHIC_IMAGE_COUNT = 1
@@ -11636,6 +11651,32 @@ def build_live_context_text():
 
 
 
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
+def _build_recent_memory_text_cached(message_rows):
+    """Build the recent clean chat-memory block once per message snapshot."""
+    if not message_rows:
+        return ""
+
+    memory_parts = ["Previous conversation in this case:\n\n"]
+    for role, raw_content in message_rows:
+        clean_content, _ = extract_images_from_message_content(raw_content)
+        clean_content = clean_visible_chat_text(clean_content)
+        memory_parts.append(f"{str(role or 'assistant').upper()}: {clean_content}\n\n")
+    return "".join(memory_parts)
+
+
+def _recent_memory_rows(max_messages=10):
+    """Return an immutable recent-message snapshot suitable for caching."""
+    messages = list(st.session_state.get("messages") or [])
+    return tuple(
+        (
+            str(message.get("role") or "assistant"),
+            str(message.get("content") or ""),
+        )
+        for message in messages[-max(1, int(max_messages or 10)):]
+    )
+
+
 def build_user_input(prompt_text, uploaded_files, detected_live_request=None):
     content = [
         {
@@ -11678,14 +11719,8 @@ def build_user_input(prompt_text, uploaded_files, detected_live_request=None):
             )
         })
 
-    if st.session_state.messages:
-        memory_text = "Previous conversation in this case:\n\n"
-
-        for msg in st.session_state.messages[-10:]:
-            clean_content, _ = extract_images_from_message_content(msg.get("content", ""))
-            clean_content = clean_visible_chat_text(clean_content)
-            memory_text += f"{msg['role'].upper()}: {clean_content}\n\n"
-
+    memory_text = _build_recent_memory_text_cached(_recent_memory_rows(10))
+    if memory_text:
         content.append({"type": "input_text", "text": memory_text})
 
     if prompt_text:
@@ -13254,6 +13289,16 @@ def get_conversation_storage_count(username, role=None):
     if not username:
         return 0
 
+    # The sidebar cache contains every active pinned conversation and the
+    # complete allowed unpinned history. Mutations already invalidate it, so
+    # this avoids another count query during normal reruns.
+    try:
+        cached_rows = _load_conversations_cached(username)
+        if cached_rows is not None:
+            return len(cached_rows)
+    except Exception:
+        pass
+
     try:
         result = (
             supabase
@@ -13626,23 +13671,31 @@ def format_history_date(value):
             return text
 
 
-def _cached_conversation_title(conversation_id):
-    """Resolve a title from cached sidebar rows before querying Supabase."""
+def _cached_conversation_row(conversation_id):
+    """Resolve one conversation from cached sidebar rows without another query."""
     if not conversation_id:
-        return ""
+        return None
 
     username = str(st.session_state.get("username") or "").strip()
     if not username:
-        return ""
+        return None
 
     try:
         for conversation in _load_conversations_cached(username):
             if str(conversation.get("id")) == str(conversation_id):
-                return str(conversation.get("title") or "").strip()
+                return conversation
     except Exception:
         pass
 
-    return ""
+    return None
+
+
+def _cached_conversation_title(conversation_id):
+    """Resolve a title from cached sidebar rows before querying Supabase."""
+    conversation = _cached_conversation_row(conversation_id)
+    if not conversation:
+        return ""
+    return str(conversation.get("title") or "").strip()
 
 
 def get_current_conversation_title():
@@ -13769,16 +13822,20 @@ def process_history_action():
             st.session_state.rename_conversation_value = get_conversation_title_by_id(cid)
 
         elif action == "pin":
-            current = (
-                supabase.table("conversations")
-                .select("pinned")
-                .eq("id", cid)
-                .limit(1)
-                .execute()
-            )
-            pinned = False
-            if current.data:
-                pinned = bool(current.data[0].get("pinned", False))
+            cached_conversation = _cached_conversation_row(cid)
+            if cached_conversation is not None:
+                pinned = bool(cached_conversation.get("pinned", False))
+            else:
+                current = (
+                    supabase.table("conversations")
+                    .select("pinned")
+                    .eq("id", cid)
+                    .limit(1)
+                    .execute()
+                )
+                pinned = False
+                if current.data:
+                    pinned = bool(current.data[0].get("pinned", False))
             toggle_pin_conversation(cid, not pinned)
 
         elif action == "archive":
@@ -14678,12 +14735,12 @@ if (
         unsafe_allow_html=True,
     )
 
-    if st.sidebar.button(
+    st.sidebar.button(
         "↪  Log out",
         key="logout_button",
         use_container_width=True,
-    ):
-        logout_user()
+        on_click=logout_user,
+    )
 
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
@@ -14692,12 +14749,12 @@ if not history_is_enabled():
         '<div class="sidebar-logout-divider"></div>',
         unsafe_allow_html=True,
     )
-    if st.sidebar.button(
+    st.sidebar.button(
         "↪  Log out",
         key="logout_button_no_history",
         use_container_width=True,
-    ):
-        logout_user()
+        on_click=logout_user,
+    )
 
 
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
