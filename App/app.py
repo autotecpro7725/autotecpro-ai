@@ -47,7 +47,24 @@ if Image is not None and LOGO_FILE.exists():
         PAGE_ICON = "🚗"
 
 api_key = st.secrets["OPENAI_API_KEY"]
-client = OpenAI(api_key=api_key)
+
+
+@st.cache_resource(show_spinner=False)
+def get_openai_client(secret_key):
+    """Reuse one thread-safe OpenAI client across Streamlit reruns."""
+    return OpenAI(api_key=secret_key)
+
+
+@st.cache_resource(show_spinner=False)
+def get_http_session():
+    """Reuse HTTP connection pools for live integrations."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": "AutoTecPro-AI/1.0"})
+    return session
+
+
+client = get_openai_client(api_key)
+http_session = get_http_session()
 
 TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
@@ -344,7 +361,7 @@ def woocommerce_api_request(endpoint, params=None):
     if not clean_endpoint:
         raise RuntimeError("WooCommerce API endpoint is missing.")
 
-    response = requests.get(
+    response = http_session.get(
         f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/v3/{clean_endpoint}",
         params=params or {},
         auth=(
@@ -980,7 +997,7 @@ def _fetch_woocommerce_orders_for_analytics(
     Retrieve all orders for one date range using WooCommerce pagination.
 
     This function remains read-only and calls only woocommerce_api_request(),
-    whose WooCommerce implementation uses requests.get().
+    whose WooCommerce implementation uses http_session.get().
     """
     orders = []
     page = 1
@@ -1135,7 +1152,7 @@ def analyze_woocommerce_sales(
 
 
 def geocode_open_meteo(location):
-    response = requests.get(
+    response = http_session.get(
         "https://geocoding-api.open-meteo.com/v1/search",
         params={
             "name": location,
@@ -1154,7 +1171,7 @@ def geocode_open_meteo(location):
 
 def get_live_weather(location):
     place = geocode_open_meteo(location)
-    response = requests.get(
+    response = http_session.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
             "latitude": place["latitude"],
@@ -1213,7 +1230,7 @@ def get_live_exchange_rate(base_currency, quote_currency):
             "note": "The currencies are identical.",
         }
 
-    response = requests.get(
+    response = http_session.get(
         f"https://api.frankfurter.dev/v2/rate/{base}/{quote_currency}",
         timeout=LIVE_HTTP_TIMEOUT,
     )
@@ -1255,7 +1272,7 @@ def cached_oauth_token(cache_key, token_url, client_id, client_secret, *,
     request_data = dict(data or {})
     request_headers = dict(headers or {})
 
-    response = requests.post(
+    response = http_session.post(
         token_url,
         data=request_data,
         headers=request_headers,
@@ -1319,7 +1336,7 @@ def track_ups(tracking_number):
         flush=True,
     )
     token = get_ups_access_token()
-    response = requests.get(
+    response = http_session.get(
         (
             "https://onlinetools.ups.com/api/track/v1/details/"
             f"{quote(normalized_tracking, safe='')}"
@@ -1391,7 +1408,7 @@ def track_canada_post(tracking_number):
             "message": "Canada Post credentials are not configured."
         }
 
-    response = requests.get(
+    response = http_session.get(
         (
             "https://soa-gw.canadapost.ca/vis/track/pin/"
             f"{quote(tracking_number.strip())}/detail"
@@ -11583,7 +11600,7 @@ def build_live_context_text():
 
 
 
-def build_user_input(prompt_text, uploaded_files):
+def build_user_input(prompt_text, uploaded_files, detected_live_request=None):
     content = [
         {
             "type": "input_text",
@@ -11591,9 +11608,10 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
-    detected_live_request = detect_live_request(
-        prompt_text,
-        assistant,
+    detected_live_request = (
+        detected_live_request
+        if isinstance(detected_live_request, dict)
+        else detect_live_request(prompt_text, assistant)
     )
     live_data = get_live_data_for_prompt(
         prompt_text,
@@ -11658,8 +11676,12 @@ def build_user_input(prompt_text, uploaded_files):
     return [{"role": "user", "content": content}]
 
 
-def ask_ai(prompt_text, uploaded_files):
-    user_input = build_user_input(prompt_text, uploaded_files)
+def ask_ai(prompt_text, uploaded_files, detected_live_request=None):
+    user_input = build_user_input(
+        prompt_text,
+        uploaded_files,
+        detected_live_request=detected_live_request,
+    )
     instructions = (
         get_instructions(assistant)
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
@@ -13031,7 +13053,11 @@ def history_display_title(title):
     return " ".join(words)[:36].rstrip(" .,:;!?-") or "New Case"
 
 
-def generate_ai_conversation_title(first_message, assistant_answer=""):
+def generate_ai_conversation_title(
+    first_message,
+    assistant_answer="",
+    detected_live_request=None,
+):
     """
     Generate a concise ChatGPT-style conversation title.
 
@@ -13044,13 +13070,16 @@ def generate_ai_conversation_title(first_message, assistant_answer=""):
         return "New Case"
 
     fallback_title = conversation_title_from_text(user_text)
-    live_type = str(
-        detect_live_request(user_text, None).get("type") or "none"
-    ).strip().lower()
+    request_info = (
+        detected_live_request
+        if isinstance(detected_live_request, dict)
+        else detect_live_request(user_text, None)
+    )
+    live_type = str(request_info.get("type") or "none").strip().lower()
 
     # Short prompts and live lookups already produce reliable deterministic
     # titles, so avoid a separate OpenAI request for these common cases.
-    if live_type != "none" or len(user_text.split()) <= 10:
+    if live_type != "none" or len(user_text.split()) <= 18:
         return fallback_title
 
     try:
@@ -13095,6 +13124,7 @@ def update_conversation_ai_title(
     conversation_id,
     first_message,
     assistant_answer="",
+    detected_live_request=None,
 ):
     """Generate and store an AI title once the first answer is complete."""
     if not conversation_id:
@@ -13110,17 +13140,24 @@ def update_conversation_ai_title(
         return
 
     try:
-        current = (
-            supabase
-            .table("conversations")
-            .select("title")
-            .eq("id", conversation_id)
-            .limit(1)
-            .execute()
-        )
+        pending_ids = st.session_state.setdefault("auto_title_pending_ids", set())
+        is_new_automatic_title = conversation_key in pending_ids
         current_title = ""
-        if current.data:
-            current_title = str(current.data[0].get("title") or "").strip()
+
+        # Newly created conversations are known to contain the automatic fallback
+        # title, so avoid an immediate Supabase read-back. Older/restored chats are
+        # still verified to protect manually renamed titles.
+        if not is_new_automatic_title:
+            current = (
+                supabase
+                .table("conversations")
+                .select("title")
+                .eq("id", conversation_id)
+                .limit(1)
+                .execute()
+            )
+            if current.data:
+                current_title = str(current.data[0].get("title") or "").strip()
 
         fallback_title = conversation_title_from_text(first_message)
         normalized_message = re.sub(
@@ -13145,6 +13182,7 @@ def update_conversation_ai_title(
         ai_title = generate_ai_conversation_title(
             first_message,
             assistant_answer,
+            detected_live_request=detected_live_request,
         )
         if not ai_title:
             return
@@ -13155,7 +13193,8 @@ def update_conversation_ai_title(
         }).eq("id", conversation_id).execute()
 
         generated_ids.add(conversation_key)
-        invalidate_history_cache()
+        pending_ids.discard(conversation_key)
+        invalidate_history_cache(conversations=True, messages=False)
     except Exception:
         # Title generation must never interrupt the conversation.
         pass
@@ -13353,6 +13392,9 @@ def create_conversation(username, assistant_name, first_message=None):
         raise RuntimeError("Conversation was not created. Supabase returned no data.")
 
     conversation_id = result.data[0]["id"]
+    st.session_state.setdefault("auto_title_pending_ids", set()).add(
+        str(conversation_id)
+    )
     invalidate_history_cache()
     return conversation_id
 
@@ -13387,10 +13429,14 @@ def save_message(
             "updated_at": now_iso(),
         }).eq("id", conversation_id).execute()
 
-    invalidate_history_cache()
+    invalidate_history_cache(
+        conversations=should_touch,
+        messages=True,
+    )
 
+@st.cache_data(ttl=30, max_entries=128, show_spinner=False)
 def _load_conversations_cached(username):
-    """Load lightweight sidebar conversation summaries."""
+    """Load lightweight sidebar conversation summaries with a short cache."""
     username = str(username or "").strip()
     if not username:
         return []
@@ -13450,6 +13496,7 @@ def _load_messages_cached(conversation_id):
         .select("role,content,created_at")
         .eq("conversation_id", conversation_id)
         .order("created_at")
+        .limit(1000)
         .execute()
     )
 
@@ -13462,12 +13509,15 @@ def _load_messages_cached(conversation_id):
     ]
 
 
-def invalidate_history_cache():
-    """Clear only history-related caches after a mutation."""
-    for cached_function in (
-        _load_conversations_cached,
-        _load_messages_cached,
-    ):
+def invalidate_history_cache(conversations=True, messages=True):
+    """Clear only the history caches affected by a mutation."""
+    cached_functions = []
+    if conversations:
+        cached_functions.append(_load_conversations_cached)
+    if messages:
+        cached_functions.append(_load_messages_cached)
+
+    for cached_function in cached_functions:
         try:
             cached_function.clear()
         except Exception:
@@ -14835,7 +14885,7 @@ def extract_public_webpage(url):
         "Accept-Language": "en-US,en;q=0.9",
     }
 
-    response = requests.get(
+    response = http_session.get(
         normalized_url,
         headers=headers,
         timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
@@ -17703,6 +17753,7 @@ else:
         render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = []
+        detected_request = detect_live_request(prompt, assistant)
         is_graphic_generation = (
             assistant == "🎨 Graphic Marketing"
             and is_graphic_image_generation_request(
@@ -17733,7 +17784,11 @@ else:
         else:
             with st.spinner("Searching AutoTecPro knowledge base..."):
                 response_start_time = time.time()
-                answer = ask_ai(prompt, effective_uploaded_files)
+                answer = ask_ai(
+                    prompt,
+                    effective_uploaded_files,
+                    detected_live_request=detected_request,
+                )
                 answer = clean_visible_chat_text(answer)
                 if assistant == "🔧 Technical Support":
                     answer = remove_technical_pricing(answer)
@@ -17776,14 +17831,11 @@ else:
                     st.session_state.conversation_id,
                     prompt,
                     answer,
+                    detected_live_request=detected_request,
                 )
 
         # Customer order lookups must not enter continuous learning or
         # detailed analytics because they may contain private customer data.
-        detected_request = detect_live_request(
-            prompt,
-            assistant,
-        )
         live_request_type = str(
             detected_request.get("type") or ""
         )
