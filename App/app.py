@@ -14394,15 +14394,86 @@ def install_knowledge_submission_css():
             white-space: nowrap !important;
         }
 
-        /* Remove the red dashed treatment only from this uploader. */
-        div[class*="st-key-atp_upload_shell_knowledge_submission_files"] {
+        /* Remove the red treatment only from the Knowledge Submission uploader. */
+        html body div[class*="st-key-atp_upload_shell_knowledge_submission_files"] {
             border: 1px dashed rgba(148, 163, 184, 0.34) !important;
             background: rgba(15, 23, 42, 0.24) !important;
+            box-shadow: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_knowledge_submission_files"]
+        div[data-testid="stFileUploader"] section,
+        html body div[class*="st-key-atp_upload_shell_knowledge_submission_files"]
+        div[data-testid="stFileUploader"]
+        [data-testid="stFileUploaderDropzone"] {
+            border: 1px dashed rgba(148, 163, 184, 0.28) !important;
+            background: rgba(15, 23, 42, 0.22) !important;
+            box-shadow: none !important;
+        }
+
+        /* Blue submit action matching the app's primary navigation language. */
+        div[class*="st-key-knowledge_submit_button"] {
+            margin-top: 7px !important;
         }
 
         div[class*="st-key-knowledge_submit_button"] .stButton > button {
-            min-height: 46px !important;
+            min-height: 48px !important;
             border-radius: 11px !important;
+            border: 1px solid rgba(96, 165, 250, 0.42) !important;
+            background: linear-gradient(
+                135deg,
+                rgba(37, 99, 235, 0.96),
+                rgba(59, 130, 246, 0.88)
+            ) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.22) !important;
+            transform: none !important;
+        }
+
+        div[class*="st-key-knowledge_submit_button"] .stButton > button:hover {
+            border-color: rgba(147, 197, 253, 0.62) !important;
+            background: linear-gradient(
+                135deg,
+                rgba(29, 78, 216, 0.98),
+                rgba(37, 99, 235, 0.94)
+            ) !important;
+            transform: none !important;
+        }
+
+        div[class*="st-key-knowledge_submit_button"]
+        .stButton > button:disabled {
+            background: rgba(71, 85, 105, 0.44) !important;
+            border-color: rgba(148, 163, 184, 0.18) !important;
+            color: rgba(226, 232, 240, 0.54) !important;
+            -webkit-text-fill-color: rgba(226, 232, 240, 0.54) !important;
+            box-shadow: none !important;
+        }
+
+        .knowledge-status-card {
+            margin-top: 12px;
+            padding: 14px 16px;
+            border: 1px solid rgba(52, 211, 153, 0.28);
+            border-radius: 13px;
+            background: rgba(16, 185, 129, 0.09);
+        }
+
+        .knowledge-status-title {
+            color: #d1fae5;
+            font-size: 15px;
+            font-weight: 780;
+            margin-bottom: 8px;
+        }
+
+        .knowledge-status-row {
+            color: #cbd5e1;
+            font-size: 13px;
+            line-height: 1.55;
+            margin: 2px 0;
+        }
+
+        .knowledge-status-row strong {
+            color: #f8fafc;
         }
 
         @media (max-width: 760px) {
@@ -14889,6 +14960,9 @@ def render_knowledge_submission_workspace():
     if "knowledge_submission_type" not in st.session_state:
         st.session_state.knowledge_submission_type = "technical_solution"
 
+    if "knowledge_submission_text_generation" not in st.session_state:
+        st.session_state.knowledge_submission_text_generation = 0
+
     with st.container(key="knowledge_submission_page"):
         st.markdown("## 🧠 Knowledge Submission")
         st.caption(
@@ -14936,9 +15010,14 @@ def render_knowledge_submission_workspace():
             )
         )
 
+        description_key = (
+            "knowledge_submission_description_"
+            f"{st.session_state.knowledge_submission_text_generation}"
+        )
+
         description = st.text_area(
             "Describe the confirmed knowledge",
-            key="knowledge_submission_description",
+            key=description_key,
             height=220,
             placeholder=(
                 "Example:\n"
@@ -14958,7 +15037,7 @@ def render_knowledge_submission_workspace():
             generation_key="knowledge_submission_upload_generation",
             widget_prefix="knowledge_submission_files",
             accepted_types=["jpg", "jpeg", "png", "pdf", "txt", "docx"],
-            heading="📎 Optional supporting files",
+            heading="📎 Supporting Files (Optional)",
         )
 
         with st.container(key="knowledge_submit_button"):
@@ -14980,13 +15059,18 @@ def render_knowledge_submission_workspace():
                     )
 
                     st.session_state.knowledge_submission_last_result = result
-                    st.session_state.knowledge_submission_description = ""
+                    st.session_state.knowledge_submission_text_generation = (
+                        int(
+                            st.session_state.get(
+                                "knowledge_submission_text_generation",
+                                0,
+                            )
+                        )
+                        + 1
+                    )
                     clear_managed_uploads(
                         "knowledge_submission_uploads",
                         "knowledge_submission_upload_generation",
-                    )
-                    st.success(
-                        "Knowledge submitted for admin review."
                     )
                     st.rerun()
                 except Exception as error:
@@ -14996,18 +15080,60 @@ def render_knowledge_submission_workspace():
             "knowledge_submission_last_result"
         )
         if last_result:
-            st.success("✅ Pending Admin Review")
-            st.write(
-                f"**Database:** {last_result.get('destination') or 'Unknown'}"
-            )
+            status_rows = [
+                (
+                    "Database",
+                    html.escape(
+                        str(last_result.get("destination") or "Unknown")
+                    ),
+                ),
+                (
+                    "Knowledge",
+                    html.escape(
+                        str(last_result.get("issue") or "Saved")
+                    ),
+                ),
+            ]
+
             if last_result.get("vehicle"):
-                st.write(f"**Vehicle / Product:** {last_result['vehicle']}")
-            st.write(f"**Knowledge:** {last_result.get('issue') or 'Saved'}")
-            if last_result.get("attachment_count"):
-                st.write(
-                    f"**Supporting files:** "
-                    f"{last_result['attachment_count']} attached for review"
+                status_rows.insert(
+                    1,
+                    (
+                        "Vehicle / Product",
+                        html.escape(str(last_result["vehicle"])),
+                    ),
                 )
+
+            if last_result.get("attachment_count"):
+                status_rows.append(
+                    (
+                        "Supporting files",
+                        (
+                            f"{int(last_result['attachment_count'])} "
+                            "attached for review"
+                        ),
+                    )
+                )
+
+            status_html = "".join(
+                (
+                    '<div class="knowledge-status-row">'
+                    f"<strong>{label}:</strong> {value}</div>"
+                )
+                for label, value in status_rows
+            )
+
+            st.markdown(
+                (
+                    '<div class="knowledge-status-card">'
+                    '<div class="knowledge-status-title">'
+                    "✅ Pending Admin Review"
+                    "</div>"
+                    f"{status_html}"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
 
 
 
