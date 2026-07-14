@@ -2885,12 +2885,49 @@ def inject_base_css():
             font-weight: 650;
         }
 
-        .stTextInput input,
-        .stTextArea textarea {
+        .stTextInput input {
             background-color: rgba(15, 23, 42, 0.96) !important;
             color: #ffffff !important;
             border: 1px solid #334155 !important;
             border-radius: 12px !important;
+        }
+
+        /*
+         * Canonical textarea styling: the BaseWeb wrapper owns the only
+         * visible border. The editable textarea remains borderless so iOS
+         * Safari cannot display a second nested focus rectangle.
+         */
+        .stTextArea div[data-baseweb="textarea"] {
+            background-color: rgba(15, 23, 42, 0.96) !important;
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+            outline: none !important;
+            box-shadow: none !important;
+            -webkit-box-shadow: none !important;
+            overflow: hidden !important;
+        }
+
+        .stTextArea div[data-baseweb="textarea"]:focus-within {
+            border-color: var(--atp-red) !important;
+            outline: none !important;
+            box-shadow: none !important;
+            -webkit-box-shadow: none !important;
+        }
+
+        .stTextArea textarea,
+        .stTextArea textarea:focus,
+        .stTextArea textarea:focus-visible,
+        .stTextArea textarea:active {
+            background-color: transparent !important;
+            color: #ffffff !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            -webkit-box-shadow: none !important;
+            border-radius: 11px !important;
+            background-image: none !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
         }
 
         .stTextInput input { height: 46px; }
@@ -2926,8 +2963,7 @@ def inject_base_css():
             transform: none !important;
         }
 
-        .stTextInput input:focus,
-        .stTextArea textarea:focus {
+        .stTextInput input:focus {
             border: 1px solid var(--atp-red) !important;
             box-shadow: 0 0 0 1px var(--atp-red) !important;
         }
@@ -17111,111 +17147,6 @@ def apply_marketing_tools_form_css():
             }
         }
 
-            /*
-             * Final iOS Safari duplicate-focus-ring fix for Marketing tools.
-             *
-             * Previous wrapper-only rules were not sufficient because Safari
-             * can preserve BaseWeb's inset focus ring on nested children and
-             * pseudo-elements. Scope this to the four Marketing forms only,
-             * strip every inner border/outline/shadow, and let the outer
-             * BaseWeb control own the single visible focus border.
-             */
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"],
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"] {
-                border: 1px solid #334155 !important;
-                outline: 0 !important;
-                box-shadow: none !important;
-                background-image: none !important;
-                -webkit-box-shadow: none !important;
-            }
-
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"]:focus,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"]:focus-visible,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"]:focus-within,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"]:focus,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"]:focus-visible,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"]:focus-within {
-                border: 1px solid var(--atp-red) !important;
-                outline: 0 !important;
-                box-shadow: none !important;
-                background-image: none !important;
-                -webkit-box-shadow: none !important;
-            }
-
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"] *,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"] *,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"] *:focus,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"] *:focus-visible,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"] *:focus,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"] *:focus-visible {
-                border: 0 !important;
-                outline: 0 !important;
-                box-shadow: none !important;
-                background-image: none !important;
-                -webkit-box-shadow: none !important;
-            }
-
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"]::before,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="input"]::after,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"]::before,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) [data-baseweb="textarea"]::after {
-                content: none !important;
-                display: none !important;
-                border: 0 !important;
-                outline: 0 !important;
-                box-shadow: none !important;
-            }
-
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) input,
-            form[data-testid="stForm"]:has(
-                button[kind="primaryFormSubmit"]
-            ) textarea {
-                appearance: none !important;
-                -webkit-appearance: none !important;
-                border: 0 !important;
-                outline: 0 !important;
-                box-shadow: none !important;
-                -webkit-box-shadow: none !important;
-                background-clip: padding-box !important;
-            }
         </style>
         """,
         unsafe_allow_html=True,
