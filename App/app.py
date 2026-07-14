@@ -14525,9 +14525,15 @@ def install_knowledge_submission_css():
         div[class*="st-key-knowledge_structured_fields"]
         textarea {
             min-height: 138px !important;
-            max-height: 138px !important;
+            max-height: 520px !important;
             overflow-y: auto !important;
-            resize: none !important;
+            resize: vertical !important;
+        }
+
+        /* Keep the browser resize handle visible and usable in dark mode. */
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea::-webkit-resizer {
+            background-color: transparent;
         }
 
         .knowledge-status-card {
