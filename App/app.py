@@ -2893,9 +2893,10 @@ def inject_base_css():
         }
 
         /*
-         * Canonical textarea styling: the BaseWeb wrapper owns the only
-         * visible border. The editable textarea remains borderless so iOS
-         * Safari cannot display a second nested focus rectangle.
+         * Canonical textarea style.
+         * The BaseWeb wrapper owns the only visible border. The editable
+         * textarea is deliberately borderless so mobile Safari cannot draw a
+         * second nested focus rectangle.
          */
         .stTextArea div[data-baseweb="textarea"] {
             background-color: rgba(15, 23, 42, 0.96) !important;
@@ -13173,6 +13174,28 @@ def history_display_title(title):
     return " ".join(words)[:36].rstrip(" .,:;!?-") or "New Case"
 
 
+@st.cache_data(ttl=86400, max_entries=256, show_spinner=False)
+def _generate_ai_conversation_title_cached(user_text, answer_text):
+    """Generate one long-prompt history title and cache identical retries."""
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=(
+            "Create a clean professional title for a chat-history sidebar. "
+            "Return only the title. Use 2 to 5 words. Do not use emoji. "
+            "Do not use quotation marks, markdown, a prefix, or ending "
+            "punctuation. Do not repeat the user's full sentence. Summarize "
+            "the actual topic or task. Keep it under 36 characters. Preserve "
+            "important vehicle models, product names, document types, or "
+            "tracking context when useful."
+        ),
+        input=(
+            f"User message: {user_text[:1200]}\n"
+            f"Assistant response context: {answer_text[:800]}"
+        ),
+    )
+    return str(response.output_text or "")
+
+
 def generate_ai_conversation_title(
     first_message,
     assistant_answer="",
@@ -13203,23 +13226,11 @@ def generate_ai_conversation_title(
         return fallback_title
 
     try:
-        response = client.responses.create(
-            model="gpt-5.5",
-            instructions=(
-                "Create a clean professional title for a chat-history sidebar. "
-                "Return only the title. Use 2 to 5 words. Do not use emoji. "
-                "Do not use quotation marks, markdown, a prefix, or ending "
-                "punctuation. Do not repeat the user's full sentence. Summarize "
-                "the actual topic or task. Keep it under 36 characters. Preserve "
-                "important vehicle models, product names, document types, or "
-                "tracking context when useful."
-            ),
-            input=(
-                f"User message: {user_text[:1200]}\n"
-                f"Assistant response context: {answer_text[:800]}"
-            ),
+        raw_title = _generate_ai_conversation_title_cached(
+            user_text,
+            answer_text,
         )
-        title = re.sub(r"\s+", " ", str(response.output_text or "")).strip()
+        title = re.sub(r"\s+", " ", raw_title).strip()
         title = title.strip(" \"'`“”‘’")
         title = re.sub(r"[.!?:;,-]+$", "", title).strip()
 
@@ -13576,42 +13587,32 @@ def _load_conversations_cached(username):
         "created_at,updated_at"
     )
 
-    pinned_result = (
-        supabase
-        .table("conversations")
-        .select(selected_columns)
-        .eq("username", username)
-        .eq("pinned", True)
-        .or_("archived.is.null,archived.eq.false")
-        .order("updated_at", desc=True)
-        .limit(1000)
-        .execute()
-    )
-
-    normal_result = (
+    result = (
         supabase
         .table("conversations")
         .select(selected_columns)
         .eq("username", username)
         .or_("archived.is.null,archived.eq.false")
-        .or_("pinned.is.null,pinned.eq.false")
         .order("updated_at", desc=True)
-        .limit(MAX_UNPINNED_CONVERSATIONS_PER_USER)
+        .limit(1000 + MAX_UNPINNED_CONVERSATIONS_PER_USER)
         .execute()
     )
 
-    pinned_rows = list(pinned_result.data or [])
-    normal_rows = list(normal_result.data or [])
-    pinned_ids = {
-        str(row.get("id"))
-        for row in pinned_rows
-        if row.get("id") is not None
-    }
-
-    return pinned_rows + [
-        row for row in normal_rows
-        if str(row.get("id")) not in pinned_ids
+    rows = list(result.data or [])
+    pinned_rows = [
+        row for row in rows
+        if row.get("pinned") is True
+        or str(row.get("pinned")).strip().lower() == "true"
     ]
+    normal_rows = [
+        row for row in rows
+        if not (
+            row.get("pinned") is True
+            or str(row.get("pinned")).strip().lower() == "true"
+        )
+    ][:MAX_UNPINNED_CONVERSATIONS_PER_USER]
+
+    return pinned_rows + normal_rows
 
 
 @st.cache_data(ttl=30, max_entries=256, show_spinner=False)
@@ -19607,10 +19608,10 @@ else:
                 st.warning(f"AI answer was not saved to history: {e}")
 
             # Generate a concise ChatGPT-style title only for persistent chats.
-            if len([
-                item for item in st.session_state.messages
+            if sum(
+                1 for item in st.session_state.messages
                 if item.get("role") == "user"
-            ]) == 1:
+            ) == 1:
                 update_conversation_ai_title(
                     st.session_state.conversation_id,
                     interaction_prompt,
