@@ -16836,17 +16836,19 @@ def apply_marketing_tools_form_css():
              * BaseWeb uses different nested nodes for the closed value on iOS
              * Safari, so cover the combobox, value container and descendants.
              */
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"],
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"] > div,
-            div[class*="st-key-marketing_tool_mode"]
+            /*
+             * Use Streamlit's stable widget test ID instead of its generated key
+             * class. The generated key class is not consistently exposed by
+             * deployed mobile builds, which left the closed Marketing Mode value
+             * dark even though the open menu and form controls were correct.
+             */
+            div[data-testid="stSelectbox"] [data-baseweb="select"],
+            div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+            div[data-testid="stSelectbox"]
             [data-baseweb="select"] [role="combobox"],
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"] span,
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"] p,
-            div[class*="st-key-marketing_tool_mode"]
+            div[data-testid="stSelectbox"] [data-baseweb="select"] span,
+            div[data-testid="stSelectbox"] [data-baseweb="select"] p,
+            div[data-testid="stSelectbox"]
             [data-baseweb="select"] *:not(svg):not(path),
             div[data-testid="stForm"] [data-baseweb="select"],
             div[data-testid="stForm"] [data-baseweb="select"] > div,
@@ -16862,10 +16864,8 @@ def apply_marketing_tools_form_css():
              * Closed select values may be drawn through an input or a nested
              * div rather than a span, depending on the Streamlit/BaseWeb build.
              */
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"] input,
-            div[class*="st-key-marketing_tool_mode"]
-            [data-baseweb="select"] div,
+            div[data-testid="stSelectbox"] [data-baseweb="select"] input,
+            div[data-testid="stSelectbox"] [data-baseweb="select"] div,
             div[data-testid="stForm"] [data-baseweb="select"] input,
             div[data-testid="stForm"] [data-baseweb="select"] div {
                 color: #f8fafc !important;
