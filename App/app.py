@@ -15737,14 +15737,28 @@ def install_knowledge_submission_css():
             box-shadow: none !important;
         }
 
-        /* Blue submit action matching the app's primary navigation language. */
-        div[class*="st-key-knowledge_submit_button"] {
-            margin-top: 7px !important;
+        /* Knowledge Submission action: centered at 50% width.
+           The state-specific container key controls grey/blue styling without
+           reintroducing the stale disabled-button bug. */
+        div[class*="st-key-knowledge_submit_button_"] {
+            width: 50% !important;
+            max-width: 50% !important;
+            margin: 7px auto 0 auto !important;
         }
 
-        div[class*="st-key-knowledge_submit_button"] .stButton > button {
+        div[class*="st-key-knowledge_submit_button_"] .stButton,
+        div[class*="st-key-knowledge_submit_button_"] .stButton > button {
+            width: 100% !important;
+        }
+
+        div[class*="st-key-knowledge_submit_button_"] .stButton > button {
             min-height: 48px !important;
             border-radius: 11px !important;
+            transform: none !important;
+        }
+
+        div[class*="st-key-knowledge_submit_button_ready"]
+        .stButton > button {
             border: 1px solid rgba(96, 165, 250, 0.42) !important;
             background: linear-gradient(
                 135deg,
@@ -15754,26 +15768,34 @@ def install_knowledge_submission_css():
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             box-shadow: 0 8px 22px rgba(37, 99, 235, 0.22) !important;
-            transform: none !important;
         }
 
-        div[class*="st-key-knowledge_submit_button"] .stButton > button:hover {
+        div[class*="st-key-knowledge_submit_button_ready"]
+        .stButton > button:hover {
             border-color: rgba(147, 197, 253, 0.62) !important;
             background: linear-gradient(
                 135deg,
                 rgba(29, 78, 216, 0.98),
                 rgba(37, 99, 235, 0.94)
             ) !important;
-            transform: none !important;
         }
 
-        div[class*="st-key-knowledge_submit_button"]
-        .stButton > button:disabled {
-            background: rgba(71, 85, 105, 0.44) !important;
-            border-color: rgba(148, 163, 184, 0.18) !important;
-            color: rgba(226, 232, 240, 0.54) !important;
-            -webkit-text-fill-color: rgba(226, 232, 240, 0.54) !important;
+        div[class*="st-key-knowledge_submit_button_waiting"]
+        .stButton > button,
+        div[class*="st-key-knowledge_submit_button_waiting"]
+        .stButton > button:hover {
+            background: rgba(71, 85, 105, 0.58) !important;
+            border: 1px solid rgba(148, 163, 184, 0.24) !important;
+            color: rgba(226, 232, 240, 0.70) !important;
+            -webkit-text-fill-color: rgba(226, 232, 240, 0.70) !important;
             box-shadow: none !important;
+        }
+
+        @media (max-width: 640px) {
+            div[class*="st-key-knowledge_submit_button_"] {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
         }
 
         /* Structured Knowledge Submission fields only. */
@@ -16750,11 +16772,23 @@ def render_knowledge_submission_workspace():
             heading="📎 Supporting Files (Optional)",
         )
 
-        # Keep the submit button interactive. Streamlit text inputs commit their
-        # latest value when focus leaves the field. A disabled button cannot
-        # receive that click, which previously left the validation state stale
-        # until the user clicked the optional uploader or refreshed the page.
-        with st.container(key="knowledge_submit_button"):
+        clean_subject = str(subject or "").strip()
+        clean_issue = str(issue or "").strip()
+        clean_solution = str(solution or "").strip()
+
+        form_ready = (
+            bool(clean_subject)
+            and len(clean_issue) >= 5
+            and len(clean_solution) >= 5
+        )
+        submit_visual_state = "ready" if form_ready else "waiting"
+
+        # Keep the button technically clickable so the final field value can be
+        # committed on the same click. Its state is shown visually as grey until
+        # the three required fields satisfy validation, then blue when ready.
+        with st.container(
+            key=f"knowledge_submit_button_{submit_visual_state}"
+        ):
             submit_clicked = st.button(
                 "🧠 Submit Knowledge",
                 key="submit_staff_knowledge",
@@ -16763,22 +16797,41 @@ def render_knowledge_submission_workspace():
             )
 
         if submit_clicked:
-            clean_subject = str(subject or "").strip()
-            clean_issue = str(issue or "").strip()
-            clean_solution = str(solution or "").strip()
+            # Re-read the current widget values after the click-triggered rerun.
+            clean_subject = str(
+                st.session_state.get(
+                    f"knowledge_submission_subject_{generation}",
+                    subject,
+                )
+                or ""
+            ).strip()
+            clean_issue = str(
+                st.session_state.get(
+                    f"knowledge_submission_issue_{generation}",
+                    issue,
+                )
+                or ""
+            ).strip()
+            clean_solution = str(
+                st.session_state.get(
+                    f"knowledge_submission_solution_{generation}",
+                    solution,
+                )
+                or ""
+            ).strip()
 
             validation_errors = []
             if not clean_subject:
                 validation_errors.append(
                     f"{field_config['subject_label']} is required."
                 )
-            if len(clean_issue) < 10:
+            if len(clean_issue) < 5:
                 validation_errors.append(
-                    f"{field_config['issue_label']} must contain at least 10 characters."
+                    f"{field_config['issue_label']} must contain at least 5 characters."
                 )
-            if len(clean_solution) < 20:
+            if len(clean_solution) < 5:
                 validation_errors.append(
-                    f"{field_config['solution_label']} must contain at least 20 characters."
+                    f"{field_config['solution_label']} must contain at least 5 characters."
                 )
 
             if validation_errors:
