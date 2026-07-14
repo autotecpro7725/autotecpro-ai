@@ -5605,6 +5605,32 @@ def inject_base_css():
                 opacity: 1 !important;
             }
 
+            /* Admin: Permanent Delete User selected value */
+            div[class*="st-key-stable_permanent_delete_user_form"]
+            [data-testid="stSelectbox"] div[data-baseweb="select"] *,
+            div[class*="st-key-stable_permanent_delete_user_form"]
+            [data-testid="stSelectbox"] input,
+            div[class*="st-key-stable_permanent_delete_user_form"]
+            [data-testid="stSelectbox"] [role="combobox"] {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* Admin: Upload Knowledge database selected value */
+            div[class*="st-key-stable_admin_database_choice"]
+            [data-testid="stSelectbox"] div[data-baseweb="select"] *,
+            div[class*="st-key-stable_admin_database_choice"]
+            [data-testid="stSelectbox"] input,
+            div[class*="st-key-stable_admin_database_choice"]
+            [data-testid="stSelectbox"] [role="combobox"],
+            div[class*="st-key-stable_admin_database_choice"]
+            div[data-baseweb="select"] * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
             /* Knowledge Submission: Subject, Issue, and Solution */
             div[class*="st-key-knowledge_structured_fields"] input,
             div[class*="st-key-knowledge_structured_fields"] textarea {
