@@ -14423,15 +14423,83 @@ def install_knowledge_submission_css():
     )
 
 
+PENDING_KNOWLEDGE_PREFIX = "[PENDING_KNOWLEDGE]"
+PENDING_ATTACHMENT_PREFIX = "pending_attachments:"
+
+
+def _create_pending_openai_file(uploaded_file):
+    """Store a supporting file in OpenAI without adding it to a vector store."""
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+    created = client.files.create(file=uploaded_file, purpose="assistants")
+    return {
+        "file_id": created.id,
+        "name": str(getattr(uploaded_file, "name", "supporting file")),
+    }
+
+
+def _pending_submission_metadata(row):
+    """Read pending type and attachment references from a queue row."""
+    keywords = str(row.get("keywords") or "")
+    type_match = re.search(
+        r"\[PENDING_KNOWLEDGE:([a-z_]+)\]",
+        keywords,
+        flags=re.IGNORECASE,
+    )
+    knowledge_type = (
+        type_match.group(1).lower()
+        if type_match
+        else "technical_solution"
+    )
+
+    raw_file_data = str(row.get("openai_file_id") or "")
+    attachments = []
+    if raw_file_data.startswith(PENDING_ATTACHMENT_PREFIX):
+        try:
+            parsed = json.loads(
+                raw_file_data[len(PENDING_ATTACHMENT_PREFIX):]
+            )
+            if isinstance(parsed, list):
+                attachments = [
+                    item for item in parsed
+                    if isinstance(item, dict) and item.get("file_id")
+                ]
+        except Exception:
+            attachments = []
+
+    return knowledge_type, attachments
+
+
+def is_pending_knowledge_row(row):
+    """Return True only for staff submissions awaiting admin review."""
+    if not isinstance(row, dict):
+        return False
+
+    keywords = str(row.get("keywords") or "")
+    source_type = str(row.get("source_type") or "")
+    embedding_status = str(row.get("embedding_status") or "").lower()
+
+    return (
+        PENDING_KNOWLEDGE_PREFIX in keywords
+        or source_type.startswith("pending_knowledge_submission:")
+        or (
+            embedding_status == "pending_review"
+            and not bool(row.get("synced"))
+        )
+    )
+
+
 def save_knowledge_submission(
     knowledge_type,
     description,
     uploaded_files=None,
 ):
     """
-    Convert a staff submission into a reusable learned record and sync it.
+    Validate and save a staff submission as Pending Review.
 
-    Expensive work happens only after the staff member clicks Submit Knowledge.
+    No vector-store sync occurs until an administrator approves the record.
     """
     safe_description = redact_learning_private_data(description)
     if len(safe_description) < 25:
@@ -14453,19 +14521,11 @@ def save_knowledge_submission(
 
     if not candidate.get("should_learn"):
         reason = candidate.get("reason") or (
-            "The submission does not yet contain a clear, reusable solution."
+            "The submission does not yet contain clear, reusable knowledge."
         )
         raise ValueError(reason)
 
-    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
-        candidate,
-        selected_assistant,
-    )
-
-    source_type = f"manual_knowledge_submission:{knowledge_type}"
-    attachment_file_ids = []
-
-    # Optional supporting files are uploaded only when Submit is clicked.
+    pending_attachments = []
     for uploaded_file in uploaded_files or []:
         try:
             if is_admin_image_file(uploaded_file):
@@ -14478,22 +14538,133 @@ def save_knowledge_submission(
                     ),
                     admin_context=safe_description,
                 )
-                attachment_file_ids.append(
-                    upload_to_vector_store(knowledge_file, vector_store_id)
+                pending_attachments.append(
+                    _create_pending_openai_file(knowledge_file)
                 )
             else:
-                try:
-                    uploaded_file.seek(0)
-                except Exception:
-                    pass
-                attachment_file_ids.append(
-                    upload_to_vector_store(uploaded_file, vector_store_id)
+                pending_attachments.append(
+                    _create_pending_openai_file(uploaded_file)
                 )
         except Exception as error:
             raise RuntimeError(
-                f"Supporting file '{getattr(uploaded_file, 'name', 'file')}' "
-                f"could not be uploaded: {error}"
+                f"Supporting file "
+                f"'{getattr(uploaded_file, 'name', 'file')}' "
+                f"could not be stored for review: {error}"
             ) from error
+
+    marker = f"[PENDING_KNOWLEDGE:{knowledge_type}]"
+    clean_keywords = str(candidate.get("keywords") or "").strip()
+    queued_keywords = (
+        f"{marker}, {clean_keywords}" if clean_keywords else marker
+    )
+
+    pending_payload = {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": candidate["vehicle"],
+        "issue": candidate["issue"],
+        "solution": candidate["solution"],
+        "approved_answer": candidate["solution"],
+        "question": safe_description,
+        "keywords": queued_keywords,
+        "source_question": safe_description,
+        "source_answer": "",
+        "source_conversation_id": None,
+        "confidence_score": candidate["confidence_score"],
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": vector_store_id,
+        "openai_file_id": (
+            PENDING_ATTACHMENT_PREFIX
+            + json.dumps(pending_attachments, ensure_ascii=False)
+            if pending_attachments
+            else ""
+        ),
+        "synced": False,
+        "embedding_status": "pending_review",
+        "source_type": f"pending_knowledge_submission:{knowledge_type}",
+        "staff_confirmed": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    result = safe_insert_row("learned_knowledge", pending_payload)
+    if not result.data:
+        raise RuntimeError("The pending knowledge submission was not saved.")
+
+    return {
+        "mode": "pending",
+        "record_id": result.data[0].get("id"),
+        "issue": candidate["issue"],
+        "vehicle": candidate["vehicle"],
+        "destination": clean_assistant_label(selected_assistant),
+        "attachment_count": len(pending_attachments),
+        "status": "Pending Review",
+    }
+
+
+def _delete_pending_openai_files(attachments):
+    """Best-effort cleanup for rejected pending attachments."""
+    for attachment in attachments or []:
+        file_id = str(attachment.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        try:
+            client.files.delete(file_id)
+        except Exception:
+            pass
+
+
+def approve_pending_knowledge(row, edited_solution=None):
+    """Approve one pending row, merge duplicates, and sync to vector stores."""
+    if not is_pending_knowledge_row(row):
+        raise ValueError("This record is not a pending knowledge submission.")
+
+    knowledge_type, attachments = _pending_submission_metadata(row)
+    selected_assistant, vector_store_id = knowledge_submission_destination(
+        knowledge_type
+    )
+
+    solution = redact_learning_private_data(
+        edited_solution
+        if edited_solution is not None
+        else row.get("solution") or row.get("approved_answer") or ""
+    )
+    if len(solution) < 25:
+        raise ValueError("The approved solution needs more detail.")
+
+    candidate = {
+        "vehicle": str(row.get("vehicle") or "").strip(),
+        "issue": str(row.get("issue") or row.get("question") or "").strip(),
+        "solution": solution,
+        "keywords": re.sub(
+            r"\[PENDING_KNOWLEDGE:[a-z_]+\]\s*,?\s*",
+            "",
+            str(row.get("keywords") or ""),
+            flags=re.IGNORECASE,
+        ).strip(" ,"),
+        "confidence_score": int(row.get("confidence_score") or 90),
+        "should_learn": True,
+    }
+
+    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
+        candidate,
+        selected_assistant,
+    )
+    if duplicate_row and str(duplicate_row.get("id")) == str(row.get("id")):
+        duplicate_row = None
+
+    attached_file_ids = []
+    for attachment in attachments:
+        file_id = str(attachment.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        client.vector_stores.files.create(
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+        attached_file_ids.append(file_id)
 
     if duplicate_row:
         improved = improve_existing_solution(duplicate_row, candidate)
@@ -14505,7 +14676,7 @@ def save_knowledge_submission(
             "keywords": improved["keywords"],
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
-            "source_question": safe_description,
+            "source_question": row.get("question") or "",
             "source_answer": "",
         }
         learned_file_id = upload_learned_record_to_vector_store(
@@ -14514,24 +14685,23 @@ def save_knowledge_submission(
         )
 
         update_payload = {
-            "username": st.session_state.get("username"),
+            "username": row.get("username"),
             "assistant": clean_assistant_label(selected_assistant),
             "vehicle": improved["vehicle"],
             "issue": improved["issue"],
             "solution": improved["solution"],
             "approved_answer": improved["solution"],
-            "question": safe_description,
+            "question": row.get("question") or "",
             "keywords": improved["keywords"],
-            "source_question": safe_description,
+            "source_question": row.get("source_question") or row.get("question") or "",
             "source_answer": "",
-            "source_conversation_id": None,
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
             "openai_file_id": learned_file_id,
             "vector_store_id": vector_store_id,
             "synced": True,
             "embedding_status": "synced",
-            "source_type": source_type,
+            "source_type": f"approved_knowledge_submission:{knowledge_type}",
             "staff_confirmed": True,
             "updated_at": now_iso(),
         }
@@ -14540,62 +14710,176 @@ def save_knowledge_submission(
             update_payload,
             duplicate_row["id"],
         )
+        supabase.table("learned_knowledge").delete().eq(
+            "id", row.get("id")
+        ).execute()
 
         return {
-            "mode": "updated",
-            "record_id": duplicate_row["id"],
+            "mode": "merged",
+            "record_id": duplicate_row.get("id"),
             "duplicate_score": duplicate_score,
-            "issue": improved["issue"],
-            "vehicle": improved["vehicle"],
-            "destination": clean_assistant_label(selected_assistant),
-            "attachment_count": len(attachment_file_ids),
+            "attachment_count": len(attached_file_ids),
         }
 
-    new_record = {
-        "username": st.session_state.get("username"),
+    approved_record = {
+        "username": row.get("username"),
         "assistant": clean_assistant_label(selected_assistant),
         "vehicle": candidate["vehicle"],
         "issue": candidate["issue"],
         "solution": candidate["solution"],
         "approved_answer": candidate["solution"],
-        "question": safe_description,
+        "question": row.get("question") or "",
         "keywords": candidate["keywords"],
-        "source_question": safe_description,
+        "source_question": row.get("source_question") or row.get("question") or "",
         "source_answer": "",
         "source_conversation_id": None,
         "confidence_score": candidate["confidence_score"],
-        "times_seen": 1,
-        "times_used": 0,
-        "search_count": 0,
+        "times_seen": int(row.get("times_seen") or 1),
+        "times_used": int(row.get("times_used") or 0),
+        "search_count": int(row.get("search_count") or 0),
         "vector_store_id": vector_store_id,
         "synced": False,
         "embedding_status": "pending",
-        "source_type": source_type,
+        "source_type": f"approved_knowledge_submission:{knowledge_type}",
         "staff_confirmed": True,
-        "created_at": now_iso(),
         "updated_at": now_iso(),
     }
 
     learned_file_id = upload_learned_record_to_vector_store(
-        new_record,
+        approved_record,
         vector_store_id,
     )
-    new_record["openai_file_id"] = learned_file_id
-    new_record["synced"] = True
-    new_record["embedding_status"] = "synced"
+    approved_record["openai_file_id"] = learned_file_id
+    approved_record["synced"] = True
+    approved_record["embedding_status"] = "synced"
 
-    result = safe_insert_row("learned_knowledge", new_record)
-    if not result.data:
-        raise RuntimeError("The knowledge record was not saved.")
+    safe_update_row(
+        "learned_knowledge",
+        approved_record,
+        row.get("id"),
+    )
 
     return {
-        "mode": "created",
-        "record_id": result.data[0].get("id"),
-        "issue": candidate["issue"],
-        "vehicle": candidate["vehicle"],
-        "destination": clean_assistant_label(selected_assistant),
-        "attachment_count": len(attachment_file_ids),
+        "mode": "approved",
+        "record_id": row.get("id"),
+        "attachment_count": len(attached_file_ids),
     }
+
+
+def reject_pending_knowledge(row):
+    """Reject one pending submission and remove its temporary attachments."""
+    _, attachments = _pending_submission_metadata(row)
+    _delete_pending_openai_files(attachments)
+    supabase.table("learned_knowledge").delete().eq(
+        "id", row.get("id")
+    ).execute()
+
+
+def render_pending_knowledge_review():
+    """Render a lightweight admin queue with edit, approve, and reject."""
+    st.markdown("### 📥 Pending Submissions")
+    st.caption(
+        "Review staff knowledge before it becomes searchable company knowledge."
+    )
+
+    if st.button(
+        "Refresh Pending List",
+        key="refresh_pending_knowledge",
+        type="secondary",
+    ):
+        st.session_state.pending_knowledge_refresh_token = (
+            int(st.session_state.get("pending_knowledge_refresh_token", 0)) + 1
+        )
+
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["created_at", "updated_at"],
+            limit=500,
+        )
+        pending_rows = [row for row in rows if is_pending_knowledge_row(row)]
+    except Exception as error:
+        st.error(f"Unable to load pending submissions: {error}")
+        pending_rows = []
+
+    if not pending_rows:
+        st.info("There are no pending knowledge submissions.")
+        return
+
+    st.caption(f"{len(pending_rows)} submission(s) waiting for review.")
+
+    for row in pending_rows:
+        row_id = row.get("id")
+        knowledge_type, attachments = _pending_submission_metadata(row)
+        type_label = next(
+            (
+                label
+                for type_key, _, label in KNOWLEDGE_SUBMISSION_TYPES
+                if type_key == knowledge_type
+            ),
+            "Knowledge",
+        )
+        issue = str(row.get("issue") or row.get("question") or "Submission")
+        username = str(row.get("username") or "Staff")
+        vehicle = str(row.get("vehicle") or "").strip()
+
+        title_parts = [type_label, issue[:80], f"by {username}"]
+        with st.expander(" | ".join(title_parts), expanded=False):
+            st.write(f"**Submitted by:** {username}")
+            st.write(f"**Target:** {row.get('assistant') or ''}")
+            if vehicle:
+                st.write(f"**Vehicle / Product:** {vehicle}")
+            st.write(f"**Supporting files:** {len(attachments)}")
+            st.markdown("**Original submission**")
+            st.write(row.get("question") or "")
+
+            edited_solution = st.text_area(
+                "Approved knowledge",
+                value=str(
+                    row.get("solution")
+                    or row.get("approved_answer")
+                    or ""
+                ),
+                height=180,
+                key=f"pending_solution_{row_id}",
+            )
+
+            approve_col, reject_col = st.columns(2, gap="small")
+            with approve_col:
+                if st.button(
+                    "✅ Approve / Merge",
+                    key=f"approve_pending_{row_id}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    try:
+                        with st.spinner("Approving and synchronizing..."):
+                            result = approve_pending_knowledge(
+                                row,
+                                edited_solution=edited_solution,
+                            )
+                        if result.get("mode") == "merged":
+                            st.success("Approved and merged with existing knowledge.")
+                        else:
+                            st.success("Approved and synchronized successfully.")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(f"Approval failed: {error}")
+
+            with reject_col:
+                if st.button(
+                    "Reject",
+                    key=f"reject_pending_{row_id}",
+                    type="secondary",
+                    use_container_width=True,
+                ):
+                    try:
+                        reject_pending_knowledge(row)
+                        st.success("Submission rejected.")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(f"Rejection failed: {error}")
+
 
 
 def render_knowledge_submission_workspace():
@@ -14702,7 +14986,7 @@ def render_knowledge_submission_workspace():
                         "knowledge_submission_upload_generation",
                     )
                     st.success(
-                        "Knowledge submitted and synchronized successfully."
+                        "Knowledge submitted for admin review."
                     )
                     st.rerun()
                 except Exception as error:
@@ -14712,12 +14996,7 @@ def render_knowledge_submission_workspace():
             "knowledge_submission_last_result"
         )
         if last_result:
-            action_text = (
-                "Existing knowledge improved"
-                if last_result.get("mode") == "updated"
-                else "New knowledge created"
-            )
-            st.success(f"✅ {action_text}")
+            st.success("✅ Pending Admin Review")
             st.write(
                 f"**Database:** {last_result.get('destination') or 'Unknown'}"
             )
@@ -14727,7 +15006,7 @@ def render_knowledge_submission_workspace():
             if last_result.get("attachment_count"):
                 st.write(
                     f"**Supporting files:** "
-                    f"{last_result['attachment_count']} synchronized"
+                    f"{last_result['attachment_count']} attached for review"
                 )
 
 
@@ -14744,9 +15023,10 @@ if assistant == "⚙️ Admin Panel":
         "and continuous improvement."
     )
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "👥 Users",
         "📚 Upload Knowledge",
+        "📥 Pending Submissions",
         "🧠 AI Learning",
         "🚗 Vehicle Analytics",
         "📦 Product Analytics",
@@ -15011,6 +15291,9 @@ if assistant == "⚙️ Admin Panel":
         render_admin_upload_knowledge_tab()
 
     with tab3:
+        render_pending_knowledge_review()
+
+    with tab4:
         st.markdown("### 🧠 AI Learning")
         st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
 
@@ -15335,7 +15618,7 @@ if assistant == "⚙️ Admin Panel":
         else:
             st.info("No learned knowledge saved yet.")
 
-    with tab4:
+    with tab5:
         st.markdown("### 🚗 Vehicle Analytics")
         st.caption("Most common makes, models, years, and vehicle-related questions.")
 
@@ -15359,7 +15642,7 @@ if assistant == "⚙️ Admin Panel":
         st.markdown("#### Most Common Vehicle Strings")
         render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-    with tab5:
+    with tab6:
         st.markdown("### 📦 Product Analytics")
         st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -15384,7 +15667,7 @@ if assistant == "⚙️ Admin Panel":
         else:
             st.info("No product issue data yet.")
 
-    with tab6:
+    with tab7:
         st.markdown("### 🔧 Technical Analytics")
         st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -15435,7 +15718,7 @@ if assistant == "⚙️ Admin Panel":
         else:
             st.success("No unanswered questions logged yet.")
 
-    with tab7:
+    with tab8:
         st.markdown("### 📊 AI Analytics")
         st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -15488,7 +15771,7 @@ if assistant == "⚙️ Admin Panel":
         else:
             st.info("No reused knowledge yet.")
 
-    with tab8:
+    with tab9:
         st.markdown("### 📈 Learning Analytics")
         st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -15531,7 +15814,7 @@ if assistant == "⚙️ Admin Panel":
 
 
 
-    with tab9:
+    with tab10:
         st.markdown("### 🔌 Live Integrations")
         st.caption(
             "Connection status only. Secret values are never displayed. "
