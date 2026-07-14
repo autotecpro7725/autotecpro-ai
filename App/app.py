@@ -12538,7 +12538,12 @@ Confidence: {candidate.get("confidence_score", 70)}
     }
 
 
-def auto_learn_from_latest_answer(question, answer, selected_assistant):
+def auto_learn_from_latest_answer(
+    question,
+    answer,
+    selected_assistant,
+    detected_live_request=None,
+):
     if selected_assistant == "⚙️ Admin Panel":
         return None
 
@@ -12550,9 +12555,10 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             "reason": "Graphic Marketing image-generation chats are not learned.",
         }
 
-    live_request = detect_live_request(
-        question,
-        selected_assistant,
+    live_request = (
+        detected_live_request
+        if isinstance(detected_live_request, dict)
+        else detect_live_request(question, selected_assistant)
     )
     live_request_type = str(
         live_request.get("type") or "none"
@@ -13584,10 +13590,34 @@ def format_history_date(value):
             return text
 
 
+def _cached_conversation_title(conversation_id):
+    """Resolve a title from cached sidebar rows before querying Supabase."""
+    if not conversation_id:
+        return ""
+
+    username = str(st.session_state.get("username") or "").strip()
+    if not username:
+        return ""
+
+    try:
+        for conversation in _load_conversations_cached(username):
+            if str(conversation.get("id")) == str(conversation_id):
+                return str(conversation.get("title") or "").strip()
+    except Exception:
+        pass
+
+    return ""
+
+
 def get_current_conversation_title():
     cid = st.session_state.get("conversation_id")
     if not cid:
         return "New Case"
+
+    cached_title = _cached_conversation_title(cid)
+    if cached_title:
+        return cached_title
+
     try:
         result = (
             supabase
@@ -13735,6 +13765,10 @@ def process_history_action():
 
 
 def get_conversation_title_by_id(conversation_id):
+    cached_title = _cached_conversation_title(conversation_id)
+    if cached_title:
+        return cached_title
+
     try:
         result = (
             supabase
@@ -17851,6 +17885,7 @@ else:
                     prompt,
                     answer,
                     assistant,
+                    detected_live_request=detected_request,
                 )
                 if learning_result and learning_result.get("learned"):
                     mode = learning_result.get("mode", "saved")
