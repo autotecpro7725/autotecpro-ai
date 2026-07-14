@@ -16828,8 +16828,8 @@ def apply_marketing_tools_form_css():
          * rendered. Desktop styling and every non-Marketing workspace remain
          * unchanged.
          */
-        @media screen and (max-width: 1024px),
-               screen and (hover: none) and (pointer: coarse) {
+        @media screen and (max-width: 1366px) and (hover: none),
+               screen and (max-width: 1366px) and (pointer: coarse) {
             /*
              * Marketing mode selector outside the form, plus every selectbox
              * and multiselect inside the currently rendered Marketing form.
@@ -16845,11 +16845,9 @@ def apply_marketing_tools_form_css():
             div[class*="st-key-marketing_tool_mode"]
             [data-baseweb="select"] span,
             div[class*="st-key-marketing_tool_mode"]
-            [data-testid="stSelectbox"] [data-baseweb="select"] *,
+            [data-baseweb="select"] p,
             div[class*="st-key-marketing_tool_mode"]
-            [data-testid="stSelectbox"] [role="combobox"] *,
-            div[class*="st-key-marketing_tool_mode"]
-            [data-testid="stSelectbox"] [aria-selected="true"],
+            [data-baseweb="select"] *:not(svg):not(path),
             div[data-testid="stForm"] [data-baseweb="select"],
             div[data-testid="stForm"] [data-baseweb="select"] > div,
             div[data-testid="stForm"]
