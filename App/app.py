@@ -17824,10 +17824,16 @@ def render_advanced_image_designer_panel():
             "Generate Design",
             type="primary",
             use_container_width=True,
-            disabled=not valid_custom or not has_product_context,
         )
 
     if submitted:
+        if not valid_custom:
+            st.warning("Please describe the custom design you want to create.")
+            return {"active": True, "prompt": None, "display_text": None}
+        if not has_product_context:
+            st.warning("Please enter a product/model before generating the design.")
+            return {"active": True, "prompt": None, "display_text": None}
+
         return build_advanced_image_designer_request(
             category,
             design_type,
@@ -17918,9 +17924,14 @@ def render_marketing_tools_panel():
                 "Analyze Brand Consistency",
                 type="primary",
                 use_container_width=True,
-                disabled=len(str(content or "").strip()) < 10,
             )
         if submitted:
+            if len(str(content or "").strip()) < 10:
+                st.warning(
+                    "Please enter at least 10 characters in Content to review."
+                )
+                return None
+
             return build_brand_consistency_request(
                 content,
                 content_type,
@@ -17990,12 +18001,15 @@ def render_marketing_tools_panel():
                 "Generate Listings",
                 type="primary",
                 use_container_width=True,
-                disabled=(
-                    len(str(product_name or "").strip()) < 3
-                    or not platforms
-                ),
             )
         if submitted:
+            if len(str(product_name or "").strip()) < 3:
+                st.warning("Please enter a valid product name or model.")
+                return None
+            if not platforms:
+                st.warning("Please select at least one target platform.")
+                return None
+
             return build_product_listing_request(
                 product_name,
                 compatibility,
@@ -18093,13 +18107,18 @@ def render_marketing_tools_panel():
                 "Analyze Competitor",
                 type="primary",
                 use_container_width=True,
-                disabled=(
-                    len(str(autotecpro_product or "").strip()) < 3
-                    or not has_competitor_source
-                ),
             )
 
         if submitted:
+            if len(str(autotecpro_product or "").strip()) < 3:
+                st.warning("Please enter the AutoTecPro product or model.")
+                return None
+            if not has_competitor_source:
+                st.warning(
+                    "Please enter a competitor product, URL, or competitor details."
+                )
+                return None
+
             return build_competitor_analysis_request(
                 competitor_name,
                 competitor_url,
@@ -18162,13 +18181,19 @@ def render_marketing_tools_panel():
             "Run SEO Optimization",
             type="primary",
             use_container_width=True,
-            disabled=(
-                len(str(product_or_topic or "").strip()) < 3
-                and len(str(existing_content or "").strip()) < 20
-                and len(str(page_url or "").strip()) < 8
-            ),
         )
     if submitted:
+        has_seo_source = (
+            len(str(product_or_topic or "").strip()) >= 3
+            or len(str(existing_content or "").strip()) >= 20
+            or len(str(page_url or "").strip()) >= 8
+        )
+        if not has_seo_source:
+            st.warning(
+                "Please enter a product/topic, page URL, or existing content."
+            )
+            return None
+
         return build_seo_optimizer_request(
             page_type,
             product_or_topic,
