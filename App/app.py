@@ -14484,6 +14484,52 @@ def install_knowledge_submission_css():
             box-shadow: none !important;
         }
 
+        /* Structured Knowledge Submission fields only. */
+        div[class*="st-key-knowledge_structured_fields"]
+        > div[data-testid="stVerticalBlock"] {
+            gap: 18px !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        div[data-testid="stTextInput"],
+        div[class*="st-key-knowledge_structured_fields"]
+        div[data-testid="stTextArea"] {
+            margin-top: 2px !important;
+            margin-bottom: 0 !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        label[data-testid="stWidgetLabel"] {
+            display: block !important;
+            margin: 0 0 8px 0 !important;
+            padding: 0 !important;
+            line-height: 1.35 !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        label[data-testid="stWidgetLabel"] p {
+            margin: 0 !important;
+            padding: 0 !important;
+            font-weight: 700 !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        input,
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea {
+            width: 100% !important;
+            border-radius: 11px !important;
+            box-sizing: border-box !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea {
+            min-height: 138px !important;
+            max-height: 138px !important;
+            overflow-y: auto !important;
+            resize: none !important;
+        }
+
         .knowledge-status-card {
             margin-top: 12px;
             padding: 14px 16px;
@@ -14616,28 +14662,131 @@ def is_pending_knowledge_row(row):
     )
 
 
+def knowledge_submission_field_config(knowledge_type):
+    """Return simple, context-aware labels for the staff submission form."""
+    configs = {
+        "technical_solution": {
+            "subject_label": "🚗 Vehicle / Product Model",
+            "subject_placeholder": "Example: Ford F-150 2015–2021 with SYNC 3",
+            "issue_label": "⚠️ Issue / Symptoms",
+            "issue_placeholder": (
+                "Describe the problem, symptoms, or situation staff should recognize."
+            ),
+            "solution_label": "✅ Confirmed Solution / Response",
+            "solution_placeholder": (
+                "Enter the confirmed fix, procedure, or approved response."
+            ),
+        },
+        "installation_guide": {
+            "subject_label": "🚗 Vehicle / Product Model",
+            "subject_placeholder": "Example: Silverado 2019–2026 15.6-inch screen",
+            "issue_label": "📝 Installation Step / Situation",
+            "issue_placeholder": (
+                "Describe when this installation instruction applies."
+            ),
+            "solution_label": "✅ Confirmed Installation Procedure",
+            "solution_placeholder": (
+                "Enter the confirmed installation steps or procedure."
+            ),
+        },
+        "product_knowledge": {
+            "subject_label": "📦 Product Name / Model",
+            "subject_placeholder": "Example: AutoTecPro 15.6-inch Silverado screen",
+            "issue_label": "📝 Product Question / Situation",
+            "issue_placeholder": (
+                "Describe the product question, compatibility point, or situation."
+            ),
+            "solution_label": "✅ Confirmed Product Information",
+            "solution_placeholder": (
+                "Enter the confirmed specification, compatibility, or product fact."
+            ),
+        },
+        "sales_knowledge": {
+            "subject_label": "🏷️ Subject",
+            "subject_placeholder": "Example: Warranty Claim Reply Template",
+            "issue_label": "📝 Customer Situation / Request",
+            "issue_placeholder": (
+                "Describe the customer's question, request, or situation."
+            ),
+            "solution_label": "✅ Approved Response / Procedure",
+            "solution_placeholder": (
+                "Enter the approved reply template, policy, or sales procedure."
+            ),
+        },
+        "faq": {
+            "subject_label": "❓ Question / Subject",
+            "subject_placeholder": "Example: Why does wireless CarPlay disconnect?",
+            "issue_label": "📝 Customer Question / Situation",
+            "issue_placeholder": (
+                "Describe the common question or situation."
+            ),
+            "solution_label": "✅ Approved Answer",
+            "solution_placeholder": (
+                "Enter the confirmed answer staff should provide."
+            ),
+        },
+        "other": {
+            "subject_label": "🏷️ Subject",
+            "subject_placeholder": "Example: Internal Shipping Procedure",
+            "issue_label": "📝 Situation / Context",
+            "issue_placeholder": (
+                "Describe when this knowledge should be used."
+            ),
+            "solution_label": "✅ Confirmed Information / Response",
+            "solution_placeholder": (
+                "Enter the confirmed information, response, or procedure."
+            ),
+        },
+    }
+
+    return configs.get(
+        str(knowledge_type or ""),
+        configs["technical_solution"],
+    )
+
+
 def save_knowledge_submission(
     knowledge_type,
-    description,
+    subject,
+    issue,
+    solution,
     uploaded_files=None,
 ):
     """
-    Validate and save a staff submission as Pending Review.
+    Validate and save a structured staff submission as Pending Review.
 
-    No vector-store sync occurs until an administrator approves the record.
+    The existing Admin approval/reject workflow remains unchanged.
     """
-    safe_description = redact_learning_private_data(description)
-    if len(safe_description) < 25:
+    safe_subject = redact_learning_private_data(subject)
+    safe_issue = redact_learning_private_data(issue)
+    safe_solution = redact_learning_private_data(solution)
+
+    if not safe_subject:
+        raise ValueError("Please enter a subject, product, or vehicle.")
+
+    if len(safe_issue) < 10:
         raise ValueError(
-            "Please provide a little more detail about the confirmed knowledge."
+            "Please provide a little more detail about the issue or situation."
         )
+
+    if len(safe_solution) < 20:
+        raise ValueError(
+            "Please provide a little more detail about the confirmed solution."
+        )
+
+    combined_description = (
+        f"Subject / Product / Vehicle:\n{safe_subject}\n\n"
+        f"Issue / Situation:\n{safe_issue}\n\n"
+        f"Confirmed Solution / Response:\n{safe_solution}"
+    )
 
     selected_assistant, vector_store_id = knowledge_submission_destination(
         knowledge_type
     )
 
+    # AI still analyzes all three fields together for keywords and confidence.
     candidate = extract_learning_candidate(
-        safe_description,
+        combined_description,
         "",
         selected_assistant,
         staff_confirmed=True,
@@ -14650,6 +14799,13 @@ def save_knowledge_submission(
         )
         raise ValueError(reason)
 
+    # Preserve the staff's structured fields exactly. This keeps the existing
+    # Admin review page, approve/merge logic, reject logic, and vector sync
+    # fully compatible with the current database schema.
+    candidate["vehicle"] = safe_subject
+    candidate["issue"] = safe_issue
+    candidate["solution"] = safe_solution
+
     pending_attachments = []
     for uploaded_file in uploaded_files or []:
         try:
@@ -14661,7 +14817,7 @@ def save_knowledge_submission(
                         if selected_assistant == "📈 Sales & Marketing"
                         else "Technical Support Database"
                     ),
-                    admin_context=safe_description,
+                    admin_context=combined_description,
                 )
                 pending_attachments.append(
                     _create_pending_openai_file(knowledge_file)
@@ -14686,13 +14842,13 @@ def save_knowledge_submission(
     pending_payload = {
         "username": st.session_state.get("username"),
         "assistant": clean_assistant_label(selected_assistant),
-        "vehicle": candidate["vehicle"],
-        "issue": candidate["issue"],
-        "solution": candidate["solution"],
-        "approved_answer": candidate["solution"],
-        "question": safe_description,
+        "vehicle": safe_subject,
+        "issue": safe_issue,
+        "solution": safe_solution,
+        "approved_answer": safe_solution,
+        "question": combined_description,
         "keywords": queued_keywords,
-        "source_question": safe_description,
+        "source_question": combined_description,
         "source_answer": "",
         "source_conversation_id": None,
         "confidence_score": candidate["confidence_score"],
@@ -14721,8 +14877,8 @@ def save_knowledge_submission(
     return {
         "mode": "pending",
         "record_id": result.data[0].get("id"),
-        "issue": candidate["issue"],
-        "vehicle": candidate["vehicle"],
+        "issue": safe_issue,
+        "vehicle": safe_subject,
         "destination": clean_assistant_label(selected_assistant),
         "attachment_count": len(pending_attachments),
         "status": "Pending Review",
@@ -15158,7 +15314,7 @@ def render_pending_knowledge_review():
 
 
 def render_knowledge_submission_workspace():
-    """Render the simple staff-facing knowledge submission page."""
+    """Render the structured staff-facing knowledge submission page."""
     install_knowledge_submission_css()
 
     if "knowledge_submission_type" not in st.session_state:
@@ -15176,7 +15332,6 @@ def render_knowledge_submission_workspace():
 
         st.markdown("#### Knowledge Type")
 
-        # Two compact rows preserve alignment on desktop and stack cleanly on mobile.
         for row_start in (0, 3):
             row_items = KNOWLEDGE_SUBMISSION_TYPES[row_start:row_start + 3]
             columns = st.columns(3, gap="small")
@@ -15204,6 +15359,7 @@ def render_knowledge_submission_workspace():
 
         selected_type = st.session_state.knowledge_submission_type
         destination_label, _ = knowledge_submission_destination(selected_type)
+        field_config = knowledge_submission_field_config(selected_type)
 
         st.caption(
             "Destination: "
@@ -15214,27 +15370,40 @@ def render_knowledge_submission_workspace():
             )
         )
 
-        description_key = (
-            "knowledge_submission_description_"
-            f"{st.session_state.knowledge_submission_text_generation}"
-        )
+        generation = st.session_state.knowledge_submission_text_generation
 
-        description = st.text_area(
-            "Describe the confirmed knowledge",
-            key=description_key,
-            height=220,
-            placeholder=(
-                "Example:\n"
-                "Vehicle: Ford F-150 2015–2021 with SYNC 3\n"
-                "Issue: No sound after installation\n"
-                "Confirmed solution: Keep the factory radio connected, reconnect "
-                "the original USB cable, select Media USB, then return to Android."
-            ),
-            help=(
-                "Include the vehicle or product, the issue or question, and the "
-                "confirmed solution. Do not include customer personal information."
-            ),
-        )
+        with st.container(key="knowledge_structured_fields"):
+            subject = st.text_input(
+                field_config["subject_label"],
+                key=f"knowledge_submission_subject_{generation}",
+                placeholder=field_config["subject_placeholder"],
+                help=(
+                    "Enter the main vehicle, product, question, template, "
+                    "procedure, or topic."
+                ),
+            )
+
+            issue = st.text_area(
+                field_config["issue_label"],
+                key=f"knowledge_submission_issue_{generation}",
+                height=138,
+                placeholder=field_config["issue_placeholder"],
+                help=(
+                    "Keep this focused on the issue, customer situation, "
+                    "question, or context."
+                ),
+            )
+
+            solution = st.text_area(
+                field_config["solution_label"],
+                key=f"knowledge_submission_solution_{generation}",
+                height=138,
+                placeholder=field_config["solution_placeholder"],
+                help=(
+                    "Enter only confirmed information, an approved response, "
+                    "or a tested procedure."
+                ),
+            )
 
         supporting_files = managed_file_uploader(
             storage_key="knowledge_submission_uploads",
@@ -15244,13 +15413,19 @@ def render_knowledge_submission_workspace():
             heading="📎 Supporting Files (Optional)",
         )
 
+        form_ready = (
+            bool(str(subject or "").strip())
+            and len(str(issue or "").strip()) >= 10
+            and len(str(solution or "").strip()) >= 20
+        )
+
         with st.container(key="knowledge_submit_button"):
             submit_clicked = st.button(
                 "🧠 Submit Knowledge",
                 key="submit_staff_knowledge",
                 type="primary",
                 use_container_width=True,
-                disabled=len(str(description or "").strip()) < 25,
+                disabled=not form_ready,
             )
 
         if submit_clicked:
@@ -15258,7 +15433,9 @@ def render_knowledge_submission_workspace():
                 try:
                     result = save_knowledge_submission(
                         selected_type,
-                        description,
+                        subject,
+                        issue,
+                        solution,
                         supporting_files,
                     )
 
@@ -15292,21 +15469,18 @@ def render_knowledge_submission_workspace():
                     ),
                 ),
                 (
+                    "Subject / Product / Vehicle",
+                    html.escape(
+                        str(last_result.get("vehicle") or "Not specified")
+                    ),
+                ),
+                (
                     "Knowledge",
                     html.escape(
                         str(last_result.get("issue") or "Saved")
                     ),
                 ),
             ]
-
-            if last_result.get("vehicle"):
-                status_rows.insert(
-                    1,
-                    (
-                        "Vehicle / Product",
-                        html.escape(str(last_result["vehicle"])),
-                    ),
-                )
 
             if last_result.get("attachment_count"):
                 status_rows.append(
@@ -15338,7 +15512,6 @@ def render_knowledge_submission_workspace():
                 ),
                 unsafe_allow_html=True,
             )
-
 
 
 # ============================================================
