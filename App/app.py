@@ -10445,21 +10445,23 @@ st.sidebar.markdown('</div>', unsafe_allow_html=True)
 # ============================================================
 
 
-def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90):
+@st.cache_data(ttl=900, max_entries=64, show_spinner=False)
+def _normalize_uploaded_image_bytes_cached(
+    raw,
+    original_mime_type,
+    max_dimension=2200,
+    quality=90,
+):
     """
-    Normalize uploaded JPG/PNG images so EXIF orientation is applied consistently.
+    Cache CPU-heavy image normalization by immutable file bytes.
 
-    Returns:
-        normalized_bytes, mime_type
-
-    Notes:
-    - Applies ImageOps.exif_transpose() to physically rotate pixels.
-    - Converts images to RGB for JPEG output.
-    - Resizes very large images to reduce upload and preview size.
-    - Falls back to the original bytes if normalization fails.
+    The returned bytes and MIME type intentionally match the existing upload
+    pipeline so this optimization does not change saved history or API input.
     """
     try:
-        raw = uploaded_file.getvalue()
+        if Image is None or ImageOps is None:
+            return raw, original_mime_type or "image/jpeg"
+
         image = Image.open(io.BytesIO(raw))
         image = ImageOps.exif_transpose(image)
 
@@ -10489,10 +10491,27 @@ def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90
 
         return output.getvalue(), mime_type
     except Exception:
-        try:
-            return uploaded_file.getvalue(), getattr(uploaded_file, "type", "image/jpeg")
-        except Exception:
-            return b"", "image/jpeg"
+        return raw, original_mime_type or "image/jpeg"
+
+
+def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90):
+    """
+    Normalize uploaded JPG/PNG images so EXIF orientation is applied consistently.
+
+    Results are cached by the immutable upload bytes, preventing repeated PIL
+    decoding, resizing, and encoding during Streamlit reruns.
+    """
+    try:
+        raw = uploaded_file.getvalue()
+        original_mime_type = getattr(uploaded_file, "type", "image/jpeg")
+        return _normalize_uploaded_image_bytes_cached(
+            raw,
+            original_mime_type,
+            max_dimension=max_dimension,
+            quality=quality,
+        )
+    except Exception:
+        return b"", "image/jpeg"
 
 
 def normalized_image_data_url(uploaded_file):
@@ -10566,9 +10585,15 @@ def clean_visible_chat_text(text):
     return value.strip()
 
 
-def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76):
-    raw = uploaded_file.getvalue()
-    mime_type = getattr(uploaded_file, "type", "") or "image/jpeg"
+@st.cache_data(ttl=900, max_entries=64, show_spinner=False)
+def _make_image_preview_data_url_cached(
+    raw,
+    original_mime_type,
+    max_size=(1200, 1200),
+    quality=76,
+):
+    """Cache preview resizing and Base64 encoding across Streamlit reruns."""
+    mime_type = original_mime_type or "image/jpeg"
 
     if Image is not None:
         try:
@@ -10591,6 +10616,17 @@ def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{mime_type};base64,{encoded}"
+
+
+def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76):
+    raw = uploaded_file.getvalue()
+    mime_type = getattr(uploaded_file, "type", "") or "image/jpeg"
+    return _make_image_preview_data_url_cached(
+        raw,
+        mime_type,
+        max_size=max_size,
+        quality=quality,
+    )
 
 
 def get_uploaded_image_previews(uploaded_files):
