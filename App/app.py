@@ -5605,13 +5605,16 @@ def inject_base_css():
                 opacity: 1 !important;
             }
 
-            /* Admin: Permanent Delete User selected value */
-            div[class*="st-key-stable_permanent_delete_user_form"]
-            [data-testid="stSelectbox"] div[data-baseweb="select"] *,
-            div[class*="st-key-stable_permanent_delete_user_form"]
-            [data-testid="stSelectbox"] input,
-            div[class*="st-key-stable_permanent_delete_user_form"]
-            [data-testid="stSelectbox"] [role="combobox"] {
+            /* Admin: Permanent Delete User selected value.
+               Scoped to mobile only and to this exact keyed widget. */
+            div[class*="st-key-stable_permanent_delete_user_select"]
+            div[data-baseweb="select"],
+            div[class*="st-key-stable_permanent_delete_user_select"]
+            div[data-baseweb="select"] *,
+            div[class*="st-key-stable_permanent_delete_user_select"]
+            [role="combobox"],
+            div[class*="st-key-stable_permanent_delete_user_select"]
+            input {
                 color: #f8fafc !important;
                 -webkit-text-fill-color: #f8fafc !important;
                 opacity: 1 !important;
@@ -15903,7 +15906,8 @@ if assistant == "⚙️ Admin Panel":
             ):
                 selected_delete_username = st.selectbox(
                     "Select user",
-                    ["— Select a user —"] + deletable_usernames
+                    ["— Select a user —"] + deletable_usernames,
+                    key="stable_permanent_delete_user_select",
                 )
 
                 typed_delete_username = st.text_input(
