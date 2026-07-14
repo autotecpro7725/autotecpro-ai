@@ -11336,39 +11336,43 @@ RECENT CONVERSATION CONTEXT:
 
 
 def make_learned_knowledge_document(record):
+    safe_record = {
+        key: ("" if value is None else str(value))
+        for key, value in dict(record or {}).items()
+    }
+
     return f"""AutoTecPro Self-Learned Knowledge
 
 Assistant:
-{record.get("assistant", "")}
+{safe_record.get("assistant", "")}
 
 Vehicle / Product:
-{record.get("vehicle", "") or "Not specified"}
+{safe_record.get("vehicle", "") or "Not specified"}
 
 Issue:
-{record.get("issue", "")}
+{safe_record.get("issue", "")}
 
 Solution:
-{record.get("solution", "")}
+{safe_record.get("solution", "")}
 
 Keywords:
-{record.get("keywords", "")}
+{safe_record.get("keywords", "")}
 
 Confidence Score:
-{record.get("confidence_score", "")}
+{safe_record.get("confidence_score", "")}
 
 Times Seen:
-{record.get("times_seen", "")}
+{safe_record.get("times_seen", "")}
 
 Source Question:
-{record.get("source_question", "")}
+{safe_record.get("source_question", "")}
 
 Source Answer:
-{record.get("source_answer", "")}
+{safe_record.get("source_answer", "")}
 
 Usage Instruction:
 Use this learned case when a future AutoTecPro support, sales, or compatibility question is similar. Verify vehicle year, trim, factory radio, audio system, camera system, and firmware when relevant.
 """
-
 
 def upload_learned_record_to_vector_store(record, vector_store_id):
     doc_text = make_learned_knowledge_document(record)
@@ -11394,11 +11398,26 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
 
 def find_duplicate_learned_knowledge(candidate, selected_assistant):
     try:
-        all_rows = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=200)
-        rows = [
+        all_rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=200,
+        )
+
+        approved_rows = [
             row for row in all_rows
-            if str(row.get("assistant") or "").strip().lower() == clean_assistant_label(selected_assistant).lower()
-        ] or all_rows
+            if not is_pending_knowledge_row(row)
+        ]
+
+        clean_assistant = clean_assistant_label(
+            selected_assistant
+        ).strip().lower()
+
+        rows = [
+            row for row in approved_rows
+            if str(row.get("assistant") or "").strip().lower()
+            == clean_assistant
+        ] or approved_rows
     except Exception:
         return None, 0
 
@@ -11406,28 +11425,44 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
     best_score = 0
 
     candidate_text = " ".join([
-        candidate.get("vehicle", ""),
-        candidate.get("issue", ""),
-        candidate.get("keywords", ""),
-        candidate.get("solution", "")[:600]
+        str(candidate.get("vehicle") or ""),
+        str(candidate.get("issue") or ""),
+        str(candidate.get("keywords") or ""),
+        str(candidate.get("solution") or "")[:600],
     ])
 
     for row in rows:
         row_text = " ".join([
-            row.get("vehicle", ""),
-            row.get("issue", ""),
-            row.get("keywords", ""),
-            str(row.get("solution") or row.get("approved_answer") or "")[:600],
-            row.get("source_question", "") or row.get("question", "")
+            str(row.get("vehicle") or ""),
+            str(row.get("issue") or ""),
+            str(row.get("keywords") or ""),
+            str(
+                row.get("solution")
+                or row.get("approved_answer")
+                or ""
+            )[:600],
+            str(
+                row.get("source_question")
+                or row.get("question")
+                or ""
+            ),
         ])
 
         score = text_similarity(candidate_text, row_text)
-        issue_score = text_similarity(candidate.get("issue", ""), row.get("issue", ""))
+        issue_score = text_similarity(
+            str(candidate.get("issue") or ""),
+            str(row.get("issue") or ""),
+        )
 
         vehicle_match = (
-            candidate.get("vehicle")
-            and row.get("vehicle")
-            and normalize_text_for_match(candidate.get("vehicle")) in normalize_text_for_match(row.get("vehicle"))
+            bool(candidate.get("vehicle"))
+            and bool(row.get("vehicle"))
+            and normalize_text_for_match(
+                str(candidate.get("vehicle") or "")
+            )
+            in normalize_text_for_match(
+                str(row.get("vehicle") or "")
+            )
         )
 
         if vehicle_match:
@@ -11445,7 +11480,6 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
         return best_row, best_score
 
     return None, best_score
-
 
 def improve_existing_solution(existing_row, candidate):
     prompt = f"""
@@ -14758,7 +14792,16 @@ def select_pending_knowledge_rows(limit=500):
 
 def admin_update_pending_row(row_id, payload):
     """Update a pending/approved row through the privileged Admin client."""
-    clean_payload = filter_payload_for_table("learned_knowledge", payload)
+    clean_payload = filter_payload_for_table(
+        "learned_knowledge",
+        payload,
+    )
+    clean_payload = {
+        key: value
+        for key, value in clean_payload.items()
+        if value is not None
+    }
+
     return (
         get_pending_review_admin_client()
         .table("learned_knowledge")
@@ -14766,7 +14809,6 @@ def admin_update_pending_row(row_id, payload):
         .eq("id", row_id)
         .execute()
     )
-
 
 def admin_delete_pending_row(row_id):
     """Delete a pending row through the privileged Admin client."""
@@ -14781,149 +14823,228 @@ def admin_delete_pending_row(row_id):
 
 def approve_pending_knowledge(row, edited_solution=None):
     """Approve one pending row, merge duplicates, and sync to vector stores."""
-    if not is_pending_knowledge_row(row):
-        raise ValueError("This record is not a pending knowledge submission.")
+    approval_stage = "validating pending record"
 
-    knowledge_type, attachments = _pending_submission_metadata(row)
-    selected_assistant, vector_store_id = knowledge_submission_destination(
-        knowledge_type
-    )
+    try:
+        if not is_pending_knowledge_row(row):
+            raise ValueError(
+                "This record is not a pending knowledge submission."
+            )
 
-    solution = redact_learning_private_data(
-        edited_solution
-        if edited_solution is not None
-        else row.get("solution") or row.get("approved_answer") or ""
-    )
-    if len(solution) < 25:
-        raise ValueError("The approved solution needs more detail.")
+        knowledge_type, attachments = _pending_submission_metadata(row)
+        attachments = [
+            item for item in (attachments or [])
+            if isinstance(item, dict)
+        ]
 
-    candidate = {
-        "vehicle": str(row.get("vehicle") or "").strip(),
-        "issue": str(row.get("issue") or row.get("question") or "").strip(),
-        "solution": solution,
-        "keywords": re.sub(
-            r"\[PENDING_KNOWLEDGE:[a-z_]+\]\s*,?\s*",
-            "",
-            str(row.get("keywords") or ""),
-            flags=re.IGNORECASE,
-        ).strip(" ,"),
-        "confidence_score": int(row.get("confidence_score") or 90),
-        "should_learn": True,
-    }
-
-    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
-        candidate,
-        selected_assistant,
-    )
-    if duplicate_row and str(duplicate_row.get("id")) == str(row.get("id")):
-        duplicate_row = None
-
-    attached_file_ids = []
-    for attachment in attachments:
-        file_id = str(attachment.get("file_id") or "").strip()
-        if not file_id:
-            continue
-        client.vector_stores.files.create(
-            vector_store_id=vector_store_id,
-            file_id=file_id,
+        selected_assistant, vector_store_id = (
+            knowledge_submission_destination(knowledge_type)
         )
-        attached_file_ids.append(file_id)
 
-    if duplicate_row:
-        improved = improve_existing_solution(duplicate_row, candidate)
-        record_for_file = {
-            "assistant": clean_assistant_label(selected_assistant),
-            "vehicle": improved["vehicle"],
-            "issue": improved["issue"],
-            "solution": improved["solution"],
-            "keywords": improved["keywords"],
-            "confidence_score": improved["confidence_score"],
-            "times_seen": improved["times_seen"],
-            "source_question": row.get("question") or "",
-            "source_answer": "",
+        approval_stage = "preparing approved solution"
+        solution = redact_learning_private_data(
+            edited_solution
+            if edited_solution is not None
+            else row.get("solution")
+            or row.get("approved_answer")
+            or ""
+        )
+        solution = str(solution or "").strip()
+
+        if len(solution) < 25:
+            raise ValueError("The approved solution needs more detail.")
+
+        candidate = {
+            "vehicle": str(row.get("vehicle") or "").strip(),
+            "issue": str(
+                row.get("issue")
+                or row.get("question")
+                or ""
+            ).strip(),
+            "solution": solution,
+            "keywords": re.sub(
+                r"\[PENDING_KNOWLEDGE:[a-z0-9_\-]+\]\s*,?\s*",
+                "",
+                str(row.get("keywords") or ""),
+                flags=re.IGNORECASE,
+            ).strip(" ,"),
+            "confidence_score": int(
+                row.get("confidence_score") or 90
+            ),
+            "should_learn": True,
         }
-        learned_file_id = upload_learned_record_to_vector_store(
-            record_for_file,
-            vector_store_id,
+
+        approval_stage = "checking existing approved knowledge"
+        duplicate_row, duplicate_score = (
+            find_duplicate_learned_knowledge(
+                candidate,
+                selected_assistant,
+            )
         )
 
-        update_payload = {
-            "username": row.get("username"),
-            "assistant": clean_assistant_label(selected_assistant),
-            "vehicle": improved["vehicle"],
-            "issue": improved["issue"],
-            "solution": improved["solution"],
-            "approved_answer": improved["solution"],
-            "question": row.get("question") or "",
-            "keywords": improved["keywords"],
-            "source_question": row.get("source_question") or row.get("question") or "",
+        if (
+            duplicate_row
+            and str(duplicate_row.get("id"))
+            == str(row.get("id"))
+        ):
+            duplicate_row = None
+
+        approval_stage = "attaching supporting files"
+        attached_file_ids = []
+
+        for attachment in attachments:
+            file_id = str(
+                attachment.get("file_id") or ""
+            ).strip()
+            if not file_id:
+                continue
+
+            client.vector_stores.files.create(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            attached_file_ids.append(file_id)
+
+        if duplicate_row:
+            approval_stage = "merging duplicate knowledge"
+            improved = improve_existing_solution(
+                duplicate_row,
+                candidate,
+            )
+
+            record_for_file = {
+                "assistant": str(
+                    clean_assistant_label(selected_assistant) or ""
+                ),
+                "vehicle": str(improved.get("vehicle") or ""),
+                "issue": str(improved.get("issue") or ""),
+                "solution": str(improved.get("solution") or ""),
+                "keywords": str(improved.get("keywords") or ""),
+                "confidence_score": int(
+                    improved.get("confidence_score") or 90
+                ),
+                "times_seen": int(
+                    improved.get("times_seen") or 1
+                ),
+                "source_question": str(
+                    row.get("question") or ""
+                ),
+                "source_answer": "",
+            }
+
+            approval_stage = "uploading merged knowledge"
+            learned_file_id = (
+                upload_learned_record_to_vector_store(
+                    record_for_file,
+                    vector_store_id,
+                )
+            )
+
+            update_payload = {
+                "username": str(row.get("username") or ""),
+                "assistant": record_for_file["assistant"],
+                "vehicle": record_for_file["vehicle"],
+                "issue": record_for_file["issue"],
+                "solution": record_for_file["solution"],
+                "approved_answer": record_for_file["solution"],
+                "question": str(row.get("question") or ""),
+                "keywords": record_for_file["keywords"],
+                "source_question": str(
+                    row.get("source_question")
+                    or row.get("question")
+                    or ""
+                ),
+                "source_answer": "",
+                "confidence_score": (
+                    record_for_file["confidence_score"]
+                ),
+                "times_seen": record_for_file["times_seen"],
+                "openai_file_id": str(learned_file_id or ""),
+                "vector_store_id": str(vector_store_id or ""),
+                "synced": True,
+                "embedding_status": "synced",
+                "source_type": (
+                    "approved_knowledge_submission:"
+                    f"{knowledge_type}"
+                ),
+                "staff_confirmed": True,
+                "updated_at": now_iso(),
+            }
+
+            approval_stage = "saving merged knowledge"
+            admin_update_pending_row(
+                duplicate_row["id"],
+                update_payload,
+            )
+            admin_delete_pending_row(row.get("id"))
+
+            return {
+                "mode": "merged",
+                "record_id": duplicate_row.get("id"),
+                "duplicate_score": duplicate_score,
+                "attachment_count": len(attached_file_ids),
+            }
+
+        approved_record = {
+            "username": str(row.get("username") or ""),
+            "assistant": str(
+                clean_assistant_label(selected_assistant) or ""
+            ),
+            "vehicle": candidate["vehicle"],
+            "issue": candidate["issue"],
+            "solution": candidate["solution"],
+            "approved_answer": candidate["solution"],
+            "question": str(row.get("question") or ""),
+            "keywords": candidate["keywords"],
+            "source_question": str(
+                row.get("source_question")
+                or row.get("question")
+                or ""
+            ),
             "source_answer": "",
-            "confidence_score": improved["confidence_score"],
-            "times_seen": improved["times_seen"],
-            "openai_file_id": learned_file_id,
-            "vector_store_id": vector_store_id,
-            "synced": True,
-            "embedding_status": "synced",
-            "source_type": f"approved_knowledge_submission:{knowledge_type}",
+            "confidence_score": candidate["confidence_score"],
+            "times_seen": int(row.get("times_seen") or 1),
+            "times_used": int(row.get("times_used") or 0),
+            "search_count": int(row.get("search_count") or 0),
+            "vector_store_id": str(vector_store_id or ""),
+            "synced": False,
+            "embedding_status": "pending",
+            "source_type": (
+                "approved_knowledge_submission:"
+                f"{knowledge_type}"
+            ),
             "staff_confirmed": True,
             "updated_at": now_iso(),
         }
-        admin_update_pending_row(
-            duplicate_row["id"],
-            update_payload,
+
+        approval_stage = "uploading approved knowledge"
+        learned_file_id = upload_learned_record_to_vector_store(
+            approved_record,
+            vector_store_id,
         )
-        admin_delete_pending_row(row.get("id"))
+
+        approved_record["openai_file_id"] = str(
+            learned_file_id or ""
+        )
+        approved_record["synced"] = True
+        approved_record["embedding_status"] = "synced"
+
+        approval_stage = "saving approved knowledge"
+        admin_update_pending_row(
+            row.get("id"),
+            approved_record,
+        )
 
         return {
-            "mode": "merged",
-            "record_id": duplicate_row.get("id"),
-            "duplicate_score": duplicate_score,
+            "mode": "approved",
+            "record_id": row.get("id"),
             "attachment_count": len(attached_file_ids),
         }
 
-    approved_record = {
-        "username": row.get("username"),
-        "assistant": clean_assistant_label(selected_assistant),
-        "vehicle": candidate["vehicle"],
-        "issue": candidate["issue"],
-        "solution": candidate["solution"],
-        "approved_answer": candidate["solution"],
-        "question": row.get("question") or "",
-        "keywords": candidate["keywords"],
-        "source_question": row.get("source_question") or row.get("question") or "",
-        "source_answer": "",
-        "source_conversation_id": None,
-        "confidence_score": candidate["confidence_score"],
-        "times_seen": int(row.get("times_seen") or 1),
-        "times_used": int(row.get("times_used") or 0),
-        "search_count": int(row.get("search_count") or 0),
-        "vector_store_id": vector_store_id,
-        "synced": False,
-        "embedding_status": "pending",
-        "source_type": f"approved_knowledge_submission:{knowledge_type}",
-        "staff_confirmed": True,
-        "updated_at": now_iso(),
-    }
-
-    learned_file_id = upload_learned_record_to_vector_store(
-        approved_record,
-        vector_store_id,
-    )
-    approved_record["openai_file_id"] = learned_file_id
-    approved_record["synced"] = True
-    approved_record["embedding_status"] = "synced"
-
-    admin_update_pending_row(
-        row.get("id"),
-        approved_record,
-    )
-
-    return {
-        "mode": "approved",
-        "record_id": row.get("id"),
-        "attachment_count": len(attached_file_ids),
-    }
-
+    except Exception as error:
+        raise RuntimeError(
+            f"Approval failed while {approval_stage}: {error}"
+        ) from error
 
 def reject_pending_knowledge(row):
     """Reject one pending submission and remove its temporary attachments."""
