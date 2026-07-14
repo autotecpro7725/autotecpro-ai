@@ -122,6 +122,7 @@ CANADA_POST_USERNAME = get_optional_secret("CANADA_POST_USERNAME")
 CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
 
 LIVE_HTTP_TIMEOUT = 15
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def safe_json_response(response):
@@ -935,11 +936,22 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
     )
     normalized = re.sub(r"\s+", " ", str(active_value)).strip().lower()
 
+    # Remove the workspace emoji defensively so both the visible sidebar label
+    # and restored/plain conversation labels resolve consistently.
+    normalized = re.sub(r"^[^a-z0-9]+", "", normalized).strip()
+
+    if normalized == "technical support":
+        # Technical Support gets the restricted support view with financial
+        # fields removed where possible.
+        return "technical"
+
     if normalized in {
         "sales",
+        "marketing",
         "sales & marketing",
         "sales and marketing",
     }:
+        # Sales and Marketing use the full commercial read-only view.
         return "sales"
 
     return ""
@@ -963,7 +975,7 @@ def detect_live_request(prompt, selected_assistant=None):
         selected_assistant
     )
 
-    # Detect WooCommerce requests in both Technical Support and Sales.
+    # Detect WooCommerce requests in Technical Support, Sales, and Marketing.
     # Detection does not depend on credentials being loaded; configuration or
     # API errors are returned clearly by get_live_data_for_prompt().
     if access_level:
@@ -1042,7 +1054,7 @@ def detect_live_request(prompt, selected_assistant=None):
         #   42560 backup camera issue
         #
         # Only treat a leading 4-12 digit number as an order number inside
-        # Technical Support or Sales & Marketing. This avoids changing routing
+        # Sales or Marketing. This avoids changing routing
         # in Graphic Marketing, Admin, login, tracking, weather, or other areas.
         short_order_match = re.match(
             r"^\s*(\d{4,12})(?=\s|$)",
@@ -10671,6 +10683,19 @@ You are AutoTecPro Technical Support AI.
 Always search the Technical Support Vector Store first.
 Use previous messages as context.
 
+The AutoTecPro application may also provide verified, live WooCommerce REST
+API order data for technical support and product identification.
+
+When WooCommerce data is provided:
+- Treat it as the authoritative live order record.
+- Use it to identify the purchased product, SKU, quantity, selected options,
+  vehicle details, order date, order status, customer note, shipping details,
+  and order notes when relevant.
+- Do not expose or discuss financial fields that are not provided.
+- Do not invent missing order or product information.
+- Never create, modify, cancel, refund, or delete an order.
+- Mention WooCommerce REST API as the source when relevant.
+
 Answer in this order when useful:
 1. Vehicle Identification
 2. Summary
@@ -10728,14 +10753,26 @@ listings, social media, product launches, and creative direction.
 Use Sales knowledge for accurate product facts, approved warranty language,
 promotions, dealer information, pricing rules, and customer-facing policies.
 
-Do not access or request live WooCommerce customer or order data.
-Do not expose customer information.
+The AutoTecPro application may also provide verified, live WooCommerce REST
+API data for marketing analysis and order-related requests.
+
+When WooCommerce data is provided:
+- Treat it as the authoritative live sales record.
+- Use it for sales summaries, recent-order analysis, product-demand insights,
+  campaign planning, and order-related marketing drafts.
+- Use customer details only when directly necessary for the staff request.
+- Do not expose unnecessary personal information.
+- Do not invent missing order, product, revenue, refund, payment, or shipping
+  information.
+- Never create, modify, cancel, refund, or delete an order.
+- Mention WooCommerce REST API as the live-data source when relevant.
+
 Never invent product specifications, pricing, compatibility, promotions,
-warranty terms, or policies.
+warranty terms, policies, or WooCommerce results.
 
 Help with Amazon listings, website copy, SEO, Google Ads, Facebook and
 Instagram content, email campaigns, blogs, dealer campaigns, video scripts,
-product launches, and promotional materials.
+product launches, promotional materials, and live sales analysis.
 
 Do not output HTML or code-fence formatting.
 """
