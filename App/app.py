@@ -1221,7 +1221,9 @@ def get_live_data_for_prompt(
     return None
 
 
+@st.cache_data(ttl=300, max_entries=4, show_spinner=False)
 def live_integration_statuses():
+    """Build the integration-status list without repeated static work."""
     return [
         (
             "OpenAI web search / internet browsing",
@@ -1257,35 +1259,6 @@ def live_integration_statuses():
             "CANADA_POST_USERNAME + CANADA_POST_PASSWORD",
         ),
     ]
-
-
-
-
-# ============================================================
-# Stable GPT-style upload manager
-# ============================================================
-
-MAX_UPLOAD_MB = 10
-MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-
-
-class ManagedUploadedFile(io.BytesIO):
-    """In-memory upload compatible with the app's existing file handlers."""
-
-    def __init__(self, data, name, mime_type="application/octet-stream"):
-        super().__init__(data)
-        self.name = str(name or "upload")
-        self.type = str(mime_type or "application/octet-stream")
-        self.size = len(data)
-
-    def getvalue(self):
-        position = self.tell()
-        try:
-            self.seek(0)
-            return super().getvalue()
-        finally:
-            self.seek(position)
-
 
 def _managed_upload_record(uploaded_file):
     data = uploaded_file.getvalue()
@@ -6625,12 +6598,13 @@ st.markdown(
 # ============================================================
 
 @st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def get_logo_base64():
+    """Read and encode the static application logo once."""
     if LOGO_FILE.exists():
-        with open(LOGO_FILE, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+        with open(LOGO_FILE, "rb") as file_handle:
+            return base64.b64encode(file_handle.read()).decode()
     return None
-
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -6674,7 +6648,7 @@ def get_supabase_admin_client():
 # Supabase Schema Safety Helpers
 # ============================================================
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=1800, max_entries=32, show_spinner=False)
 def get_table_columns(table_name):
     """
     Return actual Supabase table columns.
@@ -14286,6 +14260,58 @@ def _admin_upload_fragment_decorator(function):
 
 
 @_admin_upload_fragment_decorator
+@st.cache_data(ttl=30, max_entries=32, show_spinner=False)
+def load_admin_analytics_rows():
+    """Load large Admin analytics datasets with a short cache."""
+    try:
+        analytics_rows = safe_select_rows(
+            "ai_analytics",
+            order_columns=["created_at"],
+            limit=2000,
+        )
+    except Exception:
+        analytics_rows = []
+
+    try:
+        learned_rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=2000,
+        )
+    except Exception:
+        learned_rows = []
+
+    return analytics_rows, learned_rows
+
+
+@st.cache_data(ttl=20, max_entries=16, show_spinner=False)
+def load_admin_users():
+    """Load the compact Admin user list with a short cache."""
+    try:
+        result = (
+            supabase
+            .table("users")
+            .select("username,role,active")
+            .order("username")
+            .execute()
+        )
+        return list(result.data or [])
+    except Exception:
+        return []
+
+
+def invalidate_admin_read_caches():
+    """Clear only Admin read caches after successful Admin mutations."""
+    for cached_function in (
+        load_admin_analytics_rows,
+        load_admin_users,
+    ):
+        try:
+            cached_function.clear()
+        except Exception:
+            pass
+
+
 def render_admin_upload_knowledge_tab():
     st.markdown("### Upload Documents to Knowledge Base")
     st.caption(
@@ -15636,16 +15662,15 @@ if assistant == "⚙️ Admin Panel":
         "🔌 Live Integrations"
     ])
 
-    # Shared analytics data for all admin dashboards.
-    try:
-        analytics_rows = safe_select_rows("ai_analytics", order_columns=["created_at"], limit=2000)
-    except Exception:
-        analytics_rows = []
-
-    try:
-        learned_rows_for_analytics = safe_select_rows("learned_knowledge", order_columns=["updated_at", "created_at"], limit=2000)
-    except Exception:
-        learned_rows_for_analytics = []
+    # Streamlit evaluates every tab body during a rerun. Reuse these large
+    # datasets briefly instead of downloading up to 4,000 rows repeatedly.
+    analytics_rows, learned_rows_for_analytics = (
+        load_admin_analytics_rows()
+    )
+    analytics_rows = list(analytics_rows or [])
+    learned_rows_for_analytics = list(
+        learned_rows_for_analytics or []
+    )
 
     with tab1:
         st.markdown("### Current Users")
@@ -15657,18 +15682,7 @@ if assistant == "⚙️ Admin Panel":
         if delete_success:
             st.success(delete_success)
 
-        try:
-            users = (
-                supabase
-                .table("users")
-                .select("*")
-                .order("username")
-                .execute()
-                .data
-            ) or []
-        except Exception as error:
-            users = []
-            st.error(f"Unable to load users: {error}")
+        users = load_admin_users()
 
         for user in users:
             username_value = str(user.get("username") or "")
@@ -15747,7 +15761,7 @@ if assistant == "⚙️ Admin Panel":
                         )
                         st.success("User added successfully.")
 
-                    time.sleep(0.4)
+                    invalidate_admin_read_caches()
                     st.rerun()
 
                 except Exception as error:
@@ -15880,6 +15894,7 @@ if assistant == "⚙️ Admin Panel":
                                 f"User '{selected_delete_username}' and "
                                 "all associated records were permanently deleted."
                             )
+                            invalidate_admin_read_caches()
                             st.rerun()
 
                         except Exception as error:
