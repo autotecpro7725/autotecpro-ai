@@ -17499,14 +17499,59 @@ def apply_graphic_designer_mobile_css():
                 opacity: 1 !important;
             }
 
+            /*
+             * Mobile Safari applies a separate text-fill color after an input
+             * becomes populated or focused. Target every real control state
+             * directly, using the same aria-label method that fixed the earlier
+             * Marketing Mode issue.
+             */
             input[aria-label="Product / model"],
+            input[aria-label="Product / model"]:focus,
+            input[aria-label="Product / model"]:active,
+            input[aria-label="Product / model"][value],
             input[aria-label="Vehicle / compatibility"],
+            input[aria-label="Vehicle / compatibility"]:focus,
+            input[aria-label="Vehicle / compatibility"]:active,
+            input[aria-label="Vehicle / compatibility"][value],
             input[aria-label="Target audience"],
+            input[aria-label="Target audience"]:focus,
+            input[aria-label="Target audience"]:active,
+            input[aria-label="Target audience"][value],
             input[aria-label="Headline"],
+            input[aria-label="Headline"]:focus,
+            input[aria-label="Headline"]:active,
+            input[aria-label="Headline"][value],
             input[aria-label="Call to action"],
+            input[aria-label="Call to action"]:focus,
+            input[aria-label="Call to action"]:active,
+            input[aria-label="Call to action"][value],
             input[aria-label="Website or contact information"],
+            input[aria-label="Website or contact information"]:focus,
+            input[aria-label="Website or contact information"]:active,
+            input[aria-label="Website or contact information"][value],
             textarea[aria-label="Describe your custom design"],
-            textarea[aria-label="Additional instructions"] {
+            textarea[aria-label="Describe your custom design"]:focus,
+            textarea[aria-label="Describe your custom design"]:active,
+            textarea[aria-label="Additional instructions"],
+            textarea[aria-label="Additional instructions"]:focus,
+            textarea[aria-label="Additional instructions"]:active {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            /*
+             * Narrow fallback for Streamlit/BaseWeb builds that move the
+             * visible value to an inner input node while retaining the form.
+             * This is scoped only to the Advanced AI Image Designer form.
+             */
+            form[data-testid="stForm"] input[type="text"],
+            form[data-testid="stForm"] input[type="text"]:focus,
+            form[data-testid="stForm"] input[type="text"]:active,
+            form[data-testid="stForm"] textarea,
+            form[data-testid="stForm"] textarea:focus,
+            form[data-testid="stForm"] textarea:active {
                 color: #f8fafc !important;
                 -webkit-text-fill-color: #f8fafc !important;
                 caret-color: #f87171 !important;
@@ -17520,7 +17565,9 @@ def apply_graphic_designer_mobile_css():
             input[aria-label="Call to action"]::placeholder,
             input[aria-label="Website or contact information"]::placeholder,
             textarea[aria-label="Describe your custom design"]::placeholder,
-            textarea[aria-label="Additional instructions"]::placeholder {
+            textarea[aria-label="Additional instructions"]::placeholder,
+            form[data-testid="stForm"] input[type="text"]::placeholder,
+            form[data-testid="stForm"] textarea::placeholder {
                 color: #94a3b8 !important;
                 -webkit-text-fill-color: #94a3b8 !important;
                 opacity: 1 !important;
