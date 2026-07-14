@@ -8318,6 +8318,7 @@ workspace_items = [
     ("technical", "🔧", "Technical Support"),
     ("sales", "📈", "Sales & Marketing"),
     ("graphic", "🎨", "Graphic Marketing"),
+    ("knowledge", "🧠", "Knowledge Submission"),
 ]
 
 if st.session_state.role == "admin":
@@ -9300,6 +9301,12 @@ st.markdown(
     [class*="st-key-workspace_button_graphic"]
     .stButton > button::before {
         content: "🎨";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_knowledge"]
+    .stButton > button::before {
+        content: "🧠";
     }
 
     section[data-testid="stSidebar"]
@@ -13315,7 +13322,10 @@ def auto_scroll_to_latest():
 # Chat History Sidebar
 # ============================================================
 
-if assistant != "⚙️ Admin Panel":
+if assistant not in {
+    "⚙️ Admin Panel",
+    "🧠 Knowledge Submission",
+}:
     if "rename_conversation_id" not in st.session_state:
         st.session_state.rename_conversation_id = None
     if "rename_conversation_value" not in st.session_state:
@@ -14276,6 +14286,452 @@ def render_admin_upload_knowledge_tab():
     render_learn_from_website(database_choice)
 
 
+
+# ============================================================
+# Knowledge Submission Workspace
+# ============================================================
+
+KNOWLEDGE_SUBMISSION_TYPES = [
+    ("technical_solution", "🔧", "Technical Solution"),
+    ("product_knowledge", "📦", "Product Knowledge"),
+    ("sales_knowledge", "📈", "Sales Knowledge"),
+    ("installation_guide", "📘", "Installation Guide"),
+    ("faq", "❓", "FAQ"),
+    ("other", "📝", "Other"),
+]
+
+
+def knowledge_submission_destination(knowledge_type):
+    """Map a simple staff choice to the correct live knowledge database."""
+    if str(knowledge_type or "") == "sales_knowledge":
+        return "📈 Sales & Marketing", SALES_VECTOR_STORE_ID
+    return "🔧 Technical Support", TECHNICAL_VECTOR_STORE_ID
+
+
+def install_knowledge_submission_css():
+    """
+    Match the app's modern navigation language without red containers.
+
+    Selectors are fully scoped to this workspace so other buttons, uploaders,
+    Admin pages, chat, and login remain unchanged.
+    """
+    st.markdown(
+        """
+        <style>
+        /* Clean page width and spacing. */
+        div[class*="st-key-knowledge_submission_page"] {
+            width: 100% !important;
+            max-width: 980px !important;
+            margin: 0 auto !important;
+        }
+
+        div[class*="st-key-knowledge_submission_page"]
+        > div[data-testid="stVerticalBlock"] {
+            gap: 13px !important;
+        }
+
+        /* Knowledge Type buttons use the same quiet navigation treatment. */
+        div[class*="st-key-knowledge_type_"] {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        div[class*="st-key-knowledge_type_"] .stButton,
+        div[class*="st-key-knowledge_type_"] div[data-testid="stButton"] {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        div[class*="st-key-knowledge_type_"] .stButton > button {
+            width: 100% !important;
+            min-height: 48px !important;
+            height: 48px !important;
+            margin: 0 !important;
+            padding: 0 14px !important;
+            border: 1px solid rgba(148, 163, 184, 0.18) !important;
+            border-radius: 11px !important;
+            background: rgba(255, 255, 255, 0.025) !important;
+            background-color: rgba(255, 255, 255, 0.025) !important;
+            color: #d7dee8 !important;
+            box-shadow: none !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            font-size: 14px !important;
+            font-weight: 650 !important;
+            transform: none !important;
+        }
+
+        div[class*="st-key-knowledge_type_"] .stButton > button:hover {
+            border-color: rgba(148, 163, 184, 0.30) !important;
+            background: rgba(255, 255, 255, 0.060) !important;
+            background-color: rgba(255, 255, 255, 0.060) !important;
+            color: #ffffff !important;
+            transform: none !important;
+        }
+
+        div[class*="st-key-knowledge_type_active_"] .stButton > button {
+            border-color: rgba(96, 165, 250, 0.34) !important;
+            background: rgba(59, 130, 246, 0.16) !important;
+            background-color: rgba(59, 130, 246, 0.16) !important;
+            color: #ffffff !important;
+            font-weight: 750 !important;
+            box-shadow: inset 3px 0 0 rgba(96, 165, 250, 0.88) !important;
+        }
+
+        div[class*="st-key-knowledge_type_"]
+        .stButton > button div[data-testid="stMarkdownContainer"],
+        div[class*="st-key-knowledge_type_"]
+        .stButton > button div[data-testid="stMarkdownContainer"] p {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: left !important;
+            color: inherit !important;
+            white-space: nowrap !important;
+        }
+
+        /* Remove the red dashed treatment only from this uploader. */
+        div[class*="st-key-atp_upload_shell_knowledge_submission_files"] {
+            border: 1px dashed rgba(148, 163, 184, 0.34) !important;
+            background: rgba(15, 23, 42, 0.24) !important;
+        }
+
+        div[class*="st-key-knowledge_submit_button"] .stButton > button {
+            min-height: 46px !important;
+            border-radius: 11px !important;
+        }
+
+        @media (max-width: 760px) {
+            div[class*="st-key-knowledge_submission_page"] {
+                max-width: 100% !important;
+            }
+
+            div[class*="st-key-knowledge_type_"] .stButton > button {
+                min-height: 46px !important;
+                height: 46px !important;
+                font-size: 13px !important;
+                padding: 0 11px !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def save_knowledge_submission(
+    knowledge_type,
+    description,
+    uploaded_files=None,
+):
+    """
+    Convert a staff submission into a reusable learned record and sync it.
+
+    Expensive work happens only after the staff member clicks Submit Knowledge.
+    """
+    safe_description = redact_learning_private_data(description)
+    if len(safe_description) < 25:
+        raise ValueError(
+            "Please provide a little more detail about the confirmed knowledge."
+        )
+
+    selected_assistant, vector_store_id = knowledge_submission_destination(
+        knowledge_type
+    )
+
+    candidate = extract_learning_candidate(
+        safe_description,
+        "",
+        selected_assistant,
+        staff_confirmed=True,
+        conversation_context="",
+    )
+
+    if not candidate.get("should_learn"):
+        reason = candidate.get("reason") or (
+            "The submission does not yet contain a clear, reusable solution."
+        )
+        raise ValueError(reason)
+
+    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
+        candidate,
+        selected_assistant,
+    )
+
+    source_type = f"manual_knowledge_submission:{knowledge_type}"
+    attachment_file_ids = []
+
+    # Optional supporting files are uploaded only when Submit is clicked.
+    for uploaded_file in uploaded_files or []:
+        try:
+            if is_admin_image_file(uploaded_file):
+                knowledge_file, _ = convert_admin_image_to_knowledge_file(
+                    uploaded_file,
+                    (
+                        "Sales & Marketing Database"
+                        if selected_assistant == "📈 Sales & Marketing"
+                        else "Technical Support Database"
+                    ),
+                    admin_context=safe_description,
+                )
+                attachment_file_ids.append(
+                    upload_to_vector_store(knowledge_file, vector_store_id)
+                )
+            else:
+                try:
+                    uploaded_file.seek(0)
+                except Exception:
+                    pass
+                attachment_file_ids.append(
+                    upload_to_vector_store(uploaded_file, vector_store_id)
+                )
+        except Exception as error:
+            raise RuntimeError(
+                f"Supporting file '{getattr(uploaded_file, 'name', 'file')}' "
+                f"could not be uploaded: {error}"
+            ) from error
+
+    if duplicate_row:
+        improved = improve_existing_solution(duplicate_row, candidate)
+        record_for_file = {
+            "assistant": clean_assistant_label(selected_assistant),
+            "vehicle": improved["vehicle"],
+            "issue": improved["issue"],
+            "solution": improved["solution"],
+            "keywords": improved["keywords"],
+            "confidence_score": improved["confidence_score"],
+            "times_seen": improved["times_seen"],
+            "source_question": safe_description,
+            "source_answer": "",
+        }
+        learned_file_id = upload_learned_record_to_vector_store(
+            record_for_file,
+            vector_store_id,
+        )
+
+        update_payload = {
+            "username": st.session_state.get("username"),
+            "assistant": clean_assistant_label(selected_assistant),
+            "vehicle": improved["vehicle"],
+            "issue": improved["issue"],
+            "solution": improved["solution"],
+            "approved_answer": improved["solution"],
+            "question": safe_description,
+            "keywords": improved["keywords"],
+            "source_question": safe_description,
+            "source_answer": "",
+            "source_conversation_id": None,
+            "confidence_score": improved["confidence_score"],
+            "times_seen": improved["times_seen"],
+            "openai_file_id": learned_file_id,
+            "vector_store_id": vector_store_id,
+            "synced": True,
+            "embedding_status": "synced",
+            "source_type": source_type,
+            "staff_confirmed": True,
+            "updated_at": now_iso(),
+        }
+        safe_update_row(
+            "learned_knowledge",
+            update_payload,
+            duplicate_row["id"],
+        )
+
+        return {
+            "mode": "updated",
+            "record_id": duplicate_row["id"],
+            "duplicate_score": duplicate_score,
+            "issue": improved["issue"],
+            "vehicle": improved["vehicle"],
+            "destination": clean_assistant_label(selected_assistant),
+            "attachment_count": len(attachment_file_ids),
+        }
+
+    new_record = {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": candidate["vehicle"],
+        "issue": candidate["issue"],
+        "solution": candidate["solution"],
+        "approved_answer": candidate["solution"],
+        "question": safe_description,
+        "keywords": candidate["keywords"],
+        "source_question": safe_description,
+        "source_answer": "",
+        "source_conversation_id": None,
+        "confidence_score": candidate["confidence_score"],
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": vector_store_id,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": source_type,
+        "staff_confirmed": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    learned_file_id = upload_learned_record_to_vector_store(
+        new_record,
+        vector_store_id,
+    )
+    new_record["openai_file_id"] = learned_file_id
+    new_record["synced"] = True
+    new_record["embedding_status"] = "synced"
+
+    result = safe_insert_row("learned_knowledge", new_record)
+    if not result.data:
+        raise RuntimeError("The knowledge record was not saved.")
+
+    return {
+        "mode": "created",
+        "record_id": result.data[0].get("id"),
+        "issue": candidate["issue"],
+        "vehicle": candidate["vehicle"],
+        "destination": clean_assistant_label(selected_assistant),
+        "attachment_count": len(attachment_file_ids),
+    }
+
+
+def render_knowledge_submission_workspace():
+    """Render the simple staff-facing knowledge submission page."""
+    install_knowledge_submission_css()
+
+    if "knowledge_submission_type" not in st.session_state:
+        st.session_state.knowledge_submission_type = "technical_solution"
+
+    with st.container(key="knowledge_submission_page"):
+        st.markdown("## 🧠 Knowledge Submission")
+        st.caption(
+            "Share a confirmed solution, installation procedure, product fact, "
+            "sales rule, or FAQ so AutoTecPro AI can reuse it."
+        )
+
+        st.markdown("#### Knowledge Type")
+
+        # Two compact rows preserve alignment on desktop and stack cleanly on mobile.
+        for row_start in (0, 3):
+            row_items = KNOWLEDGE_SUBMISSION_TYPES[row_start:row_start + 3]
+            columns = st.columns(3, gap="small")
+
+            for column, (type_key, icon, label) in zip(columns, row_items):
+                selected = (
+                    st.session_state.knowledge_submission_type == type_key
+                )
+                state = "active" if selected else "idle"
+
+                with column:
+                    with st.container(
+                        key=f"knowledge_type_{state}_{type_key}"
+                    ):
+                        if st.button(
+                            f"{icon}  {label}",
+                            key=f"knowledge_type_button_{type_key}",
+                            use_container_width=True,
+                        ):
+                            if not selected:
+                                st.session_state.knowledge_submission_type = (
+                                    type_key
+                                )
+                                st.rerun()
+
+        selected_type = st.session_state.knowledge_submission_type
+        destination_label, _ = knowledge_submission_destination(selected_type)
+
+        st.caption(
+            "Destination: "
+            + (
+                "Sales & Marketing Database"
+                if destination_label == "📈 Sales & Marketing"
+                else "Technical Support Database"
+            )
+        )
+
+        description = st.text_area(
+            "Describe the confirmed knowledge",
+            key="knowledge_submission_description",
+            height=220,
+            placeholder=(
+                "Example:\n"
+                "Vehicle: Ford F-150 2015–2021 with SYNC 3\n"
+                "Issue: No sound after installation\n"
+                "Confirmed solution: Keep the factory radio connected, reconnect "
+                "the original USB cable, select Media USB, then return to Android."
+            ),
+            help=(
+                "Include the vehicle or product, the issue or question, and the "
+                "confirmed solution. Do not include customer personal information."
+            ),
+        )
+
+        supporting_files = managed_file_uploader(
+            storage_key="knowledge_submission_uploads",
+            generation_key="knowledge_submission_upload_generation",
+            widget_prefix="knowledge_submission_files",
+            accepted_types=["jpg", "jpeg", "png", "pdf", "txt", "docx"],
+            heading="📎 Optional supporting files",
+        )
+
+        with st.container(key="knowledge_submit_button"):
+            submit_clicked = st.button(
+                "🧠 Submit Knowledge",
+                key="submit_staff_knowledge",
+                type="primary",
+                use_container_width=True,
+                disabled=len(str(description or "").strip()) < 25,
+            )
+
+        if submit_clicked:
+            with st.spinner("Reviewing and saving knowledge..."):
+                try:
+                    result = save_knowledge_submission(
+                        selected_type,
+                        description,
+                        supporting_files,
+                    )
+
+                    st.session_state.knowledge_submission_last_result = result
+                    st.session_state.knowledge_submission_description = ""
+                    clear_managed_uploads(
+                        "knowledge_submission_uploads",
+                        "knowledge_submission_upload_generation",
+                    )
+                    st.success(
+                        "Knowledge submitted and synchronized successfully."
+                    )
+                    st.rerun()
+                except Exception as error:
+                    st.error(f"Knowledge could not be submitted: {error}")
+
+        last_result = st.session_state.get(
+            "knowledge_submission_last_result"
+        )
+        if last_result:
+            action_text = (
+                "Existing knowledge improved"
+                if last_result.get("mode") == "updated"
+                else "New knowledge created"
+            )
+            st.success(f"✅ {action_text}")
+            st.write(
+                f"**Database:** {last_result.get('destination') or 'Unknown'}"
+            )
+            if last_result.get("vehicle"):
+                st.write(f"**Vehicle / Product:** {last_result['vehicle']}")
+            st.write(f"**Knowledge:** {last_result.get('issue') or 'Saved'}")
+            if last_result.get("attachment_count"):
+                st.write(
+                    f"**Supporting files:** "
+                    f"{last_result['attachment_count']} synchronized"
+                )
+
+
+
 # ============================================================
 # Admin Panel
 # ============================================================
@@ -15109,6 +15565,9 @@ CANADA_POST_PASSWORD = """"",
 # ============================================================
 # Main Chat UI
 # ============================================================
+
+elif assistant == "🧠 Knowledge Submission":
+    render_knowledge_submission_workspace()
 
 else:
 
