@@ -6227,6 +6227,23 @@ def inject_base_css():
                 opacity: 1 !important;
             }
 
+            /* Admin: Edit existing user selected value.
+               Mobile-only and scoped to this exact keyed selectbox. */
+            div[class*="st-key-stable_admin_edit_user"]
+            div[data-baseweb="select"],
+            div[class*="st-key-stable_admin_edit_user"]
+            div[data-baseweb="select"] *,
+            div[class*="st-key-stable_admin_edit_user"]
+            [data-testid="stSelectbox"] input,
+            div[class*="st-key-stable_admin_edit_user"]
+            [data-testid="stSelectbox"] [role="combobox"],
+            div[class*="st-key-stable_admin_edit_user"]
+            [aria-selected="true"] {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
             /* Admin: Permanent Delete User selected value.
                Scoped to mobile only and to this exact keyed widget. */
             div[class*="st-key-stable_permanent_delete_user_select"]
