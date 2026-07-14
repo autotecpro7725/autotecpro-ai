@@ -9120,6 +9120,27 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
+
+def switch_workspace(assistant_name):
+    """
+    Update workspace state before Streamlit's normal button rerun.
+
+    Using a callback avoids the extra explicit rerun that previously caused a
+    second full page refresh and made navigation feel less smooth.
+    """
+    if st.session_state.get("current_assistant") == assistant_name:
+        return
+
+    st.session_state.messages = []
+    st.session_state.conversation_id = None
+    st.session_state.current_assistant = assistant_name
+    st.session_state.chat_file_uploader_generation += 1
+    clear_managed_uploads(
+        "chat_managed_uploads",
+        "chat_managed_upload_generation",
+    )
+
+
 for slug, icon, label in workspace_items:
     assistant_name = f"{icon} {label}"
     is_selected = (
@@ -9132,23 +9153,14 @@ for slug, icon, label in workspace_items:
     with st.sidebar.container(
         key=f"workspace_nav_{nav_state}_{slug}"
     ):
-        if st.button(
+        st.button(
             label,
             key=f"workspace_button_{slug}",
             use_container_width=True,
-        ):
-            if not is_selected:
-                st.session_state.messages = []
-                st.session_state.conversation_id = None
-                st.session_state.current_assistant = (
-                    assistant_name
-                )
-                st.session_state.chat_file_uploader_generation += 1
-                clear_managed_uploads(
-                    "chat_managed_uploads",
-                    "chat_managed_upload_generation",
-                )
-                st.rerun()
+            on_click=switch_workspace,
+            args=(assistant_name,),
+            disabled=is_selected,
+        )
 
 assistant = st.session_state.current_assistant
 
@@ -9175,7 +9187,10 @@ st.markdown(
 
     div[data-testid="stSidebar"]
     div[class*="st-key-workspace_nav_"]
-    .stButton > button {
+    .stButton > button,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_"]
+    .stButton > button:disabled {
         width: 100% !important;
         min-height: 43px !important;
         height: 43px !important;
@@ -9194,6 +9209,7 @@ st.markdown(
         text-align: left !important;
         font-size: 15px !important;
         font-weight: 620 !important;
+        opacity: 1 !important;
     }
 
     div[data-testid="stSidebar"]
@@ -9215,7 +9231,10 @@ st.markdown(
 
     div[data-testid="stSidebar"]
     div[class*="st-key-workspace_nav_active_"]
-    .stButton > button {
+    .stButton > button,
+    div[data-testid="stSidebar"]
+    div[class*="st-key-workspace_nav_active_"]
+    .stButton > button:disabled {
         background: rgba(255, 255, 255, 0.085) !important;
         background-color: rgba(255, 255, 255, 0.085) !important;
         background-image: none !important;
