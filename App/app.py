@@ -16828,7 +16828,24 @@ def apply_marketing_tools_form_css():
          * rendered. Desktop styling and every non-Marketing workspace remain
          * unchanged.
          */
-        @media screen and (max-width: 1366px) {
+        @media screen and (max-width: 1600px) {
+            /*
+             * Exact mobile/tablet fix for the closed Marketing Mode value.
+             * On the deployed Safari build, BaseWeb renders the visible selected
+             * value through the labelled input itself. Target that stable
+             * accessibility attribute directly instead of depending on wrapper
+             * classes or nesting.
+             */
+            input[aria-label="Marketing mode"],
+            input[aria-label="Marketing mode"]:focus,
+            input[aria-label="Marketing mode"]:active,
+            input[aria-label="Marketing mode"][value] {
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                caret-color: #ffffff !important;
+                opacity: 1 !important;
+            }
+
             /*
              * Marketing mode selector outside the form, plus every selectbox
              * and multiselect inside the currently rendered Marketing form.
