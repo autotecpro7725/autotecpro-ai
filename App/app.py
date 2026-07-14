@@ -6227,6 +6227,36 @@ def inject_base_css():
                 opacity: 1 !important;
             }
 
+            /* Admin Upload Knowledge: Optional image-context textarea.
+               Mobile-only. Keep one outer focus border and remove the
+               overlapping inner textarea border/outline. */
+            div[class*="st-key-stable_admin_upload_context"]
+            div[data-baseweb="textarea"] {
+                border: 1px solid #334155 !important;
+                border-radius: 12px !important;
+                box-shadow: none !important;
+                outline: none !important;
+                overflow: hidden !important;
+            }
+
+            div[class*="st-key-stable_admin_upload_context"]
+            div[data-baseweb="textarea"]:focus-within {
+                border-color: var(--atp-red) !important;
+                box-shadow: none !important;
+                outline: none !important;
+            }
+
+            div[class*="st-key-stable_admin_upload_context"]
+            textarea,
+            div[class*="st-key-stable_admin_upload_context"]
+            textarea:focus,
+            div[class*="st-key-stable_admin_upload_context"]
+            textarea:focus-visible {
+                border: none !important;
+                box-shadow: none !important;
+                outline: none !important;
+            }
+
             /* Admin: Edit existing user selected value.
                Mobile-only and scoped to this exact keyed selectbox. */
             div[class*="st-key-stable_admin_edit_user"]
