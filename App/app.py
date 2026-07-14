@@ -17572,6 +17572,111 @@ def apply_graphic_designer_mobile_css():
                 -webkit-text-fill-color: #94a3b8 !important;
                 opacity: 1 !important;
             }
+
+            /*
+             * Advanced Image Designer: one clean focus outline only.
+             *
+             * The global app stylesheet styles the inner input/textarea on
+             * focus, while Streamlit/BaseWeb also styles its outer wrapper.
+             * That creates two nested red/orange rectangles. Keep the outer
+             * BaseWeb wrapper as the single border owner and remove border,
+             * outline, and shadow from the actual editable control.
+             */
+            input[aria-label="Product / model"],
+            input[aria-label="Product / model"]:focus,
+            input[aria-label="Product / model"]:focus-visible,
+            input[aria-label="Product / model"]:active,
+            input[aria-label="Vehicle / compatibility"],
+            input[aria-label="Vehicle / compatibility"]:focus,
+            input[aria-label="Vehicle / compatibility"]:focus-visible,
+            input[aria-label="Vehicle / compatibility"]:active,
+            input[aria-label="Target audience"],
+            input[aria-label="Target audience"]:focus,
+            input[aria-label="Target audience"]:focus-visible,
+            input[aria-label="Target audience"]:active,
+            input[aria-label="Headline"],
+            input[aria-label="Headline"]:focus,
+            input[aria-label="Headline"]:focus-visible,
+            input[aria-label="Headline"]:active,
+            input[aria-label="Call to action"],
+            input[aria-label="Call to action"]:focus,
+            input[aria-label="Call to action"]:focus-visible,
+            input[aria-label="Call to action"]:active,
+            input[aria-label="Website or contact information"],
+            input[aria-label="Website or contact information"]:focus,
+            input[aria-label="Website or contact information"]:focus-visible,
+            input[aria-label="Website or contact information"]:active,
+            textarea[aria-label="Describe your custom design"],
+            textarea[aria-label="Describe your custom design"]:focus,
+            textarea[aria-label="Describe your custom design"]:focus-visible,
+            textarea[aria-label="Describe your custom design"]:active,
+            textarea[aria-label="Additional instructions"],
+            textarea[aria-label="Additional instructions"]:focus,
+            textarea[aria-label="Additional instructions"]:focus-visible,
+            textarea[aria-label="Additional instructions"]:active {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
+
+            div[data-baseweb="input"]:has(
+                input[aria-label="Product / model"]
+            ),
+            div[data-baseweb="input"]:has(
+                input[aria-label="Vehicle / compatibility"]
+            ),
+            div[data-baseweb="input"]:has(
+                input[aria-label="Target audience"]
+            ),
+            div[data-baseweb="input"]:has(
+                input[aria-label="Headline"]
+            ),
+            div[data-baseweb="input"]:has(
+                input[aria-label="Call to action"]
+            ),
+            div[data-baseweb="input"]:has(
+                input[aria-label="Website or contact information"]
+            ),
+            div[data-baseweb="textarea"]:has(
+                textarea[aria-label="Describe your custom design"]
+            ),
+            div[data-baseweb="textarea"]:has(
+                textarea[aria-label="Additional instructions"]
+            ) {
+                border: 1px solid #334155 !important;
+                outline: none !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+            }
+
+            div[data-baseweb="input"]:has(
+                input[aria-label="Product / model"]
+            ):focus-within,
+            div[data-baseweb="input"]:has(
+                input[aria-label="Vehicle / compatibility"]
+            ):focus-within,
+            div[data-baseweb="input"]:has(
+                input[aria-label="Target audience"]
+            ):focus-within,
+            div[data-baseweb="input"]:has(
+                input[aria-label="Headline"]
+            ):focus-within,
+            div[data-baseweb="input"]:has(
+                input[aria-label="Call to action"]
+            ):focus-within,
+            div[data-baseweb="input"]:has(
+                input[aria-label="Website or contact information"]
+            ):focus-within,
+            div[data-baseweb="textarea"]:has(
+                textarea[aria-label="Describe your custom design"]
+            ):focus-within,
+            div[data-baseweb="textarea"]:has(
+                textarea[aria-label="Additional instructions"]
+            ):focus-within {
+                border-color: var(--atp-red) !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
         }
         </style>
         """,
