@@ -16750,49 +16750,67 @@ def render_knowledge_submission_workspace():
             heading="📎 Supporting Files (Optional)",
         )
 
-        form_ready = (
-            bool(str(subject or "").strip())
-            and len(str(issue or "").strip()) >= 10
-            and len(str(solution or "").strip()) >= 20
-        )
-
+        # Keep the submit button interactive. Streamlit text inputs commit their
+        # latest value when focus leaves the field. A disabled button cannot
+        # receive that click, which previously left the validation state stale
+        # until the user clicked the optional uploader or refreshed the page.
         with st.container(key="knowledge_submit_button"):
             submit_clicked = st.button(
                 "🧠 Submit Knowledge",
                 key="submit_staff_knowledge",
                 type="primary",
                 use_container_width=True,
-                disabled=not form_ready,
             )
 
         if submit_clicked:
-            with st.spinner("Reviewing and saving knowledge..."):
-                try:
-                    result = save_knowledge_submission(
-                        selected_type,
-                        subject,
-                        issue,
-                        solution,
-                        supporting_files,
-                    )
+            clean_subject = str(subject or "").strip()
+            clean_issue = str(issue or "").strip()
+            clean_solution = str(solution or "").strip()
 
-                    st.session_state.knowledge_submission_last_result = result
-                    st.session_state.knowledge_submission_text_generation = (
-                        int(
-                            st.session_state.get(
-                                "knowledge_submission_text_generation",
-                                0,
-                            )
+            validation_errors = []
+            if not clean_subject:
+                validation_errors.append(
+                    f"{field_config['subject_label']} is required."
+                )
+            if len(clean_issue) < 10:
+                validation_errors.append(
+                    f"{field_config['issue_label']} must contain at least 10 characters."
+                )
+            if len(clean_solution) < 20:
+                validation_errors.append(
+                    f"{field_config['solution_label']} must contain at least 20 characters."
+                )
+
+            if validation_errors:
+                st.warning(" ".join(validation_errors))
+            else:
+                with st.spinner("Reviewing and saving knowledge..."):
+                    try:
+                        result = save_knowledge_submission(
+                            selected_type,
+                            clean_subject,
+                            clean_issue,
+                            clean_solution,
+                            supporting_files,
                         )
-                        + 1
-                    )
-                    clear_managed_uploads(
-                        "knowledge_submission_uploads",
-                        "knowledge_submission_upload_generation",
-                    )
-                    st.rerun()
-                except Exception as error:
-                    st.error(f"Knowledge could not be submitted: {error}")
+
+                        st.session_state.knowledge_submission_last_result = result
+                        st.session_state.knowledge_submission_text_generation = (
+                            int(
+                                st.session_state.get(
+                                    "knowledge_submission_text_generation",
+                                    0,
+                                )
+                            )
+                            + 1
+                        )
+                        clear_managed_uploads(
+                            "knowledge_submission_uploads",
+                            "knowledge_submission_upload_generation",
+                        )
+                        st.rerun()
+                    except Exception as error:
+                        st.error(f"Knowledge could not be submitted: {error}")
 
         last_result = st.session_state.get(
             "knowledge_submission_last_result"
