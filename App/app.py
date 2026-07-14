@@ -11042,11 +11042,178 @@ def display_learning_vehicle(row):
     )
 
 
-def extract_learning_candidate(question, answer, selected_assistant):
+
+STAFF_CONFIRMED_SOLUTION_PHRASES = (
+    "this fixed it",
+    "that fixed it",
+    "fixed the issue",
+    "issue is fixed",
+    "problem is fixed",
+    "confirmed working",
+    "confirmed it works",
+    "customer confirmed",
+    "customer tested",
+    "tested and working",
+    "final solution",
+    "final resolution",
+    "resolved by",
+    "solution is",
+    "the fix is",
+    "we fixed it by",
+    "working now after",
+    "solved by",
+    "this is the solution",
+    "use this procedure",
+)
+
+
+def redact_learning_private_data(value):
+    """
+    Remove common customer-identifying information before learning or syncing.
+
+    This is intentionally conservative. It protects email addresses, phone
+    numbers, order references, tracking numbers, street-address labels, and
+    explicit customer-name fields while preserving technical numbers such as
+    model years, screen sizes, firmware versions, and part numbers.
+    """
+    text_value = str(value or "")
+
+    # Email addresses.
+    text_value = re.sub(
+        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        "[REDACTED EMAIL]",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+
+    # UPS and common Canada Post tracking formats.
+    text_value = re.sub(
+        r"\b1Z[A-Z0-9]{16}\b",
+        "[REDACTED TRACKING]",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    text_value = re.sub(
+        r"\b[A-Z]{2}\d{9}CA\b|\b\d{16}\b",
+        "[REDACTED TRACKING]",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+
+    # Explicit WooCommerce/order references.
+    text_value = re.sub(
+        r"\b(?:order|woocommerce)\s*(?:number|no\.?|#)?\s*[:#-]?\s*\d{3,12}\b",
+        "[REDACTED ORDER]",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    text_value = re.sub(
+        r"(?<![A-Za-z0-9])#\d{3,12}\b",
+        "[REDACTED ORDER]",
+        text_value,
+    )
+
+    # Phone numbers with separators or country codes. Requiring at least
+    # 10 digits avoids removing most vehicle years, firmware, and part numbers.
+    def _redact_phone(match):
+        candidate = match.group(0)
+        digit_count = len(re.sub(r"\D", "", candidate))
+        return "[REDACTED PHONE]" if 10 <= digit_count <= 15 else candidate
+
+    text_value = re.sub(
+        r"(?<![A-Za-z0-9])(?:\+?\d[\d\s().-]{8,}\d)(?![A-Za-z0-9])",
+        _redact_phone,
+        text_value,
+    )
+
+    # Explicitly labelled personal fields and street-address lines.
+    text_value = re.sub(
+        r"(?im)^\s*(?:customer|customer name|name|email|phone|telephone|"
+        r"shipping address|billing address|address)\s*:\s*.*$",
+        "[REDACTED CUSTOMER DATA]",
+        text_value,
+    )
+
+    # Canadian/US-style postal and ZIP codes when clearly labelled.
+    text_value = re.sub(
+        r"(?i)\b(?:postal code|postcode|zip code|zip)\s*:\s*"
+        r"(?:[A-Z]\d[A-Z][ -]?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b",
+        "[REDACTED POSTAL CODE]",
+        text_value,
+    )
+
+    return re.sub(r"\n{3,}", "\n\n", text_value).strip()
+
+
+def detect_staff_confirmed_solution(message_text):
+    """
+    Identify messages where staff clearly provides or confirms a real solution.
+
+    A plain question is not treated as confirmed knowledge.
+    """
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        str(message_text or "").strip().lower(),
+    )
+
+    if not normalized:
+        return False
+
+    if any(phrase in normalized for phrase in STAFF_CONFIRMED_SOLUTION_PHRASES):
+        return True
+
+    # Structured staff notes are also accepted.
+    structured_patterns = (
+        r"\bsolution\s*:\s*\S+",
+        r"\bfinal\s+(?:fix|resolution)\s*:\s*\S+",
+        r"\bconfirmed\s+(?:fix|solution)\s*:\s*\S+",
+        r"\broot\s+cause\s*:\s*\S+.*\bfix\s*:\s*\S+",
+    )
+    return any(
+        re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
+        for pattern in structured_patterns
+    )
+
+
+def recent_learning_conversation_context(max_messages=6):
+    """
+    Return a small privacy-filtered context window for short confirmations such
+    as 'this fixed it'. This runs only after an eligible staff interaction.
+    """
+    messages = list(st.session_state.get("messages") or [])
+    context_lines = []
+
+    for message in messages[-max(1, int(max_messages or 6)):]:
+        role = str(message.get("role") or "").strip().upper()
+        content, _ = extract_images_from_message_content(
+            message.get("content", "")
+        )
+        content = clean_visible_chat_text(content)
+        content = redact_learning_private_data(content)
+
+        if content:
+            context_lines.append(f"{role}: {content}")
+
+    return "\n\n".join(context_lines)
+
+
+def extract_learning_candidate(
+    question,
+    answer,
+    selected_assistant,
+    *,
+    staff_confirmed=False,
+    conversation_context="",
+):
+    safe_question = redact_learning_private_data(question)
+    safe_answer = redact_learning_private_data(answer)
+    safe_context = redact_learning_private_data(conversation_context)
+
     extraction_prompt = f"""
 You are AutoTecPro's internal knowledge engineer.
 
-Convert this latest support conversation into a clean reusable knowledge record.
+Convert the latest interaction into one clean reusable knowledge record.
 
 Return ONLY valid JSON with this exact schema:
 {{
@@ -11060,54 +11227,93 @@ Return ONLY valid JSON with this exact schema:
 }}
 
 Rules:
-- should_learn should be true only if the answer contains a reusable solution, compatibility fact, troubleshooting step, product fact, warranty/sales policy, or customer reply that can help future cases.
-- should_learn should be false for greetings, vague chats, uncertain answers, purely emotional messages, or cases where the answer says documentation is unavailable without useful next steps.
-- Keep the solution accurate and concise.
-- For vehicle, prefer the most specific supported make/model/year mentioned in the Q&A.
-- Do not return placeholders such as "not specified", "unknown", "N/A", or "general" for vehicle; return an empty string instead.
-- Never invent details not supported by the Q&A.
+- Staff confirmed solution: {str(bool(staff_confirmed)).lower()}.
+- If Staff confirmed solution is true, treat the STAFF MESSAGE as the primary
+  source of truth for the fix. Use recent context only to identify the related
+  vehicle, product, symptoms, and steps.
+- If Staff confirmed solution is false, learn only when the AI answer contains
+  a genuinely reusable and sufficiently supported solution, compatibility
+  fact, troubleshooting step, product fact, warranty/sales policy, or customer
+  reply.
+- Never learn a question, theory, guess, untested suggestion, or uncertain
+  workaround as confirmed truth.
+- should_learn must be false for greetings, vague chats, purely emotional
+  messages, requests without a solution, or answers that say documentation is
+  unavailable without useful next steps.
+- Do not include customer names, email addresses, phone numbers, addresses,
+  order numbers, tracking numbers, payment details, or other personal data.
+- Keep the solution accurate, concise, and operational.
+- For vehicle, prefer the most specific supported make/model/year in the
+  interaction or context.
+- Do not return placeholders such as "not specified", "unknown", "N/A", or
+  "general" for vehicle; return an empty string instead.
+- Never invent details not supported by the supplied text.
 
-Assistant: {clean_assistant_label(selected_assistant)}
+Assistant:
+{clean_assistant_label(selected_assistant)}
 
-Question:
-{question}
+STAFF MESSAGE:
+{safe_question}
 
-Answer:
-{answer}
+AI RESPONSE:
+{safe_answer}
+
+RECENT CONVERSATION CONTEXT:
+{safe_context}
 """
     try:
         response = client.responses.create(
             model="gpt-5.5",
             instructions="Return only valid JSON. No markdown.",
-            input=extraction_prompt
+            input=extraction_prompt,
         )
         data = extract_json_object(response.output_text)
     except Exception:
         data = {}
 
     should_learn = bool(data.get("should_learn", False))
-    issue = str(data.get("issue") or conversation_title_from_text(question)).strip()
-    solution = str(data.get("solution") or answer).strip()
+
+    issue_source = safe_question or safe_context
+    issue = str(
+        data.get("issue")
+        or conversation_title_from_text(issue_source)
+    ).strip()
+
+    # For confirmed solutions, the staff's own message is the preferred
+    # fallback. For ordinary learning, the AI answer remains the fallback.
+    fallback_solution = (
+        safe_question
+        if staff_confirmed and len(safe_question) >= 20
+        else safe_answer
+    )
+    solution = str(data.get("solution") or fallback_solution).strip()
     keywords = str(data.get("keywords") or "").strip()
+
     vehicle = resolve_learning_vehicle(
         data.get("vehicle"),
-        question=question,
-        answer=answer,
+        question=safe_question,
+        answer=safe_answer,
         issue=issue,
         keywords=keywords,
+        product=safe_context,
         selected_assistant=selected_assistant,
     )
 
     try:
-        confidence_score = int(data.get("confidence_score", 70))
+        confidence_score = int(
+            data.get("confidence_score", 88 if staff_confirmed else 70)
+        )
     except Exception:
-        confidence_score = 70
+        confidence_score = 88 if staff_confirmed else 70
 
     confidence_score = max(0, min(100, confidence_score))
 
-    if len(solution) < 80:
+    # A confirmed staff resolution may be concise; ordinary AI-derived learning
+    # still needs a more substantial solution.
+    minimum_solution_length = 30 if staff_confirmed else 80
+    if len(solution) < minimum_solution_length:
         should_learn = False
-    if len(str(question).strip()) < 5:
+    if len(safe_question) < 5:
         should_learn = False
 
     return {
@@ -11117,7 +11323,8 @@ Answer:
         "solution": solution,
         "keywords": keywords,
         "confidence_score": confidence_score,
-        "reason": str(data.get("reason") or "").strip()
+        "reason": str(data.get("reason") or "").strip(),
+        "staff_confirmed": bool(staff_confirmed),
     }
 
 
@@ -11319,6 +11526,14 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
     if selected_assistant == "⚙️ Admin Panel":
         return None
 
+    # Graphic generation output is handled separately and must not become
+    # technical or sales knowledge.
+    if selected_assistant == "🎨 Graphic Marketing":
+        return {
+            "learned": False,
+            "reason": "Graphic Marketing image-generation chats are not learned.",
+        }
+
     live_request = detect_live_request(question, selected_assistant)
     if str(live_request.get("type") or "").startswith("woocommerce_"):
         return {
@@ -11329,13 +11544,44 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             ),
         }
 
-    candidate = extract_learning_candidate(question, answer, selected_assistant)
+    safe_question = redact_learning_private_data(question)
+    safe_answer = redact_learning_private_data(answer)
+    staff_confirmed = detect_staff_confirmed_solution(safe_question)
+    conversation_context = (
+        recent_learning_conversation_context(max_messages=6)
+        if staff_confirmed
+        else ""
+    )
+
+    candidate = extract_learning_candidate(
+        safe_question,
+        safe_answer,
+        selected_assistant,
+        staff_confirmed=staff_confirmed,
+        conversation_context=conversation_context,
+    )
 
     if not candidate.get("should_learn"):
-        return {"learned": False, "reason": candidate.get("reason") or "Not reusable enough to learn."}
+        return {
+            "learned": False,
+            "staff_confirmed": staff_confirmed,
+            "reason": (
+                candidate.get("reason")
+                or "Not reusable or sufficiently confirmed."
+            ),
+        }
 
     vector_store_id = get_learning_vector_store_id(selected_assistant)
-    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(candidate, selected_assistant)
+    duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
+        candidate,
+        selected_assistant,
+    )
+
+    source_type = (
+        "staff_confirmed_solution"
+        if staff_confirmed
+        else "ai_answer_learning"
+    )
 
     if duplicate_row:
         improved = improve_existing_solution(duplicate_row, candidate)
@@ -11348,22 +11594,26 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             "keywords": improved["keywords"],
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
-            "source_question": question,
-            "source_answer": answer
+            "source_question": safe_question,
+            "source_answer": safe_answer,
         }
 
-        openai_file_id = upload_learned_record_to_vector_store(record_for_file, vector_store_id)
+        openai_file_id = upload_learned_record_to_vector_store(
+            record_for_file,
+            vector_store_id,
+        )
 
         update_payload = {
+            "username": st.session_state.get("username"),
             "assistant": clean_assistant_label(selected_assistant),
             "vehicle": improved["vehicle"],
             "issue": improved["issue"],
             "solution": improved["solution"],
             "approved_answer": improved["solution"],
-            "question": question,
+            "question": safe_question,
             "keywords": improved["keywords"],
-            "source_question": question,
-            "source_answer": answer,
+            "source_question": safe_question,
+            "source_answer": safe_answer,
             "source_conversation_id": st.session_state.get("conversation_id"),
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
@@ -11371,18 +11621,25 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             "vector_store_id": vector_store_id,
             "synced": True,
             "embedding_status": "synced",
-            "updated_at": now_iso()
+            "source_type": source_type,
+            "staff_confirmed": bool(staff_confirmed),
+            "updated_at": now_iso(),
         }
 
-        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
+        safe_update_row(
+            "learned_knowledge",
+            update_payload,
+            duplicate_row["id"],
+        )
 
         return {
             "learned": True,
             "mode": "updated",
+            "staff_confirmed": staff_confirmed,
             "duplicate_score": round(duplicate_score, 3),
             "record_id": duplicate_row["id"],
             "duplicate_of": duplicate_row["id"],
-            "file_id": openai_file_id
+            "file_id": openai_file_id,
         }
 
     new_record = {
@@ -11392,10 +11649,10 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
         "issue": candidate["issue"],
         "solution": candidate["solution"],
         "approved_answer": candidate["solution"],
-        "question": question,
+        "question": safe_question,
         "keywords": candidate["keywords"],
-        "source_question": question,
-        "source_answer": answer,
+        "source_question": safe_question,
+        "source_answer": safe_answer,
         "source_conversation_id": st.session_state.get("conversation_id"),
         "confidence_score": candidate["confidence_score"],
         "times_seen": 1,
@@ -11404,13 +11661,19 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
         "vector_store_id": vector_store_id,
         "synced": False,
         "embedding_status": "pending",
+        "source_type": source_type,
+        "staff_confirmed": bool(staff_confirmed),
         "created_at": now_iso(),
-        "updated_at": now_iso()
+        "updated_at": now_iso(),
     }
 
-    openai_file_id = upload_learned_record_to_vector_store(new_record, vector_store_id)
+    openai_file_id = upload_learned_record_to_vector_store(
+        new_record,
+        vector_store_id,
+    )
     new_record["openai_file_id"] = openai_file_id
     new_record["synced"] = True
+    new_record["embedding_status"] = "synced"
 
     result = safe_insert_row("learned_knowledge", new_record)
     if not result.data:
@@ -11419,8 +11682,9 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
     return {
         "learned": True,
         "mode": "created",
+        "staff_confirmed": staff_confirmed,
         "record_id": result.data[0]["id"],
-        "file_id": openai_file_id
+        "file_id": openai_file_id,
     }
 
 
@@ -15032,8 +15296,15 @@ else:
                 )
                 if learning_result and learning_result.get("learned"):
                     mode = learning_result.get("mode", "saved")
+                    if learning_result.get("staff_confirmed"):
+                        toast_message = (
+                            f"Confirmed staff solution learned ({mode})."
+                        )
+                    else:
+                        toast_message = f"AI learned from this case ({mode})."
+
                     st.toast(
-                        f"AI learned from this case ({mode}).",
+                        toast_message,
                         icon="🧠",
                     )
             except Exception as e:
