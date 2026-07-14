@@ -16828,8 +16828,7 @@ def apply_marketing_tools_form_css():
          * rendered. Desktop styling and every non-Marketing workspace remain
          * unchanged.
          */
-        @media screen and (max-width: 1366px) and (hover: none),
-               screen and (max-width: 1366px) and (pointer: coarse) {
+        @media screen and (max-width: 1366px) {
             /*
              * Marketing mode selector outside the form, plus every selectbox
              * and multiselect inside the currently rendered Marketing form.
@@ -16837,17 +16836,22 @@ def apply_marketing_tools_form_css():
              * Safari, so cover the combobox, value container and descendants.
              */
             /*
-             * Use Streamlit's stable widget test ID instead of its generated key
-             * class. The generated key class is not consistently exposed by
-             * deployed mobile builds, which left the closed Marketing Mode value
-             * dark even though the open menu and form controls were correct.
+             * Scope the closed Marketing Mode value through a dedicated keyed
+             * container. This avoids relying on generated selectbox key classes,
+             * which are not consistently exposed by mobile Safari/Streamlit.
              */
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"],
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"]
             [data-baseweb="select"] [role="combobox"],
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"] span,
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"] p,
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"]
             [data-baseweb="select"] *:not(svg):not(path),
             div[data-testid="stForm"] [data-baseweb="select"],
@@ -16864,7 +16868,9 @@ def apply_marketing_tools_form_css():
              * Closed select values may be drawn through an input or a nested
              * div rather than a span, depending on the Streamlit/BaseWeb build.
              */
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"] input,
+            div[class*="st-key-marketing_mode_control"]
             div[data-testid="stSelectbox"] [data-baseweb="select"] div,
             div[data-testid="stForm"] [data-baseweb="select"] input,
             div[data-testid="stForm"] [data-baseweb="select"] div {
@@ -17147,14 +17153,15 @@ def render_marketing_tools_panel():
     """
     apply_marketing_tools_form_css()
 
-    selected_label = st.selectbox(
-        "Marketing mode",
-        options=list(MARKETING_TOOL_OPTIONS),
-        key="marketing_tool_mode",
-        help=(
-            "Choose a structured Marketing tool or keep the normal Marketing chat."
-        ),
-    )
+    with st.container(key="marketing_mode_control"):
+        selected_label = st.selectbox(
+            "Marketing mode",
+            options=list(MARKETING_TOOL_OPTIONS),
+            key="marketing_tool_mode",
+            help=(
+                "Choose a structured Marketing tool or keep the normal Marketing chat."
+            ),
+        )
     selected_tool = MARKETING_TOOL_OPTIONS[selected_label]
 
     if selected_tool == "chat":
