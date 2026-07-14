@@ -15814,18 +15814,57 @@ def install_knowledge_submission_css():
             box-sizing: border-box !important;
         }
 
+        /* Knowledge Submission textareas: one clean focus border only.
+           The BaseWeb wrapper owns the border; the inner textarea stays
+           borderless so the global textarea focus rule cannot create a
+           second overlapping orange outline. */
         div[class*="st-key-knowledge_structured_fields"]
-        textarea {
+        div[data-baseweb="textarea"] {
+            border: 1px solid #334155 !important;
+            border-radius: 11px !important;
+            box-shadow: none !important;
+            outline: none !important;
+            overflow: hidden !important;
+            background-color: rgba(15, 23, 42, 0.96) !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        div[data-baseweb="textarea"]:focus-within {
+            border-color: var(--atp-red) !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea,
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea:focus,
+        div[class*="st-key-knowledge_structured_fields"]
+        textarea:focus-visible {
             min-height: 138px !important;
             max-height: 520px !important;
             overflow-y: auto !important;
+            overflow-x: hidden !important;
             resize: vertical !important;
+            border: none !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+            outline: none !important;
+            background-color: transparent !important;
         }
 
-        /* Keep the browser resize handle visible and usable in dark mode. */
+        /* Small visible diagonal resize grip in the bottom-right corner.
+           Chromium/Safari render this pseudo-element while preserving the
+           textarea's native vertical resize behavior and scrollbar. */
         div[class*="st-key-knowledge_structured_fields"]
         textarea::-webkit-resizer {
-            background-color: transparent;
+            background-color: transparent !important;
+            background-image:
+                linear-gradient(135deg, transparent 0 56%, #94a3b8 57% 64%, transparent 65%),
+                linear-gradient(135deg, transparent 0 70%, #94a3b8 71% 78%, transparent 79%) !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-size: 12px 12px !important;
         }
 
         .knowledge-status-card {
