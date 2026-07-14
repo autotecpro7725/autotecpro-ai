@@ -51,6 +51,7 @@ client = OpenAI(api_key=api_key)
 
 TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
+MARKETING_VECTOR_STORE_ID = "vs_6a55b9a2d1008191aa045f745fb489df"
 
 st.set_page_config(
     page_title="AutoTecPro AI",
@@ -934,10 +935,11 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
     )
     normalized = re.sub(r"\s+", " ", str(active_value)).strip().lower()
 
-    if "technical support" in normalized:
-        return "technical"
-
-    if "sales & marketing" in normalized or "sales and marketing" in normalized:
+    if normalized in {
+        "sales",
+        "sales & marketing",
+        "sales and marketing",
+    }:
         return "sales"
 
     return ""
@@ -8453,7 +8455,8 @@ st.sidebar.markdown(
 
 workspace_items = [
     ("technical", "🔧", "Technical Support"),
-    ("sales", "📈", "Sales & Marketing"),
+    ("sales", "📈", "Sales"),
+    ("marketing", "📣", "Marketing"),
     ("graphic", "🎨", "Graphic Marketing"),
     ("knowledge", "🧠", "Knowledge Submission"),
 ]
@@ -10660,26 +10663,6 @@ def get_instructions(selected_assistant):
 You are AutoTecPro Technical Support AI.
 
 Always search the Technical Support Vector Store first.
-
-The AutoTecPro application may also provide a verified WooCommerce REST API
-order result for Technical Support.
-
-When WooCommerce data is provided:
-- Treat it as the authoritative live order record.
-- Clearly identify the order number and current WooCommerce order status.
-- Show customer, shipping, product, SKU, quantity, shipping method, customer
-  note, order notes, and customer-selected product configuration options.
-- Product options may include vehicle year, original SYNC version, climate
-  control, drive side, hardware version, DVR choice, and dashboard picture.
-- Use the purchased product, SKU, and selected options to guide the Technical
-  Support Vector Store search.
-- Never show or infer product price, subtotal, order total, tax, shipping cost,
-  discounts, coupons, payment method, transaction details, or refund amount.
-- Do not claim shipped, delivered, paid, or refunded unless supplied live data
-  supports it.
-- Never create, modify, cancel, refund, or delete an order.
-- Mention WooCommerce REST API as the order-data source.
-
 Use previous messages as context.
 
 Answer in this order when useful:
@@ -10696,36 +10679,58 @@ If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
 """
 
-    if selected_assistant == "📈 Sales & Marketing":
+    if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}:
         return """
-You are AutoTecPro Sales & Marketing AI.
+You are AutoTecPro Sales AI.
 
-Always search the Sales & Marketing Vector Store before answering questions
-about AutoTecPro products, policies, compatibility, sales, marketing, dealer
-communications, customer replies, listings, promotions, warranty, and returns.
+Always search the AutoTecPro Sales Vector Store before answering questions
+about products, policies, compatibility, dealer communications, customer
+replies, quotations, promotions, warranty, returns, refunds, shipping, and
+live WooCommerce order inquiries.
 
 The AutoTecPro application may provide a verified WooCommerce REST API result.
 
 When WooCommerce data is provided:
 - Treat it as the authoritative live order record.
 - Clearly identify the order number and current order status.
-- Summarize purchased products, quantities, customer-selected product options, totals, shipping, and payment data.
-- Use customer details only when needed to answer the staff member's question.
+- Summarize purchased products, quantities, selected product options, totals,
+  shipping, and payment data when relevant.
+- Use customer details only when needed.
 - Do not invent missing order information.
-- Do not claim an order was shipped, delivered, refunded, or paid unless the
-  supplied WooCommerce data supports it.
+- Do not claim shipped, delivered, refunded, or paid unless the supplied live
+  data supports it.
 - Never expose API credentials, authentication information, customer IP
   addresses, or unnecessary internal metadata.
 - Never create, modify, cancel, refund, or delete an order.
 - If multiple orders match, provide a concise comparison.
-- If no order is found, say no matching WooCommerce order was returned.
+- If no order is found, say so clearly.
 - Mention WooCommerce REST API as the source.
 
-Help with product recommendations, compatibility, specifications,
-dealer messages, customer replies, Amazon listings, website copy,
-social media, promotions, warranty, return policy, and live order inquiries.
-
 Never invent pricing, order details, or compatibility.
+Do not output HTML or code-fence formatting.
+"""
+
+    if selected_assistant == "📣 Marketing":
+        return """
+You are AutoTecPro Marketing AI.
+
+Always search both the AutoTecPro Marketing Vector Store and the AutoTecPro
+Sales Vector Store.
+
+Use Marketing knowledge for brand voice, campaigns, SEO, advertising,
+listings, social media, product launches, and creative direction.
+Use Sales knowledge for accurate product facts, approved warranty language,
+promotions, dealer information, pricing rules, and customer-facing policies.
+
+Do not access or request live WooCommerce customer or order data.
+Do not expose customer information.
+Never invent product specifications, pricing, compatibility, promotions,
+warranty terms, or policies.
+
+Help with Amazon listings, website copy, SEO, Google Ads, Facebook and
+Instagram content, email campaigns, blogs, dealer campaigns, video scripts,
+product launches, and promotional materials.
+
 Do not output HTML or code-fence formatting.
 """
 
@@ -10733,12 +10738,10 @@ Do not output HTML or code-fence formatting.
 You are AutoTecPro Graphic Marketing AI.
 
 Analyze uploaded images when provided.
-
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
 Do not output HTML or code-fence formatting.
 """
-
 
 
 def get_live_context():
@@ -10884,16 +10887,27 @@ def ask_ai(prompt_text, uploaded_files):
             0,
             {
                 "type": "file_search",
-                "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID]
-            }
+                "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
+            },
         )
-    elif assistant == "📈 Sales & Marketing":
+    elif assistant in {"📈 Sales", "📈 Sales & Marketing"}:
         tools.insert(
             0,
             {
                 "type": "file_search",
-                "vector_store_ids": [SALES_VECTOR_STORE_ID]
-            }
+                "vector_store_ids": [SALES_VECTOR_STORE_ID],
+            },
+        )
+    elif assistant == "📣 Marketing":
+        tools.insert(
+            0,
+            {
+                "type": "file_search",
+                "vector_store_ids": [
+                    MARKETING_VECTOR_STORE_ID,
+                    SALES_VECTOR_STORE_ID,
+                ],
+            },
         )
 
     response = client.responses.create(
@@ -11011,8 +11025,10 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # ============================================================
 
 def get_learning_vector_store_id(selected_assistant):
-    if selected_assistant == "📈 Sales & Marketing":
+    if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}:
         return SALES_VECTOR_STORE_ID
+    if selected_assistant == "📣 Marketing":
+        return MARKETING_VECTOR_STORE_ID
     return TECHNICAL_VECTOR_STORE_ID
 
 
@@ -12142,9 +12158,25 @@ def render_metric_row(metrics):
 def clean_assistant_label(assistant_name):
     """Normalize assistant labels so history works even when labels include emoji."""
     value = str(assistant_name or "")
-    for icon in ["🔧", "📈", "🎨", "⚙️", "⚙"]:
+    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "⚙️", "⚙"]:
         value = value.replace(icon, "")
     return value.strip()
+
+
+def normalize_workspace_assistant_name(assistant_name):
+    """Map legacy saved workspace labels to current workspace names."""
+    cleaned = clean_assistant_label(assistant_name)
+    mapping = {
+        "Sales & Marketing": "📈 Sales",
+        "Sales and Marketing": "📈 Sales",
+        "Sales": "📈 Sales",
+        "Marketing": "📣 Marketing",
+        "Technical Support": "🔧 Technical Support",
+        "Graphic Marketing": "🎨 Graphic Marketing",
+        "Knowledge Submission": "🧠 Knowledge Submission",
+        "Admin Panel": "⚙️ Admin Panel",
+    }
+    return mapping.get(cleaned, str(assistant_name or "").strip())
 
 
 def conversation_title_from_text(text):
@@ -14341,11 +14373,11 @@ def render_learn_from_website(database_choice):
             reviewed_content.encode("utf-8")
         ).hexdigest()
 
-        selected_vector_store_id = (
-            TECHNICAL_VECTOR_STORE_ID
-            if database_choice == "Technical Support Database"
-            else SALES_VECTOR_STORE_ID
-        )
+        selected_vector_store_id = {
+            "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
+            "Sales Database": SALES_VECTOR_STORE_ID,
+            "Marketing Database": MARKETING_VECTOR_STORE_ID,
+        }[database_choice]
 
         filename = website_knowledge_filename(reviewed_extraction)
 
@@ -14471,7 +14503,8 @@ def render_admin_upload_knowledge_tab():
         "Choose database",
         [
             "Technical Support Database",
-            "Sales & Marketing Database"
+            "Sales Database",
+            "Marketing Database",
         ],
         key="stable_admin_database_choice"
     )
@@ -14517,11 +14550,11 @@ def render_admin_upload_knowledge_tab():
         if not admin_files:
             st.warning("Please upload at least one document or image.")
         else:
-            selected_vector_store_id = (
-                TECHNICAL_VECTOR_STORE_ID
-                if database_choice == "Technical Support Database"
-                else SALES_VECTOR_STORE_ID
-            )
+            selected_vector_store_id = {
+                "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
+                "Sales Database": SALES_VECTOR_STORE_ID,
+                "Marketing Database": MARKETING_VECTOR_STORE_ID,
+            }[database_choice]
 
             progress = st.progress(0)
             total_files = len(admin_files)
@@ -14603,7 +14636,7 @@ KNOWLEDGE_SUBMISSION_TYPES = [
 def knowledge_submission_destination(knowledge_type):
     """Map a simple staff choice to the correct live knowledge database."""
     if str(knowledge_type or "") == "sales_knowledge":
-        return "📈 Sales & Marketing", SALES_VECTOR_STORE_ID
+        return "📈 Sales", SALES_VECTOR_STORE_ID
     return "🔧 Technical Support", TECHNICAL_VECTOR_STORE_ID
 
 
@@ -15084,8 +15117,8 @@ def save_knowledge_submission(
                 knowledge_file, _ = convert_admin_image_to_knowledge_file(
                     uploaded_file,
                     (
-                        "Sales & Marketing Database"
-                        if selected_assistant == "📈 Sales & Marketing"
+                        "Sales Database"
+                        if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}
                         else "Technical Support Database"
                     ),
                     admin_context=combined_description,
@@ -15635,8 +15668,8 @@ def render_knowledge_submission_workspace():
         st.caption(
             "Destination: "
             + (
-                "Sales & Marketing Database"
-                if destination_label == "📈 Sales & Marketing"
+                "Sales Database"
+                if destination_label == "📈 Sales"
                 else "Technical Support Database"
             )
         )
