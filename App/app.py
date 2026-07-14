@@ -5550,6 +5550,70 @@ def inject_base_css():
         }
 
 
+        /* ============================================================
+           MOBILE DARK-MODE FORM TEXT FIX
+           Scoped only to Admin user controls and Knowledge Submission.
+           This overrides iOS Safari's native dark text inheritance.
+        ============================================================ */
+        @media (max-width: 768px) {
+            /* Admin: Username and Password fields */
+            div[class*="st-key-stable_admin_username"] input,
+            div[class*="st-key-stable_admin_password"] input {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            div[class*="st-key-stable_admin_username"] input::placeholder,
+            div[class*="st-key-stable_admin_password"] input::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+            /* Admin: selected Role value and opened dropdown options */
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] > div,
+            div[class*="st-key-stable_admin_role"]
+            div[data-baseweb="select"] span,
+            div[data-baseweb="popover"] ul[role="listbox"] li,
+            div[data-baseweb="popover"] ul[role="listbox"] li span {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            /* Knowledge Submission: Subject, Issue, and Solution */
+            div[class*="st-key-knowledge_structured_fields"] input,
+            div[class*="st-key-knowledge_structured_fields"] textarea {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                opacity: 1 !important;
+            }
+
+            div[class*="st-key-knowledge_structured_fields"] input::placeholder,
+            div[class*="st-key-knowledge_structured_fields"] textarea::placeholder {
+                color: #94a3b8 !important;
+                -webkit-text-fill-color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+            /* iOS Safari autofill can otherwise force dark text. */
+            div[class*="st-key-stable_admin_username"]
+            input:-webkit-autofill,
+            div[class*="st-key-stable_admin_password"]
+            input:-webkit-autofill,
+            div[class*="st-key-knowledge_structured_fields"]
+            input:-webkit-autofill {
+                -webkit-text-fill-color: #f8fafc !important;
+                caret-color: #f87171 !important;
+                transition: background-color 9999s ease-out 0s !important;
+            }
+        }
+
+
         /* Final guard: never show accidental code artifact boxes in assistant replies */
         .assistant-bubble pre,
         .assistant-bubble code {
