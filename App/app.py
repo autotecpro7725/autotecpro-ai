@@ -9438,6 +9438,12 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_marketing"]
+    .stButton > button::before {
+        content: "📢";
+    }
+
+    section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_graphic"]
     .stButton > button::before {
         content: "🎨";
