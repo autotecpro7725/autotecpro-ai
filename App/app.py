@@ -14549,16 +14549,36 @@ def is_pending_knowledge_row(row):
         return False
 
     keywords = str(row.get("keywords") or "")
-    source_type = str(row.get("source_type") or "")
-    embedding_status = str(row.get("embedding_status") or "").lower()
+    source_type = str(row.get("source_type") or "").strip().lower()
+    embedding_status = str(
+        row.get("embedding_status") or ""
+    ).strip().lower()
+
+    # Staff submissions are stored with typed markers such as:
+    # [PENDING_KNOWLEDGE:technical_solution]
+    # [PENDING_KNOWLEDGE:sales_knowledge]
+    # Also accept the older untyped marker for backward compatibility.
+    pending_keyword_marker = bool(
+        re.search(
+            r"\[PENDING_KNOWLEDGE(?::[a-z0-9_\-]+)?\]",
+            keywords,
+            flags=re.IGNORECASE,
+        )
+    )
+
+    pending_source_type = source_type.startswith(
+        "pending_knowledge_submission:"
+    )
+
+    pending_status = (
+        embedding_status == "pending_review"
+        and not bool(row.get("synced"))
+    )
 
     return (
-        PENDING_KNOWLEDGE_PREFIX in keywords
-        or source_type.startswith("pending_knowledge_submission:")
-        or (
-            embedding_status == "pending_review"
-            and not bool(row.get("synced"))
-        )
+        pending_keyword_marker
+        or pending_source_type
+        or pending_status
     )
 
 
