@@ -11302,6 +11302,45 @@ def process_pending_graphic_regeneration():
     return True
 
 
+def remove_technical_pricing(text):
+    """
+    Remove monetary values and price-focused lines from Technical Support output.
+
+    This is a final safety layer in addition to the Technical Support prompt and
+    restricted WooCommerce order sanitization. Product/model numbers such as
+    14.4, 15.6, 17.2, 8GB, and 128GB are preserved.
+    """
+    value = str(text or "")
+    if not value:
+        return value
+
+    money_patterns = [
+        r"(?i)(?:CAD|USD|C\$|US\$)\s*\$?\s*\d[\d,]*(?:\.\d{1,2})?",
+        r"(?i)\$\s*\d[\d,]*(?:\.\d{1,2})?",
+        r"(?i)\d[\d,]*(?:\.\d{1,2})?\s*(?:CAD|USD)\b",
+    ]
+    for pattern in money_patterns:
+        value = re.sub(pattern, "[price omitted]", value)
+
+    price_terms = re.compile(
+        r"(?i)\b(?:price|pricing|cost|subtotal|total price|sale price|"
+        r"regular price|retail price|wholesale price|amount due)\b"
+    )
+
+    cleaned_lines = []
+    for line in value.splitlines():
+        if price_terms.search(line) and (
+            "[price omitted]" in line
+            or re.search(r"(?i)(?:CAD|USD|C\$|US\$|\$)", line)
+        ):
+            continue
+        cleaned_lines.append(line)
+
+    value = "\n".join(cleaned_lines)
+    value = re.sub(r"(?:\n\s*){3,}", "\n\n", value).strip()
+    return value
+
+
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -11318,10 +11357,20 @@ When WooCommerce data is provided:
 - Use it to identify the purchased product, SKU, quantity, selected options,
   vehicle details, order date, order status, customer note, shipping details,
   and order notes when relevant.
-- Do not expose or discuss financial fields that are not provided.
+- Never display or discuss prices, costs, totals, payment amounts, discounts,
+  taxes, shipping charges, refund amounts, or any other commercial values.
+- If asked for pricing, direct the user to the Sales workspace or an authorized
+  AutoTecPro sales representative without quoting any amount.
 - Do not invent missing order or product information.
 - Never create, modify, cancel, refund, or delete an order.
 - Mention WooCommerce REST API as the source when relevant.
+
+For every Technical Support response:
+- Do not display any price, currency value, dollar amount, cost, subtotal,
+  total, discount, tax, fee, or refund amount.
+- Ignore any pricing found in Technical Support documents or earlier messages.
+- Focus only on compatibility, installation, configuration, troubleshooting,
+  product identification, warranty procedure, and technical next steps.
 
 Answer in this order when useful:
 1. Vehicle Identification
@@ -17620,6 +17669,8 @@ else:
                 response_start_time = time.time()
                 answer = ask_ai(prompt, effective_uploaded_files)
                 answer = clean_visible_chat_text(answer)
+                if assistant == "🔧 Technical Support":
+                    answer = remove_technical_pricing(answer)
                 response_time = round(time.time() - response_start_time, 2)
                 tokens_used = None
 
@@ -17640,25 +17691,26 @@ else:
             "content": assistant_content_to_save
         })
 
-        try:
-            save_message(
-                st.session_state.conversation_id,
-                "assistant",
-                assistant_content_to_save,
-            )
-        except Exception as e:
-            st.warning(f"AI answer was not saved to history: {e}")
+        if history_is_enabled():
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "assistant",
+                    assistant_content_to_save,
+                )
+            except Exception as e:
+                st.warning(f"AI answer was not saved to history: {e}")
 
-        # Generate a concise ChatGPT-style title after the first completed answer.
-        if len([
-            item for item in st.session_state.messages
-            if item.get("role") == "user"
-        ]) == 1:
-            update_conversation_ai_title(
-                st.session_state.conversation_id,
-                prompt,
-                answer,
-            )
+            # Generate a concise ChatGPT-style title only for persistent chats.
+            if len([
+                item for item in st.session_state.messages
+                if item.get("role") == "user"
+            ]) == 1:
+                update_conversation_ai_title(
+                    st.session_state.conversation_id,
+                    prompt,
+                    answer,
+                )
 
         # Customer order lookups must not enter continuous learning or
         # detailed analytics because they may contain private customer data.
