@@ -943,7 +943,14 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
     return ""
 
 
+@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
 def detect_live_request(prompt, selected_assistant=None):
+    """
+    Classify one prompt once and reuse the result across the interaction.
+
+    This function is deterministic and performs no network or database work,
+    making short-lived caching safe.
+    """
     value = str(prompt or "").strip()
     lower = value.lower()
 
@@ -1126,8 +1133,16 @@ def detect_live_request(prompt, selected_assistant=None):
     return {"type": "none"}
 
 
-def get_live_data_for_prompt(prompt, selected_assistant=None):
-    request_type = detect_live_request(prompt, selected_assistant)
+def get_live_data_for_prompt(
+    prompt,
+    selected_assistant=None,
+    request_type=None,
+):
+    request_type = (
+        request_type
+        if isinstance(request_type, dict)
+        else detect_live_request(prompt, selected_assistant)
+    )
     kind = request_type.get("type")
     access_level = request_type.get("access_level", "sales")
 
@@ -10658,8 +10673,15 @@ def build_user_input(prompt_text, uploaded_files):
         }
     ]
 
-    detected_live_request = detect_live_request(prompt_text, assistant)
-    live_data = get_live_data_for_prompt(prompt_text, assistant)
+    detected_live_request = detect_live_request(
+        prompt_text,
+        assistant,
+    )
+    live_data = get_live_data_for_prompt(
+        prompt_text,
+        assistant,
+        request_type=detected_live_request,
+    )
 
     if str(detected_live_request.get("type") or "").startswith("woocommerce_") and live_data is None:
         live_data = {
@@ -11575,13 +11597,20 @@ def auto_learn_from_latest_answer(question, answer, selected_assistant):
             "reason": "Graphic Marketing image-generation chats are not learned.",
         }
 
-    live_request = detect_live_request(question, selected_assistant)
-    if str(live_request.get("type") or "").startswith("woocommerce_"):
+    live_request = detect_live_request(
+        question,
+        selected_assistant,
+    )
+    live_request_type = str(
+        live_request.get("type") or "none"
+    ).strip().lower()
+
+    if live_request_type != "none":
         return {
             "learned": False,
             "reason": (
-                "WooCommerce order inquiries are excluded from automatic "
-                "learning to protect customer information."
+                "Live-data requests are excluded from automatic learning "
+                "to avoid storing temporary, changing, or private data."
             ),
         }
 
@@ -12067,6 +12096,16 @@ def generate_ai_conversation_title(first_message, assistant_answer=""):
     if not user_text:
         return "New Case"
 
+    fallback_title = conversation_title_from_text(user_text)
+    live_type = str(
+        detect_live_request(user_text, None).get("type") or "none"
+    ).strip().lower()
+
+    # Short prompts and live lookups already produce reliable deterministic
+    # titles, so avoid a separate OpenAI request for these common cases.
+    if live_type != "none" or len(user_text.split()) <= 10:
+        return fallback_title
+
     try:
         response = client.responses.create(
             model="gpt-5.5",
@@ -12105,9 +12144,22 @@ def generate_ai_conversation_title(first_message, assistant_answer=""):
     return conversation_title_from_text(user_text)
 
 
-def update_conversation_ai_title(conversation_id, first_message, assistant_answer=""):
+def update_conversation_ai_title(
+    conversation_id,
+    first_message,
+    assistant_answer="",
+):
     """Generate and store an AI title once the first answer is complete."""
     if not conversation_id:
+        return
+
+    generated_ids = st.session_state.setdefault(
+        "ai_title_generated_conversation_ids",
+        set(),
+    )
+    conversation_key = str(conversation_id)
+
+    if conversation_key in generated_ids:
         return
 
     try:
@@ -12140,6 +12192,7 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
             normalized_message[:40].strip(),
         }
         if current_title and current_title not in legacy_titles:
+            generated_ids.add(conversation_key)
             return
 
         ai_title = generate_ai_conversation_title(
@@ -12153,6 +12206,9 @@ def update_conversation_ai_title(conversation_id, first_message, assistant_answe
             "title": ai_title,
             "updated_at": now_iso(),
         }).eq("id", conversation_id).execute()
+
+        generated_ids.add(conversation_key)
+        invalidate_history_cache()
     except Exception:
         # Title generation must never interrupt the conversation.
         pass
@@ -12349,11 +12405,20 @@ def create_conversation(username, assistant_name, first_message=None):
     if not result.data:
         raise RuntimeError("Conversation was not created. Supabase returned no data.")
 
-    return result.data[0]["id"]
+    conversation_id = result.data[0]["id"]
+    invalidate_history_cache()
+    return conversation_id
 
 
-def save_message(conversation_id, role, content):
-    """Save one chat message into Supabase."""
+def save_message(
+    conversation_id,
+    role,
+    content,
+    touch_conversation=None,
+):
+    """
+    Save one message and touch the conversation once at assistant completion.
+    """
     if not conversation_id:
         raise RuntimeError("Missing conversation_id. Message was not saved.")
 
@@ -12361,94 +12426,118 @@ def save_message(conversation_id, role, content):
         "conversation_id": conversation_id,
         "role": role,
         "content": content,
-        "created_at": now_iso()
+        "created_at": now_iso(),
     }).execute()
 
-    supabase.table("conversations").update({
-        "updated_at": now_iso()
-    }).eq("id", conversation_id).execute()
+    should_touch = (
+        str(role or "").strip().lower() == "assistant"
+        if touch_conversation is None
+        else bool(touch_conversation)
+    )
+
+    if should_touch:
+        supabase.table("conversations").update({
+            "updated_at": now_iso(),
+        }).eq("id", conversation_id).execute()
+
+    invalidate_history_cache()
+
+def _load_conversations_cached(username):
+    """Load lightweight sidebar conversation summaries."""
+    username = str(username or "").strip()
+    if not username:
+        return []
+
+    selected_columns = (
+        "id,username,assistant,title,archived,pinned,"
+        "created_at,updated_at"
+    )
+
+    pinned_result = (
+        supabase
+        .table("conversations")
+        .select(selected_columns)
+        .eq("username", username)
+        .eq("pinned", True)
+        .or_("archived.is.null,archived.eq.false")
+        .order("updated_at", desc=True)
+        .limit(1000)
+        .execute()
+    )
+
+    normal_result = (
+        supabase
+        .table("conversations")
+        .select(selected_columns)
+        .eq("username", username)
+        .or_("archived.is.null,archived.eq.false")
+        .or_("pinned.is.null,pinned.eq.false")
+        .order("updated_at", desc=True)
+        .limit(MAX_UNPINNED_CONVERSATIONS_PER_USER)
+        .execute()
+    )
+
+    pinned_rows = list(pinned_result.data or [])
+    normal_rows = list(normal_result.data or [])
+    pinned_ids = {
+        str(row.get("id"))
+        for row in pinned_rows
+        if row.get("id") is not None
+    }
+
+    return pinned_rows + [
+        row for row in normal_rows
+        if str(row.get("id")) not in pinned_ids
+    ]
 
 
-def load_messages(conversation_id):
-    """Load all messages for a selected conversation."""
+@st.cache_data(ttl=30, max_entries=256, show_spinner=False)
+def _load_messages_cached(conversation_id):
+    """Load selected-conversation messages with a short cache."""
     if not conversation_id:
         return []
 
     result = (
         supabase
         .table("messages")
-        .select("*")
+        .select("role,content,created_at")
         .eq("conversation_id", conversation_id)
         .order("created_at")
         .execute()
     )
 
     return [
-        {"role": item.get("role", "assistant"), "content": item.get("content", "")}
+        {
+            "role": item.get("role", "assistant"),
+            "content": item.get("content", ""),
+        }
         for item in (result.data or [])
     ]
 
 
+def invalidate_history_cache():
+    """Clear only history-related caches after a mutation."""
+    for cached_function in (
+        _load_conversations_cached,
+        _load_messages_cached,
+    ):
+        try:
+            cached_function.clear()
+        except Exception:
+            pass
+
+
+def load_messages(conversation_id):
+    """Load messages for the selected conversation through a short cache."""
+    return list(_load_messages_cached(conversation_id))
+
 def load_conversations(username, role=None):
     """
-    Load active conversation history for the signed-in user only.
+    Load active sidebar summaries for the signed-in user.
 
-    Pinned conversations are unlimited and shown first. The newest 100
-    unpinned conversations are shown below them. Assistant type does not
-    restrict history visibility.
+    Full messages remain lazy and are fetched only when a conversation opens.
     """
-    username = str(username or "").strip()
-    if not username:
-        return []
-
-    result = (
-        supabase
-        .table("conversations")
-        .select("*")
-        .eq("username", username)
-        .order("updated_at", desc=True)
-        .limit(1000)
-        .execute()
-    )
-
-    rows = list(result.data or [])
-
-    def is_active(row):
-        value = row.get("archived")
-        return not (value is True or str(value).lower() == "true")
-
-    active_rows = [row for row in rows if is_active(row)]
-
-    pinned_rows = sorted(
-        [
-            row
-            for row in active_rows
-            if bool(row.get("pinned", False))
-        ],
-        key=lambda row: str(
-            row.get("updated_at")
-            or row.get("created_at")
-            or ""
-        ),
-        reverse=True,
-    )
-
-    normal_rows = sorted(
-        [
-            row
-            for row in active_rows
-            if not bool(row.get("pinned", False))
-        ],
-        key=lambda row: str(
-            row.get("updated_at")
-            or row.get("created_at")
-            or ""
-        ),
-        reverse=True,
-    )[:MAX_UNPINNED_CONVERSATIONS_PER_USER]
-
-    return pinned_rows + normal_rows
-
+    return list(_load_conversations_cached(str(username or "").strip()))
 
 def archive_conversation(conversation_id):
     if conversation_id:
@@ -12456,6 +12545,7 @@ def archive_conversation(conversation_id):
             "archived": True,
             "updated_at": now_iso()
         }).eq("id", conversation_id).execute()
+        invalidate_history_cache()
 
 
 def delete_conversation(conversation_id):
@@ -12466,6 +12556,7 @@ def delete_conversation(conversation_id):
     # The messages table should also delete by cascade, but this makes it explicit.
     supabase.table("messages").delete().eq("conversation_id", conversation_id).execute()
     supabase.table("conversations").delete().eq("id", conversation_id).execute()
+    invalidate_history_cache()
 
 
 def toggle_pin_conversation(conversation_id, pinned):
@@ -12477,6 +12568,7 @@ def toggle_pin_conversation(conversation_id, pinned):
         "pinned": bool(pinned),
         "updated_at": now_iso()
     }).eq("id", conversation_id).execute()
+    invalidate_history_cache()
 
 
 def format_history_date(value):
@@ -13380,10 +13472,8 @@ if assistant not in {
             st.session_state.role
         )
 
-        storage_count = get_conversation_storage_count(
-            st.session_state.username,
-            st.session_state.role,
-        )
+        # Avoid a second Supabase count request on every rerun.
+        storage_count = len(conversations)
         st.sidebar.markdown(
             (
                 '<div class="history-storage-card">'
@@ -13409,6 +13499,7 @@ if assistant not in {
                 help="Refresh conversations",
                 use_container_width=True,
             ):
+                invalidate_history_cache()
                 st.rerun()
 
         with search_col:
@@ -16529,8 +16620,12 @@ else:
 
         # Customer order lookups must not enter continuous learning or
         # detailed analytics because they may contain private customer data.
+        detected_request = detect_live_request(
+            prompt,
+            assistant,
+        )
         live_request_type = str(
-            detect_live_request(prompt, assistant).get("type") or ""
+            detected_request.get("type") or ""
         )
         is_woocommerce_request = live_request_type.startswith("woocommerce_")
 
