@@ -17306,11 +17306,16 @@ def render_marketing_tools_panel():
                 [
                     "Product Listing",
                     "Website Copy",
+                    "Amazon Listing",
                     "Social Media Post",
+                    "Facebook Marketplace",
+                    "Instagram Post",
+                    "YouTube Video Title",
+                    "YouTube Description",
+                    "Google Ad",
                     "Email Campaign",
                     "Dealer Communication",
                     "Advertisement",
-                    "Blog / Article",
                     "Other",
                 ],
             )
