@@ -3,10 +3,10 @@ import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 from openai import OpenAI
 from pathlib import Path
-from pdf_generator import (
-    create_pdf_document_record,
+from document_generator import (
+    create_document_record,
+    detect_document_generation_request,
     extract_documents_from_message_content,
-    is_pdf_document_generation_request,
     serialize_documents_marker,
 )
 try:
@@ -11192,35 +11192,50 @@ def _document_download_key(document, message_index, document_index):
 
 def render_chat_document_cards(documents, message_index=None):
     """
-    Render ChatGPT-style downloadable file cards.
-
-    The scoped CSS keeps the icon, filename, metadata, and download label
-    vertically aligned on desktop and mobile without affecting other buttons.
+    Render ChatGPT-style downloadable file cards for PDF, Word, PowerPoint,
+    Excel, and CSV files. CSS is scoped to each card so existing UI is untouched.
     """
     for document_index, document in enumerate(documents or []):
         data_url = str(document.get("data_url") or "")
-        if not data_url.startswith("data:application/pdf;base64,"):
+        if not data_url.startswith("data:") or ";base64," not in data_url:
             continue
 
         try:
-            pdf_bytes = base64.b64decode(data_url.split(",", 1)[1])
+            file_bytes = base64.b64decode(data_url.split(",", 1)[1])
         except Exception:
             continue
-        if not pdf_bytes:
+        if not file_bytes:
             continue
 
         filename = Path(
-            str(document.get("name") or "AutoTecPro_AI_Document.pdf")
+            str(document.get("name") or "AutoTecPro_AI_Document")
         ).name
-        page_count = int(document.get("page_count") or 0)
+        mime_type = str(
+            document.get("mime_type")
+            or data_url[5:].split(";", 1)[0]
+            or "application/octet-stream"
+        )
+        format_label = str(document.get("format_label") or "Document")
+        icon = str(document.get("icon") or "📄")
         size_label = _human_file_size(
-            document.get("size_bytes") or len(pdf_bytes)
+            document.get("size_bytes") or len(file_bytes)
         )
-        page_label = (
-            f"{page_count} Page" if page_count == 1
-            else f"{page_count} Pages" if page_count > 1
-            else "PDF Document"
-        )
+
+        try:
+            unit_count = int(
+                document.get("unit_count")
+                or document.get("page_count")
+                or 0
+            )
+        except (TypeError, ValueError):
+            unit_count = 0
+        unit_label = str(document.get("unit_label") or "").strip()
+        if unit_count > 0 and unit_label:
+            singular = unit_label[:-1] if unit_count == 1 and unit_label.endswith("s") else unit_label
+            count_label = f"{unit_count} {singular}"
+        else:
+            count_label = f"{format_label} Document"
+
         key = _document_download_key(
             document,
             message_index,
@@ -11232,11 +11247,11 @@ def render_chat_document_cards(documents, message_index=None):
             st.markdown(
                 f"""
                 <div class="atp-document-card-header">
-                    <div class="atp-document-icon" aria-hidden="true">📄</div>
+                    <div class="atp-document-icon" aria-hidden="true">{html.escape(icon)}</div>
                     <div class="atp-document-details">
                         <div class="atp-document-name">{html.escape(filename)}</div>
                         <div class="atp-document-meta">
-                            PDF • {html.escape(page_label)} • {html.escape(size_label)}
+                            {html.escape(format_label)} • {html.escape(count_label)} • {html.escape(size_label)}
                         </div>
                     </div>
                 </div>
@@ -11255,27 +11270,19 @@ def render_chat_document_cards(documents, message_index=None):
                     background: rgba(15,23,42,.72) !important;
                     box-shadow: none !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stVerticalBlock"] {{
+                div[class*="st-key-{container_key}"] div[data-testid="stVerticalBlock"] {{
                     gap: 10px !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stElementContainer"] {{
+                div[class*="st-key-{container_key}"] div[data-testid="stElementContainer"] {{
                     margin: 0 !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                .atp-document-card-header {{
+                div[class*="st-key-{container_key}"] .atp-document-card-header {{
                     display: flex !important;
                     align-items: center !important;
                     gap: 12px !important;
                     min-width: 0 !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                .atp-document-icon {{
+                div[class*="st-key-{container_key}"] .atp-document-icon {{
                     width: 38px !important;
                     height: 38px !important;
                     min-width: 38px !important;
@@ -11287,15 +11294,11 @@ def render_chat_document_cards(documents, message_index=None):
                     border-radius: 8px !important;
                     background: rgba(51,65,85,.72) !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                .atp-document-details {{
+                div[class*="st-key-{container_key}"] .atp-document-details {{
                     min-width: 0 !important;
                     flex: 1 1 auto !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                .atp-document-name {{
+                div[class*="st-key-{container_key}"] .atp-document-name {{
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
                     font-size: 14px !important;
@@ -11305,30 +11308,22 @@ def render_chat_document_cards(documents, message_index=None):
                     overflow: hidden !important;
                     text-overflow: ellipsis !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                .atp-document-meta {{
+                div[class*="st-key-{container_key}"] .atp-document-meta {{
                     margin-top: 3px !important;
                     color: #94a3b8 !important;
                     -webkit-text-fill-color: #94a3b8 !important;
                     font-size: 12px !important;
                     line-height: 1.3 !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stDownloadButton"],
-                div[class*="st-key-{container_key}"]
-                .stDownloadButton {{
+                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"],
+                div[class*="st-key-{container_key}"] .stDownloadButton {{
                     width: 100% !important;
                     margin: 0 !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stDownloadButton"] > button,
-                div[class*="st-key-{container_key}"]
-                .stDownloadButton > button {{
+                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button,
+                div[class*="st-key-{container_key}"] .stDownloadButton > button {{
                     width: 100% !important;
-                    min-height: 40px !important;
+                    min-height: 42px !important;
                     margin: 0 !important;
                     padding: 0 14px !important;
                     border: 1px solid rgba(148,163,184,.26) !important;
@@ -11336,7 +11331,7 @@ def render_chat_document_cards(documents, message_index=None):
                     background: rgba(30,41,59,.72) !important;
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
-                    display: inline-flex !important;
+                    display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
                     gap: 8px !important;
@@ -11346,19 +11341,12 @@ def render_chat_document_cards(documents, message_index=None):
                     text-align: center !important;
                     box-shadow: none !important;
                 }}
-
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stDownloadButton"] > button > div,
-                div[class*="st-key-{container_key}"]
-                .stDownloadButton > button > div,
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stDownloadButton"] > button p,
-                div[class*="st-key-{container_key}"]
-                .stDownloadButton > button p,
-                div[class*="st-key-{container_key}"]
-                div[data-testid="stDownloadButton"] > button span,
-                div[class*="st-key-{container_key}"]
-                .stDownloadButton > button span {{
+                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button > div,
+                div[class*="st-key-{container_key}"] .stDownloadButton > button > div,
+                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button p,
+                div[class*="st-key-{container_key}"] .stDownloadButton > button p,
+                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button span,
+                div[class*="st-key-{container_key}"] .stDownloadButton > button span {{
                     margin: 0 !important;
                     padding: 0 !important;
                     min-height: 0 !important;
@@ -11369,7 +11357,6 @@ def render_chat_document_cards(documents, message_index=None):
                     gap: 8px !important;
                     text-align: center !important;
                 }}
-
                 @media (max-width: 768px) {{
                     div[class*="st-key-{container_key}"] {{
                         width: 100% !important;
@@ -11377,14 +11364,10 @@ def render_chat_document_cards(documents, message_index=None):
                         margin: 8px 0 14px 0 !important;
                         padding: 12px !important;
                     }}
-
-                    div[class*="st-key-{container_key}"]
-                    .atp-document-name {{
+                    div[class*="st-key-{container_key}"] .atp-document-name {{
                         font-size: 13px !important;
                     }}
-
-                    div[class*="st-key-{container_key}"]
-                    .atp-document-meta {{
+                    div[class*="st-key-{container_key}"] .atp-document-meta {{
                         font-size: 11px !important;
                     }}
                 }}
@@ -11395,9 +11378,9 @@ def render_chat_document_cards(documents, message_index=None):
 
             button_kwargs = {
                 "label": "↓ Download",
-                "data": pdf_bytes,
+                "data": file_bytes,
                 "file_name": filename,
-                "mime": "application/pdf",
+                "mime": mime_type,
                 "key": key,
                 "use_container_width": True,
                 "type": "secondary",
@@ -20337,8 +20320,17 @@ else:
 
         generated_images = []
         generated_documents = []
-        document_generation_requested = is_pdf_document_generation_request(
+        document_generation_request = detect_document_generation_request(
             prompt
+        )
+        document_generation_requested = bool(
+            document_generation_request
+            and assistant in {
+                "🔧 Technical Support",
+                "📈 Sales",
+                "📈 Sales & Marketing",
+                "📣 Marketing",
+            }
         )
         detected_request = detect_live_request(prompt, assistant)
         has_uploaded_images = any(
@@ -20401,17 +20393,18 @@ else:
         if document_generation_requested and not is_graphic_generation:
             try:
                 generated_documents = [
-                    create_pdf_document_record(
+                    create_document_record(
                         prompt,
                         answer,
+                        format_name=document_generation_request.get("format"),
                         visible_text_cleaner=clean_visible_chat_text,
                     )
                 ]
             except Exception as document_error:
                 generated_documents = []
                 st.warning(
-                    "The response was generated, but the PDF could not be "
-                    f"created: {document_error}"
+                    "The response was generated, but the downloadable "
+                    f"document could not be created: {document_error}"
                 )
 
         assistant_content_to_save = (

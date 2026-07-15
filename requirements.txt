@@ -6,3 +6,6 @@ pillow
 python-dotenv
 requests>=2.31.0
 streamlit-cookies-controller==0.0.4
+python-docx
+python-pptx
+openpyxl
