@@ -479,7 +479,10 @@ def _sanitize_woocommerce_item_metadata(metadata, technical_view=False):
             else entry.get("value")
         )
 
-        label = _friendly_woocommerce_meta_label(raw_label)
+        # Preserve the exact visible WooCommerce order-page label.
+        label = _clean_woocommerce_meta_text(raw_label).strip(" :-")
+        if not label:
+            label = "Product Option"
         value = _clean_woocommerce_meta_text(raw_value)
 
         if not value:
@@ -1487,6 +1490,42 @@ def extract_tracking_number(prompt):
     return ""
 
 
+
+def _normalized_workspace_name(selected_assistant=None):
+    """Return a clean current or legacy workspace label."""
+    active_value = (
+        selected_assistant
+        or st.session_state.get("current_assistant")
+        or ""
+    )
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        str(active_value),
+    ).strip().lower()
+    return re.sub(r"^[^a-z0-9]+", "", normalized).strip()
+
+
+def is_sales_workspace(selected_assistant=None):
+    """
+    Return True for the current Sales workspace.
+
+    The combined legacy label is accepted only so old saved conversations still
+    open correctly after Sales and Marketing were separated.
+    """
+    return _normalized_workspace_name(selected_assistant) in {
+        "sales",
+        "sales & marketing",
+        "sales and marketing",
+    }
+
+
+def is_marketing_workspace(selected_assistant=None):
+    """Return True only for the current Marketing workspace."""
+    return _normalized_workspace_name(selected_assistant) == "marketing"
+
+
+
 def _woocommerce_access_level_for_assistant(selected_assistant=None):
     """
     Resolve WooCommerce access from the active workspace defensively.
@@ -1497,29 +1536,21 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
     if not user_can_use_feature("woocommerce"):
         return ""
 
-    active_value = (
+    normalized = _normalized_workspace_name(
         selected_assistant
-        or st.session_state.get("current_assistant")
-        or ""
     )
-    normalized = re.sub(r"\s+", " ", str(active_value)).strip().lower()
-
-    # Remove the workspace emoji defensively so both the visible sidebar label
-    # and restored/plain conversation labels resolve consistently.
-    normalized = re.sub(r"^[^a-z0-9]+", "", normalized).strip()
 
     if normalized == "technical support":
         # Technical Support gets the restricted support view with financial
         # fields removed where possible.
         return "technical"
 
-    if normalized in {
-        "sales",
-        "marketing",
-        "sales & marketing",
-        "sales and marketing",
-    }:
-        # Sales and Marketing use the full commercial read-only view.
+    if (
+        is_sales_workspace(selected_assistant)
+        or is_marketing_workspace(selected_assistant)
+    ):
+        # Sales and Marketing are separate current workspaces. Both retain the
+        # full commercial, read-only WooCommerce view.
         return "sales"
 
     return ""
@@ -1956,7 +1987,6 @@ ACTIVE TOOL: AI Marketing Consultant
     return ""
 
 
-@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
 def detect_live_request(prompt, selected_assistant=None):
     """
     Classify one prompt once and reuse the result across the interaction.
@@ -2064,6 +2094,26 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
+        # Natural order-status wording:
+        #   What's the status of 41831?
+        #   What is the current status for order 41831?
+        #   Check status #41831
+        #   Status of 41831
+        status_order_match = re.search(
+            r"\b(?:what(?:'s|\s+is)?|check|show|tell\s+me)?\s*"
+            r"(?:the\s+)?(?:current\s+)?(?:order\s+)?"
+            r"status\s*(?:of|for)?\s*(?:order\s*)?#?\s*"
+            r"(\d{3,12})\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if status_order_match:
+            return {
+                "type": "woocommerce_order",
+                "order_number": status_order_match.group(1),
+                "access_level": access_level,
+            }
+
         # Supports all of these:
         #   Show order #42693
         #   Show #42693
@@ -2093,9 +2143,10 @@ def detect_live_request(prompt, selected_assistant=None):
         #   42560 CarPlay not working
         #   42560 backup camera issue
         #
-        # Only treat a leading 4-12 digit number as an order number inside
-        # Sales or Marketing. This avoids changing routing
-        # in Graphic Marketing, Admin, login, tracking, weather, or other areas.
+        # Treat a leading 4-12 digit number as an order number only in a
+        # WooCommerce-enabled Technical Support, Sales, or Marketing workspace.
+        # This avoids changing routing in Graphic Marketing, Admin, login,
+        # tracking, weather, or other areas.
         short_order_match = re.match(
             r"^\s*(\d{4,12})(?=\s|$)",
             value,
@@ -11200,6 +11251,8 @@ DOCUMENT_WORKSPACE_DEFAULTS = {
         "watermark": "",
         "style": "Professional",
     },
+    # Legacy compatibility for conversations saved before Sales and Marketing
+    # were separated. New sessions use either "📈 Sales" or "📣 Marketing".
     "📈 Sales & Marketing": {
         "format": "pdf",
         "include_logo": True,
@@ -13112,7 +13165,7 @@ If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
 """
 
-    if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}:
+    if is_sales_workspace(selected_assistant):
         return """
 You are AutoTecPro Sales AI.
 
@@ -13155,7 +13208,7 @@ Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
 """
 
-    if selected_assistant == "📣 Marketing":
+    if is_marketing_workspace(selected_assistant):
         return """
 You are AutoTecPro Marketing AI.
 
@@ -13249,33 +13302,257 @@ def get_live_context():
 
 
 @st.cache_data(ttl=300, max_entries=1024, show_spinner=False)
+def detect_response_mode(
+    prompt_text,
+    selected_assistant,
+    document_request=None,
+    technical_routing=None,
+    workspace_routing=None,
+):
+    """
+    Select response completeness from intent, never from prompt length.
+
+    Technical and document workflows always keep their complete structures.
+    A concise response is used only when the staff member explicitly requests it.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = value.lower()
+
+    document_request = (
+        document_request
+        if isinstance(document_request, dict)
+        else detect_document_generation_request(value)
+    )
+    technical_routing = (
+        technical_routing
+        if isinstance(technical_routing, dict)
+        else detect_technical_support_tool(value, selected_assistant)
+    )
+    workspace_routing = (
+        workspace_routing
+        if isinstance(workspace_routing, dict)
+        else detect_workspace_ai_tool(value, selected_assistant)
+    )
+
+    if document_request:
+        return {
+            "type": "document",
+            "label": "Complete Document",
+        }
+
+    if str(technical_routing.get("type") or "none") != "none":
+        return {
+            "type": "technical_expert",
+            "label": "Technical Expert",
+        }
+
+    if str(workspace_routing.get("type") or "none") != "none":
+        return {
+            "type": "structured_workspace",
+            "label": "Structured Workspace",
+        }
+
+    explicit_concise_patterns = (
+        r"\bshort reply\b",
+        r"\bbrief reply\b",
+        r"\bmake (?:it|this) concise\b",
+        r"\bkeep (?:it|this) concise\b",
+        r"\bone sentence\b",
+        r"\btwo sentences\b",
+        r"\bin (?:one|two) lines?\b",
+        r"\banswer briefly\b",
+        r"\bconcise answer\b",
+        r"\bshort answer\b",
+        r"\bonly translate\b",
+        r"\btranslation only\b",
+        r"\bonly correct (?:the )?grammar\b",
+        r"\bgrammar only\b",
+    )
+    if any(re.search(pattern, lower) for pattern in explicit_concise_patterns):
+        return {
+            "type": "explicit_concise",
+            "label": "Explicit Concise",
+        }
+
+    reply_completion_terms = (
+        "reply customer",
+        "reply to customer",
+        "respond to customer",
+        "customer reply",
+        "customer-facing reply",
+        "customer facing reply",
+        "tell him",
+        "tell her",
+        "tell the customer",
+        "send him",
+        "send her",
+        "write back",
+        "how to reply",
+        "how should i reply",
+        "make this professional",
+        "complete the reply",
+        "complete this reply",
+    )
+    if any(term in lower for term in reply_completion_terms):
+        return {
+            "type": "professional_reply",
+            "label": "Professional Reply",
+        }
+
+    return {
+        "type": "complete_standard",
+        "label": "Complete Standard",
+    }
+
+
+@st.cache_data(ttl=300, max_entries=2048, show_spinner=False)
+def should_use_workspace_file_search(
+    prompt_text,
+    selected_assistant,
+    detected_live_request=None,
+    detected_technical_tool=None,
+    detected_workspace_tool=None,
+    document_request=None,
+):
+    """
+    Skip vector retrieval only for clearly self-contained language tasks.
+
+    This is intentionally conservative: technical, compatibility, installation,
+    product, policy, pricing, order-assisted support, and structured workspace
+    requests continue using the appropriate AutoTecPro vector store.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = value.lower()
+    active = re.sub(
+        r"^[^a-z0-9]+",
+        "",
+        str(selected_assistant or "").strip().lower(),
+    ).strip()
+
+    technical_type = str(
+        (
+            detected_technical_tool
+            if isinstance(detected_technical_tool, dict)
+            else {}
+        ).get("type")
+        or "none"
+    ).strip().lower()
+    workspace_type = str(
+        (
+            detected_workspace_tool
+            if isinstance(detected_workspace_tool, dict)
+            else {}
+        ).get("type")
+        or "none"
+    ).strip().lower()
+    live_type = str(
+        (
+            detected_live_request
+            if isinstance(detected_live_request, dict)
+            else {}
+        ).get("type")
+        or "none"
+    ).strip().lower()
+
+    if technical_type != "none" or workspace_type != "none":
+        return True
+    if document_request:
+        return True
+    if live_type.startswith("woocommerce_"):
+        # Order-assisted support still needs internal facts when the prompt also
+        # contains a technical, product, policy, or compatibility request.
+        pass
+
+    knowledge_terms = (
+        "compatible", "compatibility", "fit", "fitment", "which model",
+        "which unit", "which screen", "which harness", "sku", "part number",
+        "installation", "install", "wiring", "wire", "connector", "pinout",
+        "no audio", "no sound", "no power", "black screen", "camera",
+        "carplay", "android auto", "bluetooth", "microphone", "mic",
+        "climate", "a/c", "ac system", "canbus", "can bus", "steering wheel",
+        "troubleshoot", "diagnose", "not working", "doesn't work",
+        "does not work", "issue", "problem", "warranty", "return", "refund",
+        "shipping policy", "dealer", "promotion", "price", "pricing",
+        "specification", "specifications", "product", "model", "order #",
+    )
+    if any(term in lower for term in knowledge_terms):
+        return True
+
+    self_contained_language_patterns = (
+        r"^\s*(?:please\s+)?translate\b",
+        r"^\s*(?:please\s+)?rewrite\b",
+        r"^\s*(?:please\s+)?rephrase\b",
+        r"^\s*(?:please\s+)?polish\b",
+        r"^\s*(?:please\s+)?proofread\b",
+        r"^\s*(?:please\s+)?correct (?:the )?grammar\b",
+        r"^\s*(?:please\s+)?fix (?:the )?grammar\b",
+        r"^\s*(?:please\s+)?improve (?:the )?(?:wording|grammar|sentence)\b",
+        r"^\s*(?:please\s+)?summarize (?:this|the following)\b",
+        r"^\s*(?:please\s+)?make this (?:more )?professional\b",
+    )
+    is_clear_language_task = any(
+        re.search(pattern, lower)
+        for pattern in self_contained_language_patterns
+    )
+
+    if is_clear_language_task:
+        return False
+
+    # Keep existing grounding by default in knowledge-centric workspaces.
+    return active in {
+        "technical support",
+        "sales",
+        "sales & marketing",
+        "marketing",
+    }
+
+
 def detect_prompt_execution_plan(
     prompt_text,
     selected_assistant,
     has_images=False,
 ):
     """
-    Run all deterministic prompt detectors once.
-
-    The result is reused by document routing, live integrations, Technical
-    Support tools, workspace tools, and the main AI request.
+    Run deterministic prompt detectors once and reuse the complete plan.
     """
+    document_request = detect_document_generation_request(prompt_text)
+    live_request = detect_live_request(
+        prompt_text,
+        selected_assistant,
+    )
+    technical_request = detect_technical_support_tool(
+        prompt_text,
+        selected_assistant,
+        has_images=bool(has_images),
+    )
+    workspace_request = detect_workspace_ai_tool(
+        prompt_text,
+        selected_assistant,
+        has_images=bool(has_images),
+    )
+    response_mode = detect_response_mode(
+        prompt_text,
+        selected_assistant,
+        document_request=document_request,
+        technical_routing=technical_request,
+        workspace_routing=workspace_request,
+    )
+    use_file_search = should_use_workspace_file_search(
+        prompt_text,
+        selected_assistant,
+        detected_live_request=live_request,
+        detected_technical_tool=technical_request,
+        detected_workspace_tool=workspace_request,
+        document_request=document_request,
+    )
+
     return {
-        "document": detect_document_generation_request(prompt_text),
-        "live": detect_live_request(
-            prompt_text,
-            selected_assistant,
-        ),
-        "technical": detect_technical_support_tool(
-            prompt_text,
-            selected_assistant,
-            has_images=bool(has_images),
-        ),
-        "workspace": detect_workspace_ai_tool(
-            prompt_text,
-            selected_assistant,
-            has_images=bool(has_images),
-        ),
+        "document": document_request,
+        "live": live_request,
+        "technical": technical_request,
+        "workspace": workspace_request,
+        "response_mode": response_mode,
+        "use_file_search": bool(use_file_search),
     }
 
 
@@ -13397,17 +13674,259 @@ def upload_openai_file_once(uploaded_file):
 
 
 
+
+_LIVE_DATA_UNSET = object()
+
+
+def _woocommerce_orders_from_live_data(live_data):
+    """Return sanitized order records from any WooCommerce router result."""
+    if not isinstance(live_data, dict):
+        return []
+
+    direct_order = live_data.get("order")
+    if isinstance(direct_order, dict) and direct_order:
+        return [direct_order]
+
+    return [
+        order for order in (live_data.get("orders") or [])
+        if isinstance(order, dict) and order
+    ]
+
+
+def _woocommerce_person_text(person):
+    """Format only values actually supplied by WooCommerce."""
+    if not isinstance(person, dict):
+        return []
+
+    lines = []
+    full_name = " ".join(
+        str(person.get(key) or "").strip()
+        for key in ("first_name", "last_name")
+        if str(person.get(key) or "").strip()
+    ).strip()
+    if full_name:
+        lines.append(("Name", full_name))
+
+    field_labels = (
+        ("company", "Company"),
+        ("address_1", "Address"),
+        ("address_2", "Address 2"),
+        ("city", "City"),
+        ("state", "Province / State"),
+        ("postcode", "Postal / ZIP Code"),
+        ("country", "Country"),
+        ("email", "Email"),
+        ("phone", "Phone"),
+    )
+    for key, label in field_labels:
+        value = _clean_woocommerce_meta_text(person.get(key))
+        if value:
+            lines.append((label, value))
+    return lines
+
+
+def build_woocommerce_order_display_text(live_data, technical_view=False):
+    """
+    Build a persistent order section from exact sanitized WooCommerce values.
+
+    Product names, SKUs, option labels, option values, shipping methods, notes,
+    status, dates, and permitted customer fields are not rewritten or inferred.
+    """
+    orders = _woocommerce_orders_from_live_data(live_data)
+    if not orders:
+        return ""
+
+    blocks = []
+    for order in orders:
+        order_number = _clean_woocommerce_meta_text(
+            order.get("number") or order.get("id")
+        )
+        heading = "WooCommerce Order Information"
+        if order_number:
+            heading += f" — Order #{order_number}"
+        lines = [f"## {heading}"]
+
+        summary_fields = (
+            ("Status", order.get("status")),
+            ("Date Created", order.get("date_created")),
+            ("Date Modified", order.get("date_modified")),
+            ("Date Paid", order.get("date_paid")),
+            ("Date Completed", order.get("date_completed")),
+            ("Customer Note", order.get("customer_note")),
+        )
+        for label, raw_value in summary_fields:
+            value = _clean_woocommerce_meta_text(raw_value)
+            if value:
+                lines.append(f"**{label}:** {value}")
+
+        billing_lines = _woocommerce_person_text(order.get("billing"))
+        if billing_lines:
+            lines.append("\n### Billing / Customer Information")
+            for label, value in billing_lines:
+                lines.append(f"**{label}:** {value}")
+
+        shipping_lines_person = _woocommerce_person_text(order.get("shipping"))
+        if shipping_lines_person:
+            lines.append("\n### Shipping Information")
+            for label, value in shipping_lines_person:
+                lines.append(f"**{label}:** {value}")
+
+        for item_index, item in enumerate(order.get("line_items") or [], start=1):
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                "\n### Purchased Item"
+                + (f" {item_index}" if len(order.get("line_items") or []) > 1 else "")
+            )
+            item_fields = (
+                ("Product", item.get("name")),
+                ("SKU", item.get("sku")),
+                ("Quantity", item.get("quantity")),
+            )
+            for label, raw_value in item_fields:
+                value = _clean_woocommerce_meta_text(raw_value)
+                if value:
+                    lines.append(f"**{label}:** {value}")
+
+            for option in item.get("selected_options") or []:
+                if not isinstance(option, dict):
+                    continue
+                label = _clean_woocommerce_meta_text(option.get("label"))
+                value = _clean_woocommerce_meta_text(option.get("value"))
+                if label and value:
+                    lines.append(f"**{label}:** {value}")
+
+            if not technical_view:
+                commercial_fields = (
+                    ("Subtotal", item.get("subtotal")),
+                    ("Item Total", item.get("total")),
+                    ("Item Tax", item.get("tax")),
+                )
+                for label, raw_value in commercial_fields:
+                    value = _clean_woocommerce_meta_text(raw_value)
+                    if value:
+                        lines.append(f"**{label}:** {value}")
+
+        methods = []
+        for shipping_line in order.get("shipping_lines") or []:
+            if not isinstance(shipping_line, dict):
+                continue
+            method = _clean_woocommerce_meta_text(
+                shipping_line.get("method_title")
+            )
+            if method:
+                methods.append(method)
+        if methods:
+            lines.append("\n### Shipping Method")
+            lines.extend(f"- {method}" for method in methods)
+
+        if not technical_view:
+            commercial_order_fields = (
+                ("Currency", order.get("currency")),
+                ("Payment Method", order.get("payment_method_title")),
+                ("Shipping Total", order.get("shipping_total")),
+                ("Discount Total", order.get("discount_total")),
+                ("Total Tax", order.get("total_tax")),
+                ("Order Total", order.get("total")),
+            )
+            commercial_values = []
+            for label, raw_value in commercial_order_fields:
+                value = _clean_woocommerce_meta_text(raw_value)
+                if value:
+                    commercial_values.append((label, value))
+            if commercial_values:
+                lines.append("\n### Commercial Information")
+                for label, value in commercial_values:
+                    lines.append(f"**{label}:** {value}")
+
+        blocks.append("\n\n".join(lines))
+
+    return "\n\n---\n\n".join(blocks)
+
+
+def build_response_mode_instruction(response_mode):
+    """Return completeness rules without shortening ordinary staff requests."""
+    mode = str(
+        (
+            response_mode
+            if isinstance(response_mode, dict)
+            else {}
+        ).get("type")
+        or "complete_standard"
+    ).strip().lower()
+
+    common = (
+        "\n\nRESPONSE COMPLETENESS — generated by the AutoTecPro application:\n"
+        "- Never decide response length from the number of words in the prompt.\n"
+        "- A short staff note may be an instruction to produce a complete, "
+        "professional customer-facing response.\n"
+        "- Preserve every active Technical Support, Sales, Marketing, document, "
+        "and specialized troubleshooting workflow.\n"
+    )
+    if mode == "explicit_concise":
+        return common + (
+            "- The staff member explicitly requested brevity. Follow the exact "
+            "requested limit without omitting essential safety or accuracy facts."
+        )
+    if mode == "professional_reply":
+        return common + (
+            "- Produce a polished, ready-to-send reply with an appropriate greeting, "
+            "clear explanation, next steps, and a natural professional closing.\n"
+            "- Expand the staff's short notes; do not merely repeat them."
+        )
+    if mode == "technical_expert":
+        return common + (
+            "- Produce the complete existing Technical Support troubleshooting flow.\n"
+            "- Include the customer-ready reply section when useful.\n"
+            "- Do not shorten because the issue description is brief."
+        )
+    if mode == "document":
+        return common + (
+            "- Produce the complete requested document content with all necessary "
+            "sections and details."
+        )
+    return common + (
+        "- Provide a complete, useful response. Be concise only when the staff member "
+        "explicitly asks for a short or limited-length answer."
+    )
+
+
+def _assistant_stream_html(visible_text):
+    """Render the active streaming response using the existing chat design."""
+    logo_base64 = get_logo_base64()
+    if logo_base64:
+        icon_html = (
+            f'<img src="data:image/png;base64,{logo_base64}" '
+            'alt="AutoTecPro AI">'
+        )
+    else:
+        icon_html = "AI"
+
+    return (
+        '<div class="chat-row">'
+        f'<div class="chat-icon assistant-icon">{icon_html}</div>'
+        '<div class="chat-bubble assistant-bubble">'
+        f'{html_from_text(visible_text)}'
+        '</div>'
+        '</div>'
+    )
+
+
+
 def build_user_input(
     prompt_text,
     uploaded_files,
     detected_live_request=None,
     detected_technical_tool=None,
     detected_workspace_tool=None,
+    response_mode=None,
+    live_data_override=_LIVE_DATA_UNSET,
+    order_displayed_by_app=False,
 ):
     content = [
         {
             "type": "input_text",
-            "text": build_live_context_text()
+            "text": build_live_context_text(),
         }
     ]
 
@@ -13416,33 +13935,53 @@ def build_user_input(
         if isinstance(detected_live_request, dict)
         else detect_live_request(prompt_text, assistant)
     )
-    live_data = get_live_data_for_prompt(
-        prompt_text,
-        assistant,
-        request_type=detected_live_request,
-    )
+    if live_data_override is _LIVE_DATA_UNSET:
+        live_data = get_live_data_for_prompt(
+            prompt_text,
+            assistant,
+            request_type=detected_live_request,
+        )
+    else:
+        live_data = live_data_override
 
-    if str(detected_live_request.get("type") or "").startswith("woocommerce_") and live_data is None:
+    if (
+        str(detected_live_request.get("type") or "").startswith("woocommerce_")
+        and live_data is None
+    ):
         live_data = {
             "source": "AutoTecPro WooCommerce router",
             "error": (
-                "A WooCommerce request was detected, but no live result was returned. "
-                "Do not provide a generic admin-lookup path; report this routing error."
+                "A WooCommerce request was detected, but no live result was "
+                "returned. Do not provide a generic admin-lookup path; report "
+                "this routing error."
             ),
             "detected_request": detected_live_request,
         }
 
     if live_data is not None:
+        live_instruction = (
+            "LIVE DATA RESULT — retrieved by the AutoTecPro application:\n"
+            + json.dumps(live_data, ensure_ascii=False, default=str)
+            + "\n\nUse this live result exactly as supplied. Mention its source. "
+              "Do not invent any missing fields, order status, payment status, "
+              "shipment status, refund status, customer detail, price, rate, "
+              "date, delivery estimate, or tracking event."
+        )
+        if (
+            order_displayed_by_app
+            and str(
+                detected_live_request.get("type") or ""
+            ).startswith("woocommerce_")
+        ):
+            live_instruction += (
+                "\n\nThe application has already displayed the exact WooCommerce "
+                "order information above your response. Do not repeat or rewrite "
+                "that order section. Begin with the requested analysis, Technical "
+                "Support flow, or customer reply."
+            )
         content.append({
             "type": "input_text",
-            "text": (
-                "LIVE DATA RESULT — retrieved by the AutoTecPro application:\n"
-                + json.dumps(live_data, ensure_ascii=False, default=str)
-                + "\n\nUse this live result exactly as supplied. Mention its source. "
-                  "Do not invent any missing fields, order status, payment status, "
-                  "shipment status, refund status, customer detail, price, "
-                  "rate, date, delivery estimate, or tracking event."
-            )
+            "text": live_instruction,
         })
 
     detected_technical_tool = (
@@ -13489,6 +14028,13 @@ def build_user_input(
             "text": workspace_tool_context,
         })
 
+    response_mode_instruction = build_response_mode_instruction(response_mode)
+    if response_mode_instruction:
+        content.append({
+            "type": "input_text",
+            "text": response_mode_instruction,
+        })
+
     memory_text = _build_recent_memory_text_cached(_recent_memory_rows(10))
     if memory_text:
         content.append({"type": "input_text", "text": memory_text})
@@ -13501,27 +14047,28 @@ def build_user_input(
             if uploaded_file.type.startswith("image/"):
                 content.append({
                     "type": "input_image",
-                    "image_url": image_to_data_url(uploaded_file)
+                    "image_url": image_to_data_url(uploaded_file),
                 })
             else:
-                uploaded_file_id = upload_openai_file_once(
-                    uploaded_file
-                )
-
+                uploaded_file_id = upload_openai_file_once(uploaded_file)
                 content.append({
                     "type": "input_file",
-                    "file_id": uploaded_file_id
+                    "file_id": uploaded_file_id,
                 })
 
     return [{"role": "user", "content": content}]
 
 
-def ask_ai(
+def _build_ai_request(
     prompt_text,
     uploaded_files,
     detected_live_request=None,
     detected_technical_tool=None,
     detected_workspace_tool=None,
+    response_mode=None,
+    use_file_search=True,
+    live_data_override=_LIVE_DATA_UNSET,
+    order_displayed_by_app=False,
 ):
     user_input = build_user_input(
         prompt_text,
@@ -13529,6 +14076,9 @@ def ask_ai(
         detected_live_request=detected_live_request,
         detected_technical_tool=detected_technical_tool,
         detected_workspace_tool=detected_workspace_tool,
+        response_mode=response_mode,
+        live_data_override=live_data_override,
+        order_displayed_by_app=order_displayed_by_app,
     )
     instructions = (
         get_instructions(assistant)
@@ -13536,19 +14086,19 @@ def ask_ai(
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
           "recent news, recalls, software updates, laws, specifications, or facts "
-          "that may have changed. Use file_search first for AutoTecPro internal "
-          "technical and sales knowledge. Always name the source of live data. "
+          "that may have changed. Use file_search for AutoTecPro internal "
+          "technical, product, policy, sales, or marketing facts when the "
+          "application enables it. Always name the source of live data. "
           "Never invent an order status, payment status, shipment status, refund "
-          "status, tracking event, exchange rate, weather condition, or "
-          "delivery estimate. When the user explicitly requests a PDF, manual, "
-          "guide, report, handbook, proposal, SOP, or training document, write "
-          "the complete document content in clean structured plain text or "
-          "Markdown. Do not claim that you created a downloadable file; the "
-          "AutoTecPro application will build the PDF locally from your response."
+          "status, tracking event, exchange rate, weather condition, or delivery "
+          "estimate. When the user explicitly requests a PDF, manual, guide, "
+          "report, handbook, proposal, SOP, or training document, write the "
+          "complete document content in clean structured plain text or Markdown. "
+          "Do not claim that you created a downloadable file; the AutoTecPro "
+          "application will build the file locally from your response."
     )
 
     tools = []
-
     live_request_type = str(
         (
             detected_live_request
@@ -13561,42 +14111,139 @@ def ask_ai(
     if live_request_type == "web":
         tools.append({"type": "web_search"})
 
-    if assistant == "🔧 Technical Support":
-        tools.insert(
-            0,
-            {
-                "type": "file_search",
-                "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
-            },
-        )
-    elif assistant in {"📈 Sales", "📈 Sales & Marketing"}:
-        tools.insert(
-            0,
-            {
-                "type": "file_search",
-                "vector_store_ids": [SALES_VECTOR_STORE_ID],
-            },
-        )
-    elif assistant == "📣 Marketing":
-        tools.insert(
-            0,
-            {
-                "type": "file_search",
-                "vector_store_ids": [
-                    MARKETING_VECTOR_STORE_ID,
-                    SALES_VECTOR_STORE_ID,
-                ],
-            },
-        )
+    if use_file_search:
+        if assistant == "🔧 Technical Support":
+            tools.insert(
+                0,
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
+                },
+            )
+        elif is_sales_workspace(assistant):
+            tools.insert(
+                0,
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [SALES_VECTOR_STORE_ID],
+                },
+            )
+        elif is_marketing_workspace(assistant):
+            tools.insert(
+                0,
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [
+                        MARKETING_VECTOR_STORE_ID,
+                        SALES_VECTOR_STORE_ID,
+                    ],
+                },
+            )
 
-    response = client.responses.create(
-        model="gpt-5.5",
-        instructions=instructions,
-        tools=tools,
-        input=user_input
+    request = {
+        "model": "gpt-5.5",
+        "instructions": instructions,
+        "input": user_input,
+    }
+    if tools:
+        request["tools"] = tools
+    return request
+
+
+def ask_ai_stream(
+    prompt_text,
+    uploaded_files,
+    detected_live_request=None,
+    detected_technical_tool=None,
+    detected_workspace_tool=None,
+    response_mode=None,
+    use_file_search=True,
+    live_data_override=_LIVE_DATA_UNSET,
+    order_displayed_by_app=False,
+):
+    """Yield Responses API text deltas, with a non-streaming compatibility fallback."""
+    request = _build_ai_request(
+        prompt_text,
+        uploaded_files,
+        detected_live_request=detected_live_request,
+        detected_technical_tool=detected_technical_tool,
+        detected_workspace_tool=detected_workspace_tool,
+        response_mode=response_mode,
+        use_file_search=use_file_search,
+        live_data_override=live_data_override,
+        order_displayed_by_app=order_displayed_by_app,
     )
 
-    return response.output_text
+    try:
+        stream = client.responses.create(
+            **request,
+            stream=True,
+        )
+        received_text = False
+        completed_text = ""
+        for event in stream:
+            event_type = str(getattr(event, "type", "") or "")
+            if event_type == "response.output_text.delta":
+                delta = str(getattr(event, "delta", "") or "")
+                if delta:
+                    received_text = True
+                    yield delta
+            elif event_type == "response.refusal.delta":
+                delta = str(getattr(event, "delta", "") or "")
+                if delta:
+                    received_text = True
+                    yield delta
+            elif event_type == "response.completed":
+                completed_response = getattr(event, "response", None)
+                completed_text = str(
+                    getattr(completed_response, "output_text", "") or ""
+                )
+            elif event_type == "error":
+                message = str(
+                    getattr(event, "message", "")
+                    or getattr(event, "error", "")
+                    or "OpenAI streaming request failed."
+                )
+                raise RuntimeError(message)
+
+        if not received_text and completed_text:
+            yield completed_text
+        return
+    except TypeError:
+        # Compatibility with an older OpenAI SDK that does not support stream.
+        pass
+
+    response = client.responses.create(**request)
+    fallback_text = str(getattr(response, "output_text", "") or "")
+    if fallback_text:
+        yield fallback_text
+
+
+def ask_ai(
+    prompt_text,
+    uploaded_files,
+    detected_live_request=None,
+    detected_technical_tool=None,
+    detected_workspace_tool=None,
+    response_mode=None,
+    use_file_search=True,
+    live_data_override=_LIVE_DATA_UNSET,
+    order_displayed_by_app=False,
+):
+    """Compatibility wrapper for non-streaming callers."""
+    return "".join(
+        ask_ai_stream(
+            prompt_text,
+            uploaded_files,
+            detected_live_request=detected_live_request,
+            detected_technical_tool=detected_technical_tool,
+            detected_workspace_tool=detected_workspace_tool,
+            response_mode=response_mode,
+            use_file_search=use_file_search,
+            live_data_override=live_data_override,
+            order_displayed_by_app=order_displayed_by_app,
+        )
+    )
 
 
 
@@ -13729,9 +14376,9 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # ============================================================
 
 def get_learning_vector_store_id(selected_assistant):
-    if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}:
+    if is_sales_workspace(selected_assistant):
         return SALES_VECTOR_STORE_ID
-    if selected_assistant == "📣 Marketing":
+    if is_marketing_workspace(selected_assistant):
         return MARKETING_VECTOR_STORE_ID
     return TECHNICAL_VECTOR_STORE_ID
 
@@ -14494,6 +15141,97 @@ def build_local_analytics_payload(question, answer, selected_assistant):
         "conversation_id": st.session_state.get("conversation_id"),
         "created_at": now_iso(),
     }
+
+
+
+
+def queue_ai_postprocess(
+    question,
+    answer,
+    selected_assistant,
+    detected_live_request,
+    response_time,
+    tokens_used,
+    is_graphic_generation=False,
+    is_structured_marketing_tool=False,
+    is_structured_graphic_tool=False,
+):
+    """Queue non-visible learning and analytics for the next Streamlit run."""
+    live_type = str(
+        (
+            detected_live_request
+            if isinstance(detected_live_request, dict)
+            else {}
+        ).get("type")
+        or ""
+    )
+    if live_type.startswith("woocommerce_"):
+        return
+
+    st.session_state["pending_ai_postprocess"] = {
+        "question": str(question or ""),
+        "answer": str(answer or ""),
+        "selected_assistant": str(selected_assistant or ""),
+        "detected_live_request": (
+            dict(detected_live_request)
+            if isinstance(detected_live_request, dict)
+            else {"type": "none"}
+        ),
+        "response_time": response_time,
+        "tokens_used": tokens_used,
+        "is_graphic_generation": bool(is_graphic_generation),
+        "is_structured_marketing_tool": bool(
+            is_structured_marketing_tool
+        ),
+        "is_structured_graphic_tool": bool(
+            is_structured_graphic_tool
+        ),
+    }
+
+
+def process_pending_ai_postprocess():
+    """
+    Process one queued maintenance job after the answer has already been saved
+    and displayed. Failures remain non-blocking.
+    """
+    job = st.session_state.pop("pending_ai_postprocess", None)
+    if not isinstance(job, dict):
+        return
+
+    learning_result = None
+    if (
+        not job.get("is_graphic_generation")
+        and not job.get("is_structured_marketing_tool")
+        and not job.get("is_structured_graphic_tool")
+    ):
+        try:
+            learning_result = auto_learn_from_latest_answer(
+                job.get("question"),
+                job.get("answer"),
+                job.get("selected_assistant"),
+                detected_live_request=job.get("detected_live_request"),
+            )
+            if learning_result and learning_result.get("learned"):
+                mode = learning_result.get("mode", "saved")
+                if learning_result.get("staff_confirmed"):
+                    message = f"Confirmed staff solution learned ({mode})."
+                else:
+                    message = f"AI learned from this case ({mode})."
+                st.toast(message, icon="🧠")
+        except Exception:
+            learning_result = None
+
+    try:
+        log_ai_analytics(
+            job.get("question"),
+            job.get("answer"),
+            job.get("selected_assistant"),
+            learning_result,
+            response_time=job.get("response_time"),
+            tokens_used=job.get("tokens_used"),
+        )
+    except Exception:
+        pass
 
 
 
@@ -18301,7 +19039,7 @@ def save_knowledge_submission(
                     uploaded_file,
                     (
                         "Sales Database"
-                        if selected_assistant in {"📈 Sales", "📈 Sales & Marketing"}
+                        if is_sales_workspace(selected_assistant)
                         else "Technical Support Database"
                     ),
                     admin_context=combined_description,
@@ -21641,15 +22379,16 @@ else:
         detected_request = execution_plan["live"]
         detected_technical_tool = execution_plan["technical"]
         detected_workspace_tool = execution_plan["workspace"]
+        response_mode = execution_plan["response_mode"]
+        use_file_search = bool(execution_plan["use_file_search"])
 
         document_generation_requested = bool(
             document_generation_request
-            and assistant in {
-                "🔧 Technical Support",
-                "📈 Sales",
-                "📈 Sales & Marketing",
-                "📣 Marketing",
-            }
+            and (
+                assistant == "🔧 Technical Support"
+                or is_sales_workspace(assistant)
+                or is_marketing_workspace(assistant)
+            )
         )
         document_creator_settings = get_document_creator_settings(assistant)
         if document_generation_request:
@@ -21696,20 +22435,119 @@ else:
                 response_time = round(time.time() - response_start_time, 2)
                 tokens_used = None
             else:
-                with st.spinner("Searching AutoTecPro knowledge base..."):
-                    response_start_time = time.time()
-                    answer = ask_ai(
+                response_start_time = time.time()
+                live_request_type = str(
+                    detected_request.get("type") or ""
+                ).strip().lower()
+                preloaded_live_data = _LIVE_DATA_UNSET
+                order_display_text = ""
+
+                if live_request_type.startswith("woocommerce_"):
+                    with st.spinner("Loading WooCommerce order information..."):
+                        preloaded_live_data = get_live_data_for_prompt(
+                            prompt,
+                            assistant,
+                            request_type=detected_request,
+                        )
+                    order_display_text = build_woocommerce_order_display_text(
+                        preloaded_live_data,
+                        technical_view=(
+                            assistant == "🔧 Technical Support"
+                        ),
+                    )
+
+                stream_placeholder = st.empty()
+                streamed_answer = ""
+                last_stream_update = 0.0
+                analysis_heading = (
+                    "Technical Support"
+                    if assistant == "🔧 Technical Support"
+                    else "AI Analysis"
+                )
+
+                if order_display_text:
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(
+                            order_display_text
+                            + "\n\n---\n\n## "
+                            + analysis_heading
+                            + "\n\n*Generating response…*"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                try:
+                    for delta in ask_ai_stream(
                         prompt,
                         effective_uploaded_files,
                         detected_live_request=detected_request,
                         detected_technical_tool=detected_technical_tool,
                         detected_workspace_tool=detected_workspace_tool,
-                    )
-                    answer = clean_visible_chat_text(answer)
+                        response_mode=response_mode,
+                        use_file_search=use_file_search,
+                        live_data_override=preloaded_live_data,
+                        order_displayed_by_app=bool(order_display_text),
+                    ):
+                        streamed_answer += str(delta or "")
+                        visible_stream = streamed_answer
+                        if assistant == "🔧 Technical Support":
+                            visible_stream = remove_technical_pricing(
+                                visible_stream
+                            )
+
+                        combined_stream = visible_stream
+                        if order_display_text:
+                            combined_stream = (
+                                order_display_text
+                                + "\n\n---\n\n## "
+                                + analysis_heading
+                                + "\n\n"
+                                + visible_stream
+                            )
+
+                        now_value = time.monotonic()
+                        if (
+                            now_value - last_stream_update >= 0.05
+                            or str(delta or "").endswith(("\n", ".", ":", "?"))
+                        ):
+                            stream_placeholder.markdown(
+                                _assistant_stream_html(combined_stream),
+                                unsafe_allow_html=True,
+                            )
+                            last_stream_update = now_value
+
+                    answer_body = clean_visible_chat_text(streamed_answer)
                     if assistant == "🔧 Technical Support":
-                        answer = remove_technical_pricing(answer)
-                    response_time = round(time.time() - response_start_time, 2)
-                    tokens_used = None
+                        answer_body = remove_technical_pricing(answer_body)
+
+                    answer = answer_body
+                    if order_display_text:
+                        analysis_section = (
+                            "\n\n---\n\n## "
+                            + analysis_heading
+                            + "\n\n"
+                            if answer_body
+                            else ""
+                        )
+                        answer = (
+                            order_display_text
+                            + analysis_section
+                            + answer_body
+                        )
+
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    stream_placeholder.empty()
+                    raise
+
+                response_time = round(
+                    time.time() - response_start_time,
+                    2,
+                )
+                tokens_used = None
 
         if document_generation_requested and not is_graphic_generation:
             try:
@@ -21753,12 +22591,25 @@ else:
             + serialize_images_marker(generated_images)
         )
 
-        render_chat_message(
-            "assistant",
-            assistant_content_to_save,
-            generated_images,
-            message_index=len(st.session_state.messages),
-        )
+        # Streaming already rendered ordinary text responses.
+        if is_graphic_generation or conversation_export_requested:
+            render_chat_message(
+                "assistant",
+                assistant_content_to_save,
+                generated_images,
+                message_index=len(st.session_state.messages),
+            )
+        else:
+            if generated_documents:
+                render_chat_document_cards(
+                    generated_documents,
+                    message_index=len(st.session_state.messages),
+                )
+            if generated_images:
+                render_generated_image_actions(
+                    generated_images,
+                    message_index=len(st.session_state.messages),
+                )
 
         st.session_state.messages.append({
             "role": "assistant",
@@ -21787,7 +22638,7 @@ else:
                     detected_live_request=detected_request,
                 )
 
-        # Customer order lookups must not enter continuous learning or
+        # Customer order lookups remain excluded from continuous learning and
         # detailed analytics because they may contain private customer data.
         live_request_type = str(
             detected_request.get("type") or ""
@@ -21802,54 +22653,18 @@ else:
             and graphic_tool_request.get("prompt")
         )
 
-        # Continuous Learning:
-        # Automatically extracts reusable knowledge, detects duplicates,
-        # improves existing records, and syncs final knowledge to OpenAI Vector Store.
-        learning_result = None
-        if (
-            not is_graphic_generation
-            and not is_woocommerce_request
-            and not is_structured_marketing_tool
-            and not is_structured_graphic_tool
-        ):
-            try:
-                learning_result = auto_learn_from_latest_answer(
-                    interaction_prompt,
-                    answer,
-                    assistant,
-                    detected_live_request=detected_request,
-                )
-                if learning_result and learning_result.get("learned"):
-                    mode = learning_result.get("mode", "saved")
-                    if learning_result.get("staff_confirmed"):
-                        toast_message = (
-                            f"Confirmed staff solution learned ({mode})."
-                        )
-                    else:
-                        toast_message = f"AI learned from this case ({mode})."
-
-                    st.toast(
-                        toast_message,
-                        icon="🧠",
-                    )
-            except Exception as e:
-                st.caption(f"AI learning skipped: {e}")
-
-        # Analytics:
-        # Tracks most common vehicles, recurring issues, searched products,
-        # unanswered questions, confidence trend, and learning performance.
         if not is_woocommerce_request:
-            try:
-                log_ai_analytics(
-                    interaction_prompt,
-                    answer,
-                    assistant,
-                    learning_result,
-                    response_time=response_time,
-                    tokens_used=tokens_used,
-                )
-            except Exception:
-                pass
+            queue_ai_postprocess(
+                interaction_prompt,
+                answer,
+                assistant,
+                detected_request,
+                response_time,
+                tokens_used,
+                is_graphic_generation=is_graphic_generation,
+                is_structured_marketing_tool=is_structured_marketing_tool,
+                is_structured_graphic_tool=is_structured_graphic_tool,
+            )
 
         # Clear uploaded files after this message is completed.
         # The image remains saved inside this specific user message/history item,
@@ -21862,6 +22677,10 @@ else:
 
         st.session_state.scroll_to_bottom = True
         st.rerun()
+
+# Process learning and analytics only after the completed answer has already
+# been persisted and displayed on the previous run.
+process_pending_ai_postprocess()
 
 # ============================================================
 # FINAL HISTORY NAVIGATION OVERRIDE
