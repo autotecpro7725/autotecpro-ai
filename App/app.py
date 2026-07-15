@@ -11304,21 +11304,13 @@ def _document_widget_prefix(workspace):
     return f"document_widget_{digest}_"
 
 
-def _save_document_settings_from_widgets(
-    workspace,
+def _document_settings_from_widget_values(
     format_key,
     logo_key,
     company_key,
     watermark_key,
     style_key,
 ):
-    """
-    Save settings only after a user changes a document control.
-
-    Previous versions saved every historical card's widget values during every
-    rerun. An older card could therefore overwrite a newer selection and force
-    generation back to PDF or disable branding.
-    """
     format_labels = {
         "PDF": "pdf",
         "Word": "docx",
@@ -11326,22 +11318,24 @@ def _save_document_settings_from_widgets(
         "Excel": "xlsx",
         "CSV": "csv",
     }
-    selected_label = str(
-        st.session_state.get(format_key) or "PDF"
-    )
-    selected_style = str(
+    style_value = str(
         st.session_state.get(style_key) or "Professional"
     )
-    if selected_style not in {
+    if style_value not in {
         "Professional",
         "Minimal",
         "Presentation",
     }:
-        selected_style = "Professional"
+        style_value = "Professional"
 
-    updated = {
-        "format": format_labels.get(selected_label, "pdf"),
-        "include_logo": bool(st.session_state.get(logo_key, False)),
+    return {
+        "format": format_labels.get(
+            str(st.session_state.get(format_key) or "PDF"),
+            "pdf",
+        ),
+        "include_logo": bool(
+            st.session_state.get(logo_key, False)
+        ),
         "include_company_info": bool(
             st.session_state.get(company_key, False)
         ),
@@ -11350,29 +11344,35 @@ def _save_document_settings_from_widgets(
             if bool(st.session_state.get(watermark_key, False))
             else ""
         ),
-        "style": selected_style,
+        "style": style_value,
     }
-    save_document_creator_settings(updated, workspace)
 
-    # Keep every document card in this workspace visually synchronized. The
-    # callback runs before the next Streamlit render, so updating these widget
-    # values is safe and prevents stale historical cards from showing old data.
-    prefix = _document_widget_prefix(workspace)
-    suffix_values = {
-        "_format": selected_label,
-        "_logo": updated["include_logo"],
-        "_company": updated["include_company_info"],
-        "_watermark_enabled": bool(updated["watermark"]),
-        "_style": selected_style,
-    }
-    for existing_key in list(st.session_state.keys()):
-        key_text = str(existing_key)
-        if not key_text.startswith(prefix):
-            continue
-        for suffix, value in suffix_values.items():
-            if key_text.endswith(suffix):
-                st.session_state[existing_key] = value
-                break
+
+def _apply_document_settings(
+    workspace,
+    format_key,
+    logo_key,
+    company_key,
+    watermark_key,
+    style_key,
+):
+    """
+    Save all settings together only after Apply is clicked.
+
+    This replaces the previous change-by-change callback path and prevents
+    historical cards from unexpectedly overwriting the active workspace
+    settings during Streamlit reruns.
+    """
+    updated = _document_settings_from_widget_values(
+        format_key,
+        logo_key,
+        company_key,
+        watermark_key,
+        style_key,
+    )
+    save_document_creator_settings(updated, workspace)
+    st.session_state["document_settings_applied_at"] = time.time()
+    st.session_state["document_settings_force_collapse"] = True
 
 
 def render_document_settings_editor(container_key):
@@ -11382,13 +11382,6 @@ def render_document_settings_editor(container_key):
         or "Technical Support"
     )
     settings = get_document_creator_settings(active_workspace)
-    workspace_label = re.sub(
-        r"^[^A-Za-z0-9]+",
-        "",
-        active_workspace,
-    ).strip()
-    if workspace_label == "Sales & Marketing":
-        workspace_label = "Sales"
 
     format_labels = {
         "PDF": "pdf",
@@ -11410,51 +11403,50 @@ def render_document_settings_editor(container_key):
     company_key = f"{widget_prefix}_company"
     watermark_key = f"{widget_prefix}_watermark_enabled"
     style_key = f"{widget_prefix}_style"
-    callback_args = (
-        active_workspace,
-        format_key,
-        logo_key,
-        company_key,
-        watermark_key,
-        style_key,
+    apply_key = f"{widget_prefix}_apply"
+
+    force_collapse = bool(
+        st.session_state.pop(
+            "document_settings_force_collapse",
+            False,
+        )
     )
 
-    with st.expander("Change Settings", expanded=False):
+    with st.expander(
+        "Change Settings",
+        expanded=False if force_collapse else False,
+    ):
         st.caption(
-            "Customize the next generated document. "
-            "Changes apply when you request a new document."
+            "Customize the next regenerated document."
         )
         st.radio(
             "Format",
             list(format_labels),
             index=list(format_labels).index(
-                reverse_formats.get(settings["format"], "PDF")
+                reverse_formats.get(
+                    str(settings.get("format") or "pdf"),
+                    "PDF",
+                )
             ),
             horizontal=True,
             key=format_key,
-            on_change=_save_document_settings_from_widgets,
-            args=callback_args,
         )
         st.checkbox(
             "Include AutoTecPro Logo",
             value=bool(settings.get("include_logo")),
             key=logo_key,
-            on_change=_save_document_settings_from_widgets,
-            args=callback_args,
         )
         st.checkbox(
             "Include Company Information",
-            value=bool(settings.get("include_company_info")),
+            value=bool(
+                settings.get("include_company_info")
+            ),
             key=company_key,
-            on_change=_save_document_settings_from_widgets,
-            args=callback_args,
         )
         st.checkbox(
             "Confidential Watermark",
             value=bool(settings.get("watermark")),
             key=watermark_key,
-            on_change=_save_document_settings_from_widgets,
-            args=callback_args,
         )
         st.radio(
             "Style",
@@ -11474,10 +11466,23 @@ def render_document_settings_editor(container_key):
             ),
             horizontal=True,
             key=style_key,
-            on_change=_save_document_settings_from_widgets,
-            args=callback_args,
         )
-        st.caption(f"Using {workspace_label} defaults.")
+
+        if st.button(
+            "✓  Apply",
+            key=apply_key,
+            use_container_width=True,
+            type="secondary",
+        ):
+            _apply_document_settings(
+                active_workspace,
+                format_key,
+                logo_key,
+                company_key,
+                watermark_key,
+                style_key,
+            )
+            st.rerun()
 
 def _document_download_key(document, message_index, document_index):
     seed = (
@@ -11491,10 +11496,135 @@ def _document_download_key(document, message_index, document_index):
     ).hexdigest()[:20]
 
 
+def _document_regenerate_key(
+    document,
+    message_index,
+    document_index,
+):
+    seed = (
+        str(document.get("name") or "")
+        + str(document.get("created_at") or "")
+        + str(document.get("size_bytes") or "")
+        + str(message_index)
+        + str(document_index)
+    )
+    return "document_regenerate_" + hashlib.sha256(
+        seed.encode("utf-8")
+    ).hexdigest()[:20]
+
+
+def _queue_document_regeneration(
+    message_index,
+    document_index,
+):
+    st.session_state["pending_document_regeneration"] = {
+        "message_index": int(message_index or 0),
+        "document_index": int(document_index or 0),
+        "workspace": str(
+            st.session_state.get("current_assistant")
+            or assistant
+            or ""
+        ),
+    }
+
+
+def process_pending_document_regeneration():
+    """
+    Create a new document version from existing conversation content.
+
+    No OpenAI, vector-search, WooCommerce, or live-tool request is made. The
+    saved workspace settings are applied and the new document is appended as a
+    new assistant message, preserving the previous version.
+    """
+    pending = st.session_state.pop(
+        "pending_document_regeneration",
+        None,
+    )
+    if not isinstance(pending, dict):
+        return False
+
+    try:
+        message_index = int(pending.get("message_index") or 0)
+    except (TypeError, ValueError):
+        message_index = 0
+
+    source_messages = list(
+        st.session_state.get("messages") or []
+    )[:max(0, message_index)]
+    source_text = _conversation_document_text(
+        source_messages,
+        current_answer="",
+    )
+    if not source_text:
+        st.warning(
+            "The original conversation content is unavailable."
+        )
+        return False
+
+    workspace = str(
+        pending.get("workspace")
+        or st.session_state.get("current_assistant")
+        or assistant
+        or ""
+    )
+    settings = get_document_creator_settings(workspace)
+
+    try:
+        with st.spinner("Regenerating document..."):
+            regenerated = create_document_record(
+                "convert this conversation to a document",
+                source_text,
+                format_name=str(
+                    settings.get("format") or "pdf"
+                ).lower(),
+                visible_text_cleaner=clean_visible_chat_text,
+                options={
+                    **dict(settings),
+                    "logo_path": str(LOGO_FILE),
+                    "company_name": "AutoTecPro Inc.",
+                    "company_info": (
+                        "Markham, Ontario, Canada • "
+                        "www.AutoTecPro.com • info@autotecpro.com"
+                    ),
+                },
+            )
+            stored_content = (
+                "Your regenerated document is ready."
+                + serialize_documents_marker([regenerated])
+            )
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": stored_content,
+            })
+
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        stored_content,
+                    )
+                except Exception as history_error:
+                    st.warning(
+                        "The regenerated document was created, but "
+                        f"could not be saved to history: {history_error}"
+                    )
+    except Exception as error:
+        st.error(f"Document regeneration failed: {error}")
+        return False
+
+    st.session_state.scroll_to_bottom = True
+    st.rerun()
+    return True
+
+
 def render_chat_document_cards(documents, message_index=None):
     """
-    Render ChatGPT-style downloadable file cards for PDF, Word, PowerPoint,
-    Excel, and CSV files. CSS is scoped to each card so existing UI is untouched.
+    Render downloadable document cards with neutral centered actions.
+
+    Download preserves the current icon. Regenerate uses saved settings and
+    creates a new version without an AI request.
     """
     for document_index, document in enumerate(documents or []):
         data_url = str(document.get("data_url") or "")
@@ -11502,21 +11632,28 @@ def render_chat_document_cards(documents, message_index=None):
             continue
 
         try:
-            file_bytes = base64.b64decode(data_url.split(",", 1)[1])
+            file_bytes = base64.b64decode(
+                data_url.split(",", 1)[1]
+            )
         except Exception:
             continue
         if not file_bytes:
             continue
 
         filename = Path(
-            str(document.get("name") or "AutoTecPro_AI_Document")
+            str(
+                document.get("name")
+                or "AutoTecPro_AI_Document"
+            )
         ).name
         mime_type = str(
             document.get("mime_type")
             or data_url[5:].split(";", 1)[0]
             or "application/octet-stream"
         )
-        format_label = str(document.get("format_label") or "Document")
+        format_label = str(
+            document.get("format_label") or "Document"
+        )
         icon = str(document.get("icon") or "📄")
         size_label = _human_file_size(
             document.get("size_bytes") or len(file_bytes)
@@ -11530,19 +11667,34 @@ def render_chat_document_cards(documents, message_index=None):
             )
         except (TypeError, ValueError):
             unit_count = 0
-        unit_label = str(document.get("unit_label") or "").strip()
+
+        unit_label = str(
+            document.get("unit_label") or ""
+        ).strip()
         if unit_count > 0 and unit_label:
-            singular = unit_label[:-1] if unit_count == 1 and unit_label.endswith("s") else unit_label
+            singular = (
+                unit_label[:-1]
+                if unit_count == 1
+                and unit_label.endswith("s")
+                else unit_label
+            )
             count_label = f"{unit_count} {singular}"
         else:
             count_label = f"{format_label} Document"
 
-        key = _document_download_key(
+        download_key = _document_download_key(
             document,
             message_index,
             document_index,
         )
-        container_key = f"chat_document_card_{key}"
+        regenerate_key = _document_regenerate_key(
+            document,
+            message_index,
+            document_index,
+        )
+        container_key = (
+            f"chat_document_card_{download_key}"
+        )
 
         with st.container(key=container_key):
             st.markdown(
@@ -11559,6 +11711,7 @@ def render_chat_document_cards(documents, message_index=None):
                 """,
                 unsafe_allow_html=True,
             )
+
             st.markdown(
                 f"""
                 <style>
@@ -11571,19 +11724,24 @@ def render_chat_document_cards(documents, message_index=None):
                     background: rgba(15,23,42,.72) !important;
                     box-shadow: none !important;
                 }}
-                div[class*="st-key-{container_key}"] div[data-testid="stVerticalBlock"] {{
-                    gap: 10px !important;
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stVerticalBlock"] {{
+                    gap: 7px !important;
                 }}
-                div[class*="st-key-{container_key}"] div[data-testid="stElementContainer"] {{
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"] {{
                     margin: 0 !important;
                 }}
-                div[class*="st-key-{container_key}"] .atp-document-card-header {{
+                div[class*="st-key-{container_key}"]
+                .atp-document-card-header {{
                     display: flex !important;
                     align-items: center !important;
                     gap: 12px !important;
                     min-width: 0 !important;
+                    margin-bottom: 5px !important;
                 }}
-                div[class*="st-key-{container_key}"] .atp-document-icon {{
+                div[class*="st-key-{container_key}"]
+                .atp-document-icon {{
                     width: 39px !important;
                     height: 39px !important;
                     min-width: 39px !important;
@@ -11595,11 +11753,13 @@ def render_chat_document_cards(documents, message_index=None):
                     border-radius: 9px !important;
                     background: rgba(51,65,85,.72) !important;
                 }}
-                div[class*="st-key-{container_key}"] .atp-document-details {{
+                div[class*="st-key-{container_key}"]
+                .atp-document-details {{
                     min-width: 0 !important;
                     flex: 1 1 auto !important;
                 }}
-                div[class*="st-key-{container_key}"] .atp-document-name {{
+                div[class*="st-key-{container_key}"]
+                .atp-document-name {{
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
                     font-size: 14px !important;
@@ -11609,83 +11769,110 @@ def render_chat_document_cards(documents, message_index=None):
                     overflow: hidden !important;
                     text-overflow: ellipsis !important;
                 }}
-                div[class*="st-key-{container_key}"] .atp-document-meta {{
+                div[class*="st-key-{container_key}"]
+                .atp-document-meta {{
                     margin-top: 3px !important;
                     color: #94a3b8 !important;
                     -webkit-text-fill-color: #94a3b8 !important;
                     font-size: 12px !important;
                     line-height: 1.3 !important;
                 }}
-                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"],
-                div[class*="st-key-{container_key}"] .stDownloadButton {{
+
+                /* Download and Regenerate are neutral text actions. */
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"],
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stButton"] {{
                     width: 100% !important;
-                    margin: 7px 0 0 0 !important;
-                }}
-                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button,
-                div[class*="st-key-{container_key}"] .stDownloadButton > button {{
-                    width: 100% !important;
-                    min-height: 31px !important;
                     margin: 0 !important;
-                    padding: 0 12px !important;
-                    border: 1px solid rgba(148,163,184,.26) !important;
-                    border-radius: 8px !important;
-                    background: rgba(30,41,59,.72) !important;
+                }}
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stButton"] > button {{
+                    width: 100% !important;
+                    min-height: 30px !important;
+                    margin: 0 !important;
+                    padding: 2px 10px !important;
+                    border: 0 !important;
+                    border-radius: 7px !important;
+                    background: transparent !important;
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
+                    box-shadow: none !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    gap: 5px !important;
+                    text-align: center !important;
                     font-size: 13px !important;
                     font-weight: 650 !important;
                     line-height: 1 !important;
-                    text-align: center !important;
-                    box-shadow: none !important;
                 }}
-                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button > div,
-                div[class*="st-key-{container_key}"] .stDownloadButton > button > div,
-                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button p,
-                div[class*="st-key-{container_key}"] .stDownloadButton > button p,
-                div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button span,
-                div[class*="st-key-{container_key}"] .stDownloadButton > button span {{
-                    margin: 0 !important;
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button:hover,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button:hover,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stButton"] > button:hover {{
+                    background: rgba(148,163,184,.10) !important;
+                    border: 0 !important;
+                    color: #ffffff !important;
+                    -webkit-text-fill-color: #ffffff !important;
+                }}
+
+                /* Center the icon and label together as one inline group. */
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button > div,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button > div,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button p,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button p,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stButton"] > button > div,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stButton"] > button p {{
+                    width: auto !important;
+                    margin: 0 auto !important;
                     padding: 0 !important;
                     min-height: 0 !important;
                     line-height: 1 !important;
                     display: inline-flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    gap: 5px !important;
+                    gap: 6px !important;
                     text-align: center !important;
+                    white-space: nowrap !important;
                 }}
+
                 div[class*="st-key-{container_key}"] details {{
-                    margin-top: 8px !important;
+                    margin-top: 4px !important;
                     border: 0 !important;
                     background: transparent !important;
-                }}
-                div[class*="st-key-{container_key}"] details summary,
-                div[class*="st-key-{container_key}"] details summary *,
-                div[class*="st-key-{container_key}"] label,
-                div[class*="st-key-{container_key}"] label *,
-                div[class*="st-key-{container_key}"] p,
-                div[class*="st-key-{container_key}"] span {{
-                    color: #f8fafc !important;
-                    -webkit-text-fill-color: #f8fafc !important;
                 }}
                 div[class*="st-key-{container_key}"] details summary {{
                     font-size: 12px !important;
                     min-height: 28px !important;
                     padding: 2px 0 !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stRadio"],
-                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                div[class*="st-key-{container_key}"] details summary,
+                div[class*="st-key-{container_key}"] details summary *,
+                div[class*="st-key-{container_key}"] details label,
+                div[class*="st-key-{container_key}"] details label *,
+                div[class*="st-key-{container_key}"] details p,
+                div[class*="st-key-{container_key}"] details span {{
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
                 }}
                 div[class*="st-key-{container_key}"] details > div {{
                     border: 1px solid rgba(148,163,184,.22) !important;
                     border-radius: 10px !important;
-                    padding: 8px 12px 7px !important;
+                    padding: 8px 12px 9px !important;
                     background: rgba(15,23,42,.34) !important;
                 }}
                 div[class*="st-key-{container_key}"]
@@ -11700,8 +11887,10 @@ def render_chat_document_cards(documents, message_index=None):
                     margin: 0 !important;
                     min-height: 0 !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"],
-                div[class*="st-key-{container_key}"] [data-testid="stRadio"] {{
+                div[class*="st-key-{container_key}"]
+                [data-testid="stCheckbox"],
+                div[class*="st-key-{container_key}"]
+                [data-testid="stRadio"] {{
                     border: 0 !important;
                     border-radius: 0 !important;
                     background: transparent !important;
@@ -11709,10 +11898,12 @@ def render_chat_document_cards(documents, message_index=None):
                     padding: 0 !important;
                     margin: 0 !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                div[class*="st-key-{container_key}"]
+                [data-testid="stCheckbox"] {{
                     min-height: 30px !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div {{
+                div[class*="st-key-{container_key}"]
+                [data-testid="stRadio"] > div {{
                     display: flex !important;
                     flex-direction: row !important;
                     flex-wrap: nowrap !important;
@@ -11720,16 +11911,12 @@ def render_chat_document_cards(documents, message_index=None):
                     gap: clamp(12px, 2.2vw, 28px) !important;
                     width: 100% !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stRadio"] label {{
+                div[class*="st-key-{container_key}"]
+                [data-testid="stRadio"] label {{
                     margin: 0 !important;
                     white-space: nowrap !important;
                 }}
-                div[class*="st-key-{container_key}"] details p,
-                div[class*="st-key-{container_key}"] details label,
-                div[class*="st-key-{container_key}"] details span {{
-                    color: #f8fafc !important;
-                    -webkit-text-fill-color: #f8fafc !important;
-                }}
+
                 @media (max-width: 768px) {{
                     div[class*="st-key-{container_key}"] {{
                         width: 100% !important;
@@ -11737,29 +11924,36 @@ def render_chat_document_cards(documents, message_index=None):
                         margin: 8px 0 14px 0 !important;
                         padding: 12px !important;
                     }}
-                    div[class*="st-key-{container_key}"] .atp-document-name {{
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-name {{
                         font-size: 13px !important;
                     }}
-                    div[class*="st-key-{container_key}"] .atp-document-meta {{
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-meta {{
                         font-size: 11px !important;
                     }}
-                    div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"],
-                    div[class*="st-key-{container_key}"] .stDownloadButton {{
-                        margin-top: 7px !important;
-                    }}
-                    div[class*="st-key-{container_key}"] details {{
-                        margin-top: 7px !important;
-                    }}
-                    div[class*="st-key-{container_key}"] .atp-document-icon {{
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-icon {{
                         width: 36px !important;
                         height: 36px !important;
                         min-width: 36px !important;
                         font-size: 20px !important;
                     }}
-                    div[class*="st-key-{container_key}"] details > div {{
-                        padding: 9px 10px 7px !important;
+                    div[class*="st-key-{container_key}"]
+                    div[data-testid="stDownloadButton"] > button,
+                    div[class*="st-key-{container_key}"]
+                    .stDownloadButton > button,
+                    div[class*="st-key-{container_key}"]
+                    div[data-testid="stButton"] > button {{
+                        min-height: 32px !important;
+                        padding: 3px 8px !important;
                     }}
-                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div {{
+                    div[class*="st-key-{container_key}"]
+                    details > div {{
+                        padding: 9px 10px 9px !important;
+                    }}
+                    div[class*="st-key-{container_key}"]
+                    [data-testid="stRadio"] > div {{
                         gap: 10px !important;
                         overflow-x: auto !important;
                         overflow-y: hidden !important;
@@ -11767,14 +11961,15 @@ def render_chat_document_cards(documents, message_index=None):
                         scrollbar-width: none !important;
                         padding-bottom: 2px !important;
                     }}
-                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div::-webkit-scrollbar {{
+                    div[class*="st-key-{container_key}"]
+                    [data-testid="stRadio"] > div::-webkit-scrollbar {{
                         display: none !important;
                     }}
-                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] label {{
+                    div[class*="st-key-{container_key}"]
+                    [data-testid="stRadio"] label,
+                    div[class*="st-key-{container_key}"]
+                    [data-testid="stCheckbox"] label {{
                         flex: 0 0 auto !important;
-                        font-size: 13px !important;
-                    }}
-                    div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] label {{
                         font-size: 13px !important;
                         line-height: 1.3 !important;
                     }}
@@ -11784,19 +11979,34 @@ def render_chat_document_cards(documents, message_index=None):
                 unsafe_allow_html=True,
             )
 
-            button_kwargs = {
+            download_kwargs = {
                 "label": "↓  Download",
                 "data": file_bytes,
                 "file_name": filename,
                 "mime": mime_type,
-                "key": key,
+                "key": download_key,
                 "use_container_width": True,
                 "type": "secondary",
             }
             try:
-                st.download_button(**button_kwargs, on_click="ignore")
+                st.download_button(
+                    **download_kwargs,
+                    on_click="ignore",
+                )
             except TypeError:
-                st.download_button(**button_kwargs)
+                st.download_button(**download_kwargs)
+
+            if st.button(
+                "↻  Regenerate",
+                key=regenerate_key,
+                use_container_width=True,
+                type="secondary",
+            ):
+                _queue_document_regeneration(
+                    message_index,
+                    document_index,
+                )
+                st.rerun()
 
             render_document_settings_editor(container_key)
 
@@ -20633,8 +20843,10 @@ else:
             message_index=message_index,
         )
 
-    # Regenerate is processed after existing messages render, preserving the
-    # current conversation and adding a new assistant image message.
+    # Regeneration is processed after existing messages render so previous
+    # versions remain visible and the new version is appended underneath.
+    process_pending_document_regeneration()
+
     if assistant == "🎨 Graphic Marketing":
         process_pending_graphic_regeneration()
 
