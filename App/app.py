@@ -45,6 +45,9 @@ BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
 PDF_FILE_ICON = APP_DIR / "pdf_file_icon.png"
+WORD_FILE_ICON = APP_DIR / "word_file_icon.png"
+POWERPOINT_FILE_ICON = APP_DIR / "powerpoint_file_icon.png"
+EXCEL_FILE_ICON = APP_DIR / "excel_file_icon.png"
 
 PAGE_ICON = "🚗"
 if Image is not None and LOGO_FILE.exists():
@@ -11674,28 +11677,36 @@ def _svg_file_icon_data_uri(
 @st.cache_data(show_spinner=False)
 def _document_icon_data_uri(format_name):
     """
-    Return professional, equal-sized file-type artwork.
+    Return professional, equal-sized local file-type artwork.
 
-    PDF uses the exact locally supplied artwork. Office and CSV use consistent
-    Fluent-inspired vector icons so all cards remain sharp and equal in size.
+    PDF, Word, PowerPoint, and Excel use local PNG assets. CSV keeps the
+    Fluent-inspired vector fallback. All artwork is rendered through the same
+    fixed-size CSS container on desktop and mobile.
     """
     clean_format = str(format_name or "").lower()
+    local_icons = {
+        "pdf": PDF_FILE_ICON,
+        "docx": WORD_FILE_ICON,
+        "pptx": POWERPOINT_FILE_ICON,
+        "xlsx": EXCEL_FILE_ICON,
+    }
 
-    if clean_format == "pdf" and PDF_FILE_ICON.is_file():
+    icon_path = local_icons.get(clean_format)
+    if icon_path is not None and icon_path.is_file():
         try:
             encoded = base64.b64encode(
-                PDF_FILE_ICON.read_bytes()
+                icon_path.read_bytes()
             ).decode("ascii")
             return f"data:image/png;base64,{encoded}"
         except Exception:
             pass
 
     icon_specs = {
+        "csv": ("▦", "#64748B", "#475569", "CSV"),
+        "pdf": ("PDF", "#D71920", "#B91C1C", ""),
         "docx": ("W", "#185ABD", "#2B579A", "DOCX"),
         "pptx": ("P", "#D24726", "#B7472A", "PPTX"),
         "xlsx": ("X", "#107C41", "#185C37", "XLSX"),
-        "csv": ("▦", "#64748B", "#475569", "CSV"),
-        "pdf": ("PDF", "#D71920", "#B91C1C", ""),
     }
     letter, primary, secondary, label = icon_specs.get(
         clean_format,
@@ -11820,6 +11831,7 @@ def render_chat_document_cards(documents, message_index=None):
                     border: 1px solid rgba(148,163,184,.28) !important;
                     border-radius: 12px !important;
                     background: rgba(15,23,42,.72) !important;
+                    color: #f8fafc !important;
                     box-shadow: none !important;
                 }}
                 div[class*="st-key-{container_key}"]
