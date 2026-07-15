@@ -2114,6 +2114,36 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
+        # Order-associated staff requests where the number appears later:
+        #   Send installation instructions for 42679
+        #   Find the manual for 42679
+        #   Reply to customer 42679
+        #   Check shipping for 42679
+        #
+        # Five or more digits are required here so a vehicle year such as 2022
+        # is not mistakenly treated as a WooCommerce order number.
+        order_intent_terms = (
+            "installation", "install instruction", "installation instruction",
+            "manual", "user manual", "guide", "wiring", "troubleshoot",
+            "no audio", "no sound", "carplay", "bluetooth", "camera",
+            "reply", "customer reply", "respond", "email customer",
+            "shipping", "shipment", "tracking", "refund", "return",
+            "warranty", "product detail", "model detail", "what did",
+            "what was purchased", "purchased", "bought",
+        )
+        if any(term in lower for term in order_intent_terms):
+            trailing_order_match = re.search(
+                r"(?<!\d)#?(\d{5,12})(?!\d)",
+                value,
+                flags=re.IGNORECASE,
+            )
+            if trailing_order_match:
+                return {
+                    "type": "woocommerce_order",
+                    "order_number": trailing_order_match.group(1),
+                    "access_level": access_level,
+                }
+
         # Supports all of these:
         #   Show order #42693
         #   Show #42693
@@ -13891,6 +13921,57 @@ def build_response_mode_instruction(response_mode):
     )
 
 
+
+def build_ai_loading_status(
+    selected_assistant,
+    detected_live_request=None,
+    use_file_search=False,
+):
+    """
+    Return an accurate visible status for the current AI request.
+
+    The message describes only work the application is actually performing and
+    disappears as soon as the first streamed response text is received.
+    """
+    live_type = str(
+        (
+            detected_live_request
+            if isinstance(detected_live_request, dict)
+            else {}
+        ).get("type")
+        or "none"
+    ).strip().lower()
+
+    if bool(use_file_search):
+        if selected_assistant == "🔧 Technical Support":
+            return "Searching AutoTecPro Technical Support knowledge base…"
+        if is_sales_workspace(selected_assistant):
+            return "Searching AutoTecPro Sales knowledge base…"
+        if is_marketing_workspace(selected_assistant):
+            return "Searching AutoTecPro Marketing knowledge base…"
+        return "Searching AutoTecPro knowledge base…"
+
+    if live_type == "web":
+        return "Searching the web…"
+
+    if live_type.startswith("woocommerce_"):
+        return "Analyzing the WooCommerce order information…"
+
+    return "Analyzing your request…"
+
+
+def _loading_status_html(message):
+    """Render a lightweight loading line that works in dark and light modes."""
+    safe_message = html.escape(str(message or "Analyzing your request…"))
+    return (
+        '<div class="atp-ai-loading-status" role="status" aria-live="polite">'
+        '<span class="atp-ai-loading-dot"></span>'
+        f'<span>{safe_message}</span>'
+        '</div>'
+    )
+
+
+
 def _assistant_stream_html(visible_text):
     """Render the active streaming response using the existing chat design."""
     logo_base64 = get_logo_base64()
@@ -22458,12 +22539,25 @@ else:
                     )
 
                 stream_placeholder = st.empty()
+                loading_status_placeholder = st.empty()
                 streamed_answer = ""
                 last_stream_update = 0.0
+                first_stream_delta_received = False
                 analysis_heading = (
                     "Technical Support"
                     if assistant == "🔧 Technical Support"
                     else "AI Analysis"
+                )
+
+                loading_status_placeholder.markdown(
+                    _loading_status_html(
+                        build_ai_loading_status(
+                            assistant,
+                            detected_live_request=detected_request,
+                            use_file_search=use_file_search,
+                        )
+                    ),
+                    unsafe_allow_html=True,
                 )
 
                 if order_display_text:
@@ -22472,7 +22566,6 @@ else:
                             order_display_text
                             + "\n\n---\n\n## "
                             + analysis_heading
-                            + "\n\n*Generating response…*"
                         ),
                         unsafe_allow_html=True,
                     )
@@ -22489,7 +22582,12 @@ else:
                         live_data_override=preloaded_live_data,
                         order_displayed_by_app=bool(order_display_text),
                     ):
-                        streamed_answer += str(delta or "")
+                        delta_text = str(delta or "")
+                        if delta_text and not first_stream_delta_received:
+                            first_stream_delta_received = True
+                            loading_status_placeholder.empty()
+
+                        streamed_answer += delta_text
                         visible_stream = streamed_answer
                         if assistant == "🔧 Technical Support":
                             visible_stream = remove_technical_pricing(
@@ -22541,8 +22639,11 @@ else:
                         unsafe_allow_html=True,
                     )
                 except Exception:
+                    loading_status_placeholder.empty()
                     stream_placeholder.empty()
                     raise
+                finally:
+                    loading_status_placeholder.empty()
 
                 response_time = round(
                     time.time() - response_start_time,
@@ -23174,6 +23275,69 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# ============================================================
+# AI REQUEST LOADING STATUS
+# Visible until the first streamed response token appears.
+# ============================================================
+st.markdown(
+    """
+    <style>
+    .atp-ai-loading-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0 10px 68px;
+        padding: 7px 11px;
+        max-width: calc(100% - 78px);
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.28);
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.35;
+        box-sizing: border-box;
+    }
+
+    .atp-ai-loading-dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 7px;
+        border-radius: 999px;
+        background: #ef4444;
+        animation: atp-loading-pulse 1.15s ease-in-out infinite;
+    }
+
+    @keyframes atp-loading-pulse {
+        0%, 100% { opacity: 0.35; transform: scale(0.85); }
+        50% { opacity: 1; transform: scale(1); }
+    }
+
+    @media (prefers-color-scheme: light) {
+        .atp-ai-loading-status {
+            background: rgba(248, 250, 252, 0.92);
+            border-color: rgba(100, 116, 139, 0.24);
+            color: #475569;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .atp-ai-loading-status {
+            margin: 5px 0 9px 46px;
+            max-width: calc(100% - 52px);
+            padding: 6px 9px;
+            gap: 7px;
+            border-radius: 9px;
+            font-size: 12px;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # ============================================================
 # FINAL LOAD MORE ALIGNMENT OVERRIDE
