@@ -11697,6 +11697,186 @@ def _document_regenerate_key(
     ).hexdigest()[:20]
 
 
+
+
+def _document_knowledge_save_key(
+    document,
+    message_index,
+    document_index,
+    destination_key,
+):
+    """Return one stable key for a generated-document knowledge save button."""
+    identity = "|".join(
+        [
+            str(message_index),
+            str(document_index),
+            str(destination_key or ""),
+            str(document.get("name") or ""),
+            str(document.get("size_bytes") or ""),
+            str(document.get("created_at") or ""),
+        ]
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"save_document_knowledge_{digest}"
+
+
+def _generated_document_knowledge_destination(selected_assistant=None):
+    """
+    Resolve the active document card's knowledge destination.
+
+    Graphic Marketing, Admin, Knowledge Submission, and unknown workspaces do
+    not receive a direct save button.
+    """
+    active = str(
+        selected_assistant
+        or st.session_state.get("current_assistant")
+        or globals().get("assistant")
+        or ""
+    )
+    normalized = _normalized_workspace_name(active)
+
+    if normalized == "technical support":
+        return {
+            "key": "technical",
+            "label": "Technical",
+            "button_label": "Save to Technical Knowledge",
+            "vector_store_id": TECHNICAL_VECTOR_STORE_ID,
+        }
+    if normalized == "sales":
+        return {
+            "key": "sales",
+            "label": "Sales",
+            "button_label": "Save to Sales Knowledge",
+            "vector_store_id": SALES_VECTOR_STORE_ID,
+        }
+    if normalized == "marketing":
+        return {
+            "key": "marketing",
+            "label": "Marketing",
+            "button_label": "Save to Marketing Knowledge",
+            "vector_store_id": MARKETING_VECTOR_STORE_ID,
+        }
+    return None
+
+
+def _knowledge_upload_filename(filename, file_bytes):
+    """
+    Build a deterministic OpenAI filename for exact-content duplicate checks.
+
+    The short content hash allows a revised document with the same visible
+    filename to be saved while blocking the exact same generated file.
+    """
+    original = Path(str(filename or "AutoTecPro_AI_Document")).name
+    suffix = Path(original).suffix
+    stem = Path(original).stem or "AutoTecPro_AI_Document"
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-")
+    safe_stem = safe_stem[:90] or "AutoTecPro_AI_Document"
+    digest = hashlib.sha256(bytes(file_bytes or b"")).hexdigest()[:16]
+    return f"{safe_stem}__kb_{digest}{suffix}"
+
+
+def _wait_for_vector_store_file(
+    vector_store_id,
+    file_id,
+    timeout_seconds=24,
+):
+    """Poll briefly for completed indexing without blocking indefinitely."""
+    deadline = time.monotonic() + max(1, int(timeout_seconds or 24))
+    last_status = "queued"
+
+    while time.monotonic() < deadline:
+        try:
+            record = client.vector_stores.files.retrieve(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            status = str(getattr(record, "status", "") or "").lower()
+            if status:
+                last_status = status
+            if status == "completed":
+                return "completed"
+            if status in {"failed", "cancelled"}:
+                error_value = getattr(record, "last_error", None)
+                raise RuntimeError(
+                    f"OpenAI indexing {status}: {error_value or 'unknown error'}"
+                )
+        except TypeError:
+            # Older SDK compatibility: attachment succeeded but this SDK does
+            # not expose the same retrieve signature.
+            return "queued"
+        except AttributeError:
+            return "queued"
+
+        time.sleep(1.0)
+
+    return last_status or "queued"
+
+
+def save_generated_document_to_knowledge(
+    file_bytes,
+    filename,
+    mime_type,
+    destination,
+):
+    """Upload one existing generated document to the selected knowledge base."""
+    raw = bytes(file_bytes or b"")
+    if not raw:
+        raise RuntimeError("The generated document is empty.")
+    if not isinstance(destination, dict):
+        raise RuntimeError("A valid knowledge destination was not selected.")
+
+    vector_store_id = str(destination.get("vector_store_id") or "").strip()
+    if not vector_store_id:
+        raise RuntimeError("The destination vector store is not configured.")
+
+    upload_name = _knowledge_upload_filename(filename, raw)
+    if vector_store_has_filename(vector_store_id, upload_name):
+        return {
+            "duplicate": True,
+            "status": "completed",
+            "filename": Path(str(filename or upload_name)).name,
+            "upload_filename": upload_name,
+            "file_id": "",
+        }
+
+    upload_file = ManagedUploadedFile(
+        raw,
+        upload_name,
+        str(mime_type or "application/octet-stream"),
+    )
+    openai_file = client.files.create(
+        file=upload_file,
+        purpose="assistants",
+    )
+    file_id = str(getattr(openai_file, "id", "") or "")
+    if not file_id:
+        raise RuntimeError("OpenAI did not return a file ID.")
+
+    try:
+        client.vector_stores.files.create(
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+        status = _wait_for_vector_store_file(
+            vector_store_id,
+            file_id,
+        )
+    except Exception:
+        # Avoid leaving an unattached orphan if the vector-store step fails.
+        try:
+            client.files.delete(file_id)
+        except Exception:
+            pass
+        raise
+
+    return {
+        "duplicate": False,
+        "status": status,
+        "filename": Path(str(filename or upload_name)).name,
+        "upload_filename": upload_name,
+        "file_id": file_id,
+    }
+
 def _replace_document_in_message(
     message_index,
     documents,
@@ -12368,6 +12548,83 @@ def render_chat_document_cards(documents, message_index=None):
                     disabled=True,
                     help=str(regeneration_error),
                 )
+
+            knowledge_destination = (
+                _generated_document_knowledge_destination()
+                if user_can_use_feature("knowledge_upload")
+                else None
+            )
+            if knowledge_destination:
+                knowledge_save_key = _document_knowledge_save_key(
+                    document,
+                    message_index,
+                    document_index,
+                    knowledge_destination.get("key"),
+                )
+                knowledge_notice_key = f"{knowledge_save_key}_notice"
+                prior_notice = st.session_state.get(knowledge_notice_key)
+
+                save_clicked = st.button(
+                    knowledge_destination.get("button_label")
+                    or "Save to Knowledge",
+                    key=knowledge_save_key,
+                    use_container_width=True,
+                    type="secondary",
+                )
+
+                if save_clicked:
+                    try:
+                        with st.spinner(
+                            f"Saving to {knowledge_destination.get('label')} Knowledge..."
+                        ):
+                            save_result = save_generated_document_to_knowledge(
+                                file_bytes,
+                                filename,
+                                mime_type,
+                                knowledge_destination,
+                            )
+
+                        if save_result.get("duplicate"):
+                            prior_notice = {
+                                "type": "info",
+                                "message": (
+                                    "This exact document is already saved in "
+                                    f"{knowledge_destination.get('label')} Knowledge."
+                                ),
+                            }
+                        elif save_result.get("status") == "completed":
+                            prior_notice = {
+                                "type": "success",
+                                "message": (
+                                    f"Saved to {knowledge_destination.get('label')} "
+                                    "Knowledge and indexed successfully."
+                                ),
+                            }
+                        else:
+                            prior_notice = {
+                                "type": "success",
+                                "message": (
+                                    f"Saved to {knowledge_destination.get('label')} "
+                                    "Knowledge. OpenAI is finishing the indexing."
+                                ),
+                            }
+                        st.session_state[knowledge_notice_key] = prior_notice
+                    except Exception as knowledge_error:
+                        prior_notice = {
+                            "type": "error",
+                            "message": f"Unable to save document: {knowledge_error}",
+                        }
+                        st.session_state[knowledge_notice_key] = prior_notice
+
+                if prior_notice:
+                    notice_type = str(prior_notice.get("type") or "info")
+                    notice_message = str(prior_notice.get("message") or "")
+                    if notice_type == "success":
+                        st.success(notice_message)
+                    elif notice_type == "error":
+                        st.error(notice_message)
+                    else:
+                        st.info(notice_message)
 
             render_document_settings_editor(container_key)
 
