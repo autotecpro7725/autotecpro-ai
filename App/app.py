@@ -159,6 +159,7 @@ def _permission_dict(value):
     return {}
 
 
+@st.cache_data(max_entries=32, show_spinner=False)
 def default_workspace_permissions(role):
     clean_role = str(role or "staff").strip().lower()
     allowed = ROLE_DEFAULT_WORKSPACES.get(
@@ -171,6 +172,7 @@ def default_workspace_permissions(role):
     }
 
 
+@st.cache_data(max_entries=32, show_spinner=False)
 def default_feature_permissions(role):
     clean_role = str(role or "staff").strip().lower()
     allowed = ROLE_DEFAULT_FEATURES.get(
@@ -13245,6 +13247,39 @@ def get_live_context():
         }
 
 
+
+@st.cache_data(ttl=300, max_entries=1024, show_spinner=False)
+def detect_prompt_execution_plan(
+    prompt_text,
+    selected_assistant,
+    has_images=False,
+):
+    """
+    Run all deterministic prompt detectors once.
+
+    The result is reused by document routing, live integrations, Technical
+    Support tools, workspace tools, and the main AI request.
+    """
+    return {
+        "document": detect_document_generation_request(prompt_text),
+        "live": detect_live_request(
+            prompt_text,
+            selected_assistant,
+        ),
+        "technical": detect_technical_support_tool(
+            prompt_text,
+            selected_assistant,
+            has_images=bool(has_images),
+        ),
+        "workspace": detect_workspace_ai_tool(
+            prompt_text,
+            selected_assistant,
+            has_images=bool(has_images),
+        ),
+    }
+
+
+
 def build_live_context_text():
     """Create a concise system-supplied live context block."""
     context = get_live_context()
@@ -13291,6 +13326,75 @@ def _recent_memory_rows(max_messages=10):
         )
         for message in messages[-max(1, int(max_messages or 10)):]
     )
+
+
+
+def _uploaded_file_bytes(uploaded_file):
+    """Read uploaded bytes without leaving the file pointer changed."""
+    original_position = None
+    try:
+        original_position = uploaded_file.tell()
+    except Exception:
+        original_position = None
+
+    try:
+        if hasattr(uploaded_file, "getvalue"):
+            payload = uploaded_file.getvalue()
+        else:
+            payload = uploaded_file.read()
+    finally:
+        if original_position is not None:
+            try:
+                uploaded_file.seek(original_position)
+            except Exception:
+                pass
+
+    return bytes(payload or b"")
+
+
+def upload_openai_file_once(uploaded_file):
+    """
+    Upload one unchanged chat attachment only once per user session.
+
+    Streamlit reruns can otherwise upload the same attachment repeatedly before
+    a response finishes. The cache is keyed by filename, MIME type, size, and
+    SHA-256 content digest.
+    """
+    payload = _uploaded_file_bytes(uploaded_file)
+    digest = hashlib.sha256(payload).hexdigest()
+    cache_key = (
+        str(getattr(uploaded_file, "name", "") or ""),
+        str(getattr(uploaded_file, "type", "") or ""),
+        len(payload),
+        digest,
+    )
+
+    upload_cache = st.session_state.setdefault(
+        "openai_chat_file_upload_cache",
+        {},
+    )
+    cached_file_id = upload_cache.get(cache_key)
+    if cached_file_id:
+        return cached_file_id
+
+    filename = str(
+        getattr(uploaded_file, "name", "")
+        or "AutoTecPro_attachment"
+    )
+    uploaded_openai_file = client.files.create(
+        file=(filename, payload),
+        purpose="assistants",
+    )
+    upload_cache[cache_key] = uploaded_openai_file.id
+
+    # Bound session memory even during long staff sessions.
+    if len(upload_cache) > 64:
+        oldest_key = next(iter(upload_cache))
+        if oldest_key != cache_key:
+            upload_cache.pop(oldest_key, None)
+
+    return uploaded_openai_file.id
+
 
 
 def build_user_input(
@@ -13400,14 +13504,13 @@ def build_user_input(
                     "image_url": image_to_data_url(uploaded_file)
                 })
             else:
-                uploaded_openai_file = client.files.create(
-                    file=uploaded_file,
-                    purpose="assistants"
+                uploaded_file_id = upload_openai_file_once(
+                    uploaded_file
                 )
 
                 content.append({
                     "type": "input_file",
-                    "file_id": uploaded_openai_file.id
+                    "file_id": uploaded_file_id
                 })
 
     return [{"role": "user", "content": content}]
@@ -14856,8 +14959,18 @@ def generate_ai_conversation_title(
 
     # Short prompts and live lookups already produce reliable deterministic
     # titles, so avoid a separate OpenAI request for these common cases.
-    if live_type != "none" or len(user_text.split()) <= 18:
-        return fallback_title
+    # Most staff prompts can be titled accurately without a second model call.
+    # Reserve AI title generation for unusually long or complex first messages.
+    if (
+        live_type != "none"
+        or len(user_text.split()) <= 36
+        or re.search(
+            r"(?i)\b(?:model|sku|order|tracking|install|compatib|"
+            r"document|report|proposal|manual|guide|image|photo)\b",
+            user_text,
+        )
+    ):
+        return history_display_title(fallback_title)
 
     try:
         raw_title = _generate_ai_conversation_title_cached(
@@ -15209,7 +15322,7 @@ def save_message(
         messages=True,
     )
 
-@st.cache_data(ttl=30, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=60, max_entries=128, show_spinner=False)
 def _load_conversations_cached(username):
     """Load lightweight sidebar conversation summaries with a short cache."""
     username = str(username or "").strip()
@@ -15249,7 +15362,7 @@ def _load_conversations_cached(username):
     return pinned_rows + normal_rows
 
 
-@st.cache_data(ttl=30, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _load_messages_cached(conversation_id):
     """Load selected-conversation messages with a short cache."""
     if not conversation_id:
@@ -15276,6 +15389,12 @@ def _load_messages_cached(conversation_id):
 
 def invalidate_history_cache(conversations=True, messages=True):
     """Clear only the history caches affected by a mutation."""
+    if conversations:
+        st.session_state.pop(
+            "conversation_title_session_cache",
+            None,
+        )
+
     cached_functions = []
     if conversations:
         cached_functions.append(_load_conversations_cached)
@@ -15291,7 +15410,8 @@ def invalidate_history_cache(conversations=True, messages=True):
 
 def load_messages(conversation_id):
     """Load messages for the selected conversation through a short cache."""
-    return list(_load_messages_cached(conversation_id))
+    cached_messages = _load_messages_cached(conversation_id)
+    return [dict(message) for message in cached_messages]
 
 def load_conversations(username, role=None):
     """
@@ -15299,7 +15419,12 @@ def load_conversations(username, role=None):
 
     Full messages remain lazy and are fetched only when a conversation opens.
     """
-    return list(_load_conversations_cached(str(username or "").strip()))
+    return [
+        dict(conversation)
+        for conversation in _load_conversations_cached(
+            str(username or "").strip()
+        )
+    ]
 
 def archive_conversation(conversation_id):
     if conversation_id:
@@ -15385,6 +15510,14 @@ def get_current_conversation_title():
     if cached_title:
         return cached_title
 
+    session_titles = st.session_state.setdefault(
+        "conversation_title_session_cache",
+        {},
+    )
+    conversation_key = str(cid)
+    if conversation_key in session_titles:
+        return session_titles[conversation_key]
+
     try:
         result = (
             supabase
@@ -15395,7 +15528,9 @@ def get_current_conversation_title():
             .execute()
         )
         if result.data:
-            return result.data[0].get("title") or "New Case"
+            title = result.data[0].get("title") or "New Case"
+            session_titles[conversation_key] = title
+            return title
     except Exception:
         pass
     return "New Case"
@@ -21171,9 +21306,20 @@ else:
 
         generated_images = []
         generated_documents = []
-        document_generation_request = detect_document_generation_request(
-            prompt
+        has_uploaded_images = any(
+            str(getattr(item, "type", "") or "").startswith("image/")
+            for item in effective_uploaded_files
         )
+        execution_plan = detect_prompt_execution_plan(
+            prompt,
+            assistant,
+            has_images=has_uploaded_images,
+        )
+        document_generation_request = execution_plan["document"]
+        detected_request = execution_plan["live"]
+        detected_technical_tool = execution_plan["technical"]
+        detected_workspace_tool = execution_plan["workspace"]
+
         document_generation_requested = bool(
             document_generation_request
             and assistant in {
@@ -21190,21 +21336,6 @@ else:
             ).strip().lower()
             if explicit_format:
                 document_creator_settings["format"] = explicit_format
-        detected_request = detect_live_request(prompt, assistant)
-        has_uploaded_images = any(
-            str(getattr(item, "type", "") or "").startswith("image/")
-            for item in effective_uploaded_files
-        )
-        detected_technical_tool = detect_technical_support_tool(
-            prompt,
-            assistant,
-            has_images=has_uploaded_images,
-        )
-        detected_workspace_tool = detect_workspace_ai_tool(
-            prompt,
-            assistant,
-            has_images=has_uploaded_images,
-        )
         is_graphic_generation = (
             assistant == "🎨 Graphic Marketing"
             and is_graphic_image_generation_request(
