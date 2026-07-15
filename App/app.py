@@ -2124,7 +2124,9 @@ def detect_live_request(prompt, selected_assistant=None):
         # Five or more digits are required here so a vehicle year such as 2022
         # is not mistakenly treated as a WooCommerce order number.
         order_intent_terms = (
-            "installation", "install instruction", "installation instruction",
+            "installation", "instruction", "instructions",
+            "install instruction", "install instructions",
+            "installation instruction", "installation instructions",
             "manual", "user manual", "guide", "wiring", "troubleshoot",
             "no audio", "no sound", "carplay", "bluetooth", "camera",
             "reply", "customer reply", "respond", "email customer",
@@ -2132,7 +2134,11 @@ def detect_live_request(prompt, selected_assistant=None):
             "warranty", "product detail", "model detail", "what did",
             "what was purchased", "purchased", "bought",
         )
-        if any(term in lower for term in order_intent_terms):
+        if (
+            _normalized_workspace_name(selected_assistant)
+            in {"technical support", "sales"}
+            and any(term in lower for term in order_intent_terms)
+        ):
             trailing_order_match = re.search(
                 r"(?<!\d)#?(\d{5,12})(?!\d)",
                 value,
@@ -2142,6 +2148,39 @@ def detect_live_request(prompt, selected_assistant=None):
                 return {
                     "type": "woocommerce_order",
                     "order_number": trailing_order_match.group(1),
+                    "access_level": access_level,
+                }
+
+        # Natural product/order identification wording in Technical Support
+        # and Sales:
+        #   What is 42683?
+        #   What's 42683?
+        #   What product is 42683?
+        #   Which order is 42683?
+        #
+        # Five or more digits prevent a vehicle year such as 2022 from being
+        # mistaken for a WooCommerce order number.
+        if (
+            _normalized_workspace_name(selected_assistant)
+            in {"technical support", "sales"}
+        ):
+            identification_order_match = re.search(
+                r"(?:"
+                r"\bwhat(?:'s|\s+is)\s+#?\s*(\d{5,12})\b"
+                r"|\b(?:what|which)\s+"
+                r"(?:order|product|item|model)\s+"
+                r"(?:is|was)\s+#?\s*(\d{5,12})\b"
+                r")",
+                value,
+                flags=re.IGNORECASE,
+            )
+            if identification_order_match:
+                return {
+                    "type": "woocommerce_order",
+                    "order_number": (
+                        identification_order_match.group(1)
+                        or identification_order_match.group(2)
+                    ),
                     "access_level": access_level,
                 }
 
@@ -2174,21 +2213,24 @@ def detect_live_request(prompt, selected_assistant=None):
         #   42560 CarPlay not working
         #   42560 backup camera issue
         #
-        # Treat a leading 4-12 digit number as an order number only in a
-        # WooCommerce-enabled Technical Support, Sales, or Marketing workspace.
-        # This avoids changing routing in Graphic Marketing, Admin, login,
-        # tracking, weather, or other areas.
-        short_order_match = re.match(
-            r"^\s*(\d{4,12})(?=\s|$)",
-            value,
-            flags=re.IGNORECASE,
-        )
-        if short_order_match:
-            return {
-                "type": "woocommerce_order",
-                "order_number": short_order_match.group(1),
-                "access_level": access_level,
-            }
+        # Treat a leading 4-12 digit number as an order number only in
+        # Technical Support or Sales. Explicit Marketing order requests remain
+        # available through "order", "#", status, email, recent orders, or notes.
+        if (
+            _normalized_workspace_name(selected_assistant)
+            in {"technical support", "sales"}
+        ):
+            short_order_match = re.match(
+                r"^\s*(\d{4,12})(?=\s|$)",
+                value,
+                flags=re.IGNORECASE,
+            )
+            if short_order_match:
+                return {
+                    "type": "woocommerce_order",
+                    "order_number": short_order_match.group(1),
+                    "access_level": access_level,
+                }
 
     tracking_number = extract_tracking_number(value)
 
