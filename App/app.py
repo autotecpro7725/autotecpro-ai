@@ -11310,7 +11310,7 @@ def render_document_settings_editor(container_key):
     }
     reverse_formats = {value: key for key, value in format_labels.items()}
     with st.expander("Change Settings", expanded=False):
-        st.caption("Customize the next generated document.")
+        st.caption("Customize the next generated document. Changes apply when you request a new document.")
         chosen_label = st.radio(
             "Format",
             list(format_labels),
@@ -20715,7 +20715,10 @@ else:
                             **document_creator_settings,
                             "logo_path": str(LOGO_FILE),
                             "company_name": "AutoTecPro Inc.",
-                            "company_info": "Markham, Ontario, Canada | autotecpro.com | info@autotecpro.com",
+                            "company_info": (
+                                "Markham, Ontario, Canada • "
+                                "www.AutoTecPro.com • info@autotecpro.com"
+                            ),
                         },
                     )
                 ]
