@@ -44,6 +44,7 @@ except Exception:
 BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
+AUTOTECPRO_BRAND_LOGO_FILE = APP_DIR / "autotecpro_brand_logo.png"
 PDF_FILE_ICON = APP_DIR / "pdf_file_icon.png"
 WORD_FILE_ICON = APP_DIR / "word_file_icon.png"
 POWERPOINT_FILE_ICON = APP_DIR / "powerpoint_file_icon.png"
@@ -12445,6 +12446,218 @@ GRAPHIC_IMAGE_MODEL = "gpt-image-1"
 GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
 GRAPHIC_IMAGE_MAX_RETRIES = 0
 
+# Official AutoTecPro branding is composited after AI generation so the model
+# never has to redraw or imitate the company logo.
+GRAPHIC_BRAND_LOGO_DEFAULT_POSITION = "top_left"
+GRAPHIC_BRAND_LOGO_WIDTH_RATIO = 0.29
+GRAPHIC_BRAND_LOGO_MARGIN_RATIO = 0.025
+GRAPHIC_BRAND_LOGO_PANEL_OPACITY = 232
+GRAPHIC_BRAND_LOGO_PANEL_RADIUS_RATIO = 0.014
+
+
+
+def graphic_prompt_requests_no_brand_logo(prompt_text):
+    """Allow an explicit no-logo request without changing other image behavior."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    no_logo_patterns = (
+        r"\bwithout (?:the )?(?:autotecpro )?logo\b",
+        r"\bno (?:autotecpro )?logo\b",
+        r"\bdo not (?:add|include|show|use) (?:the )?(?:autotecpro )?logo\b",
+        r"\bdon't (?:add|include|show|use) (?:the )?(?:autotecpro )?logo\b",
+        r"\bremove (?:the )?(?:autotecpro )?logo\b",
+    )
+    return any(re.search(pattern, lower) for pattern in no_logo_patterns)
+
+
+def detect_graphic_brand_logo_position(prompt_text):
+    """Use an explicit requested logo corner, otherwise the approved default."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    position_patterns = (
+        ("top_right", ("logo top right", "logo in the top right", "top-right logo")),
+        ("bottom_left", ("logo bottom left", "logo in the bottom left", "bottom-left logo")),
+        ("bottom_right", ("logo bottom right", "logo in the bottom right", "bottom-right logo")),
+        ("top_left", ("logo top left", "logo in the top left", "top-left logo")),
+    )
+    for position, phrases in position_patterns:
+        if any(phrase in lower for phrase in phrases):
+            return position
+    return GRAPHIC_BRAND_LOGO_DEFAULT_POSITION
+
+
+def build_graphic_brand_safe_prompt(prompt_text):
+    """
+    Prevent hallucinated AutoTecPro logos inside the AI artwork.
+
+    The official logo is added after generation, so the model should leave a
+    clean branding area rather than drawing text or an approximate wordmark.
+    """
+    prompt_text = str(prompt_text or "").strip()
+    if graphic_prompt_requests_no_brand_logo(prompt_text):
+        return prompt_text
+
+    position = detect_graphic_brand_logo_position(prompt_text)
+    position_text = position.replace("_", " ")
+    return (
+        prompt_text
+        + "\n\nOFFICIAL BRAND COMPOSITING RULES:\n"
+        + "- Do not draw, imitate, spell, recreate, distort, or invent the "
+          "AutoTecPro logo, wordmark, maple leaf, or website URL anywhere.\n"
+        + "- Do not place any fake company logo or substitute brand mark.\n"
+        + f"- Keep the {position_text} branding area visually clean and free of "
+          "important text, faces, controls, or product details.\n"
+        + "- The application will add the exact official transparent AutoTecPro "
+          "logo after the artwork is generated."
+    )
+
+
+@st.cache_data(show_spinner=False)
+def _load_official_brand_logo_bytes(file_path, file_mtime_ns):
+    """Load and tightly crop the official transparent logo once per file version."""
+    del file_mtime_ns
+    path = Path(file_path)
+    if not path.is_file():
+        return b""
+
+    try:
+        with Image.open(path) as logo_image:
+            logo = logo_image.convert("RGBA")
+            alpha = logo.getchannel("A")
+            bbox = alpha.getbbox()
+            if bbox:
+                logo = logo.crop(bbox)
+            output = io.BytesIO()
+            logo.save(output, format="PNG", optimize=True)
+            return output.getvalue()
+    except Exception:
+        return b""
+
+
+def get_official_brand_logo_image():
+    """Return a fresh PIL image for safe per-request compositing."""
+    if Image is None or not AUTOTECPRO_BRAND_LOGO_FILE.is_file():
+        return None
+    try:
+        stat = AUTOTECPRO_BRAND_LOGO_FILE.stat()
+        logo_bytes = _load_official_brand_logo_bytes(
+            str(AUTOTECPRO_BRAND_LOGO_FILE),
+            int(stat.st_mtime_ns),
+        )
+        if not logo_bytes:
+            return None
+        return Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
+    except Exception:
+        return None
+
+
+def apply_autotecpro_brand_logo(
+    image_bytes,
+    prompt_text="",
+    position=None,
+):
+    """
+    Composite the exact official AutoTecPro PNG onto generated artwork.
+
+    A subtle translucent white backing keeps the dark/red wordmark and website
+    readable on both light and dark AI-generated backgrounds.
+    """
+    raw = bytes(image_bytes or b"")
+    if (
+        not raw
+        or Image is None
+        or graphic_prompt_requests_no_brand_logo(prompt_text)
+    ):
+        return raw, False, ""
+
+    logo = get_official_brand_logo_image()
+    if logo is None:
+        return raw, False, ""
+
+    try:
+        with Image.open(io.BytesIO(raw)) as generated:
+            canvas = generated.convert("RGBA")
+            canvas_width, canvas_height = canvas.size
+
+            target_width = max(
+                220,
+                int(canvas_width * GRAPHIC_BRAND_LOGO_WIDTH_RATIO),
+            )
+            target_width = min(target_width, int(canvas_width * 0.42))
+            target_height = max(
+                1,
+                int(logo.height * (target_width / max(logo.width, 1))),
+            )
+            logo = logo.resize(
+                (target_width, target_height),
+                Image.Resampling.LANCZOS,
+            )
+
+            padding_x = max(10, int(canvas_width * 0.010))
+            padding_y = max(8, int(canvas_height * 0.009))
+            panel_width = target_width + (padding_x * 2)
+            panel_height = target_height + (padding_y * 2)
+
+            panel = Image.new(
+                "RGBA",
+                (panel_width, panel_height),
+                (255, 255, 255, 0),
+            )
+            panel_draw = __import__("PIL.ImageDraw", fromlist=["ImageDraw"]).Draw(panel)
+            radius = max(
+                8,
+                int(min(canvas_width, canvas_height)
+                    * GRAPHIC_BRAND_LOGO_PANEL_RADIUS_RATIO),
+            )
+            panel_draw.rounded_rectangle(
+                (0, 0, panel_width - 1, panel_height - 1),
+                radius=radius,
+                fill=(255, 255, 255, GRAPHIC_BRAND_LOGO_PANEL_OPACITY),
+            )
+            panel.alpha_composite(logo, (padding_x, padding_y))
+
+            margin = max(
+                18,
+                int(min(canvas_width, canvas_height)
+                    * GRAPHIC_BRAND_LOGO_MARGIN_RATIO),
+            )
+            selected_position = (
+                position
+                or detect_graphic_brand_logo_position(prompt_text)
+            )
+            coordinates = {
+                "top_left": (margin, margin),
+                "top_right": (
+                    canvas_width - panel_width - margin,
+                    margin,
+                ),
+                "bottom_left": (
+                    margin,
+                    canvas_height - panel_height - margin,
+                ),
+                "bottom_right": (
+                    canvas_width - panel_width - margin,
+                    canvas_height - panel_height - margin,
+                ),
+            }
+            x, y = coordinates.get(
+                selected_position,
+                coordinates[GRAPHIC_BRAND_LOGO_DEFAULT_POSITION],
+            )
+            x = max(0, min(x, canvas_width - panel_width))
+            y = max(0, min(y, canvas_height - panel_height))
+            canvas.alpha_composite(panel, (x, y))
+
+            output = io.BytesIO()
+            canvas.save(output, format="PNG", optimize=True)
+            return output.getvalue(), True, selected_position
+    except Exception as error:
+        print(
+            "[GRAPHIC BRAND LOGO ERROR] "
+            f"type={type(error).__name__} details={str(error)[:300]}",
+            flush=True,
+        )
+        return raw, False, ""
+
+
 
 def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
     """
@@ -12585,6 +12798,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         raise ValueError("Please enter an image-generation command.")
 
     output_size = choose_graphic_image_size(prompt_text)
+    image_api_prompt = build_graphic_brand_safe_prompt(prompt_text)
     reference_images = prepare_graphic_reference_images(uploaded_files)
 
     # Apply reliability settings only to image requests. The shared client and
@@ -12607,14 +12821,14 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
             result = image_client.images.edit(
                 model=GRAPHIC_IMAGE_MODEL,
                 image=image_input,
-                prompt=prompt_text,
+                prompt=image_api_prompt,
                 n=GRAPHIC_IMAGE_COUNT,
                 size=output_size,
             )
         else:
             result = image_client.images.generate(
                 model=GRAPHIC_IMAGE_MODEL,
-                prompt=prompt_text,
+                prompt=image_api_prompt,
                 n=GRAPHIC_IMAGE_COUNT,
                 size=output_size,
             )
@@ -12663,6 +12877,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         if not png_bytes:
             continue
 
+        png_bytes, brand_logo_applied, brand_logo_position = (
+            apply_autotecpro_brand_logo(
+                png_bytes,
+                prompt_text=prompt_text,
+            )
+        )
+        if not png_bytes:
+            continue
+
         created_at = datetime.now(timezone.utc)
         filename = graphic_image_filename(prompt_text, created_at)
         data_url = (
@@ -12681,6 +12904,13 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
             "size": output_size,
             "resolution": output_size,
             "mime_type": "image/png",
+            "official_brand_logo_applied": bool(brand_logo_applied),
+            "official_brand_logo_position": brand_logo_position,
+            "official_brand_logo_file": (
+                AUTOTECPRO_BRAND_LOGO_FILE.name
+                if brand_logo_applied
+                else ""
+            ),
         })
 
     if not generated_images:
