@@ -12499,7 +12499,7 @@ GRAPHIC_BRAND_LOGO_PANEL_RADIUS_RATIO = 0.014
 
 
 def graphic_prompt_requests_no_brand_logo(prompt_text):
-    """Allow an explicit no-logo request without changing other image behavior."""
+    """Detect an explicit request to exclude the AutoTecPro logo."""
     lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
     no_logo_patterns = (
         r"\bwithout (?:the )?(?:autotecpro )?logo\b",
@@ -12507,8 +12507,32 @@ def graphic_prompt_requests_no_brand_logo(prompt_text):
         r"\bdo not (?:add|include|show|use) (?:the )?(?:autotecpro )?logo\b",
         r"\bdon't (?:add|include|show|use) (?:the )?(?:autotecpro )?logo\b",
         r"\bremove (?:the )?(?:autotecpro )?logo\b",
+        r"\blogo\s*[:=-]\s*(?:off|no|false|disabled)\b",
     )
     return any(re.search(pattern, lower) for pattern in no_logo_patterns)
+
+
+def graphic_prompt_requests_brand_logo(prompt_text):
+    """
+    Return True only when the user or Advanced Image Designer explicitly asks
+    for the official AutoTecPro logo.
+    """
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    if not lower or graphic_prompt_requests_no_brand_logo(lower):
+        return False
+
+    logo_request_patterns = (
+        r"\binclude (?:the )?autotecpro logo\b",
+        r"\badd (?:the )?autotecpro logo\b",
+        r"\bshow (?:the )?autotecpro logo\b",
+        r"\buse (?:the )?autotecpro logo\b",
+        r"\bplace (?:the )?autotecpro logo\b",
+        r"\bwith (?:the )?autotecpro logo\b",
+        r"\bautotecpro logo\s*(?:on|included|enabled)?\b",
+        r"\bbranding elements\s*:\s*[^\n]*autotecpro logo\b",
+        r"\blogo\s*[:=-]\s*(?:on|yes|true|enabled)\b",
+    )
+    return any(re.search(pattern, lower) for pattern in logo_request_patterns)
 
 
 def detect_graphic_brand_logo_position(prompt_text):
@@ -12528,23 +12552,33 @@ def detect_graphic_brand_logo_position(prompt_text):
 
 def build_graphic_brand_safe_prompt(prompt_text):
     """
-    Prevent hallucinated AutoTecPro logos inside the AI artwork.
+    Prevent hallucinated AutoTecPro logos inside AI artwork.
 
-    The official logo is added after generation, so the model should leave a
-    clean branding area rather than drawing text or an approximate wordmark.
+    Logo branding is opt-in. The image model never draws the company logo;
+    when explicitly requested, the application composites the official PNG.
     """
     prompt_text = str(prompt_text or "").strip()
-    if graphic_prompt_requests_no_brand_logo(prompt_text):
-        return prompt_text
+    logo_requested = graphic_prompt_requests_brand_logo(prompt_text)
+
+    rules = (
+        prompt_text
+        + "\n\nOFFICIAL BRAND COMPOSITING RULES:\n"
+        + "- Do not draw, imitate, spell, recreate, distort, or invent the "
+          "AutoTecPro logo, wordmark, maple leaf, or a substitute company logo.\n"
+    )
+
+    if not logo_requested:
+        return (
+            rules
+            + "- Do not include an AutoTecPro logo in this image. Logo branding "
+              "was not explicitly requested.\n"
+            + "- Do not reserve an empty logo panel or logo placeholder."
+        )
 
     position = detect_graphic_brand_logo_position(prompt_text)
     position_text = position.replace("_", " ")
     return (
-        prompt_text
-        + "\n\nOFFICIAL BRAND COMPOSITING RULES:\n"
-        + "- Do not draw, imitate, spell, recreate, distort, or invent the "
-          "AutoTecPro logo, wordmark, maple leaf, or website URL anywhere.\n"
-        + "- Do not place any fake company logo or substitute brand mark.\n"
+        rules
         + f"- Keep the {position_text} branding area visually clean and free of "
           "important text, faces, controls, or product details.\n"
         + "- The application will add the exact official transparent AutoTecPro "
@@ -12606,7 +12640,7 @@ def apply_autotecpro_brand_logo(
     if (
         not raw
         or Image is None
-        or graphic_prompt_requests_no_brand_logo(prompt_text)
+        or not graphic_prompt_requests_brand_logo(prompt_text)
     ):
         return raw, False, ""
 
@@ -20991,7 +21025,7 @@ def build_advanced_image_designer_request(
         _clean_graphic_designer_value(item, 100)
         for item in (branding_elements or [])
         if str(item or "").strip()
-    ) or "AutoTecPro brand identity"
+    ) or "None selected"
 
     actual_design = (
         custom_design
@@ -21202,7 +21236,7 @@ def render_advanced_image_designer_panel():
                 "Dealer Contact Information",
                 "Installation Available",
             ],
-            default=["AutoTecPro Logo"],
+            default=[],
         )
         contact_information = st.text_input(
             "Website or contact information",
