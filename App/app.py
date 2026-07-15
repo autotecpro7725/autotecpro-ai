@@ -11290,6 +11290,12 @@ def _document_request_uses_conversation(prompt_text):
 
 def render_document_settings_editor(container_key):
     settings = get_document_creator_settings()
+    active_workspace = str(
+        st.session_state.get("current_assistant") or assistant or "Technical Support"
+    )
+    workspace_label = re.sub(r"^[^A-Za-z0-9]+", "", active_workspace).strip()
+    if workspace_label == "Sales & Marketing":
+        workspace_label = "Sales"
     format_labels = {
         "PDF": "pdf",
         "Word": "docx",
@@ -11299,6 +11305,7 @@ def render_document_settings_editor(container_key):
     }
     reverse_formats = {value: key for key, value in format_labels.items()}
     with st.expander("Change Settings", expanded=False):
+        st.caption("Customize the next generated document.")
         chosen_label = st.radio(
             "Format",
             list(format_labels),
@@ -11342,7 +11349,7 @@ def render_document_settings_editor(container_key):
             "style": style,
         }
         save_document_creator_settings(updated)
-        st.caption("These settings apply automatically to the next document request.")
+        st.caption(f"Using {workspace_label} defaults.")
 
 
 def _document_download_key(document, message_index, document_index):
@@ -11446,19 +11453,19 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] .atp-document-card-header {{
                     display: flex !important;
                     align-items: center !important;
-                    gap: 10px !important;
+                    gap: 12px !important;
                     min-width: 0 !important;
                 }}
                 div[class*="st-key-{container_key}"] .atp-document-icon {{
-                    width: 30px !important;
-                    height: 30px !important;
-                    min-width: 30px !important;
+                    width: 39px !important;
+                    height: 39px !important;
+                    min-width: 39px !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    font-size: 17px !important;
+                    font-size: 22px !important;
                     line-height: 1 !important;
-                    border-radius: 7px !important;
+                    border-radius: 9px !important;
                     background: rgba(51,65,85,.72) !important;
                 }}
                 div[class*="st-key-{container_key}"] .atp-document-details {{
@@ -11490,7 +11497,7 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button,
                 div[class*="st-key-{container_key}"] .stDownloadButton > button {{
                     width: 100% !important;
-                    min-height: 34px !important;
+                    min-height: 31px !important;
                     margin: 0 !important;
                     padding: 0 12px !important;
                     border: 1px solid rgba(148,163,184,.26) !important;
@@ -11548,6 +11555,48 @@ def render_chat_document_cards(documents, message_index=None):
                     color: #f8fafc !important;
                     -webkit-text-fill-color: #f8fafc !important;
                 }}
+                div[class*="st-key-{container_key}"] details > div {{
+                    border: 1px solid rgba(148,163,184,.22) !important;
+                    border-radius: 10px !important;
+                    padding: 10px 12px 8px !important;
+                    background: rgba(15,23,42,.34) !important;
+                }}
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"]:has([data-testid="stCheckbox"]) {{
+                    border: 0 !important;
+                    border-radius: 0 !important;
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    min-height: 0 !important;
+                }}
+                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                    border: 0 !important;
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    min-height: 32px !important;
+                }}
+                div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div {{
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    align-items: center !important;
+                    gap: clamp(12px, 2.2vw, 28px) !important;
+                    width: 100% !important;
+                }}
+                div[class*="st-key-{container_key}"] [data-testid="stRadio"] label {{
+                    margin: 0 !important;
+                    white-space: nowrap !important;
+                }}
+                div[class*="st-key-{container_key}"] details p,
+                div[class*="st-key-{container_key}"] details label,
+                div[class*="st-key-{container_key}"] details span {{
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                }}
                 @media (max-width: 768px) {{
                     div[class*="st-key-{container_key}"] {{
                         width: 100% !important;
@@ -11560,6 +11609,34 @@ def render_chat_document_cards(documents, message_index=None):
                     }}
                     div[class*="st-key-{container_key}"] .atp-document-meta {{
                         font-size: 11px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] .atp-document-icon {{
+                        width: 36px !important;
+                        height: 36px !important;
+                        min-width: 36px !important;
+                        font-size: 20px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] details > div {{
+                        padding: 9px 10px 7px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div {{
+                        gap: 10px !important;
+                        overflow-x: auto !important;
+                        overflow-y: hidden !important;
+                        -webkit-overflow-scrolling: touch !important;
+                        scrollbar-width: none !important;
+                        padding-bottom: 2px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div::-webkit-scrollbar {{
+                        display: none !important;
+                    }}
+                    div[class*="st-key-{container_key}"] [data-testid="stRadio"] label {{
+                        flex: 0 0 auto !important;
+                        font-size: 13px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] label {{
+                        font-size: 13px !important;
+                        line-height: 1.3 !important;
                     }}
                 }}
                 </style>

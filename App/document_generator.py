@@ -88,7 +88,13 @@ _CREATION_TERMS = (
 
 
 def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | None:
-    """Return the requested document format only for explicit generation requests."""
+    """
+    Detect explicit-format and generic document creation/export requests.
+
+    When no format is named, ``format`` is returned as an empty string so the
+    workspace can apply its saved/default format. Read/review requests remain
+    excluded.
+    """
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
     if not value or any(pattern in value for pattern in _READ_ONLY_PATTERNS):
         return None
@@ -99,25 +105,56 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
             requested_format = format_name
             break
 
-    if not requested_format:
+    creation_requested = any(term in value for term in _CREATION_TERMS)
+    artifact_terms = (
+        "file", "document", "manual", "guide", "report", "proposal",
+        "handbook", "sop", "documentation", "presentation", "slides",
+        "spreadsheet", "workbook", "table", "export",
+    )
+    generic_conversation_phrases = (
+        "convert this conversation",
+        "convert the conversation",
+        "convert this chat",
+        "convert the chat",
+        "export this conversation",
+        "export the conversation",
+        "export this chat",
+        "export the chat",
+        "save this conversation",
+        "save the conversation",
+        "save this chat",
+        "save the chat",
+        "turn this conversation into",
+        "turn the conversation into",
+        "turn this chat into",
+        "turn the chat into",
+    )
+    generic_document_requested = (
+        (creation_requested and any(term in value for term in artifact_terms))
+        or any(phrase in value for phrase in generic_conversation_phrases)
+    )
+
+    if not requested_format and not generic_document_requested:
         return None
 
-    if not any(term in value for term in _CREATION_TERMS):
-        # Accept direct artifact wording such as "PDF report" or "Excel file".
-        artifact_terms = (
-            "file", "document", "manual", "guide", "report", "proposal",
-            "handbook", "sop", "presentation", "slides", "spreadsheet",
-            "workbook", "table", "export",
-        )
+    if requested_format and not creation_requested:
         if not any(term in value for term in artifact_terms):
             return None
 
-    config = FORMAT_CONFIG[requested_format]
+    if requested_format:
+        config = FORMAT_CONFIG[requested_format]
+        return {
+            "format": requested_format,
+            "extension": config["extension"],
+            "mime_type": config["mime_type"],
+            "label": config["label"],
+        }
+
     return {
-        "format": requested_format,
-        "extension": config["extension"],
-        "mime_type": config["mime_type"],
-        "label": config["label"],
+        "format": "",
+        "extension": "",
+        "mime_type": "",
+        "label": "Document",
     }
 
 
