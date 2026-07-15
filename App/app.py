@@ -11293,14 +11293,32 @@ def _document_request_uses_conversation(prompt_text):
     )
 
 
-def render_document_settings_editor(container_key):
-    settings = get_document_creator_settings()
-    active_workspace = str(
-        st.session_state.get("current_assistant") or assistant or "Technical Support"
+def _document_widget_prefix(workspace):
+    active = str(
+        workspace
+        or st.session_state.get("current_assistant")
+        or assistant
+        or ""
     )
-    workspace_label = re.sub(r"^[^A-Za-z0-9]+", "", active_workspace).strip()
-    if workspace_label == "Sales & Marketing":
-        workspace_label = "Sales"
+    digest = hashlib.sha256(active.encode("utf-8")).hexdigest()[:12]
+    return f"document_widget_{digest}_"
+
+
+def _save_document_settings_from_widgets(
+    workspace,
+    format_key,
+    logo_key,
+    company_key,
+    watermark_key,
+    style_key,
+):
+    """
+    Save settings only after a user changes a document control.
+
+    Previous versions saved every historical card's widget values during every
+    rerun. An older card could therefore overwrite a newer selection and force
+    generation back to PDF or disable branding.
+    """
     format_labels = {
         "PDF": "pdf",
         "Word": "docx",
@@ -11308,54 +11326,158 @@ def render_document_settings_editor(container_key):
         "Excel": "xlsx",
         "CSV": "csv",
     }
-    reverse_formats = {value: key for key, value in format_labels.items()}
+    selected_label = str(
+        st.session_state.get(format_key) or "PDF"
+    )
+    selected_style = str(
+        st.session_state.get(style_key) or "Professional"
+    )
+    if selected_style not in {
+        "Professional",
+        "Minimal",
+        "Presentation",
+    }:
+        selected_style = "Professional"
+
+    updated = {
+        "format": format_labels.get(selected_label, "pdf"),
+        "include_logo": bool(st.session_state.get(logo_key, False)),
+        "include_company_info": bool(
+            st.session_state.get(company_key, False)
+        ),
+        "watermark": (
+            "CONFIDENTIAL"
+            if bool(st.session_state.get(watermark_key, False))
+            else ""
+        ),
+        "style": selected_style,
+    }
+    save_document_creator_settings(updated, workspace)
+
+    # Keep every document card in this workspace visually synchronized. The
+    # callback runs before the next Streamlit render, so updating these widget
+    # values is safe and prevents stale historical cards from showing old data.
+    prefix = _document_widget_prefix(workspace)
+    suffix_values = {
+        "_format": selected_label,
+        "_logo": updated["include_logo"],
+        "_company": updated["include_company_info"],
+        "_watermark_enabled": bool(updated["watermark"]),
+        "_style": selected_style,
+    }
+    for existing_key in list(st.session_state.keys()):
+        key_text = str(existing_key)
+        if not key_text.startswith(prefix):
+            continue
+        for suffix, value in suffix_values.items():
+            if key_text.endswith(suffix):
+                st.session_state[existing_key] = value
+                break
+
+
+def render_document_settings_editor(container_key):
+    active_workspace = str(
+        st.session_state.get("current_assistant")
+        or assistant
+        or "Technical Support"
+    )
+    settings = get_document_creator_settings(active_workspace)
+    workspace_label = re.sub(
+        r"^[^A-Za-z0-9]+",
+        "",
+        active_workspace,
+    ).strip()
+    if workspace_label == "Sales & Marketing":
+        workspace_label = "Sales"
+
+    format_labels = {
+        "PDF": "pdf",
+        "Word": "docx",
+        "PowerPoint": "pptx",
+        "Excel": "xlsx",
+        "CSV": "csv",
+    }
+    reverse_formats = {
+        value: key for key, value in format_labels.items()
+    }
+
+    widget_prefix = (
+        _document_widget_prefix(active_workspace)
+        + str(container_key)
+    )
+    format_key = f"{widget_prefix}_format"
+    logo_key = f"{widget_prefix}_logo"
+    company_key = f"{widget_prefix}_company"
+    watermark_key = f"{widget_prefix}_watermark_enabled"
+    style_key = f"{widget_prefix}_style"
+    callback_args = (
+        active_workspace,
+        format_key,
+        logo_key,
+        company_key,
+        watermark_key,
+        style_key,
+    )
+
     with st.expander("Change Settings", expanded=False):
-        st.caption("Customize the next generated document. Changes apply when you request a new document.")
-        chosen_label = st.radio(
+        st.caption(
+            "Customize the next generated document. "
+            "Changes apply when you request a new document."
+        )
+        st.radio(
             "Format",
             list(format_labels),
             index=list(format_labels).index(
                 reverse_formats.get(settings["format"], "PDF")
             ),
             horizontal=True,
-            key=f"{container_key}_format",
+            key=format_key,
+            on_change=_save_document_settings_from_widgets,
+            args=callback_args,
         )
-        include_logo = st.checkbox(
+        st.checkbox(
             "Include AutoTecPro Logo",
             value=bool(settings.get("include_logo")),
-            key=f"{container_key}_logo",
+            key=logo_key,
+            on_change=_save_document_settings_from_widgets,
+            args=callback_args,
         )
-        include_company = st.checkbox(
+        st.checkbox(
             "Include Company Information",
             value=bool(settings.get("include_company_info")),
-            key=f"{container_key}_company",
+            key=company_key,
+            on_change=_save_document_settings_from_widgets,
+            args=callback_args,
         )
-        watermark_enabled = st.checkbox(
+        st.checkbox(
             "Confidential Watermark",
             value=bool(settings.get("watermark")),
-            key=f"{container_key}_watermark_enabled",
+            key=watermark_key,
+            on_change=_save_document_settings_from_widgets,
+            args=callback_args,
         )
-        style = st.radio(
+        st.radio(
             "Style",
             ["Professional", "Minimal", "Presentation"],
-            index=["Professional", "Minimal", "Presentation"].index(
+            index=[
+                "Professional",
+                "Minimal",
+                "Presentation",
+            ].index(
                 settings.get("style")
-                if settings.get("style") in {"Professional", "Minimal", "Presentation"}
+                if settings.get("style") in {
+                    "Professional",
+                    "Minimal",
+                    "Presentation",
+                }
                 else "Professional"
             ),
             horizontal=True,
-            key=f"{container_key}_style",
+            key=style_key,
+            on_change=_save_document_settings_from_widgets,
+            args=callback_args,
         )
-        updated = {
-            "format": format_labels[chosen_label],
-            "include_logo": include_logo,
-            "include_company_info": include_company,
-            "watermark": "CONFIDENTIAL" if watermark_enabled else "",
-            "style": style,
-        }
-        save_document_creator_settings(updated)
         st.caption(f"Using {workspace_label} defaults.")
-
 
 def _document_download_key(document, message_index, document_index):
     seed = (
@@ -20709,10 +20831,12 @@ else:
                     create_document_record(
                         prompt,
                         document_source_text,
-                        format_name=document_creator_settings.get("format"),
+                        format_name=str(
+                            document_creator_settings.get("format") or "pdf"
+                        ).lower(),
                         visible_text_cleaner=clean_visible_chat_text,
                         options={
-                            **document_creator_settings,
+                            **dict(document_creator_settings),
                             "logo_path": str(LOGO_FILE),
                             "company_name": "AutoTecPro Inc.",
                             "company_info": (
