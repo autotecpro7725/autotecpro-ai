@@ -11497,7 +11497,7 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"],
                 div[class*="st-key-{container_key}"] .stDownloadButton {{
                     width: 100% !important;
-                    margin: 0 !important;
+                    margin: 7px 0 0 0 !important;
                 }}
                 div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button,
                 div[class*="st-key-{container_key}"] .stDownloadButton > button {{
@@ -11537,7 +11537,7 @@ def render_chat_document_cards(documents, message_index=None):
                     text-align: center !important;
                 }}
                 div[class*="st-key-{container_key}"] details {{
-                    margin-top: 2px !important;
+                    margin-top: 7px !important;
                     border: 0 !important;
                     background: transparent !important;
                 }}
@@ -11620,6 +11620,13 @@ def render_chat_document_cards(documents, message_index=None):
                     }}
                     div[class*="st-key-{container_key}"] .atp-document-meta {{
                         font-size: 11px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"],
+                    div[class*="st-key-{container_key}"] .stDownloadButton {{
+                        margin-top: 7px !important;
+                    }}
+                    div[class*="st-key-{container_key}"] details {{
+                        margin-top: 7px !important;
                     }}
                     div[class*="st-key-{container_key}"] .atp-document-icon {{
                         width: 36px !important;

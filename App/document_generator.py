@@ -181,24 +181,101 @@ def is_document_generation_request(prompt_text: Any) -> bool:
     return detect_document_generation_request(prompt_text) is not None
 
 
+def _is_document_command_text(value: Any) -> bool:
+    text = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+    if not text:
+        return False
+    command_patterns = (
+        "convert this to a document",
+        "convert this into a document",
+        "convert this conversation",
+        "convert this chat",
+        "turn this into a document",
+        "turn this conversation",
+        "turn this chat",
+        "export this conversation",
+        "export this chat",
+        "save this conversation",
+        "save this chat",
+        "create a document",
+        "generate a document",
+    )
+    return any(pattern in text for pattern in command_patterns)
+
+
+def _conversation_subject(answer_text: Any) -> str:
+    """Derive a concise subject from exported conversation content."""
+    text = str(answer_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    user_blocks = re.findall(
+        r"(?:^|\n)User\s*\n(.*?)(?=\n\n(?:User|AutoTecPro AI)\s*\n|\Z)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    candidates = []
+    for block in user_blocks:
+        candidate = re.sub(r"\s+", " ", block).strip(" \t\r\n:.-")
+        if candidate and not _is_document_command_text(candidate):
+            candidates.append(candidate)
+
+    subject_source = candidates[-1] if candidates else text
+    subject_source = re.sub(r"(?im)^(?:User|AutoTecPro AI)\s*$", " ", subject_source)
+    subject_source = re.sub(r"\s+", " ", subject_source).strip()
+
+    # Product/model questions deserve a clean AutoTecPro reference title.
+    model_match = re.search(
+        r"(?i)\b(?:model|series|sku|part(?:\s*number)?|what\s+is)?\s*"
+        r"([A-Z]{0,4}-?[A-Z0-9]{2,12})\b",
+        subject_source,
+    )
+    if model_match:
+        model = model_match.group(1).upper()
+        ignored = {"THIS", "THAT", "WHAT", "DOCUMENT", "AUTO", "USER"}
+        if model not in ignored and re.search(r"\d", model):
+            return f"AutoTecPro Model {model} Reference"
+
+    # Prefer an existing concise heading from the generated/exported content.
+    heading_match = re.search(r"(?m)^\s*#{1,3}\s+(.{4,100})$", text)
+    if heading_match:
+        heading = re.sub(r"[*_`#]+", "", heading_match.group(1)).strip()
+        if heading and not _is_document_command_text(heading):
+            return heading
+
+    # Clean common question wording and keep the subject readable.
+    cleaned = re.sub(
+        r"(?i)^\s*(?:please\s+)?(?:can\s+you\s+)?"
+        r"(?:tell\s+me\s+|explain\s+|show\s+me\s+|what\s+is\s+|"
+        r"what\s+are\s+|how\s+do\s+i\s+|how\s+to\s+)",
+        "",
+        subject_source,
+    ).strip(" ?.,:-")
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'&/().+-]*", cleaned)[:12]
+    if words:
+        title = " ".join(words)
+        if not title.lower().startswith("autotecpro"):
+            title = f"AutoTecPro {title}"
+        if not re.search(r"(?i)\b(?:document|guide|report|reference|manual|proposal)\b", title):
+            title += " Document"
+        return title[:110].strip()
+
+    return "AutoTecPro AI Document"
+
+
+def derive_document_title(prompt_text: Any, answer_text: Any = "") -> str:
+    """Return a useful title without using the export command itself."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if prompt and not _is_document_command_text(prompt):
+        candidate = _conversation_subject(prompt)
+        if candidate and candidate != "AutoTecPro AI Document":
+            return candidate
+    return _conversation_subject(answer_text)
+
+
 def _safe_stem(prompt_text: Any, answer_text: Any = "") -> str:
-    source = str(prompt_text or "").strip() or str(answer_text or "").strip()
-    # Remove common generator wording so filenames focus on the subject.
-    source = re.sub(
-        r"(?i)\b(?:create|generate|make|produce|prepare|build|export|save|"
-        r"download|convert|turn this into|as a|an?)\b",
-        " ",
-        source,
-    )
-    source = re.sub(
-        r"(?i)\b(?:pdf|docx|word|document|pptx|powerpoint|presentation|"
-        r"xlsx|excel|spreadsheet|csv|file|downloadable)\b",
-        " ",
-        source,
-    )
-    words = re.findall(r"[A-Za-z0-9]+", source)[:10]
+    title = derive_document_title(prompt_text, answer_text)
+    words = re.findall(r"[A-Za-z0-9]+", title)[:14]
     stem = "_".join(words).strip("_") or "AutoTecPro_AI_Document"
-    stem = re.sub(r"_+", "_", stem)[:96].strip("_")
+    stem = re.sub(r"_+", "_", stem)[:110].strip("_")
     return Path(stem).name or "AutoTecPro_AI_Document"
 
 
@@ -210,7 +287,6 @@ def safe_document_filename(
     format_name = str(format_name or "pdf").lower()
     config = FORMAT_CONFIG.get(format_name, FORMAT_CONFIG["pdf"])
     return _safe_stem(prompt_text, answer_text) + config["extension"]
-
 
 def _clean_document_text(
     value: Any,
@@ -701,6 +777,67 @@ def _document_options(options: Any = None) -> dict[str, Any]:
     }
 
 
+
+def _prepared_logo_stream(logo_path: Any):
+    """
+    Return a cropped PNG stream so logos with large white margins remain visible.
+
+    Returns None when the path is unavailable or Pillow cannot process it.
+    """
+    if not logo_path:
+        return None
+    try:
+        from PIL import Image, ImageChops
+        image = Image.open(str(logo_path)).convert("RGBA")
+        alpha = image.getchannel("A")
+        alpha_box = alpha.getbbox()
+
+        # Also remove near-white surrounding canvas used by many logo exports.
+        rgb = Image.new("RGB", image.size, "white")
+        rgb.paste(image.convert("RGB"), mask=alpha)
+        background = Image.new("RGB", rgb.size, "white")
+        difference = ImageChops.difference(rgb, background).convert("L")
+        difference = difference.point(lambda pixel: 255 if pixel > 12 else 0)
+        color_box = difference.getbbox()
+
+        boxes = [box for box in (alpha_box, color_box) if box]
+        if boxes:
+            left = min(box[0] for box in boxes)
+            top = min(box[1] for box in boxes)
+            right = max(box[2] for box in boxes)
+            bottom = max(box[3] for box in boxes)
+            padding = max(4, int(min(image.size) * 0.015))
+            crop_box = (
+                max(0, left - padding),
+                max(0, top - padding),
+                min(image.width, right + padding),
+                min(image.height, bottom + padding),
+            )
+            image = image.crop(crop_box)
+
+        stream = io.BytesIO()
+        image.save(stream, format="PNG", optimize=True)
+        stream.seek(0)
+        return stream
+    except Exception:
+        return None
+
+
+def _logo_dimensions(logo_stream, max_width, max_height):
+    """Preserve the logo aspect ratio within the requested bounds."""
+    try:
+        from PIL import Image
+        position = logo_stream.tell()
+        image = Image.open(logo_stream)
+        width, height = image.size
+        logo_stream.seek(position)
+        if width <= 0 or height <= 0:
+            return max_width, max_height
+        scale = min(max_width / width, max_height / height)
+        return width * scale, height * scale
+    except Exception:
+        return max_width, max_height
+
 def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
     opts = _document_options(options)
     try:
@@ -733,20 +870,33 @@ def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
                               fontName="Helvetica-Bold", fontSize=16, leading=20,
                               spaceBefore=12, spaceAfter=7))
     story = []
+    logo_added = False
     if opts["include_logo"] and opts["logo_path"]:
         try:
-            logo = RLImage(str(opts["logo_path"]), width=1.65*inch, height=.58*inch)
-            logo.hAlign = "CENTER"
-            story.extend([logo, Spacer(1, 12)])
+            logo_stream = _prepared_logo_stream(opts["logo_path"])
+            if logo_stream is not None:
+                logo_width, logo_height = _logo_dimensions(
+                    logo_stream,
+                    max_width=2.15 * inch,
+                    max_height=0.78 * inch,
+                )
+                logo = RLImage(
+                    logo_stream,
+                    width=logo_width,
+                    height=logo_height,
+                )
+                logo.hAlign = "CENTER"
+                story.extend([logo, Spacer(1, 12)])
+                logo_added = True
         except Exception:
-            pass
+            logo_added = False
     story.append(Paragraph(_html.escape(title), styles["ATPTitle"]))
     if opts["include_company_info"]:
         company_style = ParagraphStyle(name="ATPCompany", parent=styles["BodyText"],
                                        alignment=TA_CENTER, textColor=colors.HexColor("#6B7280"),
                                        fontSize=9.5, spaceAfter=16)
         story.append(Paragraph(_html.escape(f'{opts["company_name"]} — {opts["company_info"]}'), company_style))
-    if opts["include_logo"] or opts["include_company_info"]:
+    if logo_added or opts["include_company_info"]:
         story.append(PageBreak())
 
     for kind, value in _iter_markdown_blocks(text):
@@ -796,17 +946,22 @@ def _build_docx_with_options(document_text, title, cleaner=None, options=None):
     section.bottom_margin = Inches(.7)
     section.left_margin = Inches(.8)
     section.right_margin = Inches(.8)
+    docx_logo_added = False
     if opts["include_logo"] and opts["logo_path"]:
         try:
-            p = document.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.add_run().add_picture(str(opts["logo_path"]), width=Inches(1.7))
+            logo_stream = _prepared_logo_stream(opts["logo_path"])
+            if logo_stream is not None:
+                p = document.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.add_run().add_picture(logo_stream, width=Inches(2.0))
+                docx_logo_added = True
         except Exception:
-            pass
+            docx_logo_added = False
     heading = document.add_heading(title, 0); heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if opts["include_company_info"]:
         p = document.add_paragraph(f'{opts["company_name"]} — {opts["company_info"]}')
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if opts["include_logo"] or opts["include_company_info"]:
+    if docx_logo_added or opts["include_company_info"]:
         document.add_page_break()
     for kind, value in _iter_markdown_blocks(text):
         value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
@@ -836,8 +991,17 @@ def _build_pptx_with_options(document_text, title, cleaner=None, options=None):
     if len(title_slide.placeholders) > 1:
         title_slide.placeholders[1].text = f'{opts["company_name"]}\n{opts["company_info"]}' if opts["include_company_info"] else "Generated by AutoTecPro AI"
     if opts["include_logo"] and opts["logo_path"]:
-        try: title_slide.shapes.add_picture(str(opts["logo_path"]), Inches(10.9), Inches(.35), width=Inches(1.7))
-        except Exception: pass
+        try:
+            logo_stream = _prepared_logo_stream(opts["logo_path"])
+            if logo_stream is not None:
+                title_slide.shapes.add_picture(
+                    logo_stream,
+                    Inches(10.7),
+                    Inches(.28),
+                    width=Inches(2.0),
+                )
+        except Exception:
+            pass
     for section_title, section_lines in _split_slide_sections(text):
         chunks = [section_lines[i:i+7] for i in range(0, len(section_lines), 7)] or [[]]
         for chunk_index, chunk in enumerate(chunks):
@@ -849,8 +1013,17 @@ def _build_pptx_with_options(document_text, title, cleaner=None, options=None):
                 p.text = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
                 p.font.size = Pt(22 if opts["style"] == "Presentation" else 19)
             if opts["include_logo"] and opts["logo_path"]:
-                try: slide.shapes.add_picture(str(opts["logo_path"]), Inches(11.1), Inches(.2), width=Inches(1.45))
-                except Exception: pass
+                try:
+                    logo_stream = _prepared_logo_stream(opts["logo_path"])
+                    if logo_stream is not None:
+                        slide.shapes.add_picture(
+                            logo_stream,
+                            Inches(10.95),
+                            Inches(.16),
+                            width=Inches(1.65),
+                        )
+                except Exception:
+                    pass
     buffer = io.BytesIO(); presentation.save(buffer)
     return buffer.getvalue(), len(presentation.slides)
 
@@ -908,8 +1081,8 @@ def create_document_record(
     resolved_format = str(format_name or (request or {}).get("format") or "pdf").lower()
     if resolved_format not in FORMAT_CONFIG:
         raise ValueError(f"Unsupported document format: {resolved_format}")
-    filename = safe_document_filename(prompt_text, answer_text, resolved_format)
-    title = Path(filename).stem.replace("_", " ").strip() or "AutoTecPro AI Document"
+    title = derive_document_title(prompt_text, answer_text)
+    filename = safe_document_filename(title, answer_text, resolved_format)
     opts = _document_options(options)
     if resolved_format == "pdf": file_bytes, unit_count, unit_label = *_build_pdf_with_options(answer_text, title, visible_text_cleaner, opts), "Pages"
     elif resolved_format == "docx": file_bytes, unit_count, unit_label = *_build_docx_with_options(answer_text, title, visible_text_cleaner, opts), "Paragraphs"
@@ -924,6 +1097,9 @@ def create_document_record(
         "unit_count": int(unit_count), "unit_label": unit_label,
         "page_count": int(unit_count) if resolved_format == "pdf" else 0,
         "size_bytes": len(file_bytes), "generated": True,
-        "style": opts["style"], "branded": bool(opts["include_logo"] or opts["include_company_info"]),
+        "style": opts["style"],
+        "branded": bool(opts["include_logo"] or opts["include_company_info"]),
+        "logo_requested": bool(opts["include_logo"]),
+        "logo_available": bool(opts["logo_path"]),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
