@@ -15234,27 +15234,8 @@ def get_conversation_storage_count(username, role=None):
     if not username:
         return 0
 
-    # The sidebar cache contains every active pinned conversation and the
-    # complete allowed unpinned history. Mutations already invalidate it, so
-    # this avoids another count query during normal reruns.
     try:
-        cached_rows = _load_conversations_cached(username)
-        if cached_rows is not None:
-            return len(cached_rows)
-    except Exception:
-        pass
-
-    try:
-        result = (
-            supabase
-            .table("conversations")
-            .select("id", count="exact")
-            .eq("username", username)
-            .or_("archived.is.null,archived.eq.false")
-            .execute()
-        )
-        if result.count is not None:
-            return int(result.count)
+        return _active_conversation_count_cached(username)
     except Exception:
         pass
 
@@ -15278,6 +15259,8 @@ def get_conversation_storage_count(username, role=None):
 
 
 MAX_UNPINNED_CONVERSATIONS_PER_USER = 100
+INITIAL_HISTORY_PAGE_SIZE = 30
+HISTORY_PAGE_INCREMENT = 20
 
 
 def _detach_learning_reference_before_history_delete(conversation_id):
@@ -15485,17 +15468,29 @@ def save_message(
         conversation_id=conversation_id,
     )
 
-@st.cache_data(ttl=60, max_entries=128, show_spinner=False)
-def _load_conversations_cached(username):
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+def _load_conversations_cached(
+    username,
+    unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+):
     """
-    Load lightweight sidebar summaries.
+    Load lightweight sidebar summaries incrementally.
 
-    Pinned rows are queried independently because they are unlimited. Only the
-    newest allowed unpinned rows are transferred from Supabase.
+    Pinned rows remain available independently. Unpinned rows are transferred
+    only up to the current sidebar page size.
     """
     username = str(username or "").strip()
     if not username:
         return []
+
+    try:
+        clean_limit = int(unpinned_limit)
+    except (TypeError, ValueError):
+        clean_limit = INITIAL_HISTORY_PAGE_SIZE
+    clean_limit = max(
+        INITIAL_HISTORY_PAGE_SIZE,
+        min(clean_limit, MAX_UNPINNED_CONVERSATIONS_PER_USER),
+    )
 
     selected_columns = (
         "id,username,assistant,title,archived,pinned,"
@@ -15521,13 +15516,31 @@ def _load_conversations_cached(username):
         .eq("pinned", False)
         .or_(base_filter)
         .order("updated_at", desc=True)
-        .limit(MAX_UNPINNED_CONVERSATIONS_PER_USER)
+        .limit(clean_limit)
         .execute()
     )
 
     return list(pinned_result.data or []) + list(
         unpinned_result.data or []
     )
+
+
+@st.cache_data(ttl=60, max_entries=128, show_spinner=False)
+def _active_conversation_count_cached(username):
+    """Return the exact active saved-conversation count for one user."""
+    username = str(username or "").strip()
+    if not username:
+        return 0
+
+    result = (
+        supabase
+        .table("conversations")
+        .select("id", count="exact", head=True)
+        .eq("username", username)
+        .or_("archived.is.null,archived.eq.false")
+        .execute()
+    )
+    return int(result.count or 0)
 
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
@@ -15574,15 +15587,14 @@ def invalidate_history_cache(
         )
 
     if conversations:
+        # Multiple page-size variants may exist, so clear the paged summary
+        # cache together with the exact count cache.
         try:
-            if username:
-                _load_conversations_cached.clear(
-                    str(username or "").strip()
-                )
-            else:
-                _load_conversations_cached.clear()
-        except TypeError:
             _load_conversations_cached.clear()
+        except Exception:
+            pass
+        try:
+            _active_conversation_count_cached.clear()
         except Exception:
             pass
 
@@ -15603,7 +15615,11 @@ def load_messages(conversation_id):
     cached_messages = _load_messages_cached(conversation_id)
     return [dict(message) for message in cached_messages]
 
-def load_conversations(username, role=None):
+def load_conversations(
+    username,
+    role=None,
+    unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+):
     """
     Load active sidebar summaries for the signed-in user.
 
@@ -15612,7 +15628,8 @@ def load_conversations(username, role=None):
     return [
         dict(conversation)
         for conversation in _load_conversations_cached(
-            str(username or "").strip()
+            str(username or "").strip(),
+            unpinned_limit,
         )
     ]
 
@@ -15701,7 +15718,17 @@ def _cached_conversation_row(conversation_id):
         return None
 
     try:
-        for conversation in _load_conversations_cached(username):
+        history_limit = int(
+            st.session_state.get(
+                "history_unpinned_limit",
+                INITIAL_HISTORY_PAGE_SIZE,
+            )
+            or INITIAL_HISTORY_PAGE_SIZE
+        )
+        for conversation in _load_conversations_cached(
+            username,
+            history_limit,
+        ):
             if str(conversation.get("id")) == str(conversation_id):
                 return conversation
     except Exception:
@@ -15837,6 +15864,8 @@ def process_history_action():
 
     if "rename_conversation_id" not in st.session_state:
         st.session_state.rename_conversation_id = None
+    if "history_unpinned_limit" not in st.session_state:
+        st.session_state.history_unpinned_limit = INITIAL_HISTORY_PAGE_SIZE
     if "rename_conversation_value" not in st.session_state:
         st.session_state.rename_conversation_value = ""
 
@@ -16634,13 +16663,39 @@ if (
     )
 
     try:
-        conversations = load_conversations(
-            st.session_state.username,
-            st.session_state.role
+        if "history_unpinned_limit" not in st.session_state:
+            st.session_state.history_unpinned_limit = (
+                INITIAL_HISTORY_PAGE_SIZE
+            )
+
+        current_search = str(
+            st.session_state.get("history_search_query", "")
+        ).strip()
+
+        # Searching intentionally expands to the full allowed unpinned history
+        # so results are not limited to the currently visible page.
+        effective_history_limit = (
+            MAX_UNPINNED_CONVERSATIONS_PER_USER
+            if current_search
+            else int(
+                st.session_state.get(
+                    "history_unpinned_limit",
+                    INITIAL_HISTORY_PAGE_SIZE,
+                )
+                or INITIAL_HISTORY_PAGE_SIZE
+            )
         )
 
-        # Avoid a second Supabase count request on every rerun.
-        storage_count = len(conversations)
+        conversations = load_conversations(
+            st.session_state.username,
+            st.session_state.role,
+            unpinned_limit=effective_history_limit,
+        )
+
+        storage_count = get_conversation_storage_count(
+            st.session_state.username,
+            st.session_state.role,
+        )
         st.sidebar.markdown(
             (
                 '<div class="history-storage-card">'
@@ -16666,6 +16721,9 @@ if (
                 help="Refresh conversations",
                 use_container_width=True,
             ):
+                st.session_state.history_unpinned_limit = (
+                    INITIAL_HISTORY_PAGE_SIZE
+                )
                 invalidate_history_cache()
                 st.rerun()
 
@@ -16748,6 +16806,43 @@ if (
         )
 
         render_history_cards(conversations)
+
+        loaded_unpinned_count = sum(
+            1 for conversation in conversations
+            if not bool(conversation.get("pinned", False))
+        )
+        loaded_pinned_count = sum(
+            1 for conversation in conversations
+            if bool(conversation.get("pinned", False))
+        )
+        total_unpinned_count = max(
+            0,
+            int(storage_count) - loaded_pinned_count,
+        )
+
+        if (
+            not current_search
+            and loaded_unpinned_count < total_unpinned_count
+            and loaded_unpinned_count
+            < MAX_UNPINNED_CONVERSATIONS_PER_USER
+        ):
+            if st.sidebar.button(
+                "Load more",
+                key="load_more_history",
+                use_container_width=True,
+            ):
+                st.session_state.history_unpinned_limit = min(
+                    MAX_UNPINNED_CONVERSATIONS_PER_USER,
+                    int(
+                        st.session_state.get(
+                            "history_unpinned_limit",
+                            INITIAL_HISTORY_PAGE_SIZE,
+                        )
+                        or INITIAL_HISTORY_PAGE_SIZE
+                    )
+                    + HISTORY_PAGE_INCREMENT,
+                )
+                st.rerun()
 
         render_rename_form(conversations)
 
