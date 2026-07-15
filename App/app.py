@@ -11371,8 +11371,6 @@ def _apply_document_settings(
         style_key,
     )
     save_document_creator_settings(updated, workspace)
-    st.session_state["document_settings_applied_at"] = time.time()
-    st.session_state["document_settings_force_collapse"] = True
 
 
 def render_document_settings_editor(container_key):
@@ -11405,16 +11403,22 @@ def render_document_settings_editor(container_key):
     style_key = f"{widget_prefix}_style"
     apply_key = f"{widget_prefix}_apply"
 
-    force_collapse = bool(
-        st.session_state.pop(
-            "document_settings_force_collapse",
-            False,
-        )
+    collapse_version_key = (
+        f"{widget_prefix}_collapse_version"
+    )
+    collapse_version = int(
+        st.session_state.get(collapse_version_key, 0) or 0
+    )
+    # Zero-width characters keep the visible label unchanged while giving
+    # Streamlit a fresh disclosure identity after Apply, which closes it.
+    expander_label = (
+        "Change Settings"
+        + ("\u200b" * collapse_version)
     )
 
     with st.expander(
-        "Change Settings",
-        expanded=False if force_collapse else False,
+        expander_label,
+        expanded=False,
     ):
         st.caption(
             "Customize the next regenerated document."
@@ -11468,6 +11472,51 @@ def render_document_settings_editor(container_key):
             key=style_key,
         )
 
+        st.markdown(
+            f"""
+            <style>
+            div[class*="st-key-{apply_key}"],
+            div[class*="st-key-{apply_key}"]
+            div[data-testid="stButton"] {{
+                height: 28px !important;
+                min-height: 28px !important;
+                max-height: 28px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }}
+            div[class*="st-key-{apply_key}"] button {{
+                width: 100% !important;
+                height: 28px !important;
+                min-height: 28px !important;
+                max-height: 28px !important;
+                margin: 0 !important;
+                padding: 0 10px !important;
+                border: 0 !important;
+                border-radius: 7px !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                line-height: 1 !important;
+            }}
+            div[class*="st-key-{apply_key}"] button p,
+            div[class*="st-key-{apply_key}"] button > div {{
+                width: auto !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 6px !important;
+                line-height: 1 !important;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         if st.button(
             "✓  Apply",
             key=apply_key,
@@ -11481,6 +11530,9 @@ def render_document_settings_editor(container_key):
                 company_key,
                 watermark_key,
                 style_key,
+            )
+            st.session_state[collapse_version_key] = (
+                collapse_version + 1
             )
             st.rerun()
 
@@ -11513,38 +11565,88 @@ def _document_regenerate_key(
     ).hexdigest()[:20]
 
 
-def _queue_document_regeneration(
+def _replace_document_in_message(
+    message_index,
+    documents,
+):
+    """
+    Replace the document marker in the existing assistant message.
+
+    This keeps regeneration inside the same card instead of creating another
+    assistant conversation entry.
+    """
+    try:
+        index = int(message_index)
+    except (TypeError, ValueError):
+        return False
+
+    messages = st.session_state.get("messages") or []
+    if not (0 <= index < len(messages)):
+        return False
+
+    message = messages[index]
+    if not isinstance(message, dict):
+        return False
+
+    content = str(message.get("content") or "")
+    visible_content, _ = extract_documents_from_message_content(
+        content
+    )
+    message["content"] = (
+        visible_content.rstrip()
+        + serialize_documents_marker(documents)
+    )
+    messages[index] = message
+    st.session_state.messages = messages
+    return True
+
+
+def _auto_download_document(document):
+    """
+    Trigger a browser download after regeneration.
+
+    The script is rendered during the same button-triggered Streamlit run, so
+    the browser treats it as part of the user's regeneration action.
+    """
+    data_url = str(document.get("data_url") or "")
+    filename = Path(
+        str(document.get("name") or "AutoTecPro_AI_Document")
+    ).name
+    if not data_url.startswith("data:"):
+        return
+
+    safe_filename = json.dumps(filename)
+    safe_data_url = json.dumps(data_url)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+            const link = document.createElement("a");
+            link.href = {safe_data_url};
+            link.download = {safe_filename};
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => link.remove(), 1000);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def regenerate_document_in_place(
     message_index,
     document_index,
 ):
-    st.session_state["pending_document_regeneration"] = {
-        "message_index": int(message_index or 0),
-        "document_index": int(document_index or 0),
-        "workspace": str(
-            st.session_state.get("current_assistant")
-            or assistant
-            or ""
-        ),
-    }
-
-
-def process_pending_document_regeneration():
     """
-    Create a new document version from existing conversation content.
+    Rebuild the current document using saved settings and download it.
 
-    No OpenAI, vector-search, WooCommerce, or live-tool request is made. The
-    saved workspace settings are applied and the new document is appended as a
-    new assistant message, preserving the previous version.
+    No OpenAI, vector-store, WooCommerce, or live-tool request is made. The
+    existing card is replaced instead of appending another assistant message.
     """
-    pending = st.session_state.pop(
-        "pending_document_regeneration",
-        None,
-    )
-    if not isinstance(pending, dict):
-        return False
-
     try:
-        message_index = int(pending.get("message_index") or 0)
+        message_index = int(message_index or 0)
     except (TypeError, ValueError):
         message_index = 0
 
@@ -11562,8 +11664,7 @@ def process_pending_document_regeneration():
         return False
 
     workspace = str(
-        pending.get("workspace")
-        or st.session_state.get("current_assistant")
+        st.session_state.get("current_assistant")
         or assistant
         or ""
     )
@@ -11588,33 +11689,24 @@ def process_pending_document_regeneration():
                     ),
                 },
             )
-            stored_content = (
-                "Your regenerated document is ready."
-                + serialize_documents_marker([regenerated])
-            )
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": stored_content,
-            })
+            if not _replace_document_in_message(
+                message_index,
+                [regenerated],
+            ):
+                raise RuntimeError(
+                    "The existing document card could not be updated."
+                )
 
-            if history_is_enabled():
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "assistant",
-                        stored_content,
-                    )
-                except Exception as history_error:
-                    st.warning(
-                        "The regenerated document was created, but "
-                        f"could not be saved to history: {history_error}"
-                    )
+            _auto_download_document(regenerated)
+
     except Exception as error:
         st.error(f"Document regeneration failed: {error}")
         return False
 
-    st.session_state.scroll_to_bottom = True
+    # Give the embedded download script time to execute before refreshing the
+    # card with the new file metadata.
+    time.sleep(0.35)
     st.rerun()
     return True
 
@@ -11726,7 +11818,7 @@ def render_chat_document_cards(documents, message_index=None):
                 }}
                 div[class*="st-key-{container_key}"]
                 div[data-testid="stVerticalBlock"] {{
-                    gap: 7px !important;
+                    gap: 3px !important;
                 }}
                 div[class*="st-key-{container_key}"]
                 div[data-testid="stElementContainer"] {{
@@ -11786,7 +11878,28 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"]
                 div[data-testid="stButton"] {{
                     width: 100% !important;
+                    height: 28px !important;
+                    min-height: 28px !important;
+                    max-height: 28px !important;
                     margin: 0 !important;
+                    padding: 0 !important;
+                    line-height: 1 !important;
+                    overflow: hidden !important;
+                }}
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"]:has(
+                    > div[data-testid="stDownloadButton"]
+                ),
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"]:has(
+                    > div[data-testid="stButton"]
+                ) {{
+                    height: 28px !important;
+                    min-height: 28px !important;
+                    max-height: 28px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: hidden !important;
                 }}
                 div[class*="st-key-{container_key}"]
                 div[data-testid="stDownloadButton"] > button,
@@ -11795,9 +11908,11 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"]
                 div[data-testid="stButton"] > button {{
                     width: 100% !important;
-                    min-height: 30px !important;
+                    height: 28px !important;
+                    min-height: 28px !important;
+                    max-height: 28px !important;
                     margin: 0 !important;
-                    padding: 2px 10px !important;
+                    padding: 0 10px !important;
                     border: 0 !important;
                     border-radius: 7px !important;
                     background: transparent !important;
@@ -11851,7 +11966,7 @@ def render_chat_document_cards(documents, message_index=None):
                 }}
 
                 div[class*="st-key-{container_key}"] details {{
-                    margin-top: 4px !important;
+                    margin-top: 2px !important;
                     border: 0 !important;
                     background: transparent !important;
                 }}
@@ -11940,13 +12055,30 @@ def render_chat_document_cards(documents, message_index=None):
                         font-size: 20px !important;
                     }}
                     div[class*="st-key-{container_key}"]
+                    div[data-testid="stDownloadButton"],
+                    div[class*="st-key-{container_key}"]
+                    .stDownloadButton,
+                    div[class*="st-key-{container_key}"]
+                    div[data-testid="stButton"],
+                    div[class*="st-key-{container_key}"]
+                    div[data-testid="stElementContainer"]:has(
+                        > div[data-testid="stDownloadButton"]
+                    ),
+                    div[class*="st-key-{container_key}"]
+                    div[data-testid="stElementContainer"]:has(
+                        > div[data-testid="stButton"]
+                    ),
+                    div[class*="st-key-{container_key}"]
                     div[data-testid="stDownloadButton"] > button,
                     div[class*="st-key-{container_key}"]
                     .stDownloadButton > button,
                     div[class*="st-key-{container_key}"]
                     div[data-testid="stButton"] > button {{
-                        min-height: 32px !important;
-                        padding: 3px 8px !important;
+                        height: 28px !important;
+                        min-height: 28px !important;
+                        max-height: 28px !important;
+                        padding-top: 0 !important;
+                        padding-bottom: 0 !important;
                     }}
                     div[class*="st-key-{container_key}"]
                     details > div {{
@@ -12002,11 +12134,10 @@ def render_chat_document_cards(documents, message_index=None):
                 use_container_width=True,
                 type="secondary",
             ):
-                _queue_document_regeneration(
+                regenerate_document_in_place(
                     message_index,
                     document_index,
                 )
-                st.rerun()
 
             render_document_settings_editor(container_key)
 
@@ -20842,10 +20973,6 @@ else:
             msg["content"],
             message_index=message_index,
         )
-
-    # Regeneration is processed after existing messages render so previous
-    # versions remain visible and the new version is appended underneath.
-    process_pending_document_regeneration()
 
     if assistant == "🎨 Graphic Marketing":
         process_pending_graphic_regeneration()
