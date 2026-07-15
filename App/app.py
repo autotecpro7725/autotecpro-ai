@@ -44,6 +44,7 @@ except Exception:
 BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
+PDF_FILE_ICON = APP_DIR / "pdf_file_icon.png"
 
 PAGE_ICON = "🚗"
 if Image is not None and LOGO_FILE.exists():
@@ -11569,12 +11570,7 @@ def _replace_document_in_message(
     message_index,
     documents,
 ):
-    """
-    Replace the document marker in the existing assistant message.
-
-    This keeps regeneration inside the same card instead of creating another
-    assistant conversation entry.
-    """
+    """Replace the document marker in the existing assistant message."""
     try:
         index = int(message_index)
     except (TypeError, ValueError):
@@ -11601,114 +11597,116 @@ def _replace_document_in_message(
     return True
 
 
-def _auto_download_document(document):
-    """
-    Trigger a browser download after regeneration.
-
-    The script is rendered during the same button-triggered Streamlit run, so
-    the browser treats it as part of the user's regeneration action.
-    """
-    data_url = str(document.get("data_url") or "")
-    filename = Path(
-        str(document.get("name") or "AutoTecPro_AI_Document")
-    ).name
-    if not data_url.startswith("data:"):
-        return
-
-    safe_filename = json.dumps(filename)
-    safe_data_url = json.dumps(data_url)
-    components.html(
-        f"""
-        <script>
-        (() => {{
-            const link = document.createElement("a");
-            link.href = {safe_data_url};
-            link.download = {safe_filename};
-            link.style.display = "none";
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => link.remove(), 1000);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def regenerate_document_in_place(
-    message_index,
-    document_index,
+@st.cache_data(show_spinner=False, max_entries=96)
+def _prepare_regenerated_document(
+    source_text,
+    format_name,
+    include_logo,
+    include_company_info,
+    watermark,
+    style,
+    logo_path,
+    logo_modified_ns,
 ):
     """
-    Rebuild the current document using saved settings and download it.
+    Build and cache a regenerated document locally.
 
-    No OpenAI, vector-store, WooCommerce, or live-tool request is made. The
-    existing card is replaced instead of appending another assistant message.
+    Regenerate is rendered as a native Streamlit download button. Therefore,
+    the same click both downloads the new file and updates the existing card.
     """
-    try:
-        message_index = int(message_index or 0)
-    except (TypeError, ValueError):
-        message_index = 0
-
-    source_messages = list(
-        st.session_state.get("messages") or []
-    )[:max(0, message_index)]
-    source_text = _conversation_document_text(
-        source_messages,
-        current_answer="",
+    del logo_modified_ns
+    return create_document_record(
+        "convert this conversation to a document",
+        source_text,
+        format_name=str(format_name or "pdf").lower(),
+        visible_text_cleaner=clean_visible_chat_text,
+        options={
+            "format": str(format_name or "pdf").lower(),
+            "include_logo": bool(include_logo),
+            "include_company_info": bool(include_company_info),
+            "watermark": str(watermark or ""),
+            "style": str(style or "Professional"),
+            "logo_path": str(logo_path or ""),
+            "company_name": "AutoTecPro Inc.",
+            "company_info": (
+                "Markham, Ontario, Canada • "
+                "www.AutoTecPro.com • info@autotecpro.com"
+            ),
+        },
     )
-    if not source_text:
-        st.warning(
-            "The original conversation content is unavailable."
-        )
-        return False
 
-    workspace = str(
-        st.session_state.get("current_assistant")
-        or assistant
-        or ""
+
+def _commit_regenerated_document(
+    message_index,
+    regenerated_document,
+):
+    """Update the current document card after its download begins."""
+    _replace_document_in_message(
+        message_index,
+        [regenerated_document],
     )
-    settings = get_document_creator_settings(workspace)
 
-    try:
-        with st.spinner("Regenerating document..."):
-            regenerated = create_document_record(
-                "convert this conversation to a document",
-                source_text,
-                format_name=str(
-                    settings.get("format") or "pdf"
-                ).lower(),
-                visible_text_cleaner=clean_visible_chat_text,
-                options={
-                    **dict(settings),
-                    "logo_path": str(LOGO_FILE),
-                    "company_name": "AutoTecPro Inc.",
-                    "company_info": (
-                        "Markham, Ontario, Canada • "
-                        "www.AutoTecPro.com • info@autotecpro.com"
-                    ),
-                },
-            )
 
-            if not _replace_document_in_message(
-                message_index,
-                [regenerated],
-            ):
-                raise RuntimeError(
-                    "The existing document card could not be updated."
-                )
+def _svg_file_icon_data_uri(
+    letter,
+    primary,
+    secondary,
+    label,
+):
+    """Create a crisp Fluent-inspired file-type icon without external URLs."""
+    svg = f"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect x="6" y="6" width="52" height="52" rx="11" fill="{secondary}"/>
+      <rect x="6" y="6" width="25" height="52" rx="11" fill="{primary}"/>
+      <rect x="20" y="11" width="38" height="42" rx="7" fill="{secondary}"/>
+      <text x="18.5" y="39" text-anchor="middle"
+            font-family="Arial,Segoe UI,sans-serif"
+            font-size="24" font-weight="700" fill="white">{html.escape(letter)}</text>
+      <text x="39" y="37" text-anchor="middle"
+            font-family="Arial,Segoe UI,sans-serif"
+            font-size="9" font-weight="700" fill="white">{html.escape(label)}</text>
+    </svg>
+    """
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
 
-            _auto_download_document(regenerated)
 
-    except Exception as error:
-        st.error(f"Document regeneration failed: {error}")
-        return False
+@st.cache_data(show_spinner=False)
+def _document_icon_data_uri(format_name):
+    """
+    Return professional, equal-sized file-type artwork.
 
-    # Give the embedded download script time to execute before refreshing the
-    # card with the new file metadata.
-    time.sleep(0.35)
-    st.rerun()
-    return True
+    PDF uses the exact locally supplied artwork. Office and CSV use consistent
+    Fluent-inspired vector icons so all cards remain sharp and equal in size.
+    """
+    clean_format = str(format_name or "").lower()
+
+    if clean_format == "pdf" and PDF_FILE_ICON.is_file():
+        try:
+            encoded = base64.b64encode(
+                PDF_FILE_ICON.read_bytes()
+            ).decode("ascii")
+            return f"data:image/png;base64,{encoded}"
+        except Exception:
+            pass
+
+    icon_specs = {
+        "docx": ("W", "#185ABD", "#2B579A", "DOCX"),
+        "pptx": ("P", "#D24726", "#B7472A", "PPTX"),
+        "xlsx": ("X", "#107C41", "#185C37", "XLSX"),
+        "csv": ("▦", "#64748B", "#475569", "CSV"),
+        "pdf": ("PDF", "#D71920", "#B91C1C", ""),
+    }
+    letter, primary, secondary, label = icon_specs.get(
+        clean_format,
+        ("FILE", "#64748B", "#475569", ""),
+    )
+    return _svg_file_icon_data_uri(
+        letter,
+        primary,
+        secondary,
+        label,
+    )
 
 
 def render_chat_document_cards(documents, message_index=None):
@@ -11746,7 +11744,12 @@ def render_chat_document_cards(documents, message_index=None):
         format_label = str(
             document.get("format_label") or "Document"
         )
-        icon = str(document.get("icon") or "📄")
+        document_format = str(
+            document.get("format") or ""
+        ).lower()
+        icon_data_uri = _document_icon_data_uri(
+            document_format
+        )
         size_label = _human_file_size(
             document.get("size_bytes") or len(file_bytes)
         )
@@ -11792,7 +11795,10 @@ def render_chat_document_cards(documents, message_index=None):
             st.markdown(
                 f"""
                 <div class="atp-document-card-header">
-                    <div class="atp-document-icon" aria-hidden="true">{html.escape(icon)}</div>
+                    <div class="atp-document-icon" aria-hidden="true">
+                        <img src="{html.escape(icon_data_uri)}"
+                             alt="{html.escape(format_label)} file icon">
+                    </div>
                     <div class="atp-document-details">
                         <div class="atp-document-name">{html.escape(filename)}</div>
                         <div class="atp-document-meta">
@@ -11834,16 +11840,27 @@ def render_chat_document_cards(documents, message_index=None):
                 }}
                 div[class*="st-key-{container_key}"]
                 .atp-document-icon {{
-                    width: 39px !important;
-                    height: 39px !important;
-                    min-width: 39px !important;
+                    width: 44px !important;
+                    height: 44px !important;
+                    min-width: 44px !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    font-size: 22px !important;
-                    line-height: 1 !important;
+                    overflow: hidden !important;
                     border-radius: 9px !important;
-                    background: rgba(51,65,85,.72) !important;
+                    background: transparent !important;
+                }}
+                div[class*="st-key-{container_key}"]
+                .atp-document-icon img {{
+                    width: 40px !important;
+                    height: 40px !important;
+                    min-width: 40px !important;
+                    max-width: 40px !important;
+                    min-height: 40px !important;
+                    max-height: 40px !important;
+                    object-fit: contain !important;
+                    object-position: center !important;
+                    display: block !important;
                 }}
                 div[class*="st-key-{container_key}"]
                 .atp-document-details {{
@@ -12049,10 +12066,18 @@ def render_chat_document_cards(documents, message_index=None):
                     }}
                     div[class*="st-key-{container_key}"]
                     .atp-document-icon {{
+                        width: 40px !important;
+                        height: 40px !important;
+                        min-width: 40px !important;
+                    }}
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-icon img {{
                         width: 36px !important;
                         height: 36px !important;
                         min-width: 36px !important;
-                        font-size: 20px !important;
+                        max-width: 36px !important;
+                        min-height: 36px !important;
+                        max-height: 36px !important;
                     }}
                     div[class*="st-key-{container_key}"]
                     div[data-testid="stDownloadButton"],
@@ -12128,15 +12153,80 @@ def render_chat_document_cards(documents, message_index=None):
             except TypeError:
                 st.download_button(**download_kwargs)
 
-            if st.button(
-                "↻  Regenerate",
-                key=regenerate_key,
-                use_container_width=True,
-                type="secondary",
-            ):
-                regenerate_document_in_place(
-                    message_index,
-                    document_index,
+            source_messages = list(
+                st.session_state.get("messages") or []
+            )[:max(0, int(message_index or 0))]
+            regeneration_source = _conversation_document_text(
+                source_messages,
+                current_answer="",
+            )
+            regeneration_settings = get_document_creator_settings(
+                str(
+                    st.session_state.get("current_assistant")
+                    or assistant
+                    or ""
+                )
+            )
+
+            try:
+                logo_modified_ns = (
+                    LOGO_FILE.stat().st_mtime_ns
+                    if LOGO_FILE.is_file()
+                    else 0
+                )
+                regenerated_document = _prepare_regenerated_document(
+                    regeneration_source,
+                    regeneration_settings.get("format") or "pdf",
+                    bool(regeneration_settings.get("include_logo")),
+                    bool(
+                        regeneration_settings.get(
+                            "include_company_info"
+                        )
+                    ),
+                    regeneration_settings.get("watermark") or "",
+                    regeneration_settings.get("style") or "Professional",
+                    str(LOGO_FILE),
+                    logo_modified_ns,
+                )
+                regenerated_data_url = str(
+                    regenerated_document.get("data_url") or ""
+                )
+                regenerated_bytes = base64.b64decode(
+                    regenerated_data_url.split(",", 1)[1]
+                )
+                regenerated_name = Path(
+                    str(
+                        regenerated_document.get("name")
+                        or "AutoTecPro_AI_Document"
+                    )
+                ).name
+                regenerated_mime = str(
+                    regenerated_document.get("mime_type")
+                    or "application/octet-stream"
+                )
+
+                st.download_button(
+                    label="↻  Regenerate",
+                    data=regenerated_bytes,
+                    file_name=regenerated_name,
+                    mime=regenerated_mime,
+                    key=regenerate_key,
+                    use_container_width=True,
+                    type="secondary",
+                    on_click=_commit_regenerated_document,
+                    args=(
+                        message_index,
+                        regenerated_document,
+                    ),
+                )
+            except Exception as regeneration_error:
+                st.button(
+                    "↻  Regenerate",
+                    key=regenerate_key,
+                    use_container_width=True,
+                    type="secondary",
+                    disabled=True,
+                    help=str(regeneration_error),
                 )
 
             render_document_settings_editor(container_key)

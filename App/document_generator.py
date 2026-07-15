@@ -206,59 +206,113 @@ def _is_document_command_text(value: Any) -> bool:
 def _conversation_subject(answer_text: Any) -> str:
     """Derive a concise subject from exported conversation content."""
     text = str(answer_text or "").replace("\r\n", "\n").replace("\r", "\n")
-    user_blocks = re.findall(
-        r"(?:^|\n)User\s*\n(.*?)(?=\n\n(?:User|AutoTecPro AI)\s*\n|\Z)",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
+
+    speaker_pattern = re.compile(
+        r"(?im)^(User|AutoTecPro AI)\s*:?[ \t]*(.*)$"
     )
+    matches = list(speaker_pattern.finditer(text))
+    user_candidates: list[str] = []
 
-    candidates = []
-    for block in user_blocks:
-        candidate = re.sub(r"\s+", " ", block).strip(" \t\r\n:.-")
+    for index, match in enumerate(matches):
+        if match.group(1).strip().lower() != "user":
+            continue
+
+        inline_text = str(match.group(2) or "").strip()
+        block_start = match.end()
+        block_end = (
+            matches[index + 1].start()
+            if index + 1 < len(matches)
+            else len(text)
+        )
+        following_text = text[block_start:block_end].strip()
+
+        candidate = " ".join(
+            part for part in (inline_text, following_text) if part
+        )
+        candidate = re.sub(r"\s+", " ", candidate).strip(" \t\r\n:.-")
         if candidate and not _is_document_command_text(candidate):
-            candidates.append(candidate)
+            user_candidates.append(candidate)
 
-    subject_source = candidates[-1] if candidates else text
-    subject_source = re.sub(r"(?im)^(?:User|AutoTecPro AI)\s*$", " ", subject_source)
-    subject_source = re.sub(r"\s+", " ", subject_source).strip()
+    # Prefer an explicit AutoTecPro model, SKU, series, or part number.
+    for candidate in reversed(user_candidates):
+        match = re.search(
+            r"(?i)\b(?:what\s+is|model|series|sku|part(?:\s*number)?|"
+            r"details?\s+(?:for|of)|about)?\s*"
+            r"([A-Z]{0,5}-?[A-Z0-9]{2,14})\b",
+            candidate,
+        )
+        if match:
+            model = match.group(1).upper()
+            ignored = {
+                "THIS", "THAT", "WHAT", "DOCUMENT", "AUTO",
+                "USER", "MAIN", "DETAILS",
+            }
+            if model not in ignored and re.search(r"\d", model):
+                return f"AutoTecPro Model {model} Reference"
 
-    # Product/model questions deserve a clean AutoTecPro reference title.
-    model_match = re.search(
-        r"(?i)\b(?:model|series|sku|part(?:\s*number)?|what\s+is)?\s*"
-        r"([A-Z]{0,4}-?[A-Z0-9]{2,12})\b",
+    subject_source = user_candidates[-1] if user_candidates else text
+    subject_source = re.sub(
+        r"(?im)^(?:User|AutoTecPro AI)\s*:?\s*$",
+        " ",
         subject_source,
     )
-    if model_match:
-        model = model_match.group(1).upper()
-        ignored = {"THIS", "THAT", "WHAT", "DOCUMENT", "AUTO", "USER"}
-        if model not in ignored and re.search(r"\d", model):
+    subject_source = re.sub(r"\s+", " ", subject_source).strip()
+
+    # Fallback: detect an explicit model reference anywhere in the content.
+    fallback = re.search(
+        r"(?i)\b(?:AutoTecPro\s+)?(?:model|series|sku)?\s*"
+        r"([A-Z]{0,5}-?[A-Z0-9]{2,14})\b",
+        subject_source,
+    )
+    if fallback:
+        model = fallback.group(1).upper()
+        if (
+            re.search(r"\d", model)
+            and model not in {
+                "THIS", "THAT", "WHAT", "DOCUMENT", "AUTO",
+                "USER", "MAIN", "DETAILS",
+            }
+        ):
             return f"AutoTecPro Model {model} Reference"
 
-    # Prefer an existing concise heading from the generated/exported content.
     heading_match = re.search(r"(?m)^\s*#{1,3}\s+(.{4,100})$", text)
     if heading_match:
-        heading = re.sub(r"[*_`#]+", "", heading_match.group(1)).strip()
+        heading = re.sub(
+            r"[*_`#]+",
+            "",
+            heading_match.group(1),
+        ).strip()
         if heading and not _is_document_command_text(heading):
             return heading
 
-    # Clean common question wording and keep the subject readable.
     cleaned = re.sub(
         r"(?i)^\s*(?:please\s+)?(?:can\s+you\s+)?"
-        r"(?:tell\s+me\s+|explain\s+|show\s+me\s+|what\s+is\s+|"
-        r"what\s+are\s+|how\s+do\s+i\s+|how\s+to\s+)",
+        r"(?:tell\s+me\s+|explain\s+|show\s+me\s+|"
+        r"what\s+is\s+|what\s+are\s+|how\s+do\s+i\s+|"
+        r"how\s+to\s+|main\s+details?\s+(?:for|of)\s+)",
         "",
         subject_source,
     ).strip(" ?.,:-")
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'&/().+-]*", cleaned)[:12]
+
+    if _is_document_command_text(cleaned):
+        cleaned = ""
+
+    words = re.findall(
+        r"[A-Za-z0-9][A-Za-z0-9'&/().+-]*",
+        cleaned,
+    )[:12]
     if words:
         title = " ".join(words)
         if not title.lower().startswith("autotecpro"):
             title = f"AutoTecPro {title}"
-        if not re.search(r"(?i)\b(?:document|guide|report|reference|manual|proposal)\b", title):
-            title += " Document"
+        if not re.search(
+            r"(?i)\b(?:document|guide|report|reference|manual|proposal)\b",
+            title,
+        ):
+            title += " Reference"
         return title[:110].strip()
 
-    return "AutoTecPro AI Document"
+    return "AutoTecPro Reference Document"
 
 
 def derive_document_title(prompt_text: Any, answer_text: Any = "") -> str:
@@ -820,7 +874,7 @@ def _style_profile(style: str) -> dict[str, Any]:
             "body_leading": 15,
             "heading_size": 15,
             "heading_leading": 19,
-            "cover": True,
+            "cover": False,
             "title_alignment": "center",
             "accent": "#B91C1C",
             "body_color": "#111827",
@@ -854,7 +908,7 @@ def _style_profile(style: str) -> dict[str, Any]:
             "body_leading": 20,
             "heading_size": 20,
             "heading_leading": 25,
-            "cover": True,
+            "cover": False,
             "title_alignment": "center",
             "accent": "#B91C1C",
             "body_color": "#172033",
@@ -1000,27 +1054,23 @@ def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
         ]
         story.append(Paragraph("<br/>".join(company_lines), styles["ATPSubtitleV2"]))
 
-    # Professional and Presentation use a real cover only when branding is selected.
-    if profile["cover"] and (logo_added or opts["include_company_info"]):
-        if opts["style"] == "Presentation":
-            story.extend([
-                Spacer(1, 0.15 * inch),
-                HRFlowable(width="55%", thickness=2, color=accent, hAlign="CENTER"),
-                Spacer(1, 0.18 * inch),
-                Paragraph(
-                    "Reference Document",
-                    styles["ATPSubtitleV2"],
-                ),
-            ])
-        story.append(PageBreak())
-    elif opts["style"] == "Minimal":
-        story.append(HRFlowable(
-            width="100%",
-            thickness=0.6,
-            color=colors.HexColor("#D1D5DB"),
-            spaceBefore=1,
-            spaceAfter=8,
-        ))
+    # Keep branding compactly on the first content page. No cover page.
+    story.append(HRFlowable(
+        width="100%" if opts["style"] == "Minimal" else "72%",
+        thickness=0.6 if opts["style"] == "Minimal" else 1.1,
+        color=(
+            colors.HexColor("#D1D5DB")
+            if opts["style"] == "Minimal"
+            else accent
+        ),
+        hAlign=(
+            "LEFT"
+            if profile["title_alignment"] == "left"
+            else "CENTER"
+        ),
+        spaceBefore=1,
+        spaceAfter=8 if opts["style"] != "Presentation" else 12,
+    ))
 
     for kind, value in _iter_markdown_blocks(text):
         clean = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
@@ -1170,9 +1220,6 @@ def _build_docx_with_options(document_text, title, cleaner=None, options=None):
         run.font.size = Pt(9.5 if opts["style"] != "Presentation" else 11)
         run.font.color.rgb = RGBColor(107, 114, 128)
 
-    if profile["cover"] and (logo_added or opts["include_company_info"]):
-        document.add_page_break()
-
     for kind, value in _iter_markdown_blocks(text):
         value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
         value = re.sub(r"`([^`]+)`", r"\1", value)
@@ -1257,39 +1304,8 @@ def _build_pptx_with_options(document_text, title, cleaner=None, options=None):
     presentation.slide_width = Inches(13.333)
     presentation.slide_height = Inches(7.5)
 
-    title_slide = presentation.slides.add_slide(
-        presentation.slide_layouts[0]
-    )
-    title_shape = title_slide.shapes.title
-    title_shape.text = title
-    title_shape.text_frame.paragraphs[0].font.size = Pt(
-        42 if opts["style"] == "Presentation"
-        else (26 if opts["style"] == "Minimal" else 34)
-    )
-    title_shape.text_frame.paragraphs[0].font.bold = True
-    title_shape.text_frame.paragraphs[0].font.color.rgb = (
-        RGBColor(185, 28, 28)
-        if opts["style"] != "Minimal"
-        else RGBColor(31, 41, 55)
-    )
-
-    subtitle = ""
-    if opts["include_company_info"]:
-        subtitle = f"{opts['company_name']}\n{opts['company_info']}"
-    elif opts["style"] != "Minimal":
-        subtitle = "Generated by AutoTecPro AI"
-
-    if len(title_slide.placeholders) > 1:
-        title_slide.placeholders[1].text = subtitle
-
-    _add_pptx_logo(
-        title_slide,
-        opts,
-        Inches(10.55),
-        Inches(0.22),
-        Inches(2.15 if opts["style"] != "Minimal" else 1.45),
-    )
-    _add_pptx_watermark(title_slide, opts["watermark"], presentation)
+    # No standalone cover/title slide. Content begins immediately.
+    document_subtitle = title
 
     max_lines = (
         4 if opts["style"] == "Presentation"
@@ -1310,11 +1326,18 @@ def _build_pptx_with_options(document_text, title, cleaner=None, options=None):
             slide = presentation.slides.add_slide(
                 presentation.slide_layouts[1]
             )
-            slide_title = (
-                section_title
-                if chunk_index == 0
-                else f"{section_title} (continued)"
-            )
+            if len(presentation.slides) == 1 and chunk_index == 0:
+                slide_title = (
+                    document_subtitle
+                    if section_title == "Overview"
+                    else f"{document_subtitle} — {section_title}"
+                )
+            else:
+                slide_title = (
+                    section_title
+                    if chunk_index == 0
+                    else f"{section_title} (continued)"
+                )
             slide.shapes.title.text = slide_title
             slide.shapes.title.text_frame.paragraphs[0].font.size = Pt(
                 30 if opts["style"] == "Presentation"
@@ -1587,6 +1610,6 @@ def create_document_record(
         ),
         "company_info_requested": bool(opts["include_company_info"]),
         "watermark_requested": bool(opts["watermark"]),
-        "generator_version": "2.1",
+        "generator_version": "2.2",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
