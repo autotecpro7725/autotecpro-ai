@@ -17567,7 +17567,8 @@ if (
             if st.sidebar.button(
                 "Load more",
                 key="load_more_history",
-                use_container_width=True,
+                use_container_width=False,
+                help="Load older conversations",
             ):
                 st.session_state.history_unpinned_limit = min(
                     MAX_UNPINNED_CONVERSATIONS_PER_USER,
@@ -23174,4 +23175,158 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ============================================================
+# FINAL LOAD MORE ALIGNMENT OVERRIDE
+# Small text link at bottom-left of History, above Log out.
+# ============================================================
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"] {
+        display: flex !important;
+        width: 100% !important;
+        min-height: 26px !important;
+        margin: 7px 0 3px 0 !important;
+        padding: 0 0 0 12px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        box-sizing: border-box !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    div[data-testid="stButton"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton {
+        display: inline-flex !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    button[kind="secondary"] {
+        display: inline-flex !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: max-content !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        margin: 0 !important;
+        padding: 2px 0 !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        border: 0 !important;
+        outline: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        color: #94a3b8 !important;
+        -webkit-text-fill-color: #94a3b8 !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0 !important;
+        text-align: left !important;
+        cursor: pointer !important;
+        transform: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button p {
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        -webkit-text-fill-color: inherit !important;
+        font-family: inherit !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+        line-height: inherit !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button:hover {
+        border: 0 !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #f8fafc !important;
+        -webkit-text-fill-color: #f8fafc !important;
+        text-decoration: underline !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button:focus,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button:focus-visible,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-load_more_history"]
+    .stButton > button:active {
+        border: 0 !important;
+        outline: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    /* Mobile: keep the same left edge and a slightly larger touch target,
+       without visually turning the link back into a button. */
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"]
+        div[class*="st-key-load_more_history"] {
+            min-height: 30px !important;
+            margin: 6px 0 3px 0 !important;
+            padding-left: 12px !important;
+        }
+
+        section[data-testid="stSidebar"]
+        div[class*="st-key-load_more_history"]
+        .stButton > button,
+        section[data-testid="stSidebar"]
+        div[class*="st-key-load_more_history"]
+        button[kind="secondary"] {
+            height: 28px !important;
+            min-height: 28px !important;
+            padding: 4px 0 !important;
+            font-size: 12px !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
