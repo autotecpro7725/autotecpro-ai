@@ -13547,7 +13547,19 @@ def ask_ai(
           "AutoTecPro application will build the PDF locally from your response."
     )
 
-    tools = [{"type": "web_search"}]
+    tools = []
+
+    live_request_type = str(
+        (
+            detected_live_request
+            if isinstance(detected_live_request, dict)
+            else {}
+        ).get("type")
+        or "none"
+    ).strip().lower()
+
+    if live_request_type == "web":
+        tools.append({"type": "web_search"})
 
     if assistant == "🔧 Technical Support":
         tools.insert(
@@ -13592,6 +13604,40 @@ def is_admin_image_file(uploaded_file):
     mime_type = str(getattr(uploaded_file, "type", "") or "").lower()
     suffix = Path(str(getattr(uploaded_file, "name", "") or "")).suffix.lower()
     return mime_type.startswith("image/") or suffix in {".jpg", ".jpeg", ".png"}
+
+
+@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
+def _extract_admin_image_knowledge_cached(
+    image_url,
+    original_name,
+    database_label,
+    extra_context,
+):
+    instructions = (
+        "Extract accurate reusable AutoTecPro knowledge from the image. "
+        "Return clean plain text only. Never invent compatibility, product, "
+        "vehicle, pricing, or technical details."
+    )
+    prompt_text = (
+        f"Original filename: {original_name}\n"
+        f"Selected database: {database_label}\n"
+    )
+    if extra_context:
+        prompt_text += f"Admin context: {extra_context}\n"
+    prompt_text += "\nExtract this image into reusable AutoTecPro knowledge."
+
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=instructions,
+        input=[{
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": prompt_text},
+                {"type": "input_image", "image_url": image_url},
+            ],
+        }],
+    )
+    return clean_visible_chat_text(response.output_text)
 
 
 def convert_admin_image_to_knowledge_file(uploaded_file, database_choice, admin_context=""):
@@ -13646,21 +13692,12 @@ Do not output HTML, markdown code fences, or JSON.
         prompt_text += f"Admin context: {extra_context}\n"
     prompt_text += "\nExtract this image into reusable AutoTecPro knowledge."
 
-    response = client.responses.create(
-        model="gpt-5.5",
-        instructions=extraction_instructions,
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt_text},
-                    {"type": "input_image", "image_url": image_url},
-                ],
-            }
-        ],
+    extracted_text = _extract_admin_image_knowledge_cached(
+        image_url,
+        original_name,
+        database_label,
+        extra_context,
     )
-
-    extracted_text = clean_visible_chat_text(response.output_text)
     if not extracted_text:
         raise ValueError("The image could not be converted into searchable knowledge.")
 
@@ -14053,9 +14090,15 @@ Return ONLY valid JSON with this exact schema:
 {{
   "should_learn": true/false,
   "vehicle": "specific vehicle make/model/year if known, otherwise empty",
+  "year": "year if mentioned, otherwise empty",
+  "make": "vehicle make/brand if mentioned, otherwise empty",
+  "model": "vehicle model if mentioned, otherwise empty",
+  "product": "AutoTecPro product/model/category if mentioned, otherwise empty",
   "issue": "short reusable issue title",
   "solution": "clean final solution that future staff can reuse",
   "keywords": "comma-separated keywords",
+  "was_unanswered": true/false,
+  "resolved": true/false,
   "confidence_score": 0-100,
   "reason": "short reason"
 }}
@@ -14081,6 +14124,10 @@ Rules:
   interaction or context.
 - Do not return placeholders such as "not specified", "unknown", "N/A", or
   "general" for vehicle; return an empty string instead.
+- was_unanswered is true only when the answer lacks a usable answer, says the
+  documentation is unavailable, or only requests escalation/more information.
+- resolved is true when the response provides a useful solution, compatibility
+  fact, confirmed next step, or customer-ready response.
 - Never invent details not supported by the supplied text.
 
 Assistant:
@@ -14150,6 +14197,34 @@ RECENT CONVERSATION CONTEXT:
     if len(safe_question) < 5:
         should_learn = False
 
+    combined_text = f"{safe_question} {safe_answer}"
+    year_match = re.search(
+        r"\b(20[0-2][0-9]|19[8-9][0-9])\b",
+        combined_text,
+    )
+    analytics_payload = {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": vehicle,
+        "year": str(
+            data.get("year")
+            or (year_match.group(1) if year_match else "")
+        ).strip(),
+        "make": str(data.get("make") or "").strip(),
+        "model": str(data.get("model") or "").strip(),
+        "issue": issue[:180],
+        "product": str(data.get("product") or "").strip()[:180],
+        "solution": solution,
+        "keywords": keywords,
+        "question": str(question or ""),
+        "answer": str(answer or ""),
+        "was_unanswered": bool(data.get("was_unanswered", False)),
+        "resolved": bool(data.get("resolved", False)),
+        "confidence_score": confidence_score,
+        "conversation_id": st.session_state.get("conversation_id"),
+        "created_at": now_iso(),
+    }
+
     return {
         "should_learn": should_learn,
         "vehicle": vehicle,
@@ -14159,6 +14234,7 @@ RECENT CONVERSATION CONTEXT:
         "confidence_score": confidence_score,
         "reason": str(data.get("reason") or "").strip(),
         "staff_confirmed": bool(staff_confirmed),
+        "analytics_payload": analytics_payload,
     }
 
 
@@ -14390,6 +14466,37 @@ Confidence: {candidate.get("confidence_score", 70)}
     }
 
 
+
+def build_local_analytics_payload(question, answer, selected_assistant):
+    """Build analytics without an extra OpenAI request."""
+    combined_text = f"{question or ''} {answer or ''}"
+    vehicle = detect_vehicle_basic(combined_text)
+    year_match = re.search(
+        r"\b(20[0-2][0-9]|19[8-9][0-9])\b",
+        combined_text,
+    )
+    return {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": vehicle,
+        "year": year_match.group(1) if year_match else "",
+        "make": "",
+        "model": "",
+        "issue": conversation_title_from_text(question),
+        "product": "",
+        "solution": "",
+        "keywords": "",
+        "question": str(question or ""),
+        "answer": str(answer or ""),
+        "was_unanswered": False,
+        "resolved": bool(str(answer or "").strip()),
+        "confidence_score": 70,
+        "conversation_id": st.session_state.get("conversation_id"),
+        "created_at": now_iso(),
+    }
+
+
+
 def auto_learn_from_latest_answer(
     question,
     answer,
@@ -14405,6 +14512,11 @@ def auto_learn_from_latest_answer(
         return {
             "learned": False,
             "reason": "Graphic Marketing image-generation chats are not learned.",
+            "analytics_payload": build_local_analytics_payload(
+                question,
+                answer,
+                selected_assistant,
+            ),
         }
 
     live_request = (
@@ -14422,6 +14534,11 @@ def auto_learn_from_latest_answer(
             "reason": (
                 "Live-data requests are excluded from automatic learning "
                 "to avoid storing temporary, changing, or private data."
+            ),
+            "analytics_payload": build_local_analytics_payload(
+                question,
+                answer,
+                selected_assistant,
             ),
         }
 
@@ -14450,6 +14567,7 @@ def auto_learn_from_latest_answer(
                 candidate.get("reason")
                 or "Not reusable or sufficiently confirmed."
             ),
+            "analytics_payload": candidate.get("analytics_payload"),
         }
 
     vector_store_id = get_learning_vector_store_id(selected_assistant)
@@ -14521,6 +14639,7 @@ def auto_learn_from_latest_answer(
             "record_id": duplicate_row["id"],
             "duplicate_of": duplicate_row["id"],
             "file_id": openai_file_id,
+            "analytics_payload": candidate.get("analytics_payload"),
         }
 
     new_record = {
@@ -14566,6 +14685,7 @@ def auto_learn_from_latest_answer(
         "staff_confirmed": staff_confirmed,
         "record_id": result.data[0]["id"],
         "file_id": openai_file_id,
+        "analytics_payload": candidate.get("analytics_payload"),
     }
 
 
@@ -14668,10 +14788,30 @@ Answer:
         "created_at": now_iso()
     }
 
-def log_ai_analytics(question, answer, selected_assistant, learning_result=None, response_time=None, tokens_used=None):
-    """Save one analytics event for Admin dashboard."""
+def log_ai_analytics(
+    question,
+    answer,
+    selected_assistant,
+    learning_result=None,
+    response_time=None,
+    tokens_used=None,
+):
+    """Save one analytics event without duplicating extraction calls."""
     try:
-        payload = extract_analytics_from_question(question, answer, selected_assistant)
+        shared_payload = (
+            learning_result.get("analytics_payload")
+            if isinstance(learning_result, dict)
+            else None
+        )
+        payload = (
+            dict(shared_payload)
+            if isinstance(shared_payload, dict)
+            else extract_analytics_from_question(
+                question,
+                answer,
+                selected_assistant,
+            )
+        )
 
         if learning_result:
             payload["learned"] = bool(learning_result.get("learned"))
@@ -15072,7 +15212,11 @@ def update_conversation_ai_title(
 
         generated_ids.add(conversation_key)
         pending_ids.discard(conversation_key)
-        invalidate_history_cache(conversations=True, messages=False)
+        invalidate_history_cache(
+            conversations=True,
+            messages=False,
+            username=st.session_state.get("username"),
+        )
     except Exception:
         # Title generation must never interrupt the conversation.
         pass
@@ -15218,9 +15362,9 @@ def make_room_for_new_conversation(
     """
     Keep at most 100 unpinned conversations for one user.
 
-    Pinned conversations are unlimited, do not count toward the 100 limit,
-    and are never automatically deleted. Before a new unpinned conversation
-    is created, the oldest unpinned conversation is removed when necessary.
+    Use an exact database count first, then fetch only the oldest IDs that must
+    be removed. This avoids downloading the user's entire history whenever a
+    new conversation is created.
     """
     username = str(username or "").strip()
     if not username:
@@ -15231,20 +15375,33 @@ def make_room_for_new_conversation(
     except (TypeError, ValueError):
         max_unpinned = MAX_UNPINNED_CONVERSATIONS_PER_USER
 
-    result = (
+    count_result = (
         supabase
         .table("conversations")
-        .select("id, username, pinned, created_at, updated_at")
+        .select("id", count="exact", head=True)
         .eq("username", username)
         .eq("pinned", False)
+        .or_("archived.is.null,archived.eq.false")
+        .execute()
+    )
+    current_count = int(count_result.count or 0)
+    delete_count = max(0, current_count - max_unpinned + 1)
+    if delete_count <= 0:
+        return
+
+    oldest_result = (
+        supabase
+        .table("conversations")
+        .select("id")
+        .eq("username", username)
+        .eq("pinned", False)
+        .or_("archived.is.null,archived.eq.false")
         .order("created_at", desc=False)
+        .limit(delete_count)
         .execute()
     )
 
-    unpinned_rows = list(result.data or [])
-    delete_count = max(0, len(unpinned_rows) - max_unpinned + 1)
-
-    for conversation in unpinned_rows[:delete_count]:
+    for conversation in list(oldest_result.data or []):
         _delete_old_unpinned_conversation(
             username,
             conversation.get("id"),
@@ -15283,7 +15440,11 @@ def create_conversation(username, assistant_name, first_message=None):
     st.session_state.setdefault("auto_title_pending_ids", set()).add(
         str(conversation_id)
     )
-    invalidate_history_cache()
+    invalidate_history_cache(
+        conversations=True,
+        messages=False,
+        username=username,
+    )
     return conversation_id
 
 
@@ -15320,11 +15481,18 @@ def save_message(
     invalidate_history_cache(
         conversations=should_touch,
         messages=True,
+        username=st.session_state.get("username"),
+        conversation_id=conversation_id,
     )
 
 @st.cache_data(ttl=60, max_entries=128, show_spinner=False)
 def _load_conversations_cached(username):
-    """Load lightweight sidebar conversation summaries with a short cache."""
+    """
+    Load lightweight sidebar summaries.
+
+    Pinned rows are queried independently because they are unlimited. Only the
+    newest allowed unpinned rows are transferred from Supabase.
+    """
     username = str(username or "").strip()
     if not username:
         return []
@@ -15333,33 +15501,33 @@ def _load_conversations_cached(username):
         "id,username,assistant,title,archived,pinned,"
         "created_at,updated_at"
     )
+    base_filter = "archived.is.null,archived.eq.false"
 
-    result = (
+    pinned_result = (
         supabase
         .table("conversations")
         .select(selected_columns)
         .eq("username", username)
-        .or_("archived.is.null,archived.eq.false")
+        .eq("pinned", True)
+        .or_(base_filter)
         .order("updated_at", desc=True)
-        .limit(1000 + MAX_UNPINNED_CONVERSATIONS_PER_USER)
+        .execute()
+    )
+    unpinned_result = (
+        supabase
+        .table("conversations")
+        .select(selected_columns)
+        .eq("username", username)
+        .eq("pinned", False)
+        .or_(base_filter)
+        .order("updated_at", desc=True)
+        .limit(MAX_UNPINNED_CONVERSATIONS_PER_USER)
         .execute()
     )
 
-    rows = list(result.data or [])
-    pinned_rows = [
-        row for row in rows
-        if row.get("pinned") is True
-        or str(row.get("pinned")).strip().lower() == "true"
-    ]
-    normal_rows = [
-        row for row in rows
-        if not (
-            row.get("pinned") is True
-            or str(row.get("pinned")).strip().lower() == "true"
-        )
-    ][:MAX_UNPINNED_CONVERSATIONS_PER_USER]
-
-    return pinned_rows + normal_rows
+    return list(pinned_result.data or []) + list(
+        unpinned_result.data or []
+    )
 
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
@@ -15371,7 +15539,7 @@ def _load_messages_cached(conversation_id):
     result = (
         supabase
         .table("messages")
-        .select("role,content,created_at")
+        .select("role,content")
         .eq("conversation_id", conversation_id)
         .order("created_at")
         .limit(1000)
@@ -15387,23 +15555,45 @@ def _load_messages_cached(conversation_id):
     ]
 
 
-def invalidate_history_cache(conversations=True, messages=True):
-    """Clear only the history caches affected by a mutation."""
+def invalidate_history_cache(
+    conversations=True,
+    messages=True,
+    username=None,
+    conversation_id=None,
+):
+    """
+    Invalidate only affected history cache entries when supported.
+
+    Older Streamlit versions fall back safely to clearing the whole function
+    cache, preserving compatibility with Streamlit Cloud.
+    """
     if conversations:
         st.session_state.pop(
             "conversation_title_session_cache",
             None,
         )
 
-    cached_functions = []
     if conversations:
-        cached_functions.append(_load_conversations_cached)
-    if messages:
-        cached_functions.append(_load_messages_cached)
-
-    for cached_function in cached_functions:
         try:
-            cached_function.clear()
+            if username:
+                _load_conversations_cached.clear(
+                    str(username or "").strip()
+                )
+            else:
+                _load_conversations_cached.clear()
+        except TypeError:
+            _load_conversations_cached.clear()
+        except Exception:
+            pass
+
+    if messages:
+        try:
+            if conversation_id:
+                _load_messages_cached.clear(conversation_id)
+            else:
+                _load_messages_cached.clear()
+        except TypeError:
+            _load_messages_cached.clear()
         except Exception:
             pass
 
@@ -15432,18 +15622,41 @@ def archive_conversation(conversation_id):
             "archived": True,
             "updated_at": now_iso()
         }).eq("id", conversation_id).execute()
-        invalidate_history_cache()
+        invalidate_history_cache(
+            conversations=True,
+            messages=False,
+            username=st.session_state.get("username"),
+        )
 
 
 def delete_conversation(conversation_id):
-    """Permanently delete a conversation and its messages."""
+    """Permanently delete one conversation owned by the signed-in user."""
     if not conversation_id:
         return
 
-    # The messages table should also delete by cascade, but this makes it explicit.
-    supabase.table("messages").delete().eq("conversation_id", conversation_id).execute()
-    supabase.table("conversations").delete().eq("id", conversation_id).execute()
-    invalidate_history_cache()
+    username = str(st.session_state.get("username") or "").strip()
+
+    # Keep explicit message deletion for schemas without ON DELETE CASCADE.
+    supabase.table("messages").delete().eq(
+        "conversation_id",
+        conversation_id,
+    ).execute()
+
+    delete_query = (
+        supabase
+        .table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+    )
+    if username:
+        delete_query = delete_query.eq("username", username)
+    delete_query.execute()
+    invalidate_history_cache(
+        conversations=True,
+        messages=True,
+        username=st.session_state.get("username"),
+        conversation_id=conversation_id,
+    )
 
 
 def toggle_pin_conversation(conversation_id, pinned):
@@ -15455,7 +15668,11 @@ def toggle_pin_conversation(conversation_id, pinned):
         "pinned": bool(pinned),
         "updated_at": now_iso()
     }).eq("id", conversation_id).execute()
-    invalidate_history_cache()
+    invalidate_history_cache(
+        conversations=True,
+        messages=False,
+        username=st.session_state.get("username"),
+    )
 
 
 def format_history_date(value):
@@ -15675,6 +15892,14 @@ def get_conversation_title_by_id(conversation_id):
     if cached_title:
         return cached_title
 
+    session_titles = st.session_state.setdefault(
+        "conversation_title_session_cache",
+        {},
+    )
+    conversation_key = str(conversation_id or "")
+    if conversation_key in session_titles:
+        return session_titles[conversation_key]
+
     try:
         result = (
             supabase
@@ -15685,7 +15910,9 @@ def get_conversation_title_by_id(conversation_id):
             .execute()
         )
         if result.data:
-            return result.data[0].get("title") or "New Case"
+            title = result.data[0].get("title") or "New Case"
+            session_titles[conversation_key] = title
+            return title
     except Exception:
         pass
     return "New Case"
