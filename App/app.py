@@ -1514,7 +1514,11 @@ def _woocommerce_access_level_for_assistant(selected_assistant=None):
 
 
 @st.cache_data(ttl=300, max_entries=1024, show_spinner=False)
-def detect_technical_support_tool(prompt, selected_assistant=None):
+def detect_technical_support_tool(
+    prompt,
+    selected_assistant=None,
+    has_images=False,
+):
     """
     Route Technical Support prompts to one specialized workflow.
 
@@ -1539,6 +1543,21 @@ def detect_technical_support_tool(prompt, selected_assistant=None):
     lower = value.lower()
     if not lower:
         return {"type": "none"}
+
+    photo_diagnosis_terms = (
+        "analyze this photo", "analyse this photo", "analyze this image",
+        "analyse this image", "diagnose this photo", "diagnose this image",
+        "what is wrong", "what's wrong", "what do you see",
+        "check this installation", "check this wiring", "check this connector",
+        "identify this connector", "identify this harness", "identify this unit",
+        "is this connected correctly", "is this installed correctly",
+        "damage", "cracked", "broken", "burnt", "burned",
+    )
+    if bool(has_images) and any(term in lower for term in photo_diagnosis_terms):
+        return {
+            "type": "technical_photo_diagnosis",
+            "label": "AI Photo Diagnosis",
+        }
 
     wiring_terms = (
         "wiring diagram", "wire diagram", "wiring", "pinout", "pin out",
@@ -1636,6 +1655,37 @@ Preferred response:
 - Missing information or limitation
 """
 
+    if tool_type == "technical_photo_diagnosis":
+        return common + """
+ACTIVE TOOL: AI Photo Diagnosis
+
+Required behavior:
+1. Analyze only what is actually visible in the uploaded image or images.
+2. Separate VISIBLE OBSERVATIONS from DIAGNOSIS and from UNVERIFIED ASSUMPTIONS.
+3. Use the Technical Support Vector Store to verify connectors, harnesses,
+   wiring, product models, vehicle configurations, installation procedures,
+   known issues, and expected behavior.
+4. Never identify a connector, pin, wire, harness, vehicle trim, audio system,
+   camera system, product model, firmware, or defect unless the image or
+   retrieved AutoTecPro documentation supports it.
+5. State confidence as HIGH, MEDIUM, or LOW and explain what limits confidence.
+6. Ask for a clearer close-up, wider dashboard photo, connector-label photo,
+   wiring photo, settings screen, order number, or vehicle details when needed.
+7. Do not recommend replacement until installation, connections, settings,
+   documented procedures, and known issues have been reasonably checked.
+8. Customer photos must not be treated as reusable knowledge by themselves.
+
+Preferred response:
+- Visible observations
+- Detected vehicle/product, if verified
+- Confidence
+- Most likely diagnosis
+- Alternative possibilities
+- Recommended checks
+- Additional photo or information required
+- Escalation recommendation
+"""
+
     if tool_type == "technical_compatibility":
         return common + """
 ACTIVE TOOL: AI Compatibility Checker
@@ -1688,6 +1738,210 @@ Preferred response:
 - Next action based on the result
 - Information/photo needed
 """
+
+
+@st.cache_data(ttl=300, max_entries=2048, show_spinner=False)
+def detect_workspace_ai_tool(
+    prompt,
+    selected_assistant=None,
+    has_images=False,
+):
+    """
+    Route Sales, Marketing, and Graphic Marketing prompts locally.
+
+    The router is deterministic and adds no network, Supabase, or OpenAI call.
+    It returns one specialized workflow at most.
+    """
+    active = re.sub(
+        r"\s+",
+        " ",
+        str(
+            selected_assistant
+            or st.session_state.get("current_assistant")
+            or ""
+        ),
+    ).strip().lower()
+    active = re.sub(r"^[^a-z0-9]+", "", active).strip()
+
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    lower = value.lower()
+    if not lower:
+        return {"type": "none"}
+
+    if active in {"sales", "sales & marketing", "sales and marketing"}:
+        image_identification_terms = (
+            "identify this vehicle", "identify this dashboard",
+            "identify this radio", "identify this screen",
+            "what vehicle is this", "what dashboard is this",
+            "what radio is this", "what system is this",
+            "which vehicle", "which model is this",
+            "what product fits this photo", "what fits this",
+        )
+        if bool(has_images) and any(
+            term in lower for term in image_identification_terms
+        ):
+            return {
+                "type": "sales_vehicle_identifier",
+                "label": "AI Vehicle Identifier",
+            }
+
+        compatibility_terms = (
+            "compatible", "compatibility", "will it fit", "does it fit",
+            "fit my", "fitment", "work with my", "works with my",
+            "which screen", "which unit", "which harness",
+            "what harness", "retain factory", "retain my",
+            "bose compatible", "sony compatible", "jbl compatible",
+            "360 camera compatible", "factory camera compatible",
+        )
+        if any(term in lower for term in compatibility_terms):
+            return {
+                "type": "sales_compatibility_advisor",
+                "label": "AI Compatibility Advisor",
+            }
+
+        advisor_terms = (
+            "which one should", "what should i recommend",
+            "what do you recommend", "recommend a product",
+            "best option", "best model", "compare these",
+            "product comparison", "help me sell", "customer reply",
+            "sales reply", "upsell", "upgrade option",
+        )
+        if any(term in lower for term in advisor_terms):
+            return {
+                "type": "sales_advisor",
+                "label": "AI Sales Advisor",
+            }
+
+        return {"type": "none"}
+
+    if active in {"marketing", "graphic marketing"}:
+        analysis_terms = (
+            "analyze this image", "analyse this image",
+            "analyze this photo", "analyse this photo",
+            "review this image", "review this design",
+            "review this ad", "review this creative",
+            "how can i improve", "how should i improve",
+            "what do you think of", "does this look professional",
+            "compare this with our brand", "compare this to our brand",
+            "brand consistency", "would this convert",
+            "conversion potential", "is this amazon ready",
+            "is this facebook ready", "is this instagram ready",
+            "analyze this packaging", "analyse this packaging",
+            "analyze this banner", "analyse this banner",
+            "analyze this listing", "analyse this listing",
+            "score this", "rate this design", "give this a score",
+        )
+        if bool(has_images) and any(term in lower for term in analysis_terms):
+            return {
+                "type": "marketing_consultant",
+                "label": "AI Marketing Consultant",
+                "score_requested": any(
+                    term in lower
+                    for term in (
+                        "score this", "rate this design",
+                        "give this a score", "score the image",
+                        "score the design", "out of 10", "out of 100",
+                    )
+                ),
+            }
+
+    return {"type": "none"}
+
+
+def build_workspace_ai_tool_context(prompt, routing=None):
+    """Return grounded instructions for one Sales or Marketing workflow."""
+    if not isinstance(routing, dict):
+        return ""
+
+    tool_type = str(routing.get("type") or "none").strip().lower()
+    if tool_type == "none":
+        return ""
+
+    if tool_type == "sales_vehicle_identifier":
+        return """
+WORKSPACE TOOL ROUTING — generated by the AutoTecPro application:
+ACTIVE TOOL: AI Vehicle Identifier
+
+- Analyze only details visible in the uploaded image.
+- Use the Sales Vector Store to verify vehicle fitment and AutoTecPro products.
+- Distinguish visible evidence from inference.
+- Do not identify year, trim, audio system, camera system, factory screen,
+  climate controls, or product model unless supported by the image or retrieved
+  AutoTecPro documentation.
+- State confidence as HIGH, MEDIUM, or LOW.
+- Recommend products only after required compatibility details are verified.
+- Ask for the minimum additional photo or information needed.
+- Never invent pricing, availability, specifications, or retained features.
+
+Preferred response:
+- Visible vehicle/dashboard details
+- Likely configuration
+- Confidence
+- Compatible AutoTecPro options
+- Required harness/accessories
+- Missing information
+"""
+
+    if tool_type == "sales_compatibility_advisor":
+        return """
+WORKSPACE TOOL ROUTING — generated by the AutoTecPro application:
+ACTIVE TOOL: AI Compatibility Advisor
+
+- Search the Sales Vector Store before making a compatibility statement.
+- Verify year, make, model, trim, factory screen/radio, factory audio, cameras,
+  climate controls, steering side, and requested AutoTecPro product as needed.
+- Return one status: VERIFIED COMPATIBLE, CONDITIONALLY COMPATIBLE,
+  NOT COMPATIBLE, or INSUFFICIENT INFORMATION.
+- List the recommended product, required harnesses/adapters, retained features,
+  known limitations, and missing details.
+- Do not infer compatibility from nearby years or similar trims.
+- Never invent pricing, stock, specifications, or policy details.
+"""
+
+    if tool_type == "sales_advisor":
+        return """
+WORKSPACE TOOL ROUTING — generated by the AutoTecPro application:
+ACTIVE TOOL: AI Sales Advisor
+
+- Use verified Sales Vector Store product facts and policies.
+- Clarify the customer's vehicle, needs, priorities, and required features.
+- Recommend the best-supported product first and explain why.
+- Compare options accurately, including meaningful limitations.
+- Provide a ready-to-send customer reply when useful.
+- Offer an upgrade only when it genuinely fits the customer's needs.
+- Never invent compatibility, specifications, pricing, promotions, stock,
+  warranty terms, or order information.
+"""
+
+    if tool_type == "marketing_consultant":
+        score_requested = bool(routing.get("score_requested"))
+        score_rule = (
+            "The user explicitly requested a score. Provide a concise, explained "
+            "score only for relevant categories."
+            if score_requested
+            else
+            "Do not provide any numeric score, star rating, grade, or percentage "
+            "unless the user explicitly asks for one."
+        )
+        return f"""
+WORKSPACE TOOL ROUTING — generated by the AutoTecPro application:
+ACTIVE TOOL: AI Marketing Consultant
+
+- Analyze the uploaded image according to the user's exact request.
+- This is analysis and consultation, not automatic image generation.
+- Preserve the Advanced AI Image Designer as the separate creation/editing path.
+- Focus only on requested areas such as composition, lighting, visual hierarchy,
+  branding, text readability, CTA, platform fit, conversion potential,
+  packaging, product photography, Amazon, Facebook, Instagram, dealer material,
+  website screenshots, or competitor creatives.
+- Use Marketing and Sales vector-store facts when brand or product accuracy is
+  relevant. Clearly label unverified assumptions.
+- Provide practical, prioritized improvements and, when useful, a ready-to-use
+  redesign brief for the Advanced AI Image Designer.
+- {score_rule}
+"""
+
+    return ""
 
 
 @st.cache_data(ttl=300, max_entries=512, show_spinner=False)
@@ -11702,6 +11956,7 @@ a separate form:
 - AI Wiring Diagram Finder
 - AI Compatibility Checker
 - AI Installation Troubleshooter
+- AI Photo Diagnosis
 
 When a TECHNICAL TOOL ROUTING block is supplied, follow that workflow exactly.
 Only the selected workflow should run. Do not claim that a wiring image or PDF
@@ -11775,6 +12030,14 @@ When WooCommerce data is provided:
   and any calculation note.
 - Do not describe gross line-item revenue as profit or net revenue.
 
+The application may activate these prompt-routed Sales workflows:
+- AI Compatibility Advisor
+- AI Vehicle Identifier
+- AI Sales Advisor
+
+When a WORKSPACE TOOL ROUTING block is supplied, follow only that selected
+workflow. Image identification must distinguish visible facts from inference.
+
 Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
 """
@@ -11816,6 +12079,11 @@ Help with Amazon listings, website copy, SEO, Google Ads, Facebook and
 Instagram content, email campaigns, blogs, dealer campaigns, video scripts,
 product launches, promotional materials, and live sales analysis.
 
+The application may also activate the prompt-driven AI Marketing Consultant
+for uploaded-image analysis. It must not automatically score an image unless
+the user explicitly requests a score, and it must not replace the Advanced AI
+Image Designer.
+
 When the application identifies a MARKETING TOOL request:
 - Follow the requested output structure completely.
 - Apply verified AutoTecPro brand guidance and product facts from file_search.
@@ -11830,6 +12098,12 @@ Do not output HTML or code-fence formatting.
 You are AutoTecPro Graphic Marketing AI.
 
 Analyze uploaded images when provided.
+
+The application may activate the prompt-driven AI Marketing Consultant when
+the user asks to review, critique, compare, or improve an uploaded creative.
+Do not automatically score an image unless the user explicitly asks. Keep
+analysis separate from the Advanced AI Image Designer creation/editing path.
+
 Help create ads, banners, YouTube thumbnails, product photography ideas,
 social media posts, marketing campaigns, and image prompts.
 Do not output HTML or code-fence formatting.
@@ -11913,6 +12187,7 @@ def build_user_input(
     uploaded_files,
     detected_live_request=None,
     detected_technical_tool=None,
+    detected_workspace_tool=None,
 ):
     content = [
         {
@@ -11958,7 +12233,14 @@ def build_user_input(
     detected_technical_tool = (
         detected_technical_tool
         if isinstance(detected_technical_tool, dict)
-        else detect_technical_support_tool(prompt_text, assistant)
+        else detect_technical_support_tool(
+            prompt_text,
+            assistant,
+            has_images=any(
+                str(getattr(item, "type", "") or "").startswith("image/")
+                for item in (uploaded_files or [])
+            ),
+        )
     )
     technical_tool_context = build_technical_tool_context(
         prompt_text,
@@ -11968,6 +12250,28 @@ def build_user_input(
         content.append({
             "type": "input_text",
             "text": technical_tool_context,
+        })
+
+    detected_workspace_tool = (
+        detected_workspace_tool
+        if isinstance(detected_workspace_tool, dict)
+        else detect_workspace_ai_tool(
+            prompt_text,
+            assistant,
+            has_images=any(
+                str(getattr(item, "type", "") or "").startswith("image/")
+                for item in (uploaded_files or [])
+            ),
+        )
+    )
+    workspace_tool_context = build_workspace_ai_tool_context(
+        prompt_text,
+        routing=detected_workspace_tool,
+    )
+    if workspace_tool_context:
+        content.append({
+            "type": "input_text",
+            "text": workspace_tool_context,
         })
 
     memory_text = _build_recent_memory_text_cached(_recent_memory_rows(10))
@@ -12003,12 +12307,14 @@ def ask_ai(
     uploaded_files,
     detected_live_request=None,
     detected_technical_tool=None,
+    detected_workspace_tool=None,
 ):
     user_input = build_user_input(
         prompt_text,
         uploaded_files,
         detected_live_request=detected_live_request,
         detected_technical_tool=detected_technical_tool,
+        detected_workspace_tool=detected_workspace_tool,
     )
     instructions = (
         get_instructions(assistant)
@@ -19752,9 +20058,19 @@ else:
 
         generated_images = []
         detected_request = detect_live_request(prompt, assistant)
+        has_uploaded_images = any(
+            str(getattr(item, "type", "") or "").startswith("image/")
+            for item in effective_uploaded_files
+        )
         detected_technical_tool = detect_technical_support_tool(
             prompt,
             assistant,
+            has_images=has_uploaded_images,
+        )
+        detected_workspace_tool = detect_workspace_ai_tool(
+            prompt,
+            assistant,
+            has_images=has_uploaded_images,
         )
         is_graphic_generation = (
             assistant == "🎨 Graphic Marketing"
@@ -19791,6 +20107,7 @@ else:
                     effective_uploaded_files,
                     detected_live_request=detected_request,
                     detected_technical_tool=detected_technical_tool,
+                    detected_workspace_tool=detected_workspace_tool,
                 )
                 answer = clean_visible_chat_text(answer)
                 if assistant == "🔧 Technical Support":
