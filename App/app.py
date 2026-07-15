@@ -11348,15 +11348,26 @@ def render_chat_document_cards(documents, message_index=None):
                 }}
 
                 div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button > div,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button > div,
+                div[class*="st-key-{container_key}"]
                 div[data-testid="stDownloadButton"] > button p,
                 div[class*="st-key-{container_key}"]
-                .stDownloadButton > button p {{
+                .stDownloadButton > button p,
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button span,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button span {{
                     margin: 0 !important;
                     padding: 0 !important;
+                    min-height: 0 !important;
                     line-height: 1 !important;
                     display: inline-flex !important;
                     align-items: center !important;
                     justify-content: center !important;
+                    gap: 8px !important;
+                    text-align: center !important;
                 }}
 
                 @media (max-width: 768px) {{
