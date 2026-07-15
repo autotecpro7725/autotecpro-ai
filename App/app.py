@@ -8854,7 +8854,7 @@ st.markdown(
         flex-direction: column !important;
         gap: 5px !important;
         width: 100% !important;
-        margin: 7px 0 0 0 !important;
+        margin: 9px 0 0 0 !important;
     }
 
     div[data-testid="stSidebar"] label[data-baseweb="radio"] {
@@ -11537,7 +11537,7 @@ def render_chat_document_cards(documents, message_index=None):
                     text-align: center !important;
                 }}
                 div[class*="st-key-{container_key}"] details {{
-                    margin-top: 7px !important;
+                    margin-top: 8px !important;
                     border: 0 !important;
                     background: transparent !important;
                 }}

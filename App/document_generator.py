@@ -630,54 +630,6 @@ def build_csv(
     return buffer.getvalue().encode("utf-8-sig"), max(1, len(rows))
 
 
-def create_document_record(
-    prompt_text: Any,
-    answer_text: Any,
-    format_name: str | None = None,
-    visible_text_cleaner: Callable[[Any], str] | None = None,
-) -> dict[str, Any]:
-    request = detect_document_generation_request(prompt_text)
-    resolved_format = str(format_name or (request or {}).get("format") or "pdf").lower()
-    if resolved_format not in FORMAT_CONFIG:
-        raise ValueError(f"Unsupported document format: {resolved_format}")
-
-    filename = safe_document_filename(prompt_text, answer_text, resolved_format)
-    title = Path(filename).stem.replace("_", " ").strip() or "AutoTecPro AI Document"
-
-    if resolved_format == "pdf":
-        file_bytes, unit_count = build_text_pdf(answer_text, title, visible_text_cleaner)
-        unit_label = "Pages"
-    elif resolved_format == "docx":
-        file_bytes, unit_count = build_docx(answer_text, title, visible_text_cleaner)
-        unit_label = "Paragraphs"
-    elif resolved_format == "pptx":
-        file_bytes, unit_count = build_pptx(answer_text, title, visible_text_cleaner)
-        unit_label = "Slides"
-    elif resolved_format == "xlsx":
-        file_bytes, unit_count = build_xlsx(answer_text, title, visible_text_cleaner)
-        unit_label = "Sheets"
-    else:
-        file_bytes, unit_count = build_csv(answer_text, title, visible_text_cleaner)
-        unit_label = "Rows"
-
-    config = FORMAT_CONFIG[resolved_format]
-    encoded = base64.b64encode(file_bytes).decode("ascii")
-    return {
-        "name": filename,
-        "format": resolved_format,
-        "format_label": config["label"],
-        "icon": config["icon"],
-        "mime_type": config["mime_type"],
-        "data_url": f"data:{config['mime_type']};base64,{encoded}",
-        "unit_count": int(unit_count),
-        "unit_label": unit_label,
-        "page_count": int(unit_count) if resolved_format == "pdf" else 0,
-        "size_bytes": len(file_bytes),
-        "generated": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
 def serialize_documents_marker(documents: Iterable[dict[str, Any]] | None) -> str:
     records = list(documents or [])
     if not records:
@@ -780,33 +732,48 @@ def _document_options(options: Any = None) -> dict[str, Any]:
 
 def _prepared_logo_stream(logo_path: Any):
     """
-    Return a cropped PNG stream so logos with large white margins remain visible.
+    Return a tightly cropped PNG stream for document embedding.
 
-    Returns None when the path is unavailable or Pillow cannot process it.
+    The AutoTecPro source logo uses a large opaque white canvas. Prefer the
+    visible non-white artwork bounds; only use alpha bounds when transparency
+    actually removes part of the image.
     """
     if not logo_path:
         return None
+
+    path = Path(str(logo_path))
+    if not path.exists() or not path.is_file():
+        return None
+
     try:
         from PIL import Image, ImageChops
-        image = Image.open(str(logo_path)).convert("RGBA")
+
+        image = Image.open(path).convert("RGBA")
+        original_size = image.size
         alpha = image.getchannel("A")
         alpha_box = alpha.getbbox()
 
-        # Also remove near-white surrounding canvas used by many logo exports.
-        rgb = Image.new("RGB", image.size, "white")
-        rgb.paste(image.convert("RGB"), mask=alpha)
-        background = Image.new("RGB", rgb.size, "white")
-        difference = ImageChops.difference(rgb, background).convert("L")
-        difference = difference.point(lambda pixel: 255 if pixel > 12 else 0)
-        color_box = difference.getbbox()
+        rgb_on_white = Image.new("RGB", image.size, "white")
+        rgb_on_white.paste(image.convert("RGB"), mask=alpha)
+        white_background = Image.new("RGB", rgb_on_white.size, "white")
+        difference = ImageChops.difference(
+            rgb_on_white,
+            white_background,
+        ).convert("L")
+        visible_mask = difference.point(
+            lambda pixel: 255 if pixel > 12 else 0
+        )
+        color_box = visible_mask.getbbox()
 
-        boxes = [box for box in (alpha_box, color_box) if box]
-        if boxes:
-            left = min(box[0] for box in boxes)
-            top = min(box[1] for box in boxes)
-            right = max(box[2] for box in boxes)
-            bottom = max(box[3] for box in boxes)
-            padding = max(4, int(min(image.size) * 0.015))
+        crop_box = None
+        if color_box:
+            crop_box = color_box
+        elif alpha_box and alpha_box != (0, 0, image.width, image.height):
+            crop_box = alpha_box
+
+        if crop_box:
+            left, top, right, bottom = crop_box
+            padding = max(6, int(min(original_size) * 0.012))
             crop_box = (
                 max(0, left - padding),
                 max(0, top - padding),
@@ -815,13 +782,16 @@ def _prepared_logo_stream(logo_path: Any):
             )
             image = image.crop(crop_box)
 
+        # Flatten to RGB so PDF/Office renderers handle the image consistently.
+        flattened = Image.new("RGB", image.size, "white")
+        flattened.paste(image.convert("RGB"), mask=image.getchannel("A"))
+
         stream = io.BytesIO()
-        image.save(stream, format="PNG", optimize=True)
+        flattened.save(stream, format="PNG", optimize=True)
         stream.seek(0)
         return stream
     except Exception:
         return None
-
 
 def _logo_dimensions(logo_stream, max_width, max_height):
     """Preserve the logo aspect ratio within the requested bounds."""
@@ -871,25 +841,25 @@ def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
                               spaceBefore=12, spaceAfter=7))
     story = []
     logo_added = False
-    if opts["include_logo"] and opts["logo_path"]:
-        try:
-            logo_stream = _prepared_logo_stream(opts["logo_path"])
-            if logo_stream is not None:
-                logo_width, logo_height = _logo_dimensions(
-                    logo_stream,
-                    max_width=2.15 * inch,
-                    max_height=0.78 * inch,
-                )
-                logo = RLImage(
-                    logo_stream,
-                    width=logo_width,
-                    height=logo_height,
-                )
-                logo.hAlign = "CENTER"
-                story.extend([logo, Spacer(1, 12)])
-                logo_added = True
-        except Exception:
-            logo_added = False
+    if opts["include_logo"]:
+        logo_stream = _prepared_logo_stream(opts["logo_path"])
+        if logo_stream is None:
+            raise RuntimeError(
+                "AutoTecPro logo was selected, but App/logo.png could not be loaded."
+            )
+        logo_width, logo_height = _logo_dimensions(
+            logo_stream,
+            max_width=2.15 * inch,
+            max_height=0.78 * inch,
+        )
+        logo = RLImage(
+            logo_stream,
+            width=logo_width,
+            height=logo_height,
+        )
+        logo.hAlign = "CENTER"
+        story.extend([logo, Spacer(1, 12)])
+        logo_added = True
     story.append(Paragraph(_html.escape(title), styles["ATPTitle"]))
     if opts["include_company_info"]:
         company_style = ParagraphStyle(name="ATPCompany", parent=styles["BodyText"],
@@ -1100,6 +1070,9 @@ def create_document_record(
         "style": opts["style"],
         "branded": bool(opts["include_logo"] or opts["include_company_info"]),
         "logo_requested": bool(opts["include_logo"]),
-        "logo_available": bool(opts["logo_path"]),
+        "logo_available": bool(
+            opts["logo_path"] and Path(str(opts["logo_path"])).is_file()
+        ),
+        "generator_version": "1.5",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
