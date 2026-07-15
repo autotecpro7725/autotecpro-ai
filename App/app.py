@@ -11178,6 +11178,173 @@ def _human_file_size(size_bytes):
     return f"{value / (1024 * 1024):.1f} MB"
 
 
+
+DOCUMENT_WORKSPACE_DEFAULTS = {
+    "🔧 Technical Support": {
+        "format": "pdf",
+        "include_logo": False,
+        "include_company_info": False,
+        "watermark": "",
+        "style": "Professional",
+    },
+    "📈 Sales": {
+        "format": "pdf",
+        "include_logo": True,
+        "include_company_info": True,
+        "watermark": "",
+        "style": "Professional",
+    },
+    "📈 Sales & Marketing": {
+        "format": "pdf",
+        "include_logo": True,
+        "include_company_info": True,
+        "watermark": "",
+        "style": "Professional",
+    },
+    "📣 Marketing": {
+        "format": "pptx",
+        "include_logo": True,
+        "include_company_info": True,
+        "watermark": "",
+        "style": "Presentation",
+    },
+}
+
+
+def _document_settings_state_key(workspace=None):
+    active = str(workspace or st.session_state.get("current_assistant") or assistant or "")
+    digest = hashlib.sha256(active.encode("utf-8")).hexdigest()[:12]
+    return f"document_settings_{digest}"
+
+
+def get_document_creator_settings(workspace=None):
+    active = str(workspace or st.session_state.get("current_assistant") or assistant or "")
+    defaults = dict(
+        DOCUMENT_WORKSPACE_DEFAULTS.get(
+            active,
+            {
+                "format": "pdf",
+                "include_logo": False,
+                "include_company_info": False,
+                "watermark": "",
+                "style": "Professional",
+            },
+        )
+    )
+    state_key = _document_settings_state_key(active)
+    saved = st.session_state.get(state_key)
+    if isinstance(saved, dict):
+        defaults.update({
+            key: saved.get(key, defaults[key])
+            for key in defaults
+        })
+    defaults["format"] = str(defaults.get("format") or "pdf").lower()
+    if defaults["format"] not in {"pdf", "docx", "pptx", "xlsx", "csv"}:
+        defaults["format"] = "pdf"
+    defaults["style"] = str(defaults.get("style") or "Professional")
+    return defaults
+
+
+def save_document_creator_settings(settings, workspace=None):
+    clean = get_document_creator_settings(workspace)
+    if isinstance(settings, dict):
+        clean.update(settings)
+    st.session_state[_document_settings_state_key(workspace)] = clean
+    return clean
+
+
+def _conversation_document_text(messages, current_answer=""):
+    parts = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "").strip().lower()
+        content = str(message.get("content") or "")
+        content, _ = extract_documents_from_message_content(content)
+        content, _ = extract_images_from_message_content(content)
+        content = clean_visible_chat_text(content).strip()
+        if not content:
+            continue
+        label = "User" if role == "user" else "AutoTecPro AI"
+        parts.append(f"{label}\n{content}")
+    if str(current_answer or "").strip():
+        parts.append(f"AutoTecPro AI\n{clean_visible_chat_text(current_answer).strip()}")
+    return "\n\n".join(parts).strip()
+
+
+def _document_request_uses_conversation(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    return any(
+        phrase in value
+        for phrase in (
+            "this conversation",
+            "the conversation",
+            "current conversation",
+            "this chat",
+            "current chat",
+            "entire conversation",
+            "whole conversation",
+        )
+    )
+
+
+def render_document_settings_editor(container_key):
+    settings = get_document_creator_settings()
+    format_labels = {
+        "PDF": "pdf",
+        "Word": "docx",
+        "PowerPoint": "pptx",
+        "Excel": "xlsx",
+        "CSV": "csv",
+    }
+    reverse_formats = {value: key for key, value in format_labels.items()}
+    with st.expander("Change Settings", expanded=False):
+        chosen_label = st.radio(
+            "Format",
+            list(format_labels),
+            index=list(format_labels).index(
+                reverse_formats.get(settings["format"], "PDF")
+            ),
+            horizontal=True,
+            key=f"{container_key}_format",
+        )
+        include_logo = st.checkbox(
+            "Include AutoTecPro Logo",
+            value=bool(settings.get("include_logo")),
+            key=f"{container_key}_logo",
+        )
+        include_company = st.checkbox(
+            "Include Company Information",
+            value=bool(settings.get("include_company_info")),
+            key=f"{container_key}_company",
+        )
+        watermark_enabled = st.checkbox(
+            "Confidential Watermark",
+            value=bool(settings.get("watermark")),
+            key=f"{container_key}_watermark_enabled",
+        )
+        style = st.radio(
+            "Style",
+            ["Professional", "Minimal", "Presentation"],
+            index=["Professional", "Minimal", "Presentation"].index(
+                settings.get("style")
+                if settings.get("style") in {"Professional", "Minimal", "Presentation"}
+                else "Professional"
+            ),
+            horizontal=True,
+            key=f"{container_key}_style",
+        )
+        updated = {
+            "format": format_labels[chosen_label],
+            "include_logo": include_logo,
+            "include_company_info": include_company,
+            "watermark": "CONFIDENTIAL" if watermark_enabled else "",
+            "style": style,
+        }
+        save_document_creator_settings(updated)
+        st.caption("These settings apply automatically to the next document request.")
+
+
 def _document_download_key(document, message_index, document_index):
     seed = (
         str(document.get("name") or "")
@@ -11279,19 +11446,19 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] .atp-document-card-header {{
                     display: flex !important;
                     align-items: center !important;
-                    gap: 12px !important;
+                    gap: 10px !important;
                     min-width: 0 !important;
                 }}
                 div[class*="st-key-{container_key}"] .atp-document-icon {{
-                    width: 38px !important;
-                    height: 38px !important;
-                    min-width: 38px !important;
+                    width: 30px !important;
+                    height: 30px !important;
+                    min-width: 30px !important;
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    font-size: 22px !important;
+                    font-size: 17px !important;
                     line-height: 1 !important;
-                    border-radius: 8px !important;
+                    border-radius: 7px !important;
                     background: rgba(51,65,85,.72) !important;
                 }}
                 div[class*="st-key-{container_key}"] .atp-document-details {{
@@ -11323,9 +11490,9 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] div[data-testid="stDownloadButton"] > button,
                 div[class*="st-key-{container_key}"] .stDownloadButton > button {{
                     width: 100% !important;
-                    min-height: 42px !important;
+                    min-height: 34px !important;
                     margin: 0 !important;
-                    padding: 0 14px !important;
+                    padding: 0 12px !important;
                     border: 1px solid rgba(148,163,184,.26) !important;
                     border-radius: 8px !important;
                     background: rgba(30,41,59,.72) !important;
@@ -11334,8 +11501,8 @@ def render_chat_document_cards(documents, message_index=None):
                     display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    gap: 8px !important;
-                    font-size: 14px !important;
+                    gap: 5px !important;
+                    font-size: 13px !important;
                     font-weight: 650 !important;
                     line-height: 1 !important;
                     text-align: center !important;
@@ -11354,8 +11521,32 @@ def render_chat_document_cards(documents, message_index=None):
                     display: inline-flex !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    gap: 8px !important;
+                    gap: 5px !important;
                     text-align: center !important;
+                }}
+                div[class*="st-key-{container_key}"] details {{
+                    margin-top: 2px !important;
+                    border: 0 !important;
+                    background: transparent !important;
+                }}
+                div[class*="st-key-{container_key}"] details summary,
+                div[class*="st-key-{container_key}"] details summary *,
+                div[class*="st-key-{container_key}"] label,
+                div[class*="st-key-{container_key}"] label *,
+                div[class*="st-key-{container_key}"] p,
+                div[class*="st-key-{container_key}"] span {{
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                }}
+                div[class*="st-key-{container_key}"] details summary {{
+                    font-size: 12px !important;
+                    min-height: 28px !important;
+                    padding: 2px 0 !important;
+                }}
+                div[class*="st-key-{container_key}"] [data-testid="stRadio"],
+                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
                 }}
                 @media (max-width: 768px) {{
                     div[class*="st-key-{container_key}"] {{
@@ -11377,7 +11568,7 @@ def render_chat_document_cards(documents, message_index=None):
             )
 
             button_kwargs = {
-                "label": "↓ Download",
+                "label": "↓  Download",
                 "data": file_bytes,
                 "file_name": filename,
                 "mime": mime_type,
@@ -11389,6 +11580,8 @@ def render_chat_document_cards(documents, message_index=None):
                 st.download_button(**button_kwargs, on_click="ignore")
             except TypeError:
                 st.download_button(**button_kwargs)
+
+            render_document_settings_editor(container_key)
 
 
 def serialize_images_marker(images):
@@ -20332,6 +20525,13 @@ else:
                 "📣 Marketing",
             }
         )
+        document_creator_settings = get_document_creator_settings(assistant)
+        if document_generation_request:
+            explicit_format = str(
+                document_generation_request.get("format") or ""
+            ).strip().lower()
+            if explicit_format:
+                document_creator_settings["format"] = explicit_format
         detected_request = detect_live_request(prompt, assistant)
         has_uploaded_images = any(
             str(getattr(item, "type", "") or "").startswith("image/")
@@ -20392,12 +20592,26 @@ else:
 
         if document_generation_requested and not is_graphic_generation:
             try:
+                document_source_text = answer
+                if _document_request_uses_conversation(prompt):
+                    prior_messages = list(st.session_state.messages[:-1])
+                    document_source_text = _conversation_document_text(
+                        prior_messages,
+                        current_answer="",
+                    ) or answer
+
                 generated_documents = [
                     create_document_record(
                         prompt,
-                        answer,
-                        format_name=document_generation_request.get("format"),
+                        document_source_text,
+                        format_name=document_creator_settings.get("format"),
                         visible_text_cleaner=clean_visible_chat_text,
+                        options={
+                            **document_creator_settings,
+                            "logo_path": str(LOGO_FILE),
+                            "company_name": "AutoTecPro Inc.",
+                            "company_info": "Generated by AutoTecPro AI",
+                        },
                     )
                 ]
             except Exception as document_error:

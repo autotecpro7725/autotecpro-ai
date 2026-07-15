@@ -9,3 +9,4 @@ streamlit-cookies-controller==0.0.4
 python-docx
 python-pptx
 openpyxl
+reportlab
