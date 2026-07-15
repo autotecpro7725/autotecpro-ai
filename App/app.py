@@ -8211,7 +8211,12 @@ def render_chat_message(
     message_index=None,
     show_generated_actions=True,
 ):
-    visible_content, stored_images = extract_images_from_message_content(content)
+    content_without_documents, stored_documents = (
+        extract_documents_from_message_content(content)
+    )
+    visible_content, stored_images = extract_images_from_message_content(
+        content_without_documents
+    )
     visible_content = clean_visible_chat_text(visible_content)
     final_images = images if images is not None else stored_images
 
@@ -8242,6 +8247,12 @@ def render_chat_message(
     )
 
     st.markdown(chat_html, unsafe_allow_html=True)
+
+    if role != "user" and stored_documents:
+        render_chat_document_cards(
+            stored_documents,
+            message_index=message_index,
+        )
 
     if (
         role != "user"
@@ -10996,6 +11007,10 @@ def image_to_data_url(uploaded_file):
 
 
 IMAGE_MARKER_PREFIX = "[[ATP_IMAGES_JSON:"
+
+DOCUMENT_MARKER_PREFIX = "[[[ATPDOCS_JSON:"
+DOCUMENT_MARKER_SUFFIX = ":ATPDOCS_JSON]]]"
+
 IMAGE_MARKER_SUFFIX = "]]"
 
 
@@ -11008,6 +11023,17 @@ def clean_visible_chat_text(text):
     try:
         marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
         value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
+        document_marker_pattern = (
+            re.escape(DOCUMENT_MARKER_PREFIX)
+            + r".*?"
+            + re.escape(DOCUMENT_MARKER_SUFFIX)
+        )
+        value = re.sub(
+            document_marker_pattern,
+            "",
+            value,
+            flags=re.DOTALL,
+        )
     except Exception:
         pass
 
@@ -11131,6 +11157,536 @@ def get_uploaded_image_previews(uploaded_files):
             continue
 
     return previews
+
+
+
+def is_pdf_document_generation_request(prompt_text):
+    """
+    Detect an explicit request to create/export a downloadable PDF.
+
+    Reading, summarizing, or analyzing an uploaded PDF does not activate this.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    if not value:
+        return False
+
+    negative_read_only = (
+        "summarize this pdf", "summarise this pdf", "read this pdf",
+        "analyze this pdf", "analyse this pdf", "review this pdf",
+        "what does this pdf", "extract from this pdf",
+    )
+    if any(phrase in value for phrase in negative_read_only):
+        return False
+
+    explicit_pdf_phrases = (
+        "create a pdf", "create pdf", "generate a pdf", "generate pdf",
+        "make a pdf", "make pdf", "export as pdf", "export to pdf",
+        "downloadable pdf", "pdf file", "pdf document",
+        "save as pdf", "turn this into a pdf", "convert this to pdf",
+    )
+    if any(phrase in value for phrase in explicit_pdf_phrases):
+        return True
+
+    creation_terms = (
+        "create", "generate", "make", "produce", "prepare", "write",
+        "build", "compile", "export",
+    )
+    document_terms = (
+        "manual", "guide", "report", "document", "handbook", "proposal",
+        "training material", "sop",
+    )
+    return (
+        "pdf" in value
+        and any(term in value for term in creation_terms)
+        and any(term in value for term in document_terms)
+    )
+
+
+def _safe_document_filename(prompt_text, answer_text=""):
+    """Create a readable filesystem-safe PDF filename."""
+    source_text = str(prompt_text or "").strip() or str(answer_text or "").strip()
+    words = re.findall(r"[A-Za-z0-9]+", source_text)[:8]
+    stem = "_".join(words).strip("_") or "AutoTecPro_AI_Document"
+    stem = re.sub(r"_+", "_", stem)[:88].strip("_")
+    if not stem.lower().endswith(".pdf"):
+        stem += ".pdf"
+    return stem
+
+
+def _clean_pdf_text(value):
+    """Convert chat markdown into readable plain text for PDF output."""
+    cleaned = clean_visible_chat_text(value)
+    cleaned = re.sub(r"```[A-Za-z0-9_-]*", "", cleaned)
+    cleaned = cleaned.replace("```", "")
+    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned, flags=re.M)
+    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"__(.*?)__", r"\1", cleaned)
+    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
+    cleaned = cleaned.replace("•", "-")
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def _pdf_escape_text(value):
+    """Escape one PDF text string using a conservative Windows-1252 subset."""
+    encoded = str(value or "").encode("cp1252", errors="replace").decode("latin-1")
+    return (
+        encoded.replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("\r", "")
+    )
+
+
+def _wrap_pdf_lines(text, max_chars=92):
+    """Wrap plain text while preserving headings, bullets, and blank lines."""
+    lines = []
+    for raw_line in str(text or "").splitlines():
+        stripped = raw_line.rstrip()
+        if not stripped:
+            lines.append("")
+            continue
+
+        leading = ""
+        content = stripped.strip()
+        if content.startswith(("- ", "* ")):
+            leading = "- "
+            content = content[2:].strip()
+
+        wrapped = textwrap.wrap(
+            content,
+            width=max_chars - len(leading),
+            break_long_words=True,
+            break_on_hyphens=True,
+            replace_whitespace=False,
+            drop_whitespace=True,
+        ) or [""]
+
+        for index, line in enumerate(wrapped):
+            lines.append((leading if index == 0 else "  ") + line)
+    return lines
+
+
+def build_simple_text_pdf(document_text, title="AutoTecPro AI Document"):
+    """
+    Build a multi-page text PDF using only Python's standard library.
+
+    This avoids adding a deployment dependency and supports documents well over
+    ten pages. The output uses Helvetica and conservative Latin text encoding.
+    """
+    clean_title = re.sub(r"\s+", " ", str(title or "AutoTecPro AI Document")).strip()
+    clean_text = _clean_pdf_text(document_text)
+    if not clean_text:
+        clean_text = "No document content was generated."
+
+    page_width = 612
+    page_height = 792
+    left_margin = 54
+    top_y = 738
+    bottom_y = 54
+    body_font_size = 10
+    line_height = 14
+    lines_per_page = max(1, int((top_y - bottom_y) / line_height) - 2)
+
+    wrapped_lines = _wrap_pdf_lines(clean_text, max_chars=92)
+    pages = [
+        wrapped_lines[index:index + lines_per_page]
+        for index in range(0, len(wrapped_lines), lines_per_page)
+    ] or [["No document content was generated."]]
+
+    objects = {}
+    next_id = 1
+
+    def reserve():
+        nonlocal next_id
+        object_id = next_id
+        next_id += 1
+        return object_id
+
+    catalog_id = reserve()
+    pages_id = reserve()
+    font_id = reserve()
+    page_ids = []
+    content_ids = []
+
+    for _ in pages:
+        page_ids.append(reserve())
+        content_ids.append(reserve())
+
+    objects[font_id] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+
+    for page_number, (page_id, content_id, page_lines) in enumerate(
+        zip(page_ids, content_ids, pages),
+        start=1,
+    ):
+        commands = [
+            "BT",
+            f"/F1 {body_font_size} Tf",
+            f"{left_margin} {top_y} Td",
+        ]
+
+        header = clean_title
+        footer = f"Page {page_number} of {len(pages)}"
+        commands.append(f"({_pdf_escape_text(header)}) Tj")
+        commands.append(f"0 -{line_height * 2} Td")
+
+        for line in page_lines:
+            commands.append(f"({_pdf_escape_text(line)}) Tj")
+            commands.append(f"0 -{line_height} Td")
+
+        commands.extend([
+            "ET",
+            "BT",
+            "/F1 8 Tf",
+            f"{page_width - 110} 30 Td",
+            f"({_pdf_escape_text(footer)}) Tj",
+            "ET",
+        ])
+
+        stream = "\n".join(commands).encode("latin-1", errors="replace")
+        objects[content_id] = (
+            f"<< /Length {len(stream)} >>\nstream\n".encode("ascii")
+            + stream
+            + b"\nendstream"
+        )
+        objects[page_id] = (
+            f"<< /Type /Page /Parent {pages_id} 0 R "
+            f"/MediaBox [0 0 {page_width} {page_height}] "
+            f"/Resources << /Font << /F1 {font_id} 0 R >> >> "
+            f"/Contents {content_id} 0 R >>"
+        ).encode("ascii")
+
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    objects[pages_id] = (
+        f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>"
+    ).encode("ascii")
+    objects[catalog_id] = (
+        f"<< /Type /Catalog /Pages {pages_id} 0 R >>"
+    ).encode("ascii")
+
+    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0] * next_id
+
+    for object_id in range(1, next_id):
+        offsets[object_id] = len(pdf)
+        pdf.extend(f"{object_id} 0 obj\n".encode("ascii"))
+        pdf.extend(objects[object_id])
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {next_id}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for object_id in range(1, next_id):
+        pdf.extend(f"{offsets[object_id]:010d} 00000 n \n".encode("ascii"))
+
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {next_id} /Root {catalog_id} 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF"
+        ).encode("ascii")
+    )
+    return bytes(pdf), len(pages)
+
+
+def create_pdf_document_record(prompt_text, answer_text):
+    """Create one serializable PDF record for chat rendering and history."""
+    filename = _safe_document_filename(prompt_text, answer_text)
+    title = Path(filename).stem.replace("_", " ").strip() or "AutoTecPro AI Document"
+    pdf_bytes, page_count = build_simple_text_pdf(answer_text, title=title)
+    encoded = base64.b64encode(pdf_bytes).decode("ascii")
+    return {
+        "name": filename,
+        "mime_type": "application/pdf",
+        "data_url": f"data:application/pdf;base64,{encoded}",
+        "page_count": int(page_count),
+        "size_bytes": len(pdf_bytes),
+        "generated": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def serialize_documents_marker(documents):
+    if not documents:
+        return ""
+    try:
+        return (
+            "\n\n"
+            + DOCUMENT_MARKER_PREFIX
+            + json.dumps(documents, ensure_ascii=False)
+            + DOCUMENT_MARKER_SUFFIX
+        )
+    except Exception:
+        return ""
+
+
+def extract_documents_from_message_content(content):
+    """Extract generated file records while preserving older message formats."""
+    value = str(content or "")
+    pattern = (
+        re.escape(DOCUMENT_MARKER_PREFIX)
+        + r"(.*?)"
+        + re.escape(DOCUMENT_MARKER_SUFFIX)
+    )
+    match = re.search(pattern, value, flags=re.DOTALL)
+    if not match:
+        return value, []
+
+    visible_text = (value[:match.start()] + value[match.end():]).strip()
+    try:
+        documents = json.loads(match.group(1))
+    except Exception:
+        documents = []
+
+    clean_documents = []
+    for document in documents if isinstance(documents, list) else []:
+        if not isinstance(document, dict):
+            continue
+        data_url = str(document.get("data_url") or "")
+        if not data_url.startswith("data:application/pdf;base64,"):
+            continue
+        clean_documents.append({
+            "name": Path(
+                str(document.get("name") or "AutoTecPro_AI_Document.pdf")
+            ).name,
+            "mime_type": "application/pdf",
+            "data_url": data_url,
+            "page_count": int(document.get("page_count") or 0),
+            "size_bytes": int(document.get("size_bytes") or 0),
+            "generated": bool(document.get("generated", True)),
+            "created_at": document.get("created_at"),
+        })
+    return visible_text, clean_documents
+
+
+def _human_file_size(size_bytes):
+    try:
+        value = max(0, int(size_bytes or 0))
+    except (TypeError, ValueError):
+        value = 0
+    if value < 1024:
+        return f"{value} B"
+    if value < 1024 * 1024:
+        return f"{value / 1024:.1f} KB"
+    return f"{value / (1024 * 1024):.1f} MB"
+
+
+def _document_download_key(document, message_index, document_index):
+    seed = (
+        str(document.get("name") or "")
+        + str(document.get("size_bytes") or "")
+        + str(message_index)
+        + str(document_index)
+    )
+    return "document_download_" + hashlib.sha256(
+        seed.encode("utf-8")
+    ).hexdigest()[:20]
+
+
+def render_chat_document_cards(documents, message_index=None):
+    """
+    Render ChatGPT-style downloadable file cards.
+
+    The scoped CSS keeps the icon, filename, metadata, and download label
+    vertically aligned on desktop and mobile without affecting other buttons.
+    """
+    for document_index, document in enumerate(documents or []):
+        data_url = str(document.get("data_url") or "")
+        if not data_url.startswith("data:application/pdf;base64,"):
+            continue
+
+        try:
+            pdf_bytes = base64.b64decode(data_url.split(",", 1)[1])
+        except Exception:
+            continue
+        if not pdf_bytes:
+            continue
+
+        filename = Path(
+            str(document.get("name") or "AutoTecPro_AI_Document.pdf")
+        ).name
+        page_count = int(document.get("page_count") or 0)
+        size_label = _human_file_size(
+            document.get("size_bytes") or len(pdf_bytes)
+        )
+        page_label = (
+            f"{page_count} Page" if page_count == 1
+            else f"{page_count} Pages" if page_count > 1
+            else "PDF Document"
+        )
+        key = _document_download_key(
+            document,
+            message_index,
+            document_index,
+        )
+        container_key = f"chat_document_card_{key}"
+
+        with st.container(key=container_key):
+            st.markdown(
+                f"""
+                <div class="atp-document-card-header">
+                    <div class="atp-document-icon" aria-hidden="true">📄</div>
+                    <div class="atp-document-details">
+                        <div class="atp-document-name">{html.escape(filename)}</div>
+                        <div class="atp-document-meta">
+                            PDF • {html.escape(page_label)} • {html.escape(size_label)}
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"""
+                <style>
+                div[class*="st-key-{container_key}"] {{
+                    width: min(100%, 520px) !important;
+                    margin: 8px 0 14px 52px !important;
+                    padding: 14px !important;
+                    border: 1px solid rgba(148,163,184,.28) !important;
+                    border-radius: 12px !important;
+                    background: rgba(15,23,42,.72) !important;
+                    box-shadow: none !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stVerticalBlock"] {{
+                    gap: 10px !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"] {{
+                    margin: 0 !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                .atp-document-card-header {{
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 12px !important;
+                    min-width: 0 !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                .atp-document-icon {{
+                    width: 38px !important;
+                    height: 38px !important;
+                    min-width: 38px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    font-size: 22px !important;
+                    line-height: 1 !important;
+                    border-radius: 8px !important;
+                    background: rgba(51,65,85,.72) !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                .atp-document-details {{
+                    min-width: 0 !important;
+                    flex: 1 1 auto !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                .atp-document-name {{
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                    font-size: 14px !important;
+                    font-weight: 700 !important;
+                    line-height: 1.35 !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                .atp-document-meta {{
+                    margin-top: 3px !important;
+                    color: #94a3b8 !important;
+                    -webkit-text-fill-color: #94a3b8 !important;
+                    font-size: 12px !important;
+                    line-height: 1.3 !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"],
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton {{
+                    width: 100% !important;
+                    margin: 0 !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button {{
+                    width: 100% !important;
+                    min-height: 40px !important;
+                    margin: 0 !important;
+                    padding: 0 14px !important;
+                    border: 1px solid rgba(148,163,184,.26) !important;
+                    border-radius: 8px !important;
+                    background: rgba(30,41,59,.72) !important;
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    gap: 8px !important;
+                    font-size: 14px !important;
+                    font-weight: 650 !important;
+                    line-height: 1 !important;
+                    text-align: center !important;
+                    box-shadow: none !important;
+                }}
+
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stDownloadButton"] > button p,
+                div[class*="st-key-{container_key}"]
+                .stDownloadButton > button p {{
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    line-height: 1 !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                }}
+
+                @media (max-width: 768px) {{
+                    div[class*="st-key-{container_key}"] {{
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        margin: 8px 0 14px 0 !important;
+                        padding: 12px !important;
+                    }}
+
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-name {{
+                        font-size: 13px !important;
+                    }}
+
+                    div[class*="st-key-{container_key}"]
+                    .atp-document-meta {{
+                        font-size: 11px !important;
+                    }}
+                }}
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            button_kwargs = {
+                "label": "↓ Download",
+                "data": pdf_bytes,
+                "file_name": filename,
+                "mime": "application/pdf",
+                "key": key,
+                "use_container_width": True,
+                "type": "secondary",
+            }
+            try:
+                st.download_button(**button_kwargs, on_click="ignore")
+            except TypeError:
+                st.download_button(**button_kwargs)
 
 
 def serialize_images_marker(images):
@@ -12326,7 +12882,11 @@ def ask_ai(
           "technical and sales knowledge. Always name the source of live data. "
           "Never invent an order status, payment status, shipment status, refund "
           "status, tracking event, exchange rate, weather condition, or "
-          "delivery estimate."
+          "delivery estimate. When the user explicitly requests a PDF, manual, "
+          "guide, report, handbook, proposal, SOP, or training document, write "
+          "the complete document content in clean structured plain text or "
+          "Markdown. Do not claim that you created a downloadable file; the "
+          "AutoTecPro application will build the PDF locally from your response."
     )
 
     tools = [{"type": "web_search"}]
@@ -20057,6 +20617,10 @@ else:
         render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = []
+        generated_documents = []
+        document_generation_requested = is_pdf_document_generation_request(
+            prompt
+        )
         detected_request = detect_live_request(prompt, assistant)
         has_uploaded_images = any(
             str(getattr(item, "type", "") or "").startswith("image/")
@@ -20115,14 +20679,27 @@ else:
                 response_time = round(time.time() - response_start_time, 2)
                 tokens_used = None
 
+        if document_generation_requested and not is_graphic_generation:
+            try:
+                generated_documents = [
+                    create_pdf_document_record(prompt, answer)
+                ]
+            except Exception as document_error:
+                generated_documents = []
+                st.warning(
+                    "The response was generated, but the PDF could not be "
+                    f"created: {document_error}"
+                )
+
         assistant_content_to_save = (
             answer
+            + serialize_documents_marker(generated_documents)
             + serialize_images_marker(generated_images)
         )
 
         render_chat_message(
             "assistant",
-            answer,
+            assistant_content_to_save,
             generated_images,
             message_index=len(st.session_state.messages),
         )
