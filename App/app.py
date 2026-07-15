@@ -11284,6 +11284,11 @@ def _document_request_uses_conversation(prompt_text):
             "current chat",
             "entire conversation",
             "whole conversation",
+            "convert this to a document",
+            "convert this into a document",
+            "turn this into a document",
+            "export this as a document",
+            "save this as a document",
         )
     )
 
@@ -11558,11 +11563,13 @@ def render_chat_document_cards(documents, message_index=None):
                 div[class*="st-key-{container_key}"] details > div {{
                     border: 1px solid rgba(148,163,184,.22) !important;
                     border-radius: 10px !important;
-                    padding: 10px 12px 8px !important;
+                    padding: 8px 12px 7px !important;
                     background: rgba(15,23,42,.34) !important;
                 }}
                 div[class*="st-key-{container_key}"]
-                div[data-testid="stElementContainer"]:has([data-testid="stCheckbox"]) {{
+                div[data-testid="stElementContainer"]:has([data-testid="stCheckbox"]),
+                div[class*="st-key-{container_key}"]
+                div[data-testid="stElementContainer"]:has([data-testid="stRadio"]) {{
                     border: 0 !important;
                     border-radius: 0 !important;
                     background: transparent !important;
@@ -11571,13 +11578,17 @@ def render_chat_document_cards(documents, message_index=None):
                     margin: 0 !important;
                     min-height: 0 !important;
                 }}
-                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"],
+                div[class*="st-key-{container_key}"] [data-testid="stRadio"] {{
                     border: 0 !important;
+                    border-radius: 0 !important;
                     background: transparent !important;
                     box-shadow: none !important;
                     padding: 0 !important;
                     margin: 0 !important;
-                    min-height: 32px !important;
+                }}
+                div[class*="st-key-{container_key}"] [data-testid="stCheckbox"] {{
+                    min-height: 30px !important;
                 }}
                 div[class*="st-key-{container_key}"] [data-testid="stRadio"] > div {{
                     display: flex !important;
@@ -20652,20 +20663,30 @@ else:
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
         else:
-            with st.spinner("Searching AutoTecPro knowledge base..."):
+            conversation_export_requested = bool(
+                document_generation_requested
+                and _document_request_uses_conversation(prompt)
+            )
+            if conversation_export_requested:
                 response_start_time = time.time()
-                answer = ask_ai(
-                    prompt,
-                    effective_uploaded_files,
-                    detected_live_request=detected_request,
-                    detected_technical_tool=detected_technical_tool,
-                    detected_workspace_tool=detected_workspace_tool,
-                )
-                answer = clean_visible_chat_text(answer)
-                if assistant == "🔧 Technical Support":
-                    answer = remove_technical_pricing(answer)
+                answer = "Your document is ready."
                 response_time = round(time.time() - response_start_time, 2)
                 tokens_used = None
+            else:
+                with st.spinner("Searching AutoTecPro knowledge base..."):
+                    response_start_time = time.time()
+                    answer = ask_ai(
+                        prompt,
+                        effective_uploaded_files,
+                        detected_live_request=detected_request,
+                        detected_technical_tool=detected_technical_tool,
+                        detected_workspace_tool=detected_workspace_tool,
+                    )
+                    answer = clean_visible_chat_text(answer)
+                    if assistant == "🔧 Technical Support":
+                        answer = remove_technical_pricing(answer)
+                    response_time = round(time.time() - response_start_time, 2)
+                    tokens_used = None
 
         if document_generation_requested and not is_graphic_generation:
             try:

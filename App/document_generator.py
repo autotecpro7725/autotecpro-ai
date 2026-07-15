@@ -89,11 +89,10 @@ _CREATION_TERMS = (
 
 def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | None:
     """
-    Detect explicit-format and generic document creation/export requests.
+    Detect explicit-format and generic document generation/export requests.
 
-    When no format is named, ``format`` is returned as an empty string so the
-    workspace can apply its saved/default format. Read/review requests remain
-    excluded.
+    Generic commands return an empty format so the active workspace can apply
+    its saved/default format. Read/review questions remain excluded.
     """
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
     if not value or any(pattern in value for pattern in _READ_ONLY_PATTERNS):
@@ -105,41 +104,60 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
             requested_format = format_name
             break
 
-    creation_requested = any(term in value for term in _CREATION_TERMS)
+    creation_terms = (
+        "create", "generate", "make", "produce", "prepare", "build", "compile",
+        "export", "save", "download", "turn this into", "turn this conversation into",
+        "turn this chat into", "convert this to", "convert this into",
+        "convert this conversation to", "convert this conversation into",
+        "convert this chat to", "convert this chat into",
+    )
     artifact_terms = (
         "file", "document", "manual", "guide", "report", "proposal",
         "handbook", "sop", "documentation", "presentation", "slides",
         "spreadsheet", "workbook", "table", "export",
     )
-    generic_conversation_phrases = (
-        "convert this conversation",
-        "convert the conversation",
-        "convert this chat",
-        "convert the chat",
+    generic_context_phrases = (
+        "convert this to a document",
+        "convert this into a document",
+        "convert this conversation to a document",
+        "convert this conversation into a document",
+        "convert this chat to a document",
+        "convert this chat into a document",
+        "turn this into a document",
+        "turn this conversation into a document",
+        "turn this chat into a document",
         "export this conversation",
-        "export the conversation",
         "export this chat",
-        "export the chat",
         "save this conversation",
-        "save the conversation",
         "save this chat",
-        "save the chat",
-        "turn this conversation into",
-        "turn the conversation into",
-        "turn this chat into",
-        "turn the chat into",
-    )
-    generic_document_requested = (
-        (creation_requested and any(term in value for term in artifact_terms))
-        or any(phrase in value for phrase in generic_conversation_phrases)
     )
 
-    if not requested_format and not generic_document_requested:
+    creation_requested = any(term in value for term in creation_terms)
+    generic_requested = (
+        any(phrase in value for phrase in generic_context_phrases)
+        or (creation_requested and any(term in value for term in artifact_terms))
+    )
+
+    if not requested_format and not generic_requested:
         return None
 
     if requested_format and not creation_requested:
         if not any(term in value for term in artifact_terms):
             return None
+
+    scope = (
+        "conversation"
+        if any(
+            term in value
+            for term in (
+                "conversation", "chat",
+                "convert this to a document",
+                "convert this into a document",
+                "turn this into a document",
+            )
+        )
+        else "response"
+    )
 
     if requested_format:
         config = FORMAT_CONFIG[requested_format]
@@ -148,6 +166,7 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
             "extension": config["extension"],
             "mime_type": config["mime_type"],
             "label": config["label"],
+            "scope": scope,
         }
 
     return {
@@ -155,8 +174,8 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
         "extension": "",
         "mime_type": "",
         "label": "Document",
+        "scope": "conversation",
     }
-
 
 def is_document_generation_request(prompt_text: Any) -> bool:
     return detect_document_generation_request(prompt_text) is not None
@@ -664,60 +683,6 @@ def extract_documents_from_message_content(
 # ============================================================
 # Contextual document export and optional branding overrides
 # ============================================================
-
-def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | None:
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
-    if not value or any(pattern in value for pattern in _READ_ONLY_PATTERNS):
-        return None
-
-    requested_format = ""
-    for format_name, patterns in _FORMAT_PATTERNS:
-        if any(pattern in value for pattern in patterns):
-            requested_format = format_name
-            break
-
-    conversation_request = any(phrase in value for phrase in (
-        "convert this conversation to a document",
-        "convert the conversation to a document",
-        "convert this chat to a document",
-        "turn this conversation into a document",
-        "turn this chat into a document",
-        "export this conversation",
-        "export this chat",
-        "create a document from this conversation",
-        "create a document from this chat",
-    ))
-
-    if not requested_format and not conversation_request:
-        return None
-
-    if requested_format and not any(term in value for term in _CREATION_TERMS):
-        artifact_terms = (
-            "file", "document", "manual", "guide", "report", "proposal",
-            "handbook", "sop", "presentation", "slides", "spreadsheet",
-            "workbook", "table", "export", "conversation", "chat",
-        )
-        if not any(term in value for term in artifact_terms):
-            return None
-
-    if requested_format:
-        config = FORMAT_CONFIG[requested_format]
-        return {
-            "format": requested_format,
-            "extension": config["extension"],
-            "mime_type": config["mime_type"],
-            "label": config["label"],
-            "scope": "conversation" if ("conversation" in value or "chat" in value) else "response",
-        }
-
-    return {
-        "format": "",
-        "extension": "",
-        "mime_type": "",
-        "label": "Document",
-        "scope": "conversation",
-    }
-
 
 def _document_options(options: Any = None) -> dict[str, Any]:
     raw = dict(options or {}) if isinstance(options, dict) else {}
