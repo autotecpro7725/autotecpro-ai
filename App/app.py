@@ -3754,136 +3754,103 @@ def install_gpt_uploader_css():
         (() => {
           const root = window.parent;
           const doc = root.document;
-          const KEY = "__atpCustomUploaderTriggerV2";
+          const KEY = "__atpCustomUploaderTriggerV3";
 
-          try { root[KEY]?.cleanup?.(); } catch (error) {}
+          // Remove only the previous delegated click handler. Do not tie the
+          // controller lifetime to this zero-height component iframe: Streamlit
+          // can destroy that iframe during a normal rerun, which previously
+          // removed the Upload-button listener until a full browser refresh.
+          try {
+            const previous = root[KEY];
+            if (previous?.handler) {
+              doc.removeEventListener("click", previous.handler, true);
+            }
+          } catch (error) {}
 
-          let disposed = false;
-          let observer = null;
-          const retryTimers = new Set();
-
-          function connectedShells(prefix = "") {
-            const selector = prefix
-              ? `div[class*="st-key-atp_upload_shell_${prefix}"]`
-              : 'div[class*="st-key-atp_upload_shell_"]';
-
-            return Array.from(doc.querySelectorAll(selector)).filter(
-              (shell) =>
-                shell.isConnected &&
-                shell.offsetParent !== null
-            );
-          }
-
-          function activeInputForTrigger(trigger) {
+          function uploaderInputsForTrigger(trigger) {
             const prefix = String(
               trigger?.dataset?.uploaderPrefix || ""
             ).trim();
 
+            const shells = [];
             const localShell = trigger?.closest(
               'div[class*="st-key-atp_upload_shell_"]'
             );
-
-            const shells = [];
             if (localShell?.isConnected) shells.push(localShell);
 
-            for (const shell of connectedShells(prefix)) {
-              if (!shells.includes(shell)) shells.push(shell);
-            }
-
-            // Streamlit can briefly retain the previous uploader generation.
-            // Prefer the newest connected and enabled file input.
-            for (let index = shells.length - 1; index >= 0; index -= 1) {
-              const inputs = Array.from(
-                shells[index].querySelectorAll('input[type="file"]')
-              ).filter(
-                (input) =>
-                  input.isConnected &&
-                  !input.disabled &&
-                  input.getAttribute("aria-disabled") !== "true"
-              );
-
-              if (inputs.length) return inputs[inputs.length - 1];
-            }
-
-            return null;
-          }
-
-          function openPickerWithRetry(trigger, attempt = 0) {
-            if (disposed || !trigger?.isConnected) return;
-
-            const input = activeInputForTrigger(trigger);
-            if (input) {
-              try { input.value = ""; } catch (error) {}
-
-              try {
-                if (typeof input.showPicker === "function") {
-                  input.showPicker();
-                } else {
-                  input.click();
+            if (prefix) {
+              const selector =
+                `div[class*="st-key-atp_upload_shell_${prefix}"]`;
+              for (const shell of Array.from(doc.querySelectorAll(selector))) {
+                if (shell.isConnected && !shells.includes(shell)) {
+                  shells.push(shell);
                 }
-                return;
-              } catch (error) {
-                try {
-                  input.click();
-                  return;
-                } catch (clickError) {}
               }
             }
 
-            if (attempt >= 24) {
+            const inputs = [];
+            for (let index = shells.length - 1; index >= 0; index -= 1) {
+              for (const input of Array.from(
+                shells[index].querySelectorAll('input[type="file"]')
+              )) {
+                if (
+                  input.isConnected &&
+                  !input.disabled &&
+                  input.getAttribute("aria-disabled") !== "true"
+                ) {
+                  inputs.push(input);
+                }
+              }
+            }
+            return inputs;
+          }
+
+          function openNativePicker(trigger) {
+            const inputs = uploaderInputsForTrigger(trigger);
+            const input = inputs.length ? inputs[0] : null;
+
+            if (!input) {
               console.warn(
-                "AutoTecPro AI: active uploader input was not available."
+                "AutoTecPro AI: active uploader input is not available."
               );
               return;
             }
 
-            const timer = root.setTimeout(() => {
-              retryTimers.delete(timer);
-              openPickerWithRetry(trigger, attempt + 1);
-            }, 75);
-            retryTimers.add(timer);
-          }
+            // Keep this synchronous inside the real user click. Delayed retries
+            // lose browser user-activation permission and cannot reliably open
+            // a native file picker.
+            try { input.value = ""; } catch (error) {}
 
-          function onClick(event) {
-            const trigger = event.target.closest(".atp-custom-upload-trigger");
-            if (!trigger) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            openPickerWithRetry(trigger);
-          }
-
-          function clearStaleOverlay() {
-            const overlay = doc.getElementById("atp-global-drop-overlay");
-            if (overlay) {
-              overlay.style.pointerEvents = "none";
-              if (overlay.style.display !== "flex") {
-                overlay.style.display = "none";
+            try {
+              if (typeof input.showPicker === "function") {
+                input.showPicker();
+              } else {
+                input.click();
+              }
+            } catch (error) {
+              try {
+                input.click();
+              } catch (clickError) {
+                console.warn(
+                  "AutoTecPro AI: could not open the native file picker.",
+                  clickError
+                );
               }
             }
           }
 
-          doc.addEventListener("click", onClick, true);
+          function onClick(event) {
+            const target = event.target;
+            const trigger = target?.closest?.(".atp-custom-upload-trigger");
+            if (!trigger) return;
 
-          observer = new MutationObserver(clearStaleOverlay);
-          observer.observe(
-            doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body,
-            { childList: true, subtree: true }
-          );
-          clearStaleOverlay();
-
-          function cleanup() {
-            disposed = true;
-            doc.removeEventListener("click", onClick, true);
-            try { observer?.disconnect(); } catch (error) {}
-            for (const timer of retryTimers) {
-              try { root.clearTimeout(timer); } catch (error) {}
-            }
-            retryTimers.clear();
+            event.preventDefault();
+            event.stopPropagation();
+            openNativePicker(trigger);
           }
 
-          root[KEY] = { cleanup };
-          window.addEventListener("beforeunload", cleanup, { once: true });
+          doc.addEventListener("click", onClick, true);
+          root[KEY] = { handler: onClick };
         })();
         </script>
         """,
