@@ -18721,6 +18721,11 @@ def install_global_chat_file_dropzone():
             }
 
             const MIME_BY_EXTENSION = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".pdf": "application/pdf",
+                ".txt": "text/plain",
                 ".doc": "application/msword",
                 ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 ".xls": "application/vnd.ms-excel",
@@ -18730,50 +18735,47 @@ def install_global_chat_file_dropzone():
                 ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             };
 
-            function matchingExtension(fileName) {
-                const name = String(fileName || "").toLowerCase();
+            function fileExtension(file) {
+                const name = String(file?.name || "").toLowerCase();
                 return ACCEPTED_EXTENSIONS.find(
                     (extension) => name.endsWith(extension)
                 ) || "";
             }
 
-            function normalizeDroppedFile(file) {
-                const extension = matchingExtension(file?.name);
+            function normalizeFileForUploader(file) {
+                const extension = fileExtension(file);
                 if (!extension) return null;
 
-                const normalizedType = MIME_BY_EXTENSION[extension];
-                if (!normalizedType) return file;
-
+                const expectedType = MIME_BY_EXTENSION[extension] || "";
                 const currentType = String(file?.type || "").toLowerCase();
-                if (currentType === normalizedType.toLowerCase()) {
-                    return file;
+
+                // Windows/Chrome can expose dragged Excel and CSV files with an
+                // empty, generic, or incorrect MIME type. Rebuild only when the
+                // MIME type is missing or does not match the file extension.
+                if (expectedType && currentType !== expectedType.toLowerCase()) {
+                    try {
+                        return new parentWindow.File(
+                            [file],
+                            file.name,
+                            {
+                                type: expectedType,
+                                lastModified: file.lastModified
+                            }
+                        );
+                    } catch (error) {
+                        console.warn(
+                            "AutoTecPro AI: could not normalize dropped file MIME type.",
+                            error
+                        );
+                    }
                 }
 
-                // Windows and some browsers expose dragged Excel/CSV files with
-                // an empty, generic, or incorrect MIME type. Streamlit's native
-                // chooser corrects this automatically, but the custom drop path
-                // must provide the standard Office MIME type explicitly.
-                try {
-                    return new parentWindow.File(
-                        [file],
-                        file.name,
-                        {
-                            type: normalizedType,
-                            lastModified: file.lastModified
-                        }
-                    );
-                } catch (error) {
-                    console.warn(
-                        "AutoTecPro AI: could not normalize dropped file MIME type.",
-                        error
-                    );
-                    return file;
-                }
+                return file;
             }
 
             function acceptedFiles(fileList) {
                 return Array.from(fileList || [])
-                    .map(normalizeDroppedFile)
+                    .map(normalizeFileForUploader)
                     .filter(Boolean);
             }
 
