@@ -1168,21 +1168,82 @@ def analyze_woocommerce_sales(
 
 
 def geocode_open_meteo(location):
-    response = http_session.get(
-        "https://geocoding-api.open-meteo.com/v1/search",
-        params={
-            "name": location,
-            "count": 1,
-            "language": "en",
-            "format": "json",
-        },
-        timeout=LIVE_HTTP_TIMEOUT,
+    """
+    Resolve a place through Open-Meteo with safe city/province fallbacks.
+
+    Open-Meteo's geocoder can return no results for a combined string such as
+    "Toronto, Ontario" even though "Toronto" resolves correctly. Try the exact
+    input first, then progressively simpler location candidates.
+    """
+    original_location = re.sub(
+        r"\s+",
+        " ",
+        str(location or ""),
+    ).strip(" ,.?")
+    if not original_location:
+        raise RuntimeError("A weather location is required.")
+
+    candidates = [original_location]
+
+    comma_parts = [
+        part.strip()
+        for part in original_location.split(",")
+        if part.strip()
+    ]
+    if comma_parts:
+        candidates.append(comma_parts[0])
+
+    simplified = re.sub(
+        r"\b(?:ontario|on|canada|ca)\b",
+        " ",
+        original_location,
+        flags=re.IGNORECASE,
     )
-    data = safe_json_response(response)
-    results = data.get("results") or []
-    if not results:
-        raise RuntimeError(f"Location not found: {location}")
-    return results[0]
+    simplified = re.sub(r"[,/]+", " ", simplified)
+    simplified = re.sub(r"\s+", " ", simplified).strip(" ,.?")
+    if simplified:
+        candidates.append(simplified)
+
+    # Preserve order while removing case-insensitive duplicates.
+    unique_candidates = []
+    seen = set()
+    for candidate in candidates:
+        key = candidate.casefold()
+        if candidate and key not in seen:
+            seen.add(key)
+            unique_candidates.append(candidate)
+
+    for candidate in unique_candidates:
+        response = http_session.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={
+                "name": candidate,
+                "count": 10,
+                "language": "en",
+                "format": "json",
+            },
+            timeout=LIVE_HTTP_TIMEOUT,
+        )
+        data = safe_json_response(response)
+        results = data.get("results") or []
+        if not results:
+            continue
+
+        # Prefer Canada for AutoTecPro's Toronto default and Canadian locations.
+        if any(
+            token in original_location.casefold()
+            for token in ("ontario", " canada", ", ca", ", on")
+        ) or original_location.casefold() == "toronto":
+            for result in results:
+                country_code = str(
+                    result.get("country_code") or ""
+                ).strip().upper()
+                if country_code == "CA":
+                    return result
+
+        return results[0]
+
+    raise RuntimeError(f"Location not found: {original_location}")
 
 
 def get_live_weather(location):
@@ -1988,7 +2049,7 @@ ACTIVE TOOL: AI Marketing Consultant
     return ""
 
 
-DEFAULT_WEATHER_LOCATION = "Toronto, Ontario"
+DEFAULT_WEATHER_LOCATION = "Toronto"
 
 
 def _clean_weather_location(value):
@@ -2086,6 +2147,75 @@ def _detect_weather_request(value):
         "type": "weather",
         "location": DEFAULT_WEATHER_LOCATION,
         "default_location": True,
+    }
+
+
+def detect_weather_location_followup(prompt, prior_messages=None):
+    """
+    Treat a short standalone place name as weather only when recent chat context
+    clearly asked for weather or requested a corrected weather location.
+    """
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip(" ,.?")
+    if not value or len(value) > 100:
+        return None
+
+    # Keep this conservative so ordinary short questions are not misrouted.
+    if not re.fullmatch(
+        r"[A-Za-zÀ-ÖØ-öø-ÿ0-9 .,'’()/-]{2,100}",
+        value,
+    ):
+        return None
+    if len(value.split()) > 7:
+        return None
+
+    rejected_phrases = {
+        "continue", "yes", "no", "okay", "ok", "thanks", "thank you",
+        "technical support", "sales", "marketing", "help",
+    }
+    if value.casefold() in rejected_phrases:
+        return None
+
+    recent_messages = list(prior_messages or [])[-8:]
+    weather_context_found = False
+
+    for message in reversed(recent_messages):
+        if not isinstance(message, dict):
+            continue
+
+        role = str(message.get("role") or "").strip().lower()
+        content = clean_visible_chat_text(
+            str(message.get("content") or "")
+        )
+        lower_content = content.casefold()
+
+        if role == "user":
+            detected = _detect_weather_request(content)
+            if isinstance(detected, dict) and detected.get("type") == "weather":
+                weather_context_found = True
+                break
+
+        if role == "assistant" and any(
+            phrase in lower_content
+            for phrase in (
+                "location not found",
+                "provide your location",
+                "provide a different",
+                "confirmed location",
+                "weather location",
+                "live weather",
+                "current temperature",
+            )
+        ):
+            weather_context_found = True
+            break
+
+    if not weather_context_found:
+        return None
+
+    return {
+        "type": "weather",
+        "location": _clean_weather_location(value) or value,
+        "followup_location": True,
     }
 
 
@@ -7261,6 +7391,7 @@ def install_browser_voice_dictation():
           let recognition = null;
           let listening = false;
           let scheduled = false;
+          let stopRequestGeneration = 0;
 
           const MIC_ICON = `
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -7439,28 +7570,67 @@ def install_browser_voice_dictation():
             root.setTimeout(() => notice.remove(), 2400);
           }
 
-          function requestSafeStop(proxy, attempt = 0) {
+          function restoreSendAfterStop(proxy) {
+            root.__atpAiStreaming = false;
+            root.dispatchEvent(
+              new CustomEvent("atp-ai-streaming-state", {
+                detail: { active: false }
+              })
+            );
+
+            proxy.classList.remove("atp-stop-mode");
+            proxy.innerHTML = SEND_ICON;
+            proxy.setAttribute("title", "Send message");
+            proxy.setAttribute("aria-label", "Send message");
+
+            const current = composer();
+            const input = inputElement(current);
+            const canSend = Boolean(input?.value?.trim());
+            proxy.disabled = !canSend;
+            proxy.setAttribute(
+              "aria-disabled",
+              canSend ? "false" : "true"
+            );
+          }
+
+          function requestSafeStop(proxy, attempt = 0, generation = null) {
+            const activeGeneration = (
+              generation === null
+                ? ++stopRequestGeneration
+                : generation
+            );
+
+            if (activeGeneration !== stopRequestGeneration) return false;
+
             const nativeStop = findNativeStreamlitStopButton();
             if (nativeStop) {
-              proxy.disabled = true;
-              proxy.setAttribute("title", "Stopping...");
-              proxy.setAttribute("aria-label", "Stopping generation");
+              // Invalidate every older retry chain before clicking Stop.
+              stopRequestGeneration += 1;
+              restoreSendAfterStop(proxy);
               nativeStop.click();
-              showStopNotice("Stopping AutoTecPro AI...");
+              showStopNotice("AutoTecPro AI stopped.");
               return true;
             }
 
             if (attempt < 20) {
               root.setTimeout(
-                () => requestSafeStop(proxy, attempt + 1),
+                () => requestSafeStop(
+                  proxy,
+                  attempt + 1,
+                  activeGeneration
+                ),
                 100
               );
               return true;
             }
 
-            showStopNotice(
-              "The Stop control could not be reached. Please try again."
-            );
+            if (activeGeneration === stopRequestGeneration) {
+              stopRequestGeneration += 1;
+              restoreSendAfterStop(proxy);
+              showStopNotice(
+                "The Stop control could not be reached. Please try again."
+              );
+            }
             return false;
           }
 
@@ -7488,7 +7658,12 @@ def install_browser_voice_dictation():
               event.stopPropagation();
 
               if (isStreaming()) {
+                if (proxy.dataset.atpStopping === "1") return;
+                proxy.dataset.atpStopping = "1";
                 requestSafeStop(proxy);
+                root.setTimeout(() => {
+                  delete proxy.dataset.atpStopping;
+                }, 2500);
                 return;
               }
 
@@ -23433,6 +23608,18 @@ else:
             assistant,
             has_images=has_uploaded_images,
         )
+
+        if str(
+            (execution_plan.get("live") or {}).get("type") or "none"
+        ).strip().lower() == "none":
+            weather_followup = detect_weather_location_followup(
+                prompt,
+                prior_messages=st.session_state.messages[:-1],
+            )
+            if weather_followup:
+                execution_plan["live"] = weather_followup
+                execution_plan["use_file_search"] = False
+
         document_generation_request = execution_plan["document"]
         detected_request = execution_plan["live"]
         detected_technical_tool = execution_plan["technical"]
