@@ -356,7 +356,7 @@ CANADA_POST_USERNAME = get_optional_secret("CANADA_POST_USERNAME")
 CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
 
 LIVE_HTTP_TIMEOUT = 15
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 
 def safe_json_response(response):
@@ -3425,7 +3425,7 @@ def install_gpt_uploader_css():
         }
 
 /* Keep Streamlit's native size/type helper visible.
-           The server upload limit is set to 10 MB in .streamlit/config.toml.
+           The server upload limit is set to 20 MB in .streamlit/config.toml.
            Native uploaded rows remain hidden because Python renders previews. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] ul,
@@ -4097,7 +4097,7 @@ def managed_file_uploader(
                     <span>Upload</span>
                 </button>
                 <div class="atp-custom-upload-helper">
-                    10MB per file · {html.escape(accepted_type_text)}
+                    20MB per file · {html.escape(accepted_type_text)}
                 </div>
             </div>
             """,
@@ -4132,7 +4132,7 @@ def managed_file_uploader(
 
         if oversized_names:
             st.session_state[f"{storage_key}_size_error"] = (
-                "These files exceed the 10 MB limit: "
+                "These files exceed the 20 MB limit: "
                 + ", ".join(oversized_names)
             )
 
