@@ -1988,6 +1988,107 @@ ACTIVE TOOL: AI Marketing Consultant
     return ""
 
 
+DEFAULT_WEATHER_LOCATION = "Toronto, Ontario"
+
+
+def _clean_weather_location(value):
+    """Normalize a location extracted from a natural-language weather request."""
+    location = re.sub(r"\s+", " ", str(value or "")).strip(" ,.?")
+    if not location:
+        return ""
+
+    location = re.split(
+        r"\b(?:today|tomorrow|tonight|now|right\s+now|"
+        r"this\s+morning|this\s+afternoon|this\s+evening|"
+        r"this\s+week|next\s+week|on\s+(?:monday|tuesday|wednesday|"
+        r"thursday|friday|saturday|sunday))\b",
+        location,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0].strip(" ,.?")
+
+    location = re.split(
+        r"\b(?:please|thanks|thank\s+you|degrees?|celsius|fahrenheit)\b",
+        location,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0].strip(" ,.?")
+
+    return location[:100]
+
+
+def _detect_weather_request(value):
+    """
+    Detect common weather phrasing and return a concrete lookup location.
+
+    A request without a location uses AutoTecPro's default Toronto location.
+    Explicit locations always override the default.
+    """
+    text_value = re.sub(r"\s+", " ", str(value or "")).strip()
+    lower_value = text_value.lower()
+    if not text_value:
+        return None
+
+    weather_terms = (
+        "weather", "temperature", "forecast", "rain", "raining",
+        "snow", "snowing", "wind", "windy", "humidity",
+        "humid", "hot", "cold", "degrees",
+    )
+    weather_intent = any(
+        re.search(rf"\b{re.escape(term)}\b", lower_value)
+        for term in weather_terms
+    )
+    if not weather_intent:
+        return None
+
+    preposition_match = re.search(
+        r"\b(?:weather|temperature|forecast|rain|raining|snow|snowing|"
+        r"wind|windy|humidity|humid|hot|cold|degrees?)\b"
+        r".*?\b(?:in|for|at|near)\s+"
+        r"([A-Za-zÀ-ÖØ-öø-ÿ0-9 .,'’()/-]{2,100})",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    if preposition_match:
+        location = _clean_weather_location(preposition_match.group(1))
+        if location:
+            return {"type": "weather", "location": location}
+
+    prefix_match = re.search(
+        r"^\s*([A-Za-zÀ-ÖØ-öø-ÿ0-9 .,'’()/-]{2,80}?)\s+"
+        r"(?:weather|temperature|forecast)\b",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    if prefix_match:
+        location = _clean_weather_location(prefix_match.group(1))
+        normalized_prefix = re.sub(
+            r"[^a-z0-9]+",
+            " ",
+            location.lower(),
+        ).strip()
+        conversational_prefixes = {
+            "what", "what is", "what s", "whats", "the", "current",
+            "today s", "todays", "show me", "tell me", "give me",
+            "do you know the", "can you check the", "how is the",
+            "how s the", "hows the", "is the",
+        }
+        if (
+            location
+            and normalized_prefix not in conversational_prefixes
+            and not normalized_prefix.startswith(
+                ("what ", "how ", "is ", "can ", "could ", "please ")
+            )
+        ):
+            return {"type": "weather", "location": location}
+
+    return {
+        "type": "weather",
+        "location": DEFAULT_WEATHER_LOCATION,
+        "default_location": True,
+    }
+
+
 def detect_live_request(prompt, selected_assistant=None):
     """
     Classify one prompt once and reuse the result across the interaction.
@@ -2259,22 +2360,9 @@ def detect_live_request(prompt, selected_assistant=None):
             "tracking_number": tracking_number,
         }
 
-    weather_match = re.search(
-        r"(?:weather|temperature|forecast|rain|snow)"
-        r"\s+(?:in|for|at)\s+([A-Za-z .,'-]{2,80})",
-        value,
-        flags=re.IGNORECASE,
-    )
-    if weather_match:
-        location = re.split(
-            r"\b(?:today|tomorrow|now|right now|this week|next week)\b",
-            weather_match.group(1),
-            maxsplit=1,
-            flags=re.IGNORECASE,
-        )[0].strip(" ,.?")
-
-        if location:
-            return {"type": "weather", "location": location}
+    weather_request = _detect_weather_request(value)
+    if weather_request:
+        return weather_request
 
     fx_match = re.search(
         r"\b([A-Z]{3})\s*(?:/|to|into|-)\s*([A-Z]{3})\b",
@@ -7290,26 +7378,15 @@ def install_browser_voice_dictation():
             const aria = String(button.getAttribute("aria-label") || "")
               .trim()
               .toLowerCase();
-            const testId = String(
-              button.closest("[data-testid]")?.getAttribute("data-testid") || ""
-            ).toLowerCase();
 
-            const saysStop = (
+            return (
               text === "stop" ||
               text === "stop running" ||
               text === "stop generating" ||
-              title.includes("stop") ||
-              aria.includes("stop")
-            );
-
-            // Exclude unrelated content buttons and prefer Streamlit's running
-            // status / toolbar controls.
-            return saysStop && (
-              testId.includes("status") ||
-              testId.includes("toolbar") ||
-              testId.includes("running") ||
-              title.includes("stop") ||
-              aria.includes("stop")
+              title === "stop" ||
+              title.includes("stop running") ||
+              aria === "stop" ||
+              aria.includes("stop running")
             );
           }
 
@@ -7362,21 +7439,29 @@ def install_browser_voice_dictation():
             root.setTimeout(() => notice.remove(), 2400);
           }
 
-          function requestSafeStop(proxy) {
+          function requestSafeStop(proxy, attempt = 0) {
             const nativeStop = findNativeStreamlitStopButton();
-            if (!nativeStop) {
-              showStopNotice(
-                "Stop is not available yet. Please try again in a moment."
-              );
-              return false;
+            if (nativeStop) {
+              proxy.disabled = true;
+              proxy.setAttribute("title", "Stopping...");
+              proxy.setAttribute("aria-label", "Stopping generation");
+              nativeStop.click();
+              showStopNotice("Stopping AutoTecPro AI...");
+              return true;
             }
 
-            proxy.disabled = true;
-            proxy.setAttribute("title", "Stopping...");
-            proxy.setAttribute("aria-label", "Stopping generation");
-            nativeStop.click();
-            showStopNotice("Stopping AutoTecPro AI...");
-            return true;
+            if (attempt < 20) {
+              root.setTimeout(
+                () => requestSafeStop(proxy, attempt + 1),
+                100
+              );
+              return true;
+            }
+
+            showStopNotice(
+              "The Stop control could not be reached. Please try again."
+            );
+            return false;
           }
 
           function removeStaleControls(container) {
@@ -14447,6 +14532,16 @@ def detect_prompt_execution_plan(
         document_request=document_request,
     )
 
+    live_type = str(live_request.get("type") or "none").strip().lower()
+    if live_type in {
+        "weather",
+        "fx",
+        "tracking",
+        "tracking_unknown",
+        "web",
+    }:
+        use_file_search = False
+
     return {
         "document": document_request,
         "live": live_request,
@@ -14824,6 +14919,15 @@ def build_ai_loading_status(
 
     if live_type == "web":
         return "Searching the web…"
+
+    if live_type == "weather":
+        return "Checking live weather data…"
+
+    if live_type == "fx":
+        return "Checking the live exchange rate…"
+
+    if live_type in {"tracking", "tracking_unknown"}:
+        return "Checking live shipment tracking…"
 
     if live_type.startswith("woocommerce_"):
         return "Analyzing the WooCommerce order information…"
@@ -23396,6 +23500,13 @@ else:
                 preloaded_live_data = _LIVE_DATA_UNSET
                 order_display_text = ""
 
+                deterministic_live_types = {
+                    "weather",
+                    "fx",
+                    "tracking",
+                    "tracking_unknown",
+                }
+
                 if live_request_type.startswith("woocommerce_"):
                     with st.spinner("Loading WooCommerce order information..."):
                         preloaded_live_data = get_live_data_for_prompt(
@@ -23409,6 +23520,22 @@ else:
                             assistant == "🔧 Technical Support"
                         ),
                     )
+                elif live_request_type in deterministic_live_types:
+                    live_spinner_label = {
+                        "weather": "Loading live weather information...",
+                        "fx": "Loading the live exchange rate...",
+                        "tracking": "Loading live shipment tracking...",
+                        "tracking_unknown": "Checking the tracking request...",
+                    }.get(
+                        live_request_type,
+                        "Loading live information...",
+                    )
+                    with st.spinner(live_spinner_label):
+                        preloaded_live_data = get_live_data_for_prompt(
+                            prompt,
+                            assistant,
+                            request_type=detected_request,
+                        )
 
                 stream_placeholder = st.empty()
                 loading_status_placeholder = st.empty()
