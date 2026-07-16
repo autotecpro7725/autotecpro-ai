@@ -3040,15 +3040,53 @@ class ManagedUploadedFile(io.BytesIO):
         return super().getvalue()
 
 
+def _normalized_upload_mime_type(file_name, reported_type=""):
+    """Return a stable MIME type for browser uploads, especially Office files."""
+    extension = Path(str(file_name or "")).suffix.lower()
+    mime_by_extension = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".pdf": "application/pdf",
+        ".txt": "text/plain",
+        ".doc": "application/msword",
+        ".docx": (
+            "application/vnd.openxmlformats-officedocument."
+            "wordprocessingml.document"
+        ),
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx": (
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+        ".xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+        ".csv": "text/csv",
+        ".ppt": "application/vnd.ms-powerpoint",
+        ".pptx": (
+            "application/vnd.openxmlformats-officedocument."
+            "presentationml.presentation"
+        ),
+    }
+
+    expected_type = mime_by_extension.get(extension)
+    clean_reported_type = str(reported_type or "").strip()
+
+    if expected_type:
+        return expected_type
+    return clean_reported_type or "application/octet-stream"
+
+
 def _managed_upload_record(uploaded_file):
     data = uploaded_file.getvalue()
     digest = hashlib.sha256(data).hexdigest()
+    file_name = str(getattr(uploaded_file, "name", "upload"))
     return {
         "id": digest,
-        "name": str(getattr(uploaded_file, "name", "upload")),
-        "type": str(
-            getattr(uploaded_file, "type", "application/octet-stream")
-            or "application/octet-stream"
+        "name": file_name,
+        "type": _normalized_upload_mime_type(
+            file_name,
+            getattr(uploaded_file, "type", ""),
         ),
         "size": len(data),
         "data": data,
@@ -3891,7 +3929,7 @@ def _upload_preview_icon_for_file(file_name):
         return PDF_FILE_ICON
     if extension in {".doc", ".docx"}:
         return WORD_FILE_ICON
-    if extension in {".xls", ".xlsx", ".csv"}:
+    if extension in {".xls", ".xlsx", ".xlsm", ".xlsb", ".csv"}:
         return EXCEL_FILE_ICON
     if extension in {".ppt", ".pptx"}:
         return POWERPOINT_FILE_ICON
@@ -18549,7 +18587,7 @@ def install_global_chat_file_dropzone():
                 'div[class*="st-key-atp_upload_shell_chat_files"]';
             const ACCEPTED_EXTENSIONS = [
                 ".jpg", ".jpeg", ".png", ".pdf", ".txt",
-                ".doc", ".docx", ".xls", ".xlsx", ".csv",
+                ".doc", ".docx", ".xls", ".xlsx", ".xlsm", ".xlsb", ".csv",
                 ".ppt", ".pptx"
             ];
 
@@ -18697,6 +18735,8 @@ def install_global_chat_file_dropzone():
                 ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 ".xls": "application/vnd.ms-excel",
                 ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+                ".xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
                 ".csv": "text/csv",
                 ".ppt": "application/vnd.ms-powerpoint",
                 ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -18709,41 +18749,13 @@ def install_global_chat_file_dropzone():
                 ) || "";
             }
 
-            function normalizeFileForUploader(file) {
-                const extension = fileExtension(file);
-                if (!extension) return null;
-
-                const expectedType = MIME_BY_EXTENSION[extension] || "";
-                const currentType = String(file?.type || "").toLowerCase();
-
-                // Windows/Chrome can expose dragged Excel and CSV files with an
-                // empty, generic, or incorrect MIME type. Rebuild only when the
-                // MIME type is missing or does not match the file extension.
-                if (expectedType && currentType !== expectedType.toLowerCase()) {
-                    try {
-                        return new parentWindow.File(
-                            [file],
-                            file.name,
-                            {
-                                type: expectedType,
-                                lastModified: file.lastModified
-                            }
-                        );
-                    } catch (error) {
-                        console.warn(
-                            "AutoTecPro AI: could not normalize dropped file MIME type.",
-                            error
-                        );
-                    }
-                }
-
-                return file;
-            }
-
             function acceptedFiles(fileList) {
-                return Array.from(fileList || [])
-                    .map(normalizeFileForUploader)
-                    .filter(Boolean);
+                // Preserve the browser's original File objects. Rebuilding Office
+                // files can make Excel uploads fail in Chromium even when Word,
+                // PDF, and images continue to work.
+                return Array.from(fileList || []).filter(
+                    (file) => Boolean(fileExtension(file))
+                );
             }
 
             function setInputFiles(input, files) {
@@ -23854,7 +23866,7 @@ else:
         widget_prefix="chat_files",
         accepted_types=[
             "jpg", "jpeg", "png", "pdf", "txt",
-            "doc", "docx", "xls", "xlsx", "csv", "ppt", "pptx",
+            "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx",
         ],
         heading="📎 Attach files or photos",
     )
