@@ -696,6 +696,86 @@ def search_woocommerce_order_number(order_number, access_level="sales"):
     }
 
 
+def search_multiple_woocommerce_orders(order_numbers, access_level="sales"):
+    """
+    Retrieve up to 10 unique WooCommerce orders in the supplied order.
+
+    Each order is looked up independently. One missing or invalid order does not
+    prevent the remaining valid orders from being returned.
+    """
+    clean_numbers = []
+    seen = set()
+
+    for raw_number in order_numbers or []:
+        clean_number = re.sub(r"[^0-9]", "", str(raw_number or ""))
+        if not re.fullmatch(r"\d{4,12}", clean_number):
+            continue
+        if clean_number in seen:
+            continue
+        seen.add(clean_number)
+        clean_numbers.append(clean_number)
+        if len(clean_numbers) >= 10:
+            break
+
+    if not clean_numbers:
+        raise RuntimeError("No valid WooCommerce order numbers were provided.")
+
+    combined_orders = []
+    results = []
+    not_found = []
+    errors = []
+
+    for clean_number in clean_numbers:
+        try:
+            result = search_woocommerce_order_number(
+                clean_number,
+                access_level=access_level,
+            )
+            result_orders = _woocommerce_orders_from_live_data(result)
+
+            if result_orders:
+                combined_orders.extend(result_orders)
+                results.append({
+                    "order_number": clean_number,
+                    "found": True,
+                    "count": len(result_orders),
+                })
+            else:
+                not_found.append(clean_number)
+                results.append({
+                    "order_number": clean_number,
+                    "found": False,
+                    "count": 0,
+                })
+        except Exception as error:
+            errors.append({
+                "order_number": clean_number,
+                "error": str(error),
+            })
+            results.append({
+                "order_number": clean_number,
+                "found": False,
+                "count": 0,
+                "error": str(error),
+            })
+
+    return {
+        "configured": True,
+        "source": "WooCommerce REST API",
+        "query_type": "multiple_orders",
+        "access_level": access_level,
+        "searched_order_numbers": clean_numbers,
+        "requested_count": len(clean_numbers),
+        "found_count": len(combined_orders),
+        "count": len(combined_orders),
+        "orders": combined_orders,
+        "results": results,
+        "not_found": not_found,
+        "errors": errors,
+        "read_only": True,
+    }
+
+
 def search_woocommerce_orders_by_email(email_address, access_level="sales"):
     """Search recent orders by exact billing email address."""
     email_value = str(email_address or "").strip().lower()
@@ -2217,6 +2297,210 @@ def detect_weather_location_followup(prompt, prior_messages=None):
     return None
 
 
+def extract_woocommerce_order_numbers(prompt, limit=10):
+    """
+    Extract unique staff-facing WooCommerce order numbers from one prompt.
+
+    Four-digit minimum preserves the existing short internal format, while
+    excluding common vehicle years unless the message clearly consists of a
+    list/order request.
+    """
+    value = str(prompt or "")
+    normalized_workspace = _normalized_workspace_name()
+    candidates = re.findall(r"(?<!\d)#?(\d{4,12})(?!\d)", value)
+
+    unique_numbers = []
+    seen = set()
+    for number in candidates:
+        if number in seen:
+            continue
+        seen.add(number)
+        unique_numbers.append(number)
+        if len(unique_numbers) >= max(1, min(int(limit or 10), 10)):
+            break
+
+    if len(unique_numbers) < 2:
+        return unique_numbers
+
+    lower = value.lower()
+    has_order_context = any(
+        term in lower
+        for term in (
+            "order", "orders", "woocommerce", "check", "show", "lookup",
+            "look up", "find", "compare", "status", "product", "purchased",
+        )
+    )
+    looks_like_number_list = bool(
+        re.fullmatch(
+            r"\s*#?\d{4,12}"
+            r"(?:\s*(?:,|;|/|\||\band\b|\s)\s*#?\d{4,12})+\s*[?.!]*",
+            value,
+            flags=re.IGNORECASE,
+        )
+    )
+
+    if (
+        normalized_workspace in {"technical support", "sales"}
+        or has_order_context
+        or looks_like_number_list
+    ):
+        return unique_numbers
+
+    return []
+
+
+def _connection_result(status, message="", **extra):
+    result = {
+        "status": str(status),
+        "message": str(message or ""),
+    }
+    result.update(extra)
+    return result
+
+
+def run_live_connection_diagnostic():
+    """
+    Run explicit, read-only connectivity checks from the Streamlit server.
+
+    No credentials, tokens, private order records, or customer information are
+    returned in the diagnostic payload.
+    """
+    started_at = time.time()
+    services = {}
+
+    # General outbound HTTPS.
+    try:
+        response = http_session.get(
+            "https://www.google.com/generate_204",
+            timeout=8,
+        )
+        services["internet"] = _connection_result(
+            "connected" if response.status_code in {200, 204} else "warning",
+            f"Outbound HTTPS returned HTTP {response.status_code}.",
+        )
+    except Exception as error:
+        services["internet"] = _connection_result("failed", str(error))
+
+    # OpenAI authentication/connectivity.
+    try:
+        model_page = client.models.list()
+        has_data = bool(getattr(model_page, "data", None))
+        services["openai"] = _connection_result(
+            "connected",
+            "OpenAI API authentication succeeded.",
+            response_received=has_data,
+        )
+    except Exception as error:
+        services["openai"] = _connection_result("failed", str(error))
+
+    # WooCommerce read-only endpoint.
+    if woocommerce_is_configured():
+        try:
+            result = woocommerce_api_request(
+                "orders",
+                params={
+                    "per_page": 1,
+                    "page": 1,
+                    "orderby": "date",
+                    "order": "desc",
+                    "status": "any",
+                },
+            )
+            services["woocommerce"] = _connection_result(
+                "connected",
+                "WooCommerce REST API authentication succeeded.",
+                response_type=type(result).__name__,
+            )
+        except Exception as error:
+            services["woocommerce"] = _connection_result("failed", str(error))
+    else:
+        services["woocommerce"] = _connection_result(
+            "not_configured",
+            "WooCommerce secrets are not fully configured.",
+        )
+
+    # Open-Meteo geocoder and forecast.
+    try:
+        weather = get_live_weather("Toronto")
+        services["weather"] = _connection_result(
+            "connected",
+            "Open-Meteo returned live weather data.",
+            location=(weather.get("location") or {}).get("name"),
+        )
+    except Exception as error:
+        services["weather"] = _connection_result("failed", str(error))
+
+    # Exchange-rate service.
+    try:
+        fx = get_live_exchange_rate("USD", "CAD")
+        services["exchange_rate"] = _connection_result(
+            "connected",
+            "Frankfurter returned a live USD/CAD reference rate.",
+            date=fx.get("date"),
+        )
+    except Exception as error:
+        services["exchange_rate"] = _connection_result("failed", str(error))
+
+    # Supabase read-only check.
+    try:
+        supabase.table("users").select("username").limit(1).execute()
+        services["supabase"] = _connection_result(
+            "connected",
+            "Supabase query succeeded.",
+        )
+    except Exception as error:
+        services["supabase"] = _connection_result("failed", str(error))
+
+    services["ups"] = _connection_result(
+        "configured" if UPS_CLIENT_ID and UPS_CLIENT_SECRET else "not_configured",
+        (
+            "UPS credentials are configured."
+            if UPS_CLIENT_ID and UPS_CLIENT_SECRET
+            else "UPS credentials are not configured."
+        ),
+    )
+    services["canada_post"] = _connection_result(
+        (
+            "configured"
+            if CANADA_POST_USERNAME and CANADA_POST_PASSWORD
+            else "not_configured"
+        ),
+        (
+            "Canada Post credentials are configured."
+            if CANADA_POST_USERNAME and CANADA_POST_PASSWORD
+            else "Canada Post credentials are not configured."
+        ),
+    )
+
+    critical_services = (
+        "internet",
+        "openai",
+        "woocommerce",
+        "weather",
+        "exchange_rate",
+        "supabase",
+    )
+    failed = [
+        name
+        for name in critical_services
+        if services.get(name, {}).get("status") == "failed"
+    ]
+
+    return {
+        "source": "AutoTecPro live connection diagnostic",
+        "query_type": "connection_check",
+        "read_only": True,
+        "overall_status": "online" if not failed else "partial_failure",
+        "failed_services": failed,
+        "duration_seconds": round(time.time() - started_at, 2),
+        "services": services,
+        "security_note": (
+            "This diagnostic performs read-only checks and does not expose "
+            "credentials or customer/order data."
+        ),
+    }
+
+
 def detect_live_request(prompt, selected_assistant=None):
     """
     Classify one prompt once and reuse the result across the interaction.
@@ -2233,6 +2517,31 @@ def detect_live_request(prompt, selected_assistant=None):
     access_level = _woocommerce_access_level_for_assistant(
         selected_assistant
     )
+
+    normalized_command = re.sub(r"\s+", " ", value).strip().lower()
+    if (
+        normalized_command in {
+            "/check connections",
+            "/check connection",
+            "check connections",
+            "check connection",
+            "check internet connection",
+            "check app connection",
+            "check live connections",
+        }
+        or (
+            "connection" in normalized_command
+            and any(
+                term in normalized_command
+                for term in ("internet", "api", "woocommerce", "openai", "supabase")
+            )
+            and any(
+                term in normalized_command
+                for term in ("check", "test", "status", "connected", "working")
+            )
+        )
+    ):
+        return {"type": "connection_check"}
 
     # WooCommerce sales analytics are intentionally available only in Sales
     # and Marketing. Technical Support keeps read-only order lookup access.
@@ -2279,6 +2588,18 @@ def detect_live_request(prompt, selected_assistant=None):
     # Detect ordinary WooCommerce order requests in Technical Support, Sales,
     # and Marketing. Detection does not depend on credentials being loaded.
     if access_level:
+        detected_order_numbers = extract_woocommerce_order_numbers(
+            value,
+            limit=10,
+        )
+        if len(detected_order_numbers) >= 2:
+            return {
+                "type": "woocommerce_multiple_orders",
+                "order_numbers": detected_order_numbers,
+                "access_level": access_level,
+                "limit": 10,
+            }
+
         notes_match = re.search(
             r"\b(?:notes?|order\s+notes?)\b.*?"
             r"(?:\border(?:\s*(?:number|#))?\b|#)"
@@ -2559,6 +2880,15 @@ def get_live_data_for_prompt(
                 request_type["order_number"],
                 access_level=access_level,
             )
+
+        if kind == "woocommerce_multiple_orders":
+            return search_multiple_woocommerce_orders(
+                request_type.get("order_numbers") or [],
+                access_level=access_level,
+            )
+
+        if kind == "connection_check":
+            return run_live_connection_diagnostic()
 
         if kind == "woocommerce_customer_email":
             return search_woocommerce_orders_by_email(
@@ -14640,7 +14970,21 @@ def build_woocommerce_order_display_text(live_data, technical_view=False):
     status, dates, and permitted customer fields are not rewritten or inferred.
     """
     orders = _woocommerce_orders_from_live_data(live_data)
-    if not orders:
+    missing_numbers = []
+    batch_errors = []
+    if isinstance(live_data, dict):
+        missing_numbers = [
+            str(number)
+            for number in (live_data.get("not_found") or [])
+            if str(number).strip()
+        ]
+        batch_errors = [
+            item
+            for item in (live_data.get("errors") or [])
+            if isinstance(item, dict)
+        ]
+
+    if not orders and not missing_numbers and not batch_errors:
         return ""
 
     blocks = []
@@ -14748,6 +15092,27 @@ def build_woocommerce_order_display_text(live_data, technical_view=False):
 
         blocks.append("\n\n".join(lines))
 
+    if missing_numbers:
+        blocks.append(
+            "## WooCommerce Orders Not Found\n\n"
+            + "\n".join(f"- Order #{number}" for number in missing_numbers)
+        )
+
+    if batch_errors:
+        safe_error_lines = []
+        for item in batch_errors:
+            number = _clean_woocommerce_meta_text(item.get("order_number"))
+            error_text = _clean_woocommerce_meta_text(item.get("error"))
+            if number:
+                safe_error_lines.append(
+                    f"- Order #{number}: {error_text or 'Lookup failed.'}"
+                )
+        if safe_error_lines:
+            blocks.append(
+                "## WooCommerce Lookup Errors\n\n"
+                + "\n".join(safe_error_lines)
+            )
+
     return "\n\n---\n\n".join(blocks)
 
 
@@ -14830,6 +15195,9 @@ def build_ai_loading_status(
 
     if live_type == "web":
         return "Searching the web…"
+
+    if live_type == "connection_check":
+        return "Testing AutoTecPro live connections…"
 
     if live_type.startswith("woocommerce_"):
         return "Analyzing the WooCommerce order information…"
@@ -23584,6 +23952,7 @@ else:
                     "fx",
                     "tracking",
                     "tracking_unknown",
+                    "connection_check",
                 }
 
                 if live_request_type.startswith("woocommerce_"):
@@ -23605,6 +23974,7 @@ else:
                         "fx": "Loading the live exchange rate...",
                         "tracking": "Loading live shipment tracking...",
                         "tracking_unknown": "Checking the tracking request...",
+                        "connection_check": "Testing live app connections...",
                     }.get(
                         live_request_type,
                         "Loading live information...",
