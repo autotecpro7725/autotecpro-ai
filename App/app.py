@@ -22642,40 +22642,6 @@ def remove_background_generation(task_id):
         return registry["tasks"].pop(str(task_id), None)
 
 
-def _background_poll_component():
-    """Trigger a lightweight Streamlit rerun while a worker is active."""
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const KEY = "__atpBackgroundGenerationPollV1";
-
-          try {
-            if (root[KEY]) root.clearTimeout(root[KEY]);
-          } catch (error) {}
-
-          root[KEY] = root.setTimeout(() => {
-            for (const button of doc.querySelectorAll("button")) {
-              const text = String(button.textContent || "")
-                .replace(/\\s+/g, " ")
-                .trim()
-                .toLowerCase();
-              if (text === "atp generation poll") {
-                button.click();
-                break;
-              }
-            }
-          }, 350);
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
 def finalize_background_generation(task):
     """Persist a completed, stopped, or failed background response."""
     context = dict(task.get("context") or {})
@@ -22903,17 +22869,21 @@ def render_active_background_generation():
             "ATP Stop Generation",
             key=f"atp_stop_generation_{task_id}",
         )
-        st.button(
-            "ATP Generation Poll",
-            key=f"atp_generation_poll_{task_id}",
-        )
 
     if stop_clicked:
         cancel_background_generation(task_id)
         st.rerun()
 
-    _background_poll_component()
     return True
+
+
+# Streamlit Cloud reliably reruns native fragments while the rest of the app
+# remains interactive. This replaces the previous hidden JavaScript poll button,
+# which could stop firing after large WooCommerce/order displays.
+if hasattr(st, "fragment"):
+    render_active_background_generation = st.fragment(
+        run_every=0.35
+    )(render_active_background_generation)
 
 
 # ============================================================
