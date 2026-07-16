@@ -18720,13 +18720,61 @@ def install_global_chat_file_dropzone():
                 return null;
             }
 
-            function acceptedFiles(fileList) {
-                return Array.from(fileList || []).filter((file) => {
-                    const name = String(file?.name || "").toLowerCase();
-                    return ACCEPTED_EXTENSIONS.some(
-                        (extension) => name.endsWith(extension)
+            const MIME_BY_EXTENSION = {
+                ".doc": "application/msword",
+                ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xls": "application/vnd.ms-excel",
+                ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".csv": "text/csv",
+                ".ppt": "application/vnd.ms-powerpoint",
+                ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            };
+
+            function matchingExtension(fileName) {
+                const name = String(fileName || "").toLowerCase();
+                return ACCEPTED_EXTENSIONS.find(
+                    (extension) => name.endsWith(extension)
+                ) || "";
+            }
+
+            function normalizeDroppedFile(file) {
+                const extension = matchingExtension(file?.name);
+                if (!extension) return null;
+
+                const normalizedType = MIME_BY_EXTENSION[extension];
+                if (!normalizedType) return file;
+
+                const currentType = String(file?.type || "").toLowerCase();
+                if (currentType === normalizedType.toLowerCase()) {
+                    return file;
+                }
+
+                // Windows and some browsers expose dragged Excel/CSV files with
+                // an empty, generic, or incorrect MIME type. Streamlit's native
+                // chooser corrects this automatically, but the custom drop path
+                // must provide the standard Office MIME type explicitly.
+                try {
+                    return new parentWindow.File(
+                        [file],
+                        file.name,
+                        {
+                            type: normalizedType,
+                            lastModified: file.lastModified
+                        }
                     );
-                });
+                } catch (error) {
+                    console.warn(
+                        "AutoTecPro AI: could not normalize dropped file MIME type.",
+                        error
+                    );
+                    return file;
+                }
+            }
+
+            function acceptedFiles(fileList) {
+                return Array.from(fileList || [])
+                    .map(normalizeDroppedFile)
+                    .filter(Boolean);
             }
 
             function setInputFiles(input, files) {
