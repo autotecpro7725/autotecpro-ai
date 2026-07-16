@@ -3456,7 +3456,21 @@ def install_gpt_uploader_css():
         }
 
         .atp-gpt-file-icon {
-            font-size: 34px;
+            width: 41px;
+            height: 41px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 41px;
+            line-height: 1;
+        }
+
+        .atp-gpt-file-icon img {
+            display: block;
+            width: 41px;
+            height: 41px;
+            object-fit: contain;
+            background: transparent;
         }
 
         .atp-gpt-upload-meta {
@@ -3887,10 +3901,41 @@ def install_gpt_uploader_css():
 
 
 
+@st.cache_data(show_spinner=False)
+def _upload_preview_icon_data_url(icon_path):
+    """Return a cached data URL for an upload-preview icon asset."""
+    try:
+        path = Path(icon_path)
+        if not path.exists() or not path.is_file():
+            return ""
+        encoded = base64.b64encode(path.read_bytes()).decode()
+        suffix = path.suffix.lower()
+        mime_type = "image/png" if suffix == ".png" else "image/jpeg"
+        return f"data:{mime_type};base64,{encoded}"
+    except Exception:
+        return ""
+
+
+def _upload_preview_icon_for_file(file_name):
+    """Select the matching local icon asset for a non-image upload."""
+    extension = Path(str(file_name or "")).suffix.lower()
+
+    if extension == ".pdf":
+        return PDF_FILE_ICON
+    if extension in {".doc", ".docx"}:
+        return WORD_FILE_ICON
+    if extension in {".xls", ".xlsx", ".csv"}:
+        return EXCEL_FILE_ICON
+    if extension in {".ppt", ".pptx"}:
+        return POWERPOINT_FILE_ICON
+    return None
+
+
 def render_managed_upload_preview(record, delete_key, on_delete):
     """Render one preview card with a real Streamlit delete button."""
     file_type = str(record.get("type") or "")
-    file_name = html.escape(str(record.get("name") or "upload"))
+    raw_file_name = str(record.get("name") or "upload")
+    file_name = html.escape(raw_file_name)
     file_size = float(record.get("size") or 0) / (1024 * 1024)
     card_key = f"atp_upload_card_{record['id'][:16]}"
 
@@ -3904,11 +3949,24 @@ def render_managed_upload_preview(record, delete_key, on_delete):
                 "</div>"
             )
         else:
-            extension = Path(record.get("name") or "").suffix.lower()
-            icon = "📄" if extension in {".pdf", ".txt", ".docx"} else "📎"
+            icon_path = _upload_preview_icon_for_file(raw_file_name)
+            icon_data_url = (
+                _upload_preview_icon_data_url(str(icon_path))
+                if icon_path is not None
+                else ""
+            )
+
+            if icon_data_url:
+                icon_html = (
+                    f'<img src="{icon_data_url}" '
+                    f'alt="{html.escape(Path(raw_file_name).suffix.upper().lstrip('.') or 'Document')} icon">'
+                )
+            else:
+                icon_html = "📄"
+
             media_html = (
                 '<div class="atp-gpt-upload-media">'
-                f'<div class="atp-gpt-file-icon">{icon}</div>'
+                f'<div class="atp-gpt-file-icon">{icon_html}</div>'
                 "</div>"
             )
 
