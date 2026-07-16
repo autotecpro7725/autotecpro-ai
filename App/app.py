@@ -267,28 +267,65 @@ st.set_page_config(
 )
 
 
-# Hide zero-height custom-component containers before the cookie controller
-# mounts. This prevents the temporary grey bars/empty overlay blocks that can
-# appear above the login logo while cookies are loading.
-st.markdown(
-    """
-    <style>
-    .element-container:has(iframe[height="0"]),
-    div[data-testid="stElementContainer"]:has(iframe[height="0"]),
-    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        max-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# Establish the login state before the first visible Streamlit elements are
+# mounted. This lets the unauthenticated startup render use the final login
+# background immediately instead of briefly showing Streamlit's grey shell.
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+
+# Pre-login startup surface. These rules are injected only while logged out, so
+# they cannot hide or alter the authenticated sidebar, toolbar, or application.
+if not st.session_state.logged_in:
+    st.markdown(
+        """
+        <style>
+        html,
+        body,
+        #root,
+        .stApp,
+        div[data-testid="stAppViewContainer"],
+        div[data-testid="stMain"],
+        div[data-testid="stMainBlockContainer"] {
+            background:
+                radial-gradient(circle at top left, rgba(239,68,68,0.15), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(59,130,246,0.08), transparent 24%),
+                linear-gradient(135deg, #050b16 0%, #0b1220 45%, #020617 100%) !important;
+            color: #f8fafc !important;
+        }
+
+        header[data-testid="stHeader"],
+        section[data-testid="stSidebar"],
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"],
+        div[data-testid="stStatusWidget"],
+        div[data-testid="stSkeleton"],
+        .stSkeleton {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        div[data-testid="stAppViewBlockContainer"],
+        div[data-testid="stVerticalBlock"] {
+            background: transparent !important;
+        }
+
+        .element-container:has(iframe[height="0"]),
+        div[data-testid="stElementContainer"]:has(iframe[height="0"]),
+        div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # One browser-cookie controller for saved login credentials.
 auth_cookie_controller = CookieController(
