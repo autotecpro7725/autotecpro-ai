@@ -4013,6 +4013,12 @@ def managed_file_uploader(
 
     records = list(st.session_state.get(storage_key) or [])
     shell_key = f"atp_upload_shell_{widget_prefix}"
+    accepted_type_labels = [
+        str(file_type).strip().upper()
+        for file_type in (accepted_types or [])
+        if str(file_type).strip()
+    ]
+    accepted_type_text = ", ".join(accepted_type_labels)
 
     with st.container(key=shell_key):
         st.markdown(
@@ -4086,7 +4092,7 @@ def managed_file_uploader(
                     <span>Upload</span>
                 </button>
                 <div class="atp-custom-upload-helper">
-                    10MB per file · JPG, JPEG, PNG, PDF, TXT
+                    10MB per file · {html.escape(accepted_type_text)}
                 </div>
             </div>
             """,
@@ -18618,7 +18624,7 @@ def install_global_chat_file_dropzone():
                                 Drop files to attach
                             </div>
                             <div style="font-size:14px;color:#cbd5e1;">
-                                JPG, PNG, PDF, or TXT
+                                JPG, PNG, PDF, TXT, Word, Excel, CSV, or PowerPoint
                             </div>
                         </div>
                     `;
@@ -23807,7 +23813,7 @@ else:
         <div class="assistant-section-card">
             <div class="assistant-section-title">{assistant}</div>
             <p class="assistant-section-subtitle">
-                Upload photos, PDFs, or TXT files, then ask AutoTecPro AI for support.
+                Upload photos, PDFs, TXT, Word, Excel, CSV, or PowerPoint files, then ask AutoTecPro AI for support.
             </p>
         </div>
         """,
@@ -23826,7 +23832,10 @@ else:
         storage_key="chat_managed_uploads",
         generation_key="chat_managed_upload_generation",
         widget_prefix="chat_files",
-        accepted_types=["jpg", "jpeg", "png", "pdf", "txt"],
+        accepted_types=[
+            "jpg", "jpeg", "png", "pdf", "txt",
+            "doc", "docx", "xls", "xlsx", "csv", "ppt", "pptx",
+        ],
         heading="📎 Attach files or photos",
     )
 
