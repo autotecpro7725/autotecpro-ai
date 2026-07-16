@@ -358,6 +358,12 @@ CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
 LIVE_HTTP_TIMEOUT = 15
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
+# Long document/catalogue responses may exceed a single Responses API output.
+# Keep each request bounded, then continue only when OpenAI explicitly reports
+# an incomplete response caused by the output-token limit.
+MAX_AI_OUTPUT_TOKENS = 32768
+MAX_AI_AUTO_CONTINUATIONS = 3
+
 
 def safe_json_response(response):
     """Return JSON or a readable error without exposing credentials."""
@@ -15567,10 +15573,125 @@ def _build_ai_request(
         "model": "gpt-5.5",
         "instructions": instructions,
         "input": user_input,
+        "max_output_tokens": MAX_AI_OUTPUT_TOKENS,
     }
     if tools:
         request["tools"] = tools
     return request
+
+
+def _response_incomplete_reason(response):
+    """Return the normalized reason for an incomplete Responses API result."""
+    details = getattr(response, "incomplete_details", None)
+    if details is None:
+        return ""
+
+    if isinstance(details, dict):
+        reason = details.get("reason")
+    else:
+        reason = getattr(details, "reason", "")
+
+    return str(reason or "").strip().lower()
+
+
+def _response_error_message(response, default_message):
+    """Extract a readable Responses API failure without exposing request data."""
+    error = getattr(response, "error", None)
+    if isinstance(error, dict):
+        message = error.get("message") or error.get("code")
+    else:
+        message = (
+            getattr(error, "message", "")
+            or getattr(error, "code", "")
+        )
+    return str(message or default_message)
+
+
+def _continuation_request(previous_response, original_request):
+    """
+    Continue an output-limited response without resending the uploaded document.
+
+    The Responses API retains the prior response through previous_response_id.
+    Instructions are supplied again because they are not automatically inherited
+    when previous_response_id is used.
+    """
+    previous_response_id = str(
+        getattr(previous_response, "id", "") or ""
+    ).strip()
+    if not previous_response_id:
+        return None
+
+    return {
+        "model": original_request["model"],
+        "instructions": original_request.get("instructions"),
+        "previous_response_id": previous_response_id,
+        "input": [{
+            "role": "user",
+            "content": [{
+                "type": "input_text",
+                "text": (
+                    "Continue exactly where the previous response stopped. "
+                    "Do not repeat earlier sections. Preserve the same headings, "
+                    "format, factual constraints, and source discipline. Complete "
+                    "the remaining requested document review or extraction."
+                ),
+            }],
+        }],
+        "max_output_tokens": MAX_AI_OUTPUT_TOKENS,
+    }
+
+
+def _stream_one_ai_response(request):
+    """
+    Yield text for one Responses API call and return its final response object.
+
+    The generator return value is captured with ``yield from`` by ask_ai_stream.
+    """
+    stream = client.responses.create(
+        **request,
+        stream=True,
+    )
+    received_text = False
+    final_response = None
+
+    for event in stream:
+        event_type = str(getattr(event, "type", "") or "")
+
+        if event_type == "response.output_text.delta":
+            delta = str(getattr(event, "delta", "") or "")
+            if delta:
+                received_text = True
+                yield delta
+
+        elif event_type == "response.refusal.delta":
+            delta = str(getattr(event, "delta", "") or "")
+            if delta:
+                received_text = True
+                yield delta
+
+        elif event_type in {
+            "response.completed",
+            "response.incomplete",
+            "response.failed",
+        }:
+            final_response = getattr(event, "response", None)
+
+        elif event_type == "error":
+            message = str(
+                getattr(event, "message", "")
+                or getattr(event, "error", "")
+                or "OpenAI streaming request failed."
+            )
+            raise RuntimeError(message)
+
+    if final_response is not None:
+        final_text = str(
+            getattr(final_response, "output_text", "") or ""
+        )
+        if not received_text and final_text:
+            yield final_text
+
+    return final_response
 
 
 def ask_ai_stream(
@@ -15584,8 +15705,15 @@ def ask_ai_stream(
     live_data_override=_LIVE_DATA_UNSET,
     order_displayed_by_app=False,
 ):
-    """Yield Responses API text deltas, with a non-streaming compatibility fallback."""
-    request = _build_ai_request(
+    """
+    Yield the complete Responses API answer.
+
+    When OpenAI explicitly reports that a response is incomplete because it hit
+    the output-token limit, continue from the prior response up to a bounded
+    number of times. This preserves long Excel/catalogue extractions in the same
+    visible chat message without creating an unlimited loop.
+    """
+    original_request = _build_ai_request(
         prompt_text,
         uploaded_files,
         detected_live_request=detected_live_request,
@@ -15597,49 +15725,115 @@ def ask_ai_stream(
         order_displayed_by_app=order_displayed_by_app,
     )
 
-    try:
-        stream = client.responses.create(
-            **request,
-            stream=True,
-        )
-        received_text = False
-        completed_text = ""
-        for event in stream:
-            event_type = str(getattr(event, "type", "") or "")
-            if event_type == "response.output_text.delta":
-                delta = str(getattr(event, "delta", "") or "")
-                if delta:
-                    received_text = True
-                    yield delta
-            elif event_type == "response.refusal.delta":
-                delta = str(getattr(event, "delta", "") or "")
-                if delta:
-                    received_text = True
-                    yield delta
-            elif event_type == "response.completed":
-                completed_response = getattr(event, "response", None)
-                completed_text = str(
-                    getattr(completed_response, "output_text", "") or ""
-                )
-            elif event_type == "error":
-                message = str(
-                    getattr(event, "message", "")
-                    or getattr(event, "error", "")
-                    or "OpenAI streaming request failed."
-                )
-                raise RuntimeError(message)
+    request = original_request
 
-        if not received_text and completed_text:
-            yield completed_text
+    try:
+        for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
+            final_response = yield from _stream_one_ai_response(request)
+
+            if final_response is None:
+                return
+
+            status = str(
+                getattr(final_response, "status", "") or ""
+            ).strip().lower()
+
+            if status == "failed":
+                raise RuntimeError(
+                    _response_error_message(
+                        final_response,
+                        "OpenAI response generation failed.",
+                    )
+                )
+
+            if status != "incomplete":
+                return
+
+            incomplete_reason = _response_incomplete_reason(final_response)
+            if incomplete_reason not in {
+                "max_tokens",
+                "max_output_tokens",
+            }:
+                raise RuntimeError(
+                    "OpenAI returned an incomplete response"
+                    + (
+                        f" ({incomplete_reason})."
+                        if incomplete_reason
+                        else "."
+                    )
+                )
+
+            if continuation_index >= MAX_AI_AUTO_CONTINUATIONS:
+                yield (
+                    "\n\n[The response reached the configured long-output "
+                    "continuation limit. Ask “continue” to generate any "
+                    "remaining material.]"
+                )
+                return
+
+            request = _continuation_request(
+                final_response,
+                original_request,
+            )
+            if request is None:
+                yield (
+                    "\n\n[The response stopped at the output limit and could "
+                    "not be continued automatically. Ask “continue” to resume.]"
+                )
+                return
+
         return
+
     except TypeError:
         # Compatibility with an older OpenAI SDK that does not support stream.
         pass
 
-    response = client.responses.create(**request)
-    fallback_text = str(getattr(response, "output_text", "") or "")
-    if fallback_text:
-        yield fallback_text
+    # Non-streaming compatibility fallback with the same bounded continuation.
+    request = original_request
+    for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
+        response = client.responses.create(**request)
+        fallback_text = str(getattr(response, "output_text", "") or "")
+        if fallback_text:
+            yield fallback_text
+
+        status = str(getattr(response, "status", "") or "").strip().lower()
+        if status == "failed":
+            raise RuntimeError(
+                _response_error_message(
+                    response,
+                    "OpenAI response generation failed.",
+                )
+            )
+
+        if status != "incomplete":
+            return
+
+        incomplete_reason = _response_incomplete_reason(response)
+        if incomplete_reason not in {"max_tokens", "max_output_tokens"}:
+            raise RuntimeError(
+                "OpenAI returned an incomplete response"
+                + (
+                    f" ({incomplete_reason})."
+                    if incomplete_reason
+                    else "."
+                )
+            )
+
+        if continuation_index >= MAX_AI_AUTO_CONTINUATIONS:
+            yield (
+                "\n\n[The response reached the configured long-output "
+                "continuation limit. Ask “continue” to generate any "
+                "remaining material.]"
+            )
+            return
+
+        request = _continuation_request(response, original_request)
+        if request is None:
+            yield (
+                "\n\n[The response stopped at the output limit and could not "
+                "be continued automatically. Ask “continue” to resume.]"
+            )
+            return
 
 
 def ask_ai(
