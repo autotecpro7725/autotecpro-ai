@@ -9106,6 +9106,8 @@ def render_chat_message(
         content_without_documents
     )
     visible_content = clean_visible_chat_text(visible_content)
+    if role != "user":
+        visible_content = format_learning_record_for_display(visible_content)
     final_images = images if images is not None else stored_images
 
     if role == "user":
@@ -11900,6 +11902,103 @@ DOCUMENT_MARKER_PREFIX = "[[[ATPDOCS_JSON:"
 DOCUMENT_MARKER_SUFFIX = ":ATPDOCS_JSON]]]"
 
 IMAGE_MARKER_SUFFIX = "]]"
+
+
+LEARNING_DISPLAY_LABELS = {
+    "record_type": "Record Type",
+    "title": "Title",
+    "vehicle_make": "Vehicle Make",
+    "vehicle_model": "Vehicle Model",
+    "year_range": "Year Range",
+    "year": "Year",
+    "make": "Make",
+    "model": "Model",
+    "product_name": "Product Name",
+    "product": "Product",
+    "sku": "SKU",
+    "factory_system": "Factory System",
+    "symptom_or_topic": "Symptom / Topic",
+    "included_parts": "Included Parts",
+    "part_numbers": "Part Numbers",
+    "connector_details": "Connector Details",
+    "compatibility_conditions": "Compatibility Conditions",
+    "diagnostic_steps": "Diagnostic Steps",
+    "confirmed_solution": "Confirmed Solution",
+    "installation_notes": "Installation Notes",
+    "warnings": "Warnings",
+    "evidence": "Evidence",
+    "uncertain_information": "Needs Confirmation",
+    "search_keywords": "Search Keywords",
+    "customer_reply_draft": "Customer Reply Draft",
+}
+
+
+def _friendly_learning_value(value):
+    """Convert internal snake_case enum values into readable UI text."""
+    clean_value = str(value or "").strip()
+    if re.fullmatch(r"[a-z][a-z0-9_]*", clean_value):
+        return clean_value.replace("_", " ").title()
+    return clean_value
+
+
+def format_learning_record_for_display(text):
+    """Hide internal JSON/database field names in learning responses.
+
+    The formatter activates only when a response contains a recognized learning
+    field, so ordinary chat, code, URLs, and technical values remain unchanged.
+    It also cleans older saved learning messages when they are rendered again.
+    """
+    value = str(text or "")
+    if not value.strip():
+        return value
+
+    field_pattern = re.compile(
+        r"^(?P<indent>\s*)(?:[-*]\s*)?(?P<key>"
+        + "|".join(re.escape(key) for key in LEARNING_DISPLAY_LABELS)
+        + r")\s*:\s*(?P<value>.*)$",
+        flags=re.IGNORECASE,
+    )
+    parsed = []
+    recognized_count = 0
+    for line in value.splitlines():
+        match = field_pattern.match(line)
+        parsed.append((line, match))
+        if match:
+            recognized_count += 1
+
+    # One customer reply field is sufficient; other records normally contain
+    # multiple structured fields. This avoids touching incidental prose.
+    has_customer_reply = any(
+        match and match.group("key").lower() == "customer_reply_draft"
+        for _, match in parsed
+    )
+    if recognized_count < 2 and not has_customer_reply:
+        return value
+
+    output_lines = []
+    for original_line, match in parsed:
+        if not match:
+            output_lines.append(original_line)
+            continue
+
+        key = match.group("key").lower()
+        raw_value = match.group("value").strip()
+        label = LEARNING_DISPLAY_LABELS[key]
+
+        if key == "customer_reply_draft":
+            output_lines.append(f"**{label}**")
+            if raw_value:
+                output_lines.extend(["", raw_value])
+            continue
+
+        if key == "record_type":
+            raw_value = _friendly_learning_value(raw_value)
+
+        output_lines.append(
+            f"**{label}:** {raw_value}" if raw_value else f"**{label}:**"
+        )
+
+    return "\n".join(output_lines)
 
 
 def clean_visible_chat_text(text):
@@ -24532,6 +24631,10 @@ else:
 
                         streamed_answer += delta_text
                         visible_stream = streamed_answer
+                        if explicit_learning_requested:
+                            visible_stream = format_learning_record_for_display(
+                                visible_stream
+                            )
                         if assistant == "🔧 Technical Support":
                             visible_stream = remove_technical_pricing(
                                 visible_stream
@@ -24559,6 +24662,8 @@ else:
                             last_stream_update = now_value
 
                     answer_body = clean_visible_chat_text(streamed_answer)
+                    if explicit_learning_requested:
+                        answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
 
@@ -24591,6 +24696,10 @@ else:
                     partial_answer_body = clean_visible_chat_text(
                         streamed_answer
                     )
+                    if explicit_learning_requested:
+                        partial_answer_body = format_learning_record_for_display(
+                            partial_answer_body
+                        )
                     if assistant == "🔧 Technical Support":
                         partial_answer_body = remove_technical_pricing(
                             partial_answer_body
