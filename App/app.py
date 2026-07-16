@@ -18580,8 +18580,11 @@ def install_global_chat_file_dropzone():
             const CONTROLLER_KEY = "__atpGlobalChatDropzoneV2";
             const CHAT_SHELL_SELECTOR =
                 'div[class*="st-key-atp_upload_shell_chat_files"]';
-            const ACCEPTED_EXTENSIONS =
-                [".jpg", ".jpeg", ".png", ".pdf", ".txt"];
+            const ACCEPTED_EXTENSIONS = [
+                ".jpg", ".jpeg", ".png", ".pdf", ".txt",
+                ".doc", ".docx", ".xls", ".xlsx", ".csv",
+                ".ppt", ".pptx"
+            ];
 
             // Streamlit reruns can destroy the component iframe while leaving
             // listeners on the parent document. Always remove the previous
