@@ -15652,6 +15652,103 @@ def detect_staff_confirmed_solution(message_text):
     )
 
 
+EXPLICIT_LEARNING_COMMAND_PATTERNS = (
+    # Direct teaching commands.
+    r"\blearn (?:and )?(?:save )?(?:this|it)\b",
+    r"\bteach (?:the ai|autotecpro ai)? ?(?:this|it)\b",
+
+    # Natural save / memory wording.
+    r"\bsave (?:this|it)(?: permanently)?\b",
+    r"\bsave (?:this|it) (?:for|to) future (?:reference|use|cases?)\b",
+    r"\bsave (?:this|it) (?:in|to) (?:the )?(?:knowledge base|memory|database)\b",
+    r"\bremember (?:this|it)(?: for future (?:reference|use|cases?))?\b",
+    r"\badd (?:this|it) to (?:the )?(?:knowledge base|memory|database)\b",
+    r"\bstore (?:this|it)(?: as (?:permanent )?knowledge)?\b",
+    r"\bkeep (?:this|it) for (?:later|future (?:reference|use|cases?))\b",
+    r"\bdon['’]?t forget (?:this|it)\b",
+    r"\buse (?:this|it) for future (?:cases?|reference|support)\b",
+    r"\bmake (?:this|it) (?:permanent|part of (?:the )?knowledge base)\b",
+)
+
+
+def detect_explicit_learning_command(
+    message_text,
+    *,
+    has_recent_context=False,
+    has_attachments=False,
+):
+    """Detect a natural-language request to permanently save knowledge.
+
+    Short phrases such as ``save this`` are accepted only when the current turn
+    has an attachment or prior conversation context. This keeps the command easy
+    for staff while avoiding accidental matches for unrelated save/download tasks.
+    """
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        str(message_text or "").strip().lower(),
+    )
+    if not normalized:
+        return False
+
+    # Never mistake deletion/forgetting instructions for a save command.
+    if re.search(
+        r"\b(?:forget|delete|remove|erase)\b.*"
+        r"\b(?:knowledge|memory|record|this|it)\b",
+        normalized,
+    ):
+        return False
+
+    # Exclude common file/image/document save or download requests unless the
+    # user explicitly mentions memory, learning, future use, or knowledge.
+    if re.search(
+        r"\b(?:download|export|save as|save (?:the )?(?:image|photo|file|pdf|document|draft|chat))\b",
+        normalized,
+    ) and not re.search(
+        r"\b(?:memory|learn|knowledge|future|remember|permanent)\b",
+        normalized,
+    ):
+        return False
+
+    matched = any(
+        re.search(pattern, normalized, flags=re.IGNORECASE)
+        for pattern in EXPLICIT_LEARNING_COMMAND_PATTERNS
+    )
+    if not matched:
+        return False
+
+    # Very short ambiguous commands require something concrete to refer to.
+    ambiguous_short = bool(
+        re.fullmatch(
+            r"(?:please )?(?:save|remember|store|learn) (?:this|it)[.!?]*",
+            normalized,
+        )
+    )
+    if ambiguous_short and not (has_recent_context or has_attachments):
+        return False
+
+    return True
+
+
+def build_explicit_learning_ai_prompt(prompt_text, prior_context):
+    """Add an internal instruction that produces saveable knowledge, not a fake confirmation."""
+    clean_prompt = str(prompt_text or "").strip()
+    clean_context = redact_learning_private_data(prior_context)
+    return f"""{clean_prompt}
+
+[INTERNAL AUTOTECPRO LEARNING INSTRUCTION]
+The user explicitly requested permanent learning. Review the attached files and
+the recent conversation context below. Produce one accurate, reusable knowledge
+summary with a clear title, vehicle/product, issue or rule, confirmed solution
+or procedure, warnings, and search keywords. Do not claim that anything has
+already been saved; the application will perform and confirm the database save
+after your response. Do not invent missing facts or include customer-private data.
+
+RECENT CONTEXT:
+{clean_context or "No earlier context was available; use the current message and attachments."}
+""".strip()
+
+
 def recent_learning_conversation_context(max_messages=6):
     """
     Return a small privacy-filtered context window for short confirmations such
@@ -15681,6 +15778,7 @@ def extract_learning_candidate(
     *,
     staff_confirmed=False,
     conversation_context="",
+    explicit_requested=False,
 ):
     safe_question = redact_learning_private_data(question)
     safe_answer = redact_learning_private_data(answer)
@@ -15710,6 +15808,11 @@ Return ONLY valid JSON with this exact schema:
 
 Rules:
 - Staff confirmed solution: {str(bool(staff_confirmed)).lower()}.
+- Explicit permanent-learning request: {str(bool(explicit_requested)).lower()}.
+- When Explicit permanent-learning request is true, use the AI RESPONSE and
+  RECENT CONVERSATION CONTEXT as the source material. The short command itself
+  is not the solution. Set should_learn true only when those sources contain
+  concrete reusable knowledge.
 - If Staff confirmed solution is true, treat the STAFF MESSAGE as the primary
   source of truth for the fix. Use recent context only to identify the related
   vehicle, product, symptoms, and steps.
@@ -15768,9 +15871,13 @@ RECENT CONVERSATION CONTEXT:
     # For confirmed solutions, the staff's own message is the preferred
     # fallback. For ordinary learning, the AI answer remains the fallback.
     fallback_solution = (
-        safe_question
-        if staff_confirmed and len(safe_question) >= 20
-        else safe_answer
+        safe_answer
+        if explicit_requested
+        else (
+            safe_question
+            if staff_confirmed and len(safe_question) >= 20
+            else safe_answer
+        )
     )
     solution = str(data.get("solution") or fallback_solution).strip()
     keywords = str(data.get("keywords") or "").strip()
@@ -15796,7 +15903,9 @@ RECENT CONVERSATION CONTEXT:
 
     # A confirmed staff resolution may be concise; ordinary AI-derived learning
     # still needs a more substantial solution.
-    minimum_solution_length = 30 if staff_confirmed else 80
+    minimum_solution_length = (
+        50 if explicit_requested else (30 if staff_confirmed else 80)
+    )
     if len(solution) < minimum_solution_length:
         should_learn = False
     if len(safe_question) < 5:
@@ -16113,6 +16222,8 @@ def queue_ai_postprocess(
     is_graphic_generation=False,
     is_structured_marketing_tool=False,
     is_structured_graphic_tool=False,
+    explicit_learning=False,
+    learning_context="",
 ):
     """Queue non-visible learning and analytics for the next Streamlit run."""
     live_type = str(
@@ -16126,7 +16237,19 @@ def queue_ai_postprocess(
     if live_type.startswith("woocommerce_"):
         return
 
+    postprocess_fingerprint = hashlib.sha256(
+        (
+            str(st.session_state.get("conversation_id") or "")
+            + "\n" + str(question or "")
+            + "\n" + str(answer or "")
+        ).encode("utf-8", errors="ignore")
+    ).hexdigest()
+    if st.session_state.get("last_queued_postprocess_fingerprint") == postprocess_fingerprint:
+        return
+    st.session_state["last_queued_postprocess_fingerprint"] = postprocess_fingerprint
+
     st.session_state["pending_ai_postprocess"] = {
+        "fingerprint": postprocess_fingerprint,
         "question": str(question or ""),
         "answer": str(answer or ""),
         "selected_assistant": str(selected_assistant or ""),
@@ -16144,6 +16267,8 @@ def queue_ai_postprocess(
         "is_structured_graphic_tool": bool(
             is_structured_graphic_tool
         ),
+        "explicit_learning": bool(explicit_learning),
+        "learning_context": str(learning_context or ""),
     }
 
 
@@ -16155,6 +16280,12 @@ def process_pending_ai_postprocess():
     job = st.session_state.pop("pending_ai_postprocess", None)
     if not isinstance(job, dict):
         return
+
+    fingerprint = str(job.get("fingerprint") or "")
+    if fingerprint and st.session_state.get("last_processed_postprocess_fingerprint") == fingerprint:
+        return
+    if fingerprint:
+        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
     learning_result = None
     if (
@@ -16168,10 +16299,14 @@ def process_pending_ai_postprocess():
                 job.get("answer"),
                 job.get("selected_assistant"),
                 detected_live_request=job.get("detected_live_request"),
+                explicit_learning=bool(job.get("explicit_learning")),
+                learning_context=job.get("learning_context"),
             )
             if learning_result and learning_result.get("learned"):
                 mode = learning_result.get("mode", "saved")
-                if learning_result.get("staff_confirmed"):
+                if learning_result.get("explicit_learning"):
+                    message = f"Knowledge saved permanently ({mode})."
+                elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
                 else:
                     message = f"AI learned from this case ({mode})."
@@ -16198,6 +16333,8 @@ def auto_learn_from_latest_answer(
     answer,
     selected_assistant,
     detected_live_request=None,
+    explicit_learning=False,
+    learning_context="",
 ):
     if selected_assistant == "⚙️ Admin Panel":
         return None
@@ -16240,11 +16377,19 @@ def auto_learn_from_latest_answer(
 
     safe_question = redact_learning_private_data(question)
     safe_answer = redact_learning_private_data(answer)
-    staff_confirmed = detect_staff_confirmed_solution(safe_question)
+    explicit_learning = bool(explicit_learning)
+    staff_confirmed = (
+        detect_staff_confirmed_solution(safe_question)
+        or explicit_learning
+    )
     conversation_context = (
-        recent_learning_conversation_context(max_messages=6)
-        if staff_confirmed
-        else ""
+        str(learning_context or "").strip()
+        if explicit_learning
+        else (
+            recent_learning_conversation_context(max_messages=6)
+            if staff_confirmed
+            else ""
+        )
     )
 
     candidate = extract_learning_candidate(
@@ -16253,12 +16398,14 @@ def auto_learn_from_latest_answer(
         selected_assistant,
         staff_confirmed=staff_confirmed,
         conversation_context=conversation_context,
+        explicit_requested=explicit_learning,
     )
 
     if not candidate.get("should_learn"):
         return {
             "learned": False,
             "staff_confirmed": staff_confirmed,
+            "explicit_learning": explicit_learning,
             "reason": (
                 candidate.get("reason")
                 or "Not reusable or sufficiently confirmed."
@@ -16273,9 +16420,13 @@ def auto_learn_from_latest_answer(
     )
 
     source_type = (
-        "staff_confirmed_solution"
-        if staff_confirmed
-        else "ai_answer_learning"
+        "explicit_chat_learning"
+        if explicit_learning
+        else (
+            "staff_confirmed_solution"
+            if staff_confirmed
+            else "ai_answer_learning"
+        )
     )
 
     if duplicate_row:
@@ -16331,6 +16482,7 @@ def auto_learn_from_latest_answer(
             "learned": True,
             "mode": "updated",
             "staff_confirmed": staff_confirmed,
+            "explicit_learning": explicit_learning,
             "duplicate_score": round(duplicate_score, 3),
             "record_id": duplicate_row["id"],
             "duplicate_of": duplicate_row["id"],
@@ -16379,6 +16531,7 @@ def auto_learn_from_latest_answer(
         "learned": True,
         "mode": "created",
         "staff_confirmed": staff_confirmed,
+        "explicit_learning": explicit_learning,
         "record_id": result.data[0]["id"],
         "file_id": openai_file_id,
         "analytics_payload": candidate.get("analytics_payload"),
@@ -16799,7 +16952,7 @@ def generate_ai_conversation_title(
     # Reserve AI title generation for unusually long or complex first messages.
     if (
         live_type != "none"
-        or len(user_text.split()) <= 36
+        or len(user_text.split()) <= 80
         or re.search(
             r"(?i)\b(?:model|sku|order|tracking|install|compatib|"
             r"document|report|proposal|manual|guide|image|photo)\b",
@@ -17245,22 +17398,25 @@ def _load_messages_cached(conversation_id):
     if not conversation_id:
         return []
 
+    # Fetch only the most recent messages. Ordering newest-first lets Supabase
+    # apply the limit before transferring data; reverse locally for chat order.
     result = (
         supabase
         .table("messages")
-        .select("role,content")
+        .select("role,content,created_at")
         .eq("conversation_id", conversation_id)
-        .order("created_at")
-        .limit(1000)
+        .order("created_at", desc=True)
+        .limit(400)
         .execute()
     )
 
+    rows = list(reversed(result.data or []))
     return [
         {
             "role": item.get("role", "assistant"),
             "content": item.get("content", ""),
         }
-        for item in (result.data or [])
+        for item in rows
     ]
 
 
@@ -23278,6 +23434,16 @@ else:
         # Managed uploads are SHA-256 deduplicated and are cleared
         # immediately after this message is completed.
         effective_uploaded_files = list(uploaded_files or [])
+        explicit_learning_requested = detect_explicit_learning_command(
+            interaction_prompt,
+            has_recent_context=bool(st.session_state.get("messages")),
+            has_attachments=bool(effective_uploaded_files),
+        )
+        learning_context_snapshot = (
+            recent_learning_conversation_context(max_messages=8)
+            if explicit_learning_requested
+            else ""
+        )
 
         uploaded_image_previews = get_uploaded_image_previews(
             effective_uploaded_files
@@ -23482,9 +23648,18 @@ else:
                         unsafe_allow_html=True,
                     )
 
+                ai_request_prompt = (
+                    build_explicit_learning_ai_prompt(
+                        prompt,
+                        learning_context_snapshot,
+                    )
+                    if explicit_learning_requested
+                    else prompt
+                )
+
                 try:
                     for delta in ask_ai_stream(
-                        prompt,
+                        ai_request_prompt,
                         effective_uploaded_files,
                         detected_live_request=detected_request,
                         detected_technical_tool=detected_technical_tool,
@@ -23678,6 +23853,8 @@ else:
                 is_graphic_generation=is_graphic_generation,
                 is_structured_marketing_tool=is_structured_marketing_tool,
                 is_structured_graphic_tool=is_structured_graphic_tool,
+                explicit_learning=explicit_learning_requested,
+                learning_context=learning_context_snapshot,
             )
 
         # Clear uploaded files after this message is completed.
