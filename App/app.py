@@ -24,8 +24,6 @@ import re
 import json
 import time
 import io
-import threading
-import uuid
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse, urljoin
@@ -78,18 +76,6 @@ def get_http_session():
 
 client = get_openai_client(api_key)
 http_session = get_http_session()
-
-
-@st.cache_resource(show_spinner=False)
-def get_background_generation_registry():
-    """Process-local, thread-safe registry for cancellable chat generations."""
-    return {
-        "tasks": {},
-        "lock": threading.RLock(),
-    }
-
-
-BACKGROUND_GENERATION_REGISTRY = get_background_generation_registry()
 
 TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
@@ -1183,15 +1169,22 @@ def analyze_woocommerce_sales(
 
 def geocode_open_meteo(location):
     """
-    Resolve weather locations through Open-Meteo with Canadian and simplified
-    fallbacks. Natural phrases such as "Ottawa today" and "Toronto, Ontario"
-    are reduced to clean city searches before failing.
+    Resolve weather locations reliably through Open-Meteo.
+
+    The geocoder may reject combined strings such as "Toronto, Ontario" while
+    accepting "Toronto". Try the exact request first, then simpler city forms,
+    and prefer Canadian results for common Canadian location wording.
     """
-    original_location = _clean_weather_location(location)
+    original_location = re.sub(
+        r"\s+",
+        " ",
+        str(location or ""),
+    ).strip(" ,.?")
     if not original_location:
         raise RuntimeError("A weather location is required.")
 
     candidates = [original_location]
+
     comma_parts = [
         part.strip()
         for part in original_location.split(",")
@@ -1201,10 +1194,7 @@ def geocode_open_meteo(location):
         candidates.append(comma_parts[0])
 
     simplified = re.sub(
-        r"\b(?:ontario|on|quebec|qc|british columbia|bc|alberta|ab|"
-        r"manitoba|mb|saskatchewan|sk|nova scotia|ns|new brunswick|nb|"
-        r"newfoundland(?: and labrador)?|nl|prince edward island|pei|"
-        r"canada|ca)\b",
+        r"\b(?:ontario|on|canada|ca)\b",
         " ",
         original_location,
         flags=re.IGNORECASE,
@@ -1215,59 +1205,51 @@ def geocode_open_meteo(location):
         candidates.append(simplified)
 
     unique_candidates = []
-    seen = set()
+    seen_candidates = set()
     for candidate in candidates:
-        key = candidate.casefold()
-        if candidate and key not in seen:
-            seen.add(key)
+        candidate_key = candidate.casefold()
+        if candidate and candidate_key not in seen_candidates:
+            seen_candidates.add(candidate_key)
             unique_candidates.append(candidate)
 
-    request_variants = []
-    for candidate in unique_candidates:
-        request_variants.append((candidate, None))
-        request_variants.append((candidate, "CA"))
-
-    last_error = None
-    for candidate, country_code in request_variants:
-        params = {
-            "name": candidate,
-            "count": 20,
-            "language": "en",
-            "format": "json",
+    prefer_canada = (
+        any(
+            token in original_location.casefold()
+            for token in ("ontario", " canada", ", ca", ", on")
+        )
+        or original_location.casefold()
+        in {
+            "toronto", "ottawa", "markham", "vancouver", "calgary",
+            "montreal", "mississauga", "brampton", "richmond hill",
         }
-        if country_code:
-            params["countryCode"] = country_code
+    )
 
-        try:
-            response = http_session.get(
-                "https://geocoding-api.open-meteo.com/v1/search",
-                params=params,
-                timeout=LIVE_HTTP_TIMEOUT,
-            )
-            data = safe_json_response(response)
-        except Exception as error:
-            last_error = error
-            continue
-
+    for candidate in unique_candidates:
+        response = http_session.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={
+                "name": candidate,
+                "count": 10,
+                "language": "en",
+                "format": "json",
+            },
+            timeout=LIVE_HTTP_TIMEOUT,
+        )
+        data = safe_json_response(response)
         results = data.get("results") or []
         if not results:
             continue
 
-        canadian_results = [
-            result
-            for result in results
-            if str(result.get("country_code") or "").strip().upper() == "CA"
-        ]
-        if canadian_results:
-            return canadian_results[0]
+        if prefer_canada:
+            for result in results:
+                country_code = str(
+                    result.get("country_code") or ""
+                ).strip().upper()
+                if country_code == "CA":
+                    return result
 
-        if country_code != "CA":
-            return results[0]
+        return results[0]
 
-    if last_error:
-        raise RuntimeError(
-            f"Location lookup failed for {original_location}: {last_error}"
-        ) from last_error
     raise RuntimeError(f"Location not found: {original_location}")
 
 
@@ -2078,7 +2060,7 @@ DEFAULT_WEATHER_LOCATION = "Toronto"
 
 
 def _clean_weather_location(value):
-    """Normalize a location extracted from a natural-language weather request."""
+    """Remove forecast-time wording and punctuation from a location phrase."""
     location = re.sub(r"\s+", " ", str(value or "")).strip(" ,.?")
     if not location:
         return ""
@@ -2105,10 +2087,10 @@ def _clean_weather_location(value):
 
 def _detect_weather_request(value):
     """
-    Detect common weather phrasing and return a concrete lookup location.
+    Recognize natural weather questions and return a concrete lookup location.
 
-    A request without a location uses AutoTecPro's default Toronto location.
-    Explicit locations always override the default.
+    Requests without a stated location default to Toronto. Explicit locations
+    always override the default.
     """
     text_value = re.sub(r"\s+", " ", str(value or "")).strip()
     lower_value = text_value.lower()
@@ -2120,11 +2102,10 @@ def _detect_weather_request(value):
         "snow", "snowing", "wind", "windy", "humidity",
         "humid", "hot", "cold", "degrees",
     )
-    weather_intent = any(
+    if not any(
         re.search(rf"\b{re.escape(term)}\b", lower_value)
         for term in weather_terms
-    )
-    if not weather_intent:
+    ):
         return None
 
     preposition_match = re.search(
@@ -2177,14 +2158,13 @@ def _detect_weather_request(value):
 
 def detect_weather_location_followup(prompt, prior_messages=None):
     """
-    Treat a short standalone place name as weather only when recent chat context
-    clearly asked for weather or requested a corrected weather location.
+    Treat a short standalone place as weather only when recent chat context
+    clearly concerns weather or asks for a corrected location.
     """
     value = re.sub(r"\s+", " ", str(prompt or "")).strip(" ,.?")
     if not value or len(value) > 100:
         return None
 
-    # Keep this conservative so ordinary short questions are not misrouted.
     if not re.fullmatch(
         r"[A-Za-zÀ-ÖØ-öø-ÿ0-9 .,'’()/-]{2,100}",
         value,
@@ -2193,31 +2173,28 @@ def detect_weather_location_followup(prompt, prior_messages=None):
     if len(value.split()) > 7:
         return None
 
-    rejected_phrases = {
+    if value.casefold() in {
         "continue", "yes", "no", "okay", "ok", "thanks", "thank you",
         "technical support", "sales", "marketing", "help",
-    }
-    if value.casefold() in rejected_phrases:
+    }:
         return None
 
-    recent_messages = list(prior_messages or [])[-8:]
-    weather_context_found = False
-
-    for message in reversed(recent_messages):
+    for message in reversed(list(prior_messages or [])[-8:]):
         if not isinstance(message, dict):
             continue
 
         role = str(message.get("role") or "").strip().lower()
-        content = clean_visible_chat_text(
-            str(message.get("content") or "")
-        )
+        content = str(message.get("content") or "")
         lower_content = content.casefold()
 
         if role == "user":
             detected = _detect_weather_request(content)
             if isinstance(detected, dict) and detected.get("type") == "weather":
-                weather_context_found = True
-                break
+                return {
+                    "type": "weather",
+                    "location": _clean_weather_location(value) or value,
+                    "followup_location": True,
+                }
 
         if role == "assistant" and any(
             phrase in lower_content
@@ -2231,17 +2208,13 @@ def detect_weather_location_followup(prompt, prior_messages=None):
                 "current temperature",
             )
         ):
-            weather_context_found = True
-            break
+            return {
+                "type": "weather",
+                "location": _clean_weather_location(value) or value,
+                "followup_location": True,
+            }
 
-    if not weather_context_found:
-        return None
-
-    return {
-        "type": "weather",
-        "location": _clean_weather_location(value) or value,
-        "followup_location": True,
-    }
+    return None
 
 
 def detect_live_request(prompt, selected_assistant=None):
@@ -3415,7 +3388,7 @@ def install_gpt_uploader_css():
 
           let disposed = false;
           let observer = null;
-          let retryTimers = new Set();
+          const retryTimers = new Set();
 
           function connectedShells(prefix = "") {
             const selector = prefix
@@ -3445,8 +3418,8 @@ def install_gpt_uploader_css():
               if (!shells.includes(shell)) shells.push(shell);
             }
 
-            // Streamlit can briefly keep the previous uploader generation in
-            // the DOM. Prefer the newest connected, enabled file input.
+            // Streamlit can briefly retain the previous uploader generation.
+            // Prefer the newest connected and enabled file input.
             for (let index = shells.length - 1; index >= 0; index -= 1) {
               const inputs = Array.from(
                 shells[index].querySelectorAll('input[type="file"]')
@@ -3468,8 +3441,6 @@ def install_gpt_uploader_css():
 
             const input = activeInputForTrigger(trigger);
             if (input) {
-              // Reset the value so choosing the same file twice still emits a
-              // change event after a managed uploader generation refresh.
               try { input.value = ""; } catch (error) {}
 
               try {
@@ -3480,7 +3451,6 @@ def install_gpt_uploader_css():
                 }
                 return;
               } catch (error) {
-                // showPicker can reject when the browser requires click().
                 try {
                   input.click();
                   return;
@@ -3511,8 +3481,7 @@ def install_gpt_uploader_css():
             openPickerWithRetry(trigger);
           }
 
-          function removeStaleBlockingLayers() {
-            // The global drag overlay should never intercept ordinary clicks.
+          function clearStaleOverlay() {
             const overlay = doc.getElementById("atp-global-drop-overlay");
             if (overlay) {
               overlay.style.pointerEvents = "none";
@@ -3524,12 +3493,12 @@ def install_gpt_uploader_css():
 
           doc.addEventListener("click", onClick, true);
 
-          observer = new MutationObserver(removeStaleBlockingLayers);
+          observer = new MutationObserver(clearStaleOverlay);
           observer.observe(
             doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body,
             { childList: true, subtree: true }
           );
-          removeStaleBlockingLayers();
+          clearStaleOverlay();
 
           function cleanup() {
             disposed = true;
@@ -7137,24 +7106,6 @@ def inject_base_css():
             transform: none !important;
         }
 
-        html body #atp-send-proxy.atp-stop-mode,
-        html body .atp-send-proxy.atp-stop-mode {
-            background: linear-gradient(
-                135deg,
-                #ff5a3d 0%,
-                #ef4444 58%,
-                #dc2626 100%
-            ) !important;
-            opacity: 1 !important;
-            cursor: pointer !important;
-        }
-
-        html body #atp-send-proxy.atp-stop-mode svg,
-        html body .atp-send-proxy.atp-stop-mode svg {
-            width: 18px !important;
-            height: 18px !important;
-        }
-
 
         /* ============================================================
            MOBILE DARK-MODE FORM TEXT FIX
@@ -7364,36 +7315,8 @@ def inject_base_css():
 
 
 
-def set_browser_ai_streaming_state(active):
-    """
-    Synchronize the server streaming state with the browser composer.
-
-    The browser Stop control uses Streamlit's own active-run Stop control. It
-    never reloads the page, so login cookies, workspace, and chat session state
-    remain intact.
-    """
-    active_js = "true" if bool(active) else "false"
-    components.html(
-        f"""
-        <script>
-        (() => {{
-          const root = window.parent;
-          root.__atpAiStreaming = {active_js};
-          root.dispatchEvent(
-            new CustomEvent("atp-ai-streaming-state", {{
-              detail: {{ active: {active_js} }}
-            }})
-          );
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
 def install_browser_voice_dictation():
-    """Install rerun-safe voice, send, and safe Stop controls."""
+    """Install rerun-safe voice and send controls without stacking observers."""
     components.html(
         r"""
         <script>
@@ -7439,16 +7362,6 @@ def install_browser_voice_dictation():
                     stroke-linecap="round" stroke-linejoin="round"/>
             </svg>`;
 
-          const STOP_ICON = `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="7" y="7" width="10" height="10" rx="1.4"
-                    fill="currentColor"/>
-            </svg>`;
-
-          function isStreaming() {
-            return root.__atpAiStreaming === true;
-          }
-
           function composer() {
             return doc.querySelector('div[data-testid="stChatInput"]');
           }
@@ -7483,104 +7396,10 @@ def install_browser_voice_dictation():
           }
 
           function updateSendState(container, proxy) {
-            if (isStreaming()) {
-              proxy.disabled = false;
-              proxy.classList.add("atp-stop-mode");
-              proxy.innerHTML = STOP_ICON;
-              proxy.setAttribute("title", "Stop generating");
-              proxy.setAttribute("aria-label", "Stop generating");
-              proxy.setAttribute("aria-disabled", "false");
-              return;
-            }
-
-            proxy.classList.remove("atp-stop-mode");
-            proxy.innerHTML = SEND_ICON;
-            proxy.setAttribute("title", "Send message");
-            proxy.setAttribute("aria-label", "Send message");
-
             const input = inputElement(container);
             const active = Boolean(input?.value?.trim());
             proxy.disabled = !active;
             proxy.setAttribute("aria-disabled", active ? "false" : "true");
-          }
-
-          function visibleElement(element) {
-            if (!element || !element.isConnected) return false;
-            const style = root.getComputedStyle(element);
-            const rect = element.getBoundingClientRect();
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              Number(style.opacity || "1") > 0 &&
-              rect.width > 0 &&
-              rect.height > 0
-            );
-          }
-
-          function findAutoTecProStopButton() {
-            for (const button of doc.querySelectorAll("button")) {
-              const text = String(button.textContent || "")
-                .replace(/\s+/g, " ")
-                .trim()
-                .toLowerCase();
-              if (text === "atp stop generation") return button;
-            }
-            return null;
-          }
-
-          function showStopNotice(message) {
-            const noticeId = "atp-stop-generation-notice";
-            doc.getElementById(noticeId)?.remove();
-
-            const notice = doc.createElement("div");
-            notice.id = noticeId;
-            notice.textContent = message;
-            Object.assign(notice.style, {
-              position: "fixed",
-              left: "50%",
-              bottom: "92px",
-              transform: "translateX(-50%)",
-              zIndex: "2147483647",
-              padding: "9px 14px",
-              borderRadius: "10px",
-              background: "rgba(15, 23, 42, 0.95)",
-              color: "#f8fafc",
-              border: "1px solid rgba(248, 113, 113, 0.55)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
-              fontSize: "13px",
-              fontWeight: "650",
-              pointerEvents: "none"
-            });
-            doc.body.appendChild(notice);
-            root.setTimeout(() => notice.remove(), 1800);
-          }
-
-          function restoreSendAfterStop(proxy) {
-            root.__atpAiStreaming = false;
-            root.dispatchEvent(
-              new CustomEvent("atp-ai-streaming-state", {
-                detail: { active: false }
-              })
-            );
-            proxy.classList.remove("atp-stop-mode");
-            proxy.innerHTML = SEND_ICON;
-            proxy.setAttribute("title", "Send message");
-            proxy.setAttribute("aria-label", "Send message");
-            proxy.disabled = true;
-            proxy.setAttribute("aria-disabled", "true");
-          }
-
-          function requestSafeStop(proxy) {
-            const stopButton = findAutoTecProStopButton();
-            if (!stopButton) {
-              showStopNotice("Stop is not available for this request.");
-              return false;
-            }
-
-            restoreSendAfterStop(proxy);
-            stopButton.click();
-            showStopNotice("Stopping AutoTecPro AI...");
-            return true;
           }
 
           function removeStaleControls(container) {
@@ -7605,16 +7424,6 @@ def install_browser_voice_dictation():
             proxy.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
-
-              if (isStreaming()) {
-                if (proxy.dataset.atpStopping === "1") return;
-                proxy.dataset.atpStopping = "1";
-                requestSafeStop(proxy);
-                root.setTimeout(() => {
-                  delete proxy.dataset.atpStopping;
-                }, 2500);
-                return;
-              }
 
               const current = composer();
               const realButton = nativeSend(current);
@@ -7802,25 +7611,13 @@ def install_browser_voice_dictation():
             });
           }
 
-          const streamingStateHandler = () => scheduleMount();
-          root.addEventListener(
-            "atp-ai-streaming-state",
-            streamingStateHandler
-          );
-
-          // Keep the send/stop icon synchronized through Streamlit rerenders.
-          timer = root.setInterval(scheduleMount, 850);
+          // A slow fallback is enough; the observer handles normal rerenders.
+          timer = root.setInterval(scheduleMount, 1800);
           scheduleMount();
 
           function cleanup() {
             try { observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(timer); } catch (error) {}
-            try {
-              root.removeEventListener(
-                "atp-ai-streaming-state",
-                streamingStateHandler
-              );
-            } catch (error) {}
             try {
               if (recognition && listening) recognition.stop();
             } catch (error) {}
@@ -14656,16 +14453,6 @@ def detect_prompt_execution_plan(
         document_request=document_request,
     )
 
-    live_type = str(live_request.get("type") or "none").strip().lower()
-    if live_type in {
-        "weather",
-        "fx",
-        "tracking",
-        "tracking_unknown",
-        "web",
-    }:
-        use_file_search = False
-
     return {
         "document": document_request,
         "live": live_request,
@@ -15044,15 +14831,6 @@ def build_ai_loading_status(
     if live_type == "web":
         return "Searching the web…"
 
-    if live_type == "weather":
-        return "Checking live weather data…"
-
-    if live_type == "fx":
-        return "Checking the live exchange rate…"
-
-    if live_type in {"tracking", "tracking_unknown"}:
-        return "Checking live shipment tracking…"
-
     if live_type.startswith("woocommerce_"):
         return "Analyzing the WooCommerce order information…"
 
@@ -15249,7 +15027,6 @@ def _build_ai_request(
     use_file_search=True,
     live_data_override=_LIVE_DATA_UNSET,
     order_displayed_by_app=False,
-    selected_assistant=None,
 ):
     user_input = build_user_input(
         prompt_text,
@@ -15261,9 +15038,8 @@ def _build_ai_request(
         live_data_override=live_data_override,
         order_displayed_by_app=order_displayed_by_app,
     )
-    target_assistant = selected_assistant or assistant
     instructions = (
-        get_instructions(target_assistant)
+        get_instructions(assistant)
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
@@ -15294,7 +15070,7 @@ def _build_ai_request(
         tools.append({"type": "web_search"})
 
     if use_file_search:
-        if target_assistant == "🔧 Technical Support":
+        if assistant == "🔧 Technical Support":
             tools.insert(
                 0,
                 {
@@ -15302,7 +15078,7 @@ def _build_ai_request(
                     "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
                 },
             )
-        elif is_sales_workspace(target_assistant):
+        elif is_sales_workspace(assistant):
             tools.insert(
                 0,
                 {
@@ -15310,7 +15086,7 @@ def _build_ai_request(
                     "vector_store_ids": [SALES_VECTOR_STORE_ID],
                 },
             )
-        elif is_marketing_workspace(target_assistant):
+        elif is_marketing_workspace(assistant):
             tools.insert(
                 0,
                 {
@@ -15342,11 +15118,8 @@ def ask_ai_stream(
     use_file_search=True,
     live_data_override=_LIVE_DATA_UNSET,
     order_displayed_by_app=False,
-    selected_assistant=None,
-    cancel_event=None,
-    stream_callback=None,
 ):
-    """Yield Responses API text deltas and close the stream when cancelled."""
+    """Yield Responses API text deltas, with a non-streaming compatibility fallback."""
     request = _build_ai_request(
         prompt_text,
         uploaded_files,
@@ -15357,27 +15130,16 @@ def ask_ai_stream(
         use_file_search=use_file_search,
         live_data_override=live_data_override,
         order_displayed_by_app=order_displayed_by_app,
-        selected_assistant=selected_assistant,
     )
 
-    stream = None
     try:
         stream = client.responses.create(
             **request,
             stream=True,
         )
-        if callable(stream_callback):
-            try:
-                stream_callback(stream)
-            except Exception:
-                pass
         received_text = False
         completed_text = ""
-
         for event in stream:
-            if cancel_event is not None and cancel_event.is_set():
-                break
-
             event_type = str(getattr(event, "type", "") or "")
             if event_type == "response.output_text.delta":
                 delta = str(getattr(event, "delta", "") or "")
@@ -15402,35 +15164,14 @@ def ask_ai_stream(
                 )
                 raise RuntimeError(message)
 
-        if (
-            cancel_event is None or not cancel_event.is_set()
-        ) and not received_text and completed_text:
+        if not received_text and completed_text:
             yield completed_text
         return
     except TypeError:
         # Compatibility with an older OpenAI SDK that does not support stream.
-        if cancel_event is not None and cancel_event.is_set():
-            return
-    finally:
-        if stream is not None:
-            close_method = getattr(stream, "close", None)
-            if callable(close_method):
-                try:
-                    close_method()
-                except Exception:
-                    pass
-        if callable(stream_callback):
-            try:
-                stream_callback(None)
-            except Exception:
-                pass
-
-    if cancel_event is not None and cancel_event.is_set():
-        return
+        pass
 
     response = client.responses.create(**request)
-    if cancel_event is not None and cancel_event.is_set():
-        return
     fallback_text = str(getattr(response, "output_text", "") or "")
     if fallback_text:
         yield fallback_text
@@ -22473,419 +22214,6 @@ def render_marketing_tools_panel():
         )
     return None
 
-
-# ============================================================
-# Cancellable Background Chat Generation
-# ============================================================
-
-def snapshot_uploaded_files_for_background(uploaded_files):
-    """Copy Streamlit uploads into thread-safe in-memory file objects."""
-    snapshots = []
-    for uploaded_file in uploaded_files or []:
-        try:
-            if hasattr(uploaded_file, "getvalue"):
-                payload = uploaded_file.getvalue()
-            else:
-                current_position = None
-                try:
-                    current_position = uploaded_file.tell()
-                except Exception:
-                    current_position = None
-                payload = uploaded_file.read()
-                if current_position is not None:
-                    try:
-                        uploaded_file.seek(current_position)
-                    except Exception:
-                        pass
-
-            memory_file = io.BytesIO(bytes(payload or b""))
-            memory_file.name = str(
-                getattr(uploaded_file, "name", "upload.bin") or "upload.bin"
-            )
-            memory_file.type = str(
-                getattr(uploaded_file, "type", "application/octet-stream")
-                or "application/octet-stream"
-            )
-            memory_file.seek(0)
-            snapshots.append(memory_file)
-        except Exception:
-            continue
-    return snapshots
-
-
-def _background_generation_worker(task_id, request_kwargs):
-    registry = BACKGROUND_GENERATION_REGISTRY
-    with registry["lock"]:
-        task = registry["tasks"].get(task_id)
-    if not task:
-        return
-
-    cancel_event = task["cancel_event"]
-
-    def register_stream(stream_object):
-        with registry["lock"]:
-            current = registry["tasks"].get(task_id)
-            if current:
-                current["stream"] = stream_object
-
-    try:
-        for delta in ask_ai_stream(
-            cancel_event=cancel_event,
-            stream_callback=register_stream,
-            **request_kwargs,
-        ):
-            if cancel_event.is_set():
-                break
-            delta_text = str(delta or "")
-            if not delta_text:
-                continue
-            with registry["lock"]:
-                current = registry["tasks"].get(task_id)
-                if not current:
-                    return
-                current["text"] += delta_text
-                current["updated_at"] = time.time()
-
-        with registry["lock"]:
-            current = registry["tasks"].get(task_id)
-            if current:
-                current["status"] = (
-                    "cancelled"
-                    if cancel_event.is_set()
-                    else "completed"
-                )
-                current["finished_at"] = time.time()
-    except Exception as error:
-        with registry["lock"]:
-            current = registry["tasks"].get(task_id)
-            if current:
-                if cancel_event.is_set():
-                    current["status"] = "cancelled"
-                    current["error"] = ""
-                else:
-                    current["status"] = "error"
-                    current["error"] = str(error)
-                current["finished_at"] = time.time()
-
-
-def start_background_generation(request_kwargs, context):
-    """Start one cancellable worker for the current Streamlit session."""
-    task_id = uuid.uuid4().hex
-    task = {
-        "id": task_id,
-        "status": "running",
-        "text": "",
-        "error": "",
-        "created_at": time.time(),
-        "updated_at": time.time(),
-        "finished_at": None,
-        "cancel_event": threading.Event(),
-        "stream": None,
-        "context": dict(context or {}),
-    }
-
-    registry = BACKGROUND_GENERATION_REGISTRY
-    with registry["lock"]:
-        registry["tasks"][task_id] = task
-
-    worker = threading.Thread(
-        target=_background_generation_worker,
-        args=(task_id, dict(request_kwargs or {})),
-        name=f"atp-ai-{task_id[:8]}",
-        daemon=True,
-    )
-    task["thread"] = worker
-    worker.start()
-    st.session_state.active_background_generation_id = task_id
-    return task_id
-
-
-def get_background_generation(task_id):
-    if not task_id:
-        return None
-    registry = BACKGROUND_GENERATION_REGISTRY
-    with registry["lock"]:
-        task = registry["tasks"].get(str(task_id))
-        if not task:
-            return None
-        return {
-            key: value
-            for key, value in task.items()
-            if key not in {"thread", "stream"}
-        }
-
-
-def cancel_background_generation(task_id):
-    registry = BACKGROUND_GENERATION_REGISTRY
-    stream_object = None
-    with registry["lock"]:
-        task = registry["tasks"].get(str(task_id))
-        if not task:
-            return False
-        task["cancel_event"].set()
-        task["status"] = "cancelling"
-        task["updated_at"] = time.time()
-        stream_object = task.get("stream")
-
-    close_method = getattr(stream_object, "close", None)
-    if callable(close_method):
-        try:
-            close_method()
-        except Exception:
-            pass
-    return True
-
-
-def remove_background_generation(task_id):
-    registry = BACKGROUND_GENERATION_REGISTRY
-    with registry["lock"]:
-        return registry["tasks"].pop(str(task_id), None)
-
-
-def finalize_background_generation(task):
-    """Persist a completed, stopped, or failed background response."""
-    context = dict(task.get("context") or {})
-    status = str(task.get("status") or "error").strip().lower()
-    task_text = str(task.get("text") or "")
-    target_assistant = str(context.get("assistant") or assistant)
-
-    answer_body = clean_visible_chat_text(task_text)
-    if target_assistant == "🔧 Technical Support":
-        answer_body = remove_technical_pricing(answer_body)
-
-    if status == "error":
-        error_text = str(task.get("error") or "Unknown generation error.")
-        answer_body = (
-            answer_body
-            + ("\n\n" if answer_body else "")
-            + "AI response was not completed.\n\n"
-            + error_text
-        )
-    elif status in {"cancelled", "cancelling"}:
-        answer_body = (
-            answer_body.rstrip()
-            + ("\n\n" if answer_body.strip() else "")
-            + "*Generation stopped.*"
-        )
-
-    order_display_text = str(context.get("order_display_text") or "")
-    analysis_heading = str(context.get("analysis_heading") or "AI Analysis")
-    answer = answer_body
-    if order_display_text:
-        analysis_section = (
-            "\n\n---\n\n## "
-            + analysis_heading
-            + "\n\n"
-            if answer_body
-            else ""
-        )
-        answer = order_display_text + analysis_section + answer_body
-
-    generated_documents = []
-    document_generation_requested = bool(
-        context.get("document_generation_requested")
-    )
-    if document_generation_requested and status == "completed":
-        try:
-            prompt_text = str(context.get("prompt") or "")
-            document_source_text = answer
-            if _document_request_uses_conversation(prompt_text):
-                prior_messages = list(st.session_state.messages[:-1])
-                document_source_text = _conversation_document_text(
-                    prior_messages,
-                    current_answer="",
-                ) or answer
-
-            document_settings = dict(
-                context.get("document_creator_settings") or {}
-            )
-            generated_documents = [
-                create_document_record(
-                    prompt_text,
-                    document_source_text,
-                    format_name=str(
-                        document_settings.get("format") or "pdf"
-                    ).lower(),
-                    visible_text_cleaner=clean_visible_chat_text,
-                    options={
-                        **document_settings,
-                        "logo_path": str(LOGO_FILE),
-                        "company_name": "AutoTecPro Inc.",
-                        "company_info": (
-                            "Markham, Ontario, Canada • "
-                            "www.AutoTecPro.com • info@autotecpro.com"
-                        ),
-                    },
-                )
-            ]
-        except Exception as document_error:
-            generated_documents = []
-            st.warning(
-                "The response was generated, but the downloadable "
-                f"document could not be created: {document_error}"
-            )
-
-    assistant_content_to_save = (
-        answer
-        + serialize_documents_marker(generated_documents)
-    )
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": assistant_content_to_save,
-    })
-
-    conversation_id = context.get("conversation_id")
-    if history_is_enabled() and conversation_id:
-        try:
-            save_message(
-                conversation_id,
-                "assistant",
-                assistant_content_to_save,
-            )
-        except Exception as error:
-            st.warning(f"AI answer was not saved to history: {error}")
-
-        if sum(
-            1
-            for item in st.session_state.messages
-            if item.get("role") == "user"
-        ) == 1:
-            update_conversation_ai_title(
-                conversation_id,
-                str(context.get("interaction_prompt") or ""),
-                answer,
-                detected_live_request=context.get("detected_request"),
-            )
-
-    live_request_type = str(
-        (context.get("detected_request") or {}).get("type") or ""
-    )
-    if status == "completed" and not live_request_type.startswith(
-        "woocommerce_"
-    ):
-        queue_ai_postprocess(
-            str(context.get("interaction_prompt") or ""),
-            answer,
-            target_assistant,
-            context.get("detected_request") or {"type": "none"},
-            round(
-                float(task.get("finished_at") or time.time())
-                - float(task.get("created_at") or time.time()),
-                2,
-            ),
-            None,
-            is_graphic_generation=False,
-            is_structured_marketing_tool=bool(
-                context.get("is_structured_marketing_tool")
-            ),
-            is_structured_graphic_tool=bool(
-                context.get("is_structured_graphic_tool")
-            ),
-        )
-
-    st.session_state.chat_file_uploader_generation += 1
-    clear_managed_uploads(
-        "chat_managed_uploads",
-        "chat_managed_upload_generation",
-    )
-
-    task_id = str(task.get("id") or "")
-    remove_background_generation(task_id)
-    st.session_state.active_background_generation_id = None
-    st.session_state.scroll_to_bottom = True
-    st.rerun()
-
-
-def render_active_background_generation():
-    """
-    Render/poll the current worker. Returns True while generation is active.
-    """
-    task_id = st.session_state.get("active_background_generation_id")
-    if not task_id:
-        return False
-
-    task = get_background_generation(task_id)
-    if not task:
-        st.session_state.active_background_generation_id = None
-        return False
-
-    status = str(task.get("status") or "error").strip().lower()
-    if status in {"completed", "cancelled", "error"}:
-        finalize_background_generation(task)
-        return False
-
-    context = dict(task.get("context") or {})
-    partial_text = str(task.get("text") or "")
-    target_assistant = str(context.get("assistant") or assistant)
-    if target_assistant == "🔧 Technical Support":
-        partial_text = remove_technical_pricing(partial_text)
-
-    order_display_text = str(context.get("order_display_text") or "")
-    analysis_heading = str(context.get("analysis_heading") or "AI Analysis")
-    visible_text = partial_text
-    if order_display_text:
-        visible_text = (
-            order_display_text
-            + "\n\n---\n\n## "
-            + analysis_heading
-            + ("\n\n" + partial_text if partial_text else "")
-        )
-
-    if visible_text:
-        st.markdown(
-            _assistant_stream_html(visible_text),
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            _loading_status_html(
-                build_ai_loading_status(
-                    target_assistant,
-                    detected_live_request=context.get("detected_request"),
-                    use_file_search=bool(context.get("use_file_search")),
-                )
-            ),
-            unsafe_allow_html=True,
-        )
-
-    st.markdown(
-        """
-        <style>
-        .st-key-atp_background_generation_controls {
-            position: fixed !important;
-            left: -10000px !important;
-            top: -10000px !important;
-            width: 1px !important;
-            height: 1px !important;
-            overflow: hidden !important;
-            opacity: 0.01 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.container(key="atp_background_generation_controls"):
-        stop_clicked = st.button(
-            "ATP Stop Generation",
-            key=f"atp_stop_generation_{task_id}",
-        )
-
-    if stop_clicked:
-        cancel_background_generation(task_id)
-        st.rerun()
-
-    return True
-
-
-# Streamlit Cloud reliably reruns native fragments while the rest of the app
-# remains interactive. This replaces the previous hidden JavaScript poll button,
-# which could stop firing after large WooCommerce/order displays.
-if hasattr(st, "fragment"):
-    render_active_background_generation = st.fragment(
-        run_every=0.35
-    )(render_active_background_generation)
-
-
 # ============================================================
 # Admin Panel
 # ============================================================
@@ -23855,7 +23183,6 @@ CANADA_POST_PASSWORD = """"",
 
 
 
-
 # ============================================================
 # Main Chat UI
 # ============================================================
@@ -23906,18 +23233,11 @@ else:
     if assistant == "🎨 Graphic Marketing":
         process_pending_graphic_regeneration()
 
-    background_generation_active = render_active_background_generation()
-
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
         auto_scroll_to_latest()
         st.session_state.scroll_to_bottom = False
 
-    browser_streaming_active = (
-        background_generation_active
-        and not bool(st.session_state.get("background_stop_requested"))
-    )
-    set_browser_ai_streaming_state(browser_streaming_active)
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
@@ -23928,10 +23248,7 @@ else:
     chat_prompt = (
         None
         if graphic_designer_active
-        else st.chat_input(
-            "Message AutoTecPro AI...",
-            disabled=background_generation_active,
-        )
+        else st.chat_input("Message AutoTecPro AI...")
     )
 
     if (
@@ -24133,56 +23450,118 @@ else:
                             request_type=detected_request,
                         )
 
+                stream_placeholder = st.empty()
+                loading_status_placeholder = st.empty()
+                streamed_answer = ""
+                last_stream_update = 0.0
+                first_stream_delta_received = False
                 analysis_heading = (
                     "Technical Support"
                     if assistant == "🔧 Technical Support"
                     else "AI Analysis"
                 )
 
-                background_request_kwargs = {
-                    "prompt_text": prompt,
-                    "uploaded_files": snapshot_uploaded_files_for_background(
-                        effective_uploaded_files
+                loading_status_placeholder.markdown(
+                    _loading_status_html(
+                        build_ai_loading_status(
+                            assistant,
+                            detected_live_request=detected_request,
+                            use_file_search=use_file_search,
+                        )
                     ),
-                    "detected_live_request": detected_request,
-                    "detected_technical_tool": detected_technical_tool,
-                    "detected_workspace_tool": detected_workspace_tool,
-                    "response_mode": response_mode,
-                    "use_file_search": use_file_search,
-                    "live_data_override": preloaded_live_data,
-                    "order_displayed_by_app": bool(order_display_text),
-                    "selected_assistant": assistant,
-                }
-                background_context = {
-                    "assistant": assistant,
-                    "prompt": prompt,
-                    "interaction_prompt": interaction_prompt,
-                    "conversation_id": st.session_state.conversation_id,
-                    "detected_request": detected_request,
-                    "use_file_search": use_file_search,
-                    "order_display_text": order_display_text,
-                    "analysis_heading": analysis_heading,
-                    "document_generation_requested": (
-                        document_generation_requested
-                    ),
-                    "document_creator_settings": dict(
-                        document_creator_settings
-                    ),
-                    "is_structured_marketing_tool": bool(
-                        isinstance(marketing_tool_request, dict)
-                        and marketing_tool_request.get("prompt")
-                    ),
-                    "is_structured_graphic_tool": bool(
-                        isinstance(graphic_tool_request, dict)
-                        and graphic_tool_request.get("prompt")
-                    ),
-                }
-                start_background_generation(
-                    background_request_kwargs,
-                    background_context,
+                    unsafe_allow_html=True,
                 )
-                st.session_state.scroll_to_bottom = True
-                st.rerun()
+
+                if order_display_text:
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(
+                            order_display_text
+                            + "\n\n---\n\n## "
+                            + analysis_heading
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                try:
+                    for delta in ask_ai_stream(
+                        prompt,
+                        effective_uploaded_files,
+                        detected_live_request=detected_request,
+                        detected_technical_tool=detected_technical_tool,
+                        detected_workspace_tool=detected_workspace_tool,
+                        response_mode=response_mode,
+                        use_file_search=use_file_search,
+                        live_data_override=preloaded_live_data,
+                        order_displayed_by_app=bool(order_display_text),
+                    ):
+                        delta_text = str(delta or "")
+                        if delta_text and not first_stream_delta_received:
+                            first_stream_delta_received = True
+                            loading_status_placeholder.empty()
+
+                        streamed_answer += delta_text
+                        visible_stream = streamed_answer
+                        if assistant == "🔧 Technical Support":
+                            visible_stream = remove_technical_pricing(
+                                visible_stream
+                            )
+
+                        combined_stream = visible_stream
+                        if order_display_text:
+                            combined_stream = (
+                                order_display_text
+                                + "\n\n---\n\n## "
+                                + analysis_heading
+                                + "\n\n"
+                                + visible_stream
+                            )
+
+                        now_value = time.monotonic()
+                        if (
+                            now_value - last_stream_update >= 0.05
+                            or str(delta or "").endswith(("\n", ".", ":", "?"))
+                        ):
+                            stream_placeholder.markdown(
+                                _assistant_stream_html(combined_stream),
+                                unsafe_allow_html=True,
+                            )
+                            last_stream_update = now_value
+
+                    answer_body = clean_visible_chat_text(streamed_answer)
+                    if assistant == "🔧 Technical Support":
+                        answer_body = remove_technical_pricing(answer_body)
+
+                    answer = answer_body
+                    if order_display_text:
+                        analysis_section = (
+                            "\n\n---\n\n## "
+                            + analysis_heading
+                            + "\n\n"
+                            if answer_body
+                            else ""
+                        )
+                        answer = (
+                            order_display_text
+                            + analysis_section
+                            + answer_body
+                        )
+
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    loading_status_placeholder.empty()
+                    stream_placeholder.empty()
+                    raise
+                finally:
+                    loading_status_placeholder.empty()
+
+                response_time = round(
+                    time.time() - response_start_time,
+                    2,
+                )
+                tokens_used = None
 
         if document_generation_requested and not is_graphic_generation:
             try:
