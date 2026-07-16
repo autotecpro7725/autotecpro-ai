@@ -16353,6 +16353,12 @@ EXPLICIT_LEARNING_COMMAND_PATTERNS = (
     r"\bdon['’]?t forget (?:this|it)\b",
     r"\buse (?:this|it) for future (?:cases?|reference|support)\b",
     r"\bmake (?:this|it) (?:permanent|part of (?:the )?knowledge base)\b",
+
+    # Professional multi-file / department-specific teaching commands.
+    r"\blearn (?:these|the) uploaded (?:files?|photos?|images?|documents?)\b",
+    r"\blearn (?:this|these) as (?:an? )?(?:technical|sales|marketing) (?:record|knowledge|guideline|rule)\b",
+    r"\bcreate (?:and )?save (?:an? )?(?:technical|sales|marketing) (?:record|knowledge|guideline)\b",
+    r"\badd (?:these|the) (?:photos?|images?|files?|documents?) to (?:the )?(?:technical|sales|marketing) (?:database|knowledge base)\b",
 )
 
 
@@ -16415,24 +16421,103 @@ def detect_explicit_learning_command(
     return True
 
 
+def _professional_learning_profile(selected_assistant):
+    """Return workspace-specific professional knowledge requirements."""
+    label = clean_assistant_label(selected_assistant).strip().lower()
+
+    if "technical" in label:
+        return {
+            "department": "Technical Support",
+            "record_types": (
+                "product_parts, compatibility_rule, installation_procedure, "
+                "troubleshooting_solution, wiring_connector, firmware_settings, "
+                "warranty_procedure, known_issue, customer_case_solution"
+            ),
+            "required_fields": (
+                "record_type, title, vehicle_make, vehicle_model, year_range, "
+                "product_name, sku, factory_system, symptom_or_topic, included_parts, "
+                "part_numbers, connector_details, compatibility_conditions, "
+                "diagnostic_steps, confirmed_solution, installation_notes, warnings, "
+                "evidence, uncertain_information, search_keywords"
+            ),
+        }
+
+    if "marketing" in label:
+        return {
+            "department": "Marketing",
+            "record_types": (
+                "brand_voice, product_messaging, audience_profile, campaign, "
+                "social_style, seo_guideline, advertising_claim, visual_direction, "
+                "packaging_guideline, email_campaign, cta_style"
+            ),
+            "required_fields": (
+                "record_type, title, product, audience, channel, campaign, objective, "
+                "brand_voice, approved_terms, prohibited_terms, approved_claims, "
+                "required_qualifiers, proof_points, cta_style, seo_keywords, "
+                "visual_direction, reusable_rules, sample_copy, effective_date, "
+                "expiration_date, evidence, uncertain_information, search_keywords"
+            ),
+        }
+
+    return {
+        "department": "Sales",
+        "record_types": (
+            "product_sales_profile, pricing_rule, dealer_policy, promotion, "
+            "objection_handling, product_comparison, qualification_rule, "
+            "cross_sell_rule, sales_script, payment_rule, shipping_expectation, "
+            "return_policy"
+        ),
+        "required_fields": (
+            "record_type, title, product, sku, customer_segment, market, currency, "
+            "key_benefits, approved_claims, pricing_or_discount_rule, dealer_level, "
+            "objection, approved_response, comparison_points, cross_sell_products, "
+            "restrictions, effective_date, expiration_date, approval_authority, "
+            "evidence, uncertain_information, search_keywords"
+        ),
+    }
+
+
 def build_explicit_learning_ai_prompt(prompt_text, prior_context):
-    """Add an internal instruction that produces saveable knowledge, not a fake confirmation."""
+    """Produce a professional reviewable record; the app performs the real save."""
     clean_prompt = str(prompt_text or "").strip()
     clean_context = redact_learning_private_data(prior_context)
+    profile = _professional_learning_profile(
+        st.session_state.get("current_assistant") or globals().get("assistant")
+    )
     return f"""{clean_prompt}
 
-[INTERNAL AUTOTECPRO LEARNING INSTRUCTION]
-The user explicitly requested permanent learning. Review the attached files and
-the recent conversation context below. Produce one accurate, reusable knowledge
-summary with a clear title, vehicle/product, issue or rule, confirmed solution
-or procedure, warnings, and search keywords. Do not claim that anything has
-already been saved; the application will perform and confirm the database save
-after your response. Do not invent missing facts or include customer-private data.
+[INTERNAL AUTOTECPRO PROFESSIONAL LEARNING INSTRUCTION]
+The user explicitly requested permanent learning for the {profile['department']}
+knowledge base. Analyze the current message, every attached file/image, and the
+recent conversation context together. Convert the evidence into one professional,
+reusable knowledge record.
+
+First classify the record using one of these types:
+{profile['record_types']}
+
+Capture these fields whenever supported:
+{profile['required_fields']}
+
+QUALITY AND GOVERNANCE RULES:
+- Distinguish verified facts, inferred information, and missing information.
+- Never invent compatibility, part numbers, prices, dates, policies, product claims,
+  quantities, or technical specifications.
+- For multiple uploaded photos, treat them as one product only when the user says so;
+  identify Photo 1, Photo 2, etc. as evidence for visible parts and labels.
+- Preserve exact SKU, model, year range, connector, promotion, market, and effective
+  date details.
+- Flag contradictions with existing context instead of silently resolving them.
+- Include a concise searchable title and strong search keywords.
+- Include an Evidence section and a Needs Confirmation section.
+- Do not claim that anything has already been saved. The application will perform
+  the database/vector save after the response and then display the confirmation.
+- Do not include customer-private information.
+
+Present the result as a clean professional record suitable for direct storage.
 
 RECENT CONTEXT:
 {clean_context or "No earlier context was available; use the current message and attachments."}
 """.strip()
-
 
 def recent_learning_conversation_context(max_messages=6):
     """
@@ -16465,66 +16550,67 @@ def extract_learning_candidate(
     conversation_context="",
     explicit_requested=False,
 ):
+    """Extract a department-specific professional record without DB schema changes."""
     safe_question = redact_learning_private_data(question)
     safe_answer = redact_learning_private_data(answer)
     safe_context = redact_learning_private_data(conversation_context)
+    profile = _professional_learning_profile(selected_assistant)
 
     extraction_prompt = f"""
-You are AutoTecPro's internal knowledge engineer.
+You are AutoTecPro's professional internal knowledge engineer.
 
-Convert the latest interaction into one clean reusable knowledge record.
-
-Return ONLY valid JSON with this exact schema:
+Convert the interaction into one reusable {profile['department']} knowledge record.
+Return ONLY valid JSON with this schema:
 {{
-  "should_learn": true/false,
-  "vehicle": "specific vehicle make/model/year if known, otherwise empty",
-  "year": "year if mentioned, otherwise empty",
-  "make": "vehicle make/brand if mentioned, otherwise empty",
-  "model": "vehicle model if mentioned, otherwise empty",
-  "product": "AutoTecPro product/model/category if mentioned, otherwise empty",
-  "issue": "short reusable issue title",
-  "solution": "clean final solution that future staff can reuse",
-  "keywords": "comma-separated keywords",
-  "was_unanswered": true/false,
-  "resolved": true/false,
-  "confidence_score": 0-100,
+  "should_learn": true,
+  "record_type": "one supported record type",
+  "title": "specific searchable title",
+  "vehicle": "specific vehicle make/model/year when relevant, otherwise empty",
+  "year": "year or year range when relevant, otherwise empty",
+  "make": "make/brand when relevant, otherwise empty",
+  "model": "vehicle/product model when relevant, otherwise empty",
+  "product": "AutoTecPro product/category/SKU when relevant, otherwise empty",
+  "issue": "short reusable topic",
+  "solution": "complete approved reusable knowledge",
+  "structured_sections": {{
+    "identity": [],
+    "facts": [],
+    "parts_or_features": [],
+    "conditions": [],
+    "procedure_or_response": [],
+    "warnings_or_restrictions": [],
+    "effective_dates": [],
+    "evidence": [],
+    "needs_confirmation": []
+  }},
+  "keywords": "comma-separated exact search terms",
+  "was_unanswered": false,
+  "resolved": true,
+  "confidence_score": 0,
+  "completeness_score": 0,
+  "source_reliability_score": 0,
+  "contradiction_detected": false,
   "reason": "short reason"
 }}
 
-Rules:
-- Staff confirmed solution: {str(bool(staff_confirmed)).lower()}.
-- Explicit permanent-learning request: {str(bool(explicit_requested)).lower()}.
-- When Explicit permanent-learning request is true, use the AI RESPONSE and
-  RECENT CONVERSATION CONTEXT as the source material. The short command itself
-  is not the solution. Set should_learn true only when those sources contain
-  concrete reusable knowledge.
-- If Staff confirmed solution is true, treat the STAFF MESSAGE as the primary
-  source of truth for the fix. Use recent context only to identify the related
-  vehicle, product, symptoms, and steps.
-- If Staff confirmed solution is false, learn only when the AI answer contains
-  a genuinely reusable and sufficiently supported solution, compatibility
-  fact, troubleshooting step, product fact, warranty/sales policy, or customer
-  reply.
-- Never learn a question, theory, guess, untested suggestion, or uncertain
-  workaround as confirmed truth.
-- should_learn must be false for greetings, vague chats, purely emotional
-  messages, requests without a solution, or answers that say documentation is
-  unavailable without useful next steps.
-- Do not include customer names, email addresses, phone numbers, addresses,
-  order numbers, tracking numbers, payment details, or other personal data.
-- Keep the solution accurate, concise, and operational.
-- For vehicle, prefer the most specific supported make/model/year in the
-  interaction or context.
-- Do not return placeholders such as "not specified", "unknown", "N/A", or
-  "general" for vehicle; return an empty string instead.
-- was_unanswered is true only when the answer lacks a usable answer, says the
-  documentation is unavailable, or only requests escalation/more information.
-- resolved is true when the response provides a useful solution, compatibility
-  fact, confirmed next step, or customer-ready response.
-- Never invent details not supported by the supplied text.
+Department: {profile['department']}
+Supported types: {profile['record_types']}
+Preferred fields: {profile['required_fields']}
+Staff confirmed: {str(bool(staff_confirmed)).lower()}
+Explicit learning request: {str(bool(explicit_requested)).lower()}
 
-Assistant:
-{clean_assistant_label(selected_assistant)}
+Rules:
+- Use the AI response and recent context as source material for explicit learning.
+- Use the staff message as primary truth for a confirmed fix.
+- Never turn a guess, draft, unanswered question, temporary live data, or private data
+  into approved knowledge.
+- Preserve exact model numbers, year ranges, quantities, markets, dates and restrictions.
+- Put unsupported fields in needs_confirmation; never invent them.
+- For Technical photo/parts records, map visible items to Photo 1/2/3 in evidence.
+- For Sales, include market/currency/effective/expiration dates when relevant.
+- For Marketing, extract reusable brand rules, not only the sample copy.
+- contradiction_detected must be true when supplied sources conflict materially.
+- should_learn must be false if no concrete reusable knowledge exists.
 
 STAFF MESSAGE:
 {safe_question}
@@ -16532,7 +16618,7 @@ STAFF MESSAGE:
 AI RESPONSE:
 {safe_answer}
 
-RECENT CONVERSATION CONTEXT:
+RECENT CONTEXT:
 {safe_context}
 """
     try:
@@ -16546,77 +16632,92 @@ RECENT CONVERSATION CONTEXT:
         data = {}
 
     should_learn = bool(data.get("should_learn", False))
-
-    issue_source = safe_question or safe_context
     issue = str(
-        data.get("issue")
-        or conversation_title_from_text(issue_source)
-    ).strip()
-
-    # For confirmed solutions, the staff's own message is the preferred
-    # fallback. For ordinary learning, the AI answer remains the fallback.
-    fallback_solution = (
-        safe_answer
-        if explicit_requested
-        else (
-            safe_question
-            if staff_confirmed and len(safe_question) >= 20
-            else safe_answer
-        )
+        data.get("title") or data.get("issue")
+        or conversation_title_from_text(safe_question or safe_context)
+    ).strip()[:180]
+    fallback_solution = safe_answer if explicit_requested else (
+        safe_question if staff_confirmed and len(safe_question) >= 20 else safe_answer
     )
     solution = str(data.get("solution") or fallback_solution).strip()
     keywords = str(data.get("keywords") or "").strip()
+    record_type = str(data.get("record_type") or "general_knowledge").strip()
+    sections = data.get("structured_sections")
+    if not isinstance(sections, dict):
+        sections = {}
+
+    def clean_items(name):
+        value = sections.get(name) or []
+        if isinstance(value, str):
+            value = [value]
+        return [str(item).strip() for item in value if str(item).strip()][:40]
+
+    professional_sections = {
+        name: clean_items(name)
+        for name in (
+            "identity", "facts", "parts_or_features", "conditions",
+            "procedure_or_response", "warnings_or_restrictions",
+            "effective_dates", "evidence", "needs_confirmation"
+        )
+    }
+
+    # Embed professional structure in the existing solution column so this upgrade
+    # remains compatible with the user's current Supabase table.
+    structured_lines = [solution] if solution else []
+    labels = {
+        "identity": "Identity", "facts": "Verified Facts",
+        "parts_or_features": "Parts / Features", "conditions": "Conditions",
+        "procedure_or_response": "Procedure / Approved Response",
+        "warnings_or_restrictions": "Warnings / Restrictions",
+        "effective_dates": "Effective Dates", "evidence": "Evidence",
+        "needs_confirmation": "Needs Confirmation",
+    }
+    for key, label in labels.items():
+        items = professional_sections.get(key) or []
+        if items:
+            structured_lines.append(f"\n{label}:\n" + "\n".join(f"- {item}" for item in items))
+    solution = "\n".join(structured_lines).strip()
 
     vehicle = resolve_learning_vehicle(
-        data.get("vehicle"),
-        question=safe_question,
-        answer=safe_answer,
-        issue=issue,
-        keywords=keywords,
-        product=safe_context,
+        data.get("vehicle"), question=safe_question, answer=safe_answer,
+        issue=issue, keywords=keywords, product=data.get("product") or safe_context,
         selected_assistant=selected_assistant,
     )
 
     try:
-        confidence_score = int(
-            data.get("confidence_score", 88 if staff_confirmed else 70)
-        )
+        confidence_score = max(0, min(100, int(data.get("confidence_score", 88 if staff_confirmed else 75))))
     except Exception:
-        confidence_score = 88 if staff_confirmed else 70
+        confidence_score = 88 if staff_confirmed else 75
+    try:
+        completeness_score = max(0, min(100, int(data.get("completeness_score", 70))))
+    except Exception:
+        completeness_score = 70
+    contradiction = bool(data.get("contradiction_detected", False))
 
-    confidence_score = max(0, min(100, confidence_score))
+    minimum_solution_length = 50 if explicit_requested else (30 if staff_confirmed else 80)
+    if len(solution) < minimum_solution_length or len(safe_question) < 5:
+        should_learn = False
+    # Material contradictions must not be silently learned as truth.
+    if contradiction and not staff_confirmed:
+        should_learn = False
 
-    # A confirmed staff resolution may be concise; ordinary AI-derived learning
-    # still needs a more substantial solution.
-    minimum_solution_length = (
-        50 if explicit_requested else (30 if staff_confirmed else 80)
-    )
-    if len(solution) < minimum_solution_length:
-        should_learn = False
-    if len(safe_question) < 5:
-        should_learn = False
+    if record_type and record_type not in keywords.lower():
+        keywords = ", ".join(filter(None, [record_type.replace("_", " "), keywords]))
 
     combined_text = f"{safe_question} {safe_answer}"
-    year_match = re.search(
-        r"\b(20[0-2][0-9]|19[8-9][0-9])\b",
-        combined_text,
-    )
+    year_match = re.search(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", combined_text)
     analytics_payload = {
         "username": st.session_state.get("username"),
         "assistant": clean_assistant_label(selected_assistant),
         "vehicle": vehicle,
-        "year": str(
-            data.get("year")
-            or (year_match.group(1) if year_match else "")
-        ).strip(),
+        "year": str(data.get("year") or (year_match.group(1) if year_match else "")).strip(),
         "make": str(data.get("make") or "").strip(),
         "model": str(data.get("model") or "").strip(),
-        "issue": issue[:180],
+        "issue": issue,
         "product": str(data.get("product") or "").strip()[:180],
         "solution": solution,
         "keywords": keywords,
-        "question": str(question or ""),
-        "answer": str(answer or ""),
+        "question": str(question or ""), "answer": str(answer or ""),
         "was_unanswered": bool(data.get("was_unanswered", False)),
         "resolved": bool(data.get("resolved", False)),
         "confidence_score": confidence_score,
@@ -16625,46 +16726,50 @@ RECENT CONVERSATION CONTEXT:
     }
 
     return {
-        "should_learn": should_learn,
-        "vehicle": vehicle,
-        "issue": issue[:180],
-        "solution": solution,
-        "keywords": keywords,
-        "confidence_score": confidence_score,
+        "should_learn": should_learn, "record_type": record_type,
+        "vehicle": vehicle, "issue": issue, "solution": solution,
+        "keywords": keywords, "confidence_score": confidence_score,
+        "completeness_score": completeness_score,
+        "contradiction_detected": contradiction,
         "reason": str(data.get("reason") or "").strip(),
         "staff_confirmed": bool(staff_confirmed),
         "analytics_payload": analytics_payload,
     }
 
-
 def make_learned_knowledge_document(record):
+    """Create a rich searchable record while preserving the current TXT pipeline."""
     safe_record = {
         key: ("" if value is None else str(value))
         for key, value in dict(record or {}).items()
     }
+    assistant_label = safe_record.get("assistant", "")
+    department = _professional_learning_profile(assistant_label)["department"]
 
-    return f"""AutoTecPro Self-Learned Knowledge
+    return f"""AutoTecPro Professional Learned Knowledge
 
-Assistant:
-{safe_record.get("assistant", "")}
+Department:
+{department}
 
-Vehicle / Product:
-{safe_record.get("vehicle", "") or "Not specified"}
+Record Type:
+{safe_record.get("record_type", "general_knowledge")}
 
-Issue:
+Title / Issue:
 {safe_record.get("issue", "")}
 
-Solution:
+Vehicle / Product:
+{safe_record.get("vehicle", "") or "Not applicable"}
+
+Approved Structured Knowledge:
 {safe_record.get("solution", "")}
 
-Keywords:
+Search Keywords:
 {safe_record.get("keywords", "")}
 
-Confidence Score:
-{safe_record.get("confidence_score", "")}
-
-Times Seen:
-{safe_record.get("times_seen", "")}
+Quality:
+- Confidence: {safe_record.get("confidence_score", "")}
+- Times Seen: {safe_record.get("times_seen", "")}
+- Staff Confirmed: {safe_record.get("staff_confirmed", "")}
+- Source Type: {safe_record.get("source_type", "")}
 
 Source Question:
 {safe_record.get("source_question", "")}
@@ -16672,8 +16777,11 @@ Source Question:
 Source Answer:
 {safe_record.get("source_answer", "")}
 
-Usage Instruction:
-Use this learned case when a future AutoTecPro support, sales, or compatibility question is similar. Verify vehicle year, trim, factory radio, audio system, camera system, and firmware when relevant.
+Retrieval Instruction:
+Prefer this approved record when its exact product/SKU, vehicle/year, market,
+channel, policy date, symptom, or record type matches the user's request. Verify
+all Needs Confirmation items before treating them as facts. Prefer newer approved
+versions over older or conflicting records.
 """
 
 def upload_learned_record_to_vector_store(record, vector_store_id):
@@ -16696,6 +16804,26 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
             os.remove(tmp_path)
         except Exception:
             pass
+
+
+def remove_old_learned_vector_file(vector_store_id, file_id):
+    """Best-effort removal of a superseded learned file after replacement succeeds."""
+    vector_store_id = str(vector_store_id or "").strip()
+    file_id = str(file_id or "").strip()
+    if not vector_store_id or not file_id:
+        return False
+    try:
+        client.vector_stores.files.delete(
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+    except Exception:
+        return False
+    try:
+        client.files.delete(file_id)
+    except Exception:
+        pass
+    return True
 
 
 def find_duplicate_learned_knowledge(candidate, selected_assistant):
@@ -17119,6 +17247,7 @@ def auto_learn_from_latest_answer(
 
         record_for_file = {
             "assistant": clean_assistant_label(selected_assistant),
+            "record_type": candidate.get("record_type") or "general_knowledge",
             "vehicle": improved["vehicle"],
             "issue": improved["issue"],
             "solution": improved["solution"],
@@ -17163,6 +17292,15 @@ def auto_learn_from_latest_answer(
             duplicate_row["id"],
         )
 
+        # Only remove the superseded vector after the replacement has uploaded
+        # and the Supabase master record has been updated successfully.
+        old_file_id = duplicate_row.get("openai_file_id")
+        if old_file_id and old_file_id != openai_file_id:
+            remove_old_learned_vector_file(
+                duplicate_row.get("vector_store_id") or vector_store_id,
+                old_file_id,
+            )
+
         return {
             "learned": True,
             "mode": "updated",
@@ -17177,6 +17315,7 @@ def auto_learn_from_latest_answer(
 
     new_record = {
         "username": st.session_state.get("username"),
+        "record_type": candidate.get("record_type") or "general_knowledge",
         "assistant": clean_assistant_label(selected_assistant),
         "vehicle": candidate["vehicle"],
         "issue": candidate["issue"],
