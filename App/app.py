@@ -17406,7 +17406,7 @@ def _load_messages_cached(conversation_id):
         .select("role,content,created_at")
         .eq("conversation_id", conversation_id)
         .order("created_at", desc=True)
-        .limit(400)
+        .limit(2000)
         .execute()
     )
 
