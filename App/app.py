@@ -364,6 +364,11 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_AI_OUTPUT_TOKENS = 32768
 MAX_AI_AUTO_CONTINUATIONS = 3
 
+# Re-rendering the entire accumulated response too frequently becomes expensive
+# for long catalogue/document outputs. Keep the live preview responsive without
+# rebuilding thousands of words many times per second.
+AI_STREAM_RENDER_INTERVAL_SECONDS = 0.75
+
 
 def safe_json_response(response):
     """Return JSON or a readable error without exposing credentials."""
@@ -15641,16 +15646,31 @@ def _continuation_request(previous_response, original_request):
     }
 
 
+class _StreamingNotSupportedError(RuntimeError):
+    """Raised only when the installed OpenAI SDK rejects stream=True."""
+
+
 def _stream_one_ai_response(request):
     """
     Yield text for one Responses API call and return its final response object.
 
     The generator return value is captured with ``yield from`` by ask_ai_stream.
     """
-    stream = client.responses.create(
-        **request,
-        stream=True,
-    )
+    try:
+        stream = client.responses.create(
+            **request,
+            stream=True,
+        )
+    except TypeError as error:
+        error_text = str(error or "").lower()
+        if "stream" in error_text and (
+            "unexpected keyword" in error_text
+            or "unexpected argument" in error_text
+            or "not supported" in error_text
+        ):
+            raise _StreamingNotSupportedError(str(error)) from error
+        raise
+
     received_text = False
     final_response = None
 
@@ -15690,8 +15710,14 @@ def _stream_one_ai_response(request):
         )
         if not received_text and final_text:
             yield final_text
+        return final_response
 
-    return final_response
+    # A streaming connection that ends without a completed/incomplete/failed
+    # event is not a successful response. Raise so the caller preserves the
+    # partial answer instead of silently treating the truncated stream as done.
+    raise RuntimeError(
+        "The OpenAI response stream ended before a final response event."
+    )
 
 
 def ask_ai_stream(
@@ -15784,7 +15810,7 @@ def ask_ai_stream(
 
         return
 
-    except TypeError:
+    except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
         pass
 
@@ -24384,8 +24410,8 @@ else:
 
                         now_value = time.monotonic()
                         if (
-                            now_value - last_stream_update >= 0.05
-                            or str(delta or "").endswith(("\n", ".", ":", "?"))
+                            now_value - last_stream_update
+                            >= AI_STREAM_RENDER_INTERVAL_SECONDS
                         ):
                             stream_placeholder.markdown(
                                 _assistant_stream_html(combined_stream),
@@ -24416,10 +24442,64 @@ else:
                         _assistant_stream_html(answer),
                         unsafe_allow_html=True,
                     )
-                except Exception:
+                except Exception as stream_error:
                     loading_status_placeholder.empty()
-                    stream_placeholder.empty()
-                    raise
+
+                    # Preserve any text that was already generated. Previously,
+                    # every streaming/rendering interruption cleared the visible
+                    # response and re-raised before the partial answer could be
+                    # saved to session state or conversation history.
+                    partial_answer_body = clean_visible_chat_text(
+                        streamed_answer
+                    )
+                    if assistant == "🔧 Technical Support":
+                        partial_answer_body = remove_technical_pricing(
+                            partial_answer_body
+                        )
+
+                    if not partial_answer_body:
+                        stream_placeholder.empty()
+                        raise
+
+                    interruption_note = (
+                        "\n\n---\n\n"
+                        "**Response interrupted:** The AI generated the content "
+                        "above, but the live stream ended before the complete "
+                        "response finished. The partial result has been preserved. "
+                        "Send **continue from where you stopped** to request the "
+                        "remaining content."
+                    )
+                    partial_answer_body += interruption_note
+
+                    answer = partial_answer_body
+                    if order_display_text:
+                        answer = (
+                            order_display_text
+                            + "\n\n---\n\n## "
+                            + analysis_heading
+                            + "\n\n"
+                            + partial_answer_body
+                        )
+
+                    # Keep the last successful streamed content visible. Try one
+                    # final render, but do not discard the answer if the browser
+                    # renderer itself is what raised the interruption.
+                    try:
+                        stream_placeholder.markdown(
+                            _assistant_stream_html(answer),
+                            unsafe_allow_html=True,
+                        )
+                    except Exception:
+                        pass
+
+                    # Record a safe diagnostic in Streamlit Cloud logs without
+                    # exposing request contents, uploaded-file data, or secrets.
+                    print(
+                        "[AI STREAM INTERRUPTED] "
+                        f"{type(stream_error).__name__}: "
+                        f"{str(stream_error)[:300]}",
+                        flush=True,
+                    )
                 finally:
                     loading_status_placeholder.empty()
 
