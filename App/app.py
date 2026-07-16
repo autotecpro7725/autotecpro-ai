@@ -291,6 +291,32 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Hide only Streamlit's temporary loading placeholders while logged out.
+# The original login-page background and all authenticated layouts remain
+# untouched.
+if not st.session_state.get("logged_in", False):
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSkeleton"],
+        .stSkeleton,
+        div[data-testid="stStatusWidget"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 # One browser-cookie controller for saved login credentials.
 auth_cookie_controller = CookieController(
