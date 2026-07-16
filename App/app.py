@@ -6894,24 +6894,6 @@ def inject_base_css():
             transform: none !important;
         }
 
-        html body #atp-send-proxy.atp-stop-mode,
-        html body .atp-send-proxy.atp-stop-mode {
-            background: linear-gradient(
-                135deg,
-                #ff5a3d 0%,
-                #ef4444 55%,
-                #dc2626 100%
-            ) !important;
-            opacity: 1 !important;
-            cursor: pointer !important;
-        }
-
-        html body #atp-send-proxy.atp-stop-mode svg,
-        html body .atp-send-proxy.atp-stop-mode svg {
-            width: 19px !important;
-            height: 19px !important;
-        }
-
 
         /* ============================================================
            MOBILE DARK-MODE FORM TEXT FIX
@@ -7121,36 +7103,8 @@ def inject_base_css():
 
 
 
-def set_browser_ai_streaming_state(active):
-    """
-    Expose the current server-streaming state to the existing browser composer.
-
-    Streamlit executes one script run at a time. The stop control therefore
-    aborts the active browser run and reloads the same app/conversation, which
-    interrupts the open stream without submitting a duplicate prompt.
-    """
-    active_js = "true" if bool(active) else "false"
-    components.html(
-        f"""
-        <script>
-        (() => {{
-          const root = window.parent;
-          root.__atpAiStreaming = {active_js};
-          root.dispatchEvent(
-            new CustomEvent("atp-ai-streaming-state", {{
-              detail: {{ active: {active_js} }}
-            }})
-          );
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
 def install_browser_voice_dictation():
-    """Install rerun-safe voice, send, and stop controls."""
+    """Install rerun-safe voice and send controls without stacking observers."""
     components.html(
         r"""
         <script>
@@ -7196,16 +7150,6 @@ def install_browser_voice_dictation():
                     stroke-linecap="round" stroke-linejoin="round"/>
             </svg>`;
 
-          const STOP_ICON = `
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="7" y="7" width="10" height="10" rx="1.5"
-                    fill="currentColor"/>
-            </svg>`;
-
-          function isStreaming() {
-            return root.__atpAiStreaming === true;
-          }
-
           function composer() {
             return doc.querySelector('div[data-testid="stChatInput"]');
           }
@@ -7240,23 +7184,6 @@ def install_browser_voice_dictation():
           }
 
           function updateSendState(container, proxy) {
-            const streaming = isStreaming();
-
-            if (streaming) {
-              proxy.disabled = false;
-              proxy.classList.add("atp-stop-mode");
-              proxy.innerHTML = STOP_ICON;
-              proxy.setAttribute("title", "Stop generating");
-              proxy.setAttribute("aria-label", "Stop generating");
-              proxy.setAttribute("aria-disabled", "false");
-              return;
-            }
-
-            proxy.classList.remove("atp-stop-mode");
-            proxy.innerHTML = SEND_ICON;
-            proxy.setAttribute("title", "Send message");
-            proxy.setAttribute("aria-label", "Send message");
-
             const input = inputElement(container);
             const active = Boolean(input?.value?.trim());
             proxy.disabled = !active;
@@ -7285,28 +7212,6 @@ def install_browser_voice_dictation():
             proxy.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
-
-              if (isStreaming()) {
-                // Abort the current Streamlit/WebSocket run. A normal browser
-                // reload is the only reliable user-initiated interruption for
-                // this synchronous Streamlit architecture.
-                try {
-                  root.sessionStorage.setItem(
-                    "atp_generation_stopped_notice",
-                    String(Date.now())
-                  );
-                } catch (error) {}
-
-                root.__atpAiStreaming = false;
-                proxy.classList.remove("atp-stop-mode");
-                proxy.disabled = true;
-                proxy.innerHTML = SEND_ICON;
-                proxy.setAttribute("title", "Stopping...");
-                proxy.setAttribute("aria-label", "Stopping generation");
-
-                root.location.reload();
-                return;
-              }
 
               const current = composer();
               const realButton = nativeSend(current);
@@ -7494,25 +7399,13 @@ def install_browser_voice_dictation():
             });
           }
 
-          const streamingStateHandler = () => scheduleMount();
-          root.addEventListener(
-            "atp-ai-streaming-state",
-            streamingStateHandler
-          );
-
           // A slow fallback is enough; the observer handles normal rerenders.
-          timer = root.setInterval(scheduleMount, 900);
+          timer = root.setInterval(scheduleMount, 1800);
           scheduleMount();
 
           function cleanup() {
             try { observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(timer); } catch (error) {}
-            try {
-              root.removeEventListener(
-                "atp-ai-streaming-state",
-                streamingStateHandler
-              );
-            } catch (error) {}
             try {
               if (recognition && listening) recognition.stop();
             } catch (error) {}
@@ -23133,7 +23026,6 @@ else:
         auto_scroll_to_latest()
         st.session_state.scroll_to_bottom = False
 
-    set_browser_ai_streaming_state(False)
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
@@ -23343,7 +23235,6 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                set_browser_ai_streaming_state(True)
                 try:
                     for delta in ask_ai_stream(
                         prompt,
@@ -23417,7 +23308,6 @@ else:
                     stream_placeholder.empty()
                     raise
                 finally:
-                    set_browser_ai_streaming_state(False)
                     loading_status_placeholder.empty()
 
                 response_time = round(
