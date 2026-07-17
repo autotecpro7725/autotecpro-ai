@@ -2338,31 +2338,15 @@ def detect_weather_location_followup(prompt, prior_messages=None):
 
 def extract_woocommerce_order_numbers(prompt, limit=10):
     """
-    Extract unique WooCommerce order numbers without treating vehicle years or
-    year ranges as orders.
+    Extract unique staff-facing WooCommerce order numbers from one prompt.
 
-    Unlabelled order numbers must contain at least five digits. Shorter numbers
-    remain supported only when the prompt explicitly labels them as an order.
+    Four-digit minimum preserves the existing short internal format, while
+    excluding common vehicle years unless the message clearly consists of a
+    list/order request.
     """
     value = str(prompt or "")
-    lower = value.lower()
-
-    has_order_context = any(
-        term in lower
-        for term in (
-            "order", "orders", "woocommerce", "check order", "show order",
-            "lookup order", "look up order", "find order", "order status",
-            "purchased order",
-        )
-    )
-
-    # Explicit order wording may contain legacy 3- or 4-digit order numbers.
-    # Otherwise require five digits so 2014 and 2013-2016 remain vehicle data.
-    minimum_digits = 3 if has_order_context else 5
-    candidates = re.findall(
-        rf"(?<!\d)#?(\d{{{minimum_digits},12}})(?!\d)",
-        value,
-    )
+    normalized_workspace = _normalized_workspace_name()
+    candidates = re.findall(r"(?<!\d)#?(\d{4,12})(?!\d)", value)
 
     unique_numbers = []
     seen = set()
@@ -2377,16 +2361,31 @@ def extract_woocommerce_order_numbers(prompt, limit=10):
     if len(unique_numbers) < 2:
         return unique_numbers
 
+    lower = value.lower()
+    has_order_context = any(
+        term in lower
+        for term in (
+            "order", "orders", "woocommerce", "check", "show", "lookup",
+            "look up", "find", "compare", "status", "product", "purchased",
+        )
+    )
     looks_like_number_list = bool(
         re.fullmatch(
-            r"\s*#?\d{5,12}"
-            r"(?:\s*(?:,|;|/|\||\band\b|\s)\s*#?\d{5,12})+\s*[?.!]*",
+            r"\s*#?\d{4,12}"
+            r"(?:\s*(?:,|;|/|\||\band\b|\s)\s*#?\d{4,12})+\s*[?.!]*",
             value,
             flags=re.IGNORECASE,
         )
     )
 
-    return unique_numbers if has_order_context or looks_like_number_list else []
+    if (
+        normalized_workspace in {"technical support", "sales"}
+        or has_order_context
+        or looks_like_number_list
+    ):
+        return unique_numbers
+
+    return []
 
 
 def _connection_result(status, message="", **extra):
@@ -2774,24 +2773,6 @@ def detect_live_request(prompt, selected_assistant=None):
                     "access_level": access_level,
                 }
 
-        # Clear staff lookup wording without the word "order":
-        #   Check 46666
-        #   Find 46666
-        #   Show me 46666
-        # Five digits are required so vehicle years are not misrouted.
-        direct_lookup_match = re.search(
-            r"^\s*(?:check|find|lookup|look\s+up|show(?:\s+me)?)"
-            r"\s+#?(\d{5,12})\s*[?.!]*$",
-            value,
-            flags=re.IGNORECASE,
-        )
-        if direct_lookup_match:
-            return {
-                "type": "woocommerce_order",
-                "order_number": direct_lookup_match.group(1),
-                "access_level": access_level,
-            }
-
         # Supports all of these:
         #   Show order #42693
         #   Show #42693
@@ -2815,19 +2796,21 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
-        # Internal staff shortcut across Technical Support, Sales, and Marketing:
+        # Short internal-staff format:
         #   42560
         #   42560 no sound
         #   42560 CarPlay not working
+        #   42560 backup camera issue
         #
-        # Require at least five digits so vehicle years such as 2014 and year
-        # ranges such as 2013-2016 are never routed to WooCommerce.
+        # Treat a leading 4-12 digit number as an order number only in
+        # Technical Support or Sales. Explicit Marketing order requests remain
+        # available through "order", "#", status, email, recent orders, or notes.
         if (
             _normalized_workspace_name(selected_assistant)
-            in {"technical support", "sales", "marketing"}
+            in {"technical support", "sales"}
         ):
             short_order_match = re.match(
-                r"^\s*(\d{5,12})(?=\s|$)",
+                r"^\s*(\d{4,12})(?=\s|$)",
                 value,
                 flags=re.IGNORECASE,
             )
@@ -16593,128 +16576,6 @@ def _professional_learning_profile(selected_assistant):
     }
 
 
-def remove_model_learning_confirmation(text):
-    """Remove model-generated save/approval boilerplate from explicit learning output.
-
-    The application displays its own single approval message after extraction, so
-    this cleaner prevents a second confirmation from appearing in the AI record.
-    It intentionally removes only paragraphs that contain clear save/approval UI
-    language and leaves the actual extracted knowledge untouched.
-    """
-    value = str(text or "")
-    if not value.strip():
-        return value
-
-    paragraphs = re.split(r"\n\s*\n", value)
-    kept = []
-    confirmation_patterns = (
-        r"\bwould you like me to (?:save|learn|add|store)\b",
-        r"\bdo you want me to (?:save|learn|add|store)\b",
-        r"\breply (?:with )?(?:yes|save it|approve|approved)\b",
-        r"\bsave this to .{0,80}knowledge\??$",
-        r"\b(?:yes|save it|approved?|no)\b.{0,120}\b(?:cancel|save|approve)\b",
-    )
-    for paragraph in paragraphs:
-        normalized = re.sub(r"\s+", " ", paragraph).strip().lower()
-        if normalized and any(
-            re.search(pattern, normalized, flags=re.IGNORECASE)
-            for pattern in confirmation_patterns
-        ):
-            continue
-        kept.append(paragraph)
-
-    return "\n\n".join(kept).strip()
-
-
-
-def compact_explicit_learning_display(text):
-    """Show only a short title and confirmed summary for explicit-learning output."""
-    value = remove_model_learning_confirmation(str(text or ""))
-    if not value.strip():
-        return ""
-
-    hidden_keys = {
-        "record_type", "evidence", "uncertain_information",
-        "needs_confirmation", "needs_confirmation_for_future_cases",
-        "search_keywords", "keywords", "quality_scores",
-        "confidence", "completeness", "knowledge_quality",
-        "duplicate_check", "analytics_payload",
-    }
-    useful_title_keys = {"title", "symptom_or_topic", "issue"}
-    useful_solution_keys = {
-        "confirmed_solution", "solution", "approved_response",
-        "reusable_rules", "summary",
-    }
-
-    collected = {"title": [], "solution": []}
-    current_key = ""
-    heading_pattern = re.compile(
-        r"^\s*(?:[-*]\s*)?(?:\*\*)?"
-        r"(?P<key>[A-Za-z][A-Za-z0-9 _/-]{1,80})"
-        r"(?:\*\*)?\s*:\s*(?P<value>.*)$"
-    )
-
-    for raw_line in value.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        match = heading_pattern.match(line)
-        if match:
-            normalized_key = re.sub(
-                r"[^a-z0-9]+", "_", match.group("key").lower()
-            ).strip("_")
-            field_value = re.sub(r"^\*+|\*+$", "", match.group("value")).strip()
-            current_key = normalized_key
-            if normalized_key in useful_title_keys:
-                if field_value:
-                    collected["title"].append(field_value)
-                continue
-            if normalized_key in useful_solution_keys:
-                if field_value:
-                    collected["solution"].append(field_value)
-                continue
-            current_key = "_hidden"
-            continue
-
-        bullet_text = re.sub(r"^\s*[-*•]\s*", "", line).strip()
-        if current_key in useful_title_keys and bullet_text:
-            collected["title"].append(bullet_text)
-        elif current_key in useful_solution_keys and bullet_text:
-            collected["solution"].append(bullet_text)
-
-    title = re.sub(r"\s+", " ", " ".join(collected["title"])).strip()
-    solution = re.sub(r"\s+", " ", " ".join(collected["solution"])).strip()
-
-    if not title and not solution:
-        safe_lines = []
-        for raw_line in value.splitlines():
-            line = re.sub(r"^\s*[-*•]\s*", "", raw_line).strip()
-            normalized = re.sub(r"[^a-z0-9]+", "_", line.lower()).strip("_")
-            if (
-                not line
-                or normalized in hidden_keys
-                or normalized.startswith("needs_confirmation")
-                or normalized.startswith("search_keyword")
-            ):
-                continue
-            safe_lines.append(line)
-            if len(" ".join(safe_lines)) >= 360:
-                break
-        solution = re.sub(r"\s+", " ", " ".join(safe_lines)).strip()
-
-    def _short(value, limit):
-        value = re.sub(r"\s+", " ", str(value or "")).strip()
-        if len(value) <= limit:
-            return value
-        shortened = value[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
-        return shortened + "…"
-
-    # Explicit-learning extraction is an internal processing step. The application
-    # renders one authoritative approval card after the structured candidate is
-    # prepared, so no separate model-generated review card should be displayed.
-    return ""
-
-
 def build_explicit_learning_ai_prompt(prompt_text, prior_context):
     """Produce a professional reviewable record; the app performs the real save."""
     clean_prompt = str(prompt_text or "").strip()
@@ -16748,52 +16609,10 @@ QUALITY AND GOVERNANCE RULES:
 - Include a concise searchable title and strong search keywords.
 - Include an Evidence section and a Needs Confirmation section.
 - Do not claim that anything has already been saved. The application will perform
-  the database/vector save after the response and display the only approval request.
-- Do not ask whether the user wants to save, approve, confirm, or learn the record.
-- Do not include phrases such as "Would you like me to save this?", "Reply Yes", or
-  any approval/cancellation instructions. The application owns that UI message.
+  the database/vector save after the response and then display the confirmation.
 - Do not include customer-private information.
 
-Return ONLY valid JSON using this exact schema:
-{{
-  "should_learn": true,
-  "record_type": "one supported record type",
-  "title": "specific searchable title",
-  "vehicle": "specific vehicle make/model/year when relevant, otherwise empty",
-  "year": "year or year range when relevant, otherwise empty",
-  "make": "make/brand when relevant, otherwise empty",
-  "model": "vehicle/product model when relevant, otherwise empty",
-  "product": "AutoTecPro product/category/SKU when relevant, otherwise empty",
-  "issue": "short reusable topic",
-  "solution": "complete approved reusable knowledge",
-  "review_summary": "precise staff-facing summary whose length matches case complexity",
-  "structured_sections": {{
-    "identity": [],
-    "facts": [],
-    "parts_or_features": [],
-    "conditions": [],
-    "procedure_or_response": [],
-    "warnings_or_restrictions": [],
-    "effective_dates": [],
-    "evidence": [],
-    "needs_confirmation": []
-  }},
-  "keywords": "comma-separated exact search terms",
-  "was_unanswered": false,
-  "resolved": true,
-  "confidence_score": 0,
-  "completeness_score": 0,
-  "source_reliability_score": 0,
-  "contradiction_detected": false,
-  "reason": "short reason"
-}}
-
-SUMMARY RULE:
-Prioritize precision, accuracy, and completeness over a fixed sentence count. Use
-the shortest clear description that fully captures the verified issue, relevant
-conditions, confirmed root cause when known, and confirmed resolution. Complex
-cases may be longer when needed. Never omit important technical facts merely to
-shorten the summary. Avoid repetition and unsupported assumptions.
+Present the result as a clean professional record suitable for direct storage.
 
 RECENT CONTEXT:
 {clean_context or "No earlier context was available; use the current message and attachments."}
@@ -16819,153 +16638,6 @@ def recent_learning_conversation_context(max_messages=6):
             context_lines.append(f"{role}: {content}")
 
     return "\n\n".join(context_lines)
-
-
-def _learning_candidate_from_extracted_data(
-    data,
-    question,
-    answer,
-    selected_assistant,
-    *,
-    staff_confirmed=False,
-    conversation_context="",
-    explicit_requested=False,
-):
-    """Normalize one GPT-5.5 extraction into the existing candidate structure."""
-    data = dict(data or {}) if isinstance(data, dict) else {}
-    safe_question = redact_learning_private_data(question)
-    safe_answer = redact_learning_private_data(answer)
-    safe_context = redact_learning_private_data(conversation_context)
-
-    should_learn = bool(data.get("should_learn", False))
-    issue = str(
-        data.get("title") or data.get("issue")
-        or conversation_title_from_text(safe_question or safe_context)
-    ).strip()[:180]
-    fallback_solution = safe_answer if explicit_requested else (
-        safe_question if staff_confirmed and len(safe_question) >= 20 else safe_answer
-    )
-    solution = str(data.get("solution") or fallback_solution).strip()
-    keywords = str(data.get("keywords") or "").strip()
-    record_type = str(data.get("record_type") or "general_knowledge").strip()
-    sections = data.get("structured_sections")
-    if not isinstance(sections, dict):
-        sections = {}
-
-    def clean_items(name):
-        value = sections.get(name) or []
-        if isinstance(value, str):
-            value = [value]
-        return [str(item).strip() for item in value if str(item).strip()][:40]
-
-    professional_sections = {
-        name: clean_items(name)
-        for name in (
-            "identity", "facts", "parts_or_features", "conditions",
-            "procedure_or_response", "warnings_or_restrictions",
-            "effective_dates", "evidence", "needs_confirmation"
-        )
-    }
-
-    structured_lines = [solution] if solution else []
-    labels = {
-        "identity": "Identity", "facts": "Verified Facts",
-        "parts_or_features": "Parts / Features", "conditions": "Conditions",
-        "procedure_or_response": "Procedure / Approved Response",
-        "warnings_or_restrictions": "Warnings / Restrictions",
-        "effective_dates": "Effective Dates", "evidence": "Evidence",
-        "needs_confirmation": "Needs Confirmation",
-    }
-    for key, label in labels.items():
-        items = professional_sections.get(key) or []
-        if items:
-            structured_lines.append(
-                f"\n{label}:\n" + "\n".join(f"- {item}" for item in items)
-            )
-    solution = "\n".join(structured_lines).strip()
-
-    vehicle = resolve_learning_vehicle(
-        data.get("vehicle"), question=safe_question, answer=safe_answer,
-        issue=issue, keywords=keywords, product=data.get("product") or safe_context,
-        selected_assistant=selected_assistant,
-    )
-
-    try:
-        confidence_score = max(
-            0, min(100, int(data.get("confidence_score", 88 if staff_confirmed else 75)))
-        )
-    except Exception:
-        confidence_score = 88 if staff_confirmed else 75
-    try:
-        completeness_score = max(0, min(100, int(data.get("completeness_score", 70))))
-    except Exception:
-        completeness_score = 70
-    contradiction = bool(data.get("contradiction_detected", False))
-
-    minimum_solution_length = 50 if explicit_requested else (30 if staff_confirmed else 80)
-    if len(solution) < minimum_solution_length or len(safe_question) < 5:
-        should_learn = False
-    if contradiction and not staff_confirmed:
-        should_learn = False
-
-    if record_type and record_type not in keywords.lower():
-        keywords = ", ".join(filter(None, [record_type.replace("_", " "), keywords]))
-
-    combined_text = f"{safe_question} {safe_answer}"
-    year_match = re.search(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", combined_text)
-    analytics_payload = {
-        "username": st.session_state.get("username"),
-        "assistant": clean_assistant_label(selected_assistant),
-        "vehicle": vehicle,
-        "year": str(data.get("year") or (year_match.group(1) if year_match else "")).strip(),
-        "make": str(data.get("make") or "").strip(),
-        "model": str(data.get("model") or "").strip(),
-        "issue": issue,
-        "product": str(data.get("product") or "").strip()[:180],
-        "solution": solution,
-        "keywords": keywords,
-        "question": str(question or ""), "answer": str(answer or ""),
-        "was_unanswered": bool(data.get("was_unanswered", False)),
-        "resolved": bool(data.get("resolved", False)),
-        "confidence_score": confidence_score,
-        "conversation_id": st.session_state.get("conversation_id"),
-        "created_at": now_iso(),
-    }
-
-    return {
-        "should_learn": should_learn, "record_type": record_type,
-        "vehicle": vehicle, "issue": issue, "solution": solution,
-        "keywords": keywords, "confidence_score": confidence_score,
-        "completeness_score": completeness_score,
-        "contradiction_detected": contradiction,
-        "reason": str(data.get("reason") or "").strip(),
-        "review_summary": str(data.get("review_summary") or "").strip(),
-        "staff_confirmed": bool(staff_confirmed),
-        "analytics_payload": analytics_payload,
-    }
-
-
-def _explicit_learning_candidate_from_output(
-    output_text,
-    question,
-    selected_assistant,
-    *,
-    conversation_context="",
-):
-    """Reuse the first hidden GPT-5.5 result instead of calling GPT a second time."""
-    data = extract_json_object(str(output_text or ""))
-    if not isinstance(data, dict) or not data:
-        return None
-    candidate = _learning_candidate_from_extracted_data(
-        data,
-        question,
-        output_text,
-        selected_assistant,
-        staff_confirmed=True,
-        conversation_context=conversation_context,
-        explicit_requested=True,
-    )
-    return candidate if candidate.get("should_learn") else None
 
 
 def extract_learning_candidate(
@@ -16999,7 +16671,6 @@ Return ONLY valid JSON with this schema:
   "product": "AutoTecPro product/category/SKU when relevant, otherwise empty",
   "issue": "short reusable topic",
   "solution": "complete approved reusable knowledge",
-  "review_summary": "precise staff-facing summary whose length matches case complexity",
   "structured_sections": {{
     "identity": [],
     "facts": [],
@@ -17039,14 +16710,6 @@ Rules:
 - For Marketing, extract reusable brand rules, not only the sample copy.
 - contradiction_detected must be true when supplied sources conflict materially.
 - should_learn must be false if no concrete reusable knowledge exists.
-- review_summary is only for the staff approval card. Prioritize precision, accuracy,
-  and completeness over a fixed sentence count. Use the shortest clear description
-  that fully captures the verified issue, relevant conditions, confirmed root cause
-  when known, and confirmed resolution. Simple cases may be brief; moderate or complex
-  cases may be longer when needed. Do not omit important technical details merely to
-  shorten the summary. Avoid repetition, internal metadata, confidence scores, search
-  keywords, duplicate analysis, implementation details, unsupported assumptions, and
-  troubleshooting attempts that did not contribute to the confirmed outcome.
 
 STAFF MESSAGE:
 {safe_question}
@@ -17067,15 +16730,110 @@ RECENT CONTEXT:
     except Exception:
         data = {}
 
-    return _learning_candidate_from_extracted_data(
-        data,
-        question,
-        answer,
-        selected_assistant,
-        staff_confirmed=staff_confirmed,
-        conversation_context=conversation_context,
-        explicit_requested=explicit_requested,
+    should_learn = bool(data.get("should_learn", False))
+    issue = str(
+        data.get("title") or data.get("issue")
+        or conversation_title_from_text(safe_question or safe_context)
+    ).strip()[:180]
+    fallback_solution = safe_answer if explicit_requested else (
+        safe_question if staff_confirmed and len(safe_question) >= 20 else safe_answer
     )
+    solution = str(data.get("solution") or fallback_solution).strip()
+    keywords = str(data.get("keywords") or "").strip()
+    record_type = str(data.get("record_type") or "general_knowledge").strip()
+    sections = data.get("structured_sections")
+    if not isinstance(sections, dict):
+        sections = {}
+
+    def clean_items(name):
+        value = sections.get(name) or []
+        if isinstance(value, str):
+            value = [value]
+        return [str(item).strip() for item in value if str(item).strip()][:40]
+
+    professional_sections = {
+        name: clean_items(name)
+        for name in (
+            "identity", "facts", "parts_or_features", "conditions",
+            "procedure_or_response", "warnings_or_restrictions",
+            "effective_dates", "evidence", "needs_confirmation"
+        )
+    }
+
+    # Embed professional structure in the existing solution column so this upgrade
+    # remains compatible with the user's current Supabase table.
+    structured_lines = [solution] if solution else []
+    labels = {
+        "identity": "Identity", "facts": "Verified Facts",
+        "parts_or_features": "Parts / Features", "conditions": "Conditions",
+        "procedure_or_response": "Procedure / Approved Response",
+        "warnings_or_restrictions": "Warnings / Restrictions",
+        "effective_dates": "Effective Dates", "evidence": "Evidence",
+        "needs_confirmation": "Needs Confirmation",
+    }
+    for key, label in labels.items():
+        items = professional_sections.get(key) or []
+        if items:
+            structured_lines.append(f"\n{label}:\n" + "\n".join(f"- {item}" for item in items))
+    solution = "\n".join(structured_lines).strip()
+
+    vehicle = resolve_learning_vehicle(
+        data.get("vehicle"), question=safe_question, answer=safe_answer,
+        issue=issue, keywords=keywords, product=data.get("product") or safe_context,
+        selected_assistant=selected_assistant,
+    )
+
+    try:
+        confidence_score = max(0, min(100, int(data.get("confidence_score", 88 if staff_confirmed else 75))))
+    except Exception:
+        confidence_score = 88 if staff_confirmed else 75
+    try:
+        completeness_score = max(0, min(100, int(data.get("completeness_score", 70))))
+    except Exception:
+        completeness_score = 70
+    contradiction = bool(data.get("contradiction_detected", False))
+
+    minimum_solution_length = 50 if explicit_requested else (30 if staff_confirmed else 80)
+    if len(solution) < minimum_solution_length or len(safe_question) < 5:
+        should_learn = False
+    # Material contradictions must not be silently learned as truth.
+    if contradiction and not staff_confirmed:
+        should_learn = False
+
+    if record_type and record_type not in keywords.lower():
+        keywords = ", ".join(filter(None, [record_type.replace("_", " "), keywords]))
+
+    combined_text = f"{safe_question} {safe_answer}"
+    year_match = re.search(r"\b(20[0-2][0-9]|19[8-9][0-9])\b", combined_text)
+    analytics_payload = {
+        "username": st.session_state.get("username"),
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": vehicle,
+        "year": str(data.get("year") or (year_match.group(1) if year_match else "")).strip(),
+        "make": str(data.get("make") or "").strip(),
+        "model": str(data.get("model") or "").strip(),
+        "issue": issue,
+        "product": str(data.get("product") or "").strip()[:180],
+        "solution": solution,
+        "keywords": keywords,
+        "question": str(question or ""), "answer": str(answer or ""),
+        "was_unanswered": bool(data.get("was_unanswered", False)),
+        "resolved": bool(data.get("resolved", False)),
+        "confidence_score": confidence_score,
+        "conversation_id": st.session_state.get("conversation_id"),
+        "created_at": now_iso(),
+    }
+
+    return {
+        "should_learn": should_learn, "record_type": record_type,
+        "vehicle": vehicle, "issue": issue, "solution": solution,
+        "keywords": keywords, "confidence_score": confidence_score,
+        "completeness_score": completeness_score,
+        "contradiction_detected": contradiction,
+        "reason": str(data.get("reason") or "").strip(),
+        "staff_confirmed": bool(staff_confirmed),
+        "analytics_payload": analytics_payload,
+    }
 
 def make_learned_knowledge_document(record):
     """Create a rich searchable record while preserving the current TXT pipeline."""
@@ -17366,749 +17124,6 @@ def build_local_analytics_payload(question, answer, selected_assistant):
 
 
 
-
-# ============================================================
-# Enterprise Natural Learning Engine
-# ============================================================
-
-NATURAL_LEARNING_APPROVAL_PHRASES = (
-    "yes", "yes save it", "save it", "approved", "approve", "correct",
-    "learn it", "add it", "that is right", "that's right", "this is right",
-    "use this in the future", "add it to technical", "add it to sales",
-    "add it to marketing", "confirm", "confirmed",
-)
-
-NATURAL_LEARNING_REJECTION_PHRASES = (
-    "no", "do not save", "don't save", "cancel", "reject", "reject it",
-    "wrong", "forget it", "discard it", "do not learn", "don't learn",
-)
-
-
-def _natural_learning_role_allowed():
-    """Only internal staff roles may approve permanent company knowledge."""
-    role = str(st.session_state.get("role") or "staff").strip().lower()
-    return role not in STRICT_EXTERNAL_ROLES
-
-
-def _normalize_learning_reply(value):
-    return re.sub(r"\s+", " ", str(value or "").strip().lower()).strip(" .!?\n\t")
-
-
-def detect_pending_learning_reply(message_text):
-    """Classify a reply to a visible pending-learning proposal."""
-    normalized = _normalize_learning_reply(message_text)
-    if not normalized:
-        return {"type": "none"}
-
-    if normalized in NATURAL_LEARNING_APPROVAL_PHRASES or re.fullmatch(
-        r"(?:yes|approved?|correct|confirmed?)(?:,?\s+(?:save|learn|add)\s+it)?",
-        normalized,
-    ):
-        return {"type": "approve"}
-
-    if normalized in NATURAL_LEARNING_REJECTION_PHRASES or re.fullmatch(
-        r"(?:no|cancel|wrong|reject)(?:,?\s+(?:do not|don't)\s+(?:save|learn)\s+it)?",
-        normalized,
-    ):
-        return {"type": "reject"}
-
-    correction_patterns = (
-        r"\b(?:change|update|correct|replace|revise|set)\b",
-        r"\b(?:only|not|instead|should be|applies to|the correct)\b",
-        r"\blet me correct (?:it|this)\b",
-        r"\badd (?:that|this|a warning|a restriction)\b",
-    )
-    if any(re.search(pattern, normalized) for pattern in correction_patterns):
-        return {"type": "correct", "instruction": str(message_text or "").strip()}
-
-    return {"type": "none"}
-
-
-def detect_natural_learning_opportunity(message_text, selected_assistant=None):
-    """Detect strong reusable-knowledge signals without requiring a command."""
-    if not _natural_learning_role_allowed():
-        return {"detected": False, "reason": "external_role"}
-
-    normalized = _normalize_learning_reply(message_text)
-    if not normalized or normalized.endswith("?"):
-        return {"detected": False, "reason": "question_or_empty"}
-
-    # Avoid temporary/private/live operational data and casual confirmations.
-    if re.search(r"\b(?:order|tracking|shipment|customer email|phone number)\b", normalized):
-        return {"detected": False, "reason": "private_or_live_data"}
-
-    strong_patterns = (
-        r"\bthis (?:worked|fixed it|is confirmed|is correct)\b",
-        r"\b(?:we|customer|technician) (?:fixed|confirmed|tested)\b",
-        r"\b(?:the )?(?:fix|solution|correct harness|correct canbus|correct sku) (?:was|is)\b",
-        r"\b(?:confirmed fix|confirmed solution|tested and working)\b",
-        r"\b(?:new|updated|approved) (?:dealer|sales|pricing|return|warranty|shipping) (?:policy|rule)\b",
-        r"\bstarting (?:next|this) (?:month|week|year)\b.*\b(?:discount|dealer|policy|promotion)\b",
-        r"\b(?:approved|official) (?:caption|wording|claim|brand|marketing|visual)\b",
-        r"\bfor (?:instagram|facebook|google ads|email|packaging)\b.*\b(?:keep|use|avoid|tone|style)\b",
-        r"\b(?:remember|save|learn|use) this\b",
-    )
-    detected = any(re.search(pattern, normalized) for pattern in strong_patterns)
-    return {
-        "detected": bool(detected),
-        "reason": "strong_signal" if detected else "insufficient_signal",
-    }
-
-
-def _candidate_quality_scores(candidate):
-    confidence = int(candidate.get("confidence_score") or 0)
-    completeness = int(candidate.get("completeness_score") or 0)
-    reliability = 100 if candidate.get("staff_confirmed") else 75
-    consistency = 0 if candidate.get("contradiction_detected") else 95
-    human_confirmation = 100 if candidate.get("staff_confirmed") else 60
-    overall = round(
-        confidence * 0.25
-        + completeness * 0.25
-        + reliability * 0.20
-        + consistency * 0.20
-        + human_confirmation * 0.10
-    )
-    status = (
-        "Approval blocked — contradiction found"
-        if candidate.get("contradiction_detected")
-        else "Ready to approve" if overall >= 90
-        else "Review recommended" if overall >= 75
-        else "Missing information"
-    )
-    return {
-        "confidence": confidence,
-        "completeness": completeness,
-        "source_reliability": reliability,
-        "consistency": consistency,
-        "human_confirmation": human_confirmation,
-        "overall": overall,
-        "status": status,
-    }
-
-
-def _structured_identity_key(candidate, selected_assistant):
-    """Create a deterministic department-specific identity for duplicate checks."""
-    assistant_label = clean_assistant_label(selected_assistant).lower()
-    analytics = candidate.get("analytics_payload") or {}
-    record_type = normalize_text_for_match(candidate.get("record_type") or "general")
-    product = normalize_text_for_match(analytics.get("product") or "")
-    vehicle = normalize_text_for_match(candidate.get("vehicle") or "")
-    issue = normalize_text_for_match(candidate.get("issue") or "")
-    year = normalize_text_for_match(analytics.get("year") or "")
-
-    if "technical" in assistant_label:
-        identity = [record_type, product, vehicle, year, issue]
-    elif "marketing" in assistant_label:
-        identity = [record_type, product, issue]
-    else:
-        identity = [record_type, product, issue, year]
-    return "|".join(part for part in identity if part)
-
-
-def classify_structured_duplicate(candidate, selected_assistant):
-    """Return new/exact/related/contradiction without automatically merging."""
-    duplicate_row, score = find_duplicate_learned_knowledge(candidate, selected_assistant)
-    if not duplicate_row:
-        return {"outcome": "new", "score": round(score, 3), "row": None}
-
-    old_solution = normalize_text_for_match(
-        duplicate_row.get("solution") or duplicate_row.get("approved_answer") or ""
-    )
-    new_solution = normalize_text_for_match(candidate.get("solution") or "")
-    old_vehicle = normalize_text_for_match(duplicate_row.get("vehicle") or "")
-    new_vehicle = normalize_text_for_match(candidate.get("vehicle") or "")
-
-    exact = score >= 0.95 and old_solution == new_solution
-    contradiction_terms = ("only", "not", "instead", "changed", "correct", "revised")
-    material_difference = old_solution and new_solution and old_solution != new_solution
-    correction_language = any(term in new_solution for term in contradiction_terms)
-    same_identity = bool(old_vehicle and new_vehicle and (
-        old_vehicle in new_vehicle or new_vehicle in old_vehicle
-    ))
-
-    if exact:
-        outcome = "exact_duplicate"
-    elif material_difference and same_identity and correction_language:
-        outcome = "contradiction"
-    else:
-        outcome = "related"
-    return {"outcome": outcome, "score": round(score, 3), "row": duplicate_row}
-
-
-def build_learning_preview(candidate, selected_assistant, duplicate_result=None):
-    """Create one precise approval request while keeping metadata internal."""
-    profile = _professional_learning_profile(selected_assistant)
-    duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
-
-    raw_title = re.sub(
-        r"\s+",
-        " ",
-        str(candidate.get("issue") or "Reusable knowledge"),
-    ).strip()
-
-    def _concise_learning_title(value):
-        """Create a scannable title without changing the stored record."""
-        clean = re.sub(r"\s+", " ", str(value or "")).strip(" .:-")
-        clean = re.sub(
-            r"\b(?:resolved|fixed|restored|solved)\s+by\b.*$",
-            "",
-            clean,
-            flags=re.IGNORECASE,
-        ).strip(" .:-")
-        clean = re.sub(
-            r"\b(?:confirmed solution|confirmed fix|successful repair)\b.*$",
-            "",
-            clean,
-            flags=re.IGNORECASE,
-        ).strip(" .:-")
-        # Keep titles easy to scan, but do not cut away essential identity.
-        if len(clean) > 120:
-            clean = clean[:120].rsplit(" ", 1)[0].rstrip(" ,;:-")
-        return clean or "Reusable knowledge"
-
-    def _clean_review_summary(value):
-        """Normalize the AI-written review without imposing a sentence count."""
-        clean = re.sub(r"\s+", " ", str(value or "")).strip()
-        if not clean:
-            return ""
-        # A generous safety ceiling prevents malformed output from flooding the chat.
-        # It is not a target length; the AI decides the necessary detail.
-        if len(clean) > 1800:
-            clean = clean[:1800].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
-        return clean
-
-    title = _concise_learning_title(raw_title)
-    review_summary = _clean_review_summary(candidate.get("review_summary"))
-
-    if not review_summary:
-        # Backward-compatible fallback for older or failed extraction responses.
-        solution = str(candidate.get("solution") or "").strip()
-        solution = re.split(
-            r"\n(?:Identity|Verified Facts|Parts / Features|Conditions|"
-            r"Procedure / Approved Response|Warnings / Restrictions|"
-            r"Effective Dates|Evidence|Needs Confirmation):\s*",
-            solution,
-            maxsplit=1,
-            flags=re.IGNORECASE,
-        )[0]
-        review_summary = _clean_review_summary(solution)
-
-    lines = [
-        f"**New {profile['department']} knowledge detected**",
-        "",
-        f"**Title:** {title}",
-    ]
-    if (
-        review_summary
-        and normalize_text_for_match(review_summary)
-        != normalize_text_for_match(title)
-    ):
-        lines.extend(["", f"**Summary:** {review_summary}"])
-
-    if (
-        candidate.get("contradiction_detected")
-        or duplicate_result.get("outcome") == "contradiction"
-    ):
-        lines.extend([
-            "",
-            "**Review needed:** This may update or conflict with existing knowledge. Nothing will be replaced until you approve it.",
-        ])
-
-    lines.extend([
-        "",
-        f"Save this to **{profile['department']} Knowledge**?",
-        "Reply **Yes**, **Save it**, or **Approve** to save. Reply **No** to cancel, or type a correction before saving.",
-    ])
-    return "\n".join(lines)
-
-def _append_learning_system_message(content):
-    """Append and persist a learning proposal once, like a normal AI message."""
-    safe_content = str(content or "").strip()
-    if not safe_content:
-        return False
-
-    messages = st.session_state.get("messages") or []
-    if messages:
-        last_message = messages[-1] or {}
-        if (
-            str(last_message.get("role") or "") == "assistant"
-            and str(last_message.get("content") or "").strip() == safe_content
-        ):
-            return False
-
-    fingerprint = hashlib.sha256(
-        (
-            str(st.session_state.get("conversation_id") or "")
-            + "|"
-            + safe_content
-        ).encode("utf-8")
-    ).hexdigest()
-    if st.session_state.get("last_learning_proposal_fingerprint") == fingerprint:
-        return False
-
-    st.session_state["last_learning_proposal_fingerprint"] = fingerprint
-    st.session_state.messages.append({"role": "assistant", "content": safe_content})
-    if history_is_enabled() and st.session_state.get("conversation_id"):
-        try:
-            save_message(st.session_state.conversation_id, "assistant", safe_content)
-        except Exception:
-            pass
-    return True
-
-
-def prepare_pending_learning(
-    question,
-    answer,
-    selected_assistant,
-    *,
-    explicit_learning=False,
-    learning_context="",
-    learning_attachments=None,
-    pre_extracted_candidate=None,
-):
-    """Extract, score and propose knowledge; never silently save it."""
-    if not _natural_learning_role_allowed():
-        return None
-    if selected_assistant in {"⚙️ Admin Panel", "🎨 Graphic Marketing"}:
-        return None
-
-    explicit_learning = bool(explicit_learning)
-    natural = detect_natural_learning_opportunity(question, selected_assistant)
-    staff_confirmed = detect_staff_confirmed_solution(question) or explicit_learning or natural.get("detected")
-    if not explicit_learning and not natural.get("detected"):
-        return None
-
-    context = str(learning_context or "").strip() or recent_learning_conversation_context(max_messages=8)
-    candidate = (
-        dict(pre_extracted_candidate)
-        if isinstance(pre_extracted_candidate, dict)
-        else extract_learning_candidate(
-            question,
-            answer,
-            selected_assistant,
-            staff_confirmed=staff_confirmed,
-            conversation_context=context,
-            explicit_requested=explicit_learning,
-        )
-    )
-    if not candidate.get("should_learn"):
-        return None
-
-    candidate["quality_scores"] = _candidate_quality_scores(candidate)
-    candidate["identity_key"] = _structured_identity_key(candidate, selected_assistant)
-    duplicate_result = classify_structured_duplicate(candidate, selected_assistant)
-
-    pending = {
-        "workspace": str(selected_assistant or ""),
-        "conversation_id": st.session_state.get("conversation_id"),
-        "created_by": st.session_state.get("username"),
-        "created_at": now_iso(),
-        "question": redact_learning_private_data(question),
-        "answer": redact_learning_private_data(answer),
-        "candidate": candidate,
-        "duplicate_result": duplicate_result,
-        "status": "awaiting_approval",
-        "explicit_learning": explicit_learning,
-        "revision_reason": "",
-        "attachments": list(learning_attachments or []),
-    }
-    st.session_state["pending_enterprise_learning"] = pending
-    preview = build_learning_preview(candidate, selected_assistant, duplicate_result)
-    _append_learning_system_message(preview)
-    return pending
-
-
-def _wait_for_vector_indexing(vector_store_id, file_id, timeout_seconds=20):
-    """Confirm vector indexing before a superseded vector is removed."""
-    deadline = time.time() + max(1, int(timeout_seconds or 20))
-    last_status = "in_progress"
-    while time.time() < deadline:
-        try:
-            item = client.vector_stores.files.retrieve(
-                vector_store_id=vector_store_id,
-                file_id=file_id,
-            )
-            last_status = str(getattr(item, "status", "") or "").lower()
-            if last_status == "completed":
-                return True, last_status
-            if last_status in {"failed", "cancelled"}:
-                return False, last_status
-        except Exception:
-            # Compatibility fallback: inspect the vector-store file list when the
-            # installed SDK does not expose files.retrieve(). Never report a false
-            # completed status merely because status inspection failed.
-            try:
-                listing = client.vector_stores.files.list(
-                    vector_store_id=vector_store_id,
-                    limit=100,
-                )
-                items = getattr(listing, "data", None) or []
-                match = next(
-                    (row for row in items if str(getattr(row, "file_id", "") or getattr(row, "id", "")) == str(file_id)),
-                    None,
-                )
-                if match is not None:
-                    last_status = str(getattr(match, "status", "") or "").lower()
-                    if last_status == "completed":
-                        return True, last_status
-                    if last_status in {"failed", "cancelled"}:
-                        return False, last_status
-            except Exception:
-                last_status = "status_unavailable"
-        time.sleep(0.75)
-    return False, last_status or "timeout"
-
-
-def _record_version_snapshot(existing_row, candidate, new_file_id, reason):
-    """Best-effort version history when the optional enterprise table exists."""
-    columns = set(get_table_columns("knowledge_versions"))
-    if not columns or not existing_row:
-        return None
-    current_version = int(existing_row.get("version_number") or 1)
-    payload = {
-        "knowledge_record_id": str(existing_row.get("id")),
-        "version_number": current_version,
-        "structured_data": {
-            "vehicle": existing_row.get("vehicle"),
-            "issue": existing_row.get("issue"),
-            "solution": existing_row.get("solution") or existing_row.get("approved_answer"),
-            "keywords": existing_row.get("keywords"),
-        },
-        "changed_fields": {"proposed": candidate},
-        "change_reason": reason or "Approved natural-learning update",
-        "approved_by": st.session_state.get("username"),
-        "approved_at": now_iso(),
-        "previous_openai_file_id": existing_row.get("openai_file_id"),
-        "new_openai_file_id": new_file_id,
-        "created_at": now_iso(),
-    }
-    try:
-        result = safe_insert_row("knowledge_versions", payload)
-        return (result.data or [None])[0]
-    except Exception:
-        return None
-
-
-def _record_learning_evidence(record_id, version_number, attachments):
-    """Best-effort attachment evidence metadata for the optional enterprise table."""
-    if not record_id or not attachments:
-        return 0
-    columns = set(get_table_columns("knowledge_evidence"))
-    if not columns:
-        return 0
-    saved = 0
-    for item in attachments:
-        if not isinstance(item, dict):
-            continue
-        payload = {
-            "knowledge_record_id": str(record_id),
-            "version_number": int(version_number or 1),
-            "source_type": "chat_attachment",
-            "source_name": item.get("file_name"),
-            "source_reference": item.get("source_conversation_id"),
-            "photo_number": item.get("photo_number"),
-            "caption": item.get("caption"),
-            "original_file_reference": item.get("file_name"),
-            "evidence_data": {
-                "mime_type": item.get("mime_type"),
-                "file_name": item.get("file_name"),
-            },
-            "created_at": now_iso(),
-        }
-        try:
-            safe_insert_row("knowledge_evidence", payload)
-            saved += 1
-        except Exception:
-            continue
-    return saved
-
-
-def save_approved_learning_candidate(pending):
-    """Commit one approved pending record with safe vector replacement."""
-    candidate = dict((pending or {}).get("candidate") or {})
-    if (pending or {}).get("attachments"):
-        candidate["attachments"] = list((pending or {}).get("attachments") or [])
-    selected_assistant = str((pending or {}).get("workspace") or "")
-    if not candidate or not selected_assistant:
-        raise RuntimeError("The pending learning record is incomplete.")
-
-    duplicate_result = dict((pending or {}).get("duplicate_result") or {})
-    duplicate_row = duplicate_result.get("row")
-    vector_store_id = get_learning_vector_store_id(selected_assistant)
-    source_type = "approved_natural_learning"
-    safe_question = redact_learning_private_data((pending or {}).get("question"))
-    safe_answer = redact_learning_private_data((pending or {}).get("answer"))
-    quality = candidate.get("quality_scores") or _candidate_quality_scores(candidate)
-
-    if duplicate_result.get("outcome") == "exact_duplicate" and duplicate_row:
-        # Do not create another vector for an exact duplicate; count the confirmation.
-        update_payload = {
-            "times_seen": int(duplicate_row.get("times_seen") or 1) + 1,
-            "staff_confirmed": True,
-            "updated_at": now_iso(),
-        }
-        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
-        return {"mode": "duplicate_skipped", "record_id": duplicate_row["id"], "indexed": True}
-
-    # A merely related record is not an update. Keeping it separate prevents
-    # distinct products, vehicles, policies, or fixes from being merged and
-    # overwriting valid existing knowledge. Only an explicitly classified
-    # contradiction/superseding correction may replace an existing record.
-    if duplicate_row and duplicate_result.get("outcome") == "contradiction":
-        improved = improve_existing_solution(duplicate_row, candidate)
-        record_for_file = {
-            "assistant": clean_assistant_label(selected_assistant),
-            "record_type": candidate.get("record_type") or duplicate_row.get("record_type") or "general_knowledge",
-            "vehicle": improved["vehicle"],
-            "issue": improved["issue"],
-            "solution": improved["solution"],
-            "keywords": improved["keywords"],
-            "confidence_score": max(int(improved.get("confidence_score") or 0), int(quality.get("overall") or 0)),
-            "times_seen": improved["times_seen"],
-            "source_question": safe_question,
-            "source_answer": safe_answer,
-            "staff_confirmed": True,
-            "source_type": source_type,
-        }
-        new_file_id = upload_learned_record_to_vector_store(record_for_file, vector_store_id)
-        indexed, index_status = _wait_for_vector_indexing(vector_store_id, new_file_id)
-        if not indexed:
-            raise RuntimeError(f"The new knowledge file was uploaded but indexing did not complete ({index_status}). The previous version was preserved.")
-
-        old_file_id = duplicate_row.get("openai_file_id")
-        _record_version_snapshot(
-            duplicate_row,
-            candidate,
-            new_file_id,
-            (pending or {}).get("revision_reason") or "Approved knowledge update",
-        )
-        update_payload = {
-            "username": st.session_state.get("username"),
-            "record_type": record_for_file["record_type"],
-            "assistant": clean_assistant_label(selected_assistant),
-            "vehicle": record_for_file["vehicle"],
-            "issue": record_for_file["issue"],
-            "solution": record_for_file["solution"],
-            "approved_answer": record_for_file["solution"],
-            "question": safe_question,
-            "keywords": record_for_file["keywords"],
-            "source_question": safe_question,
-            "source_answer": safe_answer,
-            "source_conversation_id": st.session_state.get("conversation_id"),
-            "confidence_score": record_for_file["confidence_score"],
-            "times_seen": record_for_file["times_seen"],
-            "openai_file_id": new_file_id,
-            "vector_store_id": vector_store_id,
-            "synced": True,
-            "embedding_status": index_status,
-            "source_type": source_type,
-            "staff_confirmed": True,
-            "approval_status": "approved",
-            "approved_by": st.session_state.get("username"),
-            "approved_at": now_iso(),
-            "identity_key": candidate.get("identity_key"),
-            "quality_scores": quality,
-            "structured_data": candidate,
-            "version_number": int(duplicate_row.get("version_number") or 1) + 1,
-            "updated_at": now_iso(),
-        }
-        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
-        _record_learning_evidence(
-            duplicate_row["id"],
-            update_payload["version_number"],
-            (pending or {}).get("attachments") or [],
-        )
-        if old_file_id and old_file_id != new_file_id:
-            remove_old_learned_vector_file(
-                duplicate_row.get("vector_store_id") or vector_store_id,
-                old_file_id,
-            )
-        return {
-            "mode": "updated",
-            "record_id": duplicate_row["id"],
-            "file_id": new_file_id,
-            "indexed": True,
-            "version": update_payload["version_number"],
-        }
-
-    new_record = {
-        "username": st.session_state.get("username"),
-        "record_type": candidate.get("record_type") or "general_knowledge",
-        "assistant": clean_assistant_label(selected_assistant),
-        "vehicle": candidate.get("vehicle") or "",
-        "issue": candidate.get("issue") or "Learned Knowledge",
-        "solution": candidate.get("solution") or "",
-        "approved_answer": candidate.get("solution") or "",
-        "question": safe_question,
-        "keywords": candidate.get("keywords") or "",
-        "source_question": safe_question,
-        "source_answer": safe_answer,
-        "source_conversation_id": st.session_state.get("conversation_id"),
-        "confidence_score": int(quality.get("overall") or candidate.get("confidence_score") or 0),
-        "times_seen": 1,
-        "times_used": 0,
-        "search_count": 0,
-        "vector_store_id": vector_store_id,
-        "synced": False,
-        "embedding_status": "pending",
-        "source_type": source_type,
-        "staff_confirmed": True,
-        "approval_status": "approved",
-        "approved_by": st.session_state.get("username"),
-        "approved_at": now_iso(),
-        "identity_key": candidate.get("identity_key"),
-        "quality_scores": quality,
-        "structured_data": candidate,
-        "version_number": 1,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    }
-    new_file_id = upload_learned_record_to_vector_store(new_record, vector_store_id)
-    indexed, index_status = _wait_for_vector_indexing(vector_store_id, new_file_id)
-    if not indexed:
-        try:
-            remove_old_learned_vector_file(vector_store_id, new_file_id)
-        except Exception:
-            pass
-        raise RuntimeError(f"Knowledge indexing did not complete ({index_status}); nothing was activated.")
-    new_record["openai_file_id"] = new_file_id
-    new_record["synced"] = True
-    new_record["embedding_status"] = index_status
-    result = safe_insert_row("learned_knowledge", new_record)
-    if not result.data:
-        remove_old_learned_vector_file(vector_store_id, new_file_id)
-        raise RuntimeError("Learning record was not saved.")
-    _record_learning_evidence(
-        result.data[0]["id"],
-        1,
-        (pending or {}).get("attachments") or [],
-    )
-    return {
-        "mode": "created",
-        "record_id": result.data[0]["id"],
-        "file_id": new_file_id,
-        "indexed": True,
-        "version": 1,
-    }
-
-
-def revise_pending_learning(pending, instruction):
-    """Apply a natural-language correction to a pending proposal without saving it."""
-    candidate = dict((pending or {}).get("candidate") or {})
-    prompt = f"""
-You are AutoTecPro's internal knowledge editor.
-Apply the staff correction to the pending record. Preserve every unaffected fact.
-Return ONLY valid JSON using the same keys as the pending record.
-Never invent missing facts.
-
-PENDING RECORD:
-{json.dumps(candidate, ensure_ascii=False, default=str)}
-
-STAFF CORRECTION:
-{redact_learning_private_data(instruction)}
-"""
-    try:
-        response = client.responses.create(
-            model="gpt-5.5",
-            instructions="Return only valid JSON. No markdown.",
-            input=prompt,
-        )
-        revised = extract_json_object(response.output_text)
-    except Exception:
-        revised = {}
-    if not isinstance(revised, dict) or not revised:
-        raise RuntimeError("The correction could not be applied. Please state the exact field and value.")
-
-    # Preserve runtime-only fields and recalculate governance metadata.
-    for key in ("analytics_payload", "staff_confirmed"):
-        if key not in revised and key in candidate:
-            revised[key] = candidate[key]
-    revised["quality_scores"] = _candidate_quality_scores(revised)
-    revised["identity_key"] = _structured_identity_key(revised, pending.get("workspace"))
-    duplicate_result = classify_structured_duplicate(revised, pending.get("workspace"))
-    updated = dict(pending)
-    updated["candidate"] = revised
-    updated["duplicate_result"] = duplicate_result
-    updated["revision_reason"] = str(instruction or "").strip()
-    updated["status"] = "awaiting_approval"
-    st.session_state["pending_enterprise_learning"] = updated
-    return updated
-
-
-def handle_pending_learning_reply(message_text):
-    """Handle approval/rejection/correction before any normal AI or live routing."""
-    pending = st.session_state.get("pending_enterprise_learning")
-    if not isinstance(pending, dict):
-        return None
-
-    # Do not let a proposal leak into another workspace or conversation.
-    if pending.get("workspace") != st.session_state.get("current_assistant"):
-        return None
-    pending_conversation = pending.get("conversation_id")
-    current_conversation = st.session_state.get("conversation_id")
-    if pending_conversation != current_conversation:
-        return None
-
-    reply = detect_pending_learning_reply(message_text)
-    reply_type = reply.get("type")
-    if reply_type == "none":
-        return None
-
-    if reply_type == "reject":
-        st.session_state.pop("pending_enterprise_learning", None)
-        return {
-            "handled": True,
-            "message": "Knowledge proposal cancelled. Nothing was saved or indexed.",
-        }
-
-    if reply_type == "correct":
-        updated = revise_pending_learning(pending, reply.get("instruction"))
-        return {
-            "handled": True,
-            "message": build_learning_preview(
-                updated["candidate"],
-                updated["workspace"],
-                updated.get("duplicate_result"),
-            ),
-        }
-
-    if reply_type == "approve":
-        try:
-            result = save_approved_learning_candidate(pending)
-        except Exception as error:
-            # Preserve the proposal so the user can retry after a transient API or
-            # database failure. Returning a normal assistant message avoids taking
-            # down the entire Streamlit interaction.
-            return {
-                "handled": True,
-                "message": (
-                    "**Knowledge was not saved.**\n\n"
-                    f"{str(error)}\n\n"
-                    "The proposal is still pending. Resolve the connection or schema issue, "
-                    "then reply **Save it** again, or reply **No** to cancel."
-                ),
-            }
-        st.session_state.pop("pending_enterprise_learning", None)
-        profile = _professional_learning_profile(pending.get("workspace"))
-        if result.get("mode") == "duplicate_skipped":
-            message = (
-                f"**{profile['department']} Knowledge Confirmed**\n\n"
-                "This knowledge already exists and has been confirmed for future responses."
-            )
-        elif result.get("mode") == "updated":
-            message = (
-                f"**{profile['department']} Knowledge Updated**\n\n"
-                "The approved correction has been saved and is ready for future responses."
-            )
-        else:
-            message = (
-                f"**{profile['department']} Knowledge Saved**\n\n"
-                "The knowledge has been added successfully and is ready for future responses."
-            )
-        return {"handled": True, "message": message}
-
-    return None
-
 def queue_ai_postprocess(
     question,
     answer,
@@ -18121,7 +17136,6 @@ def queue_ai_postprocess(
     is_structured_graphic_tool=False,
     explicit_learning=False,
     learning_context="",
-    learning_attachments=None,
 ):
     """Queue non-visible learning and analytics for the next Streamlit run."""
     live_type = str(
@@ -18167,17 +17181,13 @@ def queue_ai_postprocess(
         ),
         "explicit_learning": bool(explicit_learning),
         "learning_context": str(learning_context or ""),
-        "learning_attachments": list(learning_attachments or []),
     }
 
 
 def process_pending_ai_postprocess():
     """
-    Process analytics and detect learning opportunities after the visible answer.
-
-    Permanent company knowledge is never saved silently. Strong or explicit
-    learning signals create a structured proposal in the chat and wait for a
-    natural approval reply.
+    Process one queued maintenance job after the answer has already been saved
+    and displayed. Failures remain non-blocking.
     """
     job = st.session_state.pop("pending_ai_postprocess", None)
     if not isinstance(job, dict):
@@ -18189,43 +17199,44 @@ def process_pending_ai_postprocess():
     if fingerprint:
         st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
-    proposal = None
+    learning_result = None
     if (
         not job.get("is_graphic_generation")
         and not job.get("is_structured_marketing_tool")
         and not job.get("is_structured_graphic_tool")
     ):
         try:
-            proposal = prepare_pending_learning(
+            learning_result = auto_learn_from_latest_answer(
                 job.get("question"),
                 job.get("answer"),
                 job.get("selected_assistant"),
+                detected_live_request=job.get("detected_live_request"),
                 explicit_learning=bool(job.get("explicit_learning")),
                 learning_context=job.get("learning_context"),
-                learning_attachments=job.get("learning_attachments"),
             )
-        except Exception as error:
-            print(
-                "[ENTERPRISE LEARNING PROPOSAL ERROR] "
-                f"{type(error).__name__}: {str(error)[:300]}",
-                flush=True,
-            )
+            if learning_result and learning_result.get("learned"):
+                mode = learning_result.get("mode", "saved")
+                if learning_result.get("explicit_learning"):
+                    message = f"Knowledge saved permanently ({mode})."
+                elif learning_result.get("staff_confirmed"):
+                    message = f"Confirmed staff solution learned ({mode})."
+                else:
+                    message = f"AI learned from this case ({mode})."
+                st.toast(message, icon="🧠")
+        except Exception:
+            learning_result = None
 
     try:
         log_ai_analytics(
             job.get("question"),
             job.get("answer"),
             job.get("selected_assistant"),
-            None,
+            learning_result,
             response_time=job.get("response_time"),
             tokens_used=job.get("tokens_used"),
         )
     except Exception:
         pass
-
-    if proposal:
-        st.session_state.scroll_to_bottom = True
-        st.rerun()
 
 
 
@@ -25431,37 +24442,6 @@ else:
 
         render_chat_message("user", user_display, uploaded_image_previews)
 
-        # Enterprise learning approval/correction has priority over WooCommerce,
-        # live tools, document generation, and ordinary AI routing.
-        pending_learning_result = handle_pending_learning_reply(interaction_prompt)
-        if pending_learning_result and pending_learning_result.get("handled"):
-            learning_reply = str(pending_learning_result.get("message") or "").strip()
-            render_chat_message(
-                "assistant",
-                learning_reply,
-                message_index=len(st.session_state.messages),
-            )
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": learning_reply,
-            })
-            if history_is_enabled():
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "assistant",
-                        learning_reply,
-                    )
-                except Exception as error:
-                    st.warning(f"Learning confirmation was not saved to history: {error}")
-            st.session_state.chat_file_uploader_generation += 1
-            clear_managed_uploads(
-                "chat_managed_uploads",
-                "chat_managed_upload_generation",
-            )
-            st.session_state.scroll_to_bottom = True
-            st.rerun()
-
         generated_images = []
         generated_documents = []
         has_uploaded_images = any(
@@ -25487,12 +24467,6 @@ else:
 
         document_generation_request = execution_plan["document"]
         detected_request = execution_plan["live"]
-        # Explicit learning always takes priority over WooCommerce and every
-        # other live-data router. Numbers inside a learning record are content,
-        # not order lookups.
-        if explicit_learning_requested:
-            detected_request = {"type": "none"}
-            execution_plan["live"] = detected_request
         detected_technical_tool = execution_plan["technical"]
         detected_workspace_tool = execution_plan["workspace"]
         response_mode = execution_plan["response_mode"]
@@ -25600,8 +24574,6 @@ else:
                 stream_placeholder = st.empty()
                 loading_status_placeholder = st.empty()
                 streamed_answer = ""
-                learning_extraction_answer = ""
-                pre_extracted_learning_candidate = None
                 last_stream_update = 0.0
                 first_stream_delta_received = False
                 analysis_heading = (
@@ -25660,9 +24632,9 @@ else:
                         streamed_answer += delta_text
                         visible_stream = streamed_answer
                         if explicit_learning_requested:
-                            # Keep extraction output internal. One clean approval card
-                            # is added by prepare_pending_learning() after processing.
-                            visible_stream = ""
+                            visible_stream = format_learning_record_for_display(
+                                visible_stream
+                            )
                         if assistant == "🔧 Technical Support":
                             visible_stream = remove_technical_pricing(
                                 visible_stream
@@ -25683,31 +24655,15 @@ else:
                             now_value - last_stream_update
                             >= AI_STREAM_RENDER_INTERVAL_SECONDS
                         ):
-                            if str(combined_stream or "").strip():
-                                stream_placeholder.markdown(
-                                    _assistant_stream_html(combined_stream),
-                                    unsafe_allow_html=True,
-                                )
+                            stream_placeholder.markdown(
+                                _assistant_stream_html(combined_stream),
+                                unsafe_allow_html=True,
+                            )
                             last_stream_update = now_value
 
-                    raw_answer_body = clean_visible_chat_text(streamed_answer)
-                    learning_extraction_answer = raw_answer_body
-                    pre_extracted_learning_candidate = None
+                    answer_body = clean_visible_chat_text(streamed_answer)
                     if explicit_learning_requested:
-                        pre_extracted_learning_candidate = (
-                            _explicit_learning_candidate_from_output(
-                                learning_extraction_answer,
-                                interaction_prompt,
-                                assistant,
-                                conversation_context=learning_context_snapshot,
-                            )
-                        )
-                    answer_body = raw_answer_body
-                    if explicit_learning_requested:
-                        # Do not save or display the model's structured extraction as
-                        # a second assistant card. It remains available internally for
-                        # candidate extraction in the queued post-processing step.
-                        answer_body = ""
+                        answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
 
@@ -25726,13 +24682,10 @@ else:
                             + answer_body
                         )
 
-                    if str(answer or "").strip():
-                        stream_placeholder.markdown(
-                            _assistant_stream_html(answer),
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        stream_placeholder.empty()
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
                 except Exception as stream_error:
                     loading_status_placeholder.empty()
 
@@ -25744,8 +24697,9 @@ else:
                         streamed_answer
                     )
                     if explicit_learning_requested:
-                        learning_extraction_answer = partial_answer_body
-                        partial_answer_body = ""
+                        partial_answer_body = format_learning_record_for_display(
+                            partial_answer_body
+                        )
                     if assistant == "🔧 Technical Support":
                         partial_answer_body = remove_technical_pricing(
                             partial_answer_body
@@ -25865,33 +24819,32 @@ else:
                     message_index=len(st.session_state.messages),
                 )
 
-        if str(assistant_content_to_save or "").strip():
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": assistant_content_to_save
-            })
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": assistant_content_to_save
+        })
 
-            if history_is_enabled():
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "assistant",
-                        assistant_content_to_save,
-                    )
-                except Exception as e:
-                    st.warning(f"AI answer was not saved to history: {e}")
+        if history_is_enabled():
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "assistant",
+                    assistant_content_to_save,
+                )
+            except Exception as e:
+                st.warning(f"AI answer was not saved to history: {e}")
 
-                # Generate a concise ChatGPT-style title only for persistent chats.
-                if sum(
-                    1 for item in st.session_state.messages
-                    if item.get("role") == "user"
-                ) == 1:
-                    update_conversation_ai_title(
-                        st.session_state.conversation_id,
-                        interaction_prompt,
-                        answer,
-                        detected_live_request=detected_request,
-                    )
+            # Generate a concise ChatGPT-style title only for persistent chats.
+            if sum(
+                1 for item in st.session_state.messages
+                if item.get("role") == "user"
+            ) == 1:
+                update_conversation_ai_title(
+                    st.session_state.conversation_id,
+                    interaction_prompt,
+                    answer,
+                    detected_live_request=detected_request,
+                )
 
         # Customer order lookups remain excluded from continuous learning and
         # detailed analytics because they may contain private customer data.
@@ -25909,63 +24862,19 @@ else:
         )
 
         if not is_woocommerce_request:
-            learning_attachments_payload = [
-                {
-                    "file_name": str(getattr(item, "name", "") or ""),
-                    "mime_type": str(getattr(item, "type", "") or ""),
-                    "photo_number": index + 1,
-                    "source_conversation_id": st.session_state.get("conversation_id"),
-                }
-                for index, item in enumerate(effective_uploaded_files)
-            ]
-
-            if explicit_learning_requested:
-                # Reuse the first hidden GPT-5.5 extraction immediately. This
-                # removes the duplicate GPT call and one extra proposal rerun.
-                try:
-                    prepare_pending_learning(
-                        interaction_prompt,
-                        learning_extraction_answer,
-                        assistant,
-                        explicit_learning=True,
-                        learning_context=learning_context_snapshot,
-                        learning_attachments=learning_attachments_payload,
-                        pre_extracted_candidate=pre_extracted_learning_candidate,
-                    )
-                except Exception as error:
-                    print(
-                        "[EXPLICIT LEARNING PROPOSAL ERROR] "
-                        f"{type(error).__name__}: {str(error)[:300]}",
-                        flush=True,
-                    )
-
-                # Keep analytics deferred, but skip learning generation because
-                # the proposal has already been prepared above.
-                queue_ai_postprocess(
-                    interaction_prompt,
-                    learning_extraction_answer,
-                    assistant,
-                    detected_request,
-                    response_time,
-                    tokens_used,
-                    is_graphic_generation=True,
-                    explicit_learning=False,
-                )
-            else:
-                queue_ai_postprocess(
-                    interaction_prompt,
-                    answer,
-                    assistant,
-                    detected_request,
-                    response_time,
-                    tokens_used,
-                    is_graphic_generation=is_graphic_generation,
-                    is_structured_marketing_tool=is_structured_marketing_tool,
-                    is_structured_graphic_tool=is_structured_graphic_tool,
-                    explicit_learning=False,
-                    learning_context=learning_context_snapshot,
-                    learning_attachments=learning_attachments_payload,
-                )
+            queue_ai_postprocess(
+                interaction_prompt,
+                answer,
+                assistant,
+                detected_request,
+                response_time,
+                tokens_used,
+                is_graphic_generation=is_graphic_generation,
+                is_structured_marketing_tool=is_structured_marketing_tool,
+                is_structured_graphic_tool=is_structured_graphic_tool,
+                explicit_learning=explicit_learning_requested,
+                learning_context=learning_context_snapshot,
+            )
 
         # Clear uploaded files after this message is completed.
         # The image remains saved inside this specific user message/history item,
