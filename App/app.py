@@ -16813,6 +16813,7 @@ Return ONLY valid JSON with this schema:
   "product": "AutoTecPro product/category/SKU when relevant, otherwise empty",
   "issue": "short reusable topic",
   "solution": "complete approved reusable knowledge",
+  "review_summary": "precise staff-facing summary whose length matches case complexity",
   "structured_sections": {{
     "identity": [],
     "facts": [],
@@ -16852,6 +16853,14 @@ Rules:
 - For Marketing, extract reusable brand rules, not only the sample copy.
 - contradiction_detected must be true when supplied sources conflict materially.
 - should_learn must be false if no concrete reusable knowledge exists.
+- review_summary is only for the staff approval card. Prioritize precision, accuracy,
+  and completeness over a fixed sentence count. Use the shortest clear description
+  that fully captures the verified issue, relevant conditions, confirmed root cause
+  when known, and confirmed resolution. Simple cases may be brief; moderate or complex
+  cases may be longer when needed. Do not omit important technical details merely to
+  shorten the summary. Avoid repetition, internal metadata, confidence scores, search
+  keywords, duplicate analysis, implementation details, unsupported assumptions, and
+  troubleshooting attempts that did not contribute to the confirmed outcome.
 
 STAFF MESSAGE:
 {safe_question}
@@ -16973,6 +16982,7 @@ RECENT CONTEXT:
         "completeness_score": completeness_score,
         "contradiction_detected": contradiction,
         "reason": str(data.get("reason") or "").strip(),
+        "review_summary": str(data.get("review_summary") or "").strip(),
         "staff_confirmed": bool(staff_confirmed),
         "analytics_payload": analytics_payload,
     }
@@ -17436,7 +17446,7 @@ def classify_structured_duplicate(candidate, selected_assistant):
 
 
 def build_learning_preview(candidate, selected_assistant, duplicate_result=None):
-    """Create one concise approval request while keeping all metadata internal."""
+    """Create one precise approval request while keeping metadata internal."""
     profile = _professional_learning_profile(selected_assistant)
     duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
 
@@ -17447,7 +17457,7 @@ def build_learning_preview(candidate, selected_assistant, duplicate_result=None)
     ).strip()
 
     def _concise_learning_title(value):
-        """Create a short reviewer-friendly title without changing stored data."""
+        """Create a scannable title without changing the stored record."""
         clean = re.sub(r"\s+", " ", str(value or "")).strip(" .:-")
         clean = re.sub(
             r"\b(?:resolved|fixed|restored|solved)\s+by\b.*$",
@@ -17461,49 +17471,49 @@ def build_learning_preview(candidate, selected_assistant, duplicate_result=None)
             clean,
             flags=re.IGNORECASE,
         ).strip(" .:-")
-        if len(clean) > 110:
-            clean = clean[:110].rsplit(" ", 1)[0].rstrip(" ,;:-")
+        # Keep titles easy to scan, but do not cut away essential identity.
+        if len(clean) > 120:
+            clean = clean[:120].rsplit(" ", 1)[0].rstrip(" ,;:-")
         return clean or "Reusable knowledge"
 
-    title = _concise_learning_title(raw_title)
-    solution = re.sub(
-        r"\s+",
-        " ",
-        str(candidate.get("solution") or ""),
-    ).strip()
-
-    def _short_sentences(value, max_chars=420, max_sentences=3):
+    def _clean_review_summary(value):
+        """Normalize the AI-written review without imposing a sentence count."""
         clean = re.sub(r"\s+", " ", str(value or "")).strip()
         if not clean:
             return ""
-        sentences = re.split(r"(?<=[.!?])\s+", clean)
-        selected = []
-        for sentence in sentences:
-            candidate_text = " ".join(selected + [sentence]).strip()
-            if selected and (
-                len(selected) >= max_sentences
-                or len(candidate_text) > max_chars
-            ):
-                break
-            selected.append(sentence)
-            if len(" ".join(selected)) >= max_chars:
-                break
-        result = " ".join(selected).strip()
-        if len(result) > max_chars:
-            result = result[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
-        return result
+        # A generous safety ceiling prevents malformed output from flooding the chat.
+        # It is not a target length; the AI decides the necessary detail.
+        if len(clean) > 1800:
+            clean = clean[:1800].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+        return clean
 
-    concise_summary = _short_sentences(solution, max_chars=420, max_sentences=3)
-    if not concise_summary:
-        concise_summary = _short_sentences(title, max_chars=320, max_sentences=2)
+    title = _concise_learning_title(raw_title)
+    review_summary = _clean_review_summary(candidate.get("review_summary"))
+
+    if not review_summary:
+        # Backward-compatible fallback for older or failed extraction responses.
+        solution = str(candidate.get("solution") or "").strip()
+        solution = re.split(
+            r"\n(?:Identity|Verified Facts|Parts / Features|Conditions|"
+            r"Procedure / Approved Response|Warnings / Restrictions|"
+            r"Effective Dates|Evidence|Needs Confirmation):\s*",
+            solution,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0]
+        review_summary = _clean_review_summary(solution)
 
     lines = [
         f"**New {profile['department']} knowledge detected**",
         "",
-        f"**Title:** {title[:220]}",
+        f"**Title:** {title}",
     ]
-    if concise_summary and normalize_text_for_match(concise_summary) != normalize_text_for_match(title):
-        lines.extend(["", f"**Summary:** {concise_summary}"])
+    if (
+        review_summary
+        and normalize_text_for_match(review_summary)
+        != normalize_text_for_match(title)
+    ):
+        lines.extend(["", f"**Summary:** {review_summary}"])
 
     if (
         candidate.get("contradiction_detected")
