@@ -16709,14 +16709,10 @@ def compact_explicit_learning_display(text):
         shortened = value[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
         return shortened + "…"
 
-    output = ["**Knowledge review prepared**"]
-    if title:
-        output.extend(["", f"**Title:** {_short(title, 220)}"])
-    if solution:
-        output.extend(["", f"**Summary:** {_short(solution, 440)}"])
-    if len(output) == 1:
-        output.extend(["", "The knowledge was analyzed and is ready for review."])
-    return "\n".join(output)
+    # Explicit-learning extraction is an internal processing step. The application
+    # renders one authoritative approval card after the structured candidate is
+    # prepared, so no separate model-generated review card should be displayed.
+    return ""
 
 
 def build_explicit_learning_ai_prompt(prompt_text, prior_context):
@@ -17444,11 +17440,32 @@ def build_learning_preview(candidate, selected_assistant, duplicate_result=None)
     profile = _professional_learning_profile(selected_assistant)
     duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
 
-    title = re.sub(
+    raw_title = re.sub(
         r"\s+",
         " ",
         str(candidate.get("issue") or "Reusable knowledge"),
     ).strip()
+
+    def _concise_learning_title(value):
+        """Create a short reviewer-friendly title without changing stored data."""
+        clean = re.sub(r"\s+", " ", str(value or "")).strip(" .:-")
+        clean = re.sub(
+            r"\b(?:resolved|fixed|restored|solved)\s+by\b.*$",
+            "",
+            clean,
+            flags=re.IGNORECASE,
+        ).strip(" .:-")
+        clean = re.sub(
+            r"\b(?:confirmed solution|confirmed fix|successful repair)\b.*$",
+            "",
+            clean,
+            flags=re.IGNORECASE,
+        ).strip(" .:-")
+        if len(clean) > 110:
+            clean = clean[:110].rsplit(" ", 1)[0].rstrip(" ,;:-")
+        return clean or "Reusable knowledge"
+
+    title = _concise_learning_title(raw_title)
     solution = re.sub(
         r"\s+",
         " ",
@@ -25478,6 +25495,7 @@ else:
                 stream_placeholder = st.empty()
                 loading_status_placeholder = st.empty()
                 streamed_answer = ""
+                learning_extraction_answer = ""
                 last_stream_update = 0.0
                 first_stream_delta_received = False
                 analysis_heading = (
@@ -25536,9 +25554,9 @@ else:
                         streamed_answer += delta_text
                         visible_stream = streamed_answer
                         if explicit_learning_requested:
-                            visible_stream = compact_explicit_learning_display(
-                                visible_stream
-                            )
+                            # Keep extraction output internal. One clean approval card
+                            # is added by prepare_pending_learning() after processing.
+                            visible_stream = ""
                         if assistant == "🔧 Technical Support":
                             visible_stream = remove_technical_pricing(
                                 visible_stream
@@ -25559,17 +25577,21 @@ else:
                             now_value - last_stream_update
                             >= AI_STREAM_RENDER_INTERVAL_SECONDS
                         ):
-                            stream_placeholder.markdown(
-                                _assistant_stream_html(combined_stream),
-                                unsafe_allow_html=True,
-                            )
+                            if str(combined_stream or "").strip():
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(combined_stream),
+                                    unsafe_allow_html=True,
+                                )
                             last_stream_update = now_value
 
-                    answer_body = clean_visible_chat_text(streamed_answer)
+                    raw_answer_body = clean_visible_chat_text(streamed_answer)
+                    learning_extraction_answer = raw_answer_body
+                    answer_body = raw_answer_body
                     if explicit_learning_requested:
-                        answer_body = compact_explicit_learning_display(
-                            answer_body
-                        )
+                        # Do not save or display the model's structured extraction as
+                        # a second assistant card. It remains available internally for
+                        # candidate extraction in the queued post-processing step.
+                        answer_body = ""
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
 
@@ -25588,10 +25610,13 @@ else:
                             + answer_body
                         )
 
-                    stream_placeholder.markdown(
-                        _assistant_stream_html(answer),
-                        unsafe_allow_html=True,
-                    )
+                    if str(answer or "").strip():
+                        stream_placeholder.markdown(
+                            _assistant_stream_html(answer),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        stream_placeholder.empty()
                 except Exception as stream_error:
                     loading_status_placeholder.empty()
 
@@ -25603,9 +25628,8 @@ else:
                         streamed_answer
                     )
                     if explicit_learning_requested:
-                        partial_answer_body = compact_explicit_learning_display(
-                            partial_answer_body
-                        )
+                        learning_extraction_answer = partial_answer_body
+                        partial_answer_body = ""
                     if assistant == "🔧 Technical Support":
                         partial_answer_body = remove_technical_pricing(
                             partial_answer_body
@@ -25725,32 +25749,33 @@ else:
                     message_index=len(st.session_state.messages),
                 )
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": assistant_content_to_save
-        })
+        if str(assistant_content_to_save or "").strip():
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": assistant_content_to_save
+            })
 
-        if history_is_enabled():
-            try:
-                save_message(
-                    st.session_state.conversation_id,
-                    "assistant",
-                    assistant_content_to_save,
-                )
-            except Exception as e:
-                st.warning(f"AI answer was not saved to history: {e}")
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        assistant_content_to_save,
+                    )
+                except Exception as e:
+                    st.warning(f"AI answer was not saved to history: {e}")
 
-            # Generate a concise ChatGPT-style title only for persistent chats.
-            if sum(
-                1 for item in st.session_state.messages
-                if item.get("role") == "user"
-            ) == 1:
-                update_conversation_ai_title(
-                    st.session_state.conversation_id,
-                    interaction_prompt,
-                    answer,
-                    detected_live_request=detected_request,
-                )
+                # Generate a concise ChatGPT-style title only for persistent chats.
+                if sum(
+                    1 for item in st.session_state.messages
+                    if item.get("role") == "user"
+                ) == 1:
+                    update_conversation_ai_title(
+                        st.session_state.conversation_id,
+                        interaction_prompt,
+                        answer,
+                        detected_live_request=detected_request,
+                    )
 
         # Customer order lookups remain excluded from continuous learning and
         # detailed analytics because they may contain private customer data.
@@ -25768,9 +25793,14 @@ else:
         )
 
         if not is_woocommerce_request:
+            postprocess_answer = (
+                learning_extraction_answer
+                if explicit_learning_requested
+                else answer
+            )
             queue_ai_postprocess(
                 interaction_prompt,
-                answer,
+                postprocess_answer,
                 assistant,
                 detected_request,
                 response_time,
