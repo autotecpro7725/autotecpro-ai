@@ -2338,15 +2338,31 @@ def detect_weather_location_followup(prompt, prior_messages=None):
 
 def extract_woocommerce_order_numbers(prompt, limit=10):
     """
-    Extract unique staff-facing WooCommerce order numbers from one prompt.
+    Extract unique WooCommerce order numbers without treating vehicle years or
+    year ranges as orders.
 
-    Four-digit minimum preserves the existing short internal format, while
-    excluding common vehicle years unless the message clearly consists of a
-    list/order request.
+    Unlabelled order numbers must contain at least five digits. Shorter numbers
+    remain supported only when the prompt explicitly labels them as an order.
     """
     value = str(prompt or "")
-    normalized_workspace = _normalized_workspace_name()
-    candidates = re.findall(r"(?<!\d)#?(\d{4,12})(?!\d)", value)
+    lower = value.lower()
+
+    has_order_context = any(
+        term in lower
+        for term in (
+            "order", "orders", "woocommerce", "check order", "show order",
+            "lookup order", "look up order", "find order", "order status",
+            "purchased order",
+        )
+    )
+
+    # Explicit order wording may contain legacy 3- or 4-digit order numbers.
+    # Otherwise require five digits so 2014 and 2013-2016 remain vehicle data.
+    minimum_digits = 3 if has_order_context else 5
+    candidates = re.findall(
+        rf"(?<!\d)#?(\d{{{minimum_digits},12}})(?!\d)",
+        value,
+    )
 
     unique_numbers = []
     seen = set()
@@ -2361,31 +2377,16 @@ def extract_woocommerce_order_numbers(prompt, limit=10):
     if len(unique_numbers) < 2:
         return unique_numbers
 
-    lower = value.lower()
-    has_order_context = any(
-        term in lower
-        for term in (
-            "order", "orders", "woocommerce", "check", "show", "lookup",
-            "look up", "find", "compare", "status", "product", "purchased",
-        )
-    )
     looks_like_number_list = bool(
         re.fullmatch(
-            r"\s*#?\d{4,12}"
-            r"(?:\s*(?:,|;|/|\||\band\b|\s)\s*#?\d{4,12})+\s*[?.!]*",
+            r"\s*#?\d{5,12}"
+            r"(?:\s*(?:,|;|/|\||\band\b|\s)\s*#?\d{5,12})+\s*[?.!]*",
             value,
             flags=re.IGNORECASE,
         )
     )
 
-    if (
-        normalized_workspace in {"technical support", "sales"}
-        or has_order_context
-        or looks_like_number_list
-    ):
-        return unique_numbers
-
-    return []
+    return unique_numbers if has_order_context or looks_like_number_list else []
 
 
 def _connection_result(status, message="", **extra):
@@ -2773,6 +2774,24 @@ def detect_live_request(prompt, selected_assistant=None):
                     "access_level": access_level,
                 }
 
+        # Clear staff lookup wording without the word "order":
+        #   Check 46666
+        #   Find 46666
+        #   Show me 46666
+        # Five digits are required so vehicle years are not misrouted.
+        direct_lookup_match = re.search(
+            r"^\s*(?:check|find|lookup|look\s+up|show(?:\s+me)?)"
+            r"\s+#?(\d{5,12})\s*[?.!]*$",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if direct_lookup_match:
+            return {
+                "type": "woocommerce_order",
+                "order_number": direct_lookup_match.group(1),
+                "access_level": access_level,
+            }
+
         # Supports all of these:
         #   Show order #42693
         #   Show #42693
@@ -2796,21 +2815,19 @@ def detect_live_request(prompt, selected_assistant=None):
                 "access_level": access_level,
             }
 
-        # Short internal-staff format:
+        # Internal staff shortcut across Technical Support, Sales, and Marketing:
         #   42560
         #   42560 no sound
         #   42560 CarPlay not working
-        #   42560 backup camera issue
         #
-        # Treat a leading 4-12 digit number as an order number only in
-        # Technical Support or Sales. Explicit Marketing order requests remain
-        # available through "order", "#", status, email, recent orders, or notes.
+        # Require at least five digits so vehicle years such as 2014 and year
+        # ranges such as 2013-2016 are never routed to WooCommerce.
         if (
             _normalized_workspace_name(selected_assistant)
-            in {"technical support", "sales"}
+            in {"technical support", "sales", "marketing"}
         ):
             short_order_match = re.match(
-                r"^\s*(\d{4,12})(?=\s|$)",
+                r"^\s*(\d{5,12})(?=\s|$)",
                 value,
                 flags=re.IGNORECASE,
             )
@@ -24467,6 +24484,12 @@ else:
 
         document_generation_request = execution_plan["document"]
         detected_request = execution_plan["live"]
+        # Explicit learning always takes priority over WooCommerce and every
+        # other live-data router. Numbers inside a learning record are content,
+        # not order lookups.
+        if explicit_learning_requested:
+            detected_request = {"type": "none"}
+            execution_plan["live"] = detected_request
         detected_technical_tool = execution_plan["technical"]
         detected_workspace_tool = execution_plan["workspace"]
         response_mode = execution_plan["response_mode"]
