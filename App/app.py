@@ -16593,6 +16593,39 @@ def _professional_learning_profile(selected_assistant):
     }
 
 
+def remove_model_learning_confirmation(text):
+    """Remove model-generated save/approval boilerplate from explicit learning output.
+
+    The application displays its own single approval message after extraction, so
+    this cleaner prevents a second confirmation from appearing in the AI record.
+    It intentionally removes only paragraphs that contain clear save/approval UI
+    language and leaves the actual extracted knowledge untouched.
+    """
+    value = str(text or "")
+    if not value.strip():
+        return value
+
+    paragraphs = re.split(r"\n\s*\n", value)
+    kept = []
+    confirmation_patterns = (
+        r"\bwould you like me to (?:save|learn|add|store)\b",
+        r"\bdo you want me to (?:save|learn|add|store)\b",
+        r"\breply (?:with )?(?:yes|save it|approve|approved)\b",
+        r"\bsave this to .{0,80}knowledge\??$",
+        r"\b(?:yes|save it|approved?|no)\b.{0,120}\b(?:cancel|save|approve)\b",
+    )
+    for paragraph in paragraphs:
+        normalized = re.sub(r"\s+", " ", paragraph).strip().lower()
+        if normalized and any(
+            re.search(pattern, normalized, flags=re.IGNORECASE)
+            for pattern in confirmation_patterns
+        ):
+            continue
+        kept.append(paragraph)
+
+    return "\n\n".join(kept).strip()
+
+
 def build_explicit_learning_ai_prompt(prompt_text, prior_context):
     """Produce a professional reviewable record; the app performs the real save."""
     clean_prompt = str(prompt_text or "").strip()
@@ -16626,10 +16659,13 @@ QUALITY AND GOVERNANCE RULES:
 - Include a concise searchable title and strong search keywords.
 - Include an Evidence section and a Needs Confirmation section.
 - Do not claim that anything has already been saved. The application will perform
-  the database/vector save after the response and then display the confirmation.
+  the database/vector save after the response and display the only approval request.
+- Do not ask whether the user wants to save, approve, confirm, or learn the record.
+- Do not include phrases such as "Would you like me to save this?", "Reply Yes", or
+  any approval/cancellation instructions. The application owns that UI message.
 - Do not include customer-private information.
 
-Present the result as a clean professional record suitable for direct storage.
+Present only the clean professional record suitable for direct storage.
 
 RECENT CONTEXT:
 {clean_context or "No earlier context was available; use the current message and attachments."}
@@ -17311,58 +17347,82 @@ def classify_structured_duplicate(candidate, selected_assistant):
 
 
 def build_learning_preview(candidate, selected_assistant, duplicate_result=None):
-    """Create a concise professional proposal visible in the normal chat body."""
+    """Create one clean approval request while keeping governance data internal."""
     profile = _professional_learning_profile(selected_assistant)
-    quality = candidate.get("quality_scores") or _candidate_quality_scores(candidate)
     duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
-    analytics = candidate.get("analytics_payload") or {}
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        str(candidate.get("issue") or "Reusable knowledge"),
+    ).strip()
+    solution = re.sub(
+        r"\s+",
+        " ",
+        str(candidate.get("solution") or ""),
+    ).strip()
 
     lines = [
-        f"**Potential {profile['department']} Knowledge Detected**",
+        f"**New {profile['department']} knowledge detected**",
         "",
-        f"**Record type:** {str(candidate.get('record_type') or 'general_knowledge').replace('_', ' ').title()}",
-        f"**Title:** {candidate.get('issue') or 'Reusable knowledge'}",
+        "I found information that may improve future responses.",
     ]
-    if candidate.get("vehicle"):
-        lines.append(f"**Vehicle / product:** {candidate.get('vehicle')}")
-    if analytics.get("product"):
-        lines.append(f"**Product / SKU:** {analytics.get('product')}")
-    lines.extend([
-        f"**Confidence:** {quality.get('confidence', 0)}%",
-        f"**Completeness:** {quality.get('completeness', 0)}%",
-        f"**Knowledge quality:** {quality.get('overall', 0)}% — {quality.get('status')}",
-        f"**Duplicate check:** {str(duplicate_result.get('outcome') or 'new').replace('_', ' ').title()}",
-    ])
 
-    solution = str(candidate.get("solution") or "").strip()
-    if solution:
-        lines.extend(["", "**Proposed reusable knowledge**", solution[:3500]])
+    if title:
+        lines.extend(["", f"**Summary:** {title[:240]}"])
+    if solution and normalize_text_for_match(solution) != normalize_text_for_match(title):
+        lines.append(f"**Knowledge:** {solution[:700]}")
 
-    if candidate.get("contradiction_detected") or duplicate_result.get("outcome") == "contradiction":
+    if (
+        candidate.get("contradiction_detected")
+        or duplicate_result.get("outcome") == "contradiction"
+    ):
         lines.extend([
             "",
-            "⚠️ **Review required:** A possible contradiction was detected. The record will not be activated until it is explicitly approved or corrected.",
+            "**Review needed:** This may update or conflict with existing knowledge. Nothing will be replaced until you approve it.",
         ])
 
     lines.extend([
         "",
         f"Save this to **{profile['department']} Knowledge**?",
-        "Reply **Yes**, **Save it**, or **Approved**. You can also correct any field naturally, or reply **No** to cancel.",
+        "Reply **Yes**, **Save it**, or **Approve** to save. Reply **No** to cancel, or type a correction before saving.",
     ])
     return "\n".join(lines)
 
 
 def _append_learning_system_message(content):
-    """Append and persist a learning proposal/confirmation like a normal AI message."""
+    """Append and persist a learning proposal once, like a normal AI message."""
     safe_content = str(content or "").strip()
     if not safe_content:
-        return
+        return False
+
+    messages = st.session_state.get("messages") or []
+    if messages:
+        last_message = messages[-1] or {}
+        if (
+            str(last_message.get("role") or "") == "assistant"
+            and str(last_message.get("content") or "").strip() == safe_content
+        ):
+            return False
+
+    fingerprint = hashlib.sha256(
+        (
+            str(st.session_state.get("conversation_id") or "")
+            + "|"
+            + safe_content
+        ).encode("utf-8")
+    ).hexdigest()
+    if st.session_state.get("last_learning_proposal_fingerprint") == fingerprint:
+        return False
+
+    st.session_state["last_learning_proposal_fingerprint"] = fingerprint
     st.session_state.messages.append({"role": "assistant", "content": safe_content})
     if history_is_enabled() and st.session_state.get("conversation_id"):
         try:
             save_message(st.session_state.conversation_id, "assistant", safe_content)
         except Exception:
             pass
+    return True
 
 
 def prepare_pending_learning(
@@ -25364,6 +25424,9 @@ else:
                             visible_stream = format_learning_record_for_display(
                                 visible_stream
                             )
+                            visible_stream = remove_model_learning_confirmation(
+                                visible_stream
+                            )
                         if assistant == "🔧 Technical Support":
                             visible_stream = remove_technical_pricing(
                                 visible_stream
@@ -25393,6 +25456,7 @@ else:
                     answer_body = clean_visible_chat_text(streamed_answer)
                     if explicit_learning_requested:
                         answer_body = format_learning_record_for_display(answer_body)
+                        answer_body = remove_model_learning_confirmation(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
 
@@ -25427,6 +25491,9 @@ else:
                     )
                     if explicit_learning_requested:
                         partial_answer_body = format_learning_record_for_display(
+                            partial_answer_body
+                        )
+                        partial_answer_body = remove_model_learning_confirmation(
                             partial_answer_body
                         )
                     if assistant == "🔧 Technical Support":
