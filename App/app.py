@@ -16626,6 +16626,99 @@ def remove_model_learning_confirmation(text):
     return "\n\n".join(kept).strip()
 
 
+
+def compact_explicit_learning_display(text):
+    """Show only a short title and confirmed summary for explicit-learning output."""
+    value = remove_model_learning_confirmation(str(text or ""))
+    if not value.strip():
+        return ""
+
+    hidden_keys = {
+        "record_type", "evidence", "uncertain_information",
+        "needs_confirmation", "needs_confirmation_for_future_cases",
+        "search_keywords", "keywords", "quality_scores",
+        "confidence", "completeness", "knowledge_quality",
+        "duplicate_check", "analytics_payload",
+    }
+    useful_title_keys = {"title", "symptom_or_topic", "issue"}
+    useful_solution_keys = {
+        "confirmed_solution", "solution", "approved_response",
+        "reusable_rules", "summary",
+    }
+
+    collected = {"title": [], "solution": []}
+    current_key = ""
+    heading_pattern = re.compile(
+        r"^\s*(?:[-*]\s*)?(?:\*\*)?"
+        r"(?P<key>[A-Za-z][A-Za-z0-9 _/-]{1,80})"
+        r"(?:\*\*)?\s*:\s*(?P<value>.*)$"
+    )
+
+    for raw_line in value.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = heading_pattern.match(line)
+        if match:
+            normalized_key = re.sub(
+                r"[^a-z0-9]+", "_", match.group("key").lower()
+            ).strip("_")
+            field_value = re.sub(r"^\*+|\*+$", "", match.group("value")).strip()
+            current_key = normalized_key
+            if normalized_key in useful_title_keys:
+                if field_value:
+                    collected["title"].append(field_value)
+                continue
+            if normalized_key in useful_solution_keys:
+                if field_value:
+                    collected["solution"].append(field_value)
+                continue
+            current_key = "_hidden"
+            continue
+
+        bullet_text = re.sub(r"^\s*[-*•]\s*", "", line).strip()
+        if current_key in useful_title_keys and bullet_text:
+            collected["title"].append(bullet_text)
+        elif current_key in useful_solution_keys and bullet_text:
+            collected["solution"].append(bullet_text)
+
+    title = re.sub(r"\s+", " ", " ".join(collected["title"])).strip()
+    solution = re.sub(r"\s+", " ", " ".join(collected["solution"])).strip()
+
+    if not title and not solution:
+        safe_lines = []
+        for raw_line in value.splitlines():
+            line = re.sub(r"^\s*[-*•]\s*", "", raw_line).strip()
+            normalized = re.sub(r"[^a-z0-9]+", "_", line.lower()).strip("_")
+            if (
+                not line
+                or normalized in hidden_keys
+                or normalized.startswith("needs_confirmation")
+                or normalized.startswith("search_keyword")
+            ):
+                continue
+            safe_lines.append(line)
+            if len(" ".join(safe_lines)) >= 360:
+                break
+        solution = re.sub(r"\s+", " ", " ".join(safe_lines)).strip()
+
+    def _short(value, limit):
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        if len(value) <= limit:
+            return value
+        shortened = value[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
+        return shortened + "…"
+
+    output = ["**Knowledge review prepared**"]
+    if title:
+        output.extend(["", f"**Title:** {_short(title, 220)}"])
+    if solution:
+        output.extend(["", f"**Summary:** {_short(solution, 440)}"])
+    if len(output) == 1:
+        output.extend(["", "The knowledge was analyzed and is ready for review."])
+    return "\n".join(output)
+
+
 def build_explicit_learning_ai_prompt(prompt_text, prior_context):
     """Produce a professional reviewable record; the app performs the real save."""
     clean_prompt = str(prompt_text or "").strip()
@@ -17347,7 +17440,7 @@ def classify_structured_duplicate(candidate, selected_assistant):
 
 
 def build_learning_preview(candidate, selected_assistant, duplicate_result=None):
-    """Create one clean approval request while keeping governance data internal."""
+    """Create one concise approval request while keeping all metadata internal."""
     profile = _professional_learning_profile(selected_assistant)
     duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
 
@@ -17362,16 +17455,38 @@ def build_learning_preview(candidate, selected_assistant, duplicate_result=None)
         str(candidate.get("solution") or ""),
     ).strip()
 
+    def _short_sentences(value, max_chars=420, max_sentences=3):
+        clean = re.sub(r"\s+", " ", str(value or "")).strip()
+        if not clean:
+            return ""
+        sentences = re.split(r"(?<=[.!?])\s+", clean)
+        selected = []
+        for sentence in sentences:
+            candidate_text = " ".join(selected + [sentence]).strip()
+            if selected and (
+                len(selected) >= max_sentences
+                or len(candidate_text) > max_chars
+            ):
+                break
+            selected.append(sentence)
+            if len(" ".join(selected)) >= max_chars:
+                break
+        result = " ".join(selected).strip()
+        if len(result) > max_chars:
+            result = result[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+        return result
+
+    concise_summary = _short_sentences(solution, max_chars=420, max_sentences=3)
+    if not concise_summary:
+        concise_summary = _short_sentences(title, max_chars=320, max_sentences=2)
+
     lines = [
         f"**New {profile['department']} knowledge detected**",
         "",
-        "I found information that may improve future responses.",
+        f"**Title:** {title[:220]}",
     ]
-
-    if title:
-        lines.extend(["", f"**Summary:** {title[:240]}"])
-    if solution and normalize_text_for_match(solution) != normalize_text_for_match(title):
-        lines.append(f"**Knowledge:** {solution[:700]}")
+    if concise_summary and normalize_text_for_match(concise_summary) != normalize_text_for_match(title):
+        lines.extend(["", f"**Summary:** {concise_summary}"])
 
     if (
         candidate.get("contradiction_detected")
@@ -17388,7 +17503,6 @@ def build_learning_preview(candidate, selected_assistant, duplicate_result=None)
         "Reply **Yes**, **Save it**, or **Approve** to save. Reply **No** to cancel, or type a correction before saving.",
     ])
     return "\n".join(lines)
-
 
 def _append_learning_system_message(content):
     """Append and persist a learning proposal once, like a normal AI message."""
@@ -17854,21 +17968,22 @@ def handle_pending_learning_reply(message_text):
             }
         st.session_state.pop("pending_enterprise_learning", None)
         profile = _professional_learning_profile(pending.get("workspace"))
-        mode = str(result.get("mode") or "saved").replace("_", " ").title()
-        version = result.get("version")
-        lines = [
-            f"**{profile['department']} Knowledge Saved**",
-            "",
-            f"**Result:** {mode}",
-            f"**Approved by:** {st.session_state.get('username') or 'Authorized staff'}",
-            "**Supabase master record:** Saved",
-            "**Vector indexing:** Confirmed",
-        ]
-        if version:
-            lines.append(f"**Version:** {version}")
-        if result.get("mode") == "updated":
-            lines.append("**Previous version:** Preserved in revision history when the enterprise version table is available")
-        return {"handled": True, "message": "\n".join(lines)}
+        if result.get("mode") == "duplicate_skipped":
+            message = (
+                f"**{profile['department']} Knowledge Confirmed**\n\n"
+                "This knowledge already exists and has been confirmed for future responses."
+            )
+        elif result.get("mode") == "updated":
+            message = (
+                f"**{profile['department']} Knowledge Updated**\n\n"
+                "The approved correction has been saved and is ready for future responses."
+            )
+        else:
+            message = (
+                f"**{profile['department']} Knowledge Saved**\n\n"
+                "The knowledge has been added successfully and is ready for future responses."
+            )
+        return {"handled": True, "message": message}
 
     return None
 
@@ -25421,10 +25536,7 @@ else:
                         streamed_answer += delta_text
                         visible_stream = streamed_answer
                         if explicit_learning_requested:
-                            visible_stream = format_learning_record_for_display(
-                                visible_stream
-                            )
-                            visible_stream = remove_model_learning_confirmation(
+                            visible_stream = compact_explicit_learning_display(
                                 visible_stream
                             )
                         if assistant == "🔧 Technical Support":
@@ -25455,8 +25567,9 @@ else:
 
                     answer_body = clean_visible_chat_text(streamed_answer)
                     if explicit_learning_requested:
-                        answer_body = format_learning_record_for_display(answer_body)
-                        answer_body = remove_model_learning_confirmation(answer_body)
+                        answer_body = compact_explicit_learning_display(
+                            answer_body
+                        )
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
 
@@ -25490,10 +25603,7 @@ else:
                         streamed_answer
                     )
                     if explicit_learning_requested:
-                        partial_answer_body = format_learning_record_for_display(
-                            partial_answer_body
-                        )
-                        partial_answer_body = remove_model_learning_confirmation(
+                        partial_answer_body = compact_explicit_learning_display(
                             partial_answer_body
                         )
                     if assistant == "🔧 Technical Support":
