@@ -17141,6 +17141,677 @@ def build_local_analytics_payload(question, answer, selected_assistant):
 
 
 
+
+# ============================================================
+# Enterprise Natural Learning Engine
+# ============================================================
+
+NATURAL_LEARNING_APPROVAL_PHRASES = (
+    "yes", "yes save it", "save it", "approved", "approve", "correct",
+    "learn it", "add it", "that is right", "that's right", "this is right",
+    "use this in the future", "add it to technical", "add it to sales",
+    "add it to marketing", "confirm", "confirmed",
+)
+
+NATURAL_LEARNING_REJECTION_PHRASES = (
+    "no", "do not save", "don't save", "cancel", "reject", "reject it",
+    "wrong", "forget it", "discard it", "do not learn", "don't learn",
+)
+
+
+def _natural_learning_role_allowed():
+    """Only internal staff roles may approve permanent company knowledge."""
+    role = str(st.session_state.get("role") or "staff").strip().lower()
+    return role not in STRICT_EXTERNAL_ROLES
+
+
+def _normalize_learning_reply(value):
+    return re.sub(r"\s+", " ", str(value or "").strip().lower()).strip(" .!?\n\t")
+
+
+def detect_pending_learning_reply(message_text):
+    """Classify a reply to a visible pending-learning proposal."""
+    normalized = _normalize_learning_reply(message_text)
+    if not normalized:
+        return {"type": "none"}
+
+    if normalized in NATURAL_LEARNING_APPROVAL_PHRASES or re.fullmatch(
+        r"(?:yes|approved?|correct|confirmed?)(?:,?\s+(?:save|learn|add)\s+it)?",
+        normalized,
+    ):
+        return {"type": "approve"}
+
+    if normalized in NATURAL_LEARNING_REJECTION_PHRASES or re.fullmatch(
+        r"(?:no|cancel|wrong|reject)(?:,?\s+(?:do not|don't)\s+(?:save|learn)\s+it)?",
+        normalized,
+    ):
+        return {"type": "reject"}
+
+    correction_patterns = (
+        r"\b(?:change|update|correct|replace|revise|set)\b",
+        r"\b(?:only|not|instead|should be|applies to|the correct)\b",
+        r"\blet me correct (?:it|this)\b",
+        r"\badd (?:that|this|a warning|a restriction)\b",
+    )
+    if any(re.search(pattern, normalized) for pattern in correction_patterns):
+        return {"type": "correct", "instruction": str(message_text or "").strip()}
+
+    return {"type": "none"}
+
+
+def detect_natural_learning_opportunity(message_text, selected_assistant=None):
+    """Detect strong reusable-knowledge signals without requiring a command."""
+    if not _natural_learning_role_allowed():
+        return {"detected": False, "reason": "external_role"}
+
+    normalized = _normalize_learning_reply(message_text)
+    if not normalized or normalized.endswith("?"):
+        return {"detected": False, "reason": "question_or_empty"}
+
+    # Avoid temporary/private/live operational data and casual confirmations.
+    if re.search(r"\b(?:order|tracking|shipment|customer email|phone number)\b", normalized):
+        return {"detected": False, "reason": "private_or_live_data"}
+
+    strong_patterns = (
+        r"\bthis (?:worked|fixed it|is confirmed|is correct)\b",
+        r"\b(?:we|customer|technician) (?:fixed|confirmed|tested)\b",
+        r"\b(?:the )?(?:fix|solution|correct harness|correct canbus|correct sku) (?:was|is)\b",
+        r"\b(?:confirmed fix|confirmed solution|tested and working)\b",
+        r"\b(?:new|updated|approved) (?:dealer|sales|pricing|return|warranty|shipping) (?:policy|rule)\b",
+        r"\bstarting (?:next|this) (?:month|week|year)\b.*\b(?:discount|dealer|policy|promotion)\b",
+        r"\b(?:approved|official) (?:caption|wording|claim|brand|marketing|visual)\b",
+        r"\bfor (?:instagram|facebook|google ads|email|packaging)\b.*\b(?:keep|use|avoid|tone|style)\b",
+        r"\b(?:remember|save|learn|use) this\b",
+    )
+    detected = any(re.search(pattern, normalized) for pattern in strong_patterns)
+    return {
+        "detected": bool(detected),
+        "reason": "strong_signal" if detected else "insufficient_signal",
+    }
+
+
+def _candidate_quality_scores(candidate):
+    confidence = int(candidate.get("confidence_score") or 0)
+    completeness = int(candidate.get("completeness_score") or 0)
+    reliability = 100 if candidate.get("staff_confirmed") else 75
+    consistency = 0 if candidate.get("contradiction_detected") else 95
+    human_confirmation = 100 if candidate.get("staff_confirmed") else 60
+    overall = round(
+        confidence * 0.25
+        + completeness * 0.25
+        + reliability * 0.20
+        + consistency * 0.20
+        + human_confirmation * 0.10
+    )
+    status = (
+        "Approval blocked — contradiction found"
+        if candidate.get("contradiction_detected")
+        else "Ready to approve" if overall >= 90
+        else "Review recommended" if overall >= 75
+        else "Missing information"
+    )
+    return {
+        "confidence": confidence,
+        "completeness": completeness,
+        "source_reliability": reliability,
+        "consistency": consistency,
+        "human_confirmation": human_confirmation,
+        "overall": overall,
+        "status": status,
+    }
+
+
+def _structured_identity_key(candidate, selected_assistant):
+    """Create a deterministic department-specific identity for duplicate checks."""
+    assistant_label = clean_assistant_label(selected_assistant).lower()
+    analytics = candidate.get("analytics_payload") or {}
+    record_type = normalize_text_for_match(candidate.get("record_type") or "general")
+    product = normalize_text_for_match(analytics.get("product") or "")
+    vehicle = normalize_text_for_match(candidate.get("vehicle") or "")
+    issue = normalize_text_for_match(candidate.get("issue") or "")
+    year = normalize_text_for_match(analytics.get("year") or "")
+
+    if "technical" in assistant_label:
+        identity = [record_type, product, vehicle, year, issue]
+    elif "marketing" in assistant_label:
+        identity = [record_type, product, issue]
+    else:
+        identity = [record_type, product, issue, year]
+    return "|".join(part for part in identity if part)
+
+
+def classify_structured_duplicate(candidate, selected_assistant):
+    """Return new/exact/related/contradiction without automatically merging."""
+    duplicate_row, score = find_duplicate_learned_knowledge(candidate, selected_assistant)
+    if not duplicate_row:
+        return {"outcome": "new", "score": round(score, 3), "row": None}
+
+    old_solution = normalize_text_for_match(
+        duplicate_row.get("solution") or duplicate_row.get("approved_answer") or ""
+    )
+    new_solution = normalize_text_for_match(candidate.get("solution") or "")
+    old_vehicle = normalize_text_for_match(duplicate_row.get("vehicle") or "")
+    new_vehicle = normalize_text_for_match(candidate.get("vehicle") or "")
+
+    exact = score >= 0.95 and old_solution == new_solution
+    contradiction_terms = ("only", "not", "instead", "changed", "correct", "revised")
+    material_difference = old_solution and new_solution and old_solution != new_solution
+    correction_language = any(term in new_solution for term in contradiction_terms)
+    same_identity = bool(old_vehicle and new_vehicle and (
+        old_vehicle in new_vehicle or new_vehicle in old_vehicle
+    ))
+
+    if exact:
+        outcome = "exact_duplicate"
+    elif material_difference and same_identity and correction_language:
+        outcome = "contradiction"
+    else:
+        outcome = "related"
+    return {"outcome": outcome, "score": round(score, 3), "row": duplicate_row}
+
+
+def build_learning_preview(candidate, selected_assistant, duplicate_result=None):
+    """Create a concise professional proposal visible in the normal chat body."""
+    profile = _professional_learning_profile(selected_assistant)
+    quality = candidate.get("quality_scores") or _candidate_quality_scores(candidate)
+    duplicate_result = duplicate_result or {"outcome": "new", "score": 0}
+    analytics = candidate.get("analytics_payload") or {}
+
+    lines = [
+        f"**Potential {profile['department']} Knowledge Detected**",
+        "",
+        f"**Record type:** {str(candidate.get('record_type') or 'general_knowledge').replace('_', ' ').title()}",
+        f"**Title:** {candidate.get('issue') or 'Reusable knowledge'}",
+    ]
+    if candidate.get("vehicle"):
+        lines.append(f"**Vehicle / product:** {candidate.get('vehicle')}")
+    if analytics.get("product"):
+        lines.append(f"**Product / SKU:** {analytics.get('product')}")
+    lines.extend([
+        f"**Confidence:** {quality.get('confidence', 0)}%",
+        f"**Completeness:** {quality.get('completeness', 0)}%",
+        f"**Knowledge quality:** {quality.get('overall', 0)}% — {quality.get('status')}",
+        f"**Duplicate check:** {str(duplicate_result.get('outcome') or 'new').replace('_', ' ').title()}",
+    ])
+
+    solution = str(candidate.get("solution") or "").strip()
+    if solution:
+        lines.extend(["", "**Proposed reusable knowledge**", solution[:3500]])
+
+    if candidate.get("contradiction_detected") or duplicate_result.get("outcome") == "contradiction":
+        lines.extend([
+            "",
+            "⚠️ **Review required:** A possible contradiction was detected. The record will not be activated until it is explicitly approved or corrected.",
+        ])
+
+    lines.extend([
+        "",
+        f"Save this to **{profile['department']} Knowledge**?",
+        "Reply **Yes**, **Save it**, or **Approved**. You can also correct any field naturally, or reply **No** to cancel.",
+    ])
+    return "\n".join(lines)
+
+
+def _append_learning_system_message(content):
+    """Append and persist a learning proposal/confirmation like a normal AI message."""
+    safe_content = str(content or "").strip()
+    if not safe_content:
+        return
+    st.session_state.messages.append({"role": "assistant", "content": safe_content})
+    if history_is_enabled() and st.session_state.get("conversation_id"):
+        try:
+            save_message(st.session_state.conversation_id, "assistant", safe_content)
+        except Exception:
+            pass
+
+
+def prepare_pending_learning(
+    question,
+    answer,
+    selected_assistant,
+    *,
+    explicit_learning=False,
+    learning_context="",
+    learning_attachments=None,
+):
+    """Extract, score and propose knowledge; never silently save it."""
+    if not _natural_learning_role_allowed():
+        return None
+    if selected_assistant in {"⚙️ Admin Panel", "🎨 Graphic Marketing"}:
+        return None
+
+    explicit_learning = bool(explicit_learning)
+    natural = detect_natural_learning_opportunity(question, selected_assistant)
+    staff_confirmed = detect_staff_confirmed_solution(question) or explicit_learning or natural.get("detected")
+    if not explicit_learning and not natural.get("detected"):
+        return None
+
+    context = str(learning_context or "").strip() or recent_learning_conversation_context(max_messages=8)
+    candidate = extract_learning_candidate(
+        question,
+        answer,
+        selected_assistant,
+        staff_confirmed=staff_confirmed,
+        conversation_context=context,
+        explicit_requested=explicit_learning,
+    )
+    if not candidate.get("should_learn"):
+        return None
+
+    candidate["quality_scores"] = _candidate_quality_scores(candidate)
+    candidate["identity_key"] = _structured_identity_key(candidate, selected_assistant)
+    duplicate_result = classify_structured_duplicate(candidate, selected_assistant)
+
+    pending = {
+        "workspace": str(selected_assistant or ""),
+        "conversation_id": st.session_state.get("conversation_id"),
+        "created_by": st.session_state.get("username"),
+        "created_at": now_iso(),
+        "question": redact_learning_private_data(question),
+        "answer": redact_learning_private_data(answer),
+        "candidate": candidate,
+        "duplicate_result": duplicate_result,
+        "status": "awaiting_approval",
+        "explicit_learning": explicit_learning,
+        "revision_reason": "",
+        "attachments": list(learning_attachments or []),
+    }
+    st.session_state["pending_enterprise_learning"] = pending
+    preview = build_learning_preview(candidate, selected_assistant, duplicate_result)
+    _append_learning_system_message(preview)
+    return pending
+
+
+def _wait_for_vector_indexing(vector_store_id, file_id, timeout_seconds=20):
+    """Confirm vector indexing before a superseded vector is removed."""
+    deadline = time.time() + max(1, int(timeout_seconds or 20))
+    last_status = "in_progress"
+    while time.time() < deadline:
+        try:
+            item = client.vector_stores.files.retrieve(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            last_status = str(getattr(item, "status", "") or "").lower()
+            if last_status == "completed":
+                return True, last_status
+            if last_status in {"failed", "cancelled"}:
+                return False, last_status
+        except Exception:
+            # Compatibility fallback: inspect the vector-store file list when the
+            # installed SDK does not expose files.retrieve(). Never report a false
+            # completed status merely because status inspection failed.
+            try:
+                listing = client.vector_stores.files.list(
+                    vector_store_id=vector_store_id,
+                    limit=100,
+                )
+                items = getattr(listing, "data", None) or []
+                match = next(
+                    (row for row in items if str(getattr(row, "file_id", "") or getattr(row, "id", "")) == str(file_id)),
+                    None,
+                )
+                if match is not None:
+                    last_status = str(getattr(match, "status", "") or "").lower()
+                    if last_status == "completed":
+                        return True, last_status
+                    if last_status in {"failed", "cancelled"}:
+                        return False, last_status
+            except Exception:
+                last_status = "status_unavailable"
+        time.sleep(0.75)
+    return False, last_status or "timeout"
+
+
+def _record_version_snapshot(existing_row, candidate, new_file_id, reason):
+    """Best-effort version history when the optional enterprise table exists."""
+    columns = set(get_table_columns("knowledge_versions"))
+    if not columns or not existing_row:
+        return None
+    current_version = int(existing_row.get("version_number") or 1)
+    payload = {
+        "knowledge_record_id": str(existing_row.get("id")),
+        "version_number": current_version,
+        "structured_data": {
+            "vehicle": existing_row.get("vehicle"),
+            "issue": existing_row.get("issue"),
+            "solution": existing_row.get("solution") or existing_row.get("approved_answer"),
+            "keywords": existing_row.get("keywords"),
+        },
+        "changed_fields": {"proposed": candidate},
+        "change_reason": reason or "Approved natural-learning update",
+        "approved_by": st.session_state.get("username"),
+        "approved_at": now_iso(),
+        "previous_openai_file_id": existing_row.get("openai_file_id"),
+        "new_openai_file_id": new_file_id,
+        "created_at": now_iso(),
+    }
+    try:
+        result = safe_insert_row("knowledge_versions", payload)
+        return (result.data or [None])[0]
+    except Exception:
+        return None
+
+
+def _record_learning_evidence(record_id, version_number, attachments):
+    """Best-effort attachment evidence metadata for the optional enterprise table."""
+    if not record_id or not attachments:
+        return 0
+    columns = set(get_table_columns("knowledge_evidence"))
+    if not columns:
+        return 0
+    saved = 0
+    for item in attachments:
+        if not isinstance(item, dict):
+            continue
+        payload = {
+            "knowledge_record_id": str(record_id),
+            "version_number": int(version_number or 1),
+            "source_type": "chat_attachment",
+            "source_name": item.get("file_name"),
+            "source_reference": item.get("source_conversation_id"),
+            "photo_number": item.get("photo_number"),
+            "caption": item.get("caption"),
+            "original_file_reference": item.get("file_name"),
+            "evidence_data": {
+                "mime_type": item.get("mime_type"),
+                "file_name": item.get("file_name"),
+            },
+            "created_at": now_iso(),
+        }
+        try:
+            safe_insert_row("knowledge_evidence", payload)
+            saved += 1
+        except Exception:
+            continue
+    return saved
+
+
+def save_approved_learning_candidate(pending):
+    """Commit one approved pending record with safe vector replacement."""
+    candidate = dict((pending or {}).get("candidate") or {})
+    if (pending or {}).get("attachments"):
+        candidate["attachments"] = list((pending or {}).get("attachments") or [])
+    selected_assistant = str((pending or {}).get("workspace") or "")
+    if not candidate or not selected_assistant:
+        raise RuntimeError("The pending learning record is incomplete.")
+
+    duplicate_result = dict((pending or {}).get("duplicate_result") or {})
+    duplicate_row = duplicate_result.get("row")
+    vector_store_id = get_learning_vector_store_id(selected_assistant)
+    source_type = "approved_natural_learning"
+    safe_question = redact_learning_private_data((pending or {}).get("question"))
+    safe_answer = redact_learning_private_data((pending or {}).get("answer"))
+    quality = candidate.get("quality_scores") or _candidate_quality_scores(candidate)
+
+    if duplicate_result.get("outcome") == "exact_duplicate" and duplicate_row:
+        # Do not create another vector for an exact duplicate; count the confirmation.
+        update_payload = {
+            "times_seen": int(duplicate_row.get("times_seen") or 1) + 1,
+            "staff_confirmed": True,
+            "updated_at": now_iso(),
+        }
+        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
+        return {"mode": "duplicate_skipped", "record_id": duplicate_row["id"], "indexed": True}
+
+    # A merely related record is not an update. Keeping it separate prevents
+    # distinct products, vehicles, policies, or fixes from being merged and
+    # overwriting valid existing knowledge. Only an explicitly classified
+    # contradiction/superseding correction may replace an existing record.
+    if duplicate_row and duplicate_result.get("outcome") == "contradiction":
+        improved = improve_existing_solution(duplicate_row, candidate)
+        record_for_file = {
+            "assistant": clean_assistant_label(selected_assistant),
+            "record_type": candidate.get("record_type") or duplicate_row.get("record_type") or "general_knowledge",
+            "vehicle": improved["vehicle"],
+            "issue": improved["issue"],
+            "solution": improved["solution"],
+            "keywords": improved["keywords"],
+            "confidence_score": max(int(improved.get("confidence_score") or 0), int(quality.get("overall") or 0)),
+            "times_seen": improved["times_seen"],
+            "source_question": safe_question,
+            "source_answer": safe_answer,
+            "staff_confirmed": True,
+            "source_type": source_type,
+        }
+        new_file_id = upload_learned_record_to_vector_store(record_for_file, vector_store_id)
+        indexed, index_status = _wait_for_vector_indexing(vector_store_id, new_file_id)
+        if not indexed:
+            raise RuntimeError(f"The new knowledge file was uploaded but indexing did not complete ({index_status}). The previous version was preserved.")
+
+        old_file_id = duplicate_row.get("openai_file_id")
+        _record_version_snapshot(
+            duplicate_row,
+            candidate,
+            new_file_id,
+            (pending or {}).get("revision_reason") or "Approved knowledge update",
+        )
+        update_payload = {
+            "username": st.session_state.get("username"),
+            "record_type": record_for_file["record_type"],
+            "assistant": clean_assistant_label(selected_assistant),
+            "vehicle": record_for_file["vehicle"],
+            "issue": record_for_file["issue"],
+            "solution": record_for_file["solution"],
+            "approved_answer": record_for_file["solution"],
+            "question": safe_question,
+            "keywords": record_for_file["keywords"],
+            "source_question": safe_question,
+            "source_answer": safe_answer,
+            "source_conversation_id": st.session_state.get("conversation_id"),
+            "confidence_score": record_for_file["confidence_score"],
+            "times_seen": record_for_file["times_seen"],
+            "openai_file_id": new_file_id,
+            "vector_store_id": vector_store_id,
+            "synced": True,
+            "embedding_status": index_status,
+            "source_type": source_type,
+            "staff_confirmed": True,
+            "approval_status": "approved",
+            "approved_by": st.session_state.get("username"),
+            "approved_at": now_iso(),
+            "identity_key": candidate.get("identity_key"),
+            "quality_scores": quality,
+            "structured_data": candidate,
+            "version_number": int(duplicate_row.get("version_number") or 1) + 1,
+            "updated_at": now_iso(),
+        }
+        safe_update_row("learned_knowledge", update_payload, duplicate_row["id"])
+        _record_learning_evidence(
+            duplicate_row["id"],
+            update_payload["version_number"],
+            (pending or {}).get("attachments") or [],
+        )
+        if old_file_id and old_file_id != new_file_id:
+            remove_old_learned_vector_file(
+                duplicate_row.get("vector_store_id") or vector_store_id,
+                old_file_id,
+            )
+        return {
+            "mode": "updated",
+            "record_id": duplicate_row["id"],
+            "file_id": new_file_id,
+            "indexed": True,
+            "version": update_payload["version_number"],
+        }
+
+    new_record = {
+        "username": st.session_state.get("username"),
+        "record_type": candidate.get("record_type") or "general_knowledge",
+        "assistant": clean_assistant_label(selected_assistant),
+        "vehicle": candidate.get("vehicle") or "",
+        "issue": candidate.get("issue") or "Learned Knowledge",
+        "solution": candidate.get("solution") or "",
+        "approved_answer": candidate.get("solution") or "",
+        "question": safe_question,
+        "keywords": candidate.get("keywords") or "",
+        "source_question": safe_question,
+        "source_answer": safe_answer,
+        "source_conversation_id": st.session_state.get("conversation_id"),
+        "confidence_score": int(quality.get("overall") or candidate.get("confidence_score") or 0),
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": vector_store_id,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": source_type,
+        "staff_confirmed": True,
+        "approval_status": "approved",
+        "approved_by": st.session_state.get("username"),
+        "approved_at": now_iso(),
+        "identity_key": candidate.get("identity_key"),
+        "quality_scores": quality,
+        "structured_data": candidate,
+        "version_number": 1,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    new_file_id = upload_learned_record_to_vector_store(new_record, vector_store_id)
+    indexed, index_status = _wait_for_vector_indexing(vector_store_id, new_file_id)
+    if not indexed:
+        try:
+            remove_old_learned_vector_file(vector_store_id, new_file_id)
+        except Exception:
+            pass
+        raise RuntimeError(f"Knowledge indexing did not complete ({index_status}); nothing was activated.")
+    new_record["openai_file_id"] = new_file_id
+    new_record["synced"] = True
+    new_record["embedding_status"] = index_status
+    result = safe_insert_row("learned_knowledge", new_record)
+    if not result.data:
+        remove_old_learned_vector_file(vector_store_id, new_file_id)
+        raise RuntimeError("Learning record was not saved.")
+    _record_learning_evidence(
+        result.data[0]["id"],
+        1,
+        (pending or {}).get("attachments") or [],
+    )
+    return {
+        "mode": "created",
+        "record_id": result.data[0]["id"],
+        "file_id": new_file_id,
+        "indexed": True,
+        "version": 1,
+    }
+
+
+def revise_pending_learning(pending, instruction):
+    """Apply a natural-language correction to a pending proposal without saving it."""
+    candidate = dict((pending or {}).get("candidate") or {})
+    prompt = f"""
+You are AutoTecPro's internal knowledge editor.
+Apply the staff correction to the pending record. Preserve every unaffected fact.
+Return ONLY valid JSON using the same keys as the pending record.
+Never invent missing facts.
+
+PENDING RECORD:
+{json.dumps(candidate, ensure_ascii=False, default=str)}
+
+STAFF CORRECTION:
+{redact_learning_private_data(instruction)}
+"""
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Return only valid JSON. No markdown.",
+            input=prompt,
+        )
+        revised = extract_json_object(response.output_text)
+    except Exception:
+        revised = {}
+    if not isinstance(revised, dict) or not revised:
+        raise RuntimeError("The correction could not be applied. Please state the exact field and value.")
+
+    # Preserve runtime-only fields and recalculate governance metadata.
+    for key in ("analytics_payload", "staff_confirmed"):
+        if key not in revised and key in candidate:
+            revised[key] = candidate[key]
+    revised["quality_scores"] = _candidate_quality_scores(revised)
+    revised["identity_key"] = _structured_identity_key(revised, pending.get("workspace"))
+    duplicate_result = classify_structured_duplicate(revised, pending.get("workspace"))
+    updated = dict(pending)
+    updated["candidate"] = revised
+    updated["duplicate_result"] = duplicate_result
+    updated["revision_reason"] = str(instruction or "").strip()
+    updated["status"] = "awaiting_approval"
+    st.session_state["pending_enterprise_learning"] = updated
+    return updated
+
+
+def handle_pending_learning_reply(message_text):
+    """Handle approval/rejection/correction before any normal AI or live routing."""
+    pending = st.session_state.get("pending_enterprise_learning")
+    if not isinstance(pending, dict):
+        return None
+
+    # Do not let a proposal leak into another workspace or conversation.
+    if pending.get("workspace") != st.session_state.get("current_assistant"):
+        return None
+    pending_conversation = pending.get("conversation_id")
+    current_conversation = st.session_state.get("conversation_id")
+    if pending_conversation != current_conversation:
+        return None
+
+    reply = detect_pending_learning_reply(message_text)
+    reply_type = reply.get("type")
+    if reply_type == "none":
+        return None
+
+    if reply_type == "reject":
+        st.session_state.pop("pending_enterprise_learning", None)
+        return {
+            "handled": True,
+            "message": "Knowledge proposal cancelled. Nothing was saved or indexed.",
+        }
+
+    if reply_type == "correct":
+        updated = revise_pending_learning(pending, reply.get("instruction"))
+        return {
+            "handled": True,
+            "message": build_learning_preview(
+                updated["candidate"],
+                updated["workspace"],
+                updated.get("duplicate_result"),
+            ),
+        }
+
+    if reply_type == "approve":
+        try:
+            result = save_approved_learning_candidate(pending)
+        except Exception as error:
+            # Preserve the proposal so the user can retry after a transient API or
+            # database failure. Returning a normal assistant message avoids taking
+            # down the entire Streamlit interaction.
+            return {
+                "handled": True,
+                "message": (
+                    "**Knowledge was not saved.**\n\n"
+                    f"{str(error)}\n\n"
+                    "The proposal is still pending. Resolve the connection or schema issue, "
+                    "then reply **Save it** again, or reply **No** to cancel."
+                ),
+            }
+        st.session_state.pop("pending_enterprise_learning", None)
+        profile = _professional_learning_profile(pending.get("workspace"))
+        mode = str(result.get("mode") or "saved").replace("_", " ").title()
+        version = result.get("version")
+        lines = [
+            f"**{profile['department']} Knowledge Saved**",
+            "",
+            f"**Result:** {mode}",
+            f"**Approved by:** {st.session_state.get('username') or 'Authorized staff'}",
+            "**Supabase master record:** Saved",
+            "**Vector indexing:** Confirmed",
+        ]
+        if version:
+            lines.append(f"**Version:** {version}")
+        if result.get("mode") == "updated":
+            lines.append("**Previous version:** Preserved in revision history when the enterprise version table is available")
+        return {"handled": True, "message": "\n".join(lines)}
+
+    return None
+
 def queue_ai_postprocess(
     question,
     answer,
@@ -17153,6 +17824,7 @@ def queue_ai_postprocess(
     is_structured_graphic_tool=False,
     explicit_learning=False,
     learning_context="",
+    learning_attachments=None,
 ):
     """Queue non-visible learning and analytics for the next Streamlit run."""
     live_type = str(
@@ -17198,13 +17870,17 @@ def queue_ai_postprocess(
         ),
         "explicit_learning": bool(explicit_learning),
         "learning_context": str(learning_context or ""),
+        "learning_attachments": list(learning_attachments or []),
     }
 
 
 def process_pending_ai_postprocess():
     """
-    Process one queued maintenance job after the answer has already been saved
-    and displayed. Failures remain non-blocking.
+    Process analytics and detect learning opportunities after the visible answer.
+
+    Permanent company knowledge is never saved silently. Strong or explicit
+    learning signals create a structured proposal in the chat and wait for a
+    natural approval reply.
     """
     job = st.session_state.pop("pending_ai_postprocess", None)
     if not isinstance(job, dict):
@@ -17216,44 +17892,43 @@ def process_pending_ai_postprocess():
     if fingerprint:
         st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
-    learning_result = None
+    proposal = None
     if (
         not job.get("is_graphic_generation")
         and not job.get("is_structured_marketing_tool")
         and not job.get("is_structured_graphic_tool")
     ):
         try:
-            learning_result = auto_learn_from_latest_answer(
+            proposal = prepare_pending_learning(
                 job.get("question"),
                 job.get("answer"),
                 job.get("selected_assistant"),
-                detected_live_request=job.get("detected_live_request"),
                 explicit_learning=bool(job.get("explicit_learning")),
                 learning_context=job.get("learning_context"),
+                learning_attachments=job.get("learning_attachments"),
             )
-            if learning_result and learning_result.get("learned"):
-                mode = learning_result.get("mode", "saved")
-                if learning_result.get("explicit_learning"):
-                    message = f"Knowledge saved permanently ({mode})."
-                elif learning_result.get("staff_confirmed"):
-                    message = f"Confirmed staff solution learned ({mode})."
-                else:
-                    message = f"AI learned from this case ({mode})."
-                st.toast(message, icon="🧠")
-        except Exception:
-            learning_result = None
+        except Exception as error:
+            print(
+                "[ENTERPRISE LEARNING PROPOSAL ERROR] "
+                f"{type(error).__name__}: {str(error)[:300]}",
+                flush=True,
+            )
 
     try:
         log_ai_analytics(
             job.get("question"),
             job.get("answer"),
             job.get("selected_assistant"),
-            learning_result,
+            None,
             response_time=job.get("response_time"),
             tokens_used=job.get("tokens_used"),
         )
     except Exception:
         pass
+
+    if proposal:
+        st.session_state.scroll_to_bottom = True
+        st.rerun()
 
 
 
@@ -24459,6 +25134,37 @@ else:
 
         render_chat_message("user", user_display, uploaded_image_previews)
 
+        # Enterprise learning approval/correction has priority over WooCommerce,
+        # live tools, document generation, and ordinary AI routing.
+        pending_learning_result = handle_pending_learning_reply(interaction_prompt)
+        if pending_learning_result and pending_learning_result.get("handled"):
+            learning_reply = str(pending_learning_result.get("message") or "").strip()
+            render_chat_message(
+                "assistant",
+                learning_reply,
+                message_index=len(st.session_state.messages),
+            )
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": learning_reply,
+            })
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        learning_reply,
+                    )
+                except Exception as error:
+                    st.warning(f"Learning confirmation was not saved to history: {error}")
+            st.session_state.chat_file_uploader_generation += 1
+            clear_managed_uploads(
+                "chat_managed_uploads",
+                "chat_managed_upload_generation",
+            )
+            st.session_state.scroll_to_bottom = True
+            st.rerun()
+
         generated_images = []
         generated_documents = []
         has_uploaded_images = any(
@@ -24897,6 +25603,15 @@ else:
                 is_structured_graphic_tool=is_structured_graphic_tool,
                 explicit_learning=explicit_learning_requested,
                 learning_context=learning_context_snapshot,
+                learning_attachments=[
+                    {
+                        "file_name": str(getattr(item, "name", "") or ""),
+                        "mime_type": str(getattr(item, "type", "") or ""),
+                        "photo_number": index + 1,
+                        "source_conversation_id": st.session_state.get("conversation_id"),
+                    }
+                    for index, item in enumerate(effective_uploaded_files)
+                ],
             )
 
         # Clear uploaded files after this message is completed.
