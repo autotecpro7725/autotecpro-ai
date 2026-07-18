@@ -24079,54 +24079,99 @@ def _product_library_product_score(product, prompt):
     return score
 
 
+def _product_library_normalize_code(value):
+    """Normalize human-entered/stored product codes for reliable matching."""
+    clean = str(value or "").strip().casefold()
+    clean = clean.replace("–", "-").replace("—", "-").replace("−", "-")
+    return re.sub(r"[^a-z0-9]+", "", clean)
+
+
 def _product_library_chat_lookup(prompt, max_images=6):
-    """Resolve a product-photo request and return verified product context plus images."""
+    """
+    Resolve a product-photo request and return verified product context plus images.
+
+    Database reads use the privileged server client because Product Library chat
+    lookup is an internal server-side operation. Asset matching is deliberately
+    performed in Python after a bounded fetch so duplicate products, whitespace,
+    dash variants, legacy product_id values, and PostgREST equality differences
+    cannot hide otherwise valid Product Library images.
+    """
     if not _product_library_prompt_requests_images(prompt):
         return None
+
+    database = get_supabase_admin_client()
+
     products = (
-        supabase.table("product_library")
-        .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active")
-        .eq("active", True)
-        .limit(500)
+        database.table("product_library")
+        .select(
+            "id,product_code,product_name,vehicle_compatibility,"
+            "description,aliases,active,updated_at"
+        )
+        .limit(1000)
         .execute().data
         or []
     )
+
+    active_products = [
+        product for product in products
+        if product.get("active") is not False
+    ]
     ranked = sorted(
-        (( _product_library_product_score(product, prompt), product) for product in products),
-        key=lambda item: item[0],
+        (
+            (_product_library_product_score(product, prompt), product)
+            for product in active_products
+        ),
+        key=lambda item: (
+            item[0],
+            str(item[1].get("updated_at") or ""),
+        ),
         reverse=True,
     )
     if not ranked or ranked[0][0] < 20:
         return None
+
     product = ranked[0][1]
+    product_code = str(product.get("product_code") or "").strip()
+    normalized_code = _product_library_normalize_code(product_code)
+    product_id = str(product.get("id") or "").strip()
+
     asset_columns = (
         "id,product_id,product_code,asset_type,original_filename,"
         "optimized_filename,content_type,storage_bucket,storage_path,"
-        "storage_status,archive_web_url,created_at"
+        "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
     )
 
-    # Product code is the stable human-facing identifier and is also embedded
-    # in every Storage path. Query it first so chat lookup is not broken by an
-    # old, duplicated, or partially migrated product_id value.
-    assets = (
-        supabase.table("product_assets")
+    # Fetch a bounded set once and match locally. This is more reliable than
+    # relying on exact PostgREST equality for legacy rows and duplicate records.
+    all_assets = (
+        database.table("product_assets")
         .select(asset_columns)
-        .eq("product_code", product.get("product_code"))
         .order("created_at", desc=False)
+        .limit(5000)
         .execute().data
         or []
     )
 
-    # Compatibility fallback for older rows that may have only product_id.
-    if not assets and product.get("id"):
-        assets = (
-            supabase.table("product_assets")
-            .select(asset_columns)
-            .eq("product_id", product.get("id"))
-            .order("created_at", desc=False)
-            .execute().data
-            or []
+    def _asset_matches_product(asset):
+        asset_code = _product_library_normalize_code(
+            asset.get("product_code")
         )
+        asset_product_id = str(asset.get("product_id") or "").strip()
+        storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
+        path_root = _product_library_normalize_code(
+            storage_path.split("/", 1)[0] if storage_path else ""
+        )
+
+        return bool(
+            (normalized_code and asset_code == normalized_code)
+            or (product_id and asset_product_id == product_id)
+            or (normalized_code and path_root == normalized_code)
+        )
+
+    assets = [
+        asset for asset in all_assets
+        if _asset_matches_product(asset)
+    ]
 
     def _is_display_image_asset(asset):
         storage_path = str(asset.get("storage_path") or "").strip()
@@ -24139,18 +24184,17 @@ def _product_library_chat_lookup(prompt, max_images=6):
             or Path(storage_path).name
             or ""
         ).strip().lower()
-
-        has_image_type = content_type.startswith("image/")
-        has_image_extension = optimized_name.endswith(
-            (".jpg", ".jpeg", ".png", ".webp")
-        )
         storage_status = str(
             asset.get("storage_status") or ""
         ).strip().lower()
 
-        # Accept legacy blank status values when a valid Storage path exists.
         return (
-            (has_image_type or has_image_extension)
+            (
+                content_type.startswith("image/")
+                or optimized_name.endswith(
+                    (".jpg", ".jpeg", ".png", ".webp")
+                )
+            )
             and storage_status in {"", "available"}
         )
 
@@ -24158,15 +24202,27 @@ def _product_library_chat_lookup(prompt, max_images=6):
         asset for asset in assets
         if _is_display_image_asset(asset)
     ]
-    preferred = [asset for asset in image_assets if asset.get("asset_type") in {"parts_photo", "product_photo"}]
+
+    preferred_types = {
+        "parts_photo",
+        "product_photo",
+        "parts",
+        "photo",
+        "product_photos",
+    }
+    preferred = [
+        asset for asset in image_assets
+        if str(asset.get("asset_type") or "").strip().lower()
+        in preferred_types
+    ]
     selected = (preferred or image_assets)[:max(1, int(max_images or 6))]
+
     images = []
     for asset in selected:
         image_source = _product_library_asset_data_url(asset)
 
-        # The Manage Products page already proves that signed URLs work for the
-        # same private objects. Use that known-good path when the deployed
-        # supabase-py download response cannot be converted into bytes.
+        # The Manage Products page already uses this signed URL successfully,
+        # so use it as a direct browser-display fallback.
         if not image_source:
             image_source = _product_library_signed_url(
                 asset.get("storage_path"),
@@ -24189,13 +24245,19 @@ def _product_library_chat_lookup(prompt, max_images=6):
 
     diagnostic_log(
         "product_library_chat_lookup_result",
-        product_code=product.get("product_code"),
-        assets_found=len(assets),
+        product_code=product_code,
+        normalized_code=normalized_code,
+        all_assets_found=len(all_assets),
+        matched_assets_found=len(assets),
         image_assets_found=len(image_assets),
         images_loaded=len(images),
     )
-    return {"product": product, "assets": selected, "images": images}
 
+    return {
+        "product": product,
+        "assets": selected,
+        "images": images,
+    }
 
 def _product_library_chat_context(lookup):
     if not isinstance(lookup, dict) or not lookup.get("product"):
@@ -26247,7 +26309,7 @@ else:
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
-        assistant_images_to_save = list(product_library_images or []) + list(generated_images or [])
+        assistant_images_to_save = list(generated_images or [])
         assistant_content_to_save = (
             answer
             + serialize_documents_marker(generated_documents)
@@ -26269,13 +26331,32 @@ else:
                     message_index=len(st.session_state.messages),
                 )
             if product_library_images:
-                st.markdown(
-                    render_image_previews(product_library_images),
-                    unsafe_allow_html=True,
-                )
-            if generated_images:
+                # Use Streamlit's native image renderer for Product Library
+                # photos. It handles both data URLs and signed HTTPS URLs and
+                # avoids browser/CSP differences in custom HTML image markup.
+                for library_image in product_library_images:
+                    image_source = str(
+                        library_image.get("data_url")
+                        or library_image.get("url")
+                        or ""
+                    ).strip()
+                    if image_source:
+                        st.image(
+                            image_source,
+                            caption=str(
+                                library_image.get("name")
+                                or "Product Library photo"
+                            ),
+                            use_container_width=True,
+                        )
+
+            non_library_generated_images = [
+                image for image in generated_images
+                if str(image.get("source") or "") != "product_library"
+            ]
+            if non_library_generated_images:
                 render_generated_image_actions(
-                    generated_images,
+                    non_library_generated_images,
                     message_index=len(st.session_state.messages),
                 )
 
