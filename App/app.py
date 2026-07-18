@@ -24099,30 +24099,64 @@ def _product_library_chat_lookup(prompt, max_images=6):
     if not ranked or ranked[0][0] < 20:
         return None
     product = ranked[0][1]
+    asset_columns = (
+        "id,product_id,product_code,asset_type,original_filename,"
+        "optimized_filename,content_type,storage_bucket,storage_path,"
+        "storage_status,archive_web_url,created_at"
+    )
+
+    # Product code is the stable human-facing identifier and is also embedded
+    # in every Storage path. Query it first so chat lookup is not broken by an
+    # old, duplicated, or partially migrated product_id value.
     assets = (
         supabase.table("product_assets")
-        .select("id,product_id,product_code,asset_type,original_filename,optimized_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
-        .eq("product_id", product.get("id"))
+        .select(asset_columns)
+        .eq("product_code", product.get("product_code"))
         .order("created_at", desc=False)
         .execute().data
         or []
     )
-    # Compatibility fallback for legacy or partially migrated records where
-    # product_id was not populated but product_code is present.
-    if not assets:
+
+    # Compatibility fallback for older rows that may have only product_id.
+    if not assets and product.get("id"):
         assets = (
             supabase.table("product_assets")
-            .select("id,product_id,product_code,asset_type,original_filename,optimized_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
-            .eq("product_code", product.get("product_code"))
+            .select(asset_columns)
+            .eq("product_id", product.get("id"))
             .order("created_at", desc=False)
             .execute().data
             or []
         )
+
+    def _is_display_image_asset(asset):
+        storage_path = str(asset.get("storage_path") or "").strip()
+        if not storage_path:
+            return False
+
+        content_type = str(asset.get("content_type") or "").strip().lower()
+        optimized_name = str(
+            asset.get("optimized_filename")
+            or Path(storage_path).name
+            or ""
+        ).strip().lower()
+
+        has_image_type = content_type.startswith("image/")
+        has_image_extension = optimized_name.endswith(
+            (".jpg", ".jpeg", ".png", ".webp")
+        )
+        storage_status = str(
+            asset.get("storage_status") or ""
+        ).strip().lower()
+
+        # Accept legacy blank status values when a valid Storage path exists.
+        return (
+            (has_image_type or has_image_extension)
+            and storage_status in {"", "available"}
+        )
+
     image_assets = [
         asset for asset in assets
-        if str(asset.get("content_type") or "").startswith("image/")
-        and asset.get("storage_path")
-        and asset.get("storage_status") == "available"
+        if _is_display_image_asset(asset)
     ]
     preferred = [asset for asset in image_assets if asset.get("asset_type") in {"parts_photo", "product_photo"}]
     selected = (preferred or image_assets)[:max(1, int(max_images or 6))]
