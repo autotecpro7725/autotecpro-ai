@@ -77,6 +77,23 @@ def get_http_session():
 client = get_openai_client(api_key)
 http_session = get_http_session()
 
+
+def diagnostic_log(event, **fields):
+    """Write compact, non-secret diagnostics to Streamlit Cloud logs only."""
+    try:
+        safe_fields = {}
+        for key, value in fields.items():
+            if value is None or isinstance(value, (bool, int, float)):
+                safe_fields[str(key)] = value
+            else:
+                text = re.sub(r"\s+", " ", str(value)).strip()
+                safe_fields[str(key)] = text[:300]
+        payload = json.dumps(safe_fields, ensure_ascii=False, default=str)
+        print(f"[ATP DIAGNOSTIC] {event} {payload}", flush=True)
+    except Exception:
+        # Diagnostics must never affect application behavior.
+        pass
+
 TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
 SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
 MARKETING_VECTOR_STORE_ID = "vs_6a55b9a2d1008191aa045f745fb489df"
@@ -9438,6 +9455,11 @@ def logout_user():
     except Exception:
         pass
 
+    diagnostic_log(
+        "logout_requested",
+        username=st.session_state.get("username"),
+        conversation_id=st.session_state.get("conversation_id"),
+    )
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
@@ -9646,6 +9668,10 @@ def login_screen():
 
 
 if "logged_in" not in st.session_state:
+    diagnostic_log(
+        "new_streamlit_session_initialized",
+        reason="logged_in key was absent from session_state",
+    )
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
@@ -17199,6 +17225,15 @@ def process_pending_ai_postprocess():
     if fingerprint:
         st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
+    postprocess_started_at = time.perf_counter()
+    diagnostic_log(
+        "ai_postprocess_started",
+        fingerprint=fingerprint[:12],
+        assistant=job.get("selected_assistant"),
+        conversation_id=st.session_state.get("conversation_id"),
+        logged_in=st.session_state.get("logged_in"),
+    )
+
     learning_result = None
     if (
         not job.get("is_graphic_generation")
@@ -17223,8 +17258,14 @@ def process_pending_ai_postprocess():
                 else:
                     message = f"AI learned from this case ({mode})."
                 st.toast(message, icon="🧠")
-        except Exception:
+        except Exception as error:
             learning_result = None
+            diagnostic_log(
+                "ai_postprocess_learning_failed",
+                error_type=type(error).__name__,
+                error=str(error),
+                fingerprint=fingerprint[:12],
+            )
 
     try:
         log_ai_analytics(
@@ -17235,8 +17276,20 @@ def process_pending_ai_postprocess():
             response_time=job.get("response_time"),
             tokens_used=job.get("tokens_used"),
         )
-    except Exception:
-        pass
+    except Exception as error:
+        diagnostic_log(
+            "ai_postprocess_analytics_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+            fingerprint=fingerprint[:12],
+        )
+
+    diagnostic_log(
+        "ai_postprocess_finished",
+        fingerprint=fingerprint[:12],
+        elapsed_seconds=round(time.perf_counter() - postprocess_started_at, 3),
+        logged_in=st.session_state.get("logged_in"),
+    )
 
 
 
@@ -17929,6 +17982,7 @@ def update_conversation_ai_title(
     if conversation_key in generated_ids:
         return
 
+    title_started_at = time.perf_counter()
     try:
         pending_ids = st.session_state.setdefault("auto_title_pending_ids", set())
         is_new_automatic_title = conversation_key in pending_ids
@@ -17989,9 +18043,20 @@ def update_conversation_ai_title(
             messages=False,
             username=st.session_state.get("username"),
         )
-    except Exception:
+        diagnostic_log(
+            "conversation_title_updated",
+            conversation_id=conversation_id,
+            elapsed_seconds=round(time.perf_counter() - title_started_at, 3),
+        )
+    except Exception as error:
         # Title generation must never interrupt the conversation.
-        pass
+        diagnostic_log(
+            "conversation_title_update_failed",
+            conversation_id=conversation_id,
+            error_type=type(error).__name__,
+            error=str(error),
+            elapsed_seconds=round(time.perf_counter() - title_started_at, 3),
+        )
 
 
 def get_conversation_storage_count(username, role=None):
@@ -18215,6 +18280,7 @@ def save_message(
     if not conversation_id:
         raise RuntimeError("Missing conversation_id. Message was not saved.")
 
+    save_started_at = time.perf_counter()
     supabase.table("messages").insert({
         "conversation_id": conversation_id,
         "role": role,
@@ -18238,6 +18304,13 @@ def save_message(
         messages=True,
         username=st.session_state.get("username"),
         conversation_id=conversation_id,
+    )
+    diagnostic_log(
+        "supabase_message_saved",
+        role=role,
+        conversation_id=conversation_id,
+        touched_conversation=should_touch,
+        elapsed_seconds=round(time.perf_counter() - save_started_at, 3),
     )
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
@@ -24886,6 +24959,18 @@ else:
         )
 
         st.session_state.scroll_to_bottom = True
+        diagnostic_log(
+            "ai_response_completed_before_rerun",
+            username=st.session_state.get("username"),
+            conversation_id=st.session_state.get("conversation_id"),
+            message_count=len(st.session_state.get("messages", [])),
+            logged_in=st.session_state.get("logged_in"),
+            response_time_seconds=round(float(response_time or 0), 3),
+            tokens_used=tokens_used,
+            queued_postprocess=bool(
+                st.session_state.get("pending_ai_postprocess")
+            ),
+        )
         st.rerun()
 
 # Process learning and analytics only after the completed answer has already
