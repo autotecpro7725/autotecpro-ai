@@ -23515,6 +23515,535 @@ def render_marketing_tools_panel():
     return None
 
 # ============================================================
+# Product Library (Admin-only)
+# ============================================================
+
+PRODUCT_LIBRARY_BUCKET = "product-images"
+PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
+PRODUCT_LIBRARY_DISPLAY_MAX_PX = 2200
+PRODUCT_LIBRARY_THUMB_MAX_PX = 560
+
+GOOGLE_DRIVE_CLIENT_ID = get_optional_secret("GOOGLE_DRIVE_CLIENT_ID")
+GOOGLE_DRIVE_CLIENT_SECRET = get_optional_secret("GOOGLE_DRIVE_CLIENT_SECRET")
+GOOGLE_DRIVE_REFRESH_TOKEN = get_optional_secret("GOOGLE_DRIVE_REFRESH_TOKEN")
+GOOGLE_DRIVE_ROOT_FOLDER_ID = get_optional_secret("GOOGLE_DRIVE_ROOT_FOLDER_ID")
+
+PRODUCT_ASSET_TYPES = [
+    "product_photo",
+    "parts_photo",
+    "wiring",
+    "installation",
+    "document",
+    "marketing",
+    "other",
+]
+
+PRODUCT_ASSET_LABELS = {
+    "product_photo": "Product Photos",
+    "parts_photo": "Parts Photos",
+    "wiring": "Wiring",
+    "installation": "Installation",
+    "document": "Documents",
+    "marketing": "Marketing",
+    "other": "Other",
+}
+
+
+def _product_library_clean_code(value):
+    clean = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "").strip())
+    return clean.strip("-._")[:80]
+
+
+def _product_library_safe_filename(value):
+    original = Path(str(value or "file")).name
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(original).stem).strip("-._")
+    suffix = re.sub(r"[^A-Za-z0-9.]", "", Path(original).suffix.lower())
+    return f"{stem or 'file'}{suffix}"[:180]
+
+
+def _product_library_google_configured():
+    return bool(
+        GOOGLE_DRIVE_CLIENT_ID
+        and GOOGLE_DRIVE_CLIENT_SECRET
+        and GOOGLE_DRIVE_REFRESH_TOKEN
+        and GOOGLE_DRIVE_ROOT_FOLDER_ID
+    )
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _product_library_google_access_token():
+    if not _product_library_google_configured():
+        raise RuntimeError(
+            "Google Drive is not configured. Add the Google Drive OAuth secrets "
+            "and root folder ID in Streamlit Secrets."
+        )
+    response = http_session.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": GOOGLE_DRIVE_CLIENT_ID,
+            "client_secret": GOOGLE_DRIVE_CLIENT_SECRET,
+            "refresh_token": GOOGLE_DRIVE_REFRESH_TOKEN,
+            "grant_type": "refresh_token",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        raise RuntimeError("Google OAuth did not return an access token.")
+    return token
+
+
+def _product_library_drive_headers():
+    return {"Authorization": f"Bearer {_product_library_google_access_token()}"}
+
+
+def _product_library_drive_find_folder(name, parent_id):
+    safe_name = str(name or "").replace("'", "\\'")
+    query = (
+        "mimeType='application/vnd.google-apps.folder' and trashed=false "
+        f"and name='{safe_name}' and '{parent_id}' in parents"
+    )
+    response = http_session.get(
+        "https://www.googleapis.com/drive/v3/files",
+        headers=_product_library_drive_headers(),
+        params={"q": query, "fields": "files(id,name,webViewLink)", "pageSize": 10},
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    files = payload.get("files") or []
+    return files[0] if files else None
+
+
+def _product_library_drive_create_folder(name, parent_id):
+    existing = _product_library_drive_find_folder(name, parent_id)
+    if existing:
+        return existing
+    response = http_session.post(
+        "https://www.googleapis.com/drive/v3/files",
+        headers={**_product_library_drive_headers(), "Content-Type": "application/json"},
+        json={
+            "name": str(name),
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [str(parent_id)],
+        },
+        params={"fields": "id,name,webViewLink"},
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    return safe_json_response(response)
+
+
+def _product_library_drive_upload_bytes(filename, content_type, data, parent_id):
+    boundary = f"atp_{int(time.time() * 1000)}_{hashlib.md5(filename.encode()).hexdigest()[:8]}"
+    metadata = json.dumps({"name": filename, "parents": [parent_id]}).encode("utf-8")
+    body = b"".join([
+        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encode(),
+        metadata,
+        b"\r\n",
+        f"--{boundary}\r\nContent-Type: {content_type or 'application/octet-stream'}\r\n\r\n".encode(),
+        data,
+        b"\r\n",
+        f"--{boundary}--\r\n".encode(),
+    ])
+    response = http_session.post(
+        "https://www.googleapis.com/upload/drive/v3/files",
+        headers={
+            **_product_library_drive_headers(),
+            "Content-Type": f"multipart/related; boundary={boundary}",
+        },
+        params={"uploadType": "multipart", "fields": "id,name,webViewLink,size,mimeType"},
+        data=body,
+        timeout=60,
+    )
+    return safe_json_response(response)
+
+
+def _product_library_test_drive_connection():
+    if not _product_library_google_configured():
+        return False, "Google Drive secrets are incomplete."
+    response = http_session.get(
+        f"https://www.googleapis.com/drive/v3/files/{quote(GOOGLE_DRIVE_ROOT_FOLDER_ID, safe='')}",
+        headers=_product_library_drive_headers(),
+        params={"fields": "id,name,mimeType,webViewLink"},
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    if payload.get("mimeType") != "application/vnd.google-apps.folder":
+        return False, "The configured root ID is not a Google Drive folder."
+    return True, f"Connected to Google Drive folder: {payload.get('name') or payload.get('id')}"
+
+
+def _product_library_optimize_image(data, filename, max_px, quality=88):
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable; image optimization cannot run.")
+    with Image.open(io.BytesIO(data)) as image:
+        image = ImageOps.exif_transpose(image)
+        resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS", 1)
+        image.thumbnail((max_px, max_px), resampling)
+        has_alpha = image.mode in {"RGBA", "LA"} or (
+            image.mode == "P" and "transparency" in image.info
+        )
+        output = io.BytesIO()
+        if has_alpha:
+            if image.mode != "RGBA":
+                image = image.convert("RGBA")
+            image.save(output, format="PNG", optimize=True)
+            extension = ".png"
+            content_type = "image/png"
+        else:
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image.save(output, format="JPEG", quality=quality, optimize=True, progressive=True)
+            extension = ".jpg"
+            content_type = "image/jpeg"
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(filename).stem).strip("-._") or "image"
+    return output.getvalue(), f"{stem}{extension}", content_type
+
+
+def _product_library_storage_upload(path, data, content_type):
+    bucket = supabase.storage.from_(PRODUCT_LIBRARY_BUCKET)
+    options = {"content-type": content_type, "upsert": "true"}
+    try:
+        return bucket.upload(path, data, file_options=options)
+    except TypeError:
+        return bucket.upload(path, data, options)
+
+
+def _product_library_signed_url(path, expires=3600):
+    if not path:
+        return ""
+    try:
+        payload = supabase.storage.from_(PRODUCT_LIBRARY_BUCKET).create_signed_url(path, expires)
+        if isinstance(payload, dict):
+            return str(payload.get("signedURL") or payload.get("signedUrl") or "")
+        data = getattr(payload, "data", None)
+        if isinstance(data, dict):
+            return str(data.get("signedURL") or data.get("signedUrl") or "")
+    except Exception:
+        return ""
+    return ""
+
+
+def _product_library_upsert_product(product_code, product_name, compatibility, description, aliases, active=True):
+    payload = {
+        "product_code": product_code,
+        "product_name": product_name,
+        "vehicle_compatibility": compatibility,
+        "description": description,
+        "aliases": aliases,
+        "active": bool(active),
+        "updated_by": str(st.session_state.get("username") or ""),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    existing = (
+        supabase.table("product_library")
+        .select("id")
+        .eq("product_code", product_code)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if existing:
+        result = (
+            supabase.table("product_library")
+            .update(payload)
+            .eq("id", existing[0]["id"])
+            .execute()
+        )
+        return (result.data or [existing[0]])[0]
+    result = supabase.table("product_library").insert(payload).execute()
+    return (result.data or [None])[0]
+
+
+def _product_library_upload_asset(product, asset_type, uploaded_file):
+    product_code = str(product.get("product_code") or "")
+    product_id = product.get("id")
+    filename = _product_library_safe_filename(uploaded_file.name)
+    original = uploaded_file.getvalue()
+    content_type = str(uploaded_file.type or "application/octet-stream")
+    if len(original) > PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES:
+        raise RuntimeError(f"{filename} exceeds the 20 MB Product Library limit.")
+
+    archive_status = "not_configured"
+    archive_file_id = ""
+    archive_web_url = ""
+    if _product_library_google_configured():
+        product_folder = _product_library_drive_create_folder(product_code, GOOGLE_DRIVE_ROOT_FOLDER_ID)
+        category_folder = _product_library_drive_create_folder(
+            PRODUCT_ASSET_LABELS.get(asset_type, "Other"), product_folder["id"]
+        )
+        drive_file = _product_library_drive_upload_bytes(
+            filename, content_type, original, category_folder["id"]
+        )
+        archive_status = "available"
+        archive_file_id = str(drive_file.get("id") or "")
+        archive_web_url = str(drive_file.get("webViewLink") or "")
+
+    optimized_filename = ""
+    optimized_bytes = 0
+    storage_path = ""
+    storage_status = "not_applicable"
+    if content_type.startswith("image/"):
+        optimized, optimized_filename, optimized_type = _product_library_optimize_image(
+            original, filename, PRODUCT_LIBRARY_DISPLAY_MAX_PX
+        )
+        digest = hashlib.sha256(original).hexdigest()[:16]
+        storage_path = f"{product_code}/{asset_type}/{digest}-{optimized_filename}"
+        _product_library_storage_upload(storage_path, optimized, optimized_type)
+        optimized_bytes = len(optimized)
+        storage_status = "available"
+
+    record = {
+        "product_id": product_id,
+        "product_code": product_code,
+        "asset_type": asset_type,
+        "original_filename": filename,
+        "original_bytes": len(original),
+        "optimized_filename": optimized_filename,
+        "optimized_bytes": optimized_bytes,
+        "content_type": content_type,
+        "storage_bucket": PRODUCT_LIBRARY_BUCKET if storage_path else "",
+        "storage_path": storage_path,
+        "storage_status": storage_status,
+        "archive_provider": "google_drive" if _product_library_google_configured() else "none",
+        "archive_status": archive_status,
+        "archive_file_id": archive_file_id,
+        "archive_web_url": archive_web_url,
+        "uploaded_by": str(st.session_state.get("username") or ""),
+    }
+    result = supabase.table("product_assets").insert(record).execute()
+    return (result.data or [record])[0]
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _product_library_dashboard_data():
+    products = supabase.table("product_library").select("id,active").execute().data or []
+    assets = (
+        supabase.table("product_assets")
+        .select("id,optimized_bytes,storage_status,archive_status")
+        .execute().data
+        or []
+    )
+    return {
+        "products": len(products),
+        "active": sum(1 for row in products if row.get("active")),
+        "assets": len(assets),
+        "optimized_bytes": sum(int(row.get("optimized_bytes") or 0) for row in assets),
+        "storage_missing": sum(1 for row in assets if row.get("storage_status") not in {"available", "not_applicable"}),
+        "archive_missing": sum(1 for row in assets if row.get("archive_status") != "available"),
+    }
+
+
+def _product_library_format_bytes(value):
+    size = float(value or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+
+
+def render_product_library_admin():
+    st.markdown("""
+    <style>
+    html body div[class*="st-key-atp_product_library_panel"] { color: var(--text-color) !important; }
+    html body div[class*="st-key-atp_product_library_panel"] p,
+    html body div[class*="st-key-atp_product_library_panel"] label,
+    html body div[class*="st-key-atp_product_library_panel"] span,
+    html body div[class*="st-key-atp_product_library_panel"] h1,
+    html body div[class*="st-key-atp_product_library_panel"] h2,
+    html body div[class*="st-key-atp_product_library_panel"] h3,
+    html body div[class*="st-key-atp_product_library_panel"] h4 { color: inherit !important; }
+    html body div[class*="st-key-atp_product_library_panel"] img { max-width: 100% !important; height: auto !important; }
+    html body div[class*="st-key-atp_product_library_panel"] [data-testid="stMetric"] {
+        border: 1px solid rgba(128,128,128,.22); border-radius: 12px; padding: 12px 14px; min-height: 104px;
+    }
+    @media (max-width: 768px) {
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .55rem !important; }
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="column"] { min-width: 100% !important; width: 100% !important; flex: 1 1 100% !important; }
+        html body div[class*="st-key-atp_product_library_panel"] .stButton button,
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="stDownloadButton"] button { width: 100% !important; }
+        html body div[class*="st-key-atp_product_library_panel"] input,
+        html body div[class*="st-key-atp_product_library_panel"] textarea,
+        html body div[class*="st-key-atp_product_library_panel"] [data-baseweb="select"] * {
+            color: var(--text-color) !important; -webkit-text-fill-color: var(--text-color) !important;
+        }
+        html body div[class*="st-key-atp_product_library_panel"] [data-baseweb="select"] > div,
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="stFileUploaderDropzone"] {
+            background: var(--secondary-background-color) !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container(key="atp_product_library_panel"):
+        st.markdown("### Product Library")
+        st.caption(
+            "Original files are archived in Google Drive, optimized display images are served "
+            "from private Supabase Storage, and metadata is stored in Supabase."
+        )
+        dashboard_tab, upload_tab, manage_tab, storage_tab = st.tabs([
+            "Dashboard", "Upload Product", "Manage Products", "Storage Settings"
+        ])
+
+        with dashboard_tab:
+            try:
+                data = _product_library_dashboard_data()
+                cols = st.columns(4)
+                metrics = [
+                    ("Total Products", data["products"]),
+                    ("Active Products", data["active"]),
+                    ("Total Assets", data["assets"]),
+                    ("Optimized Storage", _product_library_format_bytes(data["optimized_bytes"])),
+                ]
+                for column, (label, value) in zip(cols, metrics):
+                    with column:
+                        st.metric(label, value)
+                status_cols = st.columns(2)
+                with status_cols[0]:
+                    st.metric("Assets Missing Display Copy", data["storage_missing"])
+                with status_cols[1]:
+                    st.metric("Assets Missing Drive Archive", data["archive_missing"])
+            except Exception as error:
+                st.error(f"Product Library dashboard could not load: {error}")
+
+        with upload_tab:
+            with st.form("product_library_upload_form", clear_on_submit=False):
+                code = st.text_input("Product / Model Code", placeholder="Example: 732")
+                name = st.text_input("Product Name")
+                compatibility = st.text_area("Vehicle Compatibility", height=90)
+                description = st.text_area("Description", height=120)
+                aliases_text = st.text_input("Aliases", help="Separate aliases with commas.")
+                asset_type = st.selectbox(
+                    "Asset Type", PRODUCT_ASSET_TYPES,
+                    format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title())
+                )
+                active = st.checkbox("Active Product", value=True)
+                uploads = st.file_uploader(
+                    "Upload product files",
+                    accept_multiple_files=True,
+                    type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
+                    help="Maximum 20 MB per file. Originals go to Google Drive; optimized images go to Supabase.",
+                )
+                submitted = st.form_submit_button("Save Product and Upload Files", use_container_width=True)
+
+            if submitted:
+                clean_code = _product_library_clean_code(code)
+                clean_name = str(name or "").strip()
+                if not clean_code or not clean_name:
+                    st.warning("Product code and product name are required.")
+                elif not uploads:
+                    st.warning("Please select at least one file.")
+                else:
+                    aliases = [item.strip() for item in str(aliases_text or "").split(",") if item.strip()]
+                    try:
+                        product = _product_library_upsert_product(
+                            clean_code, clean_name, str(compatibility or "").strip(),
+                            str(description or "").strip(), aliases, active
+                        )
+                        if not product:
+                            raise RuntimeError("Supabase did not return the saved product record.")
+                        successes, failures = [], []
+                        progress = st.progress(0)
+                        for index, uploaded_file in enumerate(uploads, start=1):
+                            try:
+                                _product_library_upload_asset(product, asset_type, uploaded_file)
+                                successes.append(uploaded_file.name)
+                            except Exception as error:
+                                failures.append(f"{uploaded_file.name}: {error}")
+                            progress.progress(index / len(uploads))
+                        _product_library_dashboard_data.clear()
+                        if successes:
+                            st.success(f"Uploaded {len(successes)} file(s) for product {clean_code}.")
+                        for failure in failures:
+                            st.error(failure)
+                    except Exception as error:
+                        st.error(f"Product upload failed: {error}")
+
+        with manage_tab:
+            search_value = st.text_input("Search products", placeholder="Product code, name, or compatibility")
+            try:
+                query = (
+                    supabase.table("product_library")
+                    .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active,updated_at")
+                    .order("updated_at", desc=True)
+                    .limit(200)
+                )
+                products = query.execute().data or []
+                needle = str(search_value or "").strip().casefold()
+                if needle:
+                    products = [
+                        row for row in products
+                        if needle in " ".join([
+                            str(row.get("product_code") or ""),
+                            str(row.get("product_name") or ""),
+                            str(row.get("vehicle_compatibility") or ""),
+                            json.dumps(row.get("aliases") or [], ensure_ascii=False),
+                        ]).casefold()
+                    ]
+                st.caption(f"Showing {len(products)} product(s)")
+                for product in products:
+                    title = f"{product.get('product_code')} — {product.get('product_name')}"
+                    with st.expander(title):
+                        st.write(f"**Compatibility:** {product.get('vehicle_compatibility') or 'Not specified'}")
+                        if product.get("description"):
+                            st.write(product.get("description"))
+                        assets = (
+                            supabase.table("product_assets")
+                            .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_status,archive_web_url,created_at")
+                            .eq("product_id", product.get("id"))
+                            .order("created_at", desc=True)
+                            .execute().data
+                            or []
+                        )
+                        if not assets:
+                            st.info("No files have been uploaded for this product.")
+                        for asset in assets:
+                            st.markdown(f"**{PRODUCT_ASSET_LABELS.get(asset.get('asset_type'), asset.get('asset_type') or 'Other')} — {asset.get('original_filename')}**")
+                            signed_url = _product_library_signed_url(asset.get("storage_path"))
+                            if signed_url and str(asset.get("content_type") or "").startswith("image/"):
+                                st.image(signed_url, use_container_width=True)
+                            link_cols = st.columns(2)
+                            with link_cols[0]:
+                                if signed_url:
+                                    st.link_button("Open Display Copy", signed_url, use_container_width=True)
+                            with link_cols[1]:
+                                if asset.get("archive_web_url"):
+                                    st.link_button("Open Original in Drive", asset.get("archive_web_url"), use_container_width=True)
+                            st.caption(
+                                f"Display: {asset.get('storage_status') or 'unknown'} | "
+                                f"Archive: {asset.get('archive_status') or 'unknown'}"
+                            )
+            except Exception as error:
+                st.error(f"Product records could not load: {error}")
+
+        with storage_tab:
+            provider = "Google Drive" if _product_library_google_configured() else "None"
+            st.write(f"**Active archive provider:** {provider}")
+            st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
+            st.write(
+                "**Root folder:** " + (
+                    f"Configured (`{GOOGLE_DRIVE_ROOT_FOLDER_ID}`)"
+                    if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Not configured"
+                )
+            )
+            if st.button("Test Google Drive Connection", use_container_width=True):
+                try:
+                    ok, message = _product_library_test_drive_connection()
+                    (st.success if ok else st.error)(message)
+                except Exception as error:
+                    st.error(f"Google Drive connection failed: {error}")
+            if st.button("Refresh Product Library Status", use_container_width=True):
+                _product_library_dashboard_data.clear()
+                _product_library_google_access_token.clear()
+                st.success("Product Library status cache cleared.")
+            st.info(
+                "Account connection and disconnection are controlled through Streamlit Secrets. "
+                "This prevents OAuth credentials from being exposed in the browser or stored in session state."
+            )
+
+
+# ============================================================
 # Admin Panel
 # ============================================================
 
@@ -23529,7 +24058,7 @@ if (
         "and continuous improvement."
     )
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "👥 Users",
         "📚 Upload Knowledge",
         "📥 Pending Submissions",
@@ -23539,7 +24068,8 @@ if (
         "🔧 Technical Analytics",
         "📊 AI Analytics",
         "📈 Learning Analytics",
-        "🔌 Live Integrations"
+        "🔌 Live Integrations",
+        "🖼️ Product Library"
     ])
 
     # Streamlit evaluates every tab body during a rerun. Reuse these large
@@ -23551,6 +24081,9 @@ if (
     learned_rows_for_analytics = list(
         learned_rows_for_analytics or []
     )
+
+    with tab11:
+        render_product_library_admin()
 
     with tab1:
         st.markdown("### Current Users")
