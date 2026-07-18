@@ -24537,12 +24537,54 @@ def render_product_library_admin():
                                 replace_open = bool(
                                     st.session_state.get(replace_panel_key, False)
                                 )
-                                confirm_asset = st.checkbox(
-                                    "Confirm delete this file",
-                                    key=f"confirm_asset_{asset_id}",
+
+                                # Keep file actions aligned directly under the two
+                                # link buttons above. This local marker lets the
+                                # CSS below give normal Streamlit buttons the same
+                                # neutral outlined appearance as st.link_button.
+                                st.markdown(
+                                    f'<div id="product-asset-actions-{asset_id}"></div>',
+                                    unsafe_allow_html=True,
+                                )
+                                st.markdown(
+                                    """
+                                    <style>
+                                    div[data-testid="stElementContainer"]:has(
+                                        #product-asset-actions-"""
+                                    + str(asset_id)
+                                    + """
+                                    ) + div[data-testid="stHorizontalBlock"]
+                                    button {
+                                        background: transparent !important;
+                                        color: inherit !important;
+                                        border: 1px solid rgba(250, 250, 250, 0.28) !important;
+                                        border-radius: 0.5rem !important;
+                                        box-shadow: none !important;
+                                        min-height: 2.5rem !important;
+                                    }
+                                    div[data-testid="stElementContainer"]:has(
+                                        #product-asset-actions-"""
+                                    + str(asset_id)
+                                    + """
+                                    ) + div[data-testid="stHorizontalBlock"]
+                                    button:hover {
+                                        border-color: rgba(250, 250, 250, 0.55) !important;
+                                        background: rgba(255, 255, 255, 0.04) !important;
+                                    }
+                                    div[data-testid="stElementContainer"]:has(
+                                        #product-asset-actions-"""
+                                    + str(asset_id)
+                                    + """
+                                    ) + div[data-testid="stHorizontalBlock"]
+                                    button:disabled {
+                                        opacity: 0.45 !important;
+                                    }
+                                    </style>
+                                    """,
+                                    unsafe_allow_html=True,
                                 )
 
-                                action_cols = st.columns([1, 1, 2])
+                                action_cols = st.columns(2)
                                 with action_cols[0]:
                                     if st.button(
                                         "Replace File",
@@ -24551,6 +24593,11 @@ def render_product_library_admin():
                                     ):
                                         st.session_state[replace_panel_key] = not replace_open
                                         st.rerun()
+
+                                confirm_asset = st.session_state.get(
+                                    f"confirm_asset_{asset_id}",
+                                    False,
+                                )
 
                                 with action_cols[1]:
                                     if st.button(
@@ -24568,6 +24615,11 @@ def render_product_library_admin():
                                             st.rerun()
                                         except Exception as error:
                                             st.error(f"File deletion failed: {error}")
+
+                                st.checkbox(
+                                    "Confirm delete this file",
+                                    key=f"confirm_asset_{asset_id}",
+                                )
 
                                 if st.session_state.get(replace_panel_key, False):
                                     with st.container(border=True):
