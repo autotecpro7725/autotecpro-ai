@@ -24063,13 +24063,13 @@ if (
         "📚 Upload Knowledge",
         "📥 Pending Submissions",
         "🧠 AI Learning",
+        "🖼️ Product Library",
         "🚗 Vehicle Analytics",
         "📦 Product Analytics",
         "🔧 Technical Analytics",
         "📊 AI Analytics",
         "📈 Learning Analytics",
-        "🔌 Live Integrations",
-        "🖼️ Product Library"
+        "🔌 Live Integrations"
     ])
 
     # Streamlit evaluates every tab body during a rerun. Reuse these large
@@ -24081,9 +24081,6 @@ if (
     learned_rows_for_analytics = list(
         learned_rows_for_analytics or []
     )
-
-    with tab11:
-        render_product_library_admin()
 
     with tab1:
         st.markdown("### Current Users")
@@ -24790,6 +24787,9 @@ if (
             st.info("No learned knowledge saved yet.")
 
     with tab5:
+        render_product_library_admin()
+
+    with tab6:
         st.markdown("### 🚗 Vehicle Analytics")
         st.caption("Most common makes, models, years, and vehicle-related questions.")
 
@@ -24813,7 +24813,7 @@ if (
         st.markdown("#### Most Common Vehicle Strings")
         render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-    with tab6:
+    with tab7:
         st.markdown("### 📦 Product Analytics")
         st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -24838,7 +24838,7 @@ if (
         else:
             st.info("No product issue data yet.")
 
-    with tab7:
+    with tab8:
         st.markdown("### 🔧 Technical Analytics")
         st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -24889,7 +24889,7 @@ if (
         else:
             st.success("No unanswered questions logged yet.")
 
-    with tab8:
+    with tab9:
         st.markdown("### 📊 AI Analytics")
         st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -24942,7 +24942,7 @@ if (
         else:
             st.info("No reused knowledge yet.")
 
-    with tab9:
+    with tab10:
         st.markdown("### 📈 Learning Analytics")
         st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -24985,7 +24985,7 @@ if (
 
 
 
-    with tab10:
+    with tab11:
         st.markdown("### 🔌 Live Integrations")
         st.caption(
             "Connection status only. Secret values are never displayed. "
