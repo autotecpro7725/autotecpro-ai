@@ -8856,13 +8856,14 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+@st.cache_resource(show_spinner=False)
 def get_supabase_admin_client():
     """
-    Create the privileged Supabase client only when permanent deletion is used.
+    Return the reusable privileged Supabase client for server-side admin tasks.
 
-    This keeps the stable app and Admin Panel load path unchanged. Missing or
-    invalid privileged credentials produce an inline error during deletion
-    instead of crashing the application at startup.
+    The client is created lazily so missing credentials do not affect normal app
+    startup. It is used only for operations that must bypass Supabase RLS, such
+    as private Storage uploads, signed URLs, and permanent deletion.
     """
     if create_supabase_client is None:
         raise RuntimeError(
@@ -23700,26 +23701,39 @@ def _product_library_optimize_image(data, filename, max_px, quality=88):
     return output.getvalue(), f"{stem}{extension}", content_type
 
 
+def _product_library_storage_bucket():
+    """Return the private Product Library bucket through the server admin client."""
+    return get_supabase_admin_client().storage.from_(PRODUCT_LIBRARY_BUCKET)
+
+
 def _product_library_storage_upload(path, data, content_type):
-    bucket = supabase.storage.from_(PRODUCT_LIBRARY_BUCKET)
+    """Upload an optimized display copy without opening anonymous Storage access."""
+    bucket = _product_library_storage_bucket()
     options = {"content-type": content_type, "upsert": "true"}
     try:
         return bucket.upload(path, data, file_options=options)
     except TypeError:
+        # Compatibility with older supabase-py releases used by existing builds.
         return bucket.upload(path, data, options)
 
 
 def _product_library_signed_url(path, expires=3600):
+    """Create a temporary URL for a private Product Library image."""
     if not path:
         return ""
     try:
-        payload = supabase.storage.from_(PRODUCT_LIBRARY_BUCKET).create_signed_url(path, expires)
+        payload = _product_library_storage_bucket().create_signed_url(path, expires)
         if isinstance(payload, dict):
             return str(payload.get("signedURL") or payload.get("signedUrl") or "")
         data = getattr(payload, "data", None)
         if isinstance(data, dict):
             return str(data.get("signedURL") or data.get("signedUrl") or "")
-    except Exception:
+    except Exception as error:
+        diagnostic_log(
+            "product_library_signed_url_failed",
+            path=path,
+            error=error,
+        )
         return ""
     return ""
 
