@@ -21765,7 +21765,7 @@ def render_pending_knowledge_review():
                 if st.button(
                     "✅ Approve / Merge",
                     key=f"approve_pending_{row_id}",
-                    type="primary",
+                    
                     use_container_width=True,
                 ):
                     try:
@@ -21910,7 +21910,7 @@ def render_knowledge_submission_workspace():
             submit_clicked = st.button(
                 "🧠 Submit Knowledge",
                 key="submit_staff_knowledge",
-                type="primary",
+                
                 use_container_width=True,
             )
 
@@ -23131,7 +23131,7 @@ def render_advanced_image_designer_panel():
 
         submitted = st.form_submit_button(
             "Generate Design",
-            type="primary",
+            
             use_container_width=True,
         )
 
@@ -23231,7 +23231,7 @@ def render_marketing_tools_panel():
             )
             submitted = st.form_submit_button(
                 "Analyze Brand Consistency",
-                type="primary",
+                
                 use_container_width=True,
             )
         if submitted:
@@ -23308,7 +23308,7 @@ def render_marketing_tools_panel():
             )
             submitted = st.form_submit_button(
                 "Generate Listings",
-                type="primary",
+                
                 use_container_width=True,
             )
         if submitted:
@@ -23414,7 +23414,7 @@ def render_marketing_tools_panel():
             )
             submitted = st.form_submit_button(
                 "Analyze Competitor",
-                type="primary",
+                
                 use_container_width=True,
             )
 
@@ -23488,7 +23488,7 @@ def render_marketing_tools_panel():
         )
         submitted = st.form_submit_button(
             "Run SEO Optimization",
-            type="primary",
+            
             use_container_width=True,
         )
     if submitted:
@@ -23818,6 +23818,46 @@ def _product_library_delete_asset(asset):
 
     supabase.table("product_assets").delete().eq("id", asset["id"]).execute()
     _product_library_dashboard_data.clear()
+
+
+def _product_library_replace_asset(product, asset, replacement_file):
+    """
+    Replace one Product Library asset while preserving the product and asset type.
+
+    The replacement is uploaded first. The old asset is removed only after the
+    new asset has been saved successfully, preventing data loss when an upload
+    fails.
+    """
+    if not isinstance(product, dict) or not product.get("id"):
+        raise RuntimeError("The selected Product Library product is invalid.")
+    if not isinstance(asset, dict) or not asset.get("id"):
+        raise RuntimeError("The selected Product Library asset is invalid.")
+    if replacement_file is None:
+        raise RuntimeError("Please select a replacement file.")
+
+    new_asset = None
+    try:
+        new_asset = _product_library_upload_asset(
+            product,
+            str(asset.get("asset_type") or "other"),
+            replacement_file,
+        )
+        _product_library_delete_asset(asset)
+        _product_library_dashboard_data.clear()
+        return new_asset
+    except Exception:
+        # If the replacement uploaded but the old record could not be removed,
+        # clean up the new record to avoid leaving an unexpected duplicate.
+        if isinstance(new_asset, dict) and new_asset.get("id"):
+            try:
+                _product_library_delete_asset(new_asset)
+            except Exception as rollback_error:
+                diagnostic_log(
+                    "product_library_replace_rollback_failed",
+                    asset_id=new_asset.get("id"),
+                    error=rollback_error,
+                )
+        raise
 
 
 def _product_library_delete_product(product):
@@ -24447,30 +24487,108 @@ def render_product_library_admin():
                                 link_cols = st.columns(2)
                                 with link_cols[0]:
                                     if signed_url:
-                                        st.link_button("Open Display Copy", signed_url, use_container_width=True)
+                                        st.link_button(
+                                            "Open Display Copy",
+                                            signed_url,
+                                            use_container_width=True,
+                                        )
                                 with link_cols[1]:
                                     if asset.get("archive_web_url"):
-                                        st.link_button("Open Original in Drive", asset.get("archive_web_url"), use_container_width=True)
+                                        st.link_button(
+                                            "Open Original in Drive",
+                                            asset.get("archive_web_url"),
+                                            use_container_width=True,
+                                        )
+
                                 st.caption(
                                     f"Display: {asset.get('storage_status') or 'unknown'} | "
                                     f"Archive: {asset.get('archive_status') or 'unknown'}"
+                                )
+
+                                replace_panel_key = f"replace_panel_{asset_id}"
+                                replace_open = bool(
+                                    st.session_state.get(replace_panel_key, False)
                                 )
                                 confirm_asset = st.checkbox(
                                     "Confirm delete this file",
                                     key=f"confirm_asset_{asset_id}",
                                 )
-                                if st.button(
-                                    "Delete File",
-                                    key=f"delete_asset_{asset_id}",
-                                    disabled=not confirm_asset,
-                                    use_container_width=True,
-                                ):
-                                    try:
-                                        _product_library_delete_asset(asset)
-                                        st.success("File deleted from Product Library, Supabase Storage, and Google Drive archive.")
+
+                                action_cols = st.columns([1, 1, 2])
+                                with action_cols[0]:
+                                    if st.button(
+                                        "Replace File",
+                                        key=f"replace_asset_toggle_{asset_id}",
+                                        use_container_width=True,
+                                    ):
+                                        st.session_state[replace_panel_key] = not replace_open
                                         st.rerun()
-                                    except Exception as error:
-                                        st.error(f"File deletion failed: {error}")
+
+                                with action_cols[1]:
+                                    if st.button(
+                                        "Delete File",
+                                        key=f"delete_asset_{asset_id}",
+                                        disabled=not confirm_asset,
+                                        use_container_width=True,
+                                    ):
+                                        try:
+                                            _product_library_delete_asset(asset)
+                                            st.success(
+                                                "File deleted from Product Library, "
+                                                "Supabase Storage, and Google Drive archive."
+                                            )
+                                            st.rerun()
+                                        except Exception as error:
+                                            st.error(f"File deletion failed: {error}")
+
+                                if st.session_state.get(replace_panel_key, False):
+                                    with st.container(border=True):
+                                        st.caption("Replace this file")
+                                        replacement_file = st.file_uploader(
+                                            "Choose one replacement file",
+                                            accept_multiple_files=False,
+                                            type=[
+                                                "jpg", "jpeg", "png", "webp",
+                                                "pdf", "docx", "txt", "csv", "zip",
+                                            ],
+                                            key=f"replacement_upload_{asset_id}",
+                                            help=(
+                                                "The replacement keeps the same asset type. "
+                                                "The old file is removed only after the new "
+                                                "file uploads successfully."
+                                            ),
+                                        )
+                                        replace_submit_cols = st.columns([1, 1, 2])
+                                        with replace_submit_cols[0]:
+                                            if st.button(
+                                                "Save Replacement",
+                                                key=f"replace_asset_submit_{asset_id}",
+                                                disabled=replacement_file is None,
+                                                use_container_width=True,
+                                                
+                                            ):
+                                                try:
+                                                    _product_library_replace_asset(
+                                                        product,
+                                                        asset,
+                                                        replacement_file,
+                                                    )
+                                                    st.session_state[replace_panel_key] = False
+                                                    st.success("File replaced successfully.")
+                                                    st.rerun()
+                                                except Exception as error:
+                                                    st.error(
+                                                        f"File replacement failed: {error}"
+                                                    )
+                                        with replace_submit_cols[1]:
+                                            if st.button(
+                                                "Cancel",
+                                                key=f"replace_asset_cancel_{asset_id}",
+                                                use_container_width=True,
+                                            ):
+                                                st.session_state[replace_panel_key] = False
+                                                st.rerun()
+
                                 st.divider()
 
                         with danger_tab:
@@ -24486,7 +24604,7 @@ def render_product_library_admin():
                             if st.button(
                                 "Delete Product Permanently",
                                 key=f"delete_product_{product_id}",
-                                type="primary",
+                                
                                 disabled=not correct_code,
                                 use_container_width=True,
                             ):
