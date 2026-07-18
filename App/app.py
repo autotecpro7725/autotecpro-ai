@@ -13675,6 +13675,9 @@ def extract_images_from_message_content(content):
             "resolution",
             "mime_type",
             "filename",
+            "source",
+            "asset_type",
+            "storage_path",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -13704,7 +13707,9 @@ def _render_image_previews_cached(images_json):
         )
         data_url = str(image.get("data_url") or "").strip()
 
-        if not data_url.startswith("data:image/"):
+        is_embedded_image = data_url.startswith("data:image/")
+        is_remote_image = data_url.startswith("https://")
+        if not (is_embedded_image or is_remote_image):
             continue
 
         safe_data_url = html.escape(data_url, quote=True)
@@ -24123,15 +24128,38 @@ def _product_library_chat_lookup(prompt, max_images=6):
     selected = (preferred or image_assets)[:max(1, int(max_images or 6))]
     images = []
     for asset in selected:
-        data_url = _product_library_asset_data_url(asset)
-        if data_url:
+        image_source = _product_library_asset_data_url(asset)
+
+        # The Manage Products page already proves that signed URLs work for the
+        # same private objects. Use that known-good path when the deployed
+        # supabase-py download response cannot be converted into bytes.
+        if not image_source:
+            image_source = _product_library_signed_url(
+                asset.get("storage_path"),
+                expires=86400,
+            )
+
+        if image_source:
             images.append({
-                "name": str(asset.get("original_filename") or "Product Library image"),
-                "data_url": data_url,
+                "name": str(
+                    asset.get("original_filename")
+                    or asset.get("optimized_filename")
+                    or "Product Library image"
+                ),
+                "data_url": image_source,
                 "generated": False,
                 "source": "product_library",
                 "asset_type": str(asset.get("asset_type") or "other"),
+                "storage_path": str(asset.get("storage_path") or ""),
             })
+
+    diagnostic_log(
+        "product_library_chat_lookup_result",
+        product_code=product.get("product_code"),
+        assets_found=len(assets),
+        image_assets_found=len(image_assets),
+        images_loaded=len(images),
+    )
     return {"product": product, "assets": selected, "images": images}
 
 
