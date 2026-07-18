@@ -24805,6 +24805,11 @@ def render_product_library_admin():
                                 signed_url = _product_library_signed_url(asset.get("storage_path"))
                                 if signed_url and str(asset.get("content_type") or "").startswith("image/"):
                                     st.image(signed_url, use_container_width=True)
+                                st.caption(
+                                    f"Display: {asset.get('storage_status') or 'unknown'} | "
+                                    f"Archive: {asset.get('archive_status') or 'unknown'}"
+                                )
+
                                 link_cols = st.columns(2)
                                 with link_cols[0]:
                                     if signed_url:
@@ -24820,11 +24825,6 @@ def render_product_library_admin():
                                             asset.get("archive_web_url"),
                                             use_container_width=True,
                                         )
-
-                                st.caption(
-                                    f"Display: {asset.get('storage_status') or 'unknown'} | "
-                                    f"Archive: {asset.get('archive_status') or 'unknown'}"
-                                )
 
                                 replace_panel_key = f"replace_panel_{asset_id}"
                                 replace_open = bool(
