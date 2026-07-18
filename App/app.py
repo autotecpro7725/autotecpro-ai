@@ -13744,6 +13744,151 @@ def render_image_previews(images):
     return _render_image_previews_cached(images_json)
 
 
+def _product_library_image_download_payload(image_record):
+    """Return bytes, filename, and MIME type for one Product Library image."""
+    image_record = image_record or {}
+    filename = str(image_record.get("name") or "product-photo.jpg").strip()
+    source = str(
+        image_record.get("data_url")
+        or image_record.get("url")
+        or ""
+    ).strip()
+
+    if source.startswith("data:"):
+        try:
+            header, encoded = source.split(",", 1)
+            mime_type = header[5:].split(";", 1)[0] or "application/octet-stream"
+            return base64.b64decode(encoded), filename, mime_type
+        except Exception as error:
+            diagnostic_log(
+                "product_library_chat_download_decode_failed",
+                filename=filename,
+                error=error,
+            )
+            return b"", filename, "application/octet-stream"
+
+    if source.startswith("https://"):
+        try:
+            response = http_session.get(source, timeout=LIVE_HTTP_TIMEOUT)
+            response.raise_for_status()
+            mime_type = str(
+                response.headers.get("Content-Type")
+                or image_record.get("content_type")
+                or "application/octet-stream"
+            ).split(";", 1)[0]
+            return bytes(response.content or b""), filename, mime_type
+        except Exception as error:
+            diagnostic_log(
+                "product_library_chat_download_fetch_failed",
+                filename=filename,
+                error=error,
+            )
+
+    return b"", filename, "application/octet-stream"
+
+
+def render_product_library_chat_gallery(images, message_key):
+    """Render responsive Product Library cards with per-image actions."""
+    clean_images = [
+        image for image in (images or [])
+        if isinstance(image, dict)
+        and str(image.get("data_url") or image.get("url") or "").strip()
+    ]
+    if not clean_images:
+        return
+
+    st.markdown(
+        """
+        <style>
+        [class*="st-key-product_library_chat_card_"] {
+            border: 1px solid rgba(250, 250, 250, 0.14);
+            border-radius: 0.75rem;
+            padding: 0.55rem;
+            height: 100%;
+        }
+        [class*="st-key-product_library_chat_card_"] img {
+            border-radius: 0.55rem;
+        }
+        [class*="st-key-product_library_chat_actions_"] a,
+        [class*="st-key-product_library_chat_actions_"] button {
+            background: transparent !important;
+            background-color: transparent !important;
+            color: inherit !important;
+            border: 1px solid rgba(250, 250, 250, 0.24) !important;
+            border-radius: 0.5rem !important;
+            box-shadow: none !important;
+            min-height: 2.5rem !important;
+            height: 2.5rem !important;
+            width: 100% !important;
+            padding: 0 0.65rem !important;
+        }
+        [class*="st-key-product_library_chat_actions_"] a:hover,
+        [class*="st-key-product_library_chat_actions_"] button:hover {
+            background: rgba(255, 255, 255, 0.035) !important;
+            border-color: rgba(250, 250, 250, 0.48) !important;
+            color: inherit !important;
+            box-shadow: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    columns_per_row = 3 if len(clean_images) >= 3 else len(clean_images)
+    columns_per_row = max(1, columns_per_row)
+
+    for row_start in range(0, len(clean_images), columns_per_row):
+        row_images = clean_images[row_start:row_start + columns_per_row]
+        row_columns = st.columns(len(row_images))
+
+        for offset, image_record in enumerate(row_images):
+            image_index = row_start + offset
+            image_source = str(
+                image_record.get("data_url")
+                or image_record.get("url")
+                or ""
+            ).strip()
+            filename = str(
+                image_record.get("name")
+                or f"Product photo {image_index + 1}"
+            ).strip()
+
+            with row_columns[offset]:
+                with st.container(
+                    key=f"product_library_chat_card_{message_key}_{image_index}"
+                ):
+                    st.image(image_source, use_container_width=True)
+                    st.caption(filename)
+
+                    with st.container(
+                        key=f"product_library_chat_actions_{message_key}_{image_index}"
+                    ):
+                        action_columns = st.columns(2)
+                        with action_columns[0]:
+                            st.link_button(
+                                "View Full Size",
+                                image_source,
+                                use_container_width=True,
+                            )
+
+                        file_bytes, download_name, mime_type = (
+                            _product_library_image_download_payload(image_record)
+                        )
+                        with action_columns[1]:
+                            st.download_button(
+                                "Download",
+                                data=file_bytes,
+                                file_name=download_name,
+                                mime=mime_type,
+                                disabled=not bool(file_bytes),
+                                use_container_width=True,
+                                key=(
+                                    f"product_library_chat_download_"
+                                    f"{message_key}_{image_index}"
+                                ),
+                            )
+
+
 GRAPHIC_IMAGE_COUNT = 1
 GRAPHIC_IMAGE_MODEL = "gpt-image-1"
 GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
@@ -24241,6 +24386,8 @@ def _product_library_chat_lookup(prompt, max_images=6):
                 "source": "product_library",
                 "asset_type": str(asset.get("asset_type") or "other"),
                 "storage_path": str(asset.get("storage_path") or ""),
+                "content_type": str(asset.get("content_type") or "image/jpeg"),
+                "archive_web_url": str(asset.get("archive_web_url") or ""),
             })
 
     diagnostic_log(
@@ -24634,45 +24781,30 @@ def render_product_library_admin():
                                     st.session_state.get(replace_panel_key, False)
                                 )
 
-                                # Keep file actions aligned directly under the two
-                                # link buttons above. This local marker lets the
-                                # CSS below give normal Streamlit buttons the same
-                                # neutral outlined appearance as st.link_button.
-                                st.markdown(
-                                    f'<div id="product-asset-actions-{asset_id}"></div>',
-                                    unsafe_allow_html=True,
-                                )
                                 st.markdown(
                                     """
                                     <style>
-                                    div[data-testid="stElementContainer"]:has(
-                                        #product-asset-actions-"""
-                                    + str(asset_id)
-                                    + """
-                                    ) + div[data-testid="stHorizontalBlock"]
-                                    button {
+                                    [class*="st-key-product_asset_actions_"] button {
                                         background: transparent !important;
+                                        background-color: transparent !important;
                                         color: inherit !important;
-                                        border: 1px solid rgba(250, 250, 250, 0.28) !important;
+                                        border: 1px solid rgba(250, 250, 250, 0.24) !important;
                                         border-radius: 0.5rem !important;
                                         box-shadow: none !important;
                                         min-height: 2.5rem !important;
+                                        height: 2.5rem !important;
+                                        width: 100% !important;
+                                        padding: 0 0.75rem !important;
                                     }
-                                    div[data-testid="stElementContainer"]:has(
-                                        #product-asset-actions-"""
-                                    + str(asset_id)
-                                    + """
-                                    ) + div[data-testid="stHorizontalBlock"]
-                                    button:hover {
-                                        border-color: rgba(250, 250, 250, 0.55) !important;
-                                        background: rgba(255, 255, 255, 0.04) !important;
+                                    [class*="st-key-product_asset_actions_"] button:hover {
+                                        background: rgba(255, 255, 255, 0.035) !important;
+                                        border-color: rgba(250, 250, 250, 0.48) !important;
+                                        color: inherit !important;
+                                        box-shadow: none !important;
                                     }
-                                    div[data-testid="stElementContainer"]:has(
-                                        #product-asset-actions-"""
-                                    + str(asset_id)
-                                    + """
-                                    ) + div[data-testid="stHorizontalBlock"]
-                                    button:disabled {
+                                    [class*="st-key-product_asset_actions_"] button:disabled {
+                                        background: transparent !important;
+                                        color: inherit !important;
                                         opacity: 0.45 !important;
                                     }
                                     </style>
@@ -24680,37 +24812,40 @@ def render_product_library_admin():
                                     unsafe_allow_html=True,
                                 )
 
-                                action_cols = st.columns(2)
-                                with action_cols[0]:
-                                    if st.button(
-                                        "Replace File",
-                                        key=f"replace_asset_toggle_{asset_id}",
-                                        use_container_width=True,
-                                    ):
-                                        st.session_state[replace_panel_key] = not replace_open
-                                        st.rerun()
-
                                 confirm_asset = st.session_state.get(
                                     f"confirm_asset_{asset_id}",
                                     False,
                                 )
 
-                                with action_cols[1]:
-                                    if st.button(
-                                        "Delete File",
-                                        key=f"delete_asset_{asset_id}",
-                                        disabled=not confirm_asset,
-                                        use_container_width=True,
-                                    ):
-                                        try:
-                                            _product_library_delete_asset(asset)
-                                            st.success(
-                                                "File deleted from Product Library, "
-                                                "Supabase Storage, and Google Drive archive."
-                                            )
+                                with st.container(
+                                    key=f"product_asset_actions_{asset_id}"
+                                ):
+                                    action_cols = st.columns(2)
+                                    with action_cols[0]:
+                                        if st.button(
+                                            "Replace File",
+                                            key=f"replace_asset_toggle_{asset_id}",
+                                            use_container_width=True,
+                                        ):
+                                            st.session_state[replace_panel_key] = not replace_open
                                             st.rerun()
-                                        except Exception as error:
-                                            st.error(f"File deletion failed: {error}")
+
+                                    with action_cols[1]:
+                                        if st.button(
+                                            "Delete File",
+                                            key=f"delete_asset_{asset_id}",
+                                            disabled=not confirm_asset,
+                                            use_container_width=True,
+                                        ):
+                                            try:
+                                                _product_library_delete_asset(asset)
+                                                st.success(
+                                                    "File deleted from Product Library, "
+                                                    "Supabase Storage, and Google Drive archive."
+                                                )
+                                                st.rerun()
+                                            except Exception as error:
+                                                st.error(f"File deletion failed: {error}")
 
                                 st.checkbox(
                                     "Confirm delete this file",
@@ -26331,24 +26466,10 @@ else:
                     message_index=len(st.session_state.messages),
                 )
             if product_library_images:
-                # Use Streamlit's native image renderer for Product Library
-                # photos. It handles both data URLs and signed HTTPS URLs and
-                # avoids browser/CSP differences in custom HTML image markup.
-                for library_image in product_library_images:
-                    image_source = str(
-                        library_image.get("data_url")
-                        or library_image.get("url")
-                        or ""
-                    ).strip()
-                    if image_source:
-                        st.image(
-                            image_source,
-                            caption=str(
-                                library_image.get("name")
-                                or "Product Library photo"
-                            ),
-                            use_container_width=True,
-                        )
+                render_product_library_chat_gallery(
+                    product_library_images,
+                    message_key=len(st.session_state.messages),
+                )
 
             non_library_generated_images = [
                 image for image in generated_images
