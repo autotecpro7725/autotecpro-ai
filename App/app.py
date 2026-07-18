@@ -13878,6 +13878,20 @@ def render_product_library_chat_gallery(images, message_key):
                 or f"Product photo {image_index + 1}"
             ).strip()
 
+            # Never open an embedded data: URL in a new browser tab. Chrome may
+            # display a blank page for large data URLs. Use a fresh private
+            # Supabase signed HTTPS URL for the full-size action instead.
+            storage_path = str(
+                image_record.get("storage_path") or ""
+            ).strip()
+            full_size_url = (
+                _product_library_signed_url(storage_path, expires=86400)
+                if storage_path
+                else ""
+            )
+            if not full_size_url and image_source.startswith("https://"):
+                full_size_url = image_source
+
             with row_columns[offset]:
                 with st.container(
                     key=f"product_library_chat_card_{message_key}_{image_index}"
@@ -13890,11 +13904,22 @@ def render_product_library_chat_gallery(images, message_key):
                     ):
                         action_columns = st.columns(2)
                         with action_columns[0]:
-                            st.link_button(
-                                "View Full Size",
-                                image_source,
-                                use_container_width=True,
-                            )
+                            if full_size_url:
+                                st.link_button(
+                                    "View Full Size",
+                                    full_size_url,
+                                    use_container_width=True,
+                                )
+                            else:
+                                st.button(
+                                    "View Full Size",
+                                    disabled=True,
+                                    use_container_width=True,
+                                    key=(
+                                        f"product_library_chat_view_disabled_"
+                                        f"{message_key}_{image_index}"
+                                    ),
+                                )
 
                         file_bytes, download_name, mime_type = (
                             _product_library_image_download_payload(image_record)
