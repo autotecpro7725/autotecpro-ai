@@ -4538,6 +4538,25 @@ def inject_base_css():
             margin-bottom: 3px;
         }
 
+        /* Copy-safe assistant lists: markers are literal text, not browser-only
+           list decorations, so 1./2./3. and bullets survive clipboard paste. */
+        .assistant-bubble .atp-copy-list-item {
+            margin: 0 0 7px 0;
+            padding-left: 1.65em;
+            text-indent: -1.65em;
+            line-height: 1.62;
+            white-space: normal;
+        }
+
+        .assistant-bubble .atp-copy-list-item:last-child {
+            margin-bottom: 10px;
+        }
+
+        .assistant-bubble .atp-copy-numbered {
+            padding-left: 2.05em;
+            text-indent: -2.05em;
+        }
+
         .chat-bubble table {
             width: 100%;
             border-collapse: collapse;
@@ -9120,21 +9139,25 @@ def html_from_text(text, assistant_mode=False):
             heading_text = bold_heading.group(1).rstrip(":").strip()
             html_lines.append(f"<h3>{inline_format(heading_text)}</h3>")
         elif stripped.startswith("- ") or stripped.startswith("• "):
-            if in_ol:
-                html_lines.append("</ol>")
-                in_ol = False
-            if not in_ul:
-                html_lines.append("<ul>")
-                in_ul = True
-            html_lines.append(f"<li>{inline_format(stripped[2:])}</li>")
+            # Use a literal, selectable bullet character instead of a browser-
+            # generated <ul> marker. This preserves the bullet when users copy
+            # an AI response and paste it into the plain-text message composer.
+            close_lists()
+            html_lines.append(
+                '<div class="atp-copy-list-item atp-copy-bullet">'
+                f'• {inline_format(stripped[2:])}'
+                '</div>'
+            )
         elif assistant_mode and numbered_item:
-            if in_ul:
-                html_lines.append("</ul>")
-                in_ul = False
-            if not in_ol:
-                html_lines.append("<ol>")
-                in_ol = True
-            html_lines.append(f"<li>{inline_format(numbered_item.group(2))}</li>")
+            # Keep the list number as real text. Native <ol> markers are visual
+            # browser decorations and can disappear when copied into a textarea.
+            close_lists()
+            list_number = html.escape(numbered_item.group(1))
+            html_lines.append(
+                '<div class="atp-copy-list-item atp-copy-numbered">'
+                f'{list_number}. {inline_format(numbered_item.group(2))}'
+                '</div>'
+            )
         else:
             close_lists()
             if assistant_mode:
