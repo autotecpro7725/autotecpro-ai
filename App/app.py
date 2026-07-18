@@ -23738,6 +23738,217 @@ def _product_library_signed_url(path, expires=3600):
     return ""
 
 
+def _product_library_storage_remove(paths):
+    """Remove private display copies through the server-side admin client."""
+    clean_paths = [str(path).strip() for path in (paths or []) if str(path).strip()]
+    if not clean_paths:
+        return None
+    bucket = _product_library_storage_bucket()
+    try:
+        return bucket.remove(clean_paths)
+    except TypeError:
+        return bucket.remove(path=clean_paths)
+
+
+def _product_library_drive_trash_file(file_id):
+    """Move one archived Google Drive file to Trash without exposing OAuth data."""
+    clean_id = str(file_id or "").strip()
+    if not clean_id or not _product_library_google_configured():
+        return False
+    response = http_session.patch(
+        f"https://www.googleapis.com/drive/v3/files/{quote(clean_id, safe='')}",
+        headers={**_product_library_drive_headers(), "Content-Type": "application/json"},
+        params={"fields": "id,trashed"},
+        json={"trashed": True},
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    return bool(payload.get("trashed"))
+
+
+def _product_library_delete_asset(asset):
+    """Delete one asset from Storage, Drive archive, and product_assets metadata."""
+    if not isinstance(asset, dict) or not asset.get("id"):
+        raise RuntimeError("The selected Product Library asset is invalid.")
+
+    storage_path = str(asset.get("storage_path") or "").strip()
+    if storage_path:
+        _product_library_storage_remove([storage_path])
+
+    archive_file_id = str(asset.get("archive_file_id") or "").strip()
+    if archive_file_id:
+        _product_library_drive_trash_file(archive_file_id)
+
+    supabase.table("product_assets").delete().eq("id", asset["id"]).execute()
+    _product_library_dashboard_data.clear()
+
+
+def _product_library_delete_product(product):
+    """Delete a product and all linked assets from both storage providers."""
+    if not isinstance(product, dict) or not product.get("id"):
+        raise RuntimeError("The selected Product Library product is invalid.")
+
+    assets = (
+        supabase.table("product_assets")
+        .select("id,storage_path,archive_file_id")
+        .eq("product_id", product["id"])
+        .execute().data
+        or []
+    )
+    for asset in assets:
+        _product_library_delete_asset(asset)
+
+    supabase.table("product_library").delete().eq("id", product["id"]).execute()
+    _product_library_dashboard_data.clear()
+
+
+def _product_library_update_product(product_id, product_name, compatibility, description, aliases, active):
+    """Update editable product metadata while keeping the stable product code."""
+    payload = {
+        "product_name": str(product_name or "").strip(),
+        "vehicle_compatibility": str(compatibility or "").strip(),
+        "description": str(description or "").strip(),
+        "aliases": [str(item).strip() for item in (aliases or []) if str(item).strip()],
+        "active": bool(active),
+        "updated_by": str(st.session_state.get("username") or ""),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if not payload["product_name"]:
+        raise RuntimeError("Product name is required.")
+    result = (
+        supabase.table("product_library")
+        .update(payload)
+        .eq("id", product_id)
+        .execute()
+    )
+    _product_library_dashboard_data.clear()
+    return (result.data or [payload])[0]
+
+
+def _product_library_asset_data_url(asset):
+    """Download one private image and return a history-safe data URL."""
+    path = str((asset or {}).get("storage_path") or "").strip()
+    if not path:
+        return ""
+    try:
+        payload = _product_library_storage_bucket().download(path)
+        if isinstance(payload, bytes):
+            raw = payload
+        elif isinstance(payload, bytearray):
+            raw = bytes(payload)
+        else:
+            raw = getattr(payload, "data", None)
+            if not isinstance(raw, (bytes, bytearray)):
+                return ""
+            raw = bytes(raw)
+        mime_type = str((asset or {}).get("content_type") or "image/jpeg")
+        if not mime_type.startswith("image/"):
+            mime_type = "image/jpeg"
+        return f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
+    except Exception as error:
+        diagnostic_log("product_library_chat_image_download_failed", path=path, error=error)
+        return ""
+
+
+def _product_library_prompt_requests_images(prompt):
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    if not value:
+        return False
+    image_words = (
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "parts photo", "parts picture", "show me parts", "show parts",
+        "display photo", "display image", "what does", "look like",
+    )
+    return any(word in value for word in image_words)
+
+
+def _product_library_product_score(product, prompt):
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
+    if not value:
+        return 0
+    code = str(product.get("product_code") or "").strip().casefold()
+    name = str(product.get("product_name") or "").strip().casefold()
+    aliases = [str(item).strip().casefold() for item in (product.get("aliases") or [])]
+    score = 0
+    if code and re.search(rf"(?<![a-z0-9]){re.escape(code)}(?![a-z0-9])", value):
+        score += 100
+    if name and name in value:
+        score += 70
+    for alias in aliases:
+        if alias and alias in value:
+            score += 60
+    tokens = {token for token in re.findall(r"[a-z0-9][a-z0-9._-]+", value) if len(token) >= 3}
+    haystack = " ".join([code, name, *aliases])
+    score += sum(4 for token in tokens if token in haystack)
+    return score
+
+
+def _product_library_chat_lookup(prompt, max_images=6):
+    """Resolve a product-photo request and return verified product context plus images."""
+    if not _product_library_prompt_requests_images(prompt):
+        return None
+    products = (
+        supabase.table("product_library")
+        .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active")
+        .eq("active", True)
+        .limit(500)
+        .execute().data
+        or []
+    )
+    ranked = sorted(
+        (( _product_library_product_score(product, prompt), product) for product in products),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    if not ranked or ranked[0][0] < 20:
+        return None
+    product = ranked[0][1]
+    assets = (
+        supabase.table("product_assets")
+        .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
+        .eq("product_id", product.get("id"))
+        .order("created_at", desc=False)
+        .execute().data
+        or []
+    )
+    image_assets = [
+        asset for asset in assets
+        if str(asset.get("content_type") or "").startswith("image/")
+        and asset.get("storage_path")
+        and asset.get("storage_status") == "available"
+    ]
+    preferred = [asset for asset in image_assets if asset.get("asset_type") in {"parts_photo", "product_photo"}]
+    selected = (preferred or image_assets)[:max(1, int(max_images or 6))]
+    images = []
+    for asset in selected:
+        data_url = _product_library_asset_data_url(asset)
+        if data_url:
+            images.append({
+                "name": str(asset.get("original_filename") or "Product Library image"),
+                "data_url": data_url,
+                "generated": False,
+                "source": "product_library",
+                "asset_type": str(asset.get("asset_type") or "other"),
+            })
+    return {"product": product, "assets": selected, "images": images}
+
+
+def _product_library_chat_context(lookup):
+    if not isinstance(lookup, dict) or not lookup.get("product"):
+        return ""
+    product = lookup["product"]
+    asset_names = [str(asset.get("original_filename") or "") for asset in lookup.get("assets") or []]
+    return (
+        "\n\nVERIFIED PRODUCT LIBRARY RESULT (server-side Supabase lookup):\n"
+        f"Product code: {product.get('product_code')}\n"
+        f"Product name: {product.get('product_name')}\n"
+        f"Compatibility: {product.get('vehicle_compatibility') or 'Not specified'}\n"
+        f"Description: {product.get('description') or 'Not specified'}\n"
+        f"Matching images displayed by the app: {', '.join(asset_names) if asset_names else 'None'}\n"
+        "Tell the user only what this verified record supports. The app will display the matching images below the answer."
+    )
+
+
 def _product_library_upsert_product(product_code, product_name, compatibility, description, aliases, active=True):
     payload = {
         "product_code": product_code,
@@ -23975,13 +24186,13 @@ def render_product_library_admin():
                         st.error(f"Product upload failed: {error}")
 
         with manage_tab:
-            search_value = st.text_input("Search products", placeholder="Product code, name, or compatibility")
+            search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
             try:
                 query = (
                     supabase.table("product_library")
                     .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active,updated_at")
                     .order("updated_at", desc=True)
-                    .limit(200)
+                    .limit(500)
                 )
                 products = query.execute().data or []
                 needle = str(search_value or "").strip().casefold()
@@ -23997,37 +24208,131 @@ def render_product_library_admin():
                     ]
                 st.caption(f"Showing {len(products)} product(s)")
                 for product in products:
+                    product_id = str(product.get("id") or "")
                     title = f"{product.get('product_code')} — {product.get('product_name')}"
                     with st.expander(title):
-                        st.write(f"**Compatibility:** {product.get('vehicle_compatibility') or 'Not specified'}")
-                        if product.get("description"):
-                            st.write(product.get("description"))
-                        assets = (
-                            supabase.table("product_assets")
-                            .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_status,archive_web_url,created_at")
-                            .eq("product_id", product.get("id"))
-                            .order("created_at", desc=True)
-                            .execute().data
-                            or []
-                        )
-                        if not assets:
-                            st.info("No files have been uploaded for this product.")
-                        for asset in assets:
-                            st.markdown(f"**{PRODUCT_ASSET_LABELS.get(asset.get('asset_type'), asset.get('asset_type') or 'Other')} — {asset.get('original_filename')}**")
-                            signed_url = _product_library_signed_url(asset.get("storage_path"))
-                            if signed_url and str(asset.get("content_type") or "").startswith("image/"):
-                                st.image(signed_url, use_container_width=True)
-                            link_cols = st.columns(2)
-                            with link_cols[0]:
-                                if signed_url:
-                                    st.link_button("Open Display Copy", signed_url, use_container_width=True)
-                            with link_cols[1]:
-                                if asset.get("archive_web_url"):
-                                    st.link_button("Open Original in Drive", asset.get("archive_web_url"), use_container_width=True)
-                            st.caption(
-                                f"Display: {asset.get('storage_status') or 'unknown'} | "
-                                f"Archive: {asset.get('archive_status') or 'unknown'}"
+                        edit_tab, files_tab, danger_tab = st.tabs(["Edit Product", "Files", "Delete Product"])
+
+                        with edit_tab:
+                            with st.form(f"product_edit_{product_id}"):
+                                st.text_input("Product / Model Code", value=str(product.get("product_code") or ""), disabled=True)
+                                edit_name = st.text_input("Product Name", value=str(product.get("product_name") or ""))
+                                edit_compatibility = st.text_area("Vehicle Compatibility", value=str(product.get("vehicle_compatibility") or ""), height=90)
+                                edit_description = st.text_area("Description", value=str(product.get("description") or ""), height=120)
+                                edit_aliases = st.text_input("Aliases", value=", ".join(str(item) for item in (product.get("aliases") or [])))
+                                edit_active = st.checkbox("Active Product", value=bool(product.get("active")), key=f"active_{product_id}")
+                                save_edit = st.form_submit_button("Save Product Changes", use_container_width=True)
+                            if save_edit:
+                                try:
+                                    aliases = [item.strip() for item in edit_aliases.split(",") if item.strip()]
+                                    _product_library_update_product(
+                                        product_id, edit_name, edit_compatibility,
+                                        edit_description, aliases, edit_active,
+                                    )
+                                    st.success("Product information updated.")
+                                    st.rerun()
+                                except Exception as error:
+                                    st.error(f"Product update failed: {error}")
+
+                        with files_tab:
+                            with st.form(f"product_add_files_{product_id}"):
+                                add_asset_type = st.selectbox(
+                                    "Asset Type", PRODUCT_ASSET_TYPES,
+                                    format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
+                                    key=f"asset_type_{product_id}",
+                                )
+                                add_uploads = st.file_uploader(
+                                    "Upload more files",
+                                    accept_multiple_files=True,
+                                    type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
+                                    key=f"add_files_{product_id}",
+                                )
+                                add_files_submitted = st.form_submit_button("Upload More Files", use_container_width=True)
+                            if add_files_submitted:
+                                if not add_uploads:
+                                    st.warning("Please select at least one file.")
+                                else:
+                                    failures = []
+                                    for uploaded_file in add_uploads:
+                                        try:
+                                            _product_library_upload_asset(product, add_asset_type, uploaded_file)
+                                        except Exception as error:
+                                            failures.append(f"{uploaded_file.name}: {error}")
+                                    if failures:
+                                        for failure in failures:
+                                            st.error(failure)
+                                    else:
+                                        st.success(f"Uploaded {len(add_uploads)} additional file(s).")
+                                        st.rerun()
+
+                            assets = (
+                                supabase.table("product_assets")
+                                .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
+                                .eq("product_id", product_id)
+                                .order("created_at", desc=True)
+                                .execute().data
+                                or []
                             )
+                            if not assets:
+                                st.info("No files have been uploaded for this product.")
+                            for asset in assets:
+                                asset_id = str(asset.get("id") or "")
+                                st.markdown(f"**{PRODUCT_ASSET_LABELS.get(asset.get('asset_type'), asset.get('asset_type') or 'Other')} — {asset.get('original_filename')}**")
+                                signed_url = _product_library_signed_url(asset.get("storage_path"))
+                                if signed_url and str(asset.get("content_type") or "").startswith("image/"):
+                                    st.image(signed_url, use_container_width=True)
+                                link_cols = st.columns(2)
+                                with link_cols[0]:
+                                    if signed_url:
+                                        st.link_button("Open Display Copy", signed_url, use_container_width=True)
+                                with link_cols[1]:
+                                    if asset.get("archive_web_url"):
+                                        st.link_button("Open Original in Drive", asset.get("archive_web_url"), use_container_width=True)
+                                st.caption(
+                                    f"Display: {asset.get('storage_status') or 'unknown'} | "
+                                    f"Archive: {asset.get('archive_status') or 'unknown'}"
+                                )
+                                confirm_asset = st.checkbox(
+                                    "Confirm delete this file",
+                                    key=f"confirm_asset_{asset_id}",
+                                )
+                                if st.button(
+                                    "Delete File",
+                                    key=f"delete_asset_{asset_id}",
+                                    disabled=not confirm_asset,
+                                    use_container_width=True,
+                                ):
+                                    try:
+                                        _product_library_delete_asset(asset)
+                                        st.success("File deleted from Product Library, Supabase Storage, and Google Drive archive.")
+                                        st.rerun()
+                                    except Exception as error:
+                                        st.error(f"File deletion failed: {error}")
+                                st.divider()
+
+                        with danger_tab:
+                            st.warning(
+                                "This permanently removes the product metadata and all linked Product Library files. "
+                                "Google Drive originals are moved to Trash."
+                            )
+                            typed_code = st.text_input(
+                                f"Type {product.get('product_code')} to confirm",
+                                key=f"delete_product_confirm_{product_id}",
+                            )
+                            correct_code = typed_code.strip() == str(product.get("product_code") or "").strip()
+                            if st.button(
+                                "Delete Product Permanently",
+                                key=f"delete_product_{product_id}",
+                                type="primary",
+                                disabled=not correct_code,
+                                use_container_width=True,
+                            ):
+                                try:
+                                    _product_library_delete_product(product)
+                                    st.success("Product and linked files deleted.")
+                                    st.rerun()
+                                except Exception as error:
+                                    st.error(f"Product deletion failed: {error}")
             except Exception as error:
                 st.error(f"Product records could not load: {error}")
 
@@ -25125,6 +25430,14 @@ else:
         )
         interaction_prompt = str(user_display or prompt).strip()
 
+        product_library_lookup = None
+        product_library_images = []
+        try:
+            product_library_lookup = _product_library_chat_lookup(interaction_prompt)
+            product_library_images = list((product_library_lookup or {}).get("images") or [])
+        except Exception as error:
+            diagnostic_log("product_library_chat_lookup_failed", error=error)
+
         # Managed uploads are SHA-256 deduplicated and are cleared
         # immediately after this message is completed.
         effective_uploaded_files = list(uploaded_files or [])
@@ -25183,7 +25496,7 @@ else:
 
         render_chat_message("user", user_display, uploaded_image_previews)
 
-        generated_images = []
+        generated_images = list(product_library_images)
         generated_documents = []
         has_uploaded_images = any(
             str(getattr(item, "type", "") or "").startswith("image/")
@@ -25352,6 +25665,8 @@ else:
                     if explicit_learning_requested
                     else prompt
                 )
+                if product_library_lookup:
+                    ai_request_prompt += _product_library_chat_context(product_library_lookup)
 
                 try:
                     for delta in ask_ai_stream(
@@ -25553,6 +25868,11 @@ else:
                 render_chat_document_cards(
                     generated_documents,
                     message_index=len(st.session_state.messages),
+                )
+            if product_library_images:
+                st.markdown(
+                    render_image_previews(product_library_images),
+                    unsafe_allow_html=True,
                 )
             if generated_images:
                 render_generated_image_actions(
