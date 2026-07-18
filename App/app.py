@@ -9198,6 +9198,19 @@ def render_chat_message(
     if role != "user":
         visible_content = format_learning_record_for_display(visible_content)
     final_images = images if images is not None else stored_images
+    product_library_final_images = [
+        image for image in (final_images or [])
+        if isinstance(image, dict)
+        and str(image.get("source") or "").strip().lower() == "product_library"
+    ]
+    regular_final_images = [
+        image for image in (final_images or [])
+        if not (
+            isinstance(image, dict)
+            and str(image.get("source") or "").strip().lower()
+            == "product_library"
+        )
+    ]
 
     if role == "user":
         icon_html = "👤"
@@ -9220,7 +9233,7 @@ def render_chat_message(
         f'<div class="chat-icon {icon_class}">{icon_html}</div>'
         f'<div class="chat-bubble {bubble_class}">'
         f'{html_from_text(visible_content, assistant_mode=(role != "user"))}'
-        f'{render_image_previews(final_images)}'
+        f'{render_image_previews(regular_final_images)}'
         f'</div>'
         f'</div>'
     )
@@ -9233,13 +9246,23 @@ def render_chat_message(
             message_index=message_index,
         )
 
+    if role != "user" and product_library_final_images:
+        render_product_library_chat_gallery(
+            product_library_final_images,
+            message_key=(
+                message_index
+                if message_index is not None
+                else f"history_{abs(hash(str(visible_content))) % 1000000}"
+            ),
+        )
+
     if (
         role != "user"
         and show_generated_actions
-        and final_images
+        and regular_final_images
     ):
         render_generated_image_actions(
-            final_images,
+            regular_final_images,
             message_index=message_index,
         )
 
@@ -13678,6 +13701,8 @@ def extract_images_from_message_content(content):
             "source",
             "asset_type",
             "storage_path",
+            "content_type",
+            "archive_web_url",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
