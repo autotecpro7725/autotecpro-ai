@@ -23826,10 +23826,13 @@ def _product_library_update_product(product_id, product_name, compatibility, des
 
 
 def _product_library_asset_data_url(asset):
-    """Download one private image and return a history-safe data URL."""
-    path = str((asset or {}).get("storage_path") or "").strip()
+    """Download one private optimized image and return a history-safe data URL."""
+    asset = asset or {}
+    path = str(asset.get("storage_path") or "").strip()
     if not path:
         return ""
+
+    raw = b""
     try:
         payload = _product_library_storage_bucket().download(path)
         if isinstance(payload, bytes):
@@ -23837,17 +23840,60 @@ def _product_library_asset_data_url(asset):
         elif isinstance(payload, bytearray):
             raw = bytes(payload)
         else:
-            raw = getattr(payload, "data", None)
-            if not isinstance(raw, (bytes, bytearray)):
-                return ""
-            raw = bytes(raw)
-        mime_type = str((asset or {}).get("content_type") or "image/jpeg")
+            payload_data = getattr(payload, "data", None)
+            if isinstance(payload_data, (bytes, bytearray)):
+                raw = bytes(payload_data)
+    except Exception as error:
+        diagnostic_log(
+            "product_library_chat_image_download_failed",
+            path=path,
+            error=error,
+        )
+
+    # Compatibility fallback for Supabase client versions whose Storage
+    # download() response shape differs. Fetch the same private object through
+    # a short-lived signed URL, then convert it to an embedded data URL.
+    if not raw:
+        try:
+            signed_url = _product_library_signed_url(path, expires=300)
+            if signed_url:
+                response = http_session.get(
+                    signed_url,
+                    timeout=LIVE_HTTP_TIMEOUT,
+                )
+                response.raise_for_status()
+                raw = bytes(response.content or b"")
+        except Exception as error:
+            diagnostic_log(
+                "product_library_chat_signed_image_download_failed",
+                path=path,
+                error=error,
+            )
+
+    if not raw:
+        return ""
+
+    # The database keeps the original upload MIME type, while the optimized
+    # display copy may have been converted to JPEG or PNG. Infer the MIME type
+    # from the optimized storage filename first so browsers receive the correct
+    # data URL and can render it reliably.
+    optimized_name = str(
+        asset.get("optimized_filename")
+        or Path(path).name
+        or ""
+    ).lower()
+    if optimized_name.endswith(".png"):
+        mime_type = "image/png"
+    elif optimized_name.endswith((".jpg", ".jpeg")):
+        mime_type = "image/jpeg"
+    elif optimized_name.endswith(".webp"):
+        mime_type = "image/webp"
+    else:
+        mime_type = str(asset.get("content_type") or "image/jpeg")
         if not mime_type.startswith("image/"):
             mime_type = "image/jpeg"
-        return f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
-    except Exception as error:
-        diagnostic_log("product_library_chat_image_download_failed", path=path, error=error)
-        return ""
+
+    return f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
 def _product_library_prompt_requests_images(prompt):
@@ -23905,12 +23951,23 @@ def _product_library_chat_lookup(prompt, max_images=6):
     product = ranked[0][1]
     assets = (
         supabase.table("product_assets")
-        .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
+        .select("id,product_id,product_code,asset_type,original_filename,optimized_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
         .eq("product_id", product.get("id"))
         .order("created_at", desc=False)
         .execute().data
         or []
     )
+    # Compatibility fallback for legacy or partially migrated records where
+    # product_id was not populated but product_code is present.
+    if not assets:
+        assets = (
+            supabase.table("product_assets")
+            .select("id,product_id,product_code,asset_type,original_filename,optimized_filename,content_type,storage_path,storage_status,archive_web_url,created_at")
+            .eq("product_code", product.get("product_code"))
+            .order("created_at", desc=False)
+            .execute().data
+            or []
+        )
     image_assets = [
         asset for asset in assets
         if str(asset.get("content_type") or "").startswith("image/")
@@ -23944,8 +24001,9 @@ def _product_library_chat_context(lookup):
         f"Product name: {product.get('product_name')}\n"
         f"Compatibility: {product.get('vehicle_compatibility') or 'Not specified'}\n"
         f"Description: {product.get('description') or 'Not specified'}\n"
-        f"Matching images displayed by the app: {', '.join(asset_names) if asset_names else 'None'}\n"
-        "Tell the user only what this verified record supports. The app will display the matching images below the answer."
+        f"Matching image files found: {', '.join(asset_names) if asset_names else 'None'}\n"
+        f"Images successfully loaded for chat display: {len(lookup.get('images') or [])}\n"
+        "Tell the user only what this verified record supports. If the loaded-image count is greater than zero, state that the matching photos are displayed below the answer. Do not say the app cannot display them."
     )
 
 
@@ -25849,10 +25907,14 @@ else:
                     f"document could not be created: {document_error}"
                 )
 
+        # Product Library photos are stored with the assistant message just like
+        # uploaded/generated images. This keeps them visible after Streamlit
+        # reruns and when a saved conversation is reopened.
+        assistant_images_to_save = list(product_library_images or []) + list(generated_images or [])
         assistant_content_to_save = (
             answer
             + serialize_documents_marker(generated_documents)
-            + serialize_images_marker(generated_images)
+            + serialize_images_marker(assistant_images_to_save)
         )
 
         # Streaming already rendered ordinary text responses.
