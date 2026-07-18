@@ -23719,22 +23719,59 @@ def _product_library_storage_upload(path, data, content_type):
 
 def _product_library_signed_url(path, expires=3600):
     """Create a temporary URL for a private Product Library image."""
-    if not path:
+    clean_path = str(path or "").strip().lstrip("/")
+    if not clean_path:
         return ""
+
     try:
-        payload = _product_library_storage_bucket().create_signed_url(path, expires)
+        payload = _product_library_storage_bucket().create_signed_url(
+            clean_path,
+            int(expires or 3600),
+        )
+
+        candidates = []
         if isinstance(payload, dict):
-            return str(payload.get("signedURL") or payload.get("signedUrl") or "")
-        data = getattr(payload, "data", None)
-        if isinstance(data, dict):
-            return str(data.get("signedURL") or data.get("signedUrl") or "")
+            candidates.extend([
+                payload.get("signedURL"),
+                payload.get("signedUrl"),
+                payload.get("signed_url"),
+            ])
+            nested = payload.get("data")
+            if isinstance(nested, dict):
+                candidates.extend([
+                    nested.get("signedURL"),
+                    nested.get("signedUrl"),
+                    nested.get("signed_url"),
+                ])
+
+        payload_data = getattr(payload, "data", None)
+        if isinstance(payload_data, dict):
+            candidates.extend([
+                payload_data.get("signedURL"),
+                payload_data.get("signedUrl"),
+                payload_data.get("signed_url"),
+            ])
+
+        for candidate in candidates:
+            candidate = str(candidate or "").strip()
+            if not candidate:
+                continue
+            if candidate.startswith("http://") or candidate.startswith("https://"):
+                return candidate
+
+            supabase_url = str(st.secrets.get("SUPABASE_URL") or "").rstrip("/")
+            if supabase_url:
+                if not candidate.startswith("/"):
+                    candidate = "/" + candidate
+                return supabase_url + candidate
+
     except Exception as error:
         diagnostic_log(
             "product_library_signed_url_failed",
-            path=path,
+            path=clean_path,
             error=error,
         )
-        return ""
+
     return ""
 
 
@@ -23828,21 +23865,51 @@ def _product_library_update_product(product_id, product_name, compatibility, des
 def _product_library_asset_data_url(asset):
     """Download one private optimized image and return a history-safe data URL."""
     asset = asset or {}
-    path = str(asset.get("storage_path") or "").strip()
+    path = str(asset.get("storage_path") or "").strip().lstrip("/")
     if not path:
         return ""
 
+    def _extract_bytes(payload):
+        """Normalize common supabase-py and HTTP response shapes into bytes."""
+        if payload is None:
+            return b""
+        if isinstance(payload, bytes):
+            return payload
+        if isinstance(payload, bytearray):
+            return bytes(payload)
+        if isinstance(payload, memoryview):
+            return payload.tobytes()
+
+        if isinstance(payload, dict):
+            for key in ("data", "content", "body"):
+                candidate = payload.get(key)
+                result = _extract_bytes(candidate)
+                if result:
+                    return result
+
+        for attribute in ("data", "content", "body"):
+            candidate = getattr(payload, attribute, None)
+            result = _extract_bytes(candidate)
+            if result:
+                return result
+
+        reader = getattr(payload, "read", None)
+        if callable(reader):
+            try:
+                result = reader()
+                return _extract_bytes(result)
+            except Exception:
+                return b""
+
+        return b""
+
     raw = b""
+
+    # Primary path: use the same privileged Supabase client that successfully
+    # uploads Product Library display copies.
     try:
         payload = _product_library_storage_bucket().download(path)
-        if isinstance(payload, bytes):
-            raw = payload
-        elif isinstance(payload, bytearray):
-            raw = bytes(payload)
-        else:
-            payload_data = getattr(payload, "data", None)
-            if isinstance(payload_data, (bytes, bytearray)):
-                raw = bytes(payload_data)
+        raw = _extract_bytes(payload)
     except Exception as error:
         diagnostic_log(
             "product_library_chat_image_download_failed",
@@ -23850,9 +23917,7 @@ def _product_library_asset_data_url(asset):
             error=error,
         )
 
-    # Compatibility fallback for Supabase client versions whose Storage
-    # download() response shape differs. Fetch the same private object through
-    # a short-lived signed URL, then convert it to an embedded data URL.
+    # First fallback: create a short-lived signed URL through supabase-py.
     if not raw:
         try:
             signed_url = _product_library_signed_url(path, expires=300)
@@ -23870,13 +23935,53 @@ def _product_library_asset_data_url(asset):
                 error=error,
             )
 
+    # Final compatibility fallback: call the authenticated Storage REST endpoint
+    # directly. This avoids response-shape differences between supabase-py
+    # versions while keeping the private bucket protected.
     if not raw:
+        try:
+            supabase_url = str(st.secrets.get("SUPABASE_URL") or "").rstrip("/")
+            admin_key = str(
+                st.secrets.get("SUPABASE_SECRET_KEY")
+                or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+                or ""
+            ).strip()
+            bucket_name = str(
+                asset.get("storage_bucket")
+                or PRODUCT_LIBRARY_BUCKET
+            ).strip()
+
+            if supabase_url and admin_key and bucket_name:
+                object_url = (
+                    f"{supabase_url}/storage/v1/object/authenticated/"
+                    f"{quote(bucket_name, safe='')}/{quote(path, safe='/')}"
+                )
+                response = http_session.get(
+                    object_url,
+                    headers={
+                        "apikey": admin_key,
+                        "Authorization": f"Bearer {admin_key}",
+                        "Accept": "application/octet-stream",
+                    },
+                    timeout=LIVE_HTTP_TIMEOUT,
+                )
+                response.raise_for_status()
+                raw = bytes(response.content or b"")
+        except Exception as error:
+            diagnostic_log(
+                "product_library_chat_rest_image_download_failed",
+                path=path,
+                error=error,
+            )
+
+    if not raw:
+        diagnostic_log(
+            "product_library_chat_image_empty",
+            path=path,
+            asset_id=asset.get("id"),
+        )
         return ""
 
-    # The database keeps the original upload MIME type, while the optimized
-    # display copy may have been converted to JPEG or PNG. Infer the MIME type
-    # from the optimized storage filename first so browsers receive the correct
-    # data URL and can render it reliably.
     optimized_name = str(
         asset.get("optimized_filename")
         or Path(path).name
