@@ -4519,6 +4519,21 @@ def inject_base_css():
             padding-left: 22px;
         }
 
+        .chat-bubble ol {
+            margin-top: 6px;
+            margin-bottom: 12px;
+            padding-left: 24px;
+        }
+
+        .assistant-bubble .atp-chat-paragraph {
+            margin: 0 0 10px 0;
+            line-height: 1.68;
+        }
+
+        .assistant-bubble .atp-chat-paragraph:last-child {
+            margin-bottom: 0;
+        }
+
         .chat-bubble li {
             margin-bottom: 3px;
         }
@@ -4648,6 +4663,12 @@ def inject_base_css():
             margin-top: 4px !important;
             margin-bottom: 8px !important;
             padding-left: 20px !important;
+        }
+
+        .chat-bubble ol {
+            margin-top: 4px !important;
+            margin-bottom: 10px !important;
+            padding-left: 22px !important;
         }
 
         .assistant-section-card {
@@ -9012,8 +9033,8 @@ def table_to_html(table_lines):
 
 
 @st.cache_data(ttl=900, max_entries=512, show_spinner=False)
-def html_from_text(text):
-    """Small markdown-like renderer for custom chat bubbles, including basic tables."""
+def html_from_text(text, assistant_mode=False):
+    """Render safe markdown-like chat HTML with richer assistant spacing."""
     if text is None:
         return ""
 
@@ -9021,13 +9042,17 @@ def html_from_text(text):
     lines = str(text).splitlines()
     html_lines = []
     in_ul = False
+    in_ol = False
     i = 0
 
-    def close_ul():
-        nonlocal in_ul
+    def close_lists():
+        nonlocal in_ul, in_ol
         if in_ul:
             html_lines.append("</ul>")
             in_ul = False
+        if in_ol:
+            html_lines.append("</ol>")
+            in_ol = False
 
     while i < len(lines):
         line = lines[i].rstrip()
@@ -9055,7 +9080,7 @@ def html_from_text(text):
         stripped = line.strip()
 
         if not stripped:
-            close_ul()
+            close_lists()
             html_lines.append("<br>")
             i += 1
             continue
@@ -9069,7 +9094,7 @@ def html_from_text(text):
             and i + 1 < len(lines)
             and is_markdown_table_separator(lines[i + 1])
         ):
-            close_ul()
+            close_lists()
             table_lines = [line, lines[i + 1]]
             i += 2
             while i < len(lines) and "|" in lines[i].strip() and lines[i].strip():
@@ -9078,27 +9103,50 @@ def html_from_text(text):
             html_lines.append(table_to_html(table_lines))
             continue
 
+        bold_heading = re.fullmatch(r"\*\*(.{1,80}?)\*\*:?", stripped)
+        numbered_item = re.match(r"^(\d+)[.)]\s+(.+)$", stripped)
+
         if stripped.startswith("### "):
-            close_ul()
+            close_lists()
             html_lines.append(f"<h3>{inline_format(stripped[4:])}</h3>")
         elif stripped.startswith("## "):
-            close_ul()
+            close_lists()
             html_lines.append(f"<h2>{inline_format(stripped[3:])}</h2>")
         elif stripped.startswith("# "):
-            close_ul()
+            close_lists()
             html_lines.append(f"<h1>{inline_format(stripped[2:])}</h1>")
+        elif assistant_mode and bold_heading:
+            close_lists()
+            heading_text = bold_heading.group(1).rstrip(":").strip()
+            html_lines.append(f"<h3>{inline_format(heading_text)}</h3>")
         elif stripped.startswith("- ") or stripped.startswith("• "):
+            if in_ol:
+                html_lines.append("</ol>")
+                in_ol = False
             if not in_ul:
                 html_lines.append("<ul>")
                 in_ul = True
             html_lines.append(f"<li>{inline_format(stripped[2:])}</li>")
+        elif assistant_mode and numbered_item:
+            if in_ul:
+                html_lines.append("</ul>")
+                in_ul = False
+            if not in_ol:
+                html_lines.append("<ol>")
+                in_ol = True
+            html_lines.append(f"<li>{inline_format(numbered_item.group(2))}</li>")
         else:
-            close_ul()
-            html_lines.append(f"<div>{inline_format(stripped)}</div>")
+            close_lists()
+            if assistant_mode:
+                html_lines.append(
+                    f'<p class="atp-chat-paragraph">{inline_format(stripped)}</p>'
+                )
+            else:
+                html_lines.append(f"<div>{inline_format(stripped)}</div>")
 
         i += 1
 
-    close_ul()
+    close_lists()
     rendered = "\n".join(html_lines)
 
     # Final safety sweep after rendering.
@@ -9147,7 +9195,7 @@ def render_chat_message(
         f'<div class="chat-row">'
         f'<div class="chat-icon {icon_class}">{icon_html}</div>'
         f'<div class="chat-bubble {bubble_class}">'
-        f'{html_from_text(visible_content)}'
+        f'{html_from_text(visible_content, assistant_mode=(role != "user"))}'
         f'{render_image_previews(final_images)}'
         f'</div>'
         f'</div>'
@@ -11954,6 +12002,14 @@ LEARNING_DISPLAY_LABELS = {
     "warnings": "Warnings",
     "evidence": "Evidence",
     "uncertain_information": "Needs Confirmation",
+    "needs_confirmation": "Needs Confirmation",
+    "identity": "Identity",
+    "facts": "Verified Facts",
+    "parts_or_features": "Parts / Features",
+    "conditions": "Conditions",
+    "procedure_or_response": "Procedure / Approved Response",
+    "warnings_or_restrictions": "Warnings / Restrictions",
+    "effective_dates": "Effective Dates",
     "search_keywords": "Search Keywords",
     "customer_reply_draft": "Customer Reply Draft",
 }
@@ -11968,11 +12024,12 @@ def _friendly_learning_value(value):
 
 
 def format_learning_record_for_display(text):
-    """Hide internal JSON/database field names in learning responses.
+    """Hide internal learning-field names and remove duplicate section headings.
 
-    The formatter activates only when a response contains a recognized learning
-    field, so ordinary chat, code, URLs, and technical values remain unchanged.
-    It also cleans older saved learning messages when they are rendered again.
+    This formatter activates only for structured learning-style responses. Ordinary
+    chat content, code, URLs, and technical values remain unchanged. Both current
+    ``needs_confirmation`` output and older ``uncertain_information`` output are
+    rendered as one user-facing ``Needs Confirmation`` section.
     """
     value = str(text or "")
     if not value.strip():
@@ -11992,19 +12049,54 @@ def format_learning_record_for_display(text):
         if match:
             recognized_count += 1
 
-    # One customer reply field is sufficient; other records normally contain
-    # multiple structured fields. This avoids touching incidental prose.
     has_customer_reply = any(
         match and match.group("key").lower() == "customer_reply_draft"
         for _, match in parsed
     )
-    if recognized_count < 2 and not has_customer_reply:
+    has_confirmation_field = any(
+        match and match.group("key").lower() in {
+            "needs_confirmation", "uncertain_information"
+        }
+        for _, match in parsed
+    )
+    if recognized_count < 2 and not has_customer_reply and not has_confirmation_field:
         return value
 
+    display_heading_lookup = {
+        label.casefold(): label
+        for label in set(LEARNING_DISPLAY_LABELS.values())
+    }
     output_lines = []
+    last_section_label = ""
+
+    def append_heading(label):
+        nonlocal last_section_label
+        normalized = str(label or "").strip().casefold()
+        if normalized and normalized == last_section_label:
+            return
+        while output_lines and not output_lines[-1].strip():
+            output_lines.pop()
+        if output_lines:
+            output_lines.append("")
+        output_lines.extend([f"### {label}", ""])
+        last_section_label = normalized
+
     for original_line, match in parsed:
+        stripped = original_line.strip()
+
+        # Normalize already-human-readable section headings so an immediately
+        # following internal key cannot create the same heading a second time.
+        plain_heading = re.sub(r"^#{1,6}\s*", "", stripped)
+        plain_heading = plain_heading.strip("* ").rstrip(":").strip()
+        heading_label = display_heading_lookup.get(plain_heading.casefold())
+        if heading_label and not match:
+            append_heading(heading_label)
+            continue
+
         if not match:
             output_lines.append(original_line)
+            if stripped:
+                last_section_label = ""
             continue
 
         key = match.group("key").lower()
@@ -12012,19 +12104,25 @@ def format_learning_record_for_display(text):
         label = LEARNING_DISPLAY_LABELS[key]
 
         if key == "customer_reply_draft":
-            output_lines.append(f"**{label}**")
+            append_heading(label)
             if raw_value:
-                output_lines.extend(["", raw_value])
+                output_lines.append(raw_value)
             continue
 
         if key == "record_type":
             raw_value = _friendly_learning_value(raw_value)
 
-        output_lines.append(
-            f"**{label}:** {raw_value}" if raw_value else f"**{label}:**"
-        )
+        if not raw_value:
+            append_heading(label)
+            continue
 
-    return "\n".join(output_lines)
+        # A valued field is a compact labelled fact, not a separate section.
+        output_lines.append(f"**{label}:** {raw_value}")
+        last_section_label = ""
+
+    result = "\n".join(output_lines)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 def clean_visible_chat_text(text):
@@ -15465,7 +15563,7 @@ def _assistant_stream_html(visible_text):
         '<div class="chat-row">'
         f'<div class="chat-icon assistant-icon">{icon_html}</div>'
         '<div class="chat-bubble assistant-bubble">'
-        f'{html_from_text(visible_text)}'
+        f'{html_from_text(visible_text, assistant_mode=True)}'
         '</div>'
         '</div>'
     )
