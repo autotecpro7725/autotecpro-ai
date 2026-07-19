@@ -11892,10 +11892,20 @@ st.markdown(
         content: "🧠";
     }
 
+    /* Product Library fallback targets both the button key and its parent
+       navigation container. Some Streamlit builds shorten nested widget key
+       classes, so relying on only the button-key selector can hide the icon. */
     section[data-testid="stSidebar"]
     [class*="st-key-workspace_button_product_library"]
+    .stButton > button::before,
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"][class*="product_library"]
+    .stButton > button::before,
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_nav_"]
+    [class*="st-key-workspace_button_product_library"]
     .stButton > button::before {
-        content: "📦";
+        content: "📦" !important;
     }
 
     section[data-testid="stSidebar"]
@@ -20340,17 +20350,31 @@ if (
 
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-if not history_is_enabled():
+# Workspaces that intentionally hide conversation history still need the same
+# persistent logout control at the bottom of the sidebar.
+if (
+    not history_is_enabled()
+    or assistant in {
+        "⚙️ Admin Panel",
+        "🧠 Knowledge Submission",
+        "📦 Product Library",
+    }
+):
     st.sidebar.markdown(
         '<div class="sidebar-logout-divider"></div>',
         unsafe_allow_html=True,
     )
+    st.sidebar.markdown(
+        '<div class="sidebar-logout-btn">',
+        unsafe_allow_html=True,
+    )
     st.sidebar.button(
         "↪  Log out",
-        key="logout_button_no_history",
+        key="logout_button_without_history_panel",
         use_container_width=True,
         on_click=logout_user,
     )
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
