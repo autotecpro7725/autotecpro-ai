@@ -4336,12 +4336,12 @@ def render_managed_upload_preview(record, delete_key, on_delete):
             unsafe_allow_html=True,
         )
 
-        if st.button(
+        st.button(
             "×",
             key=delete_key,
             help="Remove file",
-        ):
-            on_delete()
+            on_click=on_delete,
+        )
 
 
 def managed_file_uploader(
@@ -4403,19 +4403,18 @@ def managed_file_uploader(
                         record_id = record["id"]
 
                         def delete_record(record_id=record_id):
+                            # Streamlit button callbacks run before the script body
+                            # is rendered. Updating the managed preview list here
+                            # makes the very next frame contain only the final state,
+                            # instead of first painting the old preview/uploader tree
+                            # and then forcing a second st.rerun(). The native uploader
+                            # key remains unchanged, so the Upload control stays mounted,
+                            # clickable, and cannot briefly duplicate during deletion.
                             st.session_state[storage_key] = [
                                 item
                                 for item in st.session_state.get(storage_key, [])
                                 if item.get("id") != record_id
                             ]
-                            # The native uploader was already reset immediately
-                            # after the file was added. Changing its widget key
-                            # again during preview deletion makes Streamlit mount
-                            # the old and new upload controls at the same time for
-                            # one render frame, which causes the duplicate Upload
-                            # icon seen by the user. Keep the existing empty widget
-                            # instance and rerun only the preview list.
-                            st.rerun()
 
                         with column:
                             render_managed_upload_preview(
