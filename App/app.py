@@ -10944,6 +10944,96 @@ for slug, icon, label in workspace_items:
 
 assistant = st.session_state.current_assistant
 
+# Prevent stale workspace content from flashing during Streamlit navigation.
+#
+# Streamlit keeps the previous main-page DOM visible until the next rerun has
+# finished sending its replacement elements. On slower pages this can briefly
+# expose buttons or cards from the previous workspace. The browser-side guard
+# hides only the main content as soon as a different workspace button is
+# pressed. A release hook at the very end of this script restores the new page
+# only after all of its Streamlit elements have been emitted.
+st.markdown(
+    """
+    <style>
+    body.atp-workspace-switching [data-testid="stMain"],
+    body.atp-workspace-switching section.main {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }
+
+    body.atp-workspace-switching::after {
+        content: "Loading workspace…";
+        position: fixed;
+        left: calc(var(--sidebar-width, 0px) + 50%);
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 999999;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.90);
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+        pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+        body.atp-workspace-switching::after {
+            left: 50%;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+components.html(
+    """
+    <script>
+    (() => {
+        const doc = window.parent.document;
+        const workspaceLabels = new Set([
+            "Technical Support",
+            "Sales",
+            "Marketing",
+            "Graphic Marketing",
+            "Knowledge Submission",
+            "Product Library",
+            "Admin Panel"
+        ]);
+
+        const beginWorkspaceSwitch = (event) => {
+            const button = event.target.closest("button");
+            if (!button || button.disabled) return;
+
+            const label = (button.innerText || button.textContent || "")
+                .replace(/\\s+/g, " ")
+                .trim();
+
+            if (!workspaceLabels.has(label)) return;
+
+            doc.body.classList.add("atp-workspace-switching");
+        };
+
+        const sidebar =
+            doc.querySelector('[data-testid="stSidebar"]') ||
+            doc.querySelector('section[data-testid="stSidebar"]');
+
+        if (sidebar && !sidebar.dataset.atpWorkspaceSwitchGuard) {
+            sidebar.dataset.atpWorkspaceSwitchGuard = "1";
+            sidebar.addEventListener("pointerdown", beginWorkspaceSwitch, true);
+            sidebar.addEventListener("click", beginWorkspaceSwitch, true);
+        }
+    })();
+    </script>
+    """,
+    height=0,
+    width=0,
+)
+
 # Final sidebar-only visual override.
 # Kept separate so legacy/global button rules cannot recolor navigation.
 st.markdown(
@@ -28711,5 +28801,26 @@ st.markdown(
     </style>
     """,
     unsafe_allow_html=True,
+)
+
+# Release the workspace-transition guard only after the selected workspace has
+# finished rendering. This applies to every workspace transition and prevents
+# stale controls from Knowledge Submission, Product Library, Admin Panel, or
+# any chat workspace from flashing on the next page.
+components.html(
+    """
+    <script>
+    (() => {
+        const doc = window.parent.document;
+        const release = () => doc.body.classList.remove("atp-workspace-switching");
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(release);
+        });
+        window.setTimeout(release, 250);
+    })();
+    </script>
+    """,
+    height=0,
+    width=0,
 )
 
