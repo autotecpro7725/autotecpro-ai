@@ -26006,35 +26006,71 @@ def render_product_library_admin():
                 st.error(f"Product Library dashboard could not load: {error}")
 
         with upload_tab:
-            with st.form("product_library_upload_form", clear_on_submit=False):
-                code = st.text_input("Product / Model Code", placeholder="Example: 732")
-                name = st.text_input("Product Name")
-                compatibility = st.text_area("Vehicle Compatibility", height=90)
-                description = st.text_area("Description", height=120)
-                aliases_text = st.text_input("Aliases", help="Separate aliases with commas.")
-                asset_type = st.selectbox(
-                    "Asset Type", PRODUCT_ASSET_TYPES,
-                    format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title())
+            code = st.text_input(
+                "Product / Model Code",
+                placeholder="Example: 732",
+                key="admin_product_library_code",
+            )
+            name = st.text_input(
+                "Product Name",
+                key="admin_product_library_name",
+            )
+            compatibility = st.text_area(
+                "Vehicle Compatibility",
+                height=90,
+                key="admin_product_library_compatibility",
+            )
+            description = st.text_area(
+                "Description",
+                height=120,
+                key="admin_product_library_description",
+            )
+            aliases_text = st.text_input(
+                "Aliases",
+                help="Separate aliases with commas.",
+                key="admin_product_library_aliases",
+            )
+            asset_type = st.selectbox(
+                "Asset Type",
+                PRODUCT_ASSET_TYPES,
+                format_func=lambda value: PRODUCT_ASSET_LABELS.get(
+                    value, value.title()
+                ),
+                key="admin_product_library_asset_type",
+            )
+            asset_subtype = st.selectbox(
+                "Asset Subtype",
+                _product_library_subtype_options(asset_type),
+                format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(
+                    value, value.replace("_", " ").title()
+                ),
+                help="Choose the specific view, component, or document purpose.",
+                key="admin_product_library_asset_subtype",
+            )
+            active = st.checkbox(
+                "Active Product",
+                value=True,
+                key="admin_product_library_active",
+            )
+            uploads = managed_file_uploader(
+                storage_key="admin_product_library_upload_records",
+                generation_key="admin_product_library_upload_generation",
+                widget_prefix="admin_product_library",
+                accepted_types=[
+                    "jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"
+                ],
+                heading="Upload product files",
+            )
+            st.caption(
+                "Originals go to Google Drive; optimized images go to Supabase."
+            )
+            upload_submit_cols = st.columns([1, 2, 1])
+            with upload_submit_cols[1]:
+                submitted = st.button(
+                    "Save Product and Upload Files",
+                    use_container_width=True,
+                    key="admin_product_library_upload_submit",
                 )
-                asset_subtype = st.selectbox(
-                    "Asset Subtype",
-                    _product_library_subtype_options(asset_type),
-                    format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title()),
-                    help="Choose the specific view, component, or document purpose.",
-                )
-                active = st.checkbox("Active Product", value=True)
-                uploads = st.file_uploader(
-                    "Upload product files",
-                    accept_multiple_files=True,
-                    type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
-                    help="Maximum 20 MB per file. Originals go to Google Drive; optimized images go to Supabase.",
-                )
-                upload_submit_cols = st.columns([1, 2, 1])
-                with upload_submit_cols[1]:
-                    submitted = st.form_submit_button(
-                        "Save Product and Upload Files",
-                        use_container_width=True,
-                    )
 
             if submitted:
                 clean_code = _product_library_clean_code(code)
@@ -26063,6 +26099,10 @@ def render_product_library_admin():
                             progress.progress(index / len(uploads))
                         _product_library_clear_read_caches()
                         if successes:
+                            clear_managed_uploads(
+                                "admin_product_library_upload_records",
+                                "admin_product_library_upload_generation",
+                            )
                             st.success(f"Uploaded {len(successes)} file(s) for product {clean_code}.")
                         for failure in failures:
                             st.error(failure)
@@ -26663,37 +26703,61 @@ def render_product_library_workspace():
 
         if can_upload:
             with tabs[2]:
-                with st.form("product_library_employee_upload_form", clear_on_submit=False):
-                    code = st.text_input("Product / Model Code", placeholder="Example: 836-Max")
-                    name = st.text_input("Product Name")
-                    compatibility = st.text_area("Vehicle Compatibility", height=90)
-                    description = st.text_area("Description", height=120)
-                    aliases_text = st.text_input("Aliases", help="Separate aliases with commas.")
-                    asset_type = st.selectbox(
-                        "Asset Type", PRODUCT_ASSET_TYPES,
-                        format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
-                        key="employee_product_asset_type",
-                    )
-                    asset_subtype = st.selectbox(
-                        "Asset Subtype",
-                        _product_library_subtype_options(asset_type),
-                        format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(
-                            value, value.replace("_", " ").title()
-                        ),
-                        help="Choose the specific view, component, or document purpose.",
-                        key="employee_product_asset_subtype",
-                    )
-                    uploads = st.file_uploader(
-                        "Upload product files",
-                        accept_multiple_files=True,
-                        type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
-                        help="Maximum 20 MB per file.",
-                        key="employee_product_library_uploads",
-                    )
-                    submitted = st.form_submit_button(
-                        "Save Product and Upload Files",
-                        use_container_width=True,
-                    )
+                code = st.text_input(
+                    "Product / Model Code",
+                    placeholder="Example: 836-Max",
+                    key="employee_product_library_code",
+                )
+                name = st.text_input(
+                    "Product Name",
+                    key="employee_product_library_name",
+                )
+                compatibility = st.text_area(
+                    "Vehicle Compatibility",
+                    height=90,
+                    key="employee_product_library_compatibility",
+                )
+                description = st.text_area(
+                    "Description",
+                    height=120,
+                    key="employee_product_library_description",
+                )
+                aliases_text = st.text_input(
+                    "Aliases",
+                    help="Separate aliases with commas.",
+                    key="employee_product_library_aliases",
+                )
+                asset_type = st.selectbox(
+                    "Asset Type",
+                    PRODUCT_ASSET_TYPES,
+                    format_func=lambda value: PRODUCT_ASSET_LABELS.get(
+                        value, value.title()
+                    ),
+                    key="employee_product_asset_type",
+                )
+                asset_subtype = st.selectbox(
+                    "Asset Subtype",
+                    _product_library_subtype_options(asset_type),
+                    format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(
+                        value, value.replace("_", " ").title()
+                    ),
+                    help="Choose the specific view, component, or document purpose.",
+                    key="employee_product_asset_subtype",
+                )
+                uploads = managed_file_uploader(
+                    storage_key="employee_product_library_upload_records",
+                    generation_key="employee_product_library_upload_generation",
+                    widget_prefix="employee_product_library",
+                    accepted_types=[
+                        "jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"
+                    ],
+                    heading="Upload product files",
+                )
+                submitted = st.button(
+                    "Save Product and Upload Files",
+                    use_container_width=True,
+                    key="employee_product_library_upload_submit",
+                )
 
                 if submitted:
                     clean_code = _product_library_clean_code(code)
@@ -26731,6 +26795,10 @@ def render_product_library_workspace():
                                 progress.progress(index / len(uploads))
                             _product_library_clear_read_caches()
                             if successes:
+                                clear_managed_uploads(
+                                    "employee_product_library_upload_records",
+                                    "employee_product_library_upload_generation",
+                                )
                                 st.success(
                                     f"Uploaded {len(successes)} file(s) for product {clean_code}."
                                 )
