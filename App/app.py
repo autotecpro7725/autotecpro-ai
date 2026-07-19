@@ -3749,9 +3749,25 @@ def install_gpt_uploader_css():
             opacity: 1 !important;
             font-size: 14px !important;
             line-height: 1.2 !important;
-            height: auto !important;
-            min-height: 0 !important;
             overflow: visible !important;
+        }
+
+        /* Final upload-button dimensions. Keep this rule after all visibility
+           restoration rules so the button matches the larger reference design. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+            width: auto !important;
+            min-width: 126px !important;
+            height: 44px !important;
+            min-height: 44px !important;
+            padding: 0 18px !important;
+            border-radius: 12px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
         }
 
         html body div[class*="st-key-atp_upload_shell_"]
