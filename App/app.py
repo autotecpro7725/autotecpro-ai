@@ -106,6 +106,7 @@ WORKSPACE_LABELS = {
     "marketing": "Marketing",
     "graphic": "Graphic Marketing",
     "knowledge": "Knowledge Submission",
+    "product_library": "Product Library",
     "admin": "Admin Panel",
 }
 
@@ -113,6 +114,8 @@ FEATURE_LABELS = {
     "history": "Conversation History",
     "woocommerce": "WooCommerce",
     "knowledge_upload": "Knowledge Upload",
+    "product_library_upload": "Product Library Upload",
+    "product_library_manage": "Product Library Manage",
     "web_search": "Internet Search",
     "weather": "Weather",
     "exchange_rate": "Exchange Rate",
@@ -132,18 +135,21 @@ ROLE_OPTIONS = [
 
 ROLE_DEFAULT_WORKSPACES = {
     "admin": {
-        "technical", "sales", "marketing", "graphic", "knowledge", "admin",
+        "technical", "sales", "marketing", "graphic", "knowledge",
+        "product_library", "admin",
     },
     "manager": {
         "technical", "sales", "marketing", "graphic", "knowledge",
+        "product_library",
     },
     # Preserve broad access for legacy staff accounts.
     "staff": {
         "technical", "sales", "marketing", "graphic", "knowledge",
+        "product_library",
     },
-    "technician": {"technical"},
-    "sales": {"sales", "marketing", "graphic", "knowledge"},
-    "marketing": {"marketing", "graphic", "knowledge"},
+    "technician": {"technical", "product_library"},
+    "sales": {"sales", "marketing", "graphic", "knowledge", "product_library"},
+    "marketing": {"marketing", "graphic", "knowledge", "product_library"},
     "customer": {"technical"},
     "distributor": {"technical"},
 }
@@ -151,13 +157,22 @@ ROLE_DEFAULT_WORKSPACES = {
 ROLE_DEFAULT_FEATURES = {
     "admin": set(FEATURE_LABELS),
     "manager": set(FEATURE_LABELS),
-    "staff": set(FEATURE_LABELS),
+    "staff": {
+        "history", "woocommerce", "knowledge_upload", "product_library_upload",
+        "web_search", "weather", "exchange_rate", "tracking",
+    },
     "technician": {
-        "history", "woocommerce", "web_search", "weather",
+        "history", "woocommerce", "product_library_upload", "web_search", "weather",
         "exchange_rate", "tracking",
     },
-    "sales": set(FEATURE_LABELS),
-    "marketing": set(FEATURE_LABELS),
+    "sales": {
+        "history", "woocommerce", "knowledge_upload", "product_library_upload",
+        "web_search", "weather", "exchange_rate", "tracking",
+    },
+    "marketing": {
+        "history", "woocommerce", "knowledge_upload", "product_library_upload",
+        "web_search", "weather", "exchange_rate", "tracking",
+    },
     "customer": {"web_search", "weather", "exchange_rate", "tracking"},
     "distributor": {"web_search", "weather", "exchange_rate", "tracking"},
 }
@@ -257,6 +272,8 @@ def effective_feature_permissions(role=None, stored=None):
         permissions["history"] = False
         permissions["woocommerce"] = False
         permissions["knowledge_upload"] = False
+        permissions["product_library_upload"] = False
+        permissions["product_library_manage"] = False
 
     return permissions
 
@@ -268,9 +285,25 @@ def user_can_access_workspace(workspace_key):
 
 
 def user_can_use_feature(feature_key):
-    return bool(
-        effective_feature_permissions().get(str(feature_key), False)
-    )
+    """Return the effective feature permission with workspace dependencies."""
+    clean_key = str(feature_key or "").strip()
+    permissions = effective_feature_permissions()
+
+    # Product Library actions are never usable unless the workspace itself is
+    # assigned. This prevents a partially configured user record from gaining
+    # upload/manage access through a direct code path while the sidebar is hidden.
+    if clean_key in {"product_library_upload", "product_library_manage"}:
+        if not user_can_access_workspace("product_library"):
+            return False
+
+    # Manage is a superset of upload. Legacy or manually edited JSON records may
+    # contain manage=true and upload=false; normalize that safely at runtime.
+    if clean_key == "product_library_upload" and permissions.get(
+        "product_library_manage", False
+    ):
+        return True
+
+    return bool(permissions.get(clean_key, False))
 
 
 def history_is_enabled():
@@ -9940,9 +9973,14 @@ if "logged_in" not in st.session_state:
         reason="logged_in key was absent from session_state",
     )
     st.session_state.logged_in = False
+
+# A workspace change, mobile reconnect, or Streamlit rerun may leave a false
+# login flag in an otherwise recoverable browser session. Always attempt one
+# signed-cookie restoration before showing the login page.
+if not bool(st.session_state.get("logged_in")):
     restore_login_session()
 
-if not st.session_state.logged_in:
+if not bool(st.session_state.get("logged_in")):
     login_screen()
     st.stop()
 
@@ -10817,6 +10855,7 @@ all_workspace_items = [
     ("marketing", "📣", "Marketing"),
     ("graphic", "🎨", "Graphic Marketing"),
     ("knowledge", "🧠", "Knowledge Submission"),
+    ("product_library", "📚", "Product Library"),
     ("admin", "⚙️", "Admin Panel"),
 ]
 
@@ -10857,10 +10896,25 @@ def switch_workspace(assistant_name):
     if st.session_state.get("current_assistant") == assistant_name:
         return
 
+    # Preserve authentication explicitly before changing workspace state.
+    # This is especially important on iOS Safari, where a navigation rerun can
+    # coincide with a websocket reconnect.
+    username = str(st.session_state.get("username") or "").strip()
+    if username:
+        try:
+            save_authenticated_session(
+                username,
+                remember=bool(st.session_state.get("_atp_session_remembered")),
+            )
+        except Exception as error:
+            diagnostic_log("workspace_auth_refresh_failed", error=str(error))
+
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.current_assistant = assistant_name
-    st.session_state.chat_file_uploader_generation += 1
+    st.session_state.chat_file_uploader_generation = int(
+        st.session_state.get("chat_file_uploader_generation", 0)
+    ) + 1
     clear_managed_uploads(
         "chat_managed_uploads",
         "chat_managed_upload_generation",
@@ -18319,7 +18373,7 @@ def render_metric_row(metrics):
 def clean_assistant_label(assistant_name):
     """Normalize assistant labels so history works even when labels include emoji."""
     value = str(assistant_name or "")
-    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "⚙️", "⚙"]:
+    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "📚", "⚙️", "⚙"]:
         value = value.replace(icon, "")
     return value.strip()
 
@@ -18335,6 +18389,7 @@ def normalize_workspace_assistant_name(assistant_name):
         "Technical Support": "🔧 Technical Support",
         "Graphic Marketing": "🎨 Graphic Marketing",
         "Knowledge Submission": "🧠 Knowledge Submission",
+        "Product Library": "📚 Product Library",
         "Admin Panel": "⚙️ Admin Panel",
     }
     return mapping.get(cleaned, str(assistant_name or "").strip())
@@ -20044,6 +20099,7 @@ if (
     and assistant not in {
         "⚙️ Admin Panel",
         "🧠 Knowledge Submission",
+        "📚 Product Library",
     }
 ):
     if "rename_conversation_id" not in st.session_state:
@@ -26045,6 +26101,253 @@ def render_product_library_admin():
             )
 
 
+def render_product_library_workspace():
+    """Render Product Library according to the current user's permissions."""
+    if not user_can_access_workspace("product_library"):
+        st.error("You do not have permission to access Product Library.")
+        return
+
+    can_upload = user_can_use_feature("product_library_upload")
+    can_manage = user_can_use_feature("product_library_manage")
+
+    # Admins and explicitly authorized managers retain the complete management
+    # interface. Other employees receive a safe view/upload workspace only.
+    if can_manage:
+        render_product_library_admin()
+        return
+
+    st.markdown("""
+    <style>
+    html body div[class*="st-key-atp_product_library_employee_panel"] {
+        color: var(--text-color) !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    html body div[class*="st-key-atp_product_library_employee_panel"] p,
+    html body div[class*="st-key-atp_product_library_employee_panel"] label,
+    html body div[class*="st-key-atp_product_library_employee_panel"] span,
+    html body div[class*="st-key-atp_product_library_employee_panel"] h1,
+    html body div[class*="st-key-atp_product_library_employee_panel"] h2,
+    html body div[class*="st-key-atp_product_library_employee_panel"] h3,
+    html body div[class*="st-key-atp_product_library_employee_panel"] h4 {
+        color: inherit !important;
+    }
+    @media (max-width: 768px) {
+        html body div[class*="st-key-atp_product_library_employee_panel"] [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: .55rem !important;
+        }
+        html body div[class*="st-key-atp_product_library_employee_panel"] [data-testid="column"] {
+            min-width: 100% !important;
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        html body div[class*="st-key-atp_product_library_employee_panel"] button,
+        html body div[class*="st-key-atp_product_library_employee_panel"] [data-testid="stDownloadButton"] button {
+            width: 100% !important;
+            min-height: 2.75rem !important;
+            white-space: normal !important;
+        }
+        html body div[class*="st-key-atp_product_library_employee_panel"] input,
+        html body div[class*="st-key-atp_product_library_employee_panel"] textarea,
+        html body div[class*="st-key-atp_product_library_employee_panel"] [data-baseweb="select"] * {
+            color: var(--text-color) !important;
+            -webkit-text-fill-color: var(--text-color) !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container(key="atp_product_library_employee_panel"):
+        st.markdown("## 📚 Product Library")
+        st.caption(
+            "Search and maintain product photos and supporting files. "
+            "Access is controlled by your assigned user permissions."
+        )
+
+        tab_labels = ["Dashboard", "Browse Products"]
+        if can_upload:
+            tab_labels.append("Upload Product")
+        tabs = st.tabs(tab_labels)
+
+        with tabs[0]:
+            try:
+                data = _product_library_dashboard_data()
+                cols = st.columns(4)
+                for column, (label, value) in zip(cols, [
+                    ("Total Products", data["products"]),
+                    ("Active Products", data["active"]),
+                    ("Total Assets", data["assets"]),
+                    ("Optimized Storage", _product_library_format_bytes(data["optimized_bytes"])),
+                ]):
+                    with column:
+                        st.metric(label, value)
+            except Exception as error:
+                st.error(f"Product Library dashboard could not load: {error}")
+
+        with tabs[1]:
+            browse_query = st.text_input(
+                "Search products",
+                placeholder="Product code, name, vehicle, or alias",
+                key="employee_product_library_search",
+            )
+            try:
+                products = list(_product_library_cached_products() or [])
+                normalized_query = re.sub(
+                    r"\s+", " ", str(browse_query or "").strip().lower()
+                )
+                if normalized_query:
+                    products = [
+                        product for product in products
+                        if normalized_query in " ".join([
+                            str(product.get("product_code") or ""),
+                            str(product.get("product_name") or ""),
+                            str(product.get("compatibility") or ""),
+                            " ".join(product.get("aliases") or [])
+                            if isinstance(product.get("aliases"), list)
+                            else str(product.get("aliases") or ""),
+                        ]).lower()
+                    ]
+
+                active_products = [
+                    product for product in products
+                    if bool(product.get("active", True))
+                ][:50]
+
+                if not active_products:
+                    st.info("No matching active products were found.")
+
+                for product in active_products:
+                    product_code = str(product.get("product_code") or "").strip()
+                    product_name = str(product.get("product_name") or "").strip()
+                    product_id = product.get("id")
+                    title = " — ".join(
+                        value for value in (product_code, product_name) if value
+                    ) or "Unnamed product"
+                    with st.expander(title):
+                        compatibility_value = str(
+                            product.get("compatibility") or ""
+                        ).strip()
+                        description_value = str(
+                            product.get("description") or ""
+                        ).strip()
+                        if compatibility_value:
+                            st.write(f"**Compatibility:** {compatibility_value}")
+                        if description_value:
+                            st.write(description_value)
+
+                        assets = list(
+                            _product_library_cached_assets(product_code, product_id)
+                            or []
+                        )
+                        if not assets:
+                            st.caption("No files are attached to this product yet.")
+                            continue
+
+                        for asset_index, asset in enumerate(assets[:40]):
+                            st.markdown(f"**{_product_library_asset_heading(asset)}**")
+                            content_type = str(asset.get("content_type") or "").lower()
+                            signed_url = _product_library_signed_url(
+                                asset.get("storage_path"), expires=3600
+                            )
+                            if signed_url and content_type.startswith("image/"):
+                                st.image(signed_url, use_container_width=True)
+                            elif signed_url:
+                                st.link_button(
+                                    "Open File",
+                                    signed_url,
+                                    key=(
+                                        f"employee_product_file_{product_id}_"
+                                        f"{asset_index}"
+                                    ),
+                                )
+            except Exception as error:
+                st.error(f"Product Library products could not load: {error}")
+
+        if can_upload:
+            with tabs[2]:
+                with st.form("product_library_employee_upload_form", clear_on_submit=False):
+                    code = st.text_input("Product / Model Code", placeholder="Example: 836-Max")
+                    name = st.text_input("Product Name")
+                    compatibility = st.text_area("Vehicle Compatibility", height=90)
+                    description = st.text_area("Description", height=120)
+                    aliases_text = st.text_input("Aliases", help="Separate aliases with commas.")
+                    asset_type = st.selectbox(
+                        "Asset Type", PRODUCT_ASSET_TYPES,
+                        format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
+                        key="employee_product_asset_type",
+                    )
+                    asset_subtype = st.selectbox(
+                        "Asset Subtype",
+                        _product_library_subtype_options(asset_type),
+                        format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(
+                            value, value.replace("_", " ").title()
+                        ),
+                        help="Choose the specific view, component, or document purpose.",
+                        key="employee_product_asset_subtype",
+                    )
+                    uploads = st.file_uploader(
+                        "Upload product files",
+                        accept_multiple_files=True,
+                        type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
+                        help="Maximum 20 MB per file.",
+                        key="employee_product_library_uploads",
+                    )
+                    submitted = st.form_submit_button(
+                        "Save Product and Upload Files",
+                        use_container_width=True,
+                    )
+
+                if submitted:
+                    clean_code = _product_library_clean_code(code)
+                    clean_name = str(name or "").strip()
+                    if not clean_code or not clean_name:
+                        st.warning("Product code and product name are required.")
+                    elif not uploads:
+                        st.warning("Please select at least one file.")
+                    else:
+                        aliases = [
+                            item.strip() for item in str(aliases_text or "").split(",")
+                            if item.strip()
+                        ]
+                        try:
+                            product = _product_library_upsert_product(
+                                clean_code,
+                                clean_name,
+                                str(compatibility or "").strip(),
+                                str(description or "").strip(),
+                                aliases,
+                                True,
+                            )
+                            if not product:
+                                raise RuntimeError("Supabase did not return the saved product record.")
+                            successes, failures = [], []
+                            progress = st.progress(0)
+                            for index, uploaded_file in enumerate(uploads, start=1):
+                                try:
+                                    _product_library_upload_asset(
+                                        product, asset_type, uploaded_file, asset_subtype
+                                    )
+                                    successes.append(uploaded_file.name)
+                                except Exception as error:
+                                    failures.append(f"{uploaded_file.name}: {error}")
+                                progress.progress(index / len(uploads))
+                            _product_library_clear_read_caches()
+                            if successes:
+                                st.success(
+                                    f"Uploaded {len(successes)} file(s) for product {clean_code}."
+                                )
+                            for failure in failures:
+                                st.error(failure)
+                        except Exception as error:
+                            st.error(f"Product upload failed: {error}")
+        else:
+            st.info(
+                "You have view access. Ask an administrator to enable "
+                "Product Library Upload if you need to add files."
+            )
+
+
 # ============================================================
 # Admin Panel
 # ============================================================
@@ -26179,54 +26482,50 @@ if (
         )
 
         st.markdown("#### Workspace Access")
-        workspace_columns = st.columns(2)
         workspace_values = {}
-        for index, (permission_key, permission_label) in enumerate(
-            WORKSPACE_LABELS.items()
-        ):
-            with workspace_columns[index % 2]:
-                workspace_values[permission_key] = st.checkbox(
-                    permission_label,
-                    value=bool(
-                        stored_workspace_permissions.get(permission_key)
-                    ),
-                    key=(
-                        f"stable_workspace_permission_"
-                        f"{editor_key}_{permission_key}"
-                    ),
-                    disabled=(
-                        new_role == "admin"
-                        or (
-                            new_role in STRICT_EXTERNAL_ROLES
-                            and permission_key != "technical"
-                        )
-                    ),
-                )
+        # Keep one ordered permission column on every screen size. Streamlit's
+        # multi-column layout reorders/segments checkboxes when columns stack on
+        # iPhone, which made Product Library appear missing in the mobile editor.
+        for permission_key, permission_label in WORKSPACE_LABELS.items():
+            workspace_values[permission_key] = st.checkbox(
+                permission_label,
+                value=bool(
+                    stored_workspace_permissions.get(permission_key)
+                ),
+                key=(
+                    f"stable_workspace_permission_"
+                    f"{editor_key}_{permission_key}"
+                ),
+                disabled=(
+                    new_role == "admin"
+                    or (
+                        new_role in STRICT_EXTERNAL_ROLES
+                        and permission_key != "technical"
+                    )
+                ),
+            )
 
         st.markdown("#### Feature Access")
-        feature_columns = st.columns(2)
         feature_values = {}
-        for index, (permission_key, permission_label) in enumerate(
-            FEATURE_LABELS.items()
-        ):
+        for permission_key, permission_label in FEATURE_LABELS.items():
             forced_external_off = (
                 new_role in STRICT_EXTERNAL_ROLES
                 and permission_key in {
-                    "history", "woocommerce", "knowledge_upload"
+                    "history", "woocommerce", "knowledge_upload",
+                    "product_library_upload", "product_library_manage"
                 }
             )
-            with feature_columns[index % 2]:
-                feature_values[permission_key] = st.checkbox(
-                    permission_label,
-                    value=bool(
-                        stored_feature_permissions.get(permission_key)
-                    ),
-                    key=(
-                        f"stable_feature_permission_"
-                        f"{editor_key}_{permission_key}"
-                    ),
-                    disabled=new_role == "admin" or forced_external_off,
-                )
+            feature_values[permission_key] = st.checkbox(
+                permission_label,
+                value=bool(
+                    stored_feature_permissions.get(permission_key)
+                ),
+                key=(
+                    f"stable_feature_permission_"
+                    f"{editor_key}_{permission_key}"
+                ),
+                disabled=new_role == "admin" or forced_external_off,
+            )
 
         if new_role == "admin":
             workspace_values = {
@@ -26243,6 +26542,20 @@ if (
             feature_values["history"] = False
             feature_values["woocommerce"] = False
             feature_values["knowledge_upload"] = False
+            feature_values["product_library_upload"] = False
+            feature_values["product_library_manage"] = False
+
+        # Keep Product Library permissions internally consistent. Manage implies
+        # upload, and either action requires the Product Library workspace. These
+        # rules also protect legacy records and accidental checkbox combinations.
+        if feature_values.get("product_library_manage"):
+            feature_values["product_library_upload"] = True
+            workspace_values["product_library"] = True
+        elif feature_values.get("product_library_upload"):
+            workspace_values["product_library"] = True
+        elif not workspace_values.get("product_library"):
+            feature_values["product_library_upload"] = False
+            feature_values["product_library_manage"] = False
 
         if st.button(
             "Save User",
@@ -27021,6 +27334,9 @@ CANADA_POST_PASSWORD = """"",
 # ============================================================
 # Main Chat UI
 # ============================================================
+
+elif assistant == "📚 Product Library":
+    render_product_library_workspace()
 
 elif assistant == "🧠 Knowledge Submission":
     render_knowledge_submission_workspace()
