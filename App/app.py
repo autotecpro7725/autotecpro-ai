@@ -27,7 +27,7 @@ import time
 import io
 import requests
 import xml.etree.ElementTree as ET
-from urllib.parse import quote, urlparse, urljoin
+from urllib.parse import quote, urlparse
 from html.parser import HTMLParser
 import socket
 import ipaddress
@@ -3437,16 +3437,10 @@ def clear_managed_uploads(storage_key, generation_key):
 
 
 def install_gpt_uploader_css():
-    """
-    Final, isolated uploader styling.
-
-    No Streamlit DOM nodes are cloned or moved. Preview cards and delete
-    controls are rendered by Python inside one keyed Streamlit container.
-    """
+    """Render isolated native-uploader and managed-preview styling."""
     st.markdown(
         """
         <style>
-        /* One professional upload box containing everything. */
         html body div[class*="st-key-atp_upload_shell_"] {
             width: 100% !important;
             border: 1px dashed rgba(248, 113, 113, 0.72) !important;
@@ -3470,152 +3464,23 @@ def install_gpt_uploader_css():
             text-align: left;
         }
 
-        /* Preview card stays centered inside the upload box. */
-        html body div[class*="st-key-atp_upload_card_"] {
-            position: relative !important;
-            width: min(100%, 196px) !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            border: 1px solid rgba(148, 163, 184, 0.18) !important;
-            border-radius: 15px !important;
-            background: rgba(15, 23, 42, 0.82) !important;
-            overflow: visible !important;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
-        }
-
-        html body div[class*="st-key-atp_upload_card_"]
-        > div[data-testid="stVerticalBlock"] {
-            gap: 0 !important;
-        }
-
-        .atp-upload-preview-media {
+        .atp-add-file-label {
             width: 100%;
-            height: 105px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            background: #020617;
-            border-radius: 14px 14px 0 0;
-            overflow: hidden;
-        }
-
-        .atp-upload-preview-media img {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            object-position: center;
-            background: #020617;
-        }
-
-        .atp-upload-file-icon {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            background: rgba(30, 41, 59, 0.74);
-        }
-
-        .atp-upload-meta {
-            padding: 7px 32px 7px 8px;
+            margin: 2px 0 0;
+            color: #cbd5e1;
+            font-size: 12.5px;
+            font-weight: 650;
             text-align: center;
-            border-top: 1px solid rgba(148, 163, 184, 0.13);
         }
 
-        .atp-upload-name {
-            color: #f8fafc;
-            font-size: 11px;
-            font-weight: 700;
-            line-height: 1.25;
-            overflow-wrap: anywhere;
-        }
-
-        .atp-upload-size {
-            color: #94a3b8;
-            font-size: 10px;
-            margin-top: 2px;
-        }
-
-        /* Small ChatGPT-style delete icon over each image. */
-        html body div[class*="st-key-atp_upload_card_"] {
-            position: relative !important;
-            isolation: isolate !important;
-        }
-
-        html body div[class*="st-key-atp_upload_card_"] .stButton,
-        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stButton"],
-        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stElementContainer"]:has(button[aria-label="Remove file"]) {
-            position: absolute !important;
-            top: 0 !important;
-            right: 0 !important;
-            transform: translate(34%, -34%) !important;
-            left: auto !important;
-            bottom: auto !important;
-            z-index: 999 !important;
-            width: 27px !important;
-            min-width: 27px !important;
-            max-width: 27px !important;
-            height: 27px !important;
-            min-height: 27px !important;
-            max-height: 27px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        html body div[class*="st-key-atp_upload_card_"] button[aria-label="Remove file"],
-        html body div[class*="st-key-atp_upload_card_"] .stButton > button,
-        html body div[class*="st-key-atp_upload_card_"] div[data-testid="stButton"] > button {
-            width: 27px !important;
-            min-width: 27px !important;
-            max-width: 27px !important;
-            height: 27px !important;
-            min-height: 27px !important;
-            max-height: 27px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border-radius: 999px !important;
-            border: 1px solid rgba(15, 23, 42, 0.16) !important;
-            background: rgba(255, 255, 255, 0.94) !important;
-            color: #475569 !important;
-            -webkit-text-fill-color: #475569 !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
-            font-size: 17px !important;
-            font-weight: 400 !important;
-            line-height: 1 !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transform: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_card_"] .stButton > button:hover {
-            background: #ffffff !important;
-            border-color: rgba(239, 68, 68, 0.24) !important;
-            color: #dc2626 !important;
-            -webkit-text-fill-color: #dc2626 !important;
-            transform: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_card_"] .stButton > button p {
-            margin: 0 !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-        }
-
-        /* Horizontal preview row on desktop; Streamlit stacks columns on mobile. */
         html body div[class*="st-key-atp_preview_grid_"] {
             width: 100% !important;
-            margin: 0 auto 7px auto !important;
-            display: block !important;
+            margin: 0 auto 7px !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="stHorizontalBlock"] {
             width: 100% !important;
-            max-width: 100% !important;
             margin: 0 auto !important;
             display: flex !important;
             align-items: flex-start !important;
@@ -3626,162 +3491,16 @@ def install_gpt_uploader_css():
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="column"] {
-            flex: 0 0 184px !important;
-            width: 184px !important;
-            min-width: 184px !important;
-            max-width: 184px !important;
+            flex: 0 0 178px !important;
+            width: 178px !important;
+            min-width: 178px !important;
+            max-width: 178px !important;
             padding: 0 !important;
         }
 
-        .atp-add-file-label {
-            width: 100%;
-            text-align: center;
-            color: #cbd5e1;
-            font-size: 12.5px;
-            font-weight: 650;
-            margin: 2px 0 0 0;
-        }
-        /* Native chooser is centered and remains inside the same box. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] {
-            background: transparent !important;
-            border: 0 !important;
-            padding: 0 !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] section,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderDropzone"] {
-            min-height: 100px !important;
-            height: auto !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex-direction: column !important;
-            gap: 7px !important;
-            padding: 12px !important;
-            border: 1px dashed rgba(148, 163, 184, 0.25) !important;
-            border-radius: 13px !important;
-            background: rgba(15, 23, 42, 0.28) !important;
-            box-sizing: border-box !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] section > div,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderDropzone"] > div {
-            width: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex-direction: column !important;
-            gap: 6px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            text-align: center !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stBaseButton-secondary"] {
-            width: auto !important;
-            min-width: 126px !important;
-            height: 50px !important;
-            min-height: 50px !important;
-            margin: 0 auto !important;
-            padding: 0 18px !important;
-            border-radius: 12px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 8px !important;
-            transform: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button svg {
-            width: 25px !important;
-            height: 25px !important;
-        }
-
-        
-
-
-
-
-        /* Additional safe fallback for temporary icon-only controls.
-           This does not affect the real Upload/Browse button. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        button[aria-label="Remove file"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        button[aria-label="Add file"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        button[title="Remove file"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        button[title="Add file"] {
-            display: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-
-        /* Safely hide only temporary row controls.
-           The main Upload/Browse button remains clickable. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderFile"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid*="UploadedFile"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid*="FileUploaderFile"] button {
-            display: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-
-/* Keep Streamlit's native size/type helper visible.
-           The server upload limit is set to 20 MB in .streamlit/config.toml.
-           Native uploaded rows remain hidden because Python renders previews. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] ul,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] section > div:has([data-testid="stFileUploaderFile"]) {
-            display: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] small {
-            display: block !important;
-            width: 100% !important;
-            margin: 4px 0 0 0 !important;
-            color: #94a3b8 !important;
-            -webkit-text-fill-color: #94a3b8 !important;
-            font-size: 11.5px !important;
-            line-height: 1.35 !important;
-            text-align: center !important;
-            opacity: 1 !important;
-        }
-
-
-
-
-        /* Compact preview cards. */
         html body div[class*="st-key-atp_upload_card_"] {
             position: relative !important;
+            isolation: isolate !important;
             width: 100% !important;
             max-width: 178px !important;
             margin: 0 auto !important;
@@ -3790,8 +3509,7 @@ def install_gpt_uploader_css():
             border-radius: 14px !important;
             background: rgba(15, 23, 42, 0.84) !important;
             overflow: visible !important;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
-            isolation: isolate !important;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18) !important;
         }
 
         html body div[class*="st-key-atp_upload_card_"]
@@ -3806,6 +3524,7 @@ def install_gpt_uploader_css():
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            border-radius: 13px 13px 0 0;
             background: #020617;
         }
 
@@ -3837,7 +3556,7 @@ def install_gpt_uploader_css():
         }
 
         .atp-gpt-upload-meta {
-            padding: 7px 8px 8px 8px;
+            padding: 7px 8px 8px;
             text-align: center;
             border-top: 1px solid rgba(148, 163, 184, 0.12);
         }
@@ -3851,12 +3570,11 @@ def install_gpt_uploader_css():
         }
 
         .atp-gpt-upload-size {
+            margin-top: 2px;
             color: #94a3b8;
             font-size: 10px;
-            margin-top: 2px;
         }
 
-        /* Real Streamlit delete button pinned to upper-right of each image. */
         html body div[class*="st-key-atp_delete_btn_"] {
             position: absolute !important;
             top: 6px !important;
@@ -3890,7 +3608,7 @@ def install_gpt_uploader_css():
             background: rgba(255, 255, 255, 0.95) !important;
             color: #475569 !important;
             -webkit-text-fill-color: #475569 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -3906,36 +3624,111 @@ def install_gpt_uploader_css():
             transform: none !important;
         }
 
-
-        /* Immediate CSS fallback for Streamlit's transient add/remove controls. */
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid="stFileUploaderFile"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid*="UploadedFile"] button,
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]
-        [data-testid*="FileUploaderFile"] button {
-            display: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
+        div[data-testid="stFileUploader"] {
+            position: relative !important;
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            border: 0 !important;
+            background: transparent !important;
         }
 
-        /* Hide every native temporary uploaded-file row/control. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+            min-height: 100px !important;
+            height: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 7px !important;
+            padding: 12px !important;
+            border: 1px dashed rgba(148, 163, 184, 0.25) !important;
+            border-radius: 13px !important;
+            background: rgba(15, 23, 42, 0.28) !important;
+            box-sizing: border-box !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section > div,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] > div {
+            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            text-align: center !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
+            width: auto !important;
+            min-width: 126px !important;
+            height: 50px !important;
+            min-height: 50px !important;
+            margin: 0 auto !important;
+            padding: 0 18px !important;
+            border-radius: 12px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            transform: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button svg {
+            width: 25px !important;
+            height: 25px !important;
+        }
+
+        /* Native temporary rows are replaced by managed Python previews. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] ul,
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"] {
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="FileUploaderFile"] {
             display: none !important;
         }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] small {
+            display: block !important;
+            width: 100% !important;
+            margin: 4px 0 0 !important;
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            font-size: 11.5px !important;
+            line-height: 1.35 !important;
+            text-align: center !important;
+            opacity: 1 !important;
+        }
+
         @media (max-width: 768px) {
+            html body div[class*="st-key-atp_upload_shell_"] {
+                padding: 11px !important;
+                border-radius: 15px !important;
+            }
 
             html body div[class*="st-key-atp_preview_grid_"]
             div[data-testid="stHorizontalBlock"] {
-                gap: 5px !important;
+                gap: 7px !important;
                 flex-wrap: wrap !important;
             }
 
@@ -3947,313 +3740,36 @@ def install_gpt_uploader_css():
                 max-width: 154px !important;
             }
 
-            html body div[class*="st-key-atp_upload_shell_"]
-            div[data-testid="stHorizontalBlock"] {
-                gap: 5px !important;
-            }
-
-            html body div[class*="st-key-atp_upload_shell_"]
-            div[data-testid="stHorizontalBlock"]
-            > div[data-testid="column"] {
-                flex: 0 0 154px !important;
-                width: 154px !important;
-                min-width: 154px !important;
+            html body div[class*="st-key-atp_upload_card_"] {
                 max-width: 154px !important;
             }
 
-            html body div[class*="st-key-atp_upload_shell_"] {
-                padding: 11px !important;
-                border-radius: 15px !important;
-            }
-
-            html body div[class*="st-key-atp_upload_card_"] {
-                width: min(100%, 168px) !important;
-            }
-
-            html body div[class*="st-key-atp_preview_grid_"]
-            div[data-testid="stHorizontalBlock"] {
-                gap: 7px !important;
-            }
-
-            html body div[class*="st-key-atp_preview_grid_"]
-            div[data-testid="column"] {
-                flex: 0 0 168px !important;
-                width: 168px !important;
-                min-width: 168px !important;
-                max-width: 168px !important;
-            }
-
-            .atp-upload-preview-media {
-                height: 100px;
+            .atp-gpt-upload-media {
+                height: 96px;
             }
 
             html body div[class*="st-key-atp_upload_shell_"]
             div[data-testid="stFileUploader"] section,
             html body div[class*="st-key-atp_upload_shell_"]
-            div[data-testid="stFileUploader"]
-            [data-testid="stFileUploaderDropzone"] {
+            div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
                 min-height: 92px !important;
                 padding: 10px !important;
-                background: rgba(15, 23, 42, 0.34) !important;
             }
 
             html body div[class*="st-key-atp_upload_shell_"]
             div[data-testid="stFileUploader"] button,
             html body div[class*="st-key-atp_upload_shell_"]
-            div[data-testid="stFileUploader"]
-            [data-testid="stBaseButton-secondary"] {
+            div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
                 min-width: 116px !important;
                 height: 47px !important;
                 min-height: 47px !important;
                 padding: 0 16px !important;
-                color: #ffffff !important;
-                -webkit-text-fill-color: #ffffff !important;
-            }
-
-            html body div[class*="st-key-atp_upload_shell_"]
-            div[data-testid="stFileUploader"] button * {
-                color: #ffffff !important;
-                -webkit-text-fill-color: #ffffff !important;
             }
         }
-        
-        /* FINAL RELIABLE APPROACH:
-           Hide Streamlit's native uploader UI completely. The actual file
-           input remains mounted and is opened by our custom Upload button. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] {
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
-            min-width: 1px !important;
-            min-height: 1px !important;
-            max-width: 1px !important;
-            max-height: 1px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            border: 0 !important;
-        }
-
-        .atp-custom-upload-controls {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 7px;
-            margin: 2px 0 0 0;
-        }
-
-        .atp-custom-upload-trigger {
-            min-width: 126px;
-            height: 50px;
-            padding: 0 18px;
-            border-radius: 12px;
-            border: 1px solid rgba(148, 163, 184, 0.32);
-            background: rgba(51, 65, 85, 0.78);
-            color: #ffffff;
-            font-size: 15px;
-            font-weight: 750;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            cursor: pointer;
-            box-shadow: none;
-            transition: background 0.16s ease, border-color 0.16s ease;
-        }
-
-        .atp-custom-upload-trigger:hover {
-            background: rgba(71, 85, 105, 0.92);
-            border-color: rgba(148, 163, 184, 0.46);
-            transform: none;
-        }
-
-        .atp-custom-upload-trigger:active {
-            transform: scale(0.98);
-        }
-
-        .atp-custom-upload-icon {
-            width: 22px;
-            height: 22px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-        }
-
-        .atp-custom-upload-icon svg {
-            width: 22px;
-            height: 22px;
-            display: block;
-        }
-
-        .atp-custom-upload-helper {
-            color: #94a3b8;
-            font-size: 11.5px;
-            line-height: 1.35;
-            text-align: center;
-        }
-
-        @media (max-width: 768px) {
-            .atp-custom-upload-trigger {
-                min-width: 116px;
-                height: 47px;
-                padding: 0 16px;
-            }
-        }
-
-        /* v312: use Streamlit's native file input as the single reliable
-           upload control. This avoids stale browser click handlers after a
-           preview is removed and prevents duplicate Upload controls. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        .atp-custom-upload-controls {
-            display: none !important;
-        }
-
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] {
-            position: relative !important;
-            width: 100% !important;
-            height: auto !important;
-            min-width: 0 !important;
-            min-height: 0 !important;
-            max-width: none !important;
-            max-height: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            border: 0 !important;
-        }
-</style>
+        </style>
         """,
         unsafe_allow_html=True,
     )
-
-
-    components.html(
-        """
-        <script>
-        (() => {
-          const root = window.parent;
-          const doc = root.document;
-          const KEY = "__atpCustomUploaderTriggerV3";
-
-          // Remove only the previous delegated click handler. Do not tie the
-          // controller lifetime to this zero-height component iframe: Streamlit
-          // can destroy that iframe during a normal rerun, which previously
-          // removed the Upload-button listener until a full browser refresh.
-          try {
-            const previous = root[KEY];
-            if (previous?.handler) {
-              doc.removeEventListener("click", previous.handler, true);
-            }
-          } catch (error) {}
-
-          function uploaderInputsForTrigger(trigger) {
-            const prefix = String(
-              trigger?.dataset?.uploaderPrefix || ""
-            ).trim();
-
-            const shells = [];
-            const localShell = trigger?.closest(
-              'div[class*="st-key-atp_upload_shell_"]'
-            );
-            if (localShell?.isConnected) shells.push(localShell);
-
-            if (prefix) {
-              const selector =
-                `div[class*="st-key-atp_upload_shell_${prefix}"]`;
-              for (const shell of Array.from(doc.querySelectorAll(selector))) {
-                if (shell.isConnected && !shells.includes(shell)) {
-                  shells.push(shell);
-                }
-              }
-            }
-
-            const inputs = [];
-            for (let index = shells.length - 1; index >= 0; index -= 1) {
-              for (const input of Array.from(
-                shells[index].querySelectorAll('input[type="file"]')
-              )) {
-                if (
-                  input.isConnected &&
-                  !input.disabled &&
-                  input.getAttribute("aria-disabled") !== "true"
-                ) {
-                  inputs.push(input);
-                }
-              }
-            }
-            return inputs;
-          }
-
-          function openNativePicker(trigger) {
-            const inputs = uploaderInputsForTrigger(trigger);
-            const input = inputs.length ? inputs[0] : null;
-
-            if (!input) {
-              console.warn(
-                "AutoTecPro AI: active uploader input is not available."
-              );
-              return;
-            }
-
-            // Keep this synchronous inside the real user click. Delayed retries
-            // lose browser user-activation permission and cannot reliably open
-            // a native file picker.
-            try { input.value = ""; } catch (error) {}
-
-            try {
-              if (typeof input.showPicker === "function") {
-                input.showPicker();
-              } else {
-                input.click();
-              }
-            } catch (error) {
-              try {
-                input.click();
-              } catch (clickError) {
-                console.warn(
-                  "AutoTecPro AI: could not open the native file picker.",
-                  clickError
-                );
-              }
-            }
-          }
-
-          function onClick(event) {
-            const target = event.target;
-            const trigger = target?.closest?.(".atp-custom-upload-trigger");
-            if (!trigger) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            openNativePicker(trigger);
-          }
-
-          doc.addEventListener("click", onClick, true);
-          root[KEY] = { handler: onClick };
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
-
-
-
-
-
-
-
-
-
 
 
 @st.cache_data(show_spinner=False)
@@ -4368,13 +3884,6 @@ def managed_file_uploader(
 
     records = list(st.session_state.get(storage_key) or [])
     shell_key = f"atp_upload_shell_{widget_prefix}"
-    accepted_type_labels = [
-        str(file_type).strip().upper()
-        for file_type in (accepted_types or [])
-        if str(file_type).strip()
-    ]
-    accepted_type_text = ", ".join(accepted_type_labels)
-
     with st.container(key=shell_key):
         st.markdown(
             f'<div class="atp-upload-heading">{html.escape(heading)}</div>',
@@ -4475,8 +3984,6 @@ def managed_file_uploader(
 
 
 
-# ============================================================
-# Styling
 # ============================================================
 # Styling
 # ============================================================
