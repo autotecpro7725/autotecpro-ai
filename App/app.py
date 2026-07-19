@@ -1248,18 +1248,46 @@ def _normalize_analytics_product_text(value):
     return spaced, compact
 
 
-def _analytics_item_matches(item, product_query):
-    """Match a natural product query against IDs, SKU, and product name."""
-    query = str(product_query or "").strip()
-    if not query:
-        return True
-
-    fields = [
+def _analytics_item_search_values(item):
+    """Collect searchable WooCommerce line-item values, including variations/options."""
+    values = [
         item.get("product_id"),
         item.get("variation_id"),
         item.get("sku"),
         item.get("name"),
     ]
+
+    # Many AutoTecPro model numbers are stored as variation attributes or visible
+    # checkout options instead of in the parent product title/SKU. Include both
+    # metadata labels and values so queries such as 732, 836, and 836-Pro match
+    # the exact model selected by the customer.
+    for entry in item.get("meta_data") or []:
+        if not isinstance(entry, dict):
+            continue
+        key = entry.get("display_key") or entry.get("key")
+        value = (
+            entry.get("display_value")
+            if entry.get("display_value") not in (None, "")
+            else entry.get("value")
+        )
+        if key not in (None, ""):
+            values.append(key)
+        if value not in (None, ""):
+            if isinstance(value, (dict, list, tuple)):
+                try:
+                    value = json.dumps(value, ensure_ascii=False, default=str)
+                except Exception:
+                    value = str(value)
+            values.append(value)
+
+    return values
+
+
+def _analytics_item_matches(item, product_query):
+    """Match a natural model/SKU query across product and variation metadata."""
+    query = str(product_query or "").strip()
+    if not query:
+        return True
 
     query_spaced, query_compact = _normalize_analytics_product_text(query)
     if not query_compact:
@@ -1267,7 +1295,7 @@ def _analytics_item_matches(item, product_query):
 
     normalized_fields = [
         _normalize_analytics_product_text(value)
-        for value in fields
+        for value in _analytics_item_search_values(item)
         if value not in (None, "")
     ]
 
@@ -1277,20 +1305,20 @@ def _analytics_item_matches(item, product_query):
     ):
         return True
 
-    haystack_spaced = " ".join(
-        field_spaced for field_spaced, _ in normalized_fields if field_spaced
-    )
-    haystack_compact = " ".join(
-        field_compact for _, field_compact in normalized_fields if field_compact
-    )
-
-    if query_compact and any(
+    # Match model codes regardless of punctuation: 836-Pro, 836 Pro, and 836PRO.
+    if any(
         query_compact in field_compact
         for _, field_compact in normalized_fields
         if field_compact
     ):
         return True
 
+    haystack_spaced = " ".join(
+        field_spaced for field_spaced, _ in normalized_fields if field_spaced
+    )
+    haystack_compact = " ".join(
+        field_compact for _, field_compact in normalized_fields if field_compact
+    )
     query_tokens = [
         token for token in query_spaced.split()
         if token not in {"the", "product", "model", "item", "sku"}
@@ -2780,6 +2808,26 @@ def detect_live_request(prompt, selected_assistant=None):
         ]
         looks_like_analytics = any(term in lower for term in analytics_terms)
 
+        # Support concise follow-ups such as "how about 732" after a live sales
+        # lookup. Reuse only the previous analytics period, never stale results.
+        previous_analytics = st.session_state.get("woocommerce_analytics_context") or {}
+        followup_match = re.fullmatch(
+            r"(?:and\s+)?(?:how|what)\s+about\s+(?:model\s+|product\s+|sku\s+)?"
+            r"([a-z0-9][a-z0-9._/-]{1,40})[?!.]*",
+            lower,
+        )
+        if followup_match and previous_analytics:
+            return {
+                "type": "woocommerce_sales_analytics",
+                "access_level": "sales",
+                "product_query": followup_match.group(1),
+                "start_iso": previous_analytics.get("start_iso"),
+                "end_iso": previous_analytics.get("end_iso"),
+                "period_label": previous_analytics.get("period_label", ""),
+                "include_top_products": False,
+                "top_limit": 10,
+            }
+
         if looks_like_analytics:
             start, end, period_label = _resolve_analytics_date_range(value)
             product_query = _extract_analytics_product_query(value)
@@ -3081,7 +3129,7 @@ def get_live_data_for_prompt(
 
     try:
         if kind == "woocommerce_sales_analytics":
-            return analyze_woocommerce_sales(
+            result = analyze_woocommerce_sales(
                 request_type.get("product_query", ""),
                 request_type["start_iso"],
                 request_type["end_iso"],
@@ -3092,6 +3140,13 @@ def get_live_data_for_prompt(
                 ),
                 top_limit=request_type.get("top_limit", 10),
             )
+            st.session_state["woocommerce_analytics_context"] = {
+                "product_query": request_type.get("product_query", ""),
+                "start_iso": request_type.get("start_iso"),
+                "end_iso": request_type.get("end_iso"),
+                "period_label": request_type.get("period_label", ""),
+            }
+            return result
 
         if kind == "woocommerce_order":
             return search_woocommerce_order_number(
