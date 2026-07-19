@@ -4408,7 +4408,13 @@ def managed_file_uploader(
                                 for item in st.session_state.get(storage_key, [])
                                 if item.get("id") != record_id
                             ]
-                            st.session_state[generation_key] += 1
+                            # The native uploader was already reset immediately
+                            # after the file was added. Changing its widget key
+                            # again during preview deletion makes Streamlit mount
+                            # the old and new upload controls at the same time for
+                            # one render frame, which causes the duplicate Upload
+                            # icon seen by the user. Keep the existing empty widget
+                            # instance and rerun only the preview list.
                             st.rerun()
 
                         with column:
