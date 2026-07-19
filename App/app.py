@@ -13826,10 +13826,14 @@ def render_product_library_chat_gallery(images, message_key):
         """
         <style>
         [class*="st-key-product_library_chat_card_"] {
-            border: 1px solid rgba(250, 250, 250, 0.14);
+            border: 1px solid color-mix(in srgb, var(--text-color) 16%, transparent);
             border-radius: 0.75rem;
             padding: 0.55rem;
             height: 100%;
+            color: var(--text-color) !important;
+            background: transparent !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
         }
         [class*="st-key-product_library_chat_card_"] img {
             border-radius: 0.55rem;
@@ -13839,7 +13843,7 @@ def render_product_library_chat_gallery(images, message_key):
             background: transparent !important;
             background-color: transparent !important;
             color: inherit !important;
-            border: 1px solid rgba(250, 250, 250, 0.24) !important;
+            border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent) !important;
             border-radius: 0.5rem !important;
             box-shadow: none !important;
             min-height: 2.5rem !important;
@@ -13847,10 +13851,34 @@ def render_product_library_chat_gallery(images, message_key):
             width: 100% !important;
             padding: 0 0.65rem !important;
         }
+        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"],
+        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"] p,
+        [class*="st-key-product_library_chat_actions_"] a,
+        [class*="st-key-product_library_chat_actions_"] button,
+        [class*="st-key-product_library_chat_actions_"] button p {
+            color: var(--text-color) !important;
+        }
+        @media (max-width: 640px) {
+            [class*="st-key-product_library_chat_card_"] {
+                padding: 0.45rem !important;
+                margin-bottom: 0.65rem !important;
+            }
+            [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
+                gap: 0.45rem !important;
+            }
+            [class*="st-key-product_library_chat_actions_"] a,
+            [class*="st-key-product_library_chat_actions_"] button {
+                min-height: 2.65rem !important;
+                height: auto !important;
+                padding: 0.45rem 0.5rem !important;
+                white-space: normal !important;
+                line-height: 1.15 !important;
+            }
+        }
         [class*="st-key-product_library_chat_actions_"] a:hover,
         [class*="st-key-product_library_chat_actions_"] button:hover {
-            background: rgba(255, 255, 255, 0.035) !important;
-            border-color: rgba(250, 250, 250, 0.48) !important;
+            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
+            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
             color: inherit !important;
             box-shadow: none !important;
         }
@@ -24495,15 +24523,109 @@ def _product_library_asset_data_url(asset):
 
 
 def _product_library_prompt_requests_images(prompt):
+    """Detect natural requests for Product Library visual assets."""
     value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
     if not value:
         return False
+
     image_words = (
         "photo", "photos", "picture", "pictures", "image", "images",
-        "parts photo", "parts picture", "show me parts", "show parts",
-        "display photo", "display image", "what does", "look like",
+        "show me", "display", "view", "look like", "what does",
+        "front", "rear", "back", "side", "installed", "screen on",
+        "screen off", "mainboard", "motherboard", "pcb", "canbus",
+        "can box", "decoder", "harness", "cable", "connector",
+        "wiring", "pinout", "camera", "microphone", "gps", "usb",
+        "antenna", "sim slot", "ports",
     )
     return any(word in value for word in image_words)
+
+
+PRODUCT_LIBRARY_ASSET_INTENTS = {
+    "front_view": (
+        "front", "front view", "face", "display side", "screen side",
+    ),
+    "rear_view": (
+        "rear", "rear view", "back", "back view", "back panel",
+        "rear panel", "rear connector", "rear connectors", "back connector",
+        "back connectors", "rear ports", "back ports",
+    ),
+    "left_side": ("left side", "left view"),
+    "right_side": ("right side", "right view"),
+    "installed": ("installed", "installation result", "in the vehicle", "in car"),
+    "screen_on": ("screen on", "powered on", "display on"),
+    "screen_off": ("screen off", "powered off", "display off"),
+    "packaging": ("packaging", "package", "box", "in the box"),
+    "mainboard": ("mainboard", "motherboard", "pcb", "circuit board"),
+    "canbus": ("canbus", "can bus", "can box", "decoder", "can decoder"),
+    "harness": ("harness", "wiring harness", "main harness"),
+    "usb_cable": ("usb cable", "usb harness", "usb lead", "usb"),
+    "gps_antenna": ("gps antenna", "gps"),
+    "wifi_antenna": ("wifi antenna", "wi-fi antenna", "wireless antenna"),
+    "sim_slot": ("sim slot", "sim card slot", "sim"),
+    "microphone": ("microphone", "mic"),
+    "camera": ("camera", "rear camera", "backup camera", "dash camera"),
+    "lvds_cable": ("lvds", "lvds cable"),
+    "power_cable": ("power cable", "power harness", "power lead"),
+    "wiring_diagram": ("wiring diagram", "wire diagram", "wiring schematic"),
+    "pinout": ("pinout", "pin out", "connector pin", "pin assignment"),
+    "can_wiring": ("can wiring", "canbus wiring", "can bus wiring"),
+    "speaker_wiring": ("speaker wiring", "audio wiring"),
+    "camera_wiring": ("camera wiring", "backup camera wiring"),
+    "installation_photos": ("installation photos", "install photos", "installation pictures"),
+}
+
+
+def _product_library_requested_subtypes(prompt):
+    """Return ordered subtype intents inferred from the user's wording."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    if not value:
+        return []
+
+    matches = []
+    for subtype, phrases in PRODUCT_LIBRARY_ASSET_INTENTS.items():
+        best_position = None
+        for phrase in phrases:
+            position = value.find(phrase)
+            if position >= 0 and (best_position is None or position < best_position):
+                best_position = position
+        if best_position is not None:
+            matches.append((best_position, subtype))
+
+    matches.sort(key=lambda item: item[0])
+    return [subtype for _, subtype in matches]
+
+
+def _product_library_asset_relevance(asset, requested_subtypes):
+    """Score one image asset against requested subtype intent and legacy metadata."""
+    asset = asset or {}
+    subtype = str(asset.get("asset_subtype") or "").strip().lower()
+    asset_type = str(asset.get("asset_type") or "").strip().lower()
+    filename = str(
+        asset.get("original_filename")
+        or asset.get("optimized_filename")
+        or ""
+    ).strip().lower().replace("_", " ").replace("-", " ")
+
+    score = 0
+    if requested_subtypes:
+        for index, requested in enumerate(requested_subtypes):
+            if subtype == requested:
+                score = max(score, 300 - index)
+            elif requested.replace("_", " ") in filename:
+                score = max(score, 220 - index)
+
+        # Legacy files may not yet have subtype metadata. Apply conservative
+        # filename synonyms only within the already-matched product.
+        for requested in requested_subtypes:
+            for phrase in PRODUCT_LIBRARY_ASSET_INTENTS.get(requested, ()):
+                if phrase in filename:
+                    score = max(score, 180)
+
+    if asset_type in {"product_photo", "parts_photo"}:
+        score += 20
+    if subtype and subtype != "other":
+        score += 5
+    return score
 
 
 def _product_library_product_score(product, prompt):
@@ -24873,6 +24995,8 @@ def _product_library_chat_lookup(prompt, max_images=6):
         if _is_display_image_asset(asset)
     ]
 
+    requested_subtypes = _product_library_requested_subtypes(prompt)
+
     preferred_types = {
         "parts_photo",
         "product_photo",
@@ -24885,7 +25009,24 @@ def _product_library_chat_lookup(prompt, max_images=6):
         if str(asset.get("asset_type") or "").strip().lower()
         in preferred_types
     ]
-    selected = (preferred or image_assets)[:max(1, int(max_images or 6))]
+
+    candidate_assets = preferred or image_assets
+    if requested_subtypes:
+        ranked_assets = sorted(
+            (
+                (_product_library_asset_relevance(asset, requested_subtypes), asset)
+                for asset in candidate_assets
+            ),
+            key=lambda item: (
+                item[0],
+                str(item[1].get("created_at") or ""),
+            ),
+            reverse=True,
+        )
+        relevant_assets = [asset for score, asset in ranked_assets if score >= 180]
+        selected = relevant_assets[:max(1, int(max_images or 6))]
+    else:
+        selected = candidate_assets[:max(1, int(max_images or 6))]
 
     images = []
     for asset in selected:
@@ -24910,7 +25051,7 @@ def _product_library_chat_lookup(prompt, max_images=6):
                 "generated": False,
                 "source": "product_library",
                 "asset_type": str(asset.get("asset_type") or "other"),
-            "asset_subtype": str(asset.get("asset_subtype") or ""),
+                "asset_subtype": str(asset.get("asset_subtype") or ""),
                 "storage_path": str(asset.get("storage_path") or ""),
                 "content_type": str(asset.get("content_type") or "image/jpeg"),
                 "archive_web_url": str(asset.get("archive_web_url") or ""),
@@ -24923,6 +25064,8 @@ def _product_library_chat_lookup(prompt, max_images=6):
         matched_assets_found=len(assets),
         used_legacy_scan=used_legacy_scan,
         image_assets_found=len(image_assets),
+        requested_subtypes=",".join(requested_subtypes),
+        selected_assets=len(selected),
         images_loaded=len(images),
     )
 
@@ -24930,6 +25073,7 @@ def _product_library_chat_lookup(prompt, max_images=6):
         "product": product,
         "assets": selected,
         "images": images,
+        "requested_subtypes": requested_subtypes,
     }
 
 def _product_library_chat_context(lookup):
@@ -24968,8 +25112,12 @@ def _product_library_chat_context(lookup):
 
     product = lookup["product"]
     asset_names = [
-        str(asset.get("original_filename") or "")
+        _product_library_asset_heading(asset)
         for asset in lookup.get("assets") or []
+    ]
+    requested_subtypes = [
+        PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title())
+        for value in (lookup.get("requested_subtypes") or [])
     ]
     return (
         "\n\nVERIFIED PRODUCT LIBRARY RESULT (server-side Supabase lookup):\n"
@@ -24977,6 +25125,8 @@ def _product_library_chat_context(lookup):
         f"Product name: {product.get('product_name')}\n"
         f"Compatibility: {product.get('vehicle_compatibility') or 'Not specified'}\n"
         f"Description: {product.get('description') or 'Not specified'}\n"
+        f"Requested asset detail: "
+        f"{', '.join(requested_subtypes) if requested_subtypes else 'General product photos'}\n"
         f"Matching image files found: "
         f"{', '.join(asset_names) if asset_names else 'None'}\n"
         f"Images successfully loaded for chat display: "
