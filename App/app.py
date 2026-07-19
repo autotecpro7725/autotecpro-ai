@@ -24017,7 +24017,7 @@ def _product_library_delete_asset(asset):
         _product_library_drive_trash_file(archive_file_id)
 
     supabase.table("product_assets").delete().eq("id", asset["id"]).execute()
-    _product_library_dashboard_data.clear()
+    _product_library_clear_read_caches()
 
 
 def _product_library_replace_asset(product, asset, replacement_file):
@@ -24043,7 +24043,7 @@ def _product_library_replace_asset(product, asset, replacement_file):
             replacement_file,
         )
         _product_library_delete_asset(asset)
-        _product_library_dashboard_data.clear()
+        _product_library_clear_read_caches()
         return new_asset
     except Exception:
         # If the replacement uploaded but the old record could not be removed,
@@ -24076,7 +24076,7 @@ def _product_library_delete_product(product):
         _product_library_delete_asset(asset)
 
     supabase.table("product_library").delete().eq("id", product["id"]).execute()
-    _product_library_dashboard_data.clear()
+    _product_library_clear_read_caches()
 
 
 def _product_library_update_product(product_id, product_name, compatibility, description, aliases, active):
@@ -24098,7 +24098,7 @@ def _product_library_update_product(product_id, product_name, compatibility, des
         .eq("id", product_id)
         .execute()
     )
-    _product_library_dashboard_data.clear()
+    _product_library_clear_read_caches()
     return (result.data or [payload])[0]
 
 
@@ -24254,24 +24254,166 @@ def _product_library_prompt_requests_images(prompt):
 
 
 def _product_library_product_score(product, prompt):
+    """Score product-code, vehicle, year, system, size, and alias matches."""
     value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
     if not value:
         return 0
+
     code = str(product.get("product_code") or "").strip().casefold()
     name = str(product.get("product_name") or "").strip().casefold()
-    aliases = [str(item).strip().casefold() for item in (product.get("aliases") or [])]
+    compatibility = str(
+        product.get("vehicle_compatibility") or ""
+    ).strip().casefold()
+    description = str(product.get("description") or "").strip().casefold()
+    aliases = [
+        str(item).strip().casefold()
+        for item in (product.get("aliases") or [])
+        if str(item).strip()
+    ]
+
     score = 0
-    if code and re.search(rf"(?<![a-z0-9]){re.escape(code)}(?![a-z0-9])", value):
-        score += 100
+
+    # A product-code request is considered decisive.
+    if code and re.search(
+        rf"(?<![a-z0-9]){re.escape(code)}(?![a-z0-9])",
+        value,
+    ):
+        score += 200
+
     if name and name in value:
-        score += 70
+        score += 80
+
     for alias in aliases:
         if alias and alias in value:
-            score += 60
-    tokens = {token for token in re.findall(r"[a-z0-9][a-z0-9._-]+", value) if len(token) >= 3}
-    haystack = " ".join([code, name, *aliases])
-    score += sum(4 for token in tokens if token in haystack)
+            score += 70
+
+    searchable = " ".join(
+        [code, name, compatibility, description, *aliases]
+    )
+    prompt_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9._/-]*", value)
+        if len(token) >= 2
+    }
+
+    important_terms = {
+        "sync", "f150", "f250", "f350", "f450", "f550",
+        "silverado", "sierra", "ram", "qhd", "manual", "auto",
+        "android", "tesla", "inch",
+    }
+
+    for token in prompt_tokens:
+        if token in searchable:
+            score += 8 if token in important_terms else 4
+
+    # Match a requested vehicle year against compatibility ranges such as
+    # 2015-2021, including common Unicode dash variants.
+    requested_years = {
+        int(year)
+        for year in re.findall(r"\b(19\d{2}|20\d{2})\b", value)
+    }
+    normalized_searchable = (
+        searchable.replace("–", "-").replace("—", "-").replace("−", "-")
+    )
+    product_years = {
+        int(year)
+        for year in re.findall(r"\b(19\d{2}|20\d{2})\b", normalized_searchable)
+    }
+    year_ranges = [
+        (int(start), int(end))
+        for start, end in re.findall(
+            r"\b(19\d{2}|20\d{2})\s*-\s*(19\d{2}|20\d{2})\b",
+            normalized_searchable,
+        )
+    ]
+
+    for requested_year in requested_years:
+        if requested_year in product_years:
+            score += 20
+        elif any(
+            min(start, end) <= requested_year <= max(start, end)
+            for start, end in year_ranges
+        ):
+            score += 20
+
+    # Screen-size phrases are strong disambiguators.
+    requested_sizes = re.findall(
+        r"\b(\d{2}(?:\.\d)?)\s*(?:inch|inches|in|\\?[\"])\b",
+        value,
+    )
+    for size in requested_sizes:
+        if size in searchable:
+            score += 25
+
     return score
+
+
+def _product_library_candidate_label(product):
+    """Build a concise human-readable candidate label."""
+    code = str(product.get("product_code") or "Unknown code").strip()
+    name = str(product.get("product_name") or "Unnamed product").strip()
+    compatibility = str(
+        product.get("vehicle_compatibility") or ""
+    ).strip()
+    description = str(product.get("description") or "").strip()
+
+    details = compatibility or description
+    details = re.sub(r"\s+", " ", details)
+    if len(details) > 120:
+        details = details[:117].rstrip() + "..."
+
+    return f"{code} — {name}" + (f" — {details}" if details else "")
+
+
+def _product_library_pending_candidates():
+    value = st.session_state.get("product_library_pending_candidates")
+    return value if isinstance(value, list) else []
+
+
+def _product_library_resolve_pending_selection(prompt):
+    """Resolve a number or product-code reply from a prior clarification."""
+    candidates = _product_library_pending_candidates()
+    if not candidates:
+        return None
+
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    lowered = value.casefold()
+
+    if lowered in {"cancel", "none", "neither", "start over"}:
+        st.session_state.pop("product_library_pending_candidates", None)
+        return {"cancelled": True}
+
+    number_match = re.fullmatch(
+        r"(?:option\s*)?(\d{1,2})",
+        lowered,
+    )
+    if number_match:
+        selected_index = int(number_match.group(1)) - 1
+        if 0 <= selected_index < len(candidates):
+            selected = candidates[selected_index]
+            st.session_state.pop("product_library_pending_candidates", None)
+            return {"product": selected}
+
+    normalized_reply = _product_library_normalize_code(value)
+    for candidate in candidates:
+        if normalized_reply == _product_library_normalize_code(
+            candidate.get("product_code")
+        ):
+            st.session_state.pop("product_library_pending_candidates", None)
+            return {"product": candidate}
+
+    # Keep asking from the same bounded list for an invalid short reply.
+    if len(value) <= 40:
+        return {
+            "clarification": True,
+            "candidates": candidates,
+            "invalid_selection": True,
+        }
+
+    # A new longer request replaces the old clarification.
+    st.session_state.pop("product_library_pending_candidates", None)
+    return None
+
 
 
 def _product_library_normalize_code(value):
@@ -24281,22 +24423,11 @@ def _product_library_normalize_code(value):
     return re.sub(r"[^a-z0-9]+", "", clean)
 
 
-def _product_library_chat_lookup(prompt, max_images=6):
-    """
-    Resolve a product-photo request and return verified product context plus images.
-
-    Database reads use the privileged server client because Product Library chat
-    lookup is an internal server-side operation. Asset matching is deliberately
-    performed in Python after a bounded fetch so duplicate products, whitespace,
-    dash variants, legacy product_id values, and PostgREST equality differences
-    cannot hide otherwise valid Product Library images.
-    """
-    if not _product_library_prompt_requests_images(prompt):
-        return None
-
+@st.cache_data(ttl=60, max_entries=4, show_spinner=False)
+def _product_library_cached_products():
+    """Cache the bounded Product Library catalogue used by chat lookup."""
     database = get_supabase_admin_client()
-
-    products = (
+    return (
         database.table("product_library")
         .select(
             "id,product_code,product_name,vehicle_compatibility,"
@@ -24307,37 +24438,51 @@ def _product_library_chat_lookup(prompt, max_images=6):
         or []
     )
 
-    active_products = [
-        product for product in products
-        if product.get("active") is not False
-    ]
-    ranked = sorted(
-        (
-            (_product_library_product_score(product, prompt), product)
-            for product in active_products
-        ),
-        key=lambda item: (
-            item[0],
-            str(item[1].get("updated_at") or ""),
-        ),
-        reverse=True,
-    )
-    if not ranked or ranked[0][0] < 20:
-        return None
 
-    product = ranked[0][1]
-    product_code = str(product.get("product_code") or "").strip()
-    normalized_code = _product_library_normalize_code(product_code)
-    product_id = str(product.get("id") or "").strip()
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+def _product_library_cached_assets(product_code, product_id):
+    """
+    Retrieve assets through fast equality queries.
 
+    A bounded compatibility scan runs only when legacy or malformed rows cannot
+    be found by product_code or product_id.
+    """
+    database = get_supabase_admin_client()
     asset_columns = (
         "id,product_id,product_code,asset_type,original_filename,"
         "optimized_filename,content_type,storage_bucket,storage_path,"
         "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
     )
 
-    # Fetch a bounded set once and match locally. This is more reliable than
-    # relying on exact PostgREST equality for legacy rows and duplicate records.
+    clean_code = str(product_code or "").strip()
+    clean_id = str(product_id or "").strip()
+
+    assets = []
+    if clean_code:
+        assets = (
+            database.table("product_assets")
+            .select(asset_columns)
+            .eq("product_code", clean_code)
+            .order("created_at", desc=False)
+            .limit(200)
+            .execute().data
+            or []
+        )
+
+    if not assets and clean_id:
+        assets = (
+            database.table("product_assets")
+            .select(asset_columns)
+            .eq("product_id", clean_id)
+            .order("created_at", desc=False)
+            .limit(200)
+            .execute().data
+            or []
+        )
+
+    if assets:
+        return assets, False
+
     all_assets = (
         database.table("product_assets")
         .select(asset_columns)
@@ -24347,26 +24492,103 @@ def _product_library_chat_lookup(prompt, max_images=6):
         or []
     )
 
-    def _asset_matches_product(asset):
-        asset_code = _product_library_normalize_code(
-            asset.get("product_code")
-        )
+    normalized_code = _product_library_normalize_code(clean_code)
+
+    def matches(asset):
+        asset_code = _product_library_normalize_code(asset.get("product_code"))
         asset_product_id = str(asset.get("product_id") or "").strip()
         storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
         path_root = _product_library_normalize_code(
             storage_path.split("/", 1)[0] if storage_path else ""
         )
-
         return bool(
             (normalized_code and asset_code == normalized_code)
-            or (product_id and asset_product_id == product_id)
+            or (clean_id and asset_product_id == clean_id)
             or (normalized_code and path_root == normalized_code)
         )
 
-    assets = [
-        asset for asset in all_assets
-        if _asset_matches_product(asset)
-    ]
+    return [asset for asset in all_assets if matches(asset)], True
+
+
+def _product_library_clear_read_caches():
+    """Clear Product Library read caches after any mutation."""
+    _product_library_cached_products.clear()
+    _product_library_cached_assets.clear()
+    _product_library_dashboard_data.clear()
+
+
+def _product_library_chat_lookup(prompt, max_images=6):
+    """
+    Resolve Product Library photo requests.
+
+    Exact product codes open immediately. Broad vehicle requests with multiple
+    credible matches return a clarification list and remember those candidates,
+    allowing the user to reply with a number or product code.
+    """
+    pending_result = _product_library_resolve_pending_selection(prompt)
+    if pending_result:
+        if pending_result.get("cancelled"):
+            return {
+                "cancelled": True,
+                "images": [],
+            }
+        if pending_result.get("clarification"):
+            return pending_result
+        product = pending_result.get("product")
+    else:
+        if not _product_library_prompt_requests_images(prompt):
+            return None
+
+        products = _product_library_cached_products()
+        active_products = [
+            product for product in products
+            if product.get("active") is not False
+        ]
+        ranked = sorted(
+            (
+                (_product_library_product_score(product, prompt), product)
+                for product in active_products
+            ),
+            key=lambda item: (
+                item[0],
+                str(item[1].get("updated_at") or ""),
+            ),
+            reverse=True,
+        )
+        ranked = [item for item in ranked if item[0] > 0]
+        if not ranked or ranked[0][0] < 12:
+            return None
+
+        top_score = ranked[0][0]
+        exact_code_match = top_score >= 200
+
+        # Keep candidates close to the best score. A broad vehicle/year query
+        # can legitimately match multiple systems or screen sizes.
+        candidate_floor = max(12, top_score - 12)
+        candidates = [
+            product
+            for score, product in ranked
+            if score >= candidate_floor
+        ][:8]
+
+        if not exact_code_match and len(candidates) > 1:
+            st.session_state["product_library_pending_candidates"] = candidates
+            return {
+                "clarification": True,
+                "candidates": candidates,
+                "images": [],
+            }
+
+        product = ranked[0][1]
+
+    product_code = str(product.get("product_code") or "").strip()
+    normalized_code = _product_library_normalize_code(product_code)
+    product_id = str(product.get("id") or "").strip()
+
+    assets, used_legacy_scan = _product_library_cached_assets(
+        product_code,
+        product_id,
+    )
 
     def _is_display_image_asset(asset):
         storage_path = str(asset.get("storage_path") or "").strip()
@@ -24444,8 +24666,8 @@ def _product_library_chat_lookup(prompt, max_images=6):
         "product_library_chat_lookup_result",
         product_code=product_code,
         normalized_code=normalized_code,
-        all_assets_found=len(all_assets),
         matched_assets_found=len(assets),
+        used_legacy_scan=used_legacy_scan,
         image_assets_found=len(image_assets),
         images_loaded=len(images),
     )
@@ -24457,20 +24679,60 @@ def _product_library_chat_lookup(prompt, max_images=6):
     }
 
 def _product_library_chat_context(lookup):
-    if not isinstance(lookup, dict) or not lookup.get("product"):
+    if not isinstance(lookup, dict):
         return ""
+
+    if lookup.get("cancelled"):
+        return (
+            "\n\nPRODUCT LIBRARY CLARIFICATION CANCELLED:\n"
+            "Confirm briefly that the product-photo selection was cancelled."
+        )
+
+    if lookup.get("clarification"):
+        candidates = lookup.get("candidates") or []
+        candidate_lines = [
+            f"{index}. {_product_library_candidate_label(product)}"
+            for index, product in enumerate(candidates, start=1)
+        ]
+        invalid_note = (
+            "The user's last selection was not valid. "
+            if lookup.get("invalid_selection")
+            else ""
+        )
+        return (
+            "\n\nPRODUCT LIBRARY CLARIFICATION REQUIRED:\n"
+            f"{invalid_note}"
+            f"I found {len(candidates)} possible matching products.\n"
+            + "\n".join(candidate_lines)
+            + "\nAsk the user to reply with the number or product code. "
+              "Do not select a product, show photos, or add unrelated technical "
+              "details until the user confirms."
+        )
+
+    if not lookup.get("product"):
+        return ""
+
     product = lookup["product"]
-    asset_names = [str(asset.get("original_filename") or "") for asset in lookup.get("assets") or []]
+    asset_names = [
+        str(asset.get("original_filename") or "")
+        for asset in lookup.get("assets") or []
+    ]
     return (
         "\n\nVERIFIED PRODUCT LIBRARY RESULT (server-side Supabase lookup):\n"
         f"Product code: {product.get('product_code')}\n"
         f"Product name: {product.get('product_name')}\n"
         f"Compatibility: {product.get('vehicle_compatibility') or 'Not specified'}\n"
         f"Description: {product.get('description') or 'Not specified'}\n"
-        f"Matching image files found: {', '.join(asset_names) if asset_names else 'None'}\n"
-        f"Images successfully loaded for chat display: {len(lookup.get('images') or [])}\n"
-        "Tell the user only what this verified record supports. If the loaded-image count is greater than zero, state that the matching photos are displayed below the answer. Do not say the app cannot display them."
+        f"Matching image files found: "
+        f"{', '.join(asset_names) if asset_names else 'None'}\n"
+        f"Images successfully loaded for chat display: "
+        f"{len(lookup.get('images') or [])}\n"
+        "Tell the user only what this verified record supports. If the "
+        "loaded-image count is greater than zero, state that the matching "
+        "photos are displayed below the answer. Do not say the app cannot "
+        "display them."
     )
+
 
 
 def _product_library_upsert_product(product_code, product_name, compatibility, description, aliases, active=True):
@@ -24607,6 +24869,29 @@ def render_product_library_admin():
     html body div[class*="st-key-atp_product_library_panel"] [data-testid="stMetric"] {
         border: 1px solid rgba(128,128,128,.22); border-radius: 12px; padding: 12px 14px; min-height: 104px;
     }
+    html body div[class*="st-key-product_asset_actions_"] button {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: inherit !important;
+        border: 1px solid rgba(250, 250, 250, 0.24) !important;
+        border-radius: 0.5rem !important;
+        box-shadow: none !important;
+        min-height: 2.5rem !important;
+        height: 2.5rem !important;
+        width: 100% !important;
+        padding: 0 0.75rem !important;
+    }
+    html body div[class*="st-key-product_asset_actions_"] button:hover {
+        background: rgba(255, 255, 255, 0.035) !important;
+        border-color: rgba(250, 250, 250, 0.48) !important;
+        color: inherit !important;
+        box-shadow: none !important;
+    }
+    html body div[class*="st-key-product_asset_actions_"] button:disabled {
+        background: transparent !important;
+        color: inherit !important;
+        opacity: 0.45 !important;
+    }
     @media (max-width: 768px) {
         html body div[class*="st-key-atp_product_library_panel"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .55rem !important; }
         html body div[class*="st-key-atp_product_library_panel"] [data-testid="column"] { min-width: 100% !important; width: 100% !important; flex: 1 1 100% !important; }
@@ -24701,7 +24986,7 @@ def render_product_library_admin():
                             except Exception as error:
                                 failures.append(f"{uploaded_file.name}: {error}")
                             progress.progress(index / len(uploads))
-                        _product_library_dashboard_data.clear()
+                        _product_library_clear_read_caches()
                         if successes:
                             st.success(f"Uploaded {len(successes)} file(s) for product {clean_code}.")
                         for failure in failures:
@@ -24829,37 +25114,6 @@ def render_product_library_admin():
                                 replace_panel_key = f"replace_panel_{asset_id}"
                                 replace_open = bool(
                                     st.session_state.get(replace_panel_key, False)
-                                )
-
-                                st.markdown(
-                                    """
-                                    <style>
-                                    [class*="st-key-product_asset_actions_"] button {
-                                        background: transparent !important;
-                                        background-color: transparent !important;
-                                        color: inherit !important;
-                                        border: 1px solid rgba(250, 250, 250, 0.24) !important;
-                                        border-radius: 0.5rem !important;
-                                        box-shadow: none !important;
-                                        min-height: 2.5rem !important;
-                                        height: 2.5rem !important;
-                                        width: 100% !important;
-                                        padding: 0 0.75rem !important;
-                                    }
-                                    [class*="st-key-product_asset_actions_"] button:hover {
-                                        background: rgba(255, 255, 255, 0.035) !important;
-                                        border-color: rgba(250, 250, 250, 0.48) !important;
-                                        color: inherit !important;
-                                        box-shadow: none !important;
-                                    }
-                                    [class*="st-key-product_asset_actions_"] button:disabled {
-                                        background: transparent !important;
-                                        color: inherit !important;
-                                        opacity: 0.45 !important;
-                                    }
-                                    </style>
-                                    """,
-                                    unsafe_allow_html=True,
                                 )
 
                                 confirm_asset = st.session_state.get(
