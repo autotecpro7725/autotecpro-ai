@@ -3719,36 +3719,34 @@ def install_gpt_uploader_css():
             display: none !important;
         }
 
-        /* Streamlit has used several different wrappers for the native limit/type
-           sentence across releases. Suppress any remaining non-button text in the
-           managed dropzone, then restore the Upload button typography below. This
-           prevents the framework's 10MB sentence from appearing beside our single
-           application-controlled 20MB label. */
+        /* Hide only instruction-only wrappers. Never collapse a wrapper that
+           contains the native Upload button; doing so also hides the clickable
+           control in newer Streamlit DOM structures. */
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] section > div > p,
+        div[data-testid="stFileUploader"] section > div:not(:has(button)) p,
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] section > div > span,
+        div[data-testid="stFileUploader"] section > div:not(:has(button)) span,
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] p,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"]
+        > div:not(:has(button)) p,
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] span {
-            font-size: 0 !important;
-            line-height: 0 !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"]
+        > div:not(:has(button)) span {
+            display: none !important;
         }
 
+        /* Explicitly preserve the native Upload control and all of its children. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] button,
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button span,
+        div[data-testid="stFileUploader"] button *,
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] span {
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] * {
+            display: inline-flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
             font-size: 14px !important;
             line-height: 1.2 !important;
             height: auto !important;
