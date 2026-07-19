@@ -1239,23 +1239,66 @@ def _woocommerce_analytics_allowed(selected_assistant=None):
     }
 
 
+def _normalize_analytics_product_text(value):
+    """Normalize product names/SKUs so hyphens, spaces, and punctuation are equivalent."""
+    cleaned = html.unescape(str(value or "")).casefold()
+    cleaned = re.sub(r"[^a-z0-9]+", " ", cleaned)
+    spaced = re.sub(r"\s+", " ", cleaned).strip()
+    compact = re.sub(r"[^a-z0-9]+", "", spaced)
+    return spaced, compact
+
+
 def _analytics_item_matches(item, product_query):
-    """Match product query against ID, variation ID, SKU, and product name."""
-    query = str(product_query or "").strip().lower()
+    """Match a natural product query against IDs, SKU, and product name."""
+    query = str(product_query or "").strip()
     if not query:
         return True
 
-    product_id = str(item.get("product_id") or "").strip().lower()
-    variation_id = str(item.get("variation_id") or "").strip().lower()
-    sku = str(item.get("sku") or "").strip().lower()
-    name = re.sub(r"\s+", " ", str(item.get("name") or "")).strip().lower()
+    fields = [
+        item.get("product_id"),
+        item.get("variation_id"),
+        item.get("sku"),
+        item.get("name"),
+    ]
 
-    if query in {product_id, variation_id, sku}:
+    query_spaced, query_compact = _normalize_analytics_product_text(query)
+    if not query_compact:
         return True
 
-    query_tokens = [token for token in re.split(r"\s+", query) if token]
-    haystack = f"{name} {sku} {product_id} {variation_id}"
-    return bool(query_tokens) and all(token in haystack for token in query_tokens)
+    normalized_fields = [
+        _normalize_analytics_product_text(value)
+        for value in fields
+        if value not in (None, "")
+    ]
+
+    if any(
+        query_spaced == field_spaced or query_compact == field_compact
+        for field_spaced, field_compact in normalized_fields
+    ):
+        return True
+
+    haystack_spaced = " ".join(
+        field_spaced for field_spaced, _ in normalized_fields if field_spaced
+    )
+    haystack_compact = " ".join(
+        field_compact for _, field_compact in normalized_fields if field_compact
+    )
+
+    if query_compact and any(
+        query_compact in field_compact
+        for _, field_compact in normalized_fields
+        if field_compact
+    ):
+        return True
+
+    query_tokens = [
+        token for token in query_spaced.split()
+        if token not in {"the", "product", "model", "item", "sku"}
+    ]
+    return bool(query_tokens) and all(
+        token in haystack_spaced or token in haystack_compact
+        for token in query_tokens
+    )
 
 
 @st.cache_data(ttl=300, max_entries=64, show_spinner=False)
