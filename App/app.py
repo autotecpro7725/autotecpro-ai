@@ -10962,6 +10962,34 @@ st.markdown(
         pointer-events: none !important;
     }
 
+    /*
+     * Streamlit may temporarily retain keyed nodes from the previous workspace
+     * while inserting the next workspace. Hide stale workspace roots according
+     * to the destination selected in the sidebar. This directly prevents the six
+     * Knowledge Type buttons from appearing below Product Library and provides
+     * the same protection for Product Library panels on every other page.
+     */
+    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    div[class*="st-key-knowledge_submission_page"],
+    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    div[class*="st-key-knowledge_type_"],
+    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    div[class*="st-key-knowledge_structured_fields"],
+    body[data-atp-target-workspace]:not([data-atp-target-workspace="product_library"])
+    div[class*="st-key-atp_product_library_panel"],
+    body[data-atp-target-workspace]:not([data-atp-target-workspace="product_library"])
+    div[class*="st-key-atp_product_library_employee_panel"] {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
+    }
+
     body.atp-workspace-switching::after {
         content: "Loading workspace…";
         position: fixed;
@@ -11015,6 +11043,23 @@ components.html(
 
             if (!workspaceLabels.has(label)) return;
 
+            const workspaceSlugs = {
+                "Technical Support": "technical",
+                "Sales": "sales",
+                "Marketing": "marketing",
+                "Graphic Marketing": "graphic",
+                "Knowledge Submission": "knowledge",
+                "Product Library": "product_library",
+                "Admin Panel": "admin"
+            };
+
+            /*
+             * Mark the destination immediately on pointerdown. Streamlit can keep
+             * old DeltaGenerator nodes alive for a few frames while reconciling
+             * the new page. The destination marker lets CSS suppress any stale
+             * workspace-specific root before the Python rerun has completed.
+             */
+            doc.body.dataset.atpTargetWorkspace = workspaceSlugs[label] || "";
             doc.body.classList.add("atp-workspace-switching");
         };
 
@@ -28842,6 +28887,7 @@ components.html(
             released = true;
             if (observer) observer.disconnect();
             body.classList.remove("atp-workspace-switching");
+            body.removeAttribute("data-atp-target-workspace");
         };
 
         const observer = main
