@@ -3711,7 +3711,11 @@ def install_gpt_uploader_css():
            though this application validates files at 20 MB. Hide it and render
            one consistent Product Library limit label. */
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] small {
+        div[data-testid="stFileUploader"] small,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploaderDropzoneInstructions"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] {
             display: none !important;
         }
 
