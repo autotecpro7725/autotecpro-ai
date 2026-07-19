@@ -10970,41 +10970,44 @@ components.html(
     width=0,
 )
 
-# Prevent stale workspace content from flashing during Streamlit navigation.
+# Persistent workspace DOM isolation.
 #
-# Streamlit keeps the previous main-page DOM visible until the next rerun has
-# finished sending its replacement elements. On slower pages this can briefly
-# expose buttons or cards from the previous workspace. The browser-side guard
-# hides only the main content as soon as a different workspace button is
-# pressed. A release hook at the very end of this script restores the new page
-# only after all of its Streamlit elements have been emitted.
+# Recent Streamlit builds can retain individual keyed child widgets from a
+# previous conditional branch, even after the parent page container is replaced.
+# Keep every workspace-specific root and child widget hidden outside its active
+# workspace. This is intentionally persistent and avoids timers, observers,
+# loading overlays, and other transition workarounds.
 st.markdown(
     """
     <style>
-    body.atp-workspace-switching [data-testid="stMain"],
-    body.atp-workspace-switching section.main {
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-    }
-
-    /*
-     * Streamlit may temporarily retain keyed nodes from the previous workspace
-     * while inserting the next workspace. Hide stale workspace roots according
-     * to the persistent active-workspace marker. This directly prevents the six
-     * Knowledge Type buttons from appearing below Product Library and provides
-     * the same protection for Product Library panels on every other page.
-     */
+    /* Knowledge Submission: hide the complete retained widget tree, including
+       the upload shell and submit action, whenever another workspace is active. */
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_submission_page"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-knowledge_submission_"],
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_type_"],
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_structured_fields"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-knowledge_submit_button_ready"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-submit_staff_knowledge"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-atp_upload_shell_knowledge_submission_files"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-atp_preview_grid_knowledge_submission_files_"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-atp_delete_btn_knowledge_submission_files_"],
+
+    /* Product Library and Admin Panel page roots. */
     body[data-atp-current-workspace]:not([data-atp-current-workspace="product_library"])
     div[class*="st-key-atp_product_library_panel"],
     body[data-atp-current-workspace]:not([data-atp-current-workspace="product_library"])
-    div[class*="st-key-atp_product_library_employee_panel"] {
+    div[class*="st-key-atp_product_library_employee_panel"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="admin"])
+    div[class*="st-key-atp_admin_panel_page"] {
         display: none !important;
         visibility: hidden !important;
         height: 0 !important;
@@ -11015,102 +11018,9 @@ st.markdown(
         overflow: hidden !important;
         pointer-events: none !important;
     }
-
-    body.atp-workspace-switching::after {
-        content: "Loading workspace…";
-        position: fixed;
-        left: calc(var(--sidebar-width, 0px) + 50%);
-        top: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 999999;
-        padding: 10px 16px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.90);
-        color: #f8fafc;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-        pointer-events: none;
-    }
-
-    @media (max-width: 768px) {
-        body.atp-workspace-switching::after {
-            left: 50%;
-        }
-    }
     </style>
     """,
     unsafe_allow_html=True,
-)
-
-components.html(
-    """
-    <script>
-    (() => {
-        const doc = window.parent.document;
-        const workspaceLabels = new Set([
-            "Technical Support",
-            "Sales",
-            "Marketing",
-            "Graphic Marketing",
-            "Knowledge Submission",
-            "Product Library",
-            "Admin Panel"
-        ]);
-
-        const beginWorkspaceSwitch = (event) => {
-            const button = event.target.closest("button");
-            if (!button || button.disabled) return;
-
-            const label = (button.innerText || button.textContent || "")
-                .replace(/\\s+/g, " ")
-                .trim();
-
-            if (!workspaceLabels.has(label)) return;
-
-            const workspaceSlugs = {
-                "Technical Support": "technical",
-                "Sales": "sales",
-                "Marketing": "marketing",
-                "Graphic Marketing": "graphic",
-                "Knowledge Submission": "knowledge",
-                "Product Library": "product_library",
-                "Admin Panel": "admin"
-            };
-
-            /*
-             * Mark the destination immediately on pointerdown. Streamlit can keep
-             * old DeltaGenerator nodes alive for a few frames while reconciling
-             * the new page. The persistent workspace marker lets CSS suppress any stale
-             * workspace-specific root before the Python rerun has completed.
-             */
-            const destination = workspaceSlugs[label] || "";
-            doc.body.dataset.atpTargetWorkspace = destination;
-            /*
-             * Keep a persistent current-workspace marker. Streamlit can leave
-             * keyed nodes from the previous conditional branch in the DOM even
-             * after the rerun completes. CSS must therefore remain scoped after
-             * the loading guard is released, not only during the transition.
-             */
-            doc.body.dataset.atpCurrentWorkspace = destination;
-            doc.body.classList.add("atp-workspace-switching");
-        };
-
-        const sidebar =
-            doc.querySelector('[data-testid="stSidebar"]') ||
-            doc.querySelector('section[data-testid="stSidebar"]');
-
-        if (sidebar && !sidebar.dataset.atpWorkspaceSwitchGuard) {
-            sidebar.dataset.atpWorkspaceSwitchGuard = "1";
-            sidebar.addEventListener("pointerdown", beginWorkspaceSwitch, true);
-            sidebar.addEventListener("click", beginWorkspaceSwitch, true);
-        }
-    })();
-    </script>
-    """,
-    height=0,
-    width=0,
 )
 
 # Final sidebar-only visual override.
@@ -26556,983 +26466,984 @@ if (
     and user_can_access_workspace("admin")
 ):
 
-    st.subheader("⚙️ Admin Panel")
-    st.caption(
-        "Manage users, knowledge uploads, AI learning, analytics, "
-        "and continuous improvement."
-    )
-
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
-        "👥 Users",
-        "📚 Upload Knowledge",
-        "📥 Pending Submissions",
-        "🧠 AI Learning",
-        "🖼️ Product Library",
-        "🚗 Vehicle Analytics",
-        "📦 Product Analytics",
-        "🔧 Technical Analytics",
-        "📊 AI Analytics",
-        "📈 Learning Analytics",
-        "🔌 Live Integrations"
-    ])
-
-    # Streamlit evaluates every tab body during a rerun. Reuse these large
-    # datasets briefly instead of downloading up to 4,000 rows repeatedly.
-    analytics_rows, learned_rows_for_analytics = (
-        load_admin_analytics_rows()
-    )
-    analytics_rows = list(analytics_rows or [])
-    learned_rows_for_analytics = list(
-        learned_rows_for_analytics or []
-    )
-
-    with tab1:
-        st.markdown("### Current Users")
-
-        delete_success = st.session_state.pop(
-            "permanent_delete_success_message",
-            None
-        )
-        if delete_success:
-            st.success(delete_success)
-
-        users = load_admin_users()
-
-        for user in users:
-            username_value = str(user.get("username") or "")
-            role_value = str(user.get("role") or "staff")
-            active_value = bool(user.get("active"))
-            current_note = (
-                " | Current User"
-                if username_value == st.session_state.username
-                else ""
-            )
-            st.write(
-                f"**{username_value}** | {role_value} | "
-                f"Active: {active_value}{current_note}"
-            )
-
-        st.markdown("---")
-        st.markdown("### Add / Update User")
-
-        user_lookup = {
-            str(user.get("username") or ""): user
-            for user in users
-            if user.get("username")
-        }
-        edit_options = ["— New user —"] + sorted(user_lookup)
-        selected_edit_user = st.selectbox(
-            "Edit existing user (optional)",
-            edit_options,
-            key="stable_admin_edit_user",
-        )
-        selected_record = user_lookup.get(selected_edit_user, {})
-
-        editor_key = (
-            re.sub(r"[^a-zA-Z0-9_-]", "_", selected_edit_user)
-            if selected_edit_user != "— New user —"
-            else "new"
-        )
-
-        default_username = (
-            selected_edit_user
-            if selected_edit_user != "— New user —"
-            else ""
-        )
-        default_role = str(selected_record.get("role") or "staff").lower()
-        if default_role not in ROLE_OPTIONS:
-            default_role = "staff"
-        default_active = bool(selected_record.get("active", True))
-
-        stored_workspace_permissions = effective_workspace_permissions(
-            default_role,
-            selected_record.get("workspace_permissions"),
-        )
-        stored_feature_permissions = effective_feature_permissions(
-            default_role,
-            selected_record.get("feature_permissions"),
-        )
-
-        new_username = st.text_input(
-            "Username",
-            value=default_username,
-            disabled=selected_edit_user != "— New user —",
-            key=f"stable_admin_username_{editor_key}",
-        )
-        new_password = st.text_input(
-            (
-                "New Password (leave blank to keep current password)"
-                if selected_edit_user != "— New user —"
-                else "Password"
-            ),
-            type="password",
-            key=f"stable_admin_password_{editor_key}",
-        )
-        new_role = st.selectbox(
-            "Role",
-            ROLE_OPTIONS,
-            index=ROLE_OPTIONS.index(default_role),
-            key=f"stable_admin_role_{editor_key}",
-        )
-        new_active = st.checkbox(
-            "Active",
-            value=default_active,
-            key=f"stable_admin_active_{editor_key}",
-        )
-
-        st.markdown("#### Workspace Access")
-        workspace_values = {}
-        # Keep one ordered permission column on every screen size. Streamlit's
-        # multi-column layout reorders/segments checkboxes when columns stack on
-        # iPhone, which made Product Library appear missing in the mobile editor.
-        for permission_key, permission_label in WORKSPACE_LABELS.items():
-            workspace_values[permission_key] = st.checkbox(
-                permission_label,
-                value=bool(
-                    stored_workspace_permissions.get(permission_key)
-                ),
-                key=(
-                    f"stable_workspace_permission_"
-                    f"{editor_key}_{permission_key}"
-                ),
-                disabled=(
-                    new_role == "admin"
-                    or (
-                        new_role in STRICT_EXTERNAL_ROLES
-                        and permission_key != "technical"
-                    )
-                ),
-            )
-
-        st.markdown("#### Feature Access")
-        feature_values = {}
-        for permission_key, permission_label in FEATURE_LABELS.items():
-            forced_external_off = (
-                new_role in STRICT_EXTERNAL_ROLES
-                and permission_key in {
-                    "history", "woocommerce", "knowledge_upload",
-                    "product_library_upload", "product_library_manage"
-                }
-            )
-            feature_values[permission_key] = st.checkbox(
-                permission_label,
-                value=bool(
-                    stored_feature_permissions.get(permission_key)
-                ),
-                key=(
-                    f"stable_feature_permission_"
-                    f"{editor_key}_{permission_key}"
-                ),
-                disabled=new_role == "admin" or forced_external_off,
-            )
-
-        if new_role == "admin":
-            workspace_values = {
-                key: True for key in WORKSPACE_LABELS
-            }
-            feature_values = {
-                key: True for key in FEATURE_LABELS
-            }
-        elif new_role in STRICT_EXTERNAL_ROLES:
-            workspace_values = {
-                key: key == "technical"
-                for key in WORKSPACE_LABELS
-            }
-            feature_values["history"] = False
-            feature_values["woocommerce"] = False
-            feature_values["knowledge_upload"] = False
-            feature_values["product_library_upload"] = False
-            feature_values["product_library_manage"] = False
-
-        # Keep Product Library permissions internally consistent. Manage implies
-        # upload, and either action requires the Product Library workspace. These
-        # rules also protect legacy records and accidental checkbox combinations.
-        if feature_values.get("product_library_manage"):
-            feature_values["product_library_upload"] = True
-            workspace_values["product_library"] = True
-        elif feature_values.get("product_library_upload"):
-            workspace_values["product_library"] = True
-        elif not workspace_values.get("product_library"):
-            feature_values["product_library_upload"] = False
-            feature_values["product_library_manage"] = False
-
-        if st.button(
-            "Save User",
-            key=f"stable_admin_save_user_{editor_key}",
-        ):
-            clean_username = str(new_username or "").strip()
-
-            if not clean_username:
-                st.warning("Please enter a username.")
-            elif selected_edit_user == "— New user —" and not new_password:
-                st.warning("Please enter a password for the new user.")
-            elif not any(workspace_values.values()):
-                st.warning("Please allow at least one workspace.")
-            else:
-                try:
-                    existing = (
-                        supabase
-                        .table("users")
-                        .select("username")
-                        .eq("username", clean_username)
-                        .execute()
-                        .data
-                    )
-
-                    payload = {
-                        "role": new_role,
-                        "active": new_active,
-                        "workspace_permissions": workspace_values,
-                        "feature_permissions": feature_values,
-                    }
-                    if new_password:
-                        payload["password"] = new_password
-
-                    if existing:
-                        (
-                            supabase
-                            .table("users")
-                            .update(payload)
-                            .eq("username", clean_username)
-                            .execute()
-                        )
-                        st.success("User updated successfully.")
-                    else:
-                        payload.update({
-                            "username": clean_username,
-                            "password": new_password,
-                        })
-                        (
-                            supabase
-                            .table("users")
-                            .insert(payload)
-                            .execute()
-                        )
-                        st.success("User added successfully.")
-
-                    # Apply permission changes immediately to the current user.
-                    if clean_username == st.session_state.username:
-                        st.session_state.role = new_role
-                        st.session_state.workspace_permissions = (
-                            effective_workspace_permissions(
-                                new_role,
-                                workspace_values,
-                            )
-                        )
-                        st.session_state.feature_permissions = (
-                            effective_feature_permissions(
-                                new_role,
-                                feature_values,
-                            )
-                        )
-                        if not history_is_enabled():
-                            st.session_state.conversation_id = None
-
-                    invalidate_admin_read_caches()
-                    st.rerun()
-
-                except Exception as error:
-                    st.error(f"Unable to save user: {error}")
-
-        st.markdown("---")
-        st.markdown("### Permanently Delete User")
+    with st.container(key="atp_admin_panel_page"):
+        st.subheader("⚙️ Admin Panel")
         st.caption(
-            "This uses the database function delete_user_permanently and "
-            "removes the selected account and all associated records."
+            "Manage users, knowledge uploads, AI learning, analytics, "
+            "and continuous improvement."
         )
 
-        deletable_usernames = [
-            str(user.get("username"))
-            for user in users
-            if user.get("username")
-            and str(user.get("username")) != st.session_state.username
-        ]
-
-        if not deletable_usernames:
-            st.info("There are no other users available to delete.")
-        else:
-            with st.form(
-                "stable_permanent_delete_user_form",
-                clear_on_submit=True
-            ):
-                selected_delete_username = st.selectbox(
-                    "Select user",
-                    ["— Select a user —"] + deletable_usernames,
-                    key="stable_permanent_delete_user_select",
-                )
-
-                typed_delete_username = st.text_input(
-                    "Type the username exactly to confirm",
-                    key="stable_permanent_delete_username_confirm",
-                )
-
-                confirm_permanent_delete = st.checkbox(
-                    "I understand this deletion is permanent and cannot be undone."
-                )
-
-                permanent_delete_submitted = st.form_submit_button(
-                    "Permanently Delete User"
-                )
-
-            if permanent_delete_submitted:
-                if selected_delete_username == "— Select a user —":
-                    st.warning("Please select a user to delete.")
-
-                elif typed_delete_username.strip() != selected_delete_username:
-                    st.warning(
-                        "The confirmation username does not match "
-                        "the selected user."
-                    )
-
-                elif not confirm_permanent_delete:
-                    st.warning(
-                        "Please confirm that you understand this action "
-                        "is permanent."
-                    )
-
-                else:
-                    selected_rows = [
-                        user
-                        for user in users
-                        if str(user.get("username"))
-                        == selected_delete_username
-                    ]
-                    selected_user = selected_rows[0] if selected_rows else {}
-
-                    active_admins = [
-                        user
-                        for user in users
-                        if str(user.get("role") or "").lower() == "admin"
-                        and bool(user.get("active"))
-                    ]
-
-                    if (
-                        str(selected_user.get("role") or "").lower() == "admin"
-                        and bool(selected_user.get("active"))
-                        and len(active_admins) <= 1
-                    ):
-                        st.error(
-                            "The final active administrator account "
-                            "cannot be deleted."
-                        )
-                    else:
-                        try:
-                            admin_supabase = get_supabase_admin_client()
-
-                            result = (
-                                admin_supabase
-                                .rpc(
-                                    "delete_user_permanently",
-                                    {
-                                        "p_requesting_username":
-                                            st.session_state.username,
-                                        "p_target_username":
-                                            selected_delete_username,
-                                    },
-                                )
-                                .execute()
-                            )
-
-                            result_data = result.data
-                            deletion_confirmed = True
-
-                            if isinstance(result_data, dict):
-                                deletion_confirmed = bool(
-                                    result_data.get("success", True)
-                                )
-                            elif (
-                                isinstance(result_data, list)
-                                and result_data
-                                and isinstance(result_data[0], dict)
-                            ):
-                                deletion_confirmed = bool(
-                                    result_data[0].get("success", True)
-                                )
-
-                            if not deletion_confirmed:
-                                raise RuntimeError(
-                                    "The database did not confirm "
-                                    "successful deletion."
-                                )
-
-                            st.session_state[
-                                "permanent_delete_success_message"
-                            ] = (
-                                f"User '{selected_delete_username}' and "
-                                "all associated records were permanently deleted."
-                            )
-                            invalidate_admin_read_caches()
-                            st.rerun()
-
-                        except Exception as error:
-                            st.error(
-                                f"Permanent deletion failed: {error}"
-                            )
-
-    with tab2:
-        render_admin_upload_knowledge_tab()
-
-    with tab3:
-        render_pending_knowledge_review()
-
-    with tab4:
-        st.markdown("### 🧠 AI Learning")
-        st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
-
-        total_learned = len(learned_rows_for_analytics)
-        new_today = count_today(learned_rows_for_analytics, "created_at")
-        avg_conf = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
-        synced_cases = len([r for r in learned_rows_for_analytics if r.get("synced")])
-        duplicate_rate = duplicate_detection_rate(analytics_rows)
-        total_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
-
-        render_metric_row([
-            ("Total Learned Cases", total_learned),
-            ("New Knowledge Today", new_today),
-            ("Duplicate Detection Rate", f"{duplicate_rate}%"),
-            ("Confidence Average", f"{avg_conf}%"),
-            ("Synced Cases", synced_cases),
-            ("New Vectors Created", total_vectors),
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+            "👥 Users",
+            "📚 Upload Knowledge",
+            "📥 Pending Submissions",
+            "🧠 AI Learning",
+            "Product Library",
+            "🚗 Vehicle Analytics",
+            "📦 Product Analytics",
+            "🔧 Technical Analytics",
+            "📊 AI Analytics",
+            "📈 Learning Analytics",
+            "🔌 Live Integrations"
         ])
 
-        st.markdown("#### Knowledge Growth Chart")
-        growth_data = growth_counts(learned_rows_for_analytics, "created_at", limit=30, label="Learned Cases")
-        if growth_data:
-            st.bar_chart(growth_data, x="Date", y="Learned Cases")
-        else:
-            st.info("No learned knowledge yet.")
+        # Streamlit evaluates every tab body during a rerun. Reuse these large
+        # datasets briefly instead of downloading up to 4,000 rows repeatedly.
+        analytics_rows, learned_rows_for_analytics = (
+            load_admin_analytics_rows()
+        )
+        analytics_rows = list(analytics_rows or [])
+        learned_rows_for_analytics = list(
+            learned_rows_for_analytics or []
+        )
 
-        st.markdown("#### Latest Learned Knowledge")
-        if learned_rows_for_analytics:
-            learned_page_size = 100
-            learned_total_records = len(learned_rows_for_analytics)
-            learned_total_pages = max(
-                1,
-                (learned_total_records + learned_page_size - 1)
-                // learned_page_size,
+        with tab1:
+            st.markdown("### Current Users")
+
+            delete_success = st.session_state.pop(
+                "permanent_delete_success_message",
+                None
+            )
+            if delete_success:
+                st.success(delete_success)
+
+            users = load_admin_users()
+
+            for user in users:
+                username_value = str(user.get("username") or "")
+                role_value = str(user.get("role") or "staff")
+                active_value = bool(user.get("active"))
+                current_note = (
+                    " | Current User"
+                    if username_value == st.session_state.username
+                    else ""
+                )
+                st.write(
+                    f"**{username_value}** | {role_value} | "
+                    f"Active: {active_value}{current_note}"
+                )
+
+            st.markdown("---")
+            st.markdown("### Add / Update User")
+
+            user_lookup = {
+                str(user.get("username") or ""): user
+                for user in users
+                if user.get("username")
+            }
+            edit_options = ["— New user —"] + sorted(user_lookup)
+            selected_edit_user = st.selectbox(
+                "Edit existing user (optional)",
+                edit_options,
+                key="stable_admin_edit_user",
+            )
+            selected_record = user_lookup.get(selected_edit_user, {})
+
+            editor_key = (
+                re.sub(r"[^a-zA-Z0-9_-]", "_", selected_edit_user)
+                if selected_edit_user != "— New user —"
+                else "new"
             )
 
-            learned_page_key = "latest_learned_knowledge_page"
-            current_learned_page = int(
-                st.session_state.get(learned_page_key, 1)
+            default_username = (
+                selected_edit_user
+                if selected_edit_user != "— New user —"
+                else ""
             )
-            current_learned_page = max(
-                1,
-                min(current_learned_page, learned_total_pages),
-            )
-            st.session_state[learned_page_key] = current_learned_page
+            default_role = str(selected_record.get("role") or "staff").lower()
+            if default_role not in ROLE_OPTIONS:
+                default_role = "staff"
+            default_active = bool(selected_record.get("active", True))
 
-            learned_start_index = (
-                current_learned_page - 1
-            ) * learned_page_size
-            learned_end_index = min(
-                learned_start_index + learned_page_size,
-                learned_total_records,
+            stored_workspace_permissions = effective_workspace_permissions(
+                default_role,
+                selected_record.get("workspace_permissions"),
             )
-            learned_page_rows = learned_rows_for_analytics[
-                learned_start_index:learned_end_index
-            ]
-
-            st.caption(
-                f"Showing {learned_start_index + 1:,}–"
-                f"{learned_end_index:,} of "
-                f"{learned_total_records:,} learned records"
+            stored_feature_permissions = effective_feature_permissions(
+                default_role,
+                selected_record.get("feature_permissions"),
             )
 
-            for row in learned_page_rows:
-                issue = row.get("issue") or row.get("question") or "Learned Knowledge"
-                vehicle = display_learning_vehicle(row)
-                confidence = row.get("confidence_score") or 0
-                times_seen = row.get("times_seen") or 1
-                with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
-                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                    st.write(f"**Product:** {row.get('product') or ''}")
-                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                    st.write(f"**Synced:** {row.get('synced')}")
-                    st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
-                    st.markdown("**Solution**")
-                    st.write(row.get("solution") or row.get("approved_answer") or "")
-                    st.markdown("**Source Question**")
-                    st.write(row.get("source_question") or row.get("question") or "")
-                    st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+            new_username = st.text_input(
+                "Username",
+                value=default_username,
+                disabled=selected_edit_user != "— New user —",
+                key=f"stable_admin_username_{editor_key}",
+            )
+            new_password = st.text_input(
+                (
+                    "New Password (leave blank to keep current password)"
+                    if selected_edit_user != "— New user —"
+                    else "Password"
+                ),
+                type="password",
+                key=f"stable_admin_password_{editor_key}",
+            )
+            new_role = st.selectbox(
+                "Role",
+                ROLE_OPTIONS,
+                index=ROLE_OPTIONS.index(default_role),
+                key=f"stable_admin_role_{editor_key}",
+            )
+            new_active = st.checkbox(
+                "Active",
+                value=default_active,
+                key=f"stable_admin_active_{editor_key}",
+            )
 
-                    if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                        supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-                        remaining_records = max(0, learned_total_records - 1)
-                        remaining_pages = max(
-                            1,
+            st.markdown("#### Workspace Access")
+            workspace_values = {}
+            # Keep one ordered permission column on every screen size. Streamlit's
+            # multi-column layout reorders/segments checkboxes when columns stack on
+            # iPhone, which made Product Library appear missing in the mobile editor.
+            for permission_key, permission_label in WORKSPACE_LABELS.items():
+                workspace_values[permission_key] = st.checkbox(
+                    permission_label,
+                    value=bool(
+                        stored_workspace_permissions.get(permission_key)
+                    ),
+                    key=(
+                        f"stable_workspace_permission_"
+                        f"{editor_key}_{permission_key}"
+                    ),
+                    disabled=(
+                        new_role == "admin"
+                        or (
+                            new_role in STRICT_EXTERNAL_ROLES
+                            and permission_key != "technical"
+                        )
+                    ),
+                )
+
+            st.markdown("#### Feature Access")
+            feature_values = {}
+            for permission_key, permission_label in FEATURE_LABELS.items():
+                forced_external_off = (
+                    new_role in STRICT_EXTERNAL_ROLES
+                    and permission_key in {
+                        "history", "woocommerce", "knowledge_upload",
+                        "product_library_upload", "product_library_manage"
+                    }
+                )
+                feature_values[permission_key] = st.checkbox(
+                    permission_label,
+                    value=bool(
+                        stored_feature_permissions.get(permission_key)
+                    ),
+                    key=(
+                        f"stable_feature_permission_"
+                        f"{editor_key}_{permission_key}"
+                    ),
+                    disabled=new_role == "admin" or forced_external_off,
+                )
+
+            if new_role == "admin":
+                workspace_values = {
+                    key: True for key in WORKSPACE_LABELS
+                }
+                feature_values = {
+                    key: True for key in FEATURE_LABELS
+                }
+            elif new_role in STRICT_EXTERNAL_ROLES:
+                workspace_values = {
+                    key: key == "technical"
+                    for key in WORKSPACE_LABELS
+                }
+                feature_values["history"] = False
+                feature_values["woocommerce"] = False
+                feature_values["knowledge_upload"] = False
+                feature_values["product_library_upload"] = False
+                feature_values["product_library_manage"] = False
+
+            # Keep Product Library permissions internally consistent. Manage implies
+            # upload, and either action requires the Product Library workspace. These
+            # rules also protect legacy records and accidental checkbox combinations.
+            if feature_values.get("product_library_manage"):
+                feature_values["product_library_upload"] = True
+                workspace_values["product_library"] = True
+            elif feature_values.get("product_library_upload"):
+                workspace_values["product_library"] = True
+            elif not workspace_values.get("product_library"):
+                feature_values["product_library_upload"] = False
+                feature_values["product_library_manage"] = False
+
+            if st.button(
+                "Save User",
+                key=f"stable_admin_save_user_{editor_key}",
+            ):
+                clean_username = str(new_username or "").strip()
+
+                if not clean_username:
+                    st.warning("Please enter a username.")
+                elif selected_edit_user == "— New user —" and not new_password:
+                    st.warning("Please enter a password for the new user.")
+                elif not any(workspace_values.values()):
+                    st.warning("Please allow at least one workspace.")
+                else:
+                    try:
+                        existing = (
+                            supabase
+                            .table("users")
+                            .select("username")
+                            .eq("username", clean_username)
+                            .execute()
+                            .data
+                        )
+
+                        payload = {
+                            "role": new_role,
+                            "active": new_active,
+                            "workspace_permissions": workspace_values,
+                            "feature_permissions": feature_values,
+                        }
+                        if new_password:
+                            payload["password"] = new_password
+
+                        if existing:
                             (
-                                remaining_records
-                                + learned_page_size
-                                - 1
+                                supabase
+                                .table("users")
+                                .update(payload)
+                                .eq("username", clean_username)
+                                .execute()
                             )
-                            // learned_page_size,
-                        )
-                        st.session_state[learned_page_key] = min(
-                            current_learned_page,
-                            remaining_pages,
-                        )
+                            st.success("User updated successfully.")
+                        else:
+                            payload.update({
+                                "username": clean_username,
+                                "password": new_password,
+                            })
+                            (
+                                supabase
+                                .table("users")
+                                .insert(payload)
+                                .execute()
+                            )
+                            st.success("User added successfully.")
+
+                        # Apply permission changes immediately to the current user.
+                        if clean_username == st.session_state.username:
+                            st.session_state.role = new_role
+                            st.session_state.workspace_permissions = (
+                                effective_workspace_permissions(
+                                    new_role,
+                                    workspace_values,
+                                )
+                            )
+                            st.session_state.feature_permissions = (
+                                effective_feature_permissions(
+                                    new_role,
+                                    feature_values,
+                                )
+                            )
+                            if not history_is_enabled():
+                                st.session_state.conversation_id = None
+
+                        invalidate_admin_read_caches()
                         st.rerun()
 
-            st.markdown(
-                """
-                <style>
-                /* Latest Learned Knowledge pagination only.
-                   Plain clickable text with no inherited global button style. */
-                html body div[class*="st-key-latest_learned_text_pagination"] {
-                    width: 100% !important;
-                    margin: 8px 0 0 auto !important;
-                    padding: 0 !important;
-                }
+                    except Exception as error:
+                        st.error(f"Unable to save user: {error}")
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                div[data-testid="stHorizontalBlock"] {
-                    display: flex !important;
-                    width: fit-content !important;
-                    max-width: 100% !important;
-                    justify-content: flex-end !important;
-                    align-items: center !important;
-                    gap: 5px !important;
-                    margin: 0 0 0 auto !important;
-                    padding: 0 !important;
-                }
+            st.markdown("---")
+            st.markdown("### Permanently Delete User")
+            st.caption(
+                "This uses the database function delete_user_permanently and "
+                "removes the selected account and all associated records."
+            )
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                div[data-testid="stHorizontalBlock"]
-                > div[data-testid="column"] {
-                    flex: 0 0 22px !important;
-                    flex-grow: 0 !important;
-                    flex-shrink: 0 !important;
-                    flex-basis: 22px !important;
-                    width: 22px !important;
-                    min-width: 22px !important;
-                    max-width: 22px !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
+            deletable_usernames = [
+                str(user.get("username"))
+                for user in users
+                if user.get("username")
+                and str(user.get("username")) != st.session_state.username
+            ]
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                .stButton,
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                div[data-testid="stButton"] {
-                    width: auto !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
+            if not deletable_usernames:
+                st.info("There are no other users available to delete.")
+            else:
+                with st.form(
+                    "stable_permanent_delete_user_form",
+                    clear_on_submit=True
+                ):
+                    selected_delete_username = st.selectbox(
+                        "Select user",
+                        ["— Select a user —"] + deletable_usernames,
+                        key="stable_permanent_delete_user_select",
+                    )
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                button {
-                    width: auto !important;
-                    min-width: 0 !important;
-                    max-width: none !important;
-                    height: auto !important;
-                    min-height: 0 !important;
-                    margin: 0 !important;
-                    padding: 2px 1px !important;
-                    border: 0 !important;
-                    border-radius: 0 !important;
-                    background: transparent !important;
-                    box-shadow: none !important;
-                    color: #cbd5e1 !important;
-                    -webkit-text-fill-color: #cbd5e1 !important;
-                    font-size: 13px !important;
-                    font-weight: 500 !important;
-                    line-height: 1.2 !important;
-                    transform: none !important;
-                }
+                    typed_delete_username = st.text_input(
+                        "Type the username exactly to confirm",
+                        key="stable_permanent_delete_username_confirm",
+                    )
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                button:hover:not(:disabled) {
-                    border: 0 !important;
-                    background: transparent !important;
-                    box-shadow: none !important;
-                    color: #ffffff !important;
-                    -webkit-text-fill-color: #ffffff !important;
-                    text-decoration: underline !important;
-                    transform: none !important;
-                }
+                    confirm_permanent_delete = st.checkbox(
+                        "I understand this deletion is permanent and cannot be undone."
+                    )
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                button:disabled {
-                    opacity: 1 !important;
-                    border: 0 !important;
-                    background: transparent !important;
-                    box-shadow: none !important;
-                    color: #ffffff !important;
-                    -webkit-text-fill-color: #ffffff !important;
-                    font-weight: 800 !important;
-                    text-decoration: underline !important;
-                    cursor: default !important;
-                }
+                    permanent_delete_submitted = st.form_submit_button(
+                        "Permanently Delete User"
+                    )
 
-                html body div[class*="st-key-latest_learned_text_pagination"]
-                button p {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    font-size: 13px !important;
-                    line-height: 1.2 !important;
-                }
+                if permanent_delete_submitted:
+                    if selected_delete_username == "— Select a user —":
+                        st.warning("Please select a user to delete.")
 
-                .latest-learned-ellipsis {
-                    color: #94a3b8;
-                    font-size: 13px;
-                    line-height: 1.2;
-                    text-align: center;
-                    padding: 2px 0;
-                }
+                    elif typed_delete_username.strip() != selected_delete_username:
+                        st.warning(
+                            "The confirmation username does not match "
+                            "the selected user."
+                        )
 
-                @media (max-width: 768px) {
+                    elif not confirm_permanent_delete:
+                        st.warning(
+                            "Please confirm that you understand this action "
+                            "is permanent."
+                        )
+
+                    else:
+                        selected_rows = [
+                            user
+                            for user in users
+                            if str(user.get("username"))
+                            == selected_delete_username
+                        ]
+                        selected_user = selected_rows[0] if selected_rows else {}
+
+                        active_admins = [
+                            user
+                            for user in users
+                            if str(user.get("role") or "").lower() == "admin"
+                            and bool(user.get("active"))
+                        ]
+
+                        if (
+                            str(selected_user.get("role") or "").lower() == "admin"
+                            and bool(selected_user.get("active"))
+                            and len(active_admins) <= 1
+                        ):
+                            st.error(
+                                "The final active administrator account "
+                                "cannot be deleted."
+                            )
+                        else:
+                            try:
+                                admin_supabase = get_supabase_admin_client()
+
+                                result = (
+                                    admin_supabase
+                                    .rpc(
+                                        "delete_user_permanently",
+                                        {
+                                            "p_requesting_username":
+                                                st.session_state.username,
+                                            "p_target_username":
+                                                selected_delete_username,
+                                        },
+                                    )
+                                    .execute()
+                                )
+
+                                result_data = result.data
+                                deletion_confirmed = True
+
+                                if isinstance(result_data, dict):
+                                    deletion_confirmed = bool(
+                                        result_data.get("success", True)
+                                    )
+                                elif (
+                                    isinstance(result_data, list)
+                                    and result_data
+                                    and isinstance(result_data[0], dict)
+                                ):
+                                    deletion_confirmed = bool(
+                                        result_data[0].get("success", True)
+                                    )
+
+                                if not deletion_confirmed:
+                                    raise RuntimeError(
+                                        "The database did not confirm "
+                                        "successful deletion."
+                                    )
+
+                                st.session_state[
+                                    "permanent_delete_success_message"
+                                ] = (
+                                    f"User '{selected_delete_username}' and "
+                                    "all associated records were permanently deleted."
+                                )
+                                invalidate_admin_read_caches()
+                                st.rerun()
+
+                            except Exception as error:
+                                st.error(
+                                    f"Permanent deletion failed: {error}"
+                                )
+
+        with tab2:
+            render_admin_upload_knowledge_tab()
+
+        with tab3:
+            render_pending_knowledge_review()
+
+        with tab4:
+            st.markdown("### 🧠 AI Learning")
+            st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
+
+            total_learned = len(learned_rows_for_analytics)
+            new_today = count_today(learned_rows_for_analytics, "created_at")
+            avg_conf = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+            synced_cases = len([r for r in learned_rows_for_analytics if r.get("synced")])
+            duplicate_rate = duplicate_detection_rate(analytics_rows)
+            total_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
+
+            render_metric_row([
+                ("Total Learned Cases", total_learned),
+                ("New Knowledge Today", new_today),
+                ("Duplicate Detection Rate", f"{duplicate_rate}%"),
+                ("Confidence Average", f"{avg_conf}%"),
+                ("Synced Cases", synced_cases),
+                ("New Vectors Created", total_vectors),
+            ])
+
+            st.markdown("#### Knowledge Growth Chart")
+            growth_data = growth_counts(learned_rows_for_analytics, "created_at", limit=30, label="Learned Cases")
+            if growth_data:
+                st.bar_chart(growth_data, x="Date", y="Learned Cases")
+            else:
+                st.info("No learned knowledge yet.")
+
+            st.markdown("#### Latest Learned Knowledge")
+            if learned_rows_for_analytics:
+                learned_page_size = 100
+                learned_total_records = len(learned_rows_for_analytics)
+                learned_total_pages = max(
+                    1,
+                    (learned_total_records + learned_page_size - 1)
+                    // learned_page_size,
+                )
+
+                learned_page_key = "latest_learned_knowledge_page"
+                current_learned_page = int(
+                    st.session_state.get(learned_page_key, 1)
+                )
+                current_learned_page = max(
+                    1,
+                    min(current_learned_page, learned_total_pages),
+                )
+                st.session_state[learned_page_key] = current_learned_page
+
+                learned_start_index = (
+                    current_learned_page - 1
+                ) * learned_page_size
+                learned_end_index = min(
+                    learned_start_index + learned_page_size,
+                    learned_total_records,
+                )
+                learned_page_rows = learned_rows_for_analytics[
+                    learned_start_index:learned_end_index
+                ]
+
+                st.caption(
+                    f"Showing {learned_start_index + 1:,}–"
+                    f"{learned_end_index:,} of "
+                    f"{learned_total_records:,} learned records"
+                )
+
+                for row in learned_page_rows:
+                    issue = row.get("issue") or row.get("question") or "Learned Knowledge"
+                    vehicle = display_learning_vehicle(row)
+                    confidence = row.get("confidence_score") or 0
+                    times_seen = row.get("times_seen") or 1
+                    with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
+                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                        st.write(f"**Product:** {row.get('product') or ''}")
+                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                        st.write(f"**Synced:** {row.get('synced')}")
+                        st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
+                        st.markdown("**Solution**")
+                        st.write(row.get("solution") or row.get("approved_answer") or "")
+                        st.markdown("**Source Question**")
+                        st.write(row.get("source_question") or row.get("question") or "")
+                        st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+
+                        if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
+                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                            remaining_records = max(0, learned_total_records - 1)
+                            remaining_pages = max(
+                                1,
+                                (
+                                    remaining_records
+                                    + learned_page_size
+                                    - 1
+                                )
+                                // learned_page_size,
+                            )
+                            st.session_state[learned_page_key] = min(
+                                current_learned_page,
+                                remaining_pages,
+                            )
+                            st.rerun()
+
+                st.markdown(
+                    """
+                    <style>
+                    /* Latest Learned Knowledge pagination only.
+                       Plain clickable text with no inherited global button style. */
+                    html body div[class*="st-key-latest_learned_text_pagination"] {
+                        width: 100% !important;
+                        margin: 8px 0 0 auto !important;
+                        padding: 0 !important;
+                    }
+
                     html body div[class*="st-key-latest_learned_text_pagination"]
                     div[data-testid="stHorizontalBlock"] {
-                        gap: 4px !important;
+                        display: flex !important;
+                        width: fit-content !important;
+                        max-width: 100% !important;
+                        justify-content: flex-end !important;
+                        align-items: center !important;
+                        gap: 5px !important;
+                        margin: 0 0 0 auto !important;
+                        padding: 0 !important;
                     }
 
                     html body div[class*="st-key-latest_learned_text_pagination"]
                     div[data-testid="stHorizontalBlock"]
                     > div[data-testid="column"] {
-                        flex-basis: 20px !important;
-                        width: 20px !important;
-                        min-width: 20px !important;
-                        max-width: 20px !important;
+                        flex: 0 0 22px !important;
+                        flex-grow: 0 !important;
+                        flex-shrink: 0 !important;
+                        flex-basis: 22px !important;
+                        width: 22px !important;
+                        min-width: 22px !important;
+                        max-width: 22px !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
                     }
 
                     html body div[class*="st-key-latest_learned_text_pagination"]
-                    button,
+                    .stButton,
                     html body div[class*="st-key-latest_learned_text_pagination"]
-                    button p,
+                    div[data-testid="stButton"] {
+                        width: auto !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button {
+                        width: auto !important;
+                        min-width: 0 !important;
+                        max-width: none !important;
+                        height: auto !important;
+                        min-height: 0 !important;
+                        margin: 0 !important;
+                        padding: 2px 1px !important;
+                        border: 0 !important;
+                        border-radius: 0 !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        color: #cbd5e1 !important;
+                        -webkit-text-fill-color: #cbd5e1 !important;
+                        font-size: 13px !important;
+                        font-weight: 500 !important;
+                        line-height: 1.2 !important;
+                        transform: none !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button:hover:not(:disabled) {
+                        border: 0 !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        color: #ffffff !important;
+                        -webkit-text-fill-color: #ffffff !important;
+                        text-decoration: underline !important;
+                        transform: none !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button:disabled {
+                        opacity: 1 !important;
+                        border: 0 !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        color: #ffffff !important;
+                        -webkit-text-fill-color: #ffffff !important;
+                        font-weight: 800 !important;
+                        text-decoration: underline !important;
+                        cursor: default !important;
+                    }
+
+                    html body div[class*="st-key-latest_learned_text_pagination"]
+                    button p {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        font-size: 13px !important;
+                        line-height: 1.2 !important;
+                    }
+
                     .latest-learned-ellipsis {
-                        font-size: 12px !important;
+                        color: #94a3b8;
+                        font-size: 13px;
+                        line-height: 1.2;
+                        text-align: center;
+                        padding: 2px 0;
                     }
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
 
-            # Compact page-number navigation at the very bottom-right.
-            # Only page numbers are shown; no Previous/Next buttons or
-            # top selector are rendered.
-            if learned_total_pages > 1:
-                visible_page_numbers = []
+                    @media (max-width: 768px) {
+                        html body div[class*="st-key-latest_learned_text_pagination"]
+                        div[data-testid="stHorizontalBlock"] {
+                            gap: 4px !important;
+                        }
 
-                if learned_total_pages <= 7:
-                    visible_page_numbers = list(
-                        range(1, learned_total_pages + 1)
-                    )
-                else:
-                    candidate_pages = {
-                        1,
-                        learned_total_pages,
-                        current_learned_page - 2,
-                        current_learned_page - 1,
-                        current_learned_page,
-                        current_learned_page + 1,
-                        current_learned_page + 2,
+                        html body div[class*="st-key-latest_learned_text_pagination"]
+                        div[data-testid="stHorizontalBlock"]
+                        > div[data-testid="column"] {
+                            flex-basis: 20px !important;
+                            width: 20px !important;
+                            min-width: 20px !important;
+                            max-width: 20px !important;
+                        }
+
+                        html body div[class*="st-key-latest_learned_text_pagination"]
+                        button,
+                        html body div[class*="st-key-latest_learned_text_pagination"]
+                        button p,
+                        .latest-learned-ellipsis {
+                            font-size: 12px !important;
+                        }
                     }
-                    visible_page_numbers = sorted(
-                        page_number
-                        for page_number in candidate_pages
-                        if 1 <= page_number <= learned_total_pages
-                    )
-
-                pagination_items = []
-                previous_number = None
-
-                for page_number in visible_page_numbers:
-                    if (
-                        previous_number is not None
-                        and page_number - previous_number > 1
-                    ):
-                        pagination_items.append("ellipsis")
-                    pagination_items.append(page_number)
-                    previous_number = page_number
-
-                pagination_spacer, pagination_area = st.columns(
-                    [8, 2],
-                    gap="small",
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
                 )
 
-                with pagination_area:
-                    with st.container(
-                        key="latest_learned_text_pagination"
-                    ):
-                        pagination_columns = st.columns(
-                            len(pagination_items),
-                            gap="small",
+                # Compact page-number navigation at the very bottom-right.
+                # Only page numbers are shown; no Previous/Next buttons or
+                # top selector are rendered.
+                if learned_total_pages > 1:
+                    visible_page_numbers = []
+
+                    if learned_total_pages <= 7:
+                        visible_page_numbers = list(
+                            range(1, learned_total_pages + 1)
+                        )
+                    else:
+                        candidate_pages = {
+                            1,
+                            learned_total_pages,
+                            current_learned_page - 2,
+                            current_learned_page - 1,
+                            current_learned_page,
+                            current_learned_page + 1,
+                            current_learned_page + 2,
+                        }
+                        visible_page_numbers = sorted(
+                            page_number
+                            for page_number in candidate_pages
+                            if 1 <= page_number <= learned_total_pages
                         )
 
-                        for column, item in zip(
-                            pagination_columns,
-                            pagination_items,
+                    pagination_items = []
+                    previous_number = None
+
+                    for page_number in visible_page_numbers:
+                        if (
+                            previous_number is not None
+                            and page_number - previous_number > 1
                         ):
-                            with column:
-                                if item == "ellipsis":
-                                    st.markdown(
-                                        "<div class='latest-learned-ellipsis'>"
-                                        "…</div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                else:
-                                    page_number = int(item)
-                                    is_current_page = (
-                                        page_number
-                                        == current_learned_page
-                                    )
+                            pagination_items.append("ellipsis")
+                        pagination_items.append(page_number)
+                        previous_number = page_number
 
-                                    if st.button(
-                                        str(page_number),
-                                        key=(
-                                            "latest_learned_page_"
-                                            f"{page_number}"
-                                        ),
-                                        use_container_width=False,
-                                        disabled=is_current_page,
-                                        help=(
-                                            f"Open page {page_number}"
-                                            if not is_current_page
-                                            else f"Current page {page_number}"
-                                        ),
-                                    ):
-                                        st.session_state[
-                                            learned_page_key
-                                        ] = page_number
-                                        st.rerun()
-        else:
-            st.info("No learned knowledge saved yet.")
+                    pagination_spacer, pagination_area = st.columns(
+                        [8, 2],
+                        gap="small",
+                    )
 
-    with tab5:
-        render_product_library_admin()
+                    with pagination_area:
+                        with st.container(
+                            key="latest_learned_text_pagination"
+                        ):
+                            pagination_columns = st.columns(
+                                len(pagination_items),
+                                gap="small",
+                            )
 
-    with tab6:
-        st.markdown("### 🚗 Vehicle Analytics")
-        st.caption("Most common makes, models, years, and vehicle-related questions.")
+                            for column, item in zip(
+                                pagination_columns,
+                                pagination_items,
+                            ):
+                                with column:
+                                    if item == "ellipsis":
+                                        st.markdown(
+                                            "<div class='latest-learned-ellipsis'>"
+                                            "…</div>",
+                                            unsafe_allow_html=True,
+                                        )
+                                    else:
+                                        page_number = int(item)
+                                        is_current_page = (
+                                            page_number
+                                            == current_learned_page
+                                        )
 
-        combined_rows = analytics_rows + learned_rows_for_analytics
+                                        if st.button(
+                                            str(page_number),
+                                            key=(
+                                                "latest_learned_page_"
+                                                f"{page_number}"
+                                            ),
+                                            use_container_width=False,
+                                            disabled=is_current_page,
+                                            help=(
+                                                f"Open page {page_number}"
+                                                if not is_current_page
+                                                else f"Current page {page_number}"
+                                            ),
+                                        ):
+                                            st.session_state[
+                                                learned_page_key
+                                            ] = page_number
+                                            st.rerun()
+            else:
+                st.info("No learned knowledge saved yet.")
 
-        render_metric_row([
-            ("Vehicle Mentions", len([r for r in combined_rows if r.get("vehicle")])),
-            ("Unique Makes", len(set([str(r.get("make") or "").strip() for r in combined_rows if r.get("make")]))),
-            ("Unique Models", len(set([str(r.get("model") or "").strip() for r in combined_rows if r.get("model")]))),
-            ("Unique Years", len(set([str(r.get("year") or "").strip() for r in combined_rows if r.get("year")]))),
-        ])
+        with tab5:
+            render_product_library_admin()
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            render_count_table("Most Common Makes", top_counts(combined_rows, "make", 15), "Make")
-        with c2:
-            render_count_table("Most Common Models", top_counts(combined_rows, "model", 15), "Model")
-        with c3:
-            render_count_table("Most Common Years", top_counts(combined_rows, "year", 15), "Year")
+        with tab6:
+            st.markdown("### 🚗 Vehicle Analytics")
+            st.caption("Most common makes, models, years, and vehicle-related questions.")
 
-        st.markdown("#### Most Common Vehicle Strings")
-        render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
+            combined_rows = analytics_rows + learned_rows_for_analytics
 
-    with tab7:
-        st.markdown("### 📦 Product Analytics")
-        st.caption("Products staff search most often, and products associated with the most issues.")
+            render_metric_row([
+                ("Vehicle Mentions", len([r for r in combined_rows if r.get("vehicle")])),
+                ("Unique Makes", len(set([str(r.get("make") or "").strip() for r in combined_rows if r.get("make")]))),
+                ("Unique Models", len(set([str(r.get("model") or "").strip() for r in combined_rows if r.get("model")]))),
+                ("Unique Years", len(set([str(r.get("year") or "").strip() for r in combined_rows if r.get("year")]))),
+            ])
 
-        render_metric_row([
-            ("Product Searches", len([r for r in analytics_rows if r.get("product")])),
-            ("Unique Products", len(set([str(r.get("product") or "").strip() for r in analytics_rows if r.get("product")]))),
-            ("Product-Related Issues", len([r for r in analytics_rows if r.get("product") and r.get("issue")])),
-        ])
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                render_count_table("Most Common Makes", top_counts(combined_rows, "make", 15), "Make")
+            with c2:
+                render_count_table("Most Common Models", top_counts(combined_rows, "model", 15), "Model")
+            with c3:
+                render_count_table("Most Common Years", top_counts(combined_rows, "year", 15), "Year")
 
-        c1, c2 = st.columns(2)
-        with c1:
-            render_count_table("Most Searched Products", top_counts(analytics_rows, "product", 20), "Product")
-        with c2:
-            product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")]
-            render_count_table("Products With Most Issues", top_counts(product_issue_rows, "product", 20), "Product")
+            st.markdown("#### Most Common Vehicle Strings")
+            render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-        st.markdown("#### Product Issue Details")
-        product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")][:50]
-        if product_issue_rows:
-            for row in product_issue_rows:
-                st.write(f"**{row.get('product')}** — {row.get('issue')} | {row.get('vehicle') or 'No vehicle'}")
-        else:
-            st.info("No product issue data yet.")
+        with tab7:
+            st.markdown("### 📦 Product Analytics")
+            st.caption("Products staff search most often, and products associated with the most issues.")
 
-    with tab8:
-        st.markdown("### 🔧 Technical Analytics")
-        st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
+            render_metric_row([
+                ("Product Searches", len([r for r in analytics_rows if r.get("product")])),
+                ("Unique Products", len(set([str(r.get("product") or "").strip() for r in analytics_rows if r.get("product")]))),
+                ("Product-Related Issues", len([r for r in analytics_rows if r.get("product") and r.get("issue")])),
+            ])
 
-        unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")]
-        resolved_rows = [r for r in analytics_rows if r.get("resolved")]
-        avg_response = safe_avg(analytics_rows, "response_time")
+            c1, c2 = st.columns(2)
+            with c1:
+                render_count_table("Most Searched Products", top_counts(analytics_rows, "product", 20), "Product")
+            with c2:
+                product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")]
+                render_count_table("Products With Most Issues", top_counts(product_issue_rows, "product", 20), "Product")
 
-        render_metric_row([
-            ("Top Questions Logged", len(analytics_rows)),
-            ("Resolved Rate", f"{resolved_rate(analytics_rows)}%"),
-            ("Unanswered Questions", len(unanswered_rows)),
-            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
-        ])
+            st.markdown("#### Product Issue Details")
+            product_issue_rows = [r for r in analytics_rows if r.get("product") and r.get("issue")][:50]
+            if product_issue_rows:
+                for row in product_issue_rows:
+                    st.write(f"**{row.get('product')}** — {row.get('issue')} | {row.get('vehicle') or 'No vehicle'}")
+            else:
+                st.info("No product issue data yet.")
 
-        c1, c2 = st.columns(2)
-        with c1:
-            render_count_table("Top Recurring Issues", top_counts(analytics_rows + learned_rows_for_analytics, "issue", 20), "Issue")
-        with c2:
-            frequent_solutions = sorted(
-                [r for r in learned_rows_for_analytics if r.get("solution") or r.get("approved_answer")],
-                key=lambda r: int(r.get("times_seen") or 1),
+        with tab8:
+            st.markdown("### 🔧 Technical Analytics")
+            st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
+
+            unanswered_rows = [r for r in analytics_rows if r.get("was_unanswered")]
+            resolved_rows = [r for r in analytics_rows if r.get("resolved")]
+            avg_response = safe_avg(analytics_rows, "response_time")
+
+            render_metric_row([
+                ("Top Questions Logged", len(analytics_rows)),
+                ("Resolved Rate", f"{resolved_rate(analytics_rows)}%"),
+                ("Unanswered Questions", len(unanswered_rows)),
+                ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+            ])
+
+            c1, c2 = st.columns(2)
+            with c1:
+                render_count_table("Top Recurring Issues", top_counts(analytics_rows + learned_rows_for_analytics, "issue", 20), "Issue")
+            with c2:
+                frequent_solutions = sorted(
+                    [r for r in learned_rows_for_analytics if r.get("solution") or r.get("approved_answer")],
+                    key=lambda r: int(r.get("times_seen") or 1),
+                    reverse=True
+                )[:15]
+
+                st.markdown("#### Most Successful / Reused Solutions")
+                if frequent_solutions:
+                    for row in frequent_solutions:
+                        st.write(
+                            f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
+                            f"| Seen: {row.get('times_seen') or 1}x | Confidence: {row.get('confidence_score') or 0}%"
+                        )
+                else:
+                    st.info("No reusable solutions yet.")
+
+            st.markdown("#### Unanswered Questions")
+            if unanswered_rows:
+                for row in unanswered_rows[:40]:
+                    with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
+                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                        st.write(f"**User:** {row.get('username') or ''}")
+                        st.write(f"**Product:** {row.get('product') or ''}")
+                        st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
+                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                        st.markdown("**Question**")
+                        st.write(row.get("question") or "")
+                        st.markdown("**AI Answer**")
+                        st.write(row.get("answer") or "")
+            else:
+                st.success("No unanswered questions logged yet.")
+
+        with tab9:
+            st.markdown("### 📊 AI Analytics")
+            st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
+
+            total_tokens = total_numeric(analytics_rows, "tokens_used")
+            duplicate_questions = len([r for r in analytics_rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
+            avg_response = safe_avg(analytics_rows, "response_time")
+            avg_confidence = round(safe_avg(analytics_rows, "confidence_score"))
+
+            render_metric_row([
+                ("Total AI Questions", len(analytics_rows)),
+                ("Avg Confidence", f"{avg_confidence}%"),
+                ("OpenAI Token Usage", total_tokens if total_tokens else "N/A"),
+                ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
+                ("Duplicate Questions", duplicate_questions),
+            ])
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("#### Confidence Trend")
+                trend_rows = list(reversed(analytics_rows[:80]))
+                if trend_rows:
+                    chart_data = [{"Case": idx + 1, "Confidence": int(row.get("confidence_score") or 0)} for idx, row in enumerate(trend_rows)]
+                    st.line_chart(chart_data, x="Case", y="Confidence")
+                else:
+                    st.info("No confidence trend data yet.")
+
+                st.markdown("#### Daily Question Volume")
+                daily_data = daily_question_counts(analytics_rows, limit=30)
+                if daily_data:
+                    st.bar_chart(daily_data, x="Date", y="Questions")
+                else:
+                    st.info("No volume data yet.")
+
+            with c2:
+                render_count_table("Assistant Usage", assistant_counts(analytics_rows, 15), "Assistant")
+                render_count_table("Most Active Users", user_counts(analytics_rows, 15), "User")
+
+            st.markdown("#### Most Reused Knowledge")
+            reused = sorted(
+                [r for r in learned_rows_for_analytics if r.get("times_seen")],
+                key=lambda r: int(r.get("times_seen") or 0),
                 reverse=True
-            )[:15]
-
-            st.markdown("#### Most Successful / Reused Solutions")
-            if frequent_solutions:
-                for row in frequent_solutions:
+            )[:20]
+            if reused:
+                for row in reused:
                     st.write(
-                        f"**{row.get('vehicle') or 'N/A'}** — {row.get('issue') or 'Issue'} "
-                        f"| Seen: {row.get('times_seen') or 1}x | Confidence: {row.get('confidence_score') or 0}%"
+                        f"**{row.get('issue') or 'Issue'}** | {row.get('vehicle') or 'N/A'} | "
+                        f"Used/Seen: {row.get('times_seen') or 0} | Confidence: {row.get('confidence_score') or 0}%"
                     )
             else:
-                st.info("No reusable solutions yet.")
+                st.info("No reused knowledge yet.")
 
-        st.markdown("#### Unanswered Questions")
-        if unanswered_rows:
-            for row in unanswered_rows[:40]:
-                with st.expander(f"{(row.get('vehicle') or 'Unknown')} | {(row.get('issue') or 'Unanswered')[:90]}"):
-                    st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                    st.write(f"**User:** {row.get('username') or ''}")
-                    st.write(f"**Product:** {row.get('product') or ''}")
-                    st.write(f"**Confidence:** {row.get('confidence_score') or 0}%")
-                    st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                    st.markdown("**Question**")
-                    st.write(row.get("question") or "")
-                    st.markdown("**AI Answer**")
-                    st.write(row.get("answer") or "")
-        else:
-            st.success("No unanswered questions logged yet.")
+        with tab10:
+            st.markdown("### 📈 Learning Analytics")
+            st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
-    with tab9:
-        st.markdown("### 📊 AI Analytics")
-        st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
+            auto_extracted = len(learned_rows_for_analytics)
+            new_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
+            search_success_rate = resolved_rate(analytics_rows)
+            learning_accuracy = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
+            continuous_updates = len([r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"])
 
-        total_tokens = total_numeric(analytics_rows, "tokens_used")
-        duplicate_questions = len([r for r in analytics_rows if r.get("duplicate_of") or str(r.get("learning_mode") or "").lower() == "updated"])
-        avg_response = safe_avg(analytics_rows, "response_time")
-        avg_confidence = round(safe_avg(analytics_rows, "confidence_score"))
+            render_metric_row([
+                ("Auto-Extracted Knowledge", auto_extracted),
+                ("New Vectors Created", new_vectors),
+                ("Search Success Rate", f"{search_success_rate}%"),
+                ("Learning Accuracy", f"{learning_accuracy}%"),
+                ("Continuous Improvements", continuous_updates),
+            ])
 
-        render_metric_row([
-            ("Total AI Questions", len(analytics_rows)),
-            ("Avg Confidence", f"{avg_confidence}%"),
-            ("OpenAI Token Usage", total_tokens if total_tokens else "N/A"),
-            ("Avg Response Time", f"{avg_response}s" if avg_response else "N/A"),
-            ("Duplicate Questions", duplicate_questions),
-        ])
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("#### Confidence Trend")
-            trend_rows = list(reversed(analytics_rows[:80]))
-            if trend_rows:
-                chart_data = [{"Case": idx + 1, "Confidence": int(row.get("confidence_score") or 0)} for idx, row in enumerate(trend_rows)]
-                st.line_chart(chart_data, x="Case", y="Confidence")
+            st.markdown("#### Continuous Improvement Trend")
+            updated_rows = [r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"]
+            improvement_chart = growth_counts(updated_rows, "created_at", limit=30, label="Improved Records")
+            if improvement_chart:
+                st.bar_chart(improvement_chart, x="Date", y="Improved Records")
             else:
-                st.info("No confidence trend data yet.")
+                st.info("No duplicate/improvement events yet.")
 
-            st.markdown("#### Daily Question Volume")
-            daily_data = daily_question_counts(analytics_rows, limit=30)
-            if daily_data:
-                st.bar_chart(daily_data, x="Date", y="Questions")
+            st.markdown("#### Learning Quality")
+            quality_rows = sorted(
+                learned_rows_for_analytics,
+                key=lambda r: int(r.get("confidence_score") or 0),
+                reverse=True
+            )[:30]
+            if quality_rows:
+                for row in quality_rows:
+                    st.write(
+                        f"**{row.get('confidence_score') or 0}%** — {row.get('vehicle') or 'N/A'} | "
+                        f"{row.get('issue') or row.get('question') or 'Knowledge'}"
+                    )
             else:
-                st.info("No volume data yet.")
-
-        with c2:
-            render_count_table("Assistant Usage", assistant_counts(analytics_rows, 15), "Assistant")
-            render_count_table("Most Active Users", user_counts(analytics_rows, 15), "User")
-
-        st.markdown("#### Most Reused Knowledge")
-        reused = sorted(
-            [r for r in learned_rows_for_analytics if r.get("times_seen")],
-            key=lambda r: int(r.get("times_seen") or 0),
-            reverse=True
-        )[:20]
-        if reused:
-            for row in reused:
-                st.write(
-                    f"**{row.get('issue') or 'Issue'}** | {row.get('vehicle') or 'N/A'} | "
-                    f"Used/Seen: {row.get('times_seen') or 0} | Confidence: {row.get('confidence_score') or 0}%"
-                )
-        else:
-            st.info("No reused knowledge yet.")
-
-    with tab10:
-        st.markdown("### 📈 Learning Analytics")
-        st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
-
-        auto_extracted = len(learned_rows_for_analytics)
-        new_vectors = len([r for r in learned_rows_for_analytics if r.get("openai_file_id")])
-        search_success_rate = resolved_rate(analytics_rows)
-        learning_accuracy = round(safe_avg(learned_rows_for_analytics, "confidence_score"))
-        continuous_updates = len([r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"])
-
-        render_metric_row([
-            ("Auto-Extracted Knowledge", auto_extracted),
-            ("New Vectors Created", new_vectors),
-            ("Search Success Rate", f"{search_success_rate}%"),
-            ("Learning Accuracy", f"{learning_accuracy}%"),
-            ("Continuous Improvements", continuous_updates),
-        ])
-
-        st.markdown("#### Continuous Improvement Trend")
-        updated_rows = [r for r in analytics_rows if str(r.get("learning_mode") or "").lower() == "updated"]
-        improvement_chart = growth_counts(updated_rows, "created_at", limit=30, label="Improved Records")
-        if improvement_chart:
-            st.bar_chart(improvement_chart, x="Date", y="Improved Records")
-        else:
-            st.info("No duplicate/improvement events yet.")
-
-        st.markdown("#### Learning Quality")
-        quality_rows = sorted(
-            learned_rows_for_analytics,
-            key=lambda r: int(r.get("confidence_score") or 0),
-            reverse=True
-        )[:30]
-        if quality_rows:
-            for row in quality_rows:
-                st.write(
-                    f"**{row.get('confidence_score') or 0}%** — {row.get('vehicle') or 'N/A'} | "
-                    f"{row.get('issue') or row.get('question') or 'Knowledge'}"
-                )
-        else:
-            st.info("No quality data yet.")
+                st.info("No quality data yet.")
 
 
 
-    with tab11:
-        st.markdown("### 🔌 Live Integrations")
-        st.caption(
-            "Connection status only. Secret values are never displayed. "
-            "Missing credentials do not crash the app."
-        )
+        with tab11:
+            st.markdown("### 🔌 Live Integrations")
+            st.caption(
+                "Connection status only. Secret values are never displayed. "
+                "Missing credentials do not crash the app."
+            )
 
-        for service_name, connected, requirement in live_integration_statuses():
-            status_text = "✅ Connected / Available" if connected else "❌ Not configured"
-            st.write(f"**{service_name}** — {status_text}")
-            st.caption(f"Configuration: {requirement}")
+            for service_name, connected, requirement in live_integration_statuses():
+                status_text = "✅ Connected / Available" if connected else "❌ Not configured"
+                st.write(f"**{service_name}** — {status_text}")
+                st.caption(f"Configuration: {requirement}")
 
-        st.markdown("---")
-        st.markdown("#### Required Streamlit secret names")
-        st.code(
-            """UPS_CLIENT_ID = ""
-UPS_CLIENT_SECRET = ""
+            st.markdown("---")
+            st.markdown("#### Required Streamlit secret names")
+            st.code(
+                """UPS_CLIENT_ID = ""
+    UPS_CLIENT_SECRET = ""
 
-CANADA_POST_USERNAME = ""
-CANADA_POST_PASSWORD = """"",
-            language="toml",
-        )
+    CANADA_POST_USERNAME = ""
+    CANADA_POST_PASSWORD = """"",
+                language="toml",
+            )
 
-        st.info(
-            "OpenAI web search, Open-Meteo weather, and Frankfurter exchange "
-            "rates are available without additional secrets. UPS and Canada "
-            "Post tracking become active after their credentials are added."
-        )
+            st.info(
+                "OpenAI web search, Open-Meteo weather, and Frankfurter exchange "
+                "rates are available without additional secrets. UPS and Canada "
+                "Post tracking become active after their credentials are added."
+            )
 
 
 
-# ============================================================
-# Main Chat UI
-# ============================================================
+    # ============================================================
+    # Main Chat UI
+    # ============================================================
 
 elif assistant == "📦 Product Library":
     render_product_library_workspace()
@@ -28881,91 +28792,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-# Release the workspace-transition guard only after the selected workspace has
-# finished rendering. This applies to every workspace transition and prevents
-# stale controls from Knowledge Submission, Product Library, Admin Panel, or
-# any chat workspace from flashing on the next page.
-components.html(
-    """
-    <script>
-    (() => {
-        const parentWindow = window.parent;
-        const doc = parentWindow.document;
-        const body = doc.body;
-
-        if (!body.classList.contains("atp-workspace-switching")) {
-            return;
-        }
-
-        /*
-         * Streamlit sends the new page as a sequence of DOM deltas. Releasing the
-         * guard after a fixed 250 ms can expose old controls while the final
-         * removal deltas are still being applied. Wait until the main page has
-         * been quiet for a short settling period instead.
-         */
-        const main =
-            doc.querySelector('[data-testid="stMain"]') ||
-            doc.querySelector('section.main') ||
-            doc.querySelector('.stMain');
-
-        const minimumHiddenMs = 450;
-        const quietPeriodMs = 350;
-        const maximumHiddenMs = 3500;
-        const startedAt = Date.now();
-        let lastMutationAt = Date.now();
-        let released = false;
-
-        const release = () => {
-            if (released) return;
-            released = true;
-            if (observer) observer.disconnect();
-            const targetWorkspace =
-                body.getAttribute("data-atp-target-workspace") || "";
-            if (targetWorkspace) {
-                body.setAttribute(
-                    "data-atp-current-workspace",
-                    targetWorkspace
-                );
-            }
-            body.classList.remove("atp-workspace-switching");
-            body.removeAttribute("data-atp-target-workspace");
-        };
-
-        const observer = main
-            ? new MutationObserver(() => {
-                lastMutationAt = Date.now();
-            })
-            : null;
-
-        if (observer && main) {
-            observer.observe(main, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                characterData: true
-            });
-        }
-
-        const waitForStablePage = () => {
-            const now = Date.now();
-            const hiddenLongEnough = now - startedAt >= minimumHiddenMs;
-            const pageIsQuiet = now - lastMutationAt >= quietPeriodMs;
-            const timedOut = now - startedAt >= maximumHiddenMs;
-
-            if ((hiddenLongEnough && pageIsQuiet) || timedOut) {
-                release();
-                return;
-            }
-
-            window.setTimeout(waitForStablePage, 80);
-        };
-
-        window.setTimeout(waitForStablePage, 80);
-    })();
-    </script>
-    """,
-    height=0,
-    width=0,
-)
-
