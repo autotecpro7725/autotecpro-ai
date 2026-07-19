@@ -4505,10 +4505,16 @@ def inject_base_css():
         .chat-bubble h1,
         .chat-bubble h2,
         .chat-bubble h3 {
-            margin-top: 8px;
+            margin-top: 18px;
             margin-bottom: 10px;
             color: #ffffff;
-            line-height: 1.2;
+            line-height: 1.25;
+        }
+
+        .chat-bubble h1:first-child,
+        .chat-bubble h2:first-child,
+        .chat-bubble h3:first-child {
+            margin-top: 2px;
         }
 
         .chat-bubble ul {
@@ -4524,8 +4530,8 @@ def inject_base_css():
         }
 
         .assistant-bubble .atp-chat-paragraph {
-            margin: 0 0 10px 0;
-            line-height: 1.68;
+            margin: 0 0 13px 0;
+            line-height: 1.72;
         }
 
         .assistant-bubble .atp-chat-paragraph:last-child {
@@ -4539,7 +4545,7 @@ def inject_base_css():
         /* Copy-safe assistant lists: markers are literal text, not browser-only
            list decorations, so 1./2./3. and bullets survive clipboard paste. */
         .assistant-bubble .atp-copy-list-item {
-            margin: 0 0 7px 0;
+            margin: 0 0 9px 0;
             padding-left: 1.65em;
             text-indent: -1.65em;
             line-height: 1.62;
@@ -15236,6 +15242,29 @@ def remove_technical_pricing(text):
     return value
 
 
+
+def _workspace_response_formatting_rules():
+    """Shared presentation rules for readable operational AI responses."""
+    return """
+
+RESPONSE PRESENTATION RULES:
+- Organize the answer for fast staff scanning. Do not write a wall of text.
+- Use short Markdown section headings beginning with ## for major sections.
+- Put one blank line before and after every major section.
+- Use bullet points for specifications, findings, requirements, options, risks,
+  and next steps. Keep one idea per bullet.
+- Use numbered lists only when order matters, such as troubleshooting or setup.
+- Use **bold labels** for important values such as status, model, order number,
+  recommendation, and required confirmation.
+- Keep paragraphs short: normally one to three sentences per paragraph.
+- When several label-and-value facts are needed, place each fact on its own
+  bullet or line instead of combining them into one long sentence.
+- Put customer-facing drafts under a separate ## Customer Reply Draft heading.
+  Format the draft as clean paragraphs with blank lines, ready to copy and send.
+- Do not add decorative separators after every section, excessive emoji, HTML,
+  or code fences. Preserve all facts, uncertainty, warnings, and required steps.
+"""
+
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -15290,7 +15319,7 @@ Answer in this order when useful:
 Never invent technical information.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
-"""
+""" + _workspace_response_formatting_rules()
 
     if is_sales_workspace(selected_assistant):
         return """
@@ -15333,7 +15362,7 @@ workflow. Image identification must distinguish visible facts from inference.
 
 Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
-"""
+""" + _workspace_response_formatting_rules()
 
     if is_marketing_workspace(selected_assistant):
         return """
@@ -15385,7 +15414,7 @@ When the application identifies a MARKETING TOOL request:
 - Never treat generic marketing assumptions as verified AutoTecPro facts.
 
 Do not output HTML or code-fence formatting.
-"""
+""" + _workspace_response_formatting_rules()
 
     return """
 You are AutoTecPro Graphic Marketing AI.
