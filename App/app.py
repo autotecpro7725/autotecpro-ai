@@ -5033,6 +5033,14 @@ def inject_base_css():
             margin-bottom: 8px !important;
         }
 
+        .sidebar-newcase-placeholder {
+            height: 66px !important;
+            min-height: 66px !important;
+            margin-top: 22px !important;
+            margin-bottom: 8px !important;
+            pointer-events: none !important;
+        }
+
         .sidebar-newcase-btn .stButton > button {
             width: 142px !important;
             height: 34px !important;
@@ -12229,11 +12237,6 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-st.sidebar.markdown(
-    '<div class="sidebar-newcase-btn">',
-    unsafe_allow_html=True,
-)
-
 def _start_new_case_callback():
     """Reset the current case before Streamlit performs the button rerun."""
     st.session_state.messages = []
@@ -12245,14 +12248,30 @@ def _start_new_case_callback():
     )
 
 
-st.sidebar.button(
-    "＋  New Case",
-    key="new_case_button",
-    use_container_width=True,
-    on_click=_start_new_case_callback,
-)
+_non_chat_workspaces = {
+    "⚙️ Admin Panel",
+    "🧠 Knowledge Submission",
+    "📦 Product Library",
+}
 
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
+if assistant not in _non_chat_workspaces:
+    st.sidebar.markdown(
+        '<div class="sidebar-newcase-btn">',
+        unsafe_allow_html=True,
+    )
+    st.sidebar.button(
+        "＋  New Case",
+        key="new_case_button",
+        use_container_width=True,
+        on_click=_start_new_case_callback,
+    )
+    st.sidebar.markdown('</div>', unsafe_allow_html=True)
+else:
+    st.sidebar.markdown(
+        '<div class="sidebar-newcase-placeholder" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
+
 st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
@@ -26473,12 +26492,11 @@ if (
             "and continuous improvement."
         )
 
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
             "👥 Users",
             "📚 Upload Knowledge",
             "📥 Pending Submissions",
             "🧠 AI Learning",
-            "Product Library",
             "🚗 Vehicle Analytics",
             "📦 Product Analytics",
             "🔧 Technical Analytics",
@@ -27212,9 +27230,6 @@ if (
                 st.info("No learned knowledge saved yet.")
 
         with tab5:
-            render_product_library_admin()
-
-        with tab6:
             st.markdown("### 🚗 Vehicle Analytics")
             st.caption("Most common makes, models, years, and vehicle-related questions.")
 
@@ -27238,7 +27253,7 @@ if (
             st.markdown("#### Most Common Vehicle Strings")
             render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-        with tab7:
+        with tab5:
             st.markdown("### 📦 Product Analytics")
             st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -27263,7 +27278,7 @@ if (
             else:
                 st.info("No product issue data yet.")
 
-        with tab8:
+        with tab5:
             st.markdown("### 🔧 Technical Analytics")
             st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -27314,7 +27329,7 @@ if (
             else:
                 st.success("No unanswered questions logged yet.")
 
-        with tab9:
+        with tab5:
             st.markdown("### 📊 AI Analytics")
             st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -27367,7 +27382,7 @@ if (
             else:
                 st.info("No reused knowledge yet.")
 
-        with tab10:
+        with tab5:
             st.markdown("### 📈 Learning Analytics")
             st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -27410,7 +27425,7 @@ if (
 
 
 
-        with tab11:
+        with tab5:
             st.markdown("### 🔌 Live Integrations")
             st.caption(
                 "Connection status only. Secret values are never displayed. "
