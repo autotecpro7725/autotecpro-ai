@@ -994,95 +994,58 @@ def _safe_decimal(value):
 
 
 def _toronto_timezone():
-    """Return the business timezone, with a safe fixed-offset fallback."""
+    """Return the business timezone used for WooCommerce analytics."""
     try:
         return ZoneInfo("America/Toronto")
     except Exception:
-        # Streamlit Cloud normally includes zoneinfo data. This fallback keeps the
-        # parser usable if timezone data is temporarily unavailable.
-        return timezone(timedelta(hours=-5))
+        return timezone.utc
 
 
-def _local_date_range_to_utc(start_date, end_date_exclusive):
-    """
-    Convert Toronto-local calendar boundaries to UTC for WooCommerce.
-
-    WooCommerce is queried with dates_are_gmt=true, so local business dates must
-    be converted before serialization. This also handles daylight-saving time.
-    """
-    business_tz = _toronto_timezone()
-    start_local = datetime(
-        start_date.year,
-        start_date.month,
-        start_date.day,
-        tzinfo=business_tz,
-    )
-    end_local = datetime(
-        end_date_exclusive.year,
-        end_date_exclusive.month,
-        end_date_exclusive.day,
-        tzinfo=business_tz,
-    )
-    return (
-        start_local.astimezone(timezone.utc),
-        end_local.astimezone(timezone.utc),
-    )
+def _local_day_range_utc(year, month, day):
+    """Return one Toronto calendar day as an exclusive UTC range."""
+    tz = _toronto_timezone()
+    start_local = datetime(int(year), int(month), int(day), tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
-def _single_day_date_range(year, month, day):
-    """Return one Toronto-local calendar day as an exclusive UTC range."""
-    from datetime import date as _date
-
-    selected = _date(int(year), int(month), int(day))
-    return _local_date_range_to_utc(selected, selected + timedelta(days=1))
-
-
-def _month_date_range(year, month):
-    """Return one Toronto-local calendar month as an exclusive UTC range."""
-    from datetime import date as _date
-
-    year = int(year)
-    month = int(month)
-    start_date = _date(year, month, 1)
-    if month == 12:
-        end_date = _date(year + 1, 1, 1)
+def _local_month_range_utc(year, month):
+    """Return one Toronto calendar month as an exclusive UTC range."""
+    tz = _toronto_timezone()
+    start_local = datetime(int(year), int(month), 1, tzinfo=tz)
+    if int(month) == 12:
+        end_local = datetime(int(year) + 1, 1, 1, tzinfo=tz)
     else:
-        end_date = _date(year, month + 1, 1)
-    return _local_date_range_to_utc(start_date, end_date)
+        end_local = datetime(int(year), int(month) + 1, 1, tzinfo=tz)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
-def _year_date_range(year):
-    """Return one Toronto-local calendar year as an exclusive UTC range."""
-    from datetime import date as _date
+def _local_year_range_utc(year):
+    """Return one Toronto calendar year as an exclusive UTC range."""
+    tz = _toronto_timezone()
+    start_local = datetime(int(year), 1, 1, tzinfo=tz)
+    end_local = datetime(int(year) + 1, 1, 1, tzinfo=tz)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
-    year = int(year)
-    return _local_date_range_to_utc(
-        _date(year, 1, 1),
-        _date(year + 1, 1, 1),
-    )
+
+def _safe_calendar_date(year, month, day):
+    try:
+        return datetime(int(year), int(month), int(day)).date()
+    except (TypeError, ValueError):
+        return None
 
 
 def _resolve_analytics_date_range(prompt):
     """
-    Resolve business-friendly WooCommerce analytics date phrases.
+    Resolve exact dates, relative dates, ranges, months, and years.
 
-    Supported examples include:
-    - today / yesterday
-    - 2026-07-19
-    - July 19, 2026 / July 19 / Jul 19
-    - 07/19/2026 and 2026/07/19
-    - explicit ISO date ranges
-    - this month / last month / July 2026 / 2026
-
-    Returned boundaries are UTC timestamps representing Toronto-local calendar
-    dates, because WooCommerce requests use dates_are_gmt=true.
+    Calendar boundaries use America/Toronto and are converted to UTC because
+    WooCommerce analytics requests use dates_are_gmt=true.
     """
-    from datetime import date as _date
-
     value = re.sub(r"\s+", " ", str(prompt or "")).strip()
     lower = value.lower()
-    business_tz = _toronto_timezone()
-    now_local = datetime.now(business_tz)
+    tz = _toronto_timezone()
+    now_local = datetime.now(tz)
 
     month_names = {
         "january": 1, "jan": 1,
@@ -1098,234 +1061,166 @@ def _resolve_analytics_date_range(prompt):
         "november": 11, "nov": 11,
         "december": 12, "dec": 12,
     }
-    month_pattern = "|".join(
-        sorted(month_names.keys(), key=len, reverse=True)
-    )
+    month_pattern = "|".join(sorted(month_names, key=len, reverse=True))
 
-    def _safe_date(year, month, day):
-        try:
-            return _date(int(year), int(month), int(day))
-        except (TypeError, ValueError):
-            return None
-
-    def _range_for_dates(start_date, end_date_inclusive):
-        if not start_date or not end_date_inclusive:
-            return None
-        if end_date_inclusive < start_date:
-            start_date, end_date_inclusive = end_date_inclusive, start_date
-        start, end = _local_date_range_to_utc(
-            start_date,
-            end_date_inclusive + timedelta(days=1),
-        )
-        if start_date == end_date_inclusive:
-            label = f"{start_date.strftime('%B')} {start_date.day}, {start_date.year}"
-        else:
-            label = (
-                f"{start_date.strftime('%B')} {start_date.day}, {start_date.year} to "
-                f"{end_date_inclusive.strftime('%B')} {end_date_inclusive.day}, {end_date_inclusive.year}"
-            )
-        return start, end, label
-
-    # Relative dates must be checked before month-name parsing.
     if re.search(r"\btoday\b", lower):
-        selected = now_local.date()
-        start, end = _local_date_range_to_utc(
-            selected,
-            selected + timedelta(days=1),
-        )
-        return start, end, f"{selected.strftime('%B')} {selected.day}, {selected.year}"
+        d = now_local.date()
+        start, end = _local_day_range_utc(d.year, d.month, d.day)
+        return start, end, d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
 
     if re.search(r"\byesterday\b", lower):
-        selected = now_local.date() - timedelta(days=1)
-        start, end = _local_date_range_to_utc(
-            selected,
-            selected + timedelta(days=1),
-        )
-        return start, end, f"{selected.strftime('%B')} {selected.day}, {selected.year}"
+        d = now_local.date() - timedelta(days=1)
+        start, end = _local_day_range_utc(d.year, d.month, d.day)
+        return start, end, d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
 
-    # ISO range: 2026-07-01 to 2026-07-19.
-    explicit_iso_range = re.search(
-        r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\s+"
-        r"(?:to|through|until)\s+"
-        r"(20\d{2})-(\d{1,2})-(\d{1,2})\b",
+    # ISO or slash date range.
+    range_match = re.search(
+        r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\s+(?:to|through|until|-)\s+"
+        r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b",
         lower,
     )
-    if explicit_iso_range:
-        resolved = _range_for_dates(
-            _safe_date(*explicit_iso_range.groups()[:3]),
-            _safe_date(*explicit_iso_range.groups()[3:]),
-        )
-        if resolved:
-            return resolved
+    if range_match:
+        d1 = _safe_calendar_date(*range_match.groups()[:3])
+        d2 = _safe_calendar_date(*range_match.groups()[3:])
+        if d1 and d2:
+            if d2 < d1:
+                d1, d2 = d2, d1
+            start, _ = _local_day_range_utc(d1.year, d1.month, d1.day)
+            _, end = _local_day_range_utc(d2.year, d2.month, d2.day)
+            return start, end, f"{d1.isoformat()} to {d2.isoformat()}"
 
-    # Named range: July 1, 2026 to July 19, 2026.
+    # Named-date range, e.g. July 1, 2026 to July 19, 2026.
     named_range = re.search(
-        rf"\b({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?"
-        rf"(?:,\s*|\s+)(20\d{{2}})\s+(?:to|through|until)\s+"
-        rf"({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?"
-        rf"(?:,\s*|\s+)(20\d{{2}})\b",
+        rf"\b({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(20\d{{2}})"
+        rf"\s+(?:to|through|until|-)\s+({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(20\d{{2}})\b",
         lower,
     )
     if named_range:
-        resolved = _range_for_dates(
-            _safe_date(
-                named_range.group(3),
-                month_names[named_range.group(1)],
-                named_range.group(2),
-            ),
-            _safe_date(
-                named_range.group(6),
-                month_names[named_range.group(4)],
-                named_range.group(5),
-            ),
-        )
-        if resolved:
-            return resolved
+        d1 = _safe_calendar_date(named_range.group(3), month_names[named_range.group(1)], named_range.group(2))
+        d2 = _safe_calendar_date(named_range.group(6), month_names[named_range.group(4)], named_range.group(5))
+        if d1 and d2:
+            if d2 < d1:
+                d1, d2 = d2, d1
+            start, _ = _local_day_range_utc(d1.year, d1.month, d1.day)
+            _, end = _local_day_range_utc(d2.year, d2.month, d2.day)
+            return start, end, f"{d1.isoformat()} to {d2.isoformat()}"
 
-    # Single ISO date: 2026-07-19.
-    single_iso = re.search(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b", lower)
-    if single_iso:
-        selected = _safe_date(*single_iso.groups())
-        resolved = _range_for_dates(selected, selected)
-        if resolved:
-            return resolved
+    # One ISO/slash date.
+    iso_single = re.search(r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b", lower)
+    if iso_single:
+        d = _safe_calendar_date(*iso_single.groups())
+        if d:
+            start, end = _local_day_range_utc(d.year, d.month, d.day)
+            return start, end, d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
 
-    # Year-first slash date: 2026/07/19.
-    year_first_slash = re.search(
-        r"\b(20\d{2})/(\d{1,2})/(\d{1,2})\b",
-        lower,
-    )
-    if year_first_slash:
-        selected = _safe_date(*year_first_slash.groups())
-        resolved = _range_for_dates(selected, selected)
-        if resolved:
-            return resolved
+    # US numeric date, e.g. 07/19/2026.
+    numeric_single = re.search(r"(?<!\d)(\d{1,2})/(\d{1,2})/(20\d{2})(?!\d)", lower)
+    if numeric_single:
+        d = _safe_calendar_date(numeric_single.group(3), numeric_single.group(1), numeric_single.group(2))
+        if d:
+            start, end = _local_day_range_utc(d.year, d.month, d.day)
+            return start, end, d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
 
-    # North-American numeric date: 07/19/2026.
-    numeric_date = re.search(
-        r"\b(\d{1,2})/(\d{1,2})/(20\d{2})\b",
-        lower,
-    )
-    if numeric_date:
-        selected = _safe_date(
-            numeric_date.group(3),
-            numeric_date.group(1),
-            numeric_date.group(2),
-        )
-        resolved = _range_for_dates(selected, selected)
-        if resolved:
-            return resolved
-
-    # Named single date with optional year: July 19, 2026 / July 19.
+    # Named single day. A missing year uses the current Toronto year, or the
+    # previous year when the requested day is still in the future.
     named_single = re.search(
-        rf"\b({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?"
-        rf"(?:,\s*|\s+)?(20\d{{2}})?\b",
+        rf"\b({month_pattern})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?:\s+(20\d{{2}}))?\b",
         lower,
     )
     if named_single:
         month = month_names[named_single.group(1)]
         day = int(named_single.group(2))
-        explicit_year = named_single.group(3)
-        year = int(explicit_year) if explicit_year else now_local.year
-        candidate = _safe_date(year, month, day)
-
-        # Without a year, use the most recent occurrence rather than a future date.
-        if candidate and not explicit_year and candidate > now_local.date():
-            candidate = _safe_date(year - 1, month, day)
-
-        resolved = _range_for_dates(candidate, candidate)
-        if resolved:
-            return resolved
+        year = int(named_single.group(3)) if named_single.group(3) else now_local.year
+        d = _safe_calendar_date(year, month, day)
+        if d and not named_single.group(3) and d > now_local.date():
+            d = _safe_calendar_date(year - 1, month, day)
+        if d:
+            start, end = _local_day_range_utc(d.year, d.month, d.day)
+            return start, end, d.strftime("%B %-d, %Y") if os.name != "nt" else d.strftime("%B %#d, %Y")
 
     if "this month" in lower:
-        start, end = _month_date_range(now_local.year, now_local.month)
+        start, end = _local_month_range_utc(now_local.year, now_local.month)
         return start, end, now_local.strftime("%B %Y")
 
     if "last month" in lower or "previous month" in lower:
-        if now_local.month == 1:
-            year, month = now_local.year - 1, 12
-        else:
-            year, month = now_local.year, now_local.month - 1
-        start, end = _month_date_range(year, month)
-        return start, end, _date(year, month, 1).strftime("%B %Y")
+        year, month = (now_local.year - 1, 12) if now_local.month == 1 else (now_local.year, now_local.month - 1)
+        start, end = _local_month_range_utc(year, month)
+        return start, end, datetime(year, month, 1).strftime("%B %Y")
 
-    # Month-only query: July 2026 / July.
-    month_match = re.search(
-        rf"\b({month_pattern})\b(?:\s+(20\d{{2}}))?",
-        lower,
-    )
+    month_match = re.search(rf"\b({month_pattern})\b(?:\s+(20\d{{2}}))?", lower)
     if month_match:
         month = month_names[month_match.group(1)]
-        explicit_year = month_match.group(2)
-        year = int(explicit_year) if explicit_year else now_local.year
-        if not explicit_year and month > now_local.month:
+        year = int(month_match.group(2)) if month_match.group(2) else now_local.year
+        if not month_match.group(2) and month > now_local.month:
             year -= 1
-        start, end = _month_date_range(year, month)
-        return start, end, _date(year, month, 1).strftime("%B %Y")
+        start, end = _local_month_range_utc(year, month)
+        return start, end, datetime(year, month, 1).strftime("%B %Y")
 
     year_match = re.search(r"\b(20\d{2})\b", lower)
     if year_match:
         year = int(year_match.group(1))
-        start, end = _year_date_range(year)
+        start, end = _local_year_range_utc(year)
         return start, end, str(year)
 
-    # Safe default for questions such as "top products" without a period.
-    start, end = _month_date_range(now_local.year, now_local.month)
+    start, end = _local_month_range_utc(now_local.year, now_local.month)
     return start, end, now_local.strftime("%B %Y")
 
 
 def _extract_analytics_product_query(prompt):
-    """Extract a product ID, SKU, or product-name phrase from a sales question."""
+    """Extract a real product filter without confusing dates or WooCommerce wording."""
     value = re.sub(r"\s+", " ", str(prompt or "")).strip()
     lower = value.lower()
 
+    # Explicitly labelled product references are always respected.
     labelled = re.search(
         r"\b(?:product|sku|model|item)\s*(?:id|number|#)?\s*[:#-]?\s*"
         r"([a-z0-9][a-z0-9._/-]{1,40})\b",
         lower,
     )
     if labelled:
-        return labelled.group(1).strip()
+        candidate = labelled.group(1).strip()
+        if candidate not in {"sales", "order", "orders", "revenue", "woocommerce"}:
+            return candidate
+
+    # General order/revenue questions must aggregate every line item.
+    generic_phrases = (
+        "what's the sales", "what is the sales", "how much sales",
+        "total sales", "sales today", "sales yesterday",
+        "how many orders", "orders did we receive", "orders received",
+        "order count", "total orders", "revenue today", "revenue yesterday",
+        "woocommerce sales", "sales for woocommerce", "sales from woocommerce",
+        "woocommerce revenue", "revenue for woocommerce",
+    )
+    if any(phrase in lower for phrase in generic_phrases):
+        return ""
 
     patterns = [
         r"\bhow many\s+(.+?)\s+(?:units?\s+)?(?:sold|were sold|did we sell)\b",
         r"\b(?:sales|revenue|orders?)\s+(?:for|of)\s+(.+?)\s+"
-        r"(?:in|during|for|this month|last month|today|yesterday|$)",
+        r"(?:in|during|on|this month|last month|today|yesterday|$)",
         r"\bshow\s+(?:me\s+)?(?:all\s+)?(?:sales|orders?)\s+"
-        r"(?:for|containing)\s+(.+?)\s+"
-        r"(?:in|during|for|today|yesterday|$)",
+        r"(?:for|containing)\s+(.+?)\s+(?:in|during|on|$)",
     ]
     for pattern in patterns:
         match = re.search(pattern, lower, flags=re.IGNORECASE)
-        if match:
-            candidate = match.group(1).strip(" ?.,")
-            candidate = re.sub(
-                r"\b(?:today|yesterday|this month|last month|previous month)\b.*$",
-                "",
-                candidate,
-            ).strip()
-            if candidate:
-                return candidate
+        if not match:
+            continue
+        candidate = match.group(1).strip(" ?.,")
+        candidate = re.sub(
+            r"\b(?:today|yesterday|this month|last month|previous month|woocommerce)\b.*$",
+            "",
+            candidate,
+        ).strip(" ?.,")
+        if candidate and candidate not in {"woocommerce", "all", "all products", "orders", "sales", "revenue"}:
+            return candidate
 
-    # Generic order-count questions are not product-specific. Avoid treating a
-    # day or year from the requested date as a product ID.
-    if re.search(
-        r"\b(?:how many|number of|count)\s+(?:woocommerce\s+)?orders?\b",
-        lower,
-    ):
-        return ""
-
-    # A standalone short number can be a product ID only when the wording is
-    # clearly about a product/item/SKU, not merely about a date.
+    # Numeric shorthand is accepted only when it is clearly attached to a
+    # product/SKU context, preventing July 17 from becoming product 17.
     numeric = re.search(
-        r"\b(?:product|item|sku|model)\b.*?\b(\d{2,10})\b",
+        r"\b(?:product|sku|model|item)\s*(?:id|number|#)?\s*[:#-]?\s*(\d{2,10})\b",
         lower,
     )
-    if numeric:
-        return numeric.group(1)
-
-    return ""
-
+    return numeric.group(1) if numeric else ""
 
 def _woocommerce_analytics_allowed(selected_assistant=None):
     """Allow analytics only in Sales and Marketing workspaces."""
