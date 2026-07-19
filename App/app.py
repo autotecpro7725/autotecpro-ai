@@ -23729,6 +23729,14 @@ GOOGLE_DRIVE_CLIENT_SECRET = get_optional_secret("GOOGLE_DRIVE_CLIENT_SECRET")
 GOOGLE_DRIVE_REFRESH_TOKEN = get_optional_secret("GOOGLE_DRIVE_REFRESH_TOKEN")
 GOOGLE_DRIVE_ROOT_FOLDER_ID = get_optional_secret("GOOGLE_DRIVE_ROOT_FOLDER_ID")
 
+# Optional future archive provider. Google Drive remains the production default
+# unless OneDrive is explicitly configured and activated in a later release.
+ONEDRIVE_TENANT_ID = get_optional_secret("ONEDRIVE_TENANT_ID")
+ONEDRIVE_CLIENT_ID = get_optional_secret("ONEDRIVE_CLIENT_ID")
+ONEDRIVE_CLIENT_SECRET = get_optional_secret("ONEDRIVE_CLIENT_SECRET")
+ONEDRIVE_DRIVE_ID = get_optional_secret("ONEDRIVE_DRIVE_ID")
+ONEDRIVE_ROOT_FOLDER_ID = get_optional_secret("ONEDRIVE_ROOT_FOLDER_ID", "root")
+
 PRODUCT_ASSET_TYPES = [
     "product_photo",
     "parts_photo",
@@ -23872,6 +23880,132 @@ def _product_library_test_drive_connection():
     if payload.get("mimeType") != "application/vnd.google-apps.folder":
         return False, "The configured root ID is not a Google Drive folder."
     return True, f"Connected to Google Drive folder: {payload.get('name') or payload.get('id')}"
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _product_library_google_status():
+    """Return safe Google Drive account and root-folder details for Admin UI."""
+    status = {
+        "configured": _product_library_google_configured(),
+        "connected": False,
+        "account_email": "",
+        "account_name": "",
+        "root_folder_name": "",
+        "root_folder_id": GOOGLE_DRIVE_ROOT_FOLDER_ID,
+        "root_web_url": "",
+        "error": "",
+    }
+    if not status["configured"]:
+        status["error"] = "Google Drive secrets are incomplete."
+        return status
+
+    try:
+        headers = _product_library_drive_headers()
+        about_response = http_session.get(
+            "https://www.googleapis.com/drive/v3/about",
+            headers=headers,
+            params={"fields": "user(displayName,emailAddress)"},
+            timeout=LIVE_HTTP_TIMEOUT,
+        )
+        about_payload = safe_json_response(about_response)
+        user = about_payload.get("user") or {}
+        status["account_email"] = str(user.get("emailAddress") or "").strip()
+        status["account_name"] = str(user.get("displayName") or "").strip()
+
+        folder_response = http_session.get(
+            f"https://www.googleapis.com/drive/v3/files/{quote(GOOGLE_DRIVE_ROOT_FOLDER_ID, safe='')}",
+            headers=headers,
+            params={"fields": "id,name,mimeType,webViewLink,trashed"},
+            timeout=LIVE_HTTP_TIMEOUT,
+        )
+        folder = safe_json_response(folder_response)
+        if folder.get("mimeType") != "application/vnd.google-apps.folder":
+            raise RuntimeError("The configured root ID is not a Google Drive folder.")
+        if folder.get("trashed"):
+            raise RuntimeError("The configured Google Drive root folder is in Trash.")
+
+        status["root_folder_name"] = str(folder.get("name") or "").strip()
+        status["root_folder_id"] = str(folder.get("id") or GOOGLE_DRIVE_ROOT_FOLDER_ID)
+        status["root_web_url"] = str(folder.get("webViewLink") or "").strip()
+        status["connected"] = True
+    except Exception as error:
+        status["error"] = str(error)
+    return status
+
+
+def _product_library_onedrive_configured():
+    return bool(
+        ONEDRIVE_TENANT_ID
+        and ONEDRIVE_CLIENT_ID
+        and ONEDRIVE_CLIENT_SECRET
+        and ONEDRIVE_DRIVE_ID
+    )
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _product_library_onedrive_access_token():
+    """Get a Microsoft Graph app-only token when OneDrive is configured."""
+    if not _product_library_onedrive_configured():
+        raise RuntimeError("OneDrive secrets are incomplete.")
+    response = http_session.post(
+        f"https://login.microsoftonline.com/{quote(ONEDRIVE_TENANT_ID, safe='')}/oauth2/v2.0/token",
+        data={
+            "client_id": ONEDRIVE_CLIENT_ID,
+            "client_secret": ONEDRIVE_CLIENT_SECRET,
+            "scope": "https://graph.microsoft.com/.default",
+            "grant_type": "client_credentials",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    payload = safe_json_response(response)
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        raise RuntimeError("Microsoft OAuth did not return an access token.")
+    return token
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _product_library_onedrive_status():
+    """Validate optional OneDrive configuration without changing upload routing."""
+    status = {
+        "configured": _product_library_onedrive_configured(),
+        "connected": False,
+        "drive_name": "",
+        "owner_name": "",
+        "root_folder_name": "",
+        "root_folder_id": ONEDRIVE_ROOT_FOLDER_ID or "root",
+        "error": "",
+    }
+    if not status["configured"]:
+        status["error"] = "OneDrive secrets are incomplete."
+        return status
+    try:
+        headers = {"Authorization": f"Bearer {_product_library_onedrive_access_token()}"}
+        drive_response = http_session.get(
+            f"https://graph.microsoft.com/v1.0/drives/{quote(ONEDRIVE_DRIVE_ID, safe='')}",
+            headers=headers,
+            timeout=LIVE_HTTP_TIMEOUT,
+        )
+        drive = safe_json_response(drive_response)
+        status["drive_name"] = str(drive.get("name") or "").strip()
+        status["owner_name"] = str(((drive.get("owner") or {}).get("user") or {}).get("displayName") or "").strip()
+
+        root_id = ONEDRIVE_ROOT_FOLDER_ID or "root"
+        item_url = (
+            f"https://graph.microsoft.com/v1.0/drives/{quote(ONEDRIVE_DRIVE_ID, safe='')}/root"
+            if root_id == "root"
+            else f"https://graph.microsoft.com/v1.0/drives/{quote(ONEDRIVE_DRIVE_ID, safe='')}/items/{quote(root_id, safe='')}"
+        )
+        item_response = http_session.get(item_url, headers=headers, timeout=LIVE_HTTP_TIMEOUT)
+        item = safe_json_response(item_response)
+        if not item.get("folder"):
+            raise RuntimeError("The configured OneDrive root item is not a folder.")
+        status["root_folder_name"] = str(item.get("name") or "").strip()
+        status["root_folder_id"] = str(item.get("id") or root_id)
+        status["connected"] = True
+    except Exception as error:
+        status["error"] = str(error)
+    return status
 
 
 def _product_library_optimize_image(data, filename, max_px, quality=88):
@@ -25343,8 +25477,10 @@ def render_product_library_admin():
                 st.error(f"Product records could not load: {error}")
 
         with storage_tab:
-            drive_configured = _product_library_google_configured()
-            provider_options = ["Google Drive", "OneDrive (coming soon)"]
+            google_status = _product_library_google_status()
+            onedrive_configured = _product_library_onedrive_configured()
+
+            provider_options = ["Google Drive", "OneDrive"]
             selected_provider = st.radio(
                 "Archive provider",
                 provider_options,
@@ -25352,53 +25488,127 @@ def render_product_library_admin():
                 horizontal=True,
                 key="product_library_archive_provider",
                 help=(
-                    "Google Drive remains the active production provider. "
-                    "The OneDrive option is displayed as a future-ready placeholder and does not change uploads."
+                    "Google Drive remains the active production upload provider. "
+                    "OneDrive can be connection-tested when its Streamlit Secrets are configured."
                 ),
             )
 
-            if selected_provider.startswith("OneDrive"):
+            if selected_provider == "Google Drive":
+                status_columns = st.columns(3)
+                with status_columns[0]:
+                    st.metric(
+                        "Archive status",
+                        "Connected" if google_status.get("connected") else (
+                            "Configured" if google_status.get("configured") else "Not configured"
+                        ),
+                    )
+                with status_columns[1]:
+                    st.metric("Display storage", "Supabase")
+                with status_columns[2]:
+                    st.metric(
+                        "Root folder",
+                        google_status.get("root_folder_name") or (
+                            "Configured" if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Missing"
+                        ),
+                    )
+
+                st.write("**Active production provider:** Google Drive")
+                st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
+                st.write(
+                    "**Connected Google account:** "
+                    + (google_status.get("account_email") or "Unavailable until connection succeeds")
+                )
+                if google_status.get("account_name"):
+                    st.write(f"**Google account name:** {google_status['account_name']}")
+                st.write(
+                    "**Google Drive root folder:** "
+                    + (google_status.get("root_folder_name") or "Not available")
+                )
+
+                with st.expander("Advanced Google Drive details", expanded=False):
+                    st.code(google_status.get("root_folder_id") or "Not configured")
+                    if google_status.get("root_web_url"):
+                        st.link_button(
+                            "Open Root Folder in Google Drive",
+                            google_status["root_web_url"],
+                            use_container_width=False,
+                        )
+                    if google_status.get("error"):
+                        st.caption(f"Last status detail: {google_status['error']}")
+
+                test_cols = st.columns([1, 2, 1])
+                with test_cols[1]:
+                    if st.button(
+                        "Test Google Drive Connection",
+                        use_container_width=True,
+                        key="product_library_test_drive",
+                    ):
+                        try:
+                            _product_library_google_status.clear()
+                            ok, message = _product_library_test_drive_connection()
+                            (st.success if ok else st.error)(message)
+                        except Exception as error:
+                            st.error(f"Google Drive connection failed: {error}")
+
+            else:
+                onedrive_status = _product_library_onedrive_status()
+                status_columns = st.columns(3)
+                with status_columns[0]:
+                    st.metric(
+                        "OneDrive status",
+                        "Connected" if onedrive_status.get("connected") else (
+                            "Configured" if onedrive_status.get("configured") else "Not configured"
+                        ),
+                    )
+                with status_columns[1]:
+                    st.metric("Upload routing", "Google Drive")
+                with status_columns[2]:
+                    st.metric(
+                        "OneDrive root",
+                        onedrive_status.get("root_folder_name") or "Unavailable",
+                    )
+
                 st.info(
-                    "OneDrive support is not enabled yet. Product Library uploads will continue using "
-                    "Google Drive so the current production workflow remains unchanged."
+                    "OneDrive is available for configuration and connection testing, but Product Library "
+                    "uploads still use Google Drive to preserve the current production workflow."
                 )
+                st.write(
+                    "**OneDrive / SharePoint drive:** "
+                    + (onedrive_status.get("drive_name") or "Not available")
+                )
+                if onedrive_status.get("owner_name"):
+                    st.write(f"**Drive owner:** {onedrive_status['owner_name']}")
+                st.write(
+                    "**OneDrive root folder:** "
+                    + (onedrive_status.get("root_folder_name") or "Not available")
+                )
+                with st.expander("Advanced OneDrive details", expanded=False):
+                    st.write(f"**Configured:** {'Yes' if onedrive_configured else 'No'}")
+                    st.code(onedrive_status.get("root_folder_id") or "root")
+                    if onedrive_status.get("error"):
+                        st.caption(f"Last status detail: {onedrive_status['error']}")
 
-            status_columns = st.columns(3)
-            with status_columns[0]:
-                st.metric(
-                    "Archive status",
-                    "Connected" if drive_configured else "Not configured",
-                )
-            with status_columns[1]:
-                st.metric("Display storage", "Supabase")
-            with status_columns[2]:
-                st.metric(
-                    "Root folder",
-                    "Configured" if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Missing",
-                )
+                test_cols = st.columns([1, 2, 1])
+                with test_cols[1]:
+                    if st.button(
+                        "Test OneDrive Connection",
+                        use_container_width=True,
+                        key="product_library_test_onedrive",
+                        disabled=not onedrive_configured,
+                    ):
+                        _product_library_onedrive_access_token.clear()
+                        _product_library_onedrive_status.clear()
+                        refreshed = _product_library_onedrive_status()
+                        if refreshed.get("connected"):
+                            st.success(
+                                "Connected to OneDrive folder: "
+                                + (refreshed.get("root_folder_name") or refreshed.get("root_folder_id") or "root")
+                            )
+                        else:
+                            st.error(refreshed.get("error") or "OneDrive connection failed.")
 
-            st.write("**Active production provider:** Google Drive")
-            st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
-            st.write(
-                "**Google Drive root folder:** " + (
-                    f"`{GOOGLE_DRIVE_ROOT_FOLDER_ID}`"
-                    if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Not configured"
-                )
-            )
-
-            connection_columns = st.columns(2)
-            with connection_columns[0]:
-                if st.button(
-                    "Test Google Drive Connection",
-                    use_container_width=True,
-                    key="product_library_test_drive",
-                ):
-                    try:
-                        ok, message = _product_library_test_drive_connection()
-                        (st.success if ok else st.error)(message)
-                    except Exception as error:
-                        st.error(f"Google Drive connection failed: {error}")
-            with connection_columns[1]:
+            refresh_cols = st.columns([1, 2, 1])
+            with refresh_cols[1]:
                 if st.button(
                     "Refresh Storage Status",
                     use_container_width=True,
@@ -25406,11 +25616,15 @@ def render_product_library_admin():
                 ):
                     _product_library_dashboard_data.clear()
                     _product_library_google_access_token.clear()
-                    st.success("Product Library status cache cleared.")
+                    _product_library_google_status.clear()
+                    _product_library_onedrive_access_token.clear()
+                    _product_library_onedrive_status.clear()
+                    st.success("Product Library storage status cache cleared.")
+                    st.rerun()
 
             st.info(
-                "Google Drive account changes are controlled through Streamlit Secrets. "
-                "OAuth credentials are never exposed in the browser or stored in session state."
+                "Storage credentials are controlled through Streamlit Secrets. Account changes require "
+                "updating those secrets; OAuth credentials are never exposed in the browser or stored in session state."
             )
 
 
