@@ -25115,7 +25115,12 @@ def render_product_library_admin():
                                 edit_description = st.text_area("Description", value=str(product.get("description") or ""), height=120)
                                 edit_aliases = st.text_input("Aliases", value=", ".join(str(item) for item in (product.get("aliases") or [])))
                                 edit_active = st.checkbox("Active Product", value=bool(product.get("active")), key=f"active_{product_id}")
-                                save_edit = st.form_submit_button("Save Product Changes", use_container_width=True)
+                                save_edit_submit_cols = st.columns([1, 2, 1])
+                                with save_edit_submit_cols[1]:
+                                    save_edit = st.form_submit_button(
+                                        "Save Product Changes",
+                                        use_container_width=True,
+                                    )
                             if save_edit:
                                 try:
                                     aliases = [item.strip() for item in edit_aliases.split(",") if item.strip()]
