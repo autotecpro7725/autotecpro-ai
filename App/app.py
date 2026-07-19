@@ -3642,14 +3642,14 @@ def install_gpt_uploader_css():
         div[data-testid="stFileUploader"] section,
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
-            min-height: 100px !important;
+            min-height: 82px !important;
             height: auto !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             flex-direction: column !important;
             gap: 7px !important;
-            padding: 12px !important;
+            padding: 8px 12px !important;
             border: 1px dashed rgba(148, 163, 184, 0.25) !important;
             border-radius: 13px !important;
             background: rgba(15, 23, 42, 0.28) !important;
@@ -3677,8 +3677,8 @@ def install_gpt_uploader_css():
         div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
             width: auto !important;
             min-width: 126px !important;
-            height: 50px !important;
-            min-height: 50px !important;
+            height: 44px !important;
+            min-height: 44px !important;
             margin: 0 auto !important;
             padding: 0 18px !important;
             border-radius: 12px !important;
@@ -3691,8 +3691,8 @@ def install_gpt_uploader_css():
 
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] button svg {
-            width: 25px !important;
-            height: 25px !important;
+            width: 21px !important;
+            height: 21px !important;
         }
 
         /* Native temporary rows are replaced by managed Python previews. */
@@ -3707,17 +3707,69 @@ def install_gpt_uploader_css():
             display: none !important;
         }
 
+        /* Streamlit's native helper may reflect a lower framework limit even
+           though this application validates files at 20 MB. Hide it and render
+           one consistent Product Library limit label. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] small {
-            display: block !important;
-            width: 100% !important;
-            margin: 4px 0 0 !important;
-            color: #94a3b8 !important;
-            -webkit-text-fill-color: #94a3b8 !important;
-            font-size: 11.5px !important;
-            line-height: 1.35 !important;
-            text-align: center !important;
-            opacity: 1 !important;
+            display: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section::after,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"]::after {
+            content: "20MB per file • JPG, JPEG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
+            display: block;
+            width: 100%;
+            margin: 2px 0 0;
+            color: #94a3b8;
+            font-size: 11.5px;
+            line-height: 1.3;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        /* While Streamlit is transferring a selected file, suppress its native
+           filename/remove/add controls. The managed preview replaces them on the
+           next server frame, so a single quiet processing label is cleaner than
+           showing two temporary action icons beside the filename. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileData"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[aria-label*="remove" i],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[title*="remove" i] {
+            display: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFileData"])
+        section > div,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"])
+        section > div {
+            visibility: hidden !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFileData"])
+        section::before,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"])
+        section::before {
+            content: "Processing selected file…";
+            display: block;
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 650;
+            text-align: center;
         }
 
         @media (max-width: 768px) {
@@ -3752,8 +3804,8 @@ def install_gpt_uploader_css():
             div[data-testid="stFileUploader"] section,
             html body div[class*="st-key-atp_upload_shell_"]
             div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
-                min-height: 92px !important;
-                padding: 10px !important;
+                min-height: 76px !important;
+                padding: 8px 10px !important;
             }
 
             html body div[class*="st-key-atp_upload_shell_"]
@@ -3761,8 +3813,8 @@ def install_gpt_uploader_css():
             html body div[class*="st-key-atp_upload_shell_"]
             div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] {
                 min-width: 116px !important;
-                height: 47px !important;
-                min-height: 47px !important;
+                height: 42px !important;
+                min-height: 42px !important;
                 padding: 0 16px !important;
             }
         }
