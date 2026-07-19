@@ -24906,6 +24906,35 @@ def render_product_library_admin():
         html body div[class*="st-key-atp_product_library_panel"] [data-testid="stFileUploaderDropzone"] {
             background: var(--secondary-background-color) !important;
         }
+        html body div[class*="st-key-atp_product_library_panel"] [role="tablist"] {
+            gap: .25rem !important;
+            overflow-x: auto !important;
+            scrollbar-width: none !important;
+        }
+        html body div[class*="st-key-atp_product_library_panel"] [role="tablist"]::-webkit-scrollbar { display: none !important; }
+        html body div[class*="st-key-atp_product_library_panel"] [role="tab"] {
+            flex: 0 0 auto !important;
+            white-space: nowrap !important;
+            min-height: 2.75rem !important;
+            padding-left: .7rem !important;
+            padding-right: .7rem !important;
+            color: var(--text-color) !important;
+        }
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="stMetric"] {
+            min-height: 88px !important;
+            padding: 10px 12px !important;
+            text-align: left !important;
+        }
+        html body div[class*="st-key-atp_product_library_panel"] button {
+            min-height: 2.75rem !important;
+            white-space: normal !important;
+            line-height: 1.2 !important;
+        }
+        html body div[class*="st-key-atp_product_library_panel"] [data-testid="stCaptionContainer"],
+        html body div[class*="st-key-atp_product_library_panel"] small {
+            color: var(--text-color) !important;
+            opacity: .78 !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -25233,28 +25262,74 @@ def render_product_library_admin():
                 st.error(f"Product records could not load: {error}")
 
         with storage_tab:
-            provider = "Google Drive" if _product_library_google_configured() else "None"
-            st.write(f"**Active archive provider:** {provider}")
+            drive_configured = _product_library_google_configured()
+            provider_options = ["Google Drive", "OneDrive (coming soon)"]
+            selected_provider = st.radio(
+                "Archive provider",
+                provider_options,
+                index=0,
+                horizontal=True,
+                key="product_library_archive_provider",
+                help=(
+                    "Google Drive remains the active production provider. "
+                    "The OneDrive option is displayed as a future-ready placeholder and does not change uploads."
+                ),
+            )
+
+            if selected_provider.startswith("OneDrive"):
+                st.info(
+                    "OneDrive support is not enabled yet. Product Library uploads will continue using "
+                    "Google Drive so the current production workflow remains unchanged."
+                )
+
+            status_columns = st.columns(3)
+            with status_columns[0]:
+                st.metric(
+                    "Archive status",
+                    "Connected" if drive_configured else "Not configured",
+                )
+            with status_columns[1]:
+                st.metric("Display storage", "Supabase")
+            with status_columns[2]:
+                st.metric(
+                    "Root folder",
+                    "Configured" if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Missing",
+                )
+
+            st.write("**Active production provider:** Google Drive")
             st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
             st.write(
-                "**Root folder:** " + (
-                    f"Configured (`{GOOGLE_DRIVE_ROOT_FOLDER_ID}`)"
+                "**Google Drive root folder:** " + (
+                    f"`{GOOGLE_DRIVE_ROOT_FOLDER_ID}`"
                     if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Not configured"
                 )
             )
-            if st.button("Test Google Drive Connection", use_container_width=True):
-                try:
-                    ok, message = _product_library_test_drive_connection()
-                    (st.success if ok else st.error)(message)
-                except Exception as error:
-                    st.error(f"Google Drive connection failed: {error}")
-            if st.button("Refresh Product Library Status", use_container_width=True):
-                _product_library_dashboard_data.clear()
-                _product_library_google_access_token.clear()
-                st.success("Product Library status cache cleared.")
+
+            connection_columns = st.columns(2)
+            with connection_columns[0]:
+                if st.button(
+                    "Test Google Drive Connection",
+                    use_container_width=True,
+                    key="product_library_test_drive",
+                ):
+                    try:
+                        ok, message = _product_library_test_drive_connection()
+                        (st.success if ok else st.error)(message)
+                    except Exception as error:
+                        st.error(f"Google Drive connection failed: {error}")
+            with connection_columns[1]:
+                if st.button(
+                    "Refresh Storage Status",
+                    use_container_width=True,
+                    key="product_library_refresh_storage",
+                ):
+                    _product_library_dashboard_data.clear()
+                    _product_library_google_access_token.clear()
+                    st.success("Product Library status cache cleared.")
+
             st.info(
-                "Account connection and disconnection are controlled through Streamlit Secrets. "
-                "This prevents OAuth credentials from being exposed in the browser or stored in session state."
+                "Google Drive account changes are controlled through Streamlit Secrets. "
+                "OAuth credentials are never exposed in the browser or stored in session state."
             )
 
 
