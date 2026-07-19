@@ -4105,6 +4105,31 @@ def install_gpt_uploader_css():
                 padding: 0 16px;
             }
         }
+
+        /* v312: use Streamlit's native file input as the single reliable
+           upload control. This avoids stale browser click handlers after a
+           preview is removed and prevents duplicate Upload controls. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        .atp-custom-upload-controls {
+            display: none !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] {
+            position: relative !important;
+            width: 100% !important;
+            height: auto !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-width: none !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            border: 0 !important;
+        }
 </style>
         """,
         unsafe_allow_html=True,
@@ -4400,34 +4425,6 @@ def managed_file_uploader(
                 '<div class="atp-add-file-label">＋ Add another file</div>',
                 unsafe_allow_html=True,
             )
-
-        st.markdown(
-            f"""
-            <div class="atp-custom-upload-controls">
-                <button
-                    type="button"
-                    class="atp-custom-upload-trigger"
-                    data-uploader-prefix="{html.escape(widget_prefix)}"
-                >
-                    <span class="atp-custom-upload-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round"
-                             aria-hidden="true">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                    </span>
-                    <span>Upload</span>
-                </button>
-                <div class="atp-custom-upload-helper">
-                    20MB per file · {html.escape(accepted_type_text)}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
         incoming_files = st.file_uploader(
             "Upload files",
