@@ -3719,6 +3719,43 @@ def install_gpt_uploader_css():
             display: none !important;
         }
 
+        /* Streamlit has used several different wrappers for the native limit/type
+           sentence across releases. Suppress any remaining non-button text in the
+           managed dropzone, then restore the Upload button typography below. This
+           prevents the framework's 10MB sentence from appearing beside our single
+           application-controlled 20MB label. */
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section > div > p,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] section > div > span,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] p,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] span {
+            font-size: 0 !important;
+            line-height: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button span,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"] span {
+            font-size: 14px !important;
+            line-height: 1.2 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+        }
+
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] section::after,
         html body div[class*="st-key-atp_upload_shell_"]
