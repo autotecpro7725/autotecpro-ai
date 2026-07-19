@@ -2805,32 +2805,112 @@ def detect_live_request(prompt, selected_assistant=None):
             "top-selling",
             "best selling",
             "best-selling",
+            "how about",
+            "what about",
+            "same model",
+            "same product",
+            "same sku",
         ]
         looks_like_analytics = any(term in lower for term in analytics_terms)
 
-        # Support concise follow-ups such as "how about 732" after a live sales
-        # lookup. Reuse only the previous analytics period, never stale results.
+        # Deterministic analytics follow-ups. A follow-up must run a fresh live
+        # WooCommerce lookup; it must never be passed to the language model with
+        # only the previous result. Supported examples include:
+        #   How about 862 in June?
+        #   What about 732?
+        #   How about in May?
+        #   Revenue for the same model last month
         previous_analytics = st.session_state.get("woocommerce_analytics_context") or {}
-        followup_match = re.fullmatch(
-            r"(?:and\s+)?(?:how|what)\s+about\s+(?:model\s+|product\s+|sku\s+)?"
-            r"([a-z0-9][a-z0-9._/-]{1,40})[?!.]*",
+        followup_prefix = bool(re.match(
+            r"^\s*(?:and\s+)?(?:how|what)\s+about\b|"
+            r"^\s*(?:and\s+)?(?:for|of)\s+the\s+same\s+(?:model|product|sku)\b|"
+            r"^\s*(?:and\s+)?(?:same\s+(?:model|product|sku))\b",
             lower,
+        ))
+        followup_sales_language = any(
+            phrase in lower
+            for phrase in (
+                "same model", "same product", "same sku",
+                "how about", "what about",
+            )
         )
-        if followup_match and previous_analytics:
-            return {
-                "type": "woocommerce_sales_analytics",
-                "access_level": "sales",
-                "product_query": followup_match.group(1),
-                "start_iso": previous_analytics.get("start_iso"),
-                "end_iso": previous_analytics.get("end_iso"),
-                "period_label": previous_analytics.get("period_label", ""),
-                "include_top_products": False,
-                "top_limit": 10,
-            }
+
+        if previous_analytics and (followup_prefix or followup_sales_language):
+            # Start with any explicit product parsed by the normal analytics parser.
+            product_query = _extract_analytics_product_query(value)
+
+            # Concise follow-ups often omit words such as sold/revenue. Extract the
+            # model/SKU token after "about" while stopping before date language.
+            if not product_query:
+                about_match = re.search(
+                    r"\b(?:how|what)\s+about\s+"
+                    r"(?:model\s+|product\s+|sku\s+)?"
+                    r"([a-z0-9][a-z0-9._/-]{1,40})\b",
+                    lower,
+                )
+                if about_match:
+                    candidate = about_match.group(1).strip(" ?!.,")
+                    if candidate not in {
+                        "in", "on", "during", "today", "yesterday",
+                        "this", "last", "previous", "month", "week", "year",
+                    }:
+                        product_query = candidate
+
+            # If the follow-up changes only the date, preserve the prior product.
+            if not product_query:
+                product_query = str(
+                    previous_analytics.get("product_query") or ""
+                ).strip()
+
+            explicit_date = bool(re.search(
+                r"\b(?:today|yesterday|this\s+month|last\s+month|previous\s+month|"
+                r"this\s+week|last\s+week|this\s+year|last\s+year|"
+                r"january|jan|february|feb|march|mar|april|apr|may|june|jun|"
+                r"july|jul|august|aug|september|sep|sept|october|oct|"
+                r"november|nov|december|dec|20\d{2}|\d{1,2}/\d{1,2}/20\d{2})\b",
+                lower,
+            ))
+            if explicit_date:
+                start, end, period_label = _resolve_analytics_date_range(value)
+                start_iso = start.isoformat()
+                end_iso = end.isoformat()
+            else:
+                start_iso = previous_analytics.get("start_iso")
+                end_iso = previous_analytics.get("end_iso")
+                period_label = previous_analytics.get("period_label", "")
+
+            if start_iso and end_iso:
+                return {
+                    "type": "woocommerce_sales_analytics",
+                    "access_level": "sales",
+                    "product_query": product_query,
+                    "start_iso": start_iso,
+                    "end_iso": end_iso,
+                    "period_label": period_label,
+                    "include_top_products": False,
+                    "top_limit": 10,
+                    "is_followup": True,
+                }
 
         if looks_like_analytics:
             start, end, period_label = _resolve_analytics_date_range(value)
             product_query = _extract_analytics_product_query(value)
+
+            # Follow-up wording such as "how many sold last month" can omit the
+            # model. Reuse the previous product only when the wording clearly
+            # refers to the existing analytics conversation.
+            if (
+                not product_query
+                and previous_analytics
+                and re.search(
+                    r"\b(?:same|those|that\s+model|that\s+product|how\s+many\s+sold)\b",
+                    lower,
+                )
+            ):
+                product_query = str(
+                    previous_analytics.get("product_query") or ""
+                ).strip()
+
             include_top_products = any(
                 term in lower
                 for term in [
