@@ -24061,22 +24061,69 @@ def _product_library_replace_asset(product, asset, replacement_file):
 
 
 def _product_library_delete_product(product):
-    """Delete a product and all linked assets from both storage providers."""
+    """
+    Delete a product immediately and clean up all linked files.
+
+    Database records are removed even when an external file provider cannot
+    delete one of its files. Any external cleanup failure is logged and returned
+    as a warning so a temporary Google Drive or Storage issue cannot leave the
+    product stuck in the Admin panel.
+    """
     if not isinstance(product, dict) or not product.get("id"):
         raise RuntimeError("The selected Product Library product is invalid.")
 
+    product_id = product["id"]
     assets = (
         supabase.table("product_assets")
         .select("id,storage_path,archive_file_id")
-        .eq("product_id", product["id"])
+        .eq("product_id", product_id)
         .execute().data
         or []
     )
-    for asset in assets:
-        _product_library_delete_asset(asset)
 
-    supabase.table("product_library").delete().eq("id", product["id"]).execute()
+    cleanup_warnings = []
+    deleted_asset_count = 0
+
+    for asset in assets:
+        asset_id = asset.get("id")
+        storage_path = str(asset.get("storage_path") or "").strip()
+        archive_file_id = str(asset.get("archive_file_id") or "").strip()
+
+        if storage_path:
+            try:
+                _product_library_storage_remove([storage_path])
+            except Exception as error:
+                cleanup_warnings.append(f"Supabase Storage: {error}")
+                diagnostic_log(
+                    "product_library_delete_storage_cleanup_failed",
+                    product_id=product_id,
+                    asset_id=asset_id,
+                    error=error,
+                )
+
+        if archive_file_id:
+            try:
+                _product_library_drive_trash_file(archive_file_id)
+            except Exception as error:
+                cleanup_warnings.append(f"Google Drive: {error}")
+                diagnostic_log(
+                    "product_library_delete_drive_cleanup_failed",
+                    product_id=product_id,
+                    asset_id=asset_id,
+                    error=error,
+                )
+
+        if asset_id:
+            supabase.table("product_assets").delete().eq("id", asset_id).execute()
+            deleted_asset_count += 1
+
+    supabase.table("product_library").delete().eq("id", product_id).execute()
     _product_library_clear_read_caches()
+
+    return {
+        "deleted_asset_count": deleted_asset_count,
+        "cleanup_warnings": cleanup_warnings,
+    }
 
 
 def _product_library_update_product(product_id, product_name, compatibility, description, aliases, active):
@@ -25024,6 +25071,10 @@ def render_product_library_admin():
                         st.error(f"Product upload failed: {error}")
 
         with manage_tab:
+            delete_notice = st.session_state.pop("product_library_delete_notice", "")
+            if delete_notice:
+                st.success(delete_notice)
+
             search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
             try:
                 query = (
@@ -25240,23 +25291,34 @@ def render_product_library_admin():
                                 "This permanently removes the product metadata and all linked Product Library files. "
                                 "Google Drive originals are moved to Trash."
                             )
-                            typed_code = st.text_input(
-                                f"Type {product.get('product_code')} to confirm",
-                                key=f"delete_product_confirm_{product_id}",
-                            )
-                            correct_code = typed_code.strip() == str(product.get("product_code") or "").strip()
                             if st.button(
                                 "Delete Product Permanently",
                                 key=f"delete_product_{product_id}",
-                                
-                                disabled=not correct_code,
+                                type="primary",
                                 use_container_width=True,
                             ):
                                 try:
-                                    _product_library_delete_product(product)
-                                    st.success("Product and linked files deleted.")
+                                    with st.spinner("Deleting product and linked files..."):
+                                        delete_result = _product_library_delete_product(product)
+
+                                    cleanup_warnings = delete_result.get("cleanup_warnings") or []
+                                    if cleanup_warnings:
+                                        diagnostic_log(
+                                            "product_library_delete_completed_with_warnings",
+                                            product_id=product_id,
+                                            warning_count=len(cleanup_warnings),
+                                        )
+
+                                    st.session_state["product_library_delete_notice"] = (
+                                        "Product and linked records deleted successfully."
+                                    )
                                     st.rerun()
                                 except Exception as error:
+                                    diagnostic_log(
+                                        "product_library_delete_failed",
+                                        product_id=product_id,
+                                        error=error,
+                                    )
                                     st.error(f"Product deletion failed: {error}")
             except Exception as error:
                 st.error(f"Product records could not load: {error}")
