@@ -10855,7 +10855,7 @@ all_workspace_items = [
     ("marketing", "📣", "Marketing"),
     ("graphic", "🎨", "Graphic Marketing"),
     ("knowledge", "🧠", "Knowledge Submission"),
-    ("product_library", "📚", "Product Library"),
+    ("product_library", "📦", "Product Library"),
     ("admin", "⚙️", "Admin Panel"),
 ]
 
@@ -11890,6 +11890,12 @@ st.markdown(
     [class*="st-key-workspace_button_knowledge"]
     .stButton > button::before {
         content: "🧠";
+    }
+
+    section[data-testid="stSidebar"]
+    [class*="st-key-workspace_button_product_library"]
+    .stButton > button::before {
+        content: "📦";
     }
 
     section[data-testid="stSidebar"]
@@ -18373,7 +18379,7 @@ def render_metric_row(metrics):
 def clean_assistant_label(assistant_name):
     """Normalize assistant labels so history works even when labels include emoji."""
     value = str(assistant_name or "")
-    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "📚", "⚙️", "⚙"]:
+    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "📦", "📚", "⚙️", "⚙"]:
         value = value.replace(icon, "")
     return value.strip()
 
@@ -18389,7 +18395,7 @@ def normalize_workspace_assistant_name(assistant_name):
         "Technical Support": "🔧 Technical Support",
         "Graphic Marketing": "🎨 Graphic Marketing",
         "Knowledge Submission": "🧠 Knowledge Submission",
-        "Product Library": "📚 Product Library",
+        "Product Library": "📦 Product Library",
         "Admin Panel": "⚙️ Admin Panel",
     }
     return mapping.get(cleaned, str(assistant_name or "").strip())
@@ -20099,7 +20105,7 @@ if (
     and assistant not in {
         "⚙️ Admin Panel",
         "🧠 Knowledge Submission",
-        "📚 Product Library",
+        "📦 Product Library",
     }
 ):
     if "rename_conversation_id" not in st.session_state:
@@ -26159,7 +26165,7 @@ def render_product_library_workspace():
     """, unsafe_allow_html=True)
 
     with st.container(key="atp_product_library_employee_panel"):
-        st.markdown("## 📚 Product Library")
+        st.markdown("## 📦 Product Library")
         st.caption(
             "Search and maintain product photos and supporting files. "
             "Access is controlled by your assigned user permissions."
@@ -27335,7 +27341,7 @@ CANADA_POST_PASSWORD = """"",
 # Main Chat UI
 # ============================================================
 
-elif assistant == "📚 Product Library":
+elif assistant == "📦 Product Library":
     render_product_library_workspace()
 
 elif assistant == "🧠 Knowledge Submission":
