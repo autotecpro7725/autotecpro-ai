@@ -23757,6 +23757,77 @@ PRODUCT_ASSET_LABELS = {
     "other": "Other",
 }
 
+# Optional second-level metadata keeps the top-level Asset Type list compact
+# while making individual photos and files much easier for staff and AI to find.
+PRODUCT_ASSET_SUBTYPES = {
+    "product_photo": [
+        "front_view", "rear_view", "left_side", "right_side", "installed",
+        "screen_on", "screen_off", "packaging", "accessories", "other",
+    ],
+    "parts_photo": [
+        "mainboard", "harness", "canbus", "usb_cable", "gps_antenna",
+        "sim_slot", "wifi_antenna", "microphone", "camera", "lvds_cable",
+        "power_cable", "accessories", "other",
+    ],
+    "wiring": [
+        "wiring_diagram", "pinout", "can_wiring", "speaker_wiring",
+        "camera_wiring", "other",
+    ],
+    "installation": [
+        "installation_manual", "installation_video", "installation_photos",
+        "trim_removal", "programming", "other",
+    ],
+    "document": [
+        "user_manual", "specification", "compatibility", "firmware",
+        "update", "other",
+    ],
+    "marketing": [
+        "banner", "lifestyle", "comparison", "feature", "social_media", "other",
+    ],
+    "other": ["other"],
+}
+
+PRODUCT_ASSET_SUBTYPE_LABELS = {
+    "front_view": "Front View", "rear_view": "Rear View",
+    "left_side": "Left Side", "right_side": "Right Side",
+    "installed": "Installed", "screen_on": "Screen On",
+    "screen_off": "Screen Off", "packaging": "Packaging",
+    "accessories": "Accessories", "mainboard": "Mainboard",
+    "harness": "Harness", "canbus": "CANBUS", "usb_cable": "USB Cable",
+    "gps_antenna": "GPS Antenna", "sim_slot": "SIM Slot",
+    "wifi_antenna": "WiFi Antenna", "microphone": "Microphone",
+    "camera": "Camera", "lvds_cable": "LVDS Cable",
+    "power_cable": "Power Cable", "wiring_diagram": "Wiring Diagram",
+    "pinout": "Pinout", "can_wiring": "CAN Wiring",
+    "speaker_wiring": "Speaker Wiring", "camera_wiring": "Camera Wiring",
+    "installation_manual": "Installation Manual",
+    "installation_video": "Installation Video",
+    "installation_photos": "Installation Photos",
+    "trim_removal": "Trim Removal", "programming": "Programming",
+    "user_manual": "User Manual", "specification": "Specification",
+    "compatibility": "Compatibility", "firmware": "Firmware",
+    "update": "Update", "banner": "Banner", "lifestyle": "Lifestyle",
+    "comparison": "Comparison", "feature": "Feature",
+    "social_media": "Social Media", "other": "Other",
+}
+
+
+def _product_library_subtype_options(asset_type):
+    """Return stable subtype options for the selected top-level asset type."""
+    return PRODUCT_ASSET_SUBTYPES.get(str(asset_type or "other"), ["other"])
+
+
+def _product_library_asset_heading(asset):
+    """Build a readable Asset Type / Subtype / filename heading."""
+    asset = asset or {}
+    type_label = PRODUCT_ASSET_LABELS.get(
+        asset.get("asset_type"), str(asset.get("asset_type") or "Other")
+    )
+    subtype = str(asset.get("asset_subtype") or "").strip()
+    subtype_label = PRODUCT_ASSET_SUBTYPE_LABELS.get(subtype, subtype.replace("_", " ").title())
+    filename = str(asset.get("original_filename") or "Unnamed file")
+    return f"{type_label} / {subtype_label} — {filename}" if subtype_label else f"{type_label} — {filename}"
+
 
 def _product_library_clean_code(value):
     clean = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "").strip())
@@ -24175,6 +24246,7 @@ def _product_library_replace_asset(product, asset, replacement_file):
             product,
             str(asset.get("asset_type") or "other"),
             replacement_file,
+            str(asset.get("asset_subtype") or "other"),
         )
         _product_library_delete_asset(asset)
         _product_library_clear_read_caches()
@@ -24630,7 +24702,7 @@ def _product_library_cached_assets(product_code, product_id):
     """
     database = get_supabase_admin_client()
     asset_columns = (
-        "id,product_id,product_code,asset_type,original_filename,"
+        "id,product_id,product_code,asset_type,asset_subtype,original_filename,"
         "optimized_filename,content_type,storage_bucket,storage_path,"
         "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
     )
@@ -24838,6 +24910,7 @@ def _product_library_chat_lookup(prompt, max_images=6):
                 "generated": False,
                 "source": "product_library",
                 "asset_type": str(asset.get("asset_type") or "other"),
+            "asset_subtype": str(asset.get("asset_subtype") or ""),
                 "storage_path": str(asset.get("storage_path") or ""),
                 "content_type": str(asset.get("content_type") or "image/jpeg"),
                 "archive_web_url": str(asset.get("archive_web_url") or ""),
@@ -24948,9 +25021,12 @@ def _product_library_upsert_product(product_code, product_name, compatibility, d
     return (result.data or [None])[0]
 
 
-def _product_library_upload_asset(product, asset_type, uploaded_file):
+def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subtype="other"):
     product_code = str(product.get("product_code") or "")
     product_id = product.get("id")
+    clean_subtype = str(asset_subtype or "other").strip().lower()
+    if clean_subtype not in _product_library_subtype_options(asset_type):
+        clean_subtype = "other"
     filename = _product_library_safe_filename(uploaded_file.name)
     original = uploaded_file.getvalue()
     content_type = str(uploaded_file.type or "application/octet-stream")
@@ -24965,8 +25041,12 @@ def _product_library_upload_asset(product, asset_type, uploaded_file):
         category_folder = _product_library_drive_create_folder(
             PRODUCT_ASSET_LABELS.get(asset_type, "Other"), product_folder["id"]
         )
+        subtype_folder = _product_library_drive_create_folder(
+            PRODUCT_ASSET_SUBTYPE_LABELS.get(clean_subtype, "Other"),
+            category_folder["id"],
+        )
         drive_file = _product_library_drive_upload_bytes(
-            filename, content_type, original, category_folder["id"]
+            filename, content_type, original, subtype_folder["id"]
         )
         archive_status = "available"
         archive_file_id = str(drive_file.get("id") or "")
@@ -24981,7 +25061,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file):
             original, filename, PRODUCT_LIBRARY_DISPLAY_MAX_PX
         )
         digest = hashlib.sha256(original).hexdigest()[:16]
-        storage_path = f"{product_code}/{asset_type}/{digest}-{optimized_filename}"
+        storage_path = f"{product_code}/{asset_type}/{clean_subtype}/{digest}-{optimized_filename}"
         _product_library_storage_upload(storage_path, optimized, optimized_type)
         optimized_bytes = len(optimized)
         storage_status = "available"
@@ -24990,6 +25070,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file):
         "product_id": product_id,
         "product_code": product_code,
         "asset_type": asset_type,
+        "asset_subtype": clean_subtype,
         "original_filename": filename,
         "original_bytes": len(original),
         "optimized_filename": optimized_filename,
@@ -25162,6 +25243,12 @@ def render_product_library_admin():
                     "Asset Type", PRODUCT_ASSET_TYPES,
                     format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title())
                 )
+                asset_subtype = st.selectbox(
+                    "Asset Subtype",
+                    _product_library_subtype_options(asset_type),
+                    format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title()),
+                    help="Choose the specific view, component, or document purpose.",
+                )
                 active = st.checkbox("Active Product", value=True)
                 uploads = st.file_uploader(
                     "Upload product files",
@@ -25196,7 +25283,7 @@ def render_product_library_admin():
                         progress = st.progress(0)
                         for index, uploaded_file in enumerate(uploads, start=1):
                             try:
-                                _product_library_upload_asset(product, asset_type, uploaded_file)
+                                _product_library_upload_asset(product, asset_type, uploaded_file, asset_subtype)
                                 successes.append(uploaded_file.name)
                             except Exception as error:
                                 failures.append(f"{uploaded_file.name}: {error}")
@@ -25274,6 +25361,13 @@ def render_product_library_admin():
                                     format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
                                     key=f"asset_type_{product_id}",
                                 )
+                                add_asset_subtype = st.selectbox(
+                                    "Asset Subtype",
+                                    _product_library_subtype_options(add_asset_type),
+                                    format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title()),
+                                    key=f"asset_subtype_{product_id}_{add_asset_type}",
+                                    help="Choose the specific view, component, or document purpose.",
+                                )
                                 add_uploads = st.file_uploader(
                                     "Upload more files",
                                     accept_multiple_files=True,
@@ -25293,7 +25387,7 @@ def render_product_library_admin():
                                     failures = []
                                     for uploaded_file in add_uploads:
                                         try:
-                                            _product_library_upload_asset(product, add_asset_type, uploaded_file)
+                                            _product_library_upload_asset(product, add_asset_type, uploaded_file, add_asset_subtype)
                                         except Exception as error:
                                             failures.append(f"{uploaded_file.name}: {error}")
                                     if failures:
@@ -25305,7 +25399,7 @@ def render_product_library_admin():
 
                             assets = (
                                 supabase.table("product_assets")
-                                .select("id,asset_type,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
+                                .select("id,asset_type,asset_subtype,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
                                 .eq("product_id", product_id)
                                 .order("created_at", desc=True)
                                 .execute().data
@@ -25315,7 +25409,7 @@ def render_product_library_admin():
                                 st.info("No files have been uploaded for this product.")
                             for asset in assets:
                                 asset_id = str(asset.get("id") or "")
-                                st.markdown(f"**{PRODUCT_ASSET_LABELS.get(asset.get('asset_type'), asset.get('asset_type') or 'Other')} — {asset.get('original_filename')}**")
+                                st.markdown(f"**{_product_library_asset_heading(asset)}**")
                                 signed_url = _product_library_signed_url(asset.get("storage_path"))
                                 if signed_url and str(asset.get("content_type") or "").startswith("image/"):
                                     st.image(signed_url, use_container_width=True)
