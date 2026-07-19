@@ -16,6 +16,7 @@ except Exception:
 import base64
 import html
 import hashlib
+import hmac
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import tempfile
@@ -9402,7 +9403,7 @@ def clear_browser_login_profile():
     clear_legacy_browser_login_data()
 
 
-def queue_login_cookie_action(action, username="", password=""):
+def queue_login_cookie_action(action, username="", password="", remember=False):
     """
     Queue a browser-cookie change for the next authenticated render.
 
@@ -9414,6 +9415,7 @@ def queue_login_cookie_action(action, username="", password=""):
         "action": str(action or "").strip().lower(),
         "username": str(username or "").strip(),
         "password": str(password or ""),
+        "remember": bool(remember),
     }
 
 
@@ -9440,10 +9442,22 @@ def process_pending_login_cookie_action():
 
         if username and password:
             save_login_credentials(username, password)
+            save_authenticated_session(username, remember=True)
             clear_legacy_browser_login_data()
+
+    elif action == "session":
+        username = str(pending.get("username") or "").strip()
+        if username:
+            save_authenticated_session(
+                username,
+                remember=bool(pending.get("remember")),
+            )
 
     elif action == "clear":
         clear_browser_login_profile()
+        username = str(pending.get("username") or "").strip()
+        if username:
+            save_authenticated_session(username, remember=False)
 
 
 def install_login_autofill_support():
@@ -9528,14 +9542,166 @@ def install_login_autofill_support():
     )
 
 
+AUTH_SESSION_COOKIE = "atp_authenticated_session_v1"
+AUTH_SESSION_HOURS = 12
+
+
+def _auth_session_signing_key():
+    """Return a stable server-only key used to sign browser auth sessions."""
+    configured = get_optional_secret("AUTH_SESSION_SECRET")
+    if configured:
+        return configured.encode("utf-8")
+
+    # Backward-compatible fallback so the fix works without requiring a new
+    # Streamlit secret immediately. OPENAI_API_KEY remains server-side only.
+    return hashlib.sha256(str(api_key).encode("utf-8")).digest()
+
+
+def _sign_auth_session_payload(payload_text):
+    return hmac.new(
+        _auth_session_signing_key(),
+        str(payload_text).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def save_authenticated_session(username, remember=False):
+    """
+    Save a signed browser session so Streamlit websocket/session resets do not
+    unexpectedly return an authenticated user to the login page.
+
+    Unchecked Remember Me creates a browser-session cookie. Checked Remember Me
+    creates a persistent cookie matching the 30-day remembered-login period.
+    """
+    username = str(username or "").strip()
+    if not username:
+        return
+
+    issued_at = int(time.time())
+    lifetime_seconds = (
+        REMEMBER_CREDENTIAL_DAYS * 24 * 60 * 60
+        if remember
+        else AUTH_SESSION_HOURS * 60 * 60
+    )
+    payload = {
+        "version": 1,
+        "username": username,
+        "issued_at": issued_at,
+        "expires_at": issued_at + lifetime_seconds,
+        "remember": bool(remember),
+    }
+    payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    envelope = {
+        "payload": payload,
+        "signature": _sign_auth_session_payload(payload_text),
+    }
+
+    cookie_kwargs = {
+        "path": "/",
+        "secure": True,
+        "same_site": "strict",
+    }
+    if remember:
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=REMEMBER_CREDENTIAL_DAYS
+        )
+        cookie_kwargs.update({
+            "expires": expires_at,
+            "max_age": REMEMBER_CREDENTIAL_DAYS * 24 * 60 * 60,
+        })
+
+    auth_cookie_controller.set(
+        AUTH_SESSION_COOKIE,
+        json.dumps(envelope),
+        **cookie_kwargs,
+    )
+
+
+def remove_authenticated_session():
+    try:
+        auth_cookie_controller.remove(
+            AUTH_SESSION_COOKIE,
+            path="/",
+            secure=True,
+            same_site="strict",
+        )
+    except Exception:
+        pass
+
+
+def _load_authenticated_user(username):
+    """Load one active user and restore permission state."""
+    result = (
+        supabase
+        .table("users")
+        .select("*")
+        .eq("username", str(username or "").strip())
+        .eq("active", True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return False
+
+    user = result.data[0]
+    st.session_state.logged_in = True
+    st.session_state.username = user["username"]
+    st.session_state.role = str(user.get("role") or "staff").lower()
+    st.session_state.workspace_permissions = effective_workspace_permissions(
+        st.session_state.role,
+        user.get("workspace_permissions"),
+    )
+    st.session_state.feature_permissions = effective_feature_permissions(
+        st.session_state.role,
+        user.get("feature_permissions"),
+    )
+    st.session_state.setdefault("messages", [])
+    st.session_state.setdefault("conversation_id", None)
+    return True
+
+
 def restore_login_session():
     """
-    Auto-login is intentionally disabled.
+    Restore a valid signed login after Streamlit creates a new Python session.
 
-    Remember me now only prefills the login form. The user must always press
-    the Login button.
+    This specifically protects mobile Safari and long uploads, where a websocket
+    reconnect can otherwise clear session_state and incorrectly show Login.
     """
-    return
+    try:
+        raw_value = auth_cookie_controller.get(AUTH_SESSION_COOKIE)
+        if not raw_value:
+            return False
+
+        envelope = raw_value if isinstance(raw_value, dict) else json.loads(str(raw_value))
+        if not isinstance(envelope, dict):
+            raise ValueError("Invalid auth-session envelope")
+
+        payload = envelope.get("payload")
+        signature = str(envelope.get("signature") or "")
+        if not isinstance(payload, dict) or not signature:
+            raise ValueError("Incomplete auth-session envelope")
+
+        payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        expected = _sign_auth_session_payload(payload_text)
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("Invalid auth-session signature")
+
+        if payload.get("version") != 1:
+            raise ValueError("Unsupported auth-session version")
+        if int(payload.get("expires_at") or 0) <= int(time.time()):
+            raise ValueError("Expired auth session")
+
+        username = str(payload.get("username") or "").strip()
+        if not username or not _load_authenticated_user(username):
+            raise ValueError("User is inactive or missing")
+
+        st.session_state["_atp_session_remembered"] = bool(payload.get("remember"))
+        diagnostic_log("login_session_restored", username=username)
+        return True
+    except Exception as error:
+        diagnostic_log("login_session_restore_failed", error=str(error))
+        remove_authenticated_session()
+        return False
 
 
 def logout_user():
@@ -9555,6 +9721,7 @@ def logout_user():
         username=st.session_state.get("username"),
         conversation_id=st.session_state.get("conversation_id"),
     )
+    remove_authenticated_session()
     st.session_state.logged_in = False
     st.session_state.messages = []
     st.session_state.conversation_id = None
@@ -9740,9 +9907,14 @@ def login_screen():
                         "save",
                         user["username"],
                         password,
+                        remember=True,
                     )
                 else:
-                    queue_login_cookie_action("clear")
+                    queue_login_cookie_action(
+                        "clear",
+                        user["username"],
+                        remember=False,
+                    )
 
                 try:
                     st.query_params.clear()
@@ -9768,6 +9940,7 @@ if "logged_in" not in st.session_state:
         reason="logged_in key was absent from session_state",
     )
     st.session_state.logged_in = False
+    restore_login_session()
 
 if not st.session_state.logged_in:
     login_screen()
