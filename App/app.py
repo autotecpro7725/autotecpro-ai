@@ -28811,12 +28811,69 @@ components.html(
     """
     <script>
     (() => {
-        const doc = window.parent.document;
-        const release = () => doc.body.classList.remove("atp-workspace-switching");
-        window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(release);
-        });
-        window.setTimeout(release, 250);
+        const parentWindow = window.parent;
+        const doc = parentWindow.document;
+        const body = doc.body;
+
+        if (!body.classList.contains("atp-workspace-switching")) {
+            return;
+        }
+
+        /*
+         * Streamlit sends the new page as a sequence of DOM deltas. Releasing the
+         * guard after a fixed 250 ms can expose old controls while the final
+         * removal deltas are still being applied. Wait until the main page has
+         * been quiet for a short settling period instead.
+         */
+        const main =
+            doc.querySelector('[data-testid="stMain"]') ||
+            doc.querySelector('section.main') ||
+            doc.querySelector('.stMain');
+
+        const minimumHiddenMs = 450;
+        const quietPeriodMs = 350;
+        const maximumHiddenMs = 3500;
+        const startedAt = Date.now();
+        let lastMutationAt = Date.now();
+        let released = false;
+
+        const release = () => {
+            if (released) return;
+            released = true;
+            if (observer) observer.disconnect();
+            body.classList.remove("atp-workspace-switching");
+        };
+
+        const observer = main
+            ? new MutationObserver(() => {
+                lastMutationAt = Date.now();
+            })
+            : null;
+
+        if (observer && main) {
+            observer.observe(main, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                characterData: true
+            });
+        }
+
+        const waitForStablePage = () => {
+            const now = Date.now();
+            const hiddenLongEnough = now - startedAt >= minimumHiddenMs;
+            const pageIsQuiet = now - lastMutationAt >= quietPeriodMs;
+            const timedOut = now - startedAt >= maximumHiddenMs;
+
+            if ((hiddenLongEnough && pageIsQuiet) || timedOut) {
+                release();
+                return;
+            }
+
+            window.setTimeout(waitForStablePage, 80);
+        };
+
+        window.setTimeout(waitForStablePage, 80);
     })();
     </script>
     """,
