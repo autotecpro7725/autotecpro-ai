@@ -25035,7 +25035,12 @@ def render_product_library_admin():
                     type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
                     help="Maximum 20 MB per file. Originals go to Google Drive; optimized images go to Supabase.",
                 )
-                submitted = st.form_submit_button("Save Product and Upload Files", use_container_width=True)
+                upload_submit_cols = st.columns([1, 2, 1])
+                with upload_submit_cols[1]:
+                    submitted = st.form_submit_button(
+                        "Save Product and Upload Files",
+                        use_container_width=True,
+                    )
 
             if submitted:
                 clean_code = _product_library_clean_code(code)
@@ -25136,7 +25141,12 @@ def render_product_library_admin():
                                     type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
                                     key=f"add_files_{product_id}",
                                 )
-                                add_files_submitted = st.form_submit_button("Upload More Files", use_container_width=True)
+                                add_files_submit_cols = st.columns([1, 2, 1])
+                                with add_files_submit_cols[1]:
+                                    add_files_submitted = st.form_submit_button(
+                                        "Upload More Files",
+                                        use_container_width=True,
+                                    )
                             if add_files_submitted:
                                 if not add_uploads:
                                     st.warning("Please select at least one file.")
@@ -25291,12 +25301,16 @@ def render_product_library_admin():
                                 "This permanently removes the product metadata and all linked Product Library files. "
                                 "Google Drive originals are moved to Trash."
                             )
-                            if st.button(
-                                "Delete Product Permanently",
-                                key=f"delete_product_{product_id}",
-                                type="primary",
-                                use_container_width=True,
-                            ):
+                            delete_submit_cols = st.columns([1, 2, 1])
+                            with delete_submit_cols[1]:
+                                delete_product_clicked = st.button(
+                                    "Delete Product Permanently",
+                                    key=f"delete_product_{product_id}",
+                                    type="primary",
+                                    use_container_width=True,
+                                )
+
+                            if delete_product_clicked:
                                 try:
                                     with st.spinner("Deleting product and linked files..."):
                                         delete_result = _product_library_delete_product(product)
