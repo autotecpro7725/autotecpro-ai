@@ -3790,46 +3790,126 @@ def install_gpt_uploader_css():
             pointer-events: none;
         }
 
-        /* While Streamlit is transferring a selected file, suppress its native
-           filename/remove/add controls. The managed preview replaces them on the
-           next server frame, so a single quiet processing label is cleaner than
-           showing two temporary action icons beside the filename. */
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileData"],
+        /* Lightweight upload-processing state. Keep Streamlit's native preview
+           thumbnail/file icon and file metadata, but hide its temporary action
+           buttons. The spinner and indeterminate line are CSS-only, so they do
+           not trigger Python loops, network calls, or extra Streamlit reruns. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"],
-        html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"],
-        html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] button[aria-label*="remove" i],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"] button[title*="remove" i] {
+        div[data-testid="stFileUploader"] button[title*="remove" i],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[aria-label*="add" i],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] button[title*="add" i] {
             display: none !important;
         }
 
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFileData"])
-        section > div,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"],
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"])
-        section > div {
-            visibility: hidden !important;
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"],
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="FileUploaderFile"] {
+            display: flex !important;
+            width: min(100%, 220px) !important;
+            min-height: 142px !important;
+            margin: 4px auto 0 !important;
+            padding: 10px 12px 12px !important;
+            border: 1px solid rgba(148, 163, 184, 0.20) !important;
+            border-radius: 14px !important;
+            background: rgba(15, 23, 42, 0.74) !important;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16) !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+            overflow: hidden !important;
+            position: relative !important;
+            box-sizing: border-box !important;
         }
 
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFileData"])
-        section::before,
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] img,
         html body div[class*="st-key-atp_upload_shell_"]
-        div[data-testid="stFileUploader"]:has([data-testid="stFileUploaderFile"])
-        section::before {
-            content: "Processing selected file…";
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"] img,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="FileUploaderFile"] img {
+            width: 76px !important;
+            height: 62px !important;
+            max-width: 76px !important;
+            max-height: 62px !important;
+            object-fit: contain !important;
+            border-radius: 9px !important;
+            background: #020617 !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileData"] {
+            display: flex !important;
+            width: 100% !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: column !important;
+            gap: 1px !important;
+            text-align: center !important;
+            color: #f8fafc !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"] {
+            display: block !important;
+            max-width: 190px !important;
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            text-align: center !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"] {
+            display: block !important;
+            color: #94a3b8 !important;
+            -webkit-text-fill-color: #94a3b8 !important;
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+            text-align: center !important;
+        }
+
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid="stFileUploaderFile"]::after,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="UploadedFile"]::after,
+        html body div[class*="st-key-atp_upload_shell_"]
+        div[data-testid="stFileUploader"] [data-testid*="FileUploaderFile"]::after {
+            content: "Processing image…";
             display: block;
+            width: 100%;
+            margin-top: 4px;
+            padding-top: 15px;
             color: #cbd5e1;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 650;
+            line-height: 1.2;
             text-align: center;
+            background:
+                radial-gradient(circle at 50% 5px, transparent 4px, #cbd5e1 4.5px, #cbd5e1 5.5px, transparent 6px),
+                linear-gradient(90deg, transparent 0%, rgba(148,163,184,.25) 20%, rgba(226,232,240,.95) 50%, rgba(148,163,184,.25) 80%, transparent 100%)
+                center bottom / 84% 2px no-repeat;
+            animation: atpProcessingPulse 1.15s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes atpProcessingPulse {
+            0%, 100% { opacity: .55; }
+            50% { opacity: 1; }
         }
 
         @media (max-width: 768px) {
