@@ -10944,6 +10944,32 @@ for slug, icon, label in workspace_items:
 
 assistant = st.session_state.current_assistant
 
+_current_workspace_slug = next(
+    (
+        slug
+        for slug, icon, label in workspace_items
+        if f"{icon} {label}" == assistant
+    ),
+    "technical",
+)
+
+# Persist the active workspace in the parent DOM on every completed Python rerun.
+# This is intentionally not a temporary transition flag: recent Streamlit builds
+# can retain keyed nodes from a previous conditional branch after reconciliation.
+# A permanent marker lets workspace-scoped CSS keep those stale nodes hidden.
+components.html(
+    f"""
+    <script>
+    (() => {{
+        const body = window.parent.document.body;
+        body.dataset.atpCurrentWorkspace = {json.dumps(_current_workspace_slug)};
+    }})();
+    </script>
+    """,
+    height=0,
+    width=0,
+)
+
 # Prevent stale workspace content from flashing during Streamlit navigation.
 #
 # Streamlit keeps the previous main-page DOM visible until the next rerun has
@@ -10965,19 +10991,19 @@ st.markdown(
     /*
      * Streamlit may temporarily retain keyed nodes from the previous workspace
      * while inserting the next workspace. Hide stale workspace roots according
-     * to the destination selected in the sidebar. This directly prevents the six
+     * to the persistent active-workspace marker. This directly prevents the six
      * Knowledge Type buttons from appearing below Product Library and provides
      * the same protection for Product Library panels on every other page.
      */
-    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_submission_page"],
-    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_type_"],
-    body[data-atp-target-workspace]:not([data-atp-target-workspace="knowledge"])
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_structured_fields"],
-    body[data-atp-target-workspace]:not([data-atp-target-workspace="product_library"])
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="product_library"])
     div[class*="st-key-atp_product_library_panel"],
-    body[data-atp-target-workspace]:not([data-atp-target-workspace="product_library"])
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="product_library"])
     div[class*="st-key-atp_product_library_employee_panel"] {
         display: none !important;
         visibility: hidden !important;
@@ -11056,10 +11082,18 @@ components.html(
             /*
              * Mark the destination immediately on pointerdown. Streamlit can keep
              * old DeltaGenerator nodes alive for a few frames while reconciling
-             * the new page. The destination marker lets CSS suppress any stale
+             * the new page. The persistent workspace marker lets CSS suppress any stale
              * workspace-specific root before the Python rerun has completed.
              */
-            doc.body.dataset.atpTargetWorkspace = workspaceSlugs[label] || "";
+            const destination = workspaceSlugs[label] || "";
+            doc.body.dataset.atpTargetWorkspace = destination;
+            /*
+             * Keep a persistent current-workspace marker. Streamlit can leave
+             * keyed nodes from the previous conditional branch in the DOM even
+             * after the rerun completes. CSS must therefore remain scoped after
+             * the loading guard is released, not only during the transition.
+             */
+            doc.body.dataset.atpCurrentWorkspace = destination;
             doc.body.classList.add("atp-workspace-switching");
         };
 
@@ -28886,6 +28920,14 @@ components.html(
             if (released) return;
             released = true;
             if (observer) observer.disconnect();
+            const targetWorkspace =
+                body.getAttribute("data-atp-target-workspace") || "";
+            if (targetWorkspace) {
+                body.setAttribute(
+                    "data-atp-current-workspace",
+                    targetWorkspace
+                );
+            }
             body.classList.remove("atp-workspace-switching");
             body.removeAttribute("data-atp-target-workspace");
         };
