@@ -10997,6 +10997,8 @@ st.markdown(
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_type_"],
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
+    div[class*="st-key-knowledge_submission_destination_caption"],
+    body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_structured_fields"],
     body[data-atp-current-workspace]:not([data-atp-current-workspace="knowledge"])
     div[class*="st-key-knowledge_submit_button_ready"],
@@ -22431,14 +22433,15 @@ def render_knowledge_submission_workspace():
         destination_label, _ = knowledge_submission_destination(selected_type)
         field_config = knowledge_submission_field_config(selected_type)
 
-        st.caption(
-            "Destination: "
-            + (
-                "Sales Database"
-                if destination_label == "📈 Sales"
-                else "Technical Support Database"
+        with st.container(key="knowledge_submission_destination_caption"):
+            st.caption(
+                "Destination: "
+                + (
+                    "Sales Database"
+                    if destination_label == "📈 Sales"
+                    else "Technical Support Database"
+                )
             )
-        )
 
         generation = st.session_state.knowledge_submission_text_generation
 
@@ -27253,7 +27256,7 @@ if (
             st.markdown("#### Most Common Vehicle Strings")
             render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-        with tab5:
+        with tab6:
             st.markdown("### 📦 Product Analytics")
             st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -27278,7 +27281,7 @@ if (
             else:
                 st.info("No product issue data yet.")
 
-        with tab5:
+        with tab7:
             st.markdown("### 🔧 Technical Analytics")
             st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -27329,7 +27332,7 @@ if (
             else:
                 st.success("No unanswered questions logged yet.")
 
-        with tab5:
+        with tab8:
             st.markdown("### 📊 AI Analytics")
             st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -27382,7 +27385,7 @@ if (
             else:
                 st.info("No reused knowledge yet.")
 
-        with tab5:
+        with tab9:
             st.markdown("### 📈 Learning Analytics")
             st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -27425,7 +27428,7 @@ if (
 
 
 
-        with tab5:
+        with tab10:
             st.markdown("### 🔌 Live Integrations")
             st.caption(
                 "Connection status only. Secret values are never displayed. "
