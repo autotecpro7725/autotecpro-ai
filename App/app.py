@@ -25845,8 +25845,8 @@ def render_product_library_admin():
             "Original files are archived in Google Drive, optimized display images are served "
             "from private Supabase Storage, and metadata is stored in Supabase."
         )
-        dashboard_tab, upload_tab, manage_tab, storage_tab = st.tabs([
-            "Dashboard", "Upload Product", "Manage Products", "Storage Settings"
+        dashboard_tab, upload_tab, manage_tab = st.tabs([
+            "Dashboard", "Upload Product", "Manage Products"
         ])
 
         with dashboard_tab:
@@ -26208,156 +26208,159 @@ def render_product_library_admin():
             except Exception as error:
                 st.error(f"Product records could not load: {error}")
 
-        with storage_tab:
-            google_status = _product_library_google_status()
-            onedrive_configured = _product_library_onedrive_configured()
 
-            provider_options = ["Google Drive", "OneDrive"]
-            selected_provider = st.radio(
-                "Archive provider",
-                provider_options,
-                index=0,
-                horizontal=True,
-                key="product_library_archive_provider",
-                help=(
-                    "Google Drive remains the active production upload provider. "
-                    "OneDrive can be connection-tested when its Streamlit Secrets are configured."
+
+def render_product_library_storage_settings():
+    """Render admin-only Product Library storage configuration and diagnostics."""
+    google_status = _product_library_google_status()
+    onedrive_configured = _product_library_onedrive_configured()
+
+    provider_options = ["Google Drive", "OneDrive"]
+    selected_provider = st.radio(
+        "Archive provider",
+        provider_options,
+        index=0,
+        horizontal=True,
+        key="product_library_archive_provider",
+        help=(
+            "Google Drive remains the active production upload provider. "
+            "OneDrive can be connection-tested when its Streamlit Secrets are configured."
+        ),
+    )
+
+    if selected_provider == "Google Drive":
+        status_columns = st.columns(3)
+        with status_columns[0]:
+            st.metric(
+                "Archive status",
+                "Connected" if google_status.get("connected") else (
+                    "Configured" if google_status.get("configured") else "Not configured"
+                ),
+            )
+        with status_columns[1]:
+            st.metric("Display storage", "Supabase")
+        with status_columns[2]:
+            st.metric(
+                "Root folder",
+                google_status.get("root_folder_name") or (
+                    "Configured" if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Missing"
                 ),
             )
 
-            if selected_provider == "Google Drive":
-                status_columns = st.columns(3)
-                with status_columns[0]:
-                    st.metric(
-                        "Archive status",
-                        "Connected" if google_status.get("connected") else (
-                            "Configured" if google_status.get("configured") else "Not configured"
-                        ),
-                    )
-                with status_columns[1]:
-                    st.metric("Display storage", "Supabase")
-                with status_columns[2]:
-                    st.metric(
-                        "Root folder",
-                        google_status.get("root_folder_name") or (
-                            "Configured" if GOOGLE_DRIVE_ROOT_FOLDER_ID else "Missing"
-                        ),
-                    )
+        st.write("**Active production provider:** Google Drive")
+        st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
+        st.write(
+            "**Connected Google account:** "
+            + (google_status.get("account_email") or "Unavailable until connection succeeds")
+        )
+        if google_status.get("account_name"):
+            st.write(f"**Google account name:** {google_status['account_name']}")
+        st.write(
+            "**Google Drive root folder:** "
+            + (google_status.get("root_folder_name") or "Not available")
+        )
 
-                st.write("**Active production provider:** Google Drive")
-                st.write(f"**Supabase bucket:** `{PRODUCT_LIBRARY_BUCKET}` (private)")
-                st.write(
-                    "**Connected Google account:** "
-                    + (google_status.get("account_email") or "Unavailable until connection succeeds")
+        with st.expander("Advanced Google Drive details", expanded=False):
+            st.code(google_status.get("root_folder_id") or "Not configured")
+            if google_status.get("root_web_url"):
+                st.link_button(
+                    "Open Root Folder in Google Drive",
+                    google_status["root_web_url"],
+                    use_container_width=False,
                 )
-                if google_status.get("account_name"):
-                    st.write(f"**Google account name:** {google_status['account_name']}")
-                st.write(
-                    "**Google Drive root folder:** "
-                    + (google_status.get("root_folder_name") or "Not available")
-                )
+            if google_status.get("error"):
+                st.caption(f"Last status detail: {google_status['error']}")
 
-                with st.expander("Advanced Google Drive details", expanded=False):
-                    st.code(google_status.get("root_folder_id") or "Not configured")
-                    if google_status.get("root_web_url"):
-                        st.link_button(
-                            "Open Root Folder in Google Drive",
-                            google_status["root_web_url"],
-                            use_container_width=False,
-                        )
-                    if google_status.get("error"):
-                        st.caption(f"Last status detail: {google_status['error']}")
-
-                test_cols = st.columns([1, 2, 1])
-                with test_cols[1]:
-                    if st.button(
-                        "Test Google Drive Connection",
-                        use_container_width=True,
-                        key="product_library_test_drive",
-                    ):
-                        try:
-                            _product_library_google_status.clear()
-                            ok, message = _product_library_test_drive_connection()
-                            (st.success if ok else st.error)(message)
-                        except Exception as error:
-                            st.error(f"Google Drive connection failed: {error}")
-
-            else:
-                onedrive_status = _product_library_onedrive_status()
-                status_columns = st.columns(3)
-                with status_columns[0]:
-                    st.metric(
-                        "OneDrive status",
-                        "Connected" if onedrive_status.get("connected") else (
-                            "Configured" if onedrive_status.get("configured") else "Not configured"
-                        ),
-                    )
-                with status_columns[1]:
-                    st.metric("Upload routing", "Google Drive")
-                with status_columns[2]:
-                    st.metric(
-                        "OneDrive root",
-                        onedrive_status.get("root_folder_name") or "Unavailable",
-                    )
-
-                st.info(
-                    "OneDrive is available for configuration and connection testing, but Product Library "
-                    "uploads still use Google Drive to preserve the current production workflow."
-                )
-                st.write(
-                    "**OneDrive / SharePoint drive:** "
-                    + (onedrive_status.get("drive_name") or "Not available")
-                )
-                if onedrive_status.get("owner_name"):
-                    st.write(f"**Drive owner:** {onedrive_status['owner_name']}")
-                st.write(
-                    "**OneDrive root folder:** "
-                    + (onedrive_status.get("root_folder_name") or "Not available")
-                )
-                with st.expander("Advanced OneDrive details", expanded=False):
-                    st.write(f"**Configured:** {'Yes' if onedrive_configured else 'No'}")
-                    st.code(onedrive_status.get("root_folder_id") or "root")
-                    if onedrive_status.get("error"):
-                        st.caption(f"Last status detail: {onedrive_status['error']}")
-
-                test_cols = st.columns([1, 2, 1])
-                with test_cols[1]:
-                    if st.button(
-                        "Test OneDrive Connection",
-                        use_container_width=True,
-                        key="product_library_test_onedrive",
-                        disabled=not onedrive_configured,
-                    ):
-                        _product_library_onedrive_access_token.clear()
-                        _product_library_onedrive_status.clear()
-                        refreshed = _product_library_onedrive_status()
-                        if refreshed.get("connected"):
-                            st.success(
-                                "Connected to OneDrive folder: "
-                                + (refreshed.get("root_folder_name") or refreshed.get("root_folder_id") or "root")
-                            )
-                        else:
-                            st.error(refreshed.get("error") or "OneDrive connection failed.")
-
-            refresh_cols = st.columns([1, 2, 1])
-            with refresh_cols[1]:
-                if st.button(
-                    "Refresh Storage Status",
-                    use_container_width=True,
-                    key="product_library_refresh_storage",
-                ):
-                    _product_library_dashboard_data.clear()
-                    _product_library_google_access_token.clear()
+        test_cols = st.columns([1, 2, 1])
+        with test_cols[1]:
+            if st.button(
+                "Test Google Drive Connection",
+                use_container_width=True,
+                key="product_library_test_drive",
+            ):
+                try:
                     _product_library_google_status.clear()
-                    _product_library_onedrive_access_token.clear()
-                    _product_library_onedrive_status.clear()
-                    st.success("Product Library storage status cache cleared.")
-                    st.rerun()
+                    ok, message = _product_library_test_drive_connection()
+                    (st.success if ok else st.error)(message)
+                except Exception as error:
+                    st.error(f"Google Drive connection failed: {error}")
 
-            st.info(
-                "Storage credentials are controlled through Streamlit Secrets. Account changes require "
-                "updating those secrets; OAuth credentials are never exposed in the browser or stored in session state."
+    else:
+        onedrive_status = _product_library_onedrive_status()
+        status_columns = st.columns(3)
+        with status_columns[0]:
+            st.metric(
+                "OneDrive status",
+                "Connected" if onedrive_status.get("connected") else (
+                    "Configured" if onedrive_status.get("configured") else "Not configured"
+                ),
             )
+        with status_columns[1]:
+            st.metric("Upload routing", "Google Drive")
+        with status_columns[2]:
+            st.metric(
+                "OneDrive root",
+                onedrive_status.get("root_folder_name") or "Unavailable",
+            )
+
+        st.info(
+            "OneDrive is available for configuration and connection testing, but Product Library "
+            "uploads still use Google Drive to preserve the current production workflow."
+        )
+        st.write(
+            "**OneDrive / SharePoint drive:** "
+            + (onedrive_status.get("drive_name") or "Not available")
+        )
+        if onedrive_status.get("owner_name"):
+            st.write(f"**Drive owner:** {onedrive_status['owner_name']}")
+        st.write(
+            "**OneDrive root folder:** "
+            + (onedrive_status.get("root_folder_name") or "Not available")
+        )
+        with st.expander("Advanced OneDrive details", expanded=False):
+            st.write(f"**Configured:** {'Yes' if onedrive_configured else 'No'}")
+            st.code(onedrive_status.get("root_folder_id") or "root")
+            if onedrive_status.get("error"):
+                st.caption(f"Last status detail: {onedrive_status['error']}")
+
+        test_cols = st.columns([1, 2, 1])
+        with test_cols[1]:
+            if st.button(
+                "Test OneDrive Connection",
+                use_container_width=True,
+                key="product_library_test_onedrive",
+                disabled=not onedrive_configured,
+            ):
+                _product_library_onedrive_access_token.clear()
+                _product_library_onedrive_status.clear()
+                refreshed = _product_library_onedrive_status()
+                if refreshed.get("connected"):
+                    st.success(
+                        "Connected to OneDrive folder: "
+                        + (refreshed.get("root_folder_name") or refreshed.get("root_folder_id") or "root")
+                    )
+                else:
+                    st.error(refreshed.get("error") or "OneDrive connection failed.")
+
+    refresh_cols = st.columns([1, 2, 1])
+    with refresh_cols[1]:
+        if st.button(
+            "Refresh Storage Status",
+            use_container_width=True,
+            key="product_library_refresh_storage",
+        ):
+            _product_library_dashboard_data.clear()
+            _product_library_google_access_token.clear()
+            _product_library_google_status.clear()
+            _product_library_onedrive_access_token.clear()
+            _product_library_onedrive_status.clear()
+            st.success("Product Library storage status cache cleared.")
+            st.rerun()
+
+    st.info(
+        "Storage credentials are controlled through Streamlit Secrets. Account changes require "
+        "updating those secrets; OAuth credentials are never exposed in the browser or stored in session state."
+    )
 
 
 def render_product_library_workspace():
@@ -26623,11 +26626,15 @@ if (
             "and continuous improvement."
         )
 
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+        (
+            tab1, tab2, tab3, tab4, tab5, tab6,
+            tab7, tab8, tab9, tab10, tab11
+        ) = st.tabs([
             "👥 Users",
             "📚 Upload Knowledge",
             "📥 Pending Submissions",
             "🧠 AI Learning",
+            "📦 Product Library",
             "🚗 Vehicle Analytics",
             "📦 Product Analytics",
             "🔧 Technical Analytics",
@@ -27242,14 +27249,38 @@ if (
                     }
 
                     @media (max-width: 768px) {
+                        html body div[class*="st-key-latest_learned_text_pagination"] {
+                            display: block !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            overflow-x: auto !important;
+                            overflow-y: hidden !important;
+                            -webkit-overflow-scrolling: touch !important;
+                            scrollbar-width: none !important;
+                        }
+
+                        html body div[class*="st-key-latest_learned_text_pagination"]::-webkit-scrollbar {
+                            display: none !important;
+                        }
+
                         html body div[class*="st-key-latest_learned_text_pagination"]
                         div[data-testid="stHorizontalBlock"] {
+                            display: flex !important;
+                            flex-direction: row !important;
+                            flex-wrap: nowrap !important;
+                            width: max-content !important;
+                            min-width: max-content !important;
+                            justify-content: flex-start !important;
+                            align-items: center !important;
                             gap: 4px !important;
+                            margin: 0 auto !important;
                         }
 
                         html body div[class*="st-key-latest_learned_text_pagination"]
                         div[data-testid="stHorizontalBlock"]
                         > div[data-testid="column"] {
+                            display: block !important;
+                            flex: 0 0 20px !important;
                             flex-basis: 20px !important;
                             width: 20px !important;
                             min-width: 20px !important;
@@ -27262,6 +27293,7 @@ if (
                         button p,
                         .latest-learned-ellipsis {
                             font-size: 12px !important;
+                            white-space: nowrap !important;
                         }
                     }
                     </style>
@@ -27307,60 +27339,62 @@ if (
                         pagination_items.append(page_number)
                         previous_number = page_number
 
-                    pagination_spacer, pagination_area = st.columns(
-                        [8, 2],
-                        gap="small",
-                    )
+                    with st.container(
+                        key="latest_learned_text_pagination"
+                    ):
+                        pagination_columns = st.columns(
+                            len(pagination_items),
+                            gap="small",
+                        )
 
-                    with pagination_area:
-                        with st.container(
-                            key="latest_learned_text_pagination"
+                        for column, item in zip(
+                            pagination_columns,
+                            pagination_items,
                         ):
-                            pagination_columns = st.columns(
-                                len(pagination_items),
-                                gap="small",
-                            )
+                            with column:
+                                if item == "ellipsis":
+                                    st.markdown(
+                                        "<div class='latest-learned-ellipsis'>"
+                                        "…</div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                else:
+                                    page_number = int(item)
+                                    is_current_page = (
+                                        page_number
+                                        == current_learned_page
+                                    )
 
-                            for column, item in zip(
-                                pagination_columns,
-                                pagination_items,
-                            ):
-                                with column:
-                                    if item == "ellipsis":
-                                        st.markdown(
-                                            "<div class='latest-learned-ellipsis'>"
-                                            "…</div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                    else:
-                                        page_number = int(item)
-                                        is_current_page = (
-                                            page_number
-                                            == current_learned_page
-                                        )
-
-                                        if st.button(
-                                            str(page_number),
-                                            key=(
-                                                "latest_learned_page_"
-                                                f"{page_number}"
-                                            ),
-                                            use_container_width=False,
-                                            disabled=is_current_page,
-                                            help=(
-                                                f"Open page {page_number}"
-                                                if not is_current_page
-                                                else f"Current page {page_number}"
-                                            ),
-                                        ):
-                                            st.session_state[
-                                                learned_page_key
-                                            ] = page_number
-                                            st.rerun()
+                                    if st.button(
+                                        str(page_number),
+                                        key=(
+                                            "latest_learned_page_"
+                                            f"{page_number}"
+                                        ),
+                                        use_container_width=False,
+                                        disabled=is_current_page,
+                                        help=(
+                                            f"Open page {page_number}"
+                                            if not is_current_page
+                                            else f"Current page {page_number}"
+                                        ),
+                                    ):
+                                        st.session_state[
+                                            learned_page_key
+                                        ] = page_number
+                                        st.rerun()
             else:
                 st.info("No learned knowledge saved yet.")
 
         with tab5:
+            st.markdown("### 📦 Product Library")
+            st.caption(
+                "Manage Product Library archive providers, storage connections, "
+                "status checks, and infrastructure settings."
+            )
+            render_product_library_storage_settings()
+
+        with tab6:
             st.markdown("### 🚗 Vehicle Analytics")
             st.caption("Most common makes, models, years, and vehicle-related questions.")
 
@@ -27384,7 +27418,7 @@ if (
             st.markdown("#### Most Common Vehicle Strings")
             render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-        with tab6:
+        with tab7:
             st.markdown("### 📦 Product Analytics")
             st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -27409,7 +27443,7 @@ if (
             else:
                 st.info("No product issue data yet.")
 
-        with tab7:
+        with tab8:
             st.markdown("### 🔧 Technical Analytics")
             st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -27460,7 +27494,7 @@ if (
             else:
                 st.success("No unanswered questions logged yet.")
 
-        with tab8:
+        with tab9:
             st.markdown("### 📊 AI Analytics")
             st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -27513,7 +27547,7 @@ if (
             else:
                 st.info("No reused knowledge yet.")
 
-        with tab9:
+        with tab10:
             st.markdown("### 📈 Learning Analytics")
             st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -27556,7 +27590,7 @@ if (
 
 
 
-        with tab10:
+        with tab11:
             st.markdown("### 🔌 Live Integrations")
             st.caption(
                 "Connection status only. Secret values are never displayed. "
