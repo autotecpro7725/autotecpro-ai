@@ -3752,8 +3752,11 @@ def install_gpt_uploader_css():
             overflow: visible !important;
         }
 
-        /* Final upload-button dimensions. Keep this rule after all visibility
-           restoration rules so the button matches the larger reference design. */
+        /* Final upload-button dimensions and visual vertical alignment.
+           The native dropzone reserves more visual space below the button for
+           the custom 20 MB helper line. Move only the button down slightly so
+           the open space above and below it appears balanced, without changing
+           the uploader height, helper text, or clickable area. */
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] button,
         html body div[class*="st-key-atp_upload_shell_"]
@@ -3768,6 +3771,8 @@ def install_gpt_uploader_css():
             align-items: center !important;
             justify-content: center !important;
             gap: 8px !important;
+            position: relative !important;
+            top: 6px !important;
         }
 
         html body div[class*="st-key-atp_upload_shell_"]
