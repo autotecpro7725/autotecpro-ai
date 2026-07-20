@@ -9239,7 +9239,9 @@ def normalize_assistant_markdown(text):
         "recommended product", "compatibility", "compatibility result",
         "product comparison", "product comparisons", "comparison", "comparisons",
         "specification", "specifications", "product options",
-        "configuration options", "options",
+        "configuration options", "options", "installation summary",
+        "autotecpro model match", "kvn part number match",
+        "product specifications",
     }
     product_sections = {
         "recommended autotecpro product", "recommended product",
@@ -9248,6 +9250,7 @@ def normalize_assistant_markdown(text):
     numbered_sections = {
         "information still required", "information required",
         "details still required", "confirmation required",
+        "installation steps",
     }
 
     def heading_name(line):
@@ -15731,6 +15734,51 @@ When WooCommerce data is provided:
   and any calculation note.
 - Do not describe gross line-item revenue as profit or net revenue.
 
+SALES ORDER ENRICHMENT WORKFLOW:
+When the application has already displayed a WooCommerce order, preserve that
+entire displayed order exactly as-is. Do not omit or duplicate its status,
+dates, billing information, shipping information, purchased items, selected
+options, shipping method, commercial information, or AI Analysis section.
+After the existing order display, append only the verified enrichment sections
+below, in this exact order when information is available:
+
+1. ## AutoTecPro Model Match
+   - Use a compact Markdown table.
+   - Include AutoTecPro product/model, screen size, vehicle/year range, climate
+     version, drive side, Android version, RAM/storage, camera option, and match
+     confidence when supported by Sales knowledge or the live order.
+2. ## KVN Part Number Match
+   - Use a compact Markdown table.
+   - Include KVN series, likely/confirmed KVN part number, ordered configuration,
+     and confidence.
+   - Never present an inferred suffix as confirmed. State when WooCommerce SKU,
+     packing slip, or warehouse verification is still required.
+3. ## Product Specifications
+   - Use a compact Markdown table for verified specifications only.
+4. ## Product Features
+   - Put every feature on its own checklist line.
+5. ## Compatibility Notes
+   - Put every note on its own line; never compress several bullets together.
+6. ## Staff Note
+   - Use a short internal note/callout and clearly separate it from customer text.
+7. ## Installation Resources
+   - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
+     note, or firmware link returned by file_search.
+   - Keep full URLs visible and clickable. Do not replace URLs with buttons.
+   - Do not invent a link. If no exact verified resource is found, say so.
+8. ## Installation Instructions
+   - Organize as: Installation Summary table, Required Tools checklist, Before
+     Installation checklist, numbered Installation Steps, Final Testing
+     checklist, and Important Notes.
+   - Keep one action per line and preserve warnings.
+9. ## Customer Reply Draft
+   - Always place this last and format it as Markdown blockquote paragraphs.
+
+The AutoTecPro model, KVN match, specifications, and product facts should use
+Sales knowledge first. Installation instructions and links should use verified
+Technical knowledge. If sources disagree or the exact configuration is not
+confirmed, state the uncertainty instead of guessing.
+
 The application may activate these prompt-routed Sales workflows:
 - AI Compatibility Advisor
 - AI Vehicle Identifier
@@ -16599,9 +16647,11 @@ def build_user_input(
         ):
             live_instruction += (
                 "\n\nThe application has already displayed the exact WooCommerce "
-                "order information above your response. Do not repeat or rewrite "
-                "that order section. Begin with the requested analysis, Technical "
-                "Support flow, or customer reply."
+                "order information above your response. Do not repeat, shorten, "
+                "replace, or rewrite that order section. In the Sales workspace, "
+                "append the organized enrichment sections required by the Sales "
+                "order workflow after the displayed order details. In Technical "
+                "Support, begin with the requested technical analysis or reply."
             )
         content.append({
             "type": "input_text",
@@ -16745,11 +16795,17 @@ def _build_ai_request(
                 },
             )
         elif is_sales_workspace(assistant):
+            # Sales order workflows need both commercial product knowledge and
+            # verified technical resources such as KVN matches, installation
+            # instructions, manuals, and video links.
             tools.insert(
                 0,
                 {
                     "type": "file_search",
-                    "vector_store_ids": [SALES_VECTOR_STORE_ID],
+                    "vector_store_ids": [
+                        SALES_VECTOR_STORE_ID,
+                        TECHNICAL_VECTOR_STORE_ID,
+                    ],
                 },
             )
         elif is_marketing_workspace(assistant):
