@@ -9084,10 +9084,11 @@ def table_to_html(table_lines):
 
 
 def normalize_assistant_markdown(text):
-    """Repair common AI markdown layout issues without changing response facts.
+    """Repair common AI Markdown layout issues without changing response facts.
 
-    The normalizer only separates unmistakable inline list markers. It does not
-    rewrite wording, alter values, infer headings, or change business content.
+    This display-only normalizer separates inline bullets/steps and converts
+    compact label-value groups into Markdown tables in sections where a table is
+    easier to scan. It never invents, removes, or changes factual content.
     """
     value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
     normalized_lines = []
@@ -9096,39 +9097,121 @@ def normalize_assistant_markdown(text):
         line = raw_line.rstrip()
         stripped = line.strip()
 
-        # Preserve markdown tables, headings, code fences, and already-correct
-        # list rows exactly as supplied.
-        if (
-            not stripped
-            or stripped.startswith(("#", "```", "> ", "|"))
-        ):
+        # Preserve existing structural Markdown exactly.
+        if not stripped or stripped.startswith(("#", "```", "> ", "|")):
             normalized_lines.append(line)
             continue
 
-        # Split multiple inline bullet markers only when each marker is preceded
-        # by whitespace. This avoids touching hyphenated model names and prose.
-        bullet_markers = list(re.finditer(r"(?:^|\s)[•]\s+", stripped))
-        if len(bullet_markers) >= 2:
-            bullet_parts = re.split(r"\s+(?=[•]\s+)", stripped)
+        # Repair inline bullet walls, including model output that omits the
+        # normal space after a bullet: "•Vehicle... •Climate...".
+        bullet_count = stripped.count("•")
+        if bullet_count >= 2:
+            prefix, *parts = re.split(r"\s*•\s*", stripped)
+            if not prefix.strip():
+                normalized_lines.extend(
+                    f"• {part.strip()}" for part in parts if part.strip()
+                )
+                continue
+            # Keep genuine introductory text, then render each following item.
+            normalized_lines.append(prefix.strip())
             normalized_lines.extend(
-                part if part.startswith("• ") else f"• {part}"
-                for part in bullet_parts
-                if part.strip()
+                f"• {part.strip()}" for part in parts if part.strip()
             )
             continue
 
-        # Split inline numbered steps such as "1. ... 2. ... 3. ..." only
-        # when at least two unambiguous numbered markers are present.
-        numbered_markers = list(re.finditer(r"(?:^|\s)(\d{1,2})[.)]\s+", stripped))
-        if len(numbered_markers) >= 2:
-            parts = re.split(r"\s+(?=\d{1,2}[.)]\s+)", stripped)
-            if len(parts) > 1:
-                normalized_lines.extend(part.strip() for part in parts if part.strip())
+        # Repair inline numbered walls such as
+        # "1. Year 2. Model 3. Screen", even when spacing is inconsistent.
+        markers = list(re.finditer(r"(?<!\d)(\d{1,2})[.)]\s*", stripped))
+        if len(markers) >= 2:
+            numbers = [int(match.group(1)) for match in markers]
+            sequential = all(b == a + 1 for a, b in zip(numbers, numbers[1:]))
+            if sequential:
+                prefix = stripped[:markers[0].start()].strip()
+                if prefix:
+                    normalized_lines.append(prefix)
+                for index, marker in enumerate(markers):
+                    item_start = marker.end()
+                    item_end = markers[index + 1].start() if index + 1 < len(markers) else len(stripped)
+                    item_text = stripped[item_start:item_end].strip(" -;•")
+                    if item_text:
+                        normalized_lines.append(f"{marker.group(1)}. {item_text}")
                 continue
 
         normalized_lines.append(line)
 
-    return "\n".join(normalized_lines)
+    # Convert compact label/value bullets into real tables only in sections
+    # where the labels represent a configuration, comparison, or specification.
+    table_sections = {
+        "vehicle configuration",
+        "vehicle identification",
+        "recommended autotecpro product",
+        "recommended product",
+        "compatibility",
+        "compatibility result",
+        "product comparison",
+        "specifications",
+        "product options",
+        "options",
+    }
+    output = []
+    i = 0
+    active_heading = ""
+
+    def heading_name(line):
+        match = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
+        return match.group(1).strip().rstrip(":").casefold() if match else ""
+
+    def label_value(line):
+        clean = re.sub(r"^[•*-]\s*", "", line.strip())
+        clean = re.sub(r"^\*\*(.+?)\*\*\s*:\s*", r"\1: ", clean)
+        match = re.match(r"^([^:|]{2,55}):\s*(.+)$", clean)
+        if not match:
+            return None
+        label = match.group(1).strip().strip("*")
+        val = match.group(2).strip()
+        if not label or not val:
+            return None
+        return label, val
+
+    while i < len(normalized_lines):
+        line = normalized_lines[i]
+        new_heading = heading_name(line)
+        if new_heading:
+            active_heading = new_heading
+            output.append(line)
+            i += 1
+            continue
+
+        if active_heading in table_sections:
+            group = []
+            j = i
+            while j < len(normalized_lines):
+                candidate = normalized_lines[j]
+                if not candidate.strip() or heading_name(candidate):
+                    break
+                parsed = label_value(candidate)
+                if not parsed:
+                    break
+                group.append(parsed)
+                j += 1
+            if len(group) >= 3:
+                output.extend([
+                    "",
+                    "| Item | Details |",
+                    "|---|---|",
+                    *[f"| {label} | {val} |" for label, val in group],
+                    "",
+                ])
+                i = j
+                continue
+
+        output.append(line)
+        i += 1
+
+    # Collapse only excessive blank lines introduced by malformed model output.
+    repaired = "\n".join(output)
+    repaired = re.sub(r"\n{4,}", "\n\n\n", repaired)
+    return repaired
 
 
 @st.cache_data(ttl=900, max_entries=512, show_spinner=False)
@@ -15352,7 +15435,11 @@ RESPONSE PRESENTATION RULES:
 - Put customer-facing drafts under a separate ## Customer Reply Draft heading.
   Format the draft as clean paragraphs with blank lines, ready to copy and send.
   Do not place bullets, analysis notes, or internal instructions inside the draft.
-- Never place multiple bullet points or numbered steps on the same line.
+- For Vehicle Configuration, Vehicle Identification, Recommended Product,
+  Compatibility, Specifications, and product comparisons, prefer a compact
+  Markdown table whenever three or more label-and-value facts are present.
+- Every bullet and every numbered step must begin on a new physical line.
+  Never place multiple bullet points or numbered steps on the same line.
 - Do not add decorative separators after every section, excessive emoji, HTML,
   or code fences. Preserve all facts, uncertainty, warnings, and required steps.
 """
