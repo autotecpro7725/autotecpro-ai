@@ -4558,6 +4558,9 @@ def inject_base_css():
         }
 
         .assistant-bubble .atp-customer-reply-line {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
             margin: 0;
             padding: 0 0 12px 16px;
             border-left: 3px solid rgba(245, 158, 11, 0.72);
@@ -4604,6 +4607,9 @@ def inject_base_css():
         }
 
         .assistant-bubble .atp-customer-reply-box {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
             margin: 0 0 14px 0;
             padding: 14px 16px;
             border-left: 4px solid rgba(245, 158, 11, 0.82);
@@ -4613,6 +4619,9 @@ def inject_base_css():
         }
 
         .assistant-bubble .atp-customer-reply-box .atp-customer-reply-line {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
             margin: 0 0 10px 0;
             padding: 0;
             border: 0;
@@ -16609,6 +16618,15 @@ def build_response_mode_instruction(response_mode):
         "professional customer-facing response.\n"
         "- Preserve every active Technical Support, Sales, Marketing, document, "
         "and specialized troubleshooting workflow.\n"
+        "- In every customer-facing draft, state staff-confirmed and approved facts "
+        "directly and clearly. Do not weaken confirmed facts with phrases such as "
+        "we need to verify, may, might, normally, depends, or should unless the fact "
+        "is genuinely unresolved.\n"
+        "- Separate CONFIRMED facts, COMMERCIAL items that belong to Sales, and "
+        "genuinely UNKNOWN items. Ask for confirmation only for UNKNOWN items.\n"
+        "- Do not repeat internal analysis, evidence, warnings, database fields, or "
+        "knowledge-record language inside the Customer Reply Draft. The draft must "
+        "be natural, concise, easy to understand, and ready to send.\n"
     )
     if mode == "explicit_concise":
         return common + (
@@ -18096,46 +18114,43 @@ def _professional_learning_profile(selected_assistant):
     }
 
 
-def build_explicit_learning_ai_prompt(prompt_text, prior_context):
-    """Produce a professional reviewable record; the app performs the real save."""
-    clean_prompt = str(prompt_text or "").strip()
-    clean_context = redact_learning_private_data(prior_context)
-    profile = _professional_learning_profile(
-        st.session_state.get("current_assistant") or globals().get("assistant")
+def extract_explicit_learning_payload(prompt_text):
+    """Return only the staff-authored content after an explicit learning command."""
+    value = str(prompt_text or "").strip()
+    if not value:
+        return ""
+    patterns = (
+        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?this\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?save\s+this\s+(?:to|in)\s+(?:memory|knowledge)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?remember\s+this\s*[:\-]?\s*",
     )
-    return f"""{clean_prompt}
+    cleaned = value
+    for pattern in patterns:
+        updated = re.sub(pattern, "", cleaned, count=1, flags=re.IGNORECASE).strip()
+        if updated != cleaned:
+            cleaned = updated
+            break
+    # A command with no body means: use the immediately preceding reviewable
+    # content as evidence, but do not treat the command itself as knowledge.
+    normalized = re.sub(r"[^a-z0-9]+", " ", cleaned.lower()).strip()
+    if normalized in {"", "learn this", "learn and save this", "save this", "remember this"}:
+        return ""
+    return cleaned
 
-[INTERNAL AUTOTECPRO PROFESSIONAL LEARNING INSTRUCTION]
-The user explicitly requested permanent learning for the {profile['department']}
-knowledge base. Analyze the current message, every attached file/image, and the
-recent conversation context together. Convert the evidence into one professional,
-reusable knowledge record.
 
-First classify the record using one of these types:
-{profile['record_types']}
+def build_explicit_learning_ai_prompt(prompt_text, prior_context):
+    """Build a compact extraction request; saving is performed by the app."""
+    inline_payload = extract_explicit_learning_payload(prompt_text)
+    clean_context = redact_learning_private_data(prior_context)
+    source_text = inline_payload or clean_context
+    return f"""[INTERNAL AUTOTECPRO LEARNING EXTRACTION]
+Extract only NEW or CHANGED reusable facts from the staff-provided source below.
+Do not repeat the customer email, prior AI draft, internal analysis, evidence narrative,
+search keywords, or a Customer Reply Draft. Do not create a long professional report.
+Return a compact structured knowledge delta suitable for merge/deduplication.
 
-Capture these fields whenever supported:
-{profile['required_fields']}
-
-QUALITY AND GOVERNANCE RULES:
-- Distinguish verified facts, inferred information, and missing information.
-- Never invent compatibility, part numbers, prices, dates, policies, product claims,
-  quantities, or technical specifications.
-- For multiple uploaded photos, treat them as one product only when the user says so;
-  identify Photo 1, Photo 2, etc. as evidence for visible parts and labels.
-- Preserve exact SKU, model, year range, connector, promotion, market, and effective
-  date details.
-- Flag contradictions with existing context instead of silently resolving them.
-- Include a concise searchable title and strong search keywords.
-- Include an Evidence section and a Needs Confirmation section.
-- Do not claim that anything has already been saved. The application will perform
-  the database/vector save after the response and then display the confirmation.
-- Do not include customer-private information.
-
-Present the result as a clean professional record suitable for direct storage.
-
-RECENT CONTEXT:
-{clean_context or "No earlier context was available; use the current message and attachments."}
+SOURCE:
+{source_text or 'No reusable source content was supplied.'}
 """.strip()
 
 def recent_learning_conversation_context(max_messages=6):
@@ -18229,10 +18244,16 @@ Rules:
   earlier draft.
 - The AI RESPONSE may help organize or summarize the staff-provided information, but
   it must never override a conflicting staff statement.
-- For explicit learning, extract every concrete reusable fact supported by the staff
-  message, attachments, and recent context.
+- For explicit learning, extract only the NEW or CHANGED reusable facts supported
+  by the staff message, attachments, and recent context. Do not copy the full prior
+  AI response, customer email, analysis, evidence narrative, or reply draft.
+- Keep the stored solution compact and retrieval-focused. Prefer short verified facts,
+  conditions, procedures, restrictions, and approved response rules over narrative.
 - Preserve separate answers when the staff message contains multiple customer
-  questions; do not collapse them into a vague summary.
+  questions, but store them as concise independent facts rather than repeating the
+  entire conversation.
+- Never include a Customer Reply Draft inside stored knowledge.
+- If the same fact already exists unchanged, do not duplicate it; prepare a merge/update.
 - Never turn a guess, draft, unanswered question, temporary live data, or private data
   into approved knowledge.
 - Preserve exact model numbers, year ranges, quantities, markets, dates and restrictions.
@@ -18579,9 +18600,22 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
         )
 
         if vehicle_match:
-            score += 0.08
-        if issue_score > 0.72:
             score += 0.10
+        if issue_score > 0.72:
+            score += 0.12
+
+        candidate_record_type = normalize_text_for_match(
+            str(candidate.get("record_type") or "")
+        )
+        row_record_type = normalize_text_for_match(
+            str(row.get("record_type") or "")
+        )
+        same_record_type = bool(
+            candidate_record_type and row_record_type
+            and candidate_record_type == row_record_type
+        )
+        if same_record_type:
+            score += 0.06
 
         score = min(score, 1.0)
 
@@ -18589,8 +18623,19 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
             best_score = score
             best_row = row
 
+    # Exact same department plus strong vehicle/topic identity should merge even
+    # when wording changed substantially. Otherwise retain the conservative limit.
     if best_score >= 0.82:
         return best_row, best_score
+    if best_row and best_score >= 0.74:
+        candidate_vehicle = normalize_text_for_match(str(candidate.get("vehicle") or ""))
+        row_vehicle = normalize_text_for_match(str(best_row.get("vehicle") or ""))
+        candidate_issue = normalize_text_for_match(str(candidate.get("issue") or ""))
+        row_issue = normalize_text_for_match(str(best_row.get("issue") or ""))
+        if (candidate_vehicle and row_vehicle and
+                (candidate_vehicle in row_vehicle or row_vehicle in candidate_vehicle) and
+                text_similarity(candidate_issue, row_issue) >= 0.62):
+            return best_row, best_score
 
     return None, best_score
 
@@ -18598,7 +18643,9 @@ def improve_existing_solution(existing_row, candidate):
     prompt = f"""
 You are AutoTecPro's internal knowledge base editor.
 
-Merge the existing knowledge and the new case into one improved, accurate, reusable solution.
+Merge the existing knowledge and the new case into one compact, accurate, reusable solution.
+Remove duplicate sentences and repeated sections. Keep only verified facts and genuinely unresolved items.
+Never include a customer email, Customer Reply Draft, Evidence narrative, Search Keywords section, or internal analysis in the solution.
 
 Return ONLY valid JSON:
 {{
@@ -18933,9 +18980,17 @@ def auto_learn_from_latest_answer(
         )
     )
 
+    explicit_payload = (
+        extract_explicit_learning_payload(safe_question)
+        if explicit_learning
+        else ""
+    )
+    candidate_question = explicit_payload if explicit_learning else safe_question
+    candidate_answer = "" if explicit_learning else safe_answer
+
     candidate = extract_learning_candidate(
-        safe_question,
-        safe_answer,
+        candidate_question,
+        candidate_answer,
         selected_assistant,
         staff_confirmed=staff_confirmed,
         staff_teaching=staff_teaching,
@@ -28663,7 +28718,29 @@ else:
             )
         )
 
-        if is_graphic_generation:
+        if explicit_learning_requested and not is_graphic_generation:
+            response_start_time = time.time()
+            inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
+            if inline_learning_payload:
+                answer = (
+                    "Knowledge received. I will extract only the new or changed reusable "
+                    "facts, merge them with matching approved knowledge, and avoid saving "
+                    "duplicate conversation text or another customer-reply draft."
+                )
+            else:
+                answer = (
+                    "Knowledge received. I will use the immediately preceding reviewable "
+                    "content as the source, merge it with any matching approved record, "
+                    "and avoid repeating the full content in chat."
+                )
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif is_graphic_generation:
             response_start_time = time.time()
             try:
                 with st.spinner("Creating your image..."):
