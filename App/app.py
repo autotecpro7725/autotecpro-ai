@@ -4651,6 +4651,59 @@ def inject_base_css():
             background: rgba(15, 23, 42, 0.22);
         }
 
+        .assistant-bubble h1,
+        .assistant-bubble h2,
+        .assistant-bubble h3 {
+            margin-top: 24px !important;
+            margin-bottom: 16px !important;
+        }
+
+        .assistant-bubble > h1:first-child,
+        .assistant-bubble > h2:first-child,
+        .assistant-bubble > h3:first-child {
+            margin-top: 0 !important;
+        }
+
+        .assistant-bubble table th,
+        .assistant-bubble table td {
+            padding: 11px 13px;
+        }
+
+        .assistant-bubble table tbody tr:nth-child(even) td {
+            background: rgba(148, 163, 184, 0.045);
+        }
+
+        .assistant-bubble .atp-compatibility-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 16px 0;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(148, 163, 184, 0.10);
+        }
+
+        .assistant-bubble .atp-status-compatible {
+            color: #86efac;
+            border-color: rgba(34, 197, 94, 0.38);
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        .assistant-bubble .atp-status-conditional {
+            color: #fde68a;
+            border-color: rgba(245, 158, 11, 0.42);
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .assistant-bubble .atp-status-incompatible {
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.42);
+            background: rgba(239, 68, 68, 0.12);
+        }
+
         .assistant-section-card {
             background: rgba(15, 23, 42, 0.52);
             border: 1px solid rgba(148, 163, 184, 0.16);
@@ -9127,10 +9180,9 @@ def table_to_html(table_lines):
 def normalize_assistant_markdown(text):
     """Repair common AI Markdown layout issues without changing response facts.
 
-    The normalizer is display-only. It separates compressed bullets and numbered
-    steps, creates scan-friendly tables in structured sections, and converts the
-    information-required section into a numbered checklist. No factual wording is
-    invented, removed, or rewritten.
+    This display-only normalizer separates compressed bullets/checkmarks/warnings,
+    repairs and renumbers inline numbered lists, creates scan-friendly tables in
+    structured sections, and preserves the original factual wording.
     """
     value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
     normalized_lines = []
@@ -9143,79 +9195,70 @@ def normalize_assistant_markdown(text):
             normalized_lines.append(line)
             continue
 
-        # Split every inline bullet wall, including bullets with missing spaces,
-        # bold text, or punctuation immediately before the next bullet.
-        bullet_matches = list(re.finditer(r"(?:[•●▪◦]|(?<!\S)-(?!-)(?=\s+\S))", stripped))
-        if len(bullet_matches) >= 2:
-            prefix = stripped[:bullet_matches[0].start()].strip()
+        # Split compressed visual list walls. This includes ordinary bullets,
+        # checklist marks, and warning marks used by Technical Support replies.
+        visual_marker_pattern = r"(?:[•●▪◦✓✔☑]|(?<!\S)-(?!-)(?=\s+\S)|(?:(?<=^)|(?<=\s))[!⚠](?=\s*\S))"
+        visual_matches = list(re.finditer(visual_marker_pattern, stripped))
+        if len(visual_matches) >= 2:
+            prefix = stripped[:visual_matches[0].start()].strip()
             if prefix:
                 normalized_lines.append(prefix)
-            for idx, marker in enumerate(bullet_matches):
+            for idx, marker in enumerate(visual_matches):
                 item_start = marker.end()
-                item_end = bullet_matches[idx + 1].start() if idx + 1 < len(bullet_matches) else len(stripped)
-                item = stripped[item_start:item_end].strip(" \t-;•●▪◦")
-                if item:
+                item_end = visual_matches[idx + 1].start() if idx + 1 < len(visual_matches) else len(stripped)
+                item = stripped[item_start:item_end].strip(" \t-;•●▪◦✓✔☑!⚠")
+                if not item:
+                    continue
+                raw_marker = marker.group(0)
+                if raw_marker in {"!", "⚠"}:
+                    normalized_lines.append(f"• {item}")
+                else:
                     normalized_lines.append(f"• {item}")
             continue
 
-        # Split compressed numbered walls such as 1. Year 2. Model 3. Screen.
-        markers = list(re.finditer(r"(?<!\d)(\d{1,2})[.)]\s*", stripped))
-        if len(markers) >= 2:
-            numbers = [int(match.group(1)) for match in markers]
-            if all(b == a + 1 for a, b in zip(numbers, numbers[1:])):
-                prefix = stripped[:markers[0].start()].strip()
-                if prefix:
-                    normalized_lines.append(prefix)
-                for idx, marker in enumerate(markers):
-                    item_start = marker.end()
-                    item_end = markers[idx + 1].start() if idx + 1 < len(markers) else len(stripped)
-                    item = stripped[item_start:item_end].strip(" -;•")
-                    if item:
-                        normalized_lines.append(f"{marker.group(1)}. {item}")
-                continue
+        # Split compressed numbered walls even when the model skips or repeats a
+        # number. The Information Still Required section is renumbered later.
+        number_markers = list(re.finditer(r"(?<!\d)(\d{1,2})[.)]\s*", stripped))
+        if len(number_markers) >= 2:
+            prefix = stripped[:number_markers[0].start()].strip()
+            if prefix:
+                normalized_lines.append(prefix)
+            for idx, marker in enumerate(number_markers):
+                item_start = marker.end()
+                item_end = number_markers[idx + 1].start() if idx + 1 < len(number_markers) else len(stripped)
+                item = stripped[item_start:item_end].strip(" -;•")
+                if item:
+                    normalized_lines.append(f"{marker.group(1)}. {item}")
+            continue
 
         normalized_lines.append(line)
 
     table_sections = {
-        "vehicle configuration",
-        "vehicle identification",
-        "recommended autotecpro product",
-        "recommended product",
-        "compatibility",
-        "compatibility result",
-        "product comparison",
-        "product comparisons",
-        "comparison",
-        "comparisons",
-        "specification",
-        "specifications",
-        "vehicle details",
-        "vehicle information",
-        "product options",
-        "configuration options",
-        "options",
+        "vehicle configuration", "vehicle identification", "vehicle details",
+        "vehicle information", "recommended autotecpro product",
+        "recommended product", "compatibility", "compatibility result",
+        "product comparison", "product comparisons", "comparison", "comparisons",
+        "specification", "specifications", "product options",
+        "configuration options", "options",
     }
     product_sections = {
-        "recommended autotecpro product",
-        "recommended product",
-        "product comparison",
+        "recommended autotecpro product", "recommended product",
+        "product comparison", "product comparisons",
     }
     numbered_sections = {
-        "information still required",
-        "information required",
-        "details still required",
-        "confirmation required",
+        "information still required", "information required",
+        "details still required", "confirmation required",
     }
 
     def heading_name(line):
         match = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
         if match:
             return match.group(1).strip().rstrip(":").casefold()
-        bold = re.fullmatch(r"\*\*(.{1,100}?)\*\*:?", line.strip())
+        bold = re.fullmatch(r"\*\*(.{1,100}?)\*\*: ?", line.strip())
         return bold.group(1).strip().rstrip(":").casefold() if bold else ""
 
     def label_value(line):
-        clean = re.sub(r"^[•*-]\s*", "", line.strip())
+        clean = re.sub(r"^[•*\-✓✔☑!⚠]\s*", "", line.strip())
         clean = re.sub(r"^\*\*(.+?)\*\*\s*:\s*", r"\1: ", clean)
         match = re.match(r"^([^:|]{2,70}):\s*(.+)$", clean)
         if not match:
@@ -9239,13 +9282,13 @@ def normalize_assistant_markdown(text):
             i += 1
             continue
 
-        # Number all checklist items in Information Still Required.
         if active_heading in numbered_sections:
             stripped = line.strip()
-            if re.match(r"^[•*-]\s+", stripped):
+            if re.match(r"^[•*\-✓✔☑]\s*", stripped):
                 info_counter += 1
-                item = re.sub(r"^[•*-]\s+", "", stripped).strip()
-                output.append(f"{info_counter}. {item}")
+                item = re.sub(r"^[•*\-✓✔☑]\s*", "", stripped).strip()
+                if item:
+                    output.append(f"{info_counter}. {item}")
                 i += 1
                 continue
             existing = re.match(r"^(\d+)[.)]\s+(.+)$", stripped)
@@ -9362,6 +9405,36 @@ def html_from_text(text, assistant_mode=False):
             )
             if not previous_is_heading and not next_is_heading:
                 html_lines.append("<br>")
+            i += 1
+            continue
+
+        compatibility_match = re.match(
+            r"^(?:\*\*)?Compatibility Status(?:\*\*)?\s*:\s*(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if assistant_mode and compatibility_match:
+            close_lists()
+            close_customer_reply_box()
+            status_text = compatibility_match.group(1).strip().strip("*")
+            status_key = status_text.casefold()
+            if "not compatible" in status_key or "incompatible" in status_key:
+                status_class = "atp-status-incompatible"
+                status_icon = "●"
+            elif "conditional" in status_key:
+                status_class = "atp-status-conditional"
+                status_icon = "●"
+            elif "compatible" in status_key:
+                status_class = "atp-status-compatible"
+                status_icon = "●"
+            else:
+                status_class = ""
+                status_icon = "●"
+            html_lines.append(
+                f'<div class="atp-compatibility-badge {status_class}">'
+                f'{status_icon} Compatibility Status: {inline_format(status_text)}'
+                '</div>'
+            )
             i += 1
             continue
 
