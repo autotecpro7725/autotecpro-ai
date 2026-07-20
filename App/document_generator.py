@@ -200,137 +200,122 @@ def _is_document_command_text(value: Any) -> bool:
         "create a document",
         "generate a document",
     )
-    return any(pattern in text for pattern in command_patterns)
+    if any(pattern in text for pattern in command_patterns):
+        return True
+    return bool(re.search(
+        r"\b(?:convert|turn|export|save|create|generate|make|prepare|build|download)\b"
+        r".{0,45}\b(?:pdf|docx?|word|pptx?|powerpoint|xlsx?|excel|csv|document|file)\b",
+        text,
+    ))
+
+
+def _strip_inline_markdown(value: Any) -> str:
+    text = str(value or "")
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"[*_`~]+", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_generic_document_heading(value: Any) -> bool:
+    text = _strip_inline_markdown(value).casefold().strip(" .:-")
+    if not text:
+        return True
+    generic = {
+        "autotecpro ai document", "autotecpro document", "reference document",
+        "autotecpro reference document", "product comparison", "comparison document",
+        "product comparison document", "document", "report", "guide",
+    }
+    return text in generic or _is_document_command_text(text)
+
+
+def _title_from_heading(text: str) -> str:
+    headings = re.findall(r"(?m)^\s*#{1,3}\s+(.{4,160}?)\s*$", text)
+    for raw in headings:
+        heading = _strip_inline_markdown(raw).strip(" .:-")
+        if heading and not _is_generic_document_heading(heading):
+            return heading[:120]
+    return ""
+
+
+def _model_tokens(text: str) -> list[str]:
+    """Return likely product/model identifiers while excluding years and quantities."""
+    candidates = re.findall(
+        r"(?i)(?<![A-Za-z0-9])(?:[A-Z]{1,6}-)?\d{2,4}(?:[- ]?(?:PRO|S\d+|MK\d+|A\d+))?(?![A-Za-z0-9])",
+        text,
+    )
+    found: list[str] = []
+    for raw in candidates:
+        token = re.sub(r"\s+", "-", raw.strip())
+        if re.fullmatch(r"(?:19|20)\d{2}", token):
+            continue
+        if token not in found:
+            found.append(token)
+    return found
 
 
 def _conversation_subject(answer_text: Any) -> str:
-    """Derive a concise subject from exported conversation content."""
+    """Derive a useful subject from headings, conversation questions, and model codes."""
     text = str(answer_text or "").replace("\r\n", "\n").replace("\r", "\n")
 
-    speaker_pattern = re.compile(
-        r"(?im)^(User|AutoTecPro AI)\s*:?[ \t]*(.*)$"
-    )
+    heading = _title_from_heading(text)
+    if heading:
+        return heading
+
+    speaker_pattern = re.compile(r"(?im)^(User|AutoTecPro AI)\s*:?[ \t]*(.*)$")
     matches = list(speaker_pattern.finditer(text))
     user_candidates: list[str] = []
-
     for index, match in enumerate(matches):
         if match.group(1).strip().lower() != "user":
             continue
-
         inline_text = str(match.group(2) or "").strip()
-        block_start = match.end()
-        block_end = (
-            matches[index + 1].start()
-            if index + 1 < len(matches)
-            else len(text)
-        )
-        following_text = text[block_start:block_end].strip()
-
-        candidate = " ".join(
-            part for part in (inline_text, following_text) if part
-        )
-        candidate = re.sub(r"\s+", " ", candidate).strip(" \t\r\n:.-")
+        block_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        following_text = text[match.end():block_end].strip()
+        candidate = _strip_inline_markdown(" ".join(x for x in (inline_text, following_text) if x))
         if candidate and not _is_document_command_text(candidate):
             user_candidates.append(candidate)
 
-    # Prefer an explicit AutoTecPro model, SKU, series, or part number.
-    for candidate in reversed(user_candidates):
-        match = re.search(
-            r"(?i)\b(?:what\s+is|model|series|sku|part(?:\s*number)?|"
-            r"details?\s+(?:for|of)|about)?\s*"
-            r"([A-Z]{0,5}-?[A-Z0-9]{2,14})\b",
-            candidate,
-        )
-        if match:
-            model = match.group(1).upper()
-            ignored = {
-                "THIS", "THAT", "WHAT", "DOCUMENT", "AUTO",
-                "USER", "MAIN", "DETAILS",
-            }
-            if model not in ignored and re.search(r"\d", model):
-                return f"AutoTecPro Model {model} Reference"
-
-    subject_source = user_candidates[-1] if user_candidates else text
-    subject_source = re.sub(
-        r"(?im)^(?:User|AutoTecPro AI)\s*:?\s*$",
-        " ",
-        subject_source,
-    )
-    subject_source = re.sub(r"\s+", " ", subject_source).strip()
-
-    # Fallback: detect an explicit model reference anywhere in the content.
-    fallback = re.search(
-        r"(?i)\b(?:AutoTecPro\s+)?(?:model|series|sku)?\s*"
-        r"([A-Z]{0,5}-?[A-Z0-9]{2,14})\b",
-        subject_source,
-    )
-    if fallback:
-        model = fallback.group(1).upper()
-        if (
-            re.search(r"\d", model)
-            and model not in {
-                "THIS", "THAT", "WHAT", "DOCUMENT", "AUTO",
-                "USER", "MAIN", "DETAILS",
-            }
-        ):
-            return f"AutoTecPro Model {model} Reference"
-
-    heading_match = re.search(r"(?m)^\s*#{1,3}\s+(.{4,100})$", text)
-    if heading_match:
-        heading = re.sub(
-            r"[*_`#]+",
-            "",
-            heading_match.group(1),
-        ).strip()
-        if heading and not _is_document_command_text(heading):
-            return heading
+    subject_source = user_candidates[-1] if user_candidates else _strip_inline_markdown(text)
+    models = _model_tokens(subject_source)
+    if len(models) >= 2:
+        return f"AutoTecPro {' vs '.join(models[:3])} Product Comparison"
+    if len(models) == 1:
+        return f"AutoTecPro Model {models[0]} Reference"
 
     cleaned = re.sub(
-        r"(?i)^\s*(?:please\s+)?(?:can\s+you\s+)?"
-        r"(?:tell\s+me\s+|explain\s+|show\s+me\s+|"
-        r"what\s+is\s+|what\s+are\s+|how\s+do\s+i\s+|"
-        r"how\s+to\s+|main\s+details?\s+(?:for|of)\s+)",
-        "",
-        subject_source,
+        r"(?i)^\s*(?:please\s+)?(?:can\s+you\s+)?(?:tell\s+me\s+|explain\s+|show\s+me\s+|"
+        r"what\s+is\s+|what\s+are\s+|how\s+do\s+i\s+|how\s+to\s+|main\s+details?\s+(?:for|of)\s+)",
+        "", subject_source,
     ).strip(" ?.,:-")
-
     if _is_document_command_text(cleaned):
         cleaned = ""
-
-    words = re.findall(
-        r"[A-Za-z0-9][A-Za-z0-9'&/().+-]*",
-        cleaned,
-    )[:12]
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'&/().+-]*", cleaned)[:14]
     if words:
         title = " ".join(words)
-        if not title.lower().startswith("autotecpro"):
+        if not title.casefold().startswith("autotecpro"):
             title = f"AutoTecPro {title}"
-        if not re.search(
-            r"(?i)\b(?:document|guide|report|reference|manual|proposal)\b",
-            title,
-        ):
+        if not re.search(r"(?i)\b(?:document|guide|report|reference|manual|proposal|comparison)\b", title):
             title += " Reference"
-        return title[:110].strip()
-
+        return title[:120].strip()
     return "AutoTecPro Reference Document"
 
 
 def derive_document_title(prompt_text: Any, answer_text: Any = "") -> str:
-    """Return a useful title without using the export command itself."""
+    """Return a meaningful title without allowing an export command to become the title."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if prompt and not _is_document_command_text(prompt):
         candidate = _conversation_subject(prompt)
-        if candidate and candidate != "AutoTecPro AI Document":
+        if candidate and not _is_generic_document_heading(candidate):
             return candidate
     return _conversation_subject(answer_text)
 
 
 def _safe_stem(prompt_text: Any, answer_text: Any = "") -> str:
     title = derive_document_title(prompt_text, answer_text)
-    words = re.findall(r"[A-Za-z0-9]+", title)[:14]
-    stem = "_".join(words).strip("_") or "AutoTecPro_AI_Document"
-    stem = re.sub(r"_+", "_", stem)[:110].strip("_")
-    return Path(stem).name or "AutoTecPro_AI_Document"
+    # Preserve useful model hyphens such as 862-Pro and T732-S3.
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", title)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("._-")
+    return Path(cleaned[:120] or "AutoTecPro_AI_Document").name
 
 
 def safe_document_filename(
@@ -938,6 +923,71 @@ def _draw_pdf_watermark(canvas, page_width, page_height, text, colors):
     canvas.restoreState()
 
 
+def _split_markdown_table_row(line: str) -> list[str]:
+    value = line.strip().strip("|")
+    # Support escaped pipes inside cells.
+    parts = re.split(r"(?<!\\)\|", value)
+    return [_strip_inline_markdown(part.replace(r"\|", "|")).strip() for part in parts]
+
+
+def _is_markdown_table_separator(line: str) -> bool:
+    cells = _split_markdown_table_row(line)
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells)
+
+
+def _iter_document_blocks(text: str):
+    """Yield paragraphs/headings/lists and complete Markdown tables."""
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
+        stripped = raw.strip()
+        if (
+            "|" in stripped
+            and i + 1 < len(lines)
+            and _is_markdown_table_separator(lines[i + 1].strip())
+        ):
+            rows = [_split_markdown_table_row(stripped)]
+            i += 2
+            while i < len(lines):
+                candidate = lines[i].strip()
+                if not candidate or "|" not in candidate:
+                    break
+                rows.append(_split_markdown_table_row(candidate))
+                i += 1
+            width = max((len(row) for row in rows), default=1)
+            yield "table", [row + [""] * (width - len(row)) for row in rows]
+            continue
+        if not stripped:
+            yield "blank", ""
+        elif re.match(r"^#{1,6}\s+", stripped):
+            level = len(stripped) - len(stripped.lstrip("#"))
+            yield f"heading{min(level, 3)}", stripped[level:].strip()
+        elif stripped.startswith(("- ", "* ", "• ")):
+            yield "bullet", stripped[2:].strip()
+        elif re.match(r"^\d+[.)]\s+", stripped):
+            yield "number", stripped
+        else:
+            yield "paragraph", stripped
+        i += 1
+
+
+def _pdf_table_column_widths(rows, available_width):
+    count = max((len(row) for row in rows), default=1)
+    if count <= 1:
+        return [available_width]
+    lengths = []
+    for col in range(count):
+        values = [str(row[col] if col < len(row) else "") for row in rows]
+        lengths.append(max(8, min(45, max((len(v) for v in values), default=8))))
+    total = sum(lengths) or count
+    widths = [available_width * length / total for length in lengths]
+    minimum = min(0.85 * 72, available_width / count)
+    widths = [max(minimum, width) for width in widths]
+    scale = available_width / sum(widths)
+    return [width * scale for width in widths]
+
+
 def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
     opts = _document_options(options)
     profile = _style_profile(opts["style"])
@@ -949,7 +999,7 @@ def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
         from reportlab.lib.units import inch
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer, PageBreak,
-            Image as RLImage, KeepTogether, HRFlowable,
+            Image as RLImage, KeepTogether, HRFlowable, LongTable, TableStyle,
         )
         import html as _html
     except Exception:
@@ -1072,14 +1122,63 @@ def _build_pdf_with_options(document_text, title, cleaner=None, options=None):
         spaceAfter=8 if opts["style"] != "Presentation" else 12,
     ))
 
-    for kind, value in _iter_markdown_blocks(text):
+    for kind, value in _iter_document_blocks(text):
+        if kind == "table":
+            table_rows = value
+            cell_style = ParagraphStyle(
+                name=f"ATPTableCell{len(story)}",
+                parent=styles["ATPBodyV2"],
+                fontSize=max(7.4, profile["body_size"] - 1.8),
+                leading=max(9.2, profile["body_leading"] - 3.2),
+                spaceAfter=0,
+                textColor=body_color,
+            )
+            header_style = ParagraphStyle(
+                name=f"ATPTableHeader{len(story)}",
+                parent=cell_style,
+                fontName="Helvetica-Bold",
+                textColor=colors.white,
+            )
+            formatted = []
+            for row_index, row in enumerate(table_rows):
+                formatted.append([
+                    Paragraph(_html.escape(str(cell)), header_style if row_index == 0 else cell_style)
+                    for cell in row
+                ])
+            widths = _pdf_table_column_widths(table_rows, pdf_doc.width)
+            table = LongTable(
+                formatted,
+                colWidths=widths,
+                repeatRows=1,
+                hAlign="LEFT",
+                splitByRow=1,
+            )
+            commands = [
+                ("BACKGROUND", (0, 0), (-1, 0), accent),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#CBD5E1")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+            for row_index in range(1, len(formatted)):
+                if row_index % 2 == 0:
+                    commands.append(("BACKGROUND", (0, row_index), (-1, row_index), colors.HexColor("#F8FAFC")))
+            table.setStyle(TableStyle(commands))
+            story.extend([Spacer(1, 5), table, Spacer(1, 9)])
+            continue
+
         clean = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
         clean = re.sub(r"`([^`]+)`", r"\1", clean)
         safe = _html.escape(clean)
         if kind == "blank":
             story.append(Spacer(1, 3 if opts["style"] == "Minimal" else 7))
         elif kind.startswith("heading"):
-            story.append(Paragraph(safe, styles["ATPH1V2"]))
+            # Avoid repeating the generated title as the first body heading.
+            if _strip_inline_markdown(clean).casefold() != _strip_inline_markdown(title).casefold():
+                story.append(Paragraph(safe, styles["ATPH1V2"]))
         elif kind == "bullet":
             story.append(Paragraph("• " + safe, styles["ATPBulletV2"]))
         elif kind == "number":
@@ -1610,6 +1709,6 @@ def create_document_record(
         ),
         "company_info_requested": bool(opts["include_company_info"]),
         "watermark_requested": bool(opts["watermark"]),
-        "generator_version": "2.2",
+        "generator_version": "2.4",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
