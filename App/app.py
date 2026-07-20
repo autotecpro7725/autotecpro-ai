@@ -28769,6 +28769,15 @@ else:
             else ""
         )
 
+        # Explicit learning is a storage workflow, not a product-library lookup.
+        # A long pasted knowledge block may contain model numbers that would
+        # otherwise trigger unrelated product photos and attach them to the AI
+        # acknowledgement. Keep the uploaded evidence, but suppress automatic
+        # Product Library enrichment for this turn.
+        if explicit_learning_requested:
+            product_library_lookup = None
+            product_library_images = []
+
         uploaded_image_previews = get_uploaded_image_previews(
             effective_uploaded_files
         )
@@ -28825,6 +28834,26 @@ else:
             has_images=has_uploaded_images,
         )
 
+        # A staff command such as "learn this and save this" must take
+        # precedence over every content detector. The pasted material can
+        # legitimately mention PDF, document, weather, order numbers, product
+        # models, compatibility, or other trigger words; none of those should
+        # launch a document export, live integration, workspace tool, vector
+        # search, or product-library enrichment during the learning turn.
+        if explicit_learning_requested:
+            execution_plan = {
+                **execution_plan,
+                "document": None,
+                "live": {"type": "none"},
+                "technical": {"type": "none"},
+                "workspace": {"type": "none"},
+                "response_mode": {
+                    "type": "complete_standard",
+                    "label": "Learning Confirmation",
+                },
+                "use_file_search": False,
+            }
+
         if str(
             (execution_plan.get("live") or {}).get("type") or "none"
         ).strip().lower() == "none":
@@ -28844,7 +28873,8 @@ else:
         use_file_search = bool(execution_plan["use_file_search"])
 
         document_generation_requested = bool(
-            document_generation_request
+            not explicit_learning_requested
+            and document_generation_request
             and (
                 assistant == "🔧 Technical Support"
                 or is_sales_workspace(assistant)
