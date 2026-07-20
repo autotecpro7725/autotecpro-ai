@@ -17911,7 +17911,10 @@ def detect_unlabeled_staff_final_reply(message_text, selected_assistant=None):
         return False
 
     raw = str(message_text or "").strip()
-    if len(raw) < 140:
+    model_identifiers = extract_learning_model_identifiers(raw)
+    if len(raw) < 60:
+        return False
+    if len(raw) < 140 and not model_identifiers:
         return False
 
     # A final reply usually contains several complete statements, Q&A formatting,
@@ -18175,6 +18178,89 @@ def recent_learning_conversation_context(max_messages=6):
     return "\n\n".join(context_lines)
 
 
+def extract_learning_model_identifiers(*values):
+    """Extract likely AutoTecPro model/SKU/part identifiers without treating years as models."""
+    combined = "\n".join(str(value or "") for value in values)
+    candidates = []
+
+    labelled_patterns = (
+        r"\b(?:model|product|sku|part(?: number)?|product code|unit)\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{1,30})",
+        r"\b((?:DO|KVN|KLD|YZG|ATP)[-_]?[A-Z0-9][A-Z0-9._/-]{1,28})\b",
+        r"\b(\d{2,4}(?:[- ]?(?:PRO|MAX|PLUS|LITE|ULTRA|GEN\s*\d+))?)\b",
+    )
+    for pattern in labelled_patterns:
+        for match in re.finditer(pattern, combined, flags=re.IGNORECASE):
+            value = re.sub(r"\s+", "-", match.group(1).strip(" .,:;()[]{}"))
+            compact = re.sub(r"[^A-Za-z0-9]", "", value)
+            if not compact:
+                continue
+            if re.fullmatch(r"(?:19|20)\d{2}", compact):
+                continue
+            if compact.lower() in {"android13", "android14", "bluetooth50", "512gb"}:
+                continue
+            if value not in candidates:
+                candidates.append(value)
+    return candidates[:16]
+
+
+def learning_context_original_inquiry(context_text):
+    """Return the most relevant earlier user inquiry from a role-labelled context block."""
+    blocks = re.split(r"\n\n(?=[A-Z]+: )", str(context_text or ""))
+    inquiries = []
+    for block in blocks:
+        if not block.startswith("USER: "):
+            continue
+        content = block[6:].strip()
+        if len(content) >= 40 and ("?" in content or re.search(
+            r"\b(?:customer|interested|inquiry|question|how|does|do you|can|will)\b",
+            content, flags=re.IGNORECASE)):
+            inquiries.append(content)
+    return inquiries[-1] if inquiries else ""
+
+
+def compact_learning_sections(solution, sections, max_items=28):
+    """Build a concise retrieval record and exclude narrative/debug-only sections."""
+    section_order = (
+        ("identity", "Identity"),
+        ("facts", "Verified Facts"),
+        ("parts_or_features", "Parts / Features"),
+        ("conditions", "Conditions"),
+        ("procedure_or_response", "Approved Procedure / Response"),
+        ("warnings_or_restrictions", "Warnings / Restrictions"),
+        ("effective_dates", "Effective Dates"),
+        ("needs_confirmation", "Needs Confirmation"),
+    )
+    seen = set()
+    lines = []
+    base = re.sub(r"\n{3,}", "\n\n", str(solution or "")).strip()
+    if base and len(base) <= 1200:
+        lines.append(base)
+
+    total = 0
+    for key, label in section_order:
+        values = sections.get(key) or []
+        if isinstance(values, str):
+            values = [values]
+        clean = []
+        for item in values:
+            item = re.sub(r"\s+", " ", str(item or "")).strip(" -•")
+            normalized = normalize_text_for_match(item)
+            if not item or normalized in seen:
+                continue
+            seen.add(normalized)
+            clean.append(item)
+            total += 1
+            if total >= max_items:
+                break
+        if clean:
+            lines.append(label + ":\n" + "\n".join(f"- {item}" for item in clean))
+        if total >= max_items:
+            break
+
+    result = "\n\n".join(lines).strip()
+    return result[:7000]
+
+
 def extract_learning_candidate(
     question,
     answer,
@@ -18204,7 +18290,8 @@ Return ONLY valid JSON with this schema:
   "year": "year or year range when relevant, otherwise empty",
   "make": "make/brand when relevant, otherwise empty",
   "model": "vehicle/product model when relevant, otherwise empty",
-  "product": "AutoTecPro product/category/SKU when relevant, otherwise empty",
+  "product": "exact AutoTecPro product/model/SKU when relevant, otherwise empty",
+  "model_identifiers": ["exact model, SKU, product code, or part number"],
   "issue": "short reusable topic",
   "solution": "complete approved reusable knowledge",
   "structured_sections": {{
@@ -18256,7 +18343,9 @@ Rules:
 - If the same fact already exists unchanged, do not duplicate it; prepare a merge/update.
 - Never turn a guess, draft, unanswered question, temporary live data, or private data
   into approved knowledge.
-- Preserve exact model numbers, year ranges, quantities, markets, dates and restrictions.
+- Preserve every exact model number, SKU, product code, part number, year range, quantity, market, date and restriction.
+- When a staff answer names a model such as 861, 861-Pro, 836-Max, DO-RM861, or another exact code, place it in product/model_identifiers and use it in the searchable title and keywords.
+- Treat the original customer inquiry and the later staff answer as one paired case. The staff answer is authoritative; the earlier AI draft is only context.
 - Put unsupported fields in needs_confirmation; never invent them.
 - For Technical photo/parts records, map visible items to Photo 1/2/3 in evidence.
 - For Sales, include market/currency/effective/expiration dates when relevant.
@@ -18313,26 +18402,26 @@ RECENT CONTEXT:
         )
     }
 
-    # Embed professional structure in the existing solution column so this upgrade
-    # remains compatible with the user's current Supabase table.
-    structured_lines = [solution] if solution else []
-    labels = {
-        "identity": "Identity", "facts": "Verified Facts",
-        "parts_or_features": "Parts / Features", "conditions": "Conditions",
-        "procedure_or_response": "Procedure / Approved Response",
-        "warnings_or_restrictions": "Warnings / Restrictions",
-        "effective_dates": "Effective Dates", "evidence": "Evidence",
-        "needs_confirmation": "Needs Confirmation",
-    }
-    for key, label in labels.items():
-        items = professional_sections.get(key) or []
-        if items:
-            structured_lines.append(f"\n{label}:\n" + "\n".join(f"- {item}" for item in items))
-    solution = "\n".join(structured_lines).strip()
+    # Keep permanent knowledge compact and retrieval-focused. Evidence and search
+    # narrative remain available in the source conversation but are not duplicated
+    # into every durable record.
+    solution = compact_learning_sections(solution, professional_sections)
+
+    model_identifiers = extract_learning_model_identifiers(
+        safe_question, safe_answer, safe_context, data.get("product"),
+        " ".join(data.get("model_identifiers") or [])
+        if isinstance(data.get("model_identifiers"), list) else data.get("model_identifiers"),
+    )
+    product_value = str(data.get("product") or "").strip()
+    if not product_value and model_identifiers:
+        product_value = " / ".join(model_identifiers[:4])
+    if model_identifiers:
+        identifier_keywords = ", ".join(model_identifiers)
+        keywords = ", ".join(filter(None, [identifier_keywords, keywords]))
 
     vehicle = resolve_learning_vehicle(
         data.get("vehicle"), question=safe_question, answer=safe_answer,
-        issue=issue, keywords=keywords, product=data.get("product") or safe_context,
+        issue=issue, keywords=keywords, product=product_value or safe_context,
         selected_assistant=selected_assistant,
     )
 
@@ -18373,7 +18462,7 @@ RECENT CONTEXT:
         "make": str(data.get("make") or "").strip(),
         "model": str(data.get("model") or "").strip(),
         "issue": issue,
-        "product": str(data.get("product") or "").strip()[:180],
+        "product": product_value[:180],
         "solution": solution,
         "keywords": keywords,
         "question": str(question or ""), "answer": str(answer or ""),
@@ -18393,6 +18482,7 @@ RECENT CONTEXT:
         "reason": str(data.get("reason") or "").strip(),
         "staff_confirmed": bool(staff_confirmed),
         "staff_teaching": bool(staff_teaching),
+        "model_identifiers": model_identifiers,
         "analytics_payload": analytics_payload,
     }
 
@@ -18438,10 +18528,11 @@ Source Answer:
 {safe_record.get("source_answer", "")}
 
 Retrieval Instruction:
-Prefer this approved record when its exact product/SKU, vehicle/year, market,
-channel, policy date, symptom, or record type matches the user's request. Verify
-all Needs Confirmation items before treating them as facts. Prefer newer approved
-versions over older or conflicting records.
+Prefer this approved record when its exact model number, product/SKU, vehicle/year,
+factory system, market, channel, policy date, symptom, or record type matches the
+user's request. Staff-approved facts override older AI drafts and ambiguous product
+library candidates. Verify all Needs Confirmation items before treating them as
+facts. Prefer newer approved versions over older or conflicting records.
 """
 
 
@@ -18561,8 +18652,10 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
     candidate_text = " ".join([
         str(candidate.get("vehicle") or ""),
         str(candidate.get("issue") or ""),
+        str((candidate.get("analytics_payload") or {}).get("product") or ""),
+        " ".join(candidate.get("model_identifiers") or []),
         str(candidate.get("keywords") or ""),
-        str(candidate.get("solution") or "")[:600],
+        str(candidate.get("solution") or "")[:900],
     ])
 
     for row in rows:
@@ -18646,6 +18739,8 @@ You are AutoTecPro's internal knowledge base editor.
 Merge the existing knowledge and the new case into one compact, accurate, reusable solution.
 Remove duplicate sentences and repeated sections. Keep only verified facts and genuinely unresolved items.
 Never include a customer email, Customer Reply Draft, Evidence narrative, Search Keywords section, or internal analysis in the solution.
+Preserve all exact model numbers, SKUs, product codes, part numbers, year ranges, and restrictions.
+Merge only genuinely related knowledge; do not blend different vehicle generations or product families.
 
 Return ONLY valid JSON:
 {{
@@ -19096,6 +19191,11 @@ def auto_learn_from_latest_answer(
             "analytics_payload": candidate.get("analytics_payload"),
         }
 
+    original_inquiry = learning_context_original_inquiry(conversation_context)
+    authoritative_staff_answer = safe_question if (
+        staff_confirmed or staff_teaching or explicit_learning
+    ) else safe_answer
+
     new_record = {
         "username": st.session_state.get("username"),
         "record_type": candidate.get("record_type") or "general_knowledge",
@@ -19104,10 +19204,10 @@ def auto_learn_from_latest_answer(
         "issue": candidate["issue"],
         "solution": candidate["solution"],
         "approved_answer": candidate["solution"],
-        "question": safe_question,
+        "question": original_inquiry or safe_question,
         "keywords": candidate["keywords"],
-        "source_question": safe_question,
-        "source_answer": safe_answer,
+        "source_question": original_inquiry or safe_question,
+        "source_answer": authoritative_staff_answer,
         "source_conversation_id": st.session_state.get("conversation_id"),
         "confidence_score": candidate["confidence_score"],
         "times_seen": 1,
