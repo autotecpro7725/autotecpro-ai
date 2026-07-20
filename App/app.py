@@ -15689,14 +15689,59 @@ For every Technical Support response:
 - Focus only on compatibility, installation, configuration, troubleshooting,
   product identification, warranty procedure, and technical next steps.
 
-Answer in this order when useful:
-1. Vehicle Identification
-2. Summary
-3. Likely Cause
-4. Troubleshooting
-5. Information to Request
-6. Customer Reply Draft
-7. Escalation
+TECHNICAL ORDER ENRICHMENT WORKFLOW:
+When the application has already displayed a WooCommerce order, preserve that
+entire displayed order exactly as-is. Do not omit, shorten, duplicate, replace,
+or rewrite its order status, dates, billing information, shipping information,
+purchased items, selected options, shipping method, or other currently visible
+order details. After the displayed order, append the verified technical
+enrichment sections below in this exact order when information is available:
+
+1. ## AutoTecPro / KVN Part Number Match
+   - Use one compact Markdown table.
+   - Include AutoTecPro product/model, AutoTecPro part number or SKU, KVN series,
+     KVN part number, screen size, vehicle/year range, climate version, drive
+     side, Android version, RAM/storage, camera option, harness/CANBUS version,
+     and match confidence when supported by the live order or knowledge base.
+   - Clearly label values as Confirmed, Likely, or Requires Verification.
+   - Never present an inferred KVN suffix or warehouse SKU as confirmed.
+2. ## Compatibility Status
+   - State Compatible, Conditionally Compatible, or Not Confirmed and explain the
+     reason briefly.
+3. ## Technical Notes
+   - Put every note on its own line. Preserve warnings and known limitations.
+4. ## Information to Request
+   - Use a numbered checklist only when more customer information is required.
+5. ## Installation Summary
+   - Use a compact table covering vehicle, product, part number, climate type,
+     screen size, installation type, harness/CANBUS, camera configuration, and
+     whether wire cutting or modification is required.
+6. ## Required Tools
+   - Put one verified tool per checklist line.
+7. ## Before Installation
+   - Use a numbered checklist. Include vehicle/configuration verification,
+     battery disconnection, wiring photos, and part/harness verification when
+     supported by the retrieved installation documentation.
+8. ## Installation Steps
+   - Provide the complete numbered procedure from verified Technical knowledge.
+   - Keep one action per numbered line and preserve all safety warnings.
+9. ## Final Testing Checklist
+   - Put one function per checklist line, including climate, steering-wheel
+     controls, audio, Bluetooth, CarPlay, Android Auto, GPS, cameras, USB, and
+     other configuration-specific functions when applicable.
+10. ## Important Technical Notes
+    - Include only verified configuration notes, CANBUS settings, amplifier/audio
+      notes, camera notes, known limitations, and common installation mistakes.
+11. ## Installation Resources
+    - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
+      reference, firmware link, or technical bulletin returned by file_search.
+    - Keep full URLs visible and clickable. Do not replace URLs with buttons.
+    - Never invent a link. If no exact verified resource is found, say so.
+12. ## Customer Reply Draft
+    - Always place this last and format it as Markdown blockquote paragraphs.
+
+For ordinary non-order Technical Support questions, use the most relevant
+sections from the workflow above without forcing unrelated order sections.
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
@@ -15761,16 +15806,19 @@ below, in this exact order when information is available:
    - Put every note on its own line; never compress several bullets together.
 6. ## Staff Note
    - Use a short internal note/callout and clearly separate it from customer text.
-7. ## Installation Resources
-   - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
-     note, or firmware link returned by file_search.
+7. ## Brief Installation Details
+   - Keep this concise and customer/sales focused.
+   - Use a compact table or short checklist covering installation type, estimated
+     difficulty/time only when verified, climate version, camera compatibility,
+     required harness/CANBUS, whether modification or wire cutting is required,
+     and one short preparation note.
+   - Do not include detailed numbered installation steps, a full final-testing
+     checklist, long CANBUS procedures, or installer-only troubleshooting.
+8. ## Installation Resources
+   - Show every verified installation video, manual, PDF, or relevant installation
+     link returned by file_search.
    - Keep full URLs visible and clickable. Do not replace URLs with buttons.
    - Do not invent a link. If no exact verified resource is found, say so.
-8. ## Installation Instructions
-   - Organize as: Installation Summary table, Required Tools checklist, Before
-     Installation checklist, numbered Installation Steps, Final Testing
-     checklist, and Important Notes.
-   - Keep one action per line and preserve warnings.
 9. ## Customer Reply Draft
    - Always place this last and format it as Markdown blockquote paragraphs.
 
@@ -16651,7 +16699,10 @@ def build_user_input(
                 "replace, or rewrite that order section. In the Sales workspace, "
                 "append the organized enrichment sections required by the Sales "
                 "order workflow after the displayed order details. In Technical "
-                "Support, begin with the requested technical analysis or reply."
+                "Support, preserve the displayed order and append the complete "
+                "AutoTecPro/KVN match, compatibility, detailed installation, "
+                "verified resources, and customer-reply workflow required by the "
+                "Technical order instructions."
             )
         content.append({
             "type": "input_text",
@@ -16787,11 +16838,18 @@ def _build_ai_request(
 
     if use_file_search:
         if assistant == "🔧 Technical Support":
+            # Technical order workflows need Sales knowledge for exact product
+            # identity/AutoTecPro model matching and Technical knowledge for KVN
+            # numbers, installation procedures, manuals, videos, wiring, CANBUS,
+            # and troubleshooting resources.
             tools.insert(
                 0,
                 {
                     "type": "file_search",
-                    "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
+                    "vector_store_ids": [
+                        SALES_VECTOR_STORE_ID,
+                        TECHNICAL_VECTOR_STORE_ID,
+                    ],
                 },
             )
         elif is_sales_workspace(assistant):
