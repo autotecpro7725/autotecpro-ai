@@ -17730,6 +17730,81 @@ def detect_staff_confirmed_solution(message_text):
     )
 
 
+STAFF_TEACHING_SIGNAL_PATTERNS = (
+    r"\blearn this\b",
+    r"\bremember this\b",
+    r"\bsave this (?:answer|reply|solution|information|knowledge)\b",
+    r"\bthe correct (?:answer|reply|solution|information) is\b",
+    r"\bcorrect answer\s*:",
+    r"\bapproved answer\s*:",
+    r"\bfinal answer\s*:",
+    r"\buse this (?:answer|reply|solution)\b",
+    r"\banswer the customer (?:like|with|using) this\b",
+    r"\bthis is how we should (?:answer|reply|respond)\b",
+    r"\binstead,? (?:say|reply|answer|use)\b",
+    r"\bdo not say\b.+\b(?:say|use|answer)\b",
+    r"\bcorrection\s*:",
+    r"\bupdated (?:answer|reply|solution)\s*:",
+    r"\bstaff note\s*:",
+    r"\binternal knowledge\s*:",
+)
+
+
+def detect_staff_teaching_content(message_text):
+    """Detect staff-authored corrections, approved replies, and reusable Q&A."""
+    raw = str(message_text or "").strip()
+    normalized = re.sub(r"\s+", " ", raw.lower()).strip()
+    if not normalized:
+        return False
+
+    if any(re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
+           for pattern in STAFF_TEACHING_SIGNAL_PATTERNS):
+        return True
+
+    # A pasted support/sales/marketing answer often contains several question and
+    # answer pairs without an explicit command. Require substantial content so a
+    # normal customer question is never mistaken for staff-approved knowledge.
+    question_marks = raw.count("?")
+    answer_markers = len(re.findall(
+        r"(?im)^\s*(?:answer|response|solution|reply)\s*[:\-]",
+        raw,
+    ))
+    qa_headings = len(re.findall(
+        r"(?im)^\s*(?:q(?:uestion)?\s*\d*|a(?:nswer)?\s*\d*)\s*[:\-]",
+        raw,
+    ))
+    return bool(
+        len(raw) >= 220
+        and question_marks >= 2
+        and (answer_markers >= 1 or qa_headings >= 2)
+    )
+
+
+def _learning_context_messages(max_messages=10):
+    """Return recent redacted messages with role labels for correction learning."""
+    messages = list(st.session_state.get("messages") or [])
+    lines = []
+    for message in messages[-max(1, int(max_messages or 10)):]:
+        role = str(message.get("role") or "").strip().upper()
+        content, _ = extract_images_from_message_content(message.get("content", ""))
+        content = redact_learning_private_data(clean_visible_chat_text(content))
+        if content:
+            lines.append(f"{role}: {content}")
+    return "\n\n".join(lines)
+
+
+def _learning_source_strength(*, explicit_learning=False, staff_confirmed=False,
+                              staff_teaching=False):
+    """Return a deterministic trust tier for learned-knowledge governance."""
+    if explicit_learning:
+        return "explicit_staff_instruction", 98
+    if staff_confirmed:
+        return "staff_confirmed_solution", 95
+    if staff_teaching:
+        return "staff_authored_correction", 92
+    return "ai_generated_draft", 65
+
+
 EXPLICIT_LEARNING_COMMAND_PATTERNS = (
     # Direct teaching commands.
     r"\blearn (?:and )?(?:save )?(?:this|it)\b",
@@ -17940,6 +18015,7 @@ def extract_learning_candidate(
     selected_assistant,
     *,
     staff_confirmed=False,
+    staff_teaching=False,
     conversation_context="",
     explicit_requested=False,
 ):
@@ -17990,11 +18066,22 @@ Department: {profile['department']}
 Supported types: {profile['record_types']}
 Preferred fields: {profile['required_fields']}
 Staff confirmed: {str(bool(staff_confirmed)).lower()}
+Staff-authored teaching/correction: {str(bool(staff_teaching)).lower()}
 Explicit learning request: {str(bool(explicit_requested)).lower()}
 
 Rules:
-- Use the AI response and recent context as source material for explicit learning.
-- Use the staff message as primary truth for a confirmed fix.
+- The CURRENT STAFF MESSAGE is the highest-priority source whenever it contains an
+  approved answer, correction, final reply, confirmed fix, policy, specification,
+  campaign rule, or reusable Q&A.
+- Use RECENT CONTEXT to identify the original customer question and the earlier AI
+  draft that the staff member is correcting. Learn the staff correction, not the
+  earlier draft.
+- The AI RESPONSE may help organize or summarize the staff-provided information, but
+  it must never override a conflicting staff statement.
+- For explicit learning, extract every concrete reusable fact supported by the staff
+  message, attachments, and recent context.
+- Preserve separate answers when the staff message contains multiple customer
+  questions; do not collapse them into a vague summary.
 - Never turn a guess, draft, unanswered question, temporary live data, or private data
   into approved knowledge.
 - Preserve exact model numbers, year ranges, quantities, markets, dates and restrictions.
@@ -18087,11 +18174,18 @@ RECENT CONTEXT:
         completeness_score = 70
     contradiction = bool(data.get("contradiction_detected", False))
 
-    minimum_solution_length = 50 if explicit_requested else (30 if staff_confirmed else 80)
+    minimum_solution_length = 50 if explicit_requested else (
+        30 if (staff_confirmed or staff_teaching) else 100
+    )
     if len(solution) < minimum_solution_length or len(safe_question) < 5:
         should_learn = False
-    # Material contradictions must not be silently learned as truth.
-    if contradiction and not staff_confirmed:
+    # Ordinary AI-generated drafts are not authoritative enough for permanent
+    # learning. Auto Learn is intentionally staff-driven, like a durable company
+    # memory: it learns approved corrections, explicit teaching, and confirmed fixes.
+    if not (explicit_requested or staff_confirmed or staff_teaching):
+        should_learn = False
+    # Material contradictions require an explicit or confirmed staff source.
+    if contradiction and not (explicit_requested or staff_confirmed):
         should_learn = False
 
     if record_type and record_type not in keywords.lower():
@@ -18126,6 +18220,7 @@ RECENT CONTEXT:
         "contradiction_detected": contradiction,
         "reason": str(data.get("reason") or "").strip(),
         "staff_confirmed": bool(staff_confirmed),
+        "staff_teaching": bool(staff_teaching),
         "analytics_payload": analytics_payload,
     }
 
@@ -18523,8 +18618,10 @@ def process_pending_ai_postprocess():
                     message = f"Knowledge saved permanently ({mode})."
                 elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
+                elif learning_result.get("staff_teaching"):
+                    message = f"Staff correction learned ({mode})."
                 else:
-                    message = f"AI learned from this case ({mode})."
+                    message = f"Knowledge learned from this case ({mode})."
                 st.toast(message, icon="🧠")
         except Exception as error:
             learning_result = None
@@ -18611,16 +18708,22 @@ def auto_learn_from_latest_answer(
     safe_question = redact_learning_private_data(question)
     safe_answer = redact_learning_private_data(answer)
     explicit_learning = bool(explicit_learning)
+    staff_teaching = detect_staff_teaching_content(safe_question)
     staff_confirmed = (
         detect_staff_confirmed_solution(safe_question)
         or explicit_learning
     )
+    source_type, source_confidence_floor = _learning_source_strength(
+        explicit_learning=explicit_learning,
+        staff_confirmed=staff_confirmed,
+        staff_teaching=staff_teaching,
+    )
     conversation_context = (
         str(learning_context or "").strip()
-        if explicit_learning
+        if explicit_learning and str(learning_context or "").strip()
         else (
-            recent_learning_conversation_context(max_messages=6)
-            if staff_confirmed
+            _learning_context_messages(max_messages=10)
+            if (staff_confirmed or staff_teaching or explicit_learning)
             else ""
         )
     )
@@ -18630,14 +18733,21 @@ def auto_learn_from_latest_answer(
         safe_answer,
         selected_assistant,
         staff_confirmed=staff_confirmed,
+        staff_teaching=staff_teaching,
         conversation_context=conversation_context,
         explicit_requested=explicit_learning,
     )
+    if candidate.get("should_learn"):
+        candidate["confidence_score"] = max(
+            int(candidate.get("confidence_score") or 0),
+            source_confidence_floor,
+        )
 
     if not candidate.get("should_learn"):
         return {
             "learned": False,
             "staff_confirmed": staff_confirmed,
+            "staff_teaching": staff_teaching,
             "explicit_learning": explicit_learning,
             "reason": (
                 candidate.get("reason")
@@ -18650,16 +18760,6 @@ def auto_learn_from_latest_answer(
     duplicate_row, duplicate_score = find_duplicate_learned_knowledge(
         candidate,
         selected_assistant,
-    )
-
-    source_type = (
-        "explicit_chat_learning"
-        if explicit_learning
-        else (
-            "staff_confirmed_solution"
-            if staff_confirmed
-            else "ai_answer_learning"
-        )
     )
 
     if duplicate_row:
@@ -18725,6 +18825,7 @@ def auto_learn_from_latest_answer(
             "learned": True,
             "mode": "updated",
             "staff_confirmed": staff_confirmed,
+            "staff_teaching": staff_teaching,
             "explicit_learning": explicit_learning,
             "duplicate_score": round(duplicate_score, 3),
             "record_id": duplicate_row["id"],
@@ -18775,6 +18876,7 @@ def auto_learn_from_latest_answer(
         "learned": True,
         "mode": "created",
         "staff_confirmed": staff_confirmed,
+        "staff_teaching": staff_teaching,
         "explicit_learning": explicit_learning,
         "record_id": result.data[0]["id"],
         "file_id": openai_file_id,
