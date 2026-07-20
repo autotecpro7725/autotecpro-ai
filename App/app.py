@@ -4505,16 +4505,9 @@ def inject_base_css():
         .chat-bubble h1,
         .chat-bubble h2,
         .chat-bubble h3 {
-            margin-top: 18px;
-            margin-bottom: 10px;
+            margin-block: 18px;
             color: #ffffff;
             line-height: 1.25;
-        }
-
-        .chat-bubble h1:first-child,
-        .chat-bubble h2:first-child,
-        .chat-bubble h3:first-child {
-            margin-top: 2px;
         }
 
         .chat-bubble ul {
@@ -4578,6 +4571,54 @@ def inject_base_css():
         .assistant-bubble .atp-customer-reply-line:last-child {
             padding-bottom: 12px;
             border-bottom-right-radius: 10px;
+        }
+
+        .assistant-bubble .atp-section-list-item {
+            margin: 0 0 10px 0;
+            padding: 9px 12px 9px 38px;
+            text-indent: -22px;
+            line-height: 1.58;
+            border-radius: 9px;
+            background: rgba(148, 163, 184, 0.07);
+            border: 1px solid rgba(148, 163, 184, 0.10);
+        }
+
+        .assistant-bubble .atp-required-item::first-letter,
+        .assistant-bubble .atp-retained-item::first-letter,
+        .assistant-bubble .atp-warning-item::first-letter,
+        .assistant-bubble .atp-info-item::first-letter {
+            font-weight: 800;
+        }
+
+        .assistant-bubble .atp-warning-item {
+            background: rgba(245, 158, 11, 0.08);
+            border-color: rgba(245, 158, 11, 0.18);
+        }
+
+        .assistant-bubble .atp-info-item {
+            background: rgba(59, 130, 246, 0.07);
+            border-color: rgba(59, 130, 246, 0.16);
+        }
+
+        .assistant-bubble .atp-customer-reply-box {
+            margin: 0 0 14px 0;
+            padding: 14px 16px;
+            border-left: 4px solid rgba(245, 158, 11, 0.82);
+            border-radius: 0 12px 12px 0;
+            background: rgba(245, 158, 11, 0.07);
+            box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.10);
+        }
+
+        .assistant-bubble .atp-customer-reply-box .atp-customer-reply-line {
+            margin: 0 0 10px 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+        }
+
+        .assistant-bubble .atp-customer-reply-box .atp-customer-reply-line:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
 
         .chat-bubble table {
@@ -9086,9 +9127,10 @@ def table_to_html(table_lines):
 def normalize_assistant_markdown(text):
     """Repair common AI Markdown layout issues without changing response facts.
 
-    This display-only normalizer separates inline bullets/steps and converts
-    compact label-value groups into Markdown tables in sections where a table is
-    easier to scan. It never invents, removes, or changes factual content.
+    The normalizer is display-only. It separates compressed bullets and numbered
+    steps, creates scan-friendly tables in structured sections, and converts the
+    information-required section into a numbered checklist. No factual wording is
+    invented, removed, or rewritten.
     """
     value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
     normalized_lines = []
@@ -9097,50 +9139,43 @@ def normalize_assistant_markdown(text):
         line = raw_line.rstrip()
         stripped = line.strip()
 
-        # Preserve existing structural Markdown exactly.
         if not stripped or stripped.startswith(("#", "```", "> ", "|")):
             normalized_lines.append(line)
             continue
 
-        # Repair inline bullet walls, including model output that omits the
-        # normal space after a bullet: "•Vehicle... •Climate...".
-        bullet_count = stripped.count("•")
-        if bullet_count >= 2:
-            prefix, *parts = re.split(r"\s*•\s*", stripped)
-            if not prefix.strip():
-                normalized_lines.extend(
-                    f"• {part.strip()}" for part in parts if part.strip()
-                )
-                continue
-            # Keep genuine introductory text, then render each following item.
-            normalized_lines.append(prefix.strip())
-            normalized_lines.extend(
-                f"• {part.strip()}" for part in parts if part.strip()
-            )
+        # Split every inline bullet wall, including bullets with missing spaces,
+        # bold text, or punctuation immediately before the next bullet.
+        bullet_matches = list(re.finditer(r"(?:[•●▪◦]|(?<!\S)-(?!-)(?=\s+\S))", stripped))
+        if len(bullet_matches) >= 2:
+            prefix = stripped[:bullet_matches[0].start()].strip()
+            if prefix:
+                normalized_lines.append(prefix)
+            for idx, marker in enumerate(bullet_matches):
+                item_start = marker.end()
+                item_end = bullet_matches[idx + 1].start() if idx + 1 < len(bullet_matches) else len(stripped)
+                item = stripped[item_start:item_end].strip(" \t-;•●▪◦")
+                if item:
+                    normalized_lines.append(f"• {item}")
             continue
 
-        # Repair inline numbered walls such as
-        # "1. Year 2. Model 3. Screen", even when spacing is inconsistent.
+        # Split compressed numbered walls such as 1. Year 2. Model 3. Screen.
         markers = list(re.finditer(r"(?<!\d)(\d{1,2})[.)]\s*", stripped))
         if len(markers) >= 2:
             numbers = [int(match.group(1)) for match in markers]
-            sequential = all(b == a + 1 for a, b in zip(numbers, numbers[1:]))
-            if sequential:
+            if all(b == a + 1 for a, b in zip(numbers, numbers[1:])):
                 prefix = stripped[:markers[0].start()].strip()
                 if prefix:
                     normalized_lines.append(prefix)
-                for index, marker in enumerate(markers):
+                for idx, marker in enumerate(markers):
                     item_start = marker.end()
-                    item_end = markers[index + 1].start() if index + 1 < len(markers) else len(stripped)
-                    item_text = stripped[item_start:item_end].strip(" -;•")
-                    if item_text:
-                        normalized_lines.append(f"{marker.group(1)}. {item_text}")
+                    item_end = markers[idx + 1].start() if idx + 1 < len(markers) else len(stripped)
+                    item = stripped[item_start:item_end].strip(" -;•")
+                    if item:
+                        normalized_lines.append(f"{marker.group(1)}. {item}")
                 continue
 
         normalized_lines.append(line)
 
-    # Convert compact label/value bullets into real tables only in sections
-    # where the labels represent a configuration, comparison, or specification.
     table_sections = {
         "vehicle configuration",
         "vehicle identification",
@@ -9149,38 +9184,76 @@ def normalize_assistant_markdown(text):
         "compatibility",
         "compatibility result",
         "product comparison",
+        "product comparisons",
+        "comparison",
+        "comparisons",
+        "specification",
         "specifications",
+        "vehicle details",
+        "vehicle information",
         "product options",
+        "configuration options",
         "options",
     }
-    output = []
-    i = 0
-    active_heading = ""
+    product_sections = {
+        "recommended autotecpro product",
+        "recommended product",
+        "product comparison",
+    }
+    numbered_sections = {
+        "information still required",
+        "information required",
+        "details still required",
+        "confirmation required",
+    }
 
     def heading_name(line):
         match = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
-        return match.group(1).strip().rstrip(":").casefold() if match else ""
+        if match:
+            return match.group(1).strip().rstrip(":").casefold()
+        bold = re.fullmatch(r"\*\*(.{1,100}?)\*\*:?", line.strip())
+        return bold.group(1).strip().rstrip(":").casefold() if bold else ""
 
     def label_value(line):
         clean = re.sub(r"^[•*-]\s*", "", line.strip())
         clean = re.sub(r"^\*\*(.+?)\*\*\s*:\s*", r"\1: ", clean)
-        match = re.match(r"^([^:|]{2,55}):\s*(.+)$", clean)
+        match = re.match(r"^([^:|]{2,70}):\s*(.+)$", clean)
         if not match:
             return None
         label = match.group(1).strip().strip("*")
         val = match.group(2).strip()
-        if not label or not val:
-            return None
-        return label, val
+        return (label, val) if label and val else None
+
+    output = []
+    i = 0
+    active_heading = ""
+    info_counter = 0
 
     while i < len(normalized_lines):
         line = normalized_lines[i]
-        new_heading = heading_name(line)
-        if new_heading:
-            active_heading = new_heading
+        heading = heading_name(line)
+        if heading:
+            active_heading = heading
+            info_counter = 0
             output.append(line)
             i += 1
             continue
+
+        # Number all checklist items in Information Still Required.
+        if active_heading in numbered_sections:
+            stripped = line.strip()
+            if re.match(r"^[•*-]\s+", stripped):
+                info_counter += 1
+                item = re.sub(r"^[•*-]\s+", "", stripped).strip()
+                output.append(f"{info_counter}. {item}")
+                i += 1
+                continue
+            existing = re.match(r"^(\d+)[.)]\s+(.+)$", stripped)
+            if existing:
+                info_counter += 1
+                output.append(f"{info_counter}. {existing.group(2).strip()}")
+                i += 1
+                continue
 
         if active_heading in table_sections:
             group = []
@@ -9194,21 +9267,20 @@ def normalize_assistant_markdown(text):
                     break
                 group.append(parsed)
                 j += 1
-            if len(group) >= 3:
-                output.extend([
-                    "",
-                    "| Item | Details |",
-                    "|---|---|",
-                    *[f"| {label} | {val} |" for label, val in group],
-                    "",
-                ])
+            minimum = 2 if active_heading in product_sections else 3
+            if len(group) >= minimum:
+                if active_heading in product_sections:
+                    output.extend(["", "| Option | Model / Details |", "|---|---|"])
+                else:
+                    output.extend(["", "| Item | Finding |", "|---|---|"])
+                output.extend(f"| {label} | {val} |" for label, val in group)
+                output.append("")
                 i = j
                 continue
 
         output.append(line)
         i += 1
 
-    # Collapse only excessive blank lines introduced by malformed model output.
     repaired = "\n".join(output)
     repaired = re.sub(r"\n{4,}", "\n\n\n", repaired)
     return repaired
@@ -9228,6 +9300,8 @@ def html_from_text(text, assistant_mode=False):
     in_ul = False
     in_ol = False
     in_customer_reply = False
+    customer_reply_box_open = False
+    active_section = ""
     i = 0
 
     def close_lists():
@@ -9238,6 +9312,12 @@ def html_from_text(text, assistant_mode=False):
         if in_ol:
             html_lines.append("</ol>")
             in_ol = False
+
+    def close_customer_reply_box():
+        nonlocal customer_reply_box_open
+        if customer_reply_box_open:
+            html_lines.append("</blockquote>")
+            customer_reply_box_open = False
 
     while i < len(lines):
         line = lines[i].rstrip()
@@ -9266,7 +9346,22 @@ def html_from_text(text, assistant_mode=False):
 
         if not stripped:
             close_lists()
-            html_lines.append("<br>")
+            next_nonempty = ""
+            lookahead = i + 1
+            while lookahead < len(lines):
+                next_nonempty = lines[lookahead].strip()
+                if next_nonempty:
+                    break
+                lookahead += 1
+            previous_is_heading = bool(
+                html_lines and re.match(r"^<h[1-3]>", html_lines[-1])
+            )
+            next_is_heading = bool(
+                next_nonempty.startswith(("# ", "## ", "### "))
+                or re.fullmatch(r"\*\*(.{1,80}?)\*\*: ?", next_nonempty)
+            )
+            if not previous_is_heading and not next_is_heading:
+                html_lines.append("<br>")
             i += 1
             continue
 
@@ -9280,6 +9375,7 @@ def html_from_text(text, assistant_mode=False):
             and is_markdown_table_separator(lines[i + 1])
         ):
             close_lists()
+            close_customer_reply_box()
             table_lines = [line, lines[i + 1]]
             i += 2
             while i < len(lines) and "|" in lines[i].strip() and lines[i].strip():
@@ -9293,55 +9389,84 @@ def html_from_text(text, assistant_mode=False):
 
         if stripped.startswith("### "):
             close_lists()
+            close_customer_reply_box()
             heading_text = stripped[4:].strip()
-            in_customer_reply = heading_text.casefold() in {
+            active_section = heading_text.rstrip(":").casefold()
+            in_customer_reply = active_section in {
                 "customer reply", "customer reply draft", "reply to customer"
             }
             html_lines.append(f"<h3>{inline_format(heading_text)}</h3>")
         elif stripped.startswith("## "):
             close_lists()
+            close_customer_reply_box()
             heading_text = stripped[3:].strip()
-            in_customer_reply = heading_text.casefold() in {
+            active_section = heading_text.rstrip(":").casefold()
+            in_customer_reply = active_section in {
                 "customer reply", "customer reply draft", "reply to customer"
             }
             html_lines.append(f"<h2>{inline_format(heading_text)}</h2>")
         elif stripped.startswith("# "):
             close_lists()
+            close_customer_reply_box()
             heading_text = stripped[2:].strip()
-            in_customer_reply = heading_text.casefold() in {
+            active_section = heading_text.rstrip(":").casefold()
+            in_customer_reply = active_section in {
                 "customer reply", "customer reply draft", "reply to customer"
             }
             html_lines.append(f"<h1>{inline_format(heading_text)}</h1>")
         elif assistant_mode and bold_heading:
             close_lists()
+            close_customer_reply_box()
             heading_text = bold_heading.group(1).rstrip(":").strip()
+            active_section = heading_text.casefold()
+            in_customer_reply = active_section in {
+                "customer reply", "customer reply draft", "reply to customer"
+            }
             html_lines.append(f"<h3>{inline_format(heading_text)}</h3>")
         elif stripped.startswith("- ") or stripped.startswith("• "):
-            # Use a literal, selectable bullet character instead of a browser-
-            # generated <ul> marker. This preserves the bullet when users copy
-            # an AI response and paste it into the plain-text message composer.
             close_lists()
+            item_text = stripped[2:].strip()
+            section_class = ""
+            marker = "•"
+            if active_section == "required parts":
+                section_class = " atp-section-list-item atp-required-item"
+                marker = "✓"
+            elif active_section == "retained features":
+                section_class = " atp-section-list-item atp-retained-item"
+                marker = "✓"
+            elif active_section == "known limitations":
+                section_class = " atp-section-list-item atp-warning-item"
+                marker = "!"
             html_lines.append(
-                '<div class="atp-copy-list-item atp-copy-bullet">'
-                f'• {inline_format(stripped[2:])}'
+                f'<div class="atp-copy-list-item atp-copy-bullet{section_class}">'
+                f'{marker} {inline_format(item_text)}'
                 '</div>'
             )
         elif assistant_mode and numbered_item:
-            # Keep the list number as real text. Native <ol> markers are visual
-            # browser decorations and can disappear when copied into a textarea.
             close_lists()
             list_number = html.escape(numbered_item.group(1))
+            section_class = ""
+            if active_section in {
+                "information still required", "information required",
+                "details still required", "confirmation required"
+            }:
+                section_class = " atp-section-list-item atp-info-item"
             html_lines.append(
-                '<div class="atp-copy-list-item atp-copy-numbered">'
+                f'<div class="atp-copy-list-item atp-copy-numbered{section_class}">'
                 f'{list_number}. {inline_format(numbered_item.group(2))}'
                 '</div>'
             )
         else:
             close_lists()
             if assistant_mode and in_customer_reply:
-                html_lines.append(
-                    f'<div class="atp-customer-reply-line">{inline_format(stripped)}</div>'
-                )
+                if not customer_reply_box_open:
+                    html_lines.append('<blockquote class="atp-customer-reply-box">')
+                    customer_reply_box_open = True
+                reply_text = re.sub(r"^>\s?", "", stripped).strip()
+                if reply_text:
+                    html_lines.append(
+                        f'<div class="atp-customer-reply-line">{inline_format(reply_text)}</div>'
+                    )
             elif assistant_mode:
                 html_lines.append(
                     f'<p class="atp-chat-paragraph">{inline_format(stripped)}</p>'
@@ -9352,6 +9477,7 @@ def html_from_text(text, assistant_mode=False):
         i += 1
 
     close_lists()
+    close_customer_reply_box()
     rendered = "\n".join(html_lines)
 
     # Final safety sweep after rendering.
@@ -15433,8 +15559,9 @@ RESPONSE PRESENTATION RULES:
 - Keep tables compact. Use clear column labels and do not create a table for a
   single simple fact or when a short list is easier to read.
 - Put customer-facing drafts under a separate ## Customer Reply Draft heading.
-  Format the draft as clean paragraphs with blank lines, ready to copy and send.
-  Do not place bullets, analysis notes, or internal instructions inside the draft.
+  Prefix each draft paragraph with > so it is valid Markdown blockquote content,
+  ready to copy and send. Do not place bullets, analysis notes, or internal
+  instructions inside the draft.
 - For Vehicle Configuration, Vehicle Identification, Recommended Product,
   Compatibility, Specifications, and product comparisons, prefer a compact
   Markdown table whenever three or more label-and-value facts are present.
