@@ -16619,7 +16619,13 @@ def build_response_mode_instruction(response_mode):
         return common + (
             "- Produce a polished, ready-to-send reply with an appropriate greeting, "
             "clear explanation, next steps, and a natural professional closing.\n"
-            "- Expand the staff's short notes; do not merely repeat them."
+            "- Expand the staff's short notes; do not merely repeat them.\n"
+            "- Use CURRENT-CASE STAFF-CONFIRMED KNOWLEDGE immediately when supplied. "
+            "Do not repeat an earlier Product Confirmation Needed response and do "
+            "not ask for facts that staff already confirmed.\n"
+            "- When a confirmed product family contains both a standard and Pro "
+            "version, state the confirmed family confidently and ask only which "
+            "version the customer prefers when that choice is still unresolved."
         )
     if mode == "technical_expert":
         return common + (
@@ -16712,6 +16718,72 @@ def _assistant_stream_html(visible_text):
         '</div>'
     )
 
+
+
+def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
+    """
+    Return approved staff-confirmed knowledge learned in the current conversation.
+
+    This direct Supabase context closes the short indexing window between saving a
+    learned record and OpenAI file_search making the new vector file searchable.
+    It is intentionally limited to the active conversation and a few newest rows.
+    """
+    conversation_id = str(st.session_state.get("conversation_id") or "").strip()
+    if not conversation_id:
+        return ""
+
+    clean_assistant = clean_assistant_label(selected_assistant).strip()
+    try:
+        query = (
+            supabase.table("learned_knowledge")
+            .select(
+                "id,assistant,record_type,vehicle,issue,solution,approved_answer,"
+                "keywords,staff_confirmed,source_type,confidence_score,updated_at"
+            )
+            .eq("source_conversation_id", conversation_id)
+            .eq("assistant", clean_assistant)
+            .order("updated_at", desc=True)
+            .limit(max(1, min(int(limit or 5), 10)))
+            .execute()
+        )
+        rows = list(query.data or [])
+    except Exception as error:
+        diagnostic_log(
+            "recent_case_learned_context_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return ""
+
+    approved_rows = [
+        row for row in rows
+        if not is_pending_knowledge_row(row)
+        and str(row.get("solution") or row.get("approved_answer") or "").strip()
+    ]
+    if not approved_rows:
+        return ""
+
+    blocks = [
+        "CURRENT-CASE STAFF-CONFIRMED KNOWLEDGE — direct Supabase record:\n",
+        "These records were explicitly taught or confirmed by staff in this same "
+        "conversation. For an exact vehicle/product match, they override ambiguous "
+        "Product Library suggestions, older conflicting drafts, and the temporary "
+        "absence of the new record from file_search indexing. Do not ask staff to "
+        "reconfirm facts already confirmed here. Ask only for genuinely unresolved "
+        "choices, such as standard versus Pro when both remain valid.\n",
+    ]
+    for index, row in enumerate(approved_rows, start=1):
+        solution = str(row.get("solution") or row.get("approved_answer") or "").strip()
+        blocks.append(
+            f"\nRECORD {index}\n"
+            f"Title: {str(row.get('issue') or '').strip()}\n"
+            f"Vehicle/Product: {str(row.get('vehicle') or '').strip()}\n"
+            f"Record type: {str(row.get('record_type') or '').strip()}\n"
+            f"Staff confirmed: {bool(row.get('staff_confirmed'))}\n"
+            f"Confidence: {row.get('confidence_score')}\n"
+            f"Approved knowledge:\n{solution}\n"
+        )
+    return "".join(blocks).strip()
 
 
 def build_user_input(
@@ -16852,6 +16924,13 @@ def build_user_input(
     if memory_text:
         content.append({"type": "input_text", "text": memory_text})
 
+    # A newly taught record can take several seconds to become searchable in the
+    # OpenAI vector store. Supply approved records from this exact case directly
+    # so immediate follow-ups such as "how to reply?" use the correction now.
+    case_learned_context = _recent_case_learned_knowledge_context(assistant)
+    if case_learned_context:
+        content.append({"type": "input_text", "text": case_learned_context})
+
     if prompt_text:
         content.append({"type": "input_text", "text": prompt_text})
 
@@ -16901,7 +16980,10 @@ def _build_ai_request(
           "recent news, recalls, software updates, laws, specifications, or facts "
           "that may have changed. Use file_search for AutoTecPro internal "
           "technical, product, policy, sales, or marketing facts when the "
-          "application enables it. Always name the source of live data. "
+          "application enables it. When CURRENT-CASE STAFF-CONFIRMED KNOWLEDGE "
+          "is supplied, treat it as the highest-priority internal source for the "
+          "exact matched case and do not fall back to an earlier clarification. "
+          "Always name the source of live data. "
           "Never invent an order status, payment status, shipment status, refund "
           "status, tracking event, exchange rate, weather condition, or delivery "
           "estimate. When the user explicitly requests a PDF, manual, guide, "
@@ -18341,6 +18423,32 @@ all Needs Confirmation items before treating them as facts. Prefer newer approve
 versions over older or conflicting records.
 """
 
+
+def wait_for_learned_vector_file_ready(vector_store_id, file_id, timeout_seconds=30):
+    """Wait briefly for OpenAI vector ingestion instead of marking it synced early."""
+    deadline = time.monotonic() + max(1, int(timeout_seconds or 30))
+    last_status = "unknown"
+    while time.monotonic() < deadline:
+        try:
+            vector_file = client.vector_stores.files.retrieve(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            last_status = str(getattr(vector_file, "status", "") or "unknown").lower()
+            if last_status == "completed":
+                return True, last_status
+            if last_status in {"failed", "cancelled"}:
+                return False, last_status
+        except Exception as error:
+            diagnostic_log(
+                "learned_vector_status_check_failed",
+                error_type=type(error).__name__,
+                error=str(error),
+                file_id=file_id,
+            )
+        time.sleep(0.75)
+    return False, last_status
+
 def upload_learned_record_to_vector_store(record, vector_store_id):
     doc_text = make_learned_knowledge_document(record)
     safe_name = normalize_text_for_match(record.get("issue") or "learned_case")[:50].replace(" ", "_") or "learned_case"
@@ -18354,7 +18462,25 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
         with open(tmp_path, "rb") as f:
             openai_file = client.files.create(file=(filename, f), purpose="assistants")
 
-        client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
+        client.vector_stores.files.create(
+            vector_store_id=vector_store_id,
+            file_id=openai_file.id,
+        )
+        ready, ingestion_status = wait_for_learned_vector_file_ready(
+            vector_store_id,
+            openai_file.id,
+        )
+        diagnostic_log(
+            "learned_vector_ingestion_status",
+            file_id=openai_file.id,
+            vector_store_id=vector_store_id,
+            ready=ready,
+            status=ingestion_status,
+        )
+        if ingestion_status in {"failed", "cancelled"}:
+            raise RuntimeError(
+                f"Learned record vector ingestion {ingestion_status}."
+            )
         return openai_file.id
     finally:
         try:
