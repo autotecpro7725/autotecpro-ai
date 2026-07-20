@@ -26373,11 +26373,13 @@ def _product_library_cached_products():
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _product_library_cached_assets(product_code, product_id):
-    """
-    Retrieve assets through fast equality queries.
+    """Return every asset belonging to one product, including legacy rows.
 
-    A bounded compatibility scan runs only when legacy or malformed rows cannot
-    be found by product_code or product_id.
+    Product Library records created at different times may differ in product-code
+    capitalization/punctuation or may contain only product_id. Therefore, exact
+    product_code and product_id query results are always merged. A bounded legacy
+    scan is then used to recover rows whose normalized code or storage-path root
+    matches the selected product. Results are deduplicated and sorted once.
     """
     database = get_supabase_admin_client()
     asset_columns = (
@@ -26388,58 +26390,85 @@ def _product_library_cached_assets(product_code, product_id):
 
     clean_code = str(product_code or "").strip()
     clean_id = str(product_id or "").strip()
+    normalized_code = _product_library_normalize_code(clean_code)
+    collected = []
+    used_legacy_scan = False
 
-    assets = []
+    def add_rows(rows):
+        for row in rows or []:
+            if isinstance(row, dict):
+                collected.append(row)
+
+    # Always run and merge both indexed lookups. Previously the product_id query
+    # was skipped as soon as any exact-code rows existed, which hid newer assets
+    # saved under a differently cased/legacy product_code.
     if clean_code:
-        assets = (
+        add_rows(
             database.table("product_assets")
             .select(asset_columns)
             .eq("product_code", clean_code)
             .order("created_at", desc=False)
-            .limit(200)
+            .limit(500)
             .execute().data
             or []
         )
 
-    if not assets and clean_id:
-        assets = (
+    if clean_id:
+        add_rows(
             database.table("product_assets")
             .select(asset_columns)
             .eq("product_id", clean_id)
             .order("created_at", desc=False)
-            .limit(200)
+            .limit(500)
             .execute().data
             or []
         )
 
-    if assets:
-        return assets, False
-
-    all_assets = (
-        database.table("product_assets")
-        .select(asset_columns)
-        .order("created_at", desc=False)
-        .limit(5000)
-        .execute().data
-        or []
-    )
-
-    normalized_code = _product_library_normalize_code(clean_code)
-
-    def matches(asset):
-        asset_code = _product_library_normalize_code(asset.get("product_code"))
-        asset_product_id = str(asset.get("product_id") or "").strip()
-        storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
-        path_root = _product_library_normalize_code(
-            storage_path.split("/", 1)[0] if storage_path else ""
+    # A normalized scan is still required because Supabase equality matching is
+    # case-sensitive and older rows may have missing/incorrect product_id values.
+    # Keep it bounded to protect performance.
+    if normalized_code:
+        all_assets = (
+            database.table("product_assets")
+            .select(asset_columns)
+            .order("created_at", desc=False)
+            .limit(5000)
+            .execute().data
+            or []
         )
-        return bool(
-            (normalized_code and asset_code == normalized_code)
-            or (clean_id and asset_product_id == clean_id)
-            or (normalized_code and path_root == normalized_code)
-        )
+        used_legacy_scan = True
 
-    return [asset for asset in all_assets if matches(asset)], True
+        for asset in all_assets:
+            asset_code = _product_library_normalize_code(asset.get("product_code"))
+            asset_product_id = str(asset.get("product_id") or "").strip()
+            storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
+            path_root = _product_library_normalize_code(
+                storage_path.split("/", 1)[0] if storage_path else ""
+            )
+            if (
+                (asset_code and asset_code == normalized_code)
+                or (clean_id and asset_product_id == clean_id)
+                or (path_root and path_root == normalized_code)
+            ):
+                collected.append(asset)
+
+    # Prefer the database id. For malformed legacy rows without id, use a stable
+    # composite key so the same image is never rendered twice.
+    deduplicated = {}
+    for asset in collected:
+        asset_id = str(asset.get("id") or "").strip()
+        fallback_key = "|".join([
+            str(asset.get("product_id") or "").strip(),
+            _product_library_normalize_code(asset.get("product_code")),
+            str(asset.get("storage_path") or "").strip(),
+            str(asset.get("original_filename") or "").strip(),
+        ])
+        key = f"id:{asset_id}" if asset_id else f"legacy:{fallback_key}"
+        deduplicated[key] = asset
+
+    assets = list(deduplicated.values())
+    assets.sort(key=lambda row: str(row.get("created_at") or ""))
+    return assets, used_legacy_scan
 
 
 def _product_library_clear_read_caches():
@@ -26609,15 +26638,13 @@ def _product_library_chat_lookup(prompt, max_images=6):
             asset.get("storage_status") or ""
         ).strip().lower()
 
+        failed_statuses = {
+            "failed", "error", "missing", "deleted", "unavailable", "removed"
+        }
         return (
-            (
-                content_type.startswith("image/")
-                or optimized_name.endswith(
-                    (".jpg", ".jpeg", ".png", ".webp")
-                )
-            )
-            and storage_status in {"", "available"}
-        )
+            content_type.startswith("image/")
+            or optimized_name.endswith((".jpg", ".jpeg", ".png", ".webp"))
+        ) and storage_status not in failed_statuses
 
     image_assets = [
         asset for asset in assets
@@ -27716,7 +27743,7 @@ def render_product_library_workspace():
                     ) or "Unnamed product"
                     with st.expander(title):
                         compatibility_value = str(
-                            product.get("compatibility") or ""
+                            product.get("vehicle_compatibility") or ""
                         ).strip()
                         description_value = str(
                             product.get("description") or ""
