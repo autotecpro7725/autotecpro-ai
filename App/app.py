@@ -28718,6 +28718,11 @@ else:
             )
         )
 
+        # Default for learning and graphic-generation branches. The previous
+        # revision assigned this only inside the ordinary AI-response branch,
+        # which caused a NameError after an explicit "learn this" command.
+        conversation_export_requested = False
+
         if explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
