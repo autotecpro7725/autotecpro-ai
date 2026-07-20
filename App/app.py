@@ -2545,14 +2545,13 @@ def detect_weather_location_followup(prompt, prior_messages=None):
 
 def extract_woocommerce_order_numbers(prompt, limit=10):
     """
-    Extract unique staff-facing WooCommerce order numbers from one prompt.
+    Extract multiple WooCommerce order numbers only from an explicit order request.
 
-    Four-digit minimum preserves the existing short internal format, while
-    excluding common vehicle years unless the message clearly consists of a
-    list/order request.
+    Customer emails commonly contain vehicle years, model numbers, prices, screen
+    sizes, and storage capacities. Those numbers must never trigger WooCommerce
+    merely because the active workspace is Technical, Sales, or Marketing.
     """
     value = str(prompt or "")
-    normalized_workspace = _normalized_workspace_name()
     candidates = re.findall(r"(?<!\d)#?(\d{4,12})(?!\d)", value)
 
     unique_numbers = []
@@ -2565,15 +2564,23 @@ def extract_woocommerce_order_numbers(prompt, limit=10):
         if len(unique_numbers) >= max(1, min(int(limit or 10), 10)):
             break
 
+    # This helper is used only for multi-order lookup. A single order continues
+    # through the stricter explicit patterns in detect_live_request().
     if len(unique_numbers) < 2:
-        return unique_numbers
+        return []
 
     lower = value.lower()
-    has_order_context = any(
-        term in lower
-        for term in (
-            "order", "orders", "woocommerce", "check", "show", "lookup",
-            "look up", "find", "compare", "status", "product", "purchased",
+    explicit_order_context = bool(re.search(
+        r"\b(?:woocommerce|orders?|order\s*(?:numbers?|#s?))\b",
+        lower,
+        flags=re.IGNORECASE,
+    ))
+    explicit_lookup_context = bool(
+        explicit_order_context
+        and re.search(
+            r"\b(?:check|show|lookup|look\s+up|find|compare|get|list|status|notes?)\b",
+            lower,
+            flags=re.IGNORECASE,
         )
     )
     looks_like_number_list = bool(
@@ -2585,11 +2592,7 @@ def extract_woocommerce_order_numbers(prompt, limit=10):
         )
     )
 
-    if (
-        normalized_workspace in {"technical support", "sales"}
-        or has_order_context
-        or looks_like_number_list
-    ):
+    if explicit_lookup_context or looks_like_number_list:
         return unique_numbers
 
     return []
@@ -17793,6 +17796,72 @@ def _learning_context_messages(max_messages=10):
     return "\n\n".join(lines)
 
 
+def detect_unlabeled_staff_final_reply(message_text, selected_assistant=None):
+    """
+    Detect a staff-authored final reply even when no ``learn this`` command is used.
+
+    The heuristic intentionally requires recent conversation context: a customer
+    inquiry followed by an AI draft, then a substantial answer-like staff message.
+    This prevents a newly pasted customer email from being mistaken for approved
+    company knowledge while allowing Technical, Sales, and Marketing to learn from
+    the staff member's final corrected reply automatically.
+    """
+    workspace = _normalized_workspace_name(selected_assistant)
+    if workspace not in {"technical support", "sales", "marketing"}:
+        return False
+
+    raw = str(message_text or "").strip()
+    if len(raw) < 140:
+        return False
+
+    # A final reply usually contains several complete statements, Q&A formatting,
+    # customer-facing language, links, or explicit product/policy details.
+    sentence_count = len(re.findall(r"[.!?](?:\s|$)", raw))
+    answer_like_signals = sum(bool(re.search(pattern, raw, re.IGNORECASE | re.MULTILINE)) for pattern in (
+        r"^\s*(?:hi|hello|dear)\b",
+        r"\b(?:yes|no),?\s+(?:the|you|we|it|this)\b",
+        r"\bwe (?:offer|recommend|provide|can|do|will)\b",
+        r"\bthe (?:system|unit|product|installation|customer)\b",
+        r"https?://",
+        r"(?im)^\s*[-•*]?\s*[^\n]{3,120}\?\s*$",
+    ))
+    if sentence_count < 3 and answer_like_signals < 2:
+        return False
+
+    messages = list(st.session_state.get("messages") or [])
+    if not messages:
+        return False
+
+    # The current user message may already have been appended to session history.
+    prior = messages[:-1] if (
+        str(messages[-1].get("role") or "").lower() == "user"
+        and clean_visible_chat_text(messages[-1].get("content", "")).strip() == raw
+    ) else messages
+    recent = prior[-8:]
+
+    saw_customer_inquiry = False
+    saw_ai_draft_after_inquiry = False
+    for message in recent:
+        role = str(message.get("role") or "").strip().lower()
+        content, _ = extract_images_from_message_content(message.get("content", ""))
+        content = clean_visible_chat_text(content)
+        if role == "user":
+            question_count = content.count("?")
+            inquiry_terms = bool(re.search(
+                r"\b(?:customer|inquiry|interested|i have (?:a few )?questions|"
+                r"do you|does the|can the|will the|how long|how much)\b",
+                content,
+                flags=re.IGNORECASE,
+            ))
+            if len(content) >= 100 and (question_count >= 1 or inquiry_terms):
+                saw_customer_inquiry = True
+        elif role == "assistant" and saw_customer_inquiry:
+            if len(content.strip()) >= 100:
+                saw_ai_draft_after_inquiry = True
+
+    return saw_customer_inquiry and saw_ai_draft_after_inquiry
+
+
 def _learning_source_strength(*, explicit_learning=False, staff_confirmed=False,
                               staff_teaching=False):
     """Return a deterministic trust tier for learned-knowledge governance."""
@@ -18618,6 +18687,8 @@ def process_pending_ai_postprocess():
                     message = f"Knowledge saved permanently ({mode})."
                 elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
+                elif learning_result.get("unlabeled_final_reply"):
+                    message = f"Final staff reply learned automatically ({mode})."
                 elif learning_result.get("staff_teaching"):
                     message = f"Staff correction learned ({mode})."
                 else:
@@ -18708,9 +18779,17 @@ def auto_learn_from_latest_answer(
     safe_question = redact_learning_private_data(question)
     safe_answer = redact_learning_private_data(answer)
     explicit_learning = bool(explicit_learning)
-    staff_teaching = detect_staff_teaching_content(safe_question)
+    unlabeled_final_reply = detect_unlabeled_staff_final_reply(
+        safe_question,
+        selected_assistant,
+    )
+    staff_teaching = (
+        detect_staff_teaching_content(safe_question)
+        or unlabeled_final_reply
+    )
     staff_confirmed = (
         detect_staff_confirmed_solution(safe_question)
+        or unlabeled_final_reply
         or explicit_learning
     )
     source_type, source_confidence_floor = _learning_source_strength(
@@ -18748,6 +18827,7 @@ def auto_learn_from_latest_answer(
             "learned": False,
             "staff_confirmed": staff_confirmed,
             "staff_teaching": staff_teaching,
+            "unlabeled_final_reply": unlabeled_final_reply,
             "explicit_learning": explicit_learning,
             "reason": (
                 candidate.get("reason")
@@ -18826,6 +18906,7 @@ def auto_learn_from_latest_answer(
             "mode": "updated",
             "staff_confirmed": staff_confirmed,
             "staff_teaching": staff_teaching,
+            "unlabeled_final_reply": unlabeled_final_reply,
             "explicit_learning": explicit_learning,
             "duplicate_score": round(duplicate_score, 3),
             "record_id": duplicate_row["id"],
@@ -18877,6 +18958,7 @@ def auto_learn_from_latest_answer(
         "mode": "created",
         "staff_confirmed": staff_confirmed,
         "staff_teaching": staff_teaching,
+        "unlabeled_final_reply": unlabeled_final_reply,
         "explicit_learning": explicit_learning,
         "record_id": result.data[0]["id"],
         "file_id": openai_file_id,
