@@ -25961,6 +25961,52 @@ def _product_library_asset_data_url(asset):
     return f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
+def _product_library_prompt_requests_facts(prompt):
+    """Detect product, compatibility, fitment, specification, or feature questions."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
+    if not value:
+        return False
+
+    # Explicit learning is handled by a separate high-priority workflow and must
+    # never trigger Product Library retrieval.
+    if detect_explicit_learning_command(
+        value,
+        has_recent_context=bool(st.session_state.get("messages")),
+        has_attachments=False,
+    ):
+        return False
+
+    fact_terms = (
+        "compatible", "compatibility", "fit", "fits", "fitment", "support",
+        "supports", "work with", "works with", "which year", "what year",
+        "year range", "vehicle year", "model year", "product code", "model code",
+        "sku", "specification", "specifications", "spec", "specs", "feature",
+        "features", "function", "functionality", "retains", "retained",
+        "factory feature", "sync", "uconnect", "climate control", "camera",
+        "screen size", "hardware", "ram", "storage", "android version",
+        "difference", "differences", "compare", "comparison", "included",
+        "what is", "tell me about",
+    )
+    has_fact_intent = any(term in value for term in fact_terms)
+
+    # Exact AutoTecPro-style model codes should also trigger a product-fact lookup,
+    # even when the user asks a short question such as "732-S3?".
+    has_model_code = bool(re.search(
+        r"(?<![a-z0-9])(?:[a-z]{1,6}[-/]?)?\d{2,4}(?:[-/][a-z0-9]{1,8})?(?![a-z0-9])",
+        value,
+    ))
+    has_vehicle_year = bool(
+        re.search(r"\b(?:19\d{2}|20\d{2})\b", value)
+        and re.search(
+            r"\b(?:f[- ]?1?50|f[- ]?250|f[- ]?350|f[- ]?450|f[- ]?550|"
+            r"silverado|sierra|ram|tundra|tacoma|q50|q60|wrangler|gladiator|"
+            r"expedition|navigator|mustang|camaro|challenger|charger)\b",
+            value,
+        )
+    )
+    return bool(has_fact_intent or has_model_code or has_vehicle_year)
+
+
 def _product_library_prompt_requests_images(prompt):
     """Detect natural requests for Product Library visual assets."""
     value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
@@ -26331,6 +26377,63 @@ def _product_library_clear_read_caches():
     _product_library_dashboard_data.clear()
 
 
+def _product_library_fact_lookup(prompt):
+    """
+    Resolve one authoritative Product Library record for normal product-fact queries.
+
+    This lookup never loads images and never interrupts the existing vector-store
+    flow. Ambiguous broad matches return no Product Library result so the normal
+    workspace vector stores remain the fallback source.
+    """
+    if not _product_library_prompt_requests_facts(prompt):
+        return None
+
+    products = [
+        product for product in (_product_library_cached_products() or [])
+        if product.get("active") is not False
+    ]
+    ranked = sorted(
+        (
+            (_product_library_product_score(product, prompt), product)
+            for product in products
+        ),
+        key=lambda item: (
+            item[0],
+            str(item[1].get("updated_at") or ""),
+        ),
+        reverse=True,
+    )
+    ranked = [item for item in ranked if item[0] > 0]
+    if not ranked:
+        return None
+
+    top_score, top_product = ranked[0]
+    exact_code_match = top_score >= 200
+
+    # Require a meaningful match. Exact codes are decisive. Natural-language
+    # compatibility queries need a stronger score than incidental token overlap.
+    minimum_score = 12 if exact_code_match else 24
+    if top_score < minimum_score:
+        return None
+
+    # Do not inject a possibly wrong structured record when two products are nearly
+    # tied. In that case, preserve the existing vector-store answer flow.
+    if not exact_code_match and len(ranked) > 1:
+        second_score = ranked[1][0]
+        if second_score >= max(minimum_score, top_score - 8):
+            return None
+
+    return {
+        "product": top_product,
+        "score": top_score,
+        "source": "product_library_fact_lookup",
+        "images": [],
+        "assets": [],
+        "requested_subtypes": [],
+        "fact_only": True,
+    }
+
+
 def _product_library_chat_lookup(prompt, max_images=6):
     """
     Resolve Product Library photo requests.
@@ -26558,12 +26661,38 @@ def _product_library_chat_context(lookup):
         PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title())
         for value in (lookup.get("requested_subtypes") or [])
     ]
+    fact_only = bool(lookup.get("fact_only"))
+    compatibility = str(product.get("vehicle_compatibility") or "").strip()
+    description = str(product.get("description") or "").strip()
+
+    if fact_only:
+        return (
+            "\n\nVERIFIED PRODUCT LIBRARY FACT RESULT (server-side Supabase lookup):\n"
+            f"Product code: {product.get('product_code')}\n"
+            f"Product name: {product.get('product_name')}\n"
+            f"Compatibility: {compatibility or 'Not specified'}\n"
+            f"Description: {description or 'Not specified'}\n"
+            "SOURCE PRIORITY RULES:\n"
+            "- Treat Product Library product code, product name, aliases, and any "
+            "explicitly populated compatibility or description facts as the current "
+            "structured source of truth.\n"
+            "- Continue using the workspace vector store search for missing details, "
+            "procedures, troubleshooting, installation guidance, limitations, and "
+            "other supporting knowledge.\n"
+            "- If Compatibility is 'Not specified', do not interpret that as "
+            "incompatible; use verified vector-store knowledge and clearly identify "
+            "the supporting source.\n"
+            "- If a vector-store result conflicts with an explicitly populated "
+            "Product Library field, follow Product Library for that structured field "
+            "and mention the conflict instead of guessing."
+        )
+
     return (
         "\n\nVERIFIED PRODUCT LIBRARY RESULT (server-side Supabase lookup):\n"
         f"Product code: {product.get('product_code')}\n"
         f"Product name: {product.get('product_name')}\n"
-        f"Compatibility: {product.get('vehicle_compatibility') or 'Not specified'}\n"
-        f"Description: {product.get('description') or 'Not specified'}\n"
+        f"Compatibility: {compatibility or 'Not specified'}\n"
+        f"Description: {description or 'Not specified'}\n"
         f"Requested asset detail: "
         f"{', '.join(requested_subtypes) if requested_subtypes else 'General product photos'}\n"
         f"Matching image files found: "
@@ -26573,7 +26702,8 @@ def _product_library_chat_context(lookup):
         "Tell the user only what this verified record supports. If the "
         "loaded-image count is greater than zero, state that the matching "
         "photos are displayed below the answer. Do not say the app cannot "
-        "display them."
+        "display them. Continue using vector-store knowledge for missing "
+        "non-image details."
     )
 
 
@@ -27455,7 +27585,7 @@ def render_product_library_workspace():
                         if normalized_query in " ".join([
                             str(product.get("product_code") or ""),
                             str(product.get("product_name") or ""),
-                            str(product.get("compatibility") or ""),
+                            str(product.get("vehicle_compatibility") or ""),
                             " ".join(product.get("aliases") or [])
                             if isinstance(product.get("aliases"), list)
                             else str(product.get("aliases") or ""),
@@ -28750,7 +28880,13 @@ else:
         product_library_lookup = None
         product_library_images = []
         try:
+            # Preserve the existing image-lookup flow exactly. When no visual lookup
+            # applies, add a fact-only Product Library lookup for compatibility,
+            # model/year, specification, and feature questions. Vector-store search
+            # remains enabled as the normal fallback and supporting source.
             product_library_lookup = _product_library_chat_lookup(interaction_prompt)
+            if product_library_lookup is None:
+                product_library_lookup = _product_library_fact_lookup(interaction_prompt)
             product_library_images = list((product_library_lookup or {}).get("images") or [])
         except Exception as error:
             diagnostic_log("product_library_chat_lookup_failed", error=error)
