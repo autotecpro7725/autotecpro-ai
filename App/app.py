@@ -14563,6 +14563,10 @@ def render_product_library_chat_gallery(images, message_key):
             object-position: center center !important;
             background: color-mix(in srgb, var(--text-color) 3%, transparent) !important;
         }
+        [class*="st-key-product_library_chat_card_solo_"] img {
+            height: min(38rem, 68vh) !important;
+            min-height: 28rem !important;
+        }
         [class*="st-key-product_library_chat_actions_"] a,
         [class*="st-key-product_library_chat_actions_"] button {
             background: transparent !important;
@@ -14583,13 +14587,23 @@ def render_product_library_chat_gallery(images, message_key):
         [class*="st-key-product_library_chat_actions_"] button p {
             color: var(--text-color) !important;
         }
+        [class*="st-key-product_library_chat_actions_"] a:hover,
+        [class*="st-key-product_library_chat_actions_"] button:hover {
+            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
+            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
+            color: inherit !important;
+            box-shadow: none !important;
+        }
         @media (max-width: 640px) {
             [class*="st-key-product_library_chat_card_"] {
                 padding: 0.45rem !important;
                 margin-bottom: 0.65rem !important;
             }
-            [class*="st-key-product_library_chat_card_"] img {
-                height: 15rem !important;
+            [class*="st-key-product_library_chat_card_"] img,
+            [class*="st-key-product_library_chat_card_solo_"] img {
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: 70vh !important;
             }
             [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
                 gap: 0.45rem !important;
@@ -14603,99 +14617,96 @@ def render_product_library_chat_gallery(images, message_key):
                 line-height: 1.15 !important;
             }
         }
-        [class*="st-key-product_library_chat_actions_"] a:hover,
-        [class*="st-key-product_library_chat_actions_"] button:hover {
-            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
-            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
-            color: inherit !important;
-            box-shadow: none !important;
-        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    columns_per_row = 3 if len(clean_images) >= 3 else len(clean_images)
-    columns_per_row = max(1, columns_per_row)
+    def render_image_card(parent, image_record, image_index, solo=False):
+        image_source = str(
+            image_record.get("data_url")
+            or image_record.get("url")
+            or ""
+        ).strip()
+        filename = str(
+            image_record.get("name")
+            or f"Product photo {image_index + 1}"
+        ).strip()
+        storage_path = str(image_record.get("storage_path") or "").strip()
+        full_size_url = (
+            _product_library_signed_url(storage_path, expires=86400)
+            if storage_path
+            else ""
+        )
+        if not full_size_url and image_source.startswith("https://"):
+            full_size_url = image_source
 
-    for row_start in range(0, len(clean_images), columns_per_row):
-        row_images = clean_images[row_start:row_start + columns_per_row]
-        # Always keep the full gallery grid width. If the final row contains
-        # fewer than three images, unused columns remain empty so a single
-        # image never expands to the full chat width.
-        row_columns = st.columns(columns_per_row)
-
-        for offset, image_record in enumerate(row_images):
-            image_index = row_start + offset
-            image_source = str(
-                image_record.get("data_url")
-                or image_record.get("url")
-                or ""
-            ).strip()
-            filename = str(
-                image_record.get("name")
-                or f"Product photo {image_index + 1}"
-            ).strip()
-
-            # Never open an embedded data: URL in a new browser tab. Chrome may
-            # display a blank page for large data URLs. Use a fresh private
-            # Supabase signed HTTPS URL for the full-size action instead.
-            storage_path = str(
-                image_record.get("storage_path") or ""
-            ).strip()
-            full_size_url = (
-                _product_library_signed_url(storage_path, expires=86400)
-                if storage_path
-                else ""
-            )
-            if not full_size_url and image_source.startswith("https://"):
-                full_size_url = image_source
-
-            with row_columns[offset]:
+        card_key = (
+            f"product_library_chat_card_solo_{message_key}_{image_index}"
+            if solo
+            else f"product_library_chat_card_{message_key}_{image_index}"
+        )
+        with parent:
+            with st.container(key=card_key):
+                st.image(image_source, use_container_width=True)
+                st.caption(filename)
                 with st.container(
-                    key=f"product_library_chat_card_{message_key}_{image_index}"
+                    key=f"product_library_chat_actions_{message_key}_{image_index}"
                 ):
-                    st.image(image_source, use_container_width=True)
-                    st.caption(filename)
-
-                    with st.container(
-                        key=f"product_library_chat_actions_{message_key}_{image_index}"
-                    ):
-                        action_columns = st.columns(2)
-                        with action_columns[0]:
-                            if full_size_url:
-                                st.link_button(
-                                    "View Full Size",
-                                    full_size_url,
-                                    use_container_width=True,
-                                )
-                            else:
-                                st.button(
-                                    "View Full Size",
-                                    disabled=True,
-                                    use_container_width=True,
-                                    key=(
-                                        f"product_library_chat_view_disabled_"
-                                        f"{message_key}_{image_index}"
-                                    ),
-                                )
-
-                        file_bytes, download_name, mime_type = (
-                            _product_library_image_download_payload(image_record)
-                        )
-                        with action_columns[1]:
-                            st.download_button(
-                                "Download",
-                                data=file_bytes,
-                                file_name=download_name,
-                                mime=mime_type,
-                                disabled=not bool(file_bytes),
+                    action_columns = st.columns(2)
+                    with action_columns[0]:
+                        if full_size_url:
+                            st.link_button(
+                                "View Full Size",
+                                full_size_url,
+                                use_container_width=True,
+                            )
+                        else:
+                            st.button(
+                                "View Full Size",
+                                disabled=True,
                                 use_container_width=True,
                                 key=(
-                                    f"product_library_chat_download_"
+                                    f"product_library_chat_view_disabled_"
                                     f"{message_key}_{image_index}"
                                 ),
                             )
+
+                    file_bytes, download_name, mime_type = (
+                        _product_library_image_download_payload(image_record)
+                    )
+                    with action_columns[1]:
+                        st.download_button(
+                            "Download",
+                            data=file_bytes,
+                            file_name=download_name,
+                            mime=mime_type,
+                            disabled=not bool(file_bytes),
+                            use_container_width=True,
+                            key=(
+                                f"product_library_chat_download_"
+                                f"{message_key}_{image_index}"
+                            ),
+                        )
+
+    if len(clean_images) == 1:
+        # A single technical/reference image needs enough room to inspect details.
+        # Keep it centered and place both actions directly beneath the image.
+        solo_columns = st.columns([1, 2.4, 1])
+        render_image_card(solo_columns[1], clean_images[0], 0, solo=True)
+        return
+
+    columns_per_row = 3 if len(clean_images) >= 3 else len(clean_images)
+    for row_start in range(0, len(clean_images), columns_per_row):
+        row_images = clean_images[row_start:row_start + columns_per_row]
+        row_columns = st.columns(columns_per_row)
+        for offset, image_record in enumerate(row_images):
+            render_image_card(
+                row_columns[offset],
+                image_record,
+                row_start + offset,
+                solo=False,
+            )
 
 
 GRAPHIC_IMAGE_COUNT = 1
@@ -26535,6 +26546,53 @@ def _product_library_fact_lookup(prompt):
     }
 
 
+
+def _product_library_explicit_product_matches(prompt, products):
+    """Return products explicitly named in the current message.
+
+    This check runs before remembered-product follow-up handling, so a command such
+    as "front photo of 861-Pro" switches the active product instead of incorrectly
+    applying the filter to the previous model.
+    """
+    raw_value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
+    compact_value = _product_library_normalize_code(raw_value)
+    if not raw_value or not compact_value:
+        return []
+
+    matches = []
+    for product in products or []:
+        code = str(product.get("product_code") or "").strip()
+        aliases = product.get("aliases") or []
+        if not isinstance(aliases, list):
+            aliases = [aliases]
+
+        identifiers = [code, *[str(alias or "").strip() for alias in aliases]]
+        identifier_matches = []
+        for identifier in identifiers:
+            normalized = _product_library_normalize_code(identifier)
+            if len(normalized) < 3:
+                continue
+            if normalized in compact_value:
+                identifier_matches.append(len(normalized))
+
+        if identifier_matches:
+            matches.append((max(identifier_matches), product))
+
+    if not matches:
+        return []
+
+    # Prefer the most specific code/alias. This prevents a base code such as 732
+    # from competing with a longer explicit code such as 732Pro-S3.
+    longest = max(length for length, _ in matches)
+    deduplicated = {}
+    for length, product in matches:
+        if length != longest:
+            continue
+        key = str(product.get("id") or product.get("product_code") or "").strip()
+        if key:
+            deduplicated[key] = product
+    return list(deduplicated.values())
+
 def _product_library_chat_lookup(prompt, max_images=6):
     """
     Resolve Product Library photo requests.
@@ -26545,11 +26603,31 @@ def _product_library_chat_lookup(prompt, max_images=6):
     """
     pending_result = _product_library_resolve_pending_selection(prompt)
     last_product = st.session_state.get("product_library_last_product")
+    active_products = [
+        product for product in (_product_library_cached_products() or [])
+        if product.get("active") is not False
+    ]
+    explicit_products = _product_library_explicit_product_matches(
+        prompt,
+        active_products,
+    )
 
+    # An explicitly named model always replaces the remembered model, including
+    # combined requests such as "front photo of 861-Pro".
+    if len(explicit_products) == 1:
+        st.session_state.pop("product_library_pending_candidates", None)
+        product = explicit_products[0]
+    elif len(explicit_products) > 1:
+        st.session_state["product_library_pending_candidates"] = explicit_products[:8]
+        return {
+            "clarification": True,
+            "candidates": explicit_products[:8],
+            "images": [],
+        }
     # Support natural follow-ups such as "only parts" after a product gallery.
-    # Reuse only the last verified Product Library product; do not infer a new
-    # product from the short refinement command.
-    if (
+    # Reuse only the last verified Product Library product when the current
+    # message does not explicitly name a different product.
+    elif (
         not pending_result
         and _product_library_is_asset_refinement_followup(prompt)
         and isinstance(last_product, dict)
@@ -26569,11 +26647,6 @@ def _product_library_chat_lookup(prompt, max_images=6):
         if not _product_library_prompt_requests_images(prompt):
             return None
 
-        products = _product_library_cached_products()
-        active_products = [
-            product for product in products
-            if product.get("active") is not False
-        ]
         ranked = sorted(
             (
                 (_product_library_product_score(product, prompt), product)
