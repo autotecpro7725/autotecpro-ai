@@ -3476,29 +3476,45 @@ def install_gpt_uploader_css():
             text-align: center;
         }
 
+        /* Keep every managed upload-preview row centered as one compact group.
+           Streamlit columns normally expand across the full container, which made
+           two or three files appear widely separated. Shrink the row to its content
+           width and give each card one fixed flex basis instead. This shared selector
+           applies to every managed uploader in Technical, Sales, Marketing, Admin,
+           Knowledge Submission, Product Library, and the main chat composer. */
         html body div[class*="st-key-atp_preview_grid_"] {
-            width: 100% !important;
+            width: fit-content !important;
+            max-width: 100% !important;
             margin: 0 auto 7px !important;
+            padding: 0 !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="stHorizontalBlock"] {
-            width: 100% !important;
+            width: fit-content !important;
+            max-width: 100% !important;
             margin: 0 auto !important;
+            padding: 0 !important;
             display: flex !important;
             align-items: flex-start !important;
             justify-content: center !important;
-            gap: 7px !important;
+            column-gap: 9px !important;
+            row-gap: 10px !important;
             flex-wrap: nowrap !important;
         }
 
         html body div[class*="st-key-atp_preview_grid_"]
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"],
+        html body div[class*="st-key-atp_preview_grid_"]
         div[data-testid="column"] {
             flex: 0 0 178px !important;
+            flex-grow: 0 !important;
+            flex-shrink: 0 !important;
             width: 178px !important;
             min-width: 178px !important;
             max-width: 178px !important;
             padding: 0 !important;
+            margin: 0 !important;
         }
 
         html body div[class*="st-key-atp_upload_card_"] {
@@ -3921,9 +3937,17 @@ def install_gpt_uploader_css():
                 border-radius: 15px !important;
             }
 
+            html body div[class*="st-key-atp_preview_grid_"] {
+                width: fit-content !important;
+                max-width: 100% !important;
+            }
+
             html body div[class*="st-key-atp_preview_grid_"]
             div[data-testid="stHorizontalBlock"] {
-                gap: 7px !important;
+                width: fit-content !important;
+                max-width: 100% !important;
+                column-gap: 8px !important;
+                row-gap: 9px !important;
                 flex-wrap: wrap !important;
             }
 
