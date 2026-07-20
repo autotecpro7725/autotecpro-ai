@@ -26020,7 +26020,8 @@ def _product_library_prompt_requests_images(prompt):
         "screen off", "mainboard", "motherboard", "pcb", "canbus",
         "can box", "decoder", "harness", "cable", "connector",
         "wiring", "pinout", "camera", "microphone", "gps", "usb",
-        "antenna", "sim slot", "ports",
+        "antenna", "sim slot", "ports", "part", "parts",
+        "accessory", "accessories", "included items", "included parts",
     )
     return any(word in value for word in image_words)
 
@@ -26030,22 +26031,31 @@ PRODUCT_LIBRARY_ASSET_INTENTS = {
         "front", "front view", "face", "display side", "screen side",
     ),
     "rear_view": (
-        "rear", "rear view", "back", "back view", "back panel",
+        "rear", "rear view", "back", "back view", "back panel", "ports",
+        "port", "connector", "connectors",
         "rear panel", "rear connector", "rear connectors", "back connector",
         "back connectors", "rear ports", "back ports",
     ),
-    "left_side": ("left side", "left view"),
-    "right_side": ("right side", "right view"),
+    "left_side": ("left", "left side", "left view"),
+    "right_side": ("right", "right side", "right view"),
     "installed": ("installed", "installation result", "in the vehicle", "in car"),
     "screen_on": ("screen on", "powered on", "display on"),
     "screen_off": ("screen off", "powered off", "display off"),
     "packaging": ("packaging", "package", "box", "in the box"),
+    "accessories": (
+        "part", "parts", "accessory", "accessories", "kit",
+        "only parts", "parts only", "part only", "only accessories",
+        "accessories only", "parts photo", "parts photos", "part photo",
+        "part photos", "included parts", "included accessories",
+        "what is included", "what's included", "accessory photo",
+        "accessory photos",
+    ),
     "mainboard": ("mainboard", "motherboard", "pcb", "circuit board"),
     "canbus": ("canbus", "can bus", "can box", "decoder", "can decoder"),
     "harness": ("harness", "wiring harness", "main harness"),
     "usb_cable": ("usb cable", "usb harness", "usb lead", "usb"),
     "gps_antenna": ("gps antenna", "gps"),
-    "wifi_antenna": ("wifi antenna", "wi-fi antenna", "wireless antenna"),
+    "wifi_antenna": ("wifi", "wi-fi", "wifi antenna", "wi-fi antenna", "wireless antenna"),
     "sim_slot": ("sim slot", "sim card slot", "sim"),
     "microphone": ("microphone", "mic"),
     "camera": ("camera", "rear camera", "backup camera", "dash camera"),
@@ -26058,6 +26068,64 @@ PRODUCT_LIBRARY_ASSET_INTENTS = {
     "camera_wiring": ("camera wiring", "backup camera wiring"),
     "installation_photos": ("installation photos", "install photos", "installation pictures"),
 }
+
+
+def _product_library_is_asset_refinement_followup(prompt):
+    """Detect natural short commands that refine the previous product gallery."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    if not value:
+        return False
+
+    # These commands intentionally work without repeating the model number after
+    # a verified Product Library product has already been selected.
+    exact_commands = {
+        "photo", "photos", "image", "images", "all", "all photos",
+        "all images", "show all", "show all photos", "show photos",
+        "front", "rear", "back", "left", "right", "installed",
+        "screen on", "screen off", "packaging", "package",
+        "part", "parts", "accessory", "accessories", "kit",
+        "mainboard", "motherboard", "pcb", "canbus", "can bus",
+        "harness", "wiring", "usb", "gps", "wifi", "wi-fi",
+        "sim", "microphone", "mic", "camera", "lvds", "power cable",
+        "pinout", "ports", "connector", "connectors",
+    }
+    if value in exact_commands:
+        return True
+
+    refinement_phrases = (
+        "only parts", "parts only", "part only", "only accessories",
+        "accessories only", "only front", "front only", "only rear",
+        "rear only", "back only", "only left", "left only",
+        "only right", "right only", "only installed", "installed only",
+        "only harness", "harness only", "only canbus", "canbus only",
+        "only wiring", "wiring only", "only camera", "camera only",
+        "only microphone", "microphone only", "only gps", "gps only",
+        "only usb", "usb only", "only mainboard", "mainboard only",
+        "front photo", "front photos", "rear photo", "rear photos",
+        "left photo", "left photos", "right photo", "right photos",
+        "show front", "show rear", "show left", "show right",
+        "show parts", "show accessories", "show harness", "show canbus",
+    )
+    return any(phrase in value for phrase in refinement_phrases)
+
+
+def _product_library_requests_all_photos(prompt):
+    """Return True when a follow-up asks to restore every photo for the product."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    return value in {
+        "photo", "photos", "image", "images", "all", "all photos",
+        "all images", "show all", "show all photos", "show photos",
+    }
+
+
+def _product_library_parts_only_requested(prompt):
+    """Return True when the user wants only included-parts/accessory images."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    return any(phrase in value for phrase in (
+        "only parts", "parts only", "part only", "only accessories",
+        "accessories only", "parts photo", "parts photos", "part photo",
+        "part photos", "included parts", "included accessories",
+    ))
 
 
 def _product_library_requested_subtypes(prompt):
@@ -26096,6 +26164,10 @@ def _product_library_asset_relevance(asset, requested_subtypes):
         for index, requested in enumerate(requested_subtypes):
             if subtype == requested:
                 score = max(score, 300 - index)
+            elif requested == "accessories" and asset_type == "parts_photo":
+                # A generic "only parts" follow-up means every Parts Photo,
+                # even when individual files are classified as harness/CANBUS/etc.
+                score = max(score, 260 - index)
             elif requested.replace("_", " ") in filename:
                 score = max(score, 220 - index)
 
@@ -26443,7 +26515,19 @@ def _product_library_chat_lookup(prompt, max_images=6):
     allowing the user to reply with a number or product code.
     """
     pending_result = _product_library_resolve_pending_selection(prompt)
-    if pending_result:
+    last_product = st.session_state.get("product_library_last_product")
+
+    # Support natural follow-ups such as "only parts" after a product gallery.
+    # Reuse only the last verified Product Library product; do not infer a new
+    # product from the short refinement command.
+    if (
+        not pending_result
+        and _product_library_is_asset_refinement_followup(prompt)
+        and isinstance(last_product, dict)
+        and last_product.get("product_code")
+    ):
+        product = last_product
+    elif pending_result:
         if pending_result.get("cancelled"):
             return {
                 "cancelled": True,
@@ -26498,6 +26582,9 @@ def _product_library_chat_lookup(prompt, max_images=6):
 
         product = ranked[0][1]
 
+    if isinstance(product, dict) and product.get("product_code"):
+        st.session_state["product_library_last_product"] = dict(product)
+
     product_code = str(product.get("product_code") or "").strip()
     normalized_code = _product_library_normalize_code(product_code)
     product_id = str(product.get("id") or "").strip()
@@ -26537,7 +26624,14 @@ def _product_library_chat_lookup(prompt, max_images=6):
         if _is_display_image_asset(asset)
     ]
 
-    requested_subtypes = _product_library_requested_subtypes(prompt)
+    # A generic follow-up such as "photo" or "all" means restore every
+    # available display image for the currently selected product. It must not be
+    # narrowed by accidental words from the earlier request.
+    all_photos_requested = _product_library_requests_all_photos(prompt)
+    requested_subtypes = (
+        [] if all_photos_requested
+        else _product_library_requested_subtypes(prompt)
+    )
 
     preferred_types = {
         "parts_photo",
@@ -26552,7 +26646,17 @@ def _product_library_chat_lookup(prompt, max_images=6):
         in preferred_types
     ]
 
-    candidate_assets = preferred or image_assets
+    parts_only_requested = _product_library_parts_only_requested(prompt)
+    if parts_only_requested:
+        parts_assets = [
+            asset for asset in image_assets
+            if str(asset.get("asset_type") or "").strip().lower() == "parts_photo"
+            or str(asset.get("asset_subtype") or "").strip().lower() == "accessories"
+        ]
+        candidate_assets = parts_assets
+    else:
+        candidate_assets = preferred or image_assets
+
     if requested_subtypes:
         ranked_assets = sorted(
             (
@@ -26567,6 +26671,9 @@ def _product_library_chat_lookup(prompt, max_images=6):
         )
         relevant_assets = [asset for score, asset in ranked_assets if score >= 180]
         selected = relevant_assets[:max(1, int(max_images or 6))]
+    elif all_photos_requested:
+        # The user explicitly asked for all photos for the remembered model.
+        selected = list(candidate_assets)
     else:
         selected = candidate_assets[:max(1, int(max_images or 6))]
 
