@@ -28119,11 +28119,102 @@ if (
                     learned_start_index:learned_end_index
                 ]
 
-                st.caption(
-                    f"Showing {learned_start_index + 1:,}–"
-                    f"{learned_end_index:,} of "
-                    f"{learned_total_records:,} learned records"
+                visible_page_numbers = []
+                pagination_items = []
+
+                if learned_total_pages > 1:
+                    if learned_total_pages <= 7:
+                        visible_page_numbers = list(
+                            range(1, learned_total_pages + 1)
+                        )
+                    else:
+                        candidate_pages = {
+                            1,
+                            learned_total_pages,
+                            current_learned_page - 2,
+                            current_learned_page - 1,
+                            current_learned_page,
+                            current_learned_page + 1,
+                            current_learned_page + 2,
+                        }
+                        visible_page_numbers = sorted(
+                            page_number
+                            for page_number in candidate_pages
+                            if 1 <= page_number <= learned_total_pages
+                        )
+
+                    previous_number = None
+                    for page_number in visible_page_numbers:
+                        if (
+                            previous_number is not None
+                            and page_number - previous_number > 1
+                        ):
+                            pagination_items.append("ellipsis")
+                        pagination_items.append(page_number)
+                        previous_number = page_number
+
+                learned_summary_column, learned_pagination_column = st.columns(
+                    [4, 2],
+                    gap="small",
+                    vertical_alignment="center",
                 )
+
+                with learned_summary_column:
+                    st.caption(
+                        f"Showing {learned_start_index + 1:,}–"
+                        f"{learned_end_index:,} of "
+                        f"{learned_total_records:,} learned records"
+                    )
+
+                with learned_pagination_column:
+                    if pagination_items:
+                        with st.container(
+                            key="latest_learned_text_pagination"
+                        ):
+                            pagination_columns = st.columns(
+                                len(pagination_items),
+                                gap="small",
+                            )
+
+                            for column, item in zip(
+                                pagination_columns,
+                                pagination_items,
+                            ):
+                                with column:
+                                    if item == "ellipsis":
+                                        st.markdown(
+                                            "<div class='latest-learned-ellipsis'>"
+                                            "…</div>",
+                                            unsafe_allow_html=True,
+                                        )
+                                    else:
+                                        page_number = int(item)
+                                        is_current_page = (
+                                            page_number
+                                            == current_learned_page
+                                        )
+
+                                        if st.button(
+                                            str(page_number),
+                                            key=(
+                                                "latest_learned_page_"
+                                                f"{page_number}"
+                                            ),
+                                            use_container_width=False,
+                                            disabled=is_current_page,
+                                            help=(
+                                                f"Open page {page_number}"
+                                                if not is_current_page
+                                                else (
+                                                    "Current page "
+                                                    f"{page_number}"
+                                                )
+                                            ),
+                                        ):
+                                            st.session_state[
+                                                learned_page_key
+                                            ] = page_number
+                                            st.rerun()
 
                 for row in learned_page_rows:
                     issue = row.get("issue") or row.get("question") or "Learned Knowledge"
@@ -28163,11 +28254,11 @@ if (
                 st.markdown(
                     """
                     <style>
-                    /* Latest Learned Knowledge pagination only.
+                    /* Latest Learned Knowledge upper-right pagination only.
                        Plain clickable text with no inherited global button style. */
                     html body div[class*="st-key-latest_learned_text_pagination"] {
                         width: 100% !important;
-                        margin: 8px 0 0 auto !important;
+                        margin: 0 0 0 auto !important;
                         padding: 0 !important;
                     }
 
@@ -28320,88 +28411,6 @@ if (
                     unsafe_allow_html=True,
                 )
 
-                # Compact page-number navigation at the very bottom-right.
-                # Only page numbers are shown; no Previous/Next buttons or
-                # top selector are rendered.
-                if learned_total_pages > 1:
-                    visible_page_numbers = []
-
-                    if learned_total_pages <= 7:
-                        visible_page_numbers = list(
-                            range(1, learned_total_pages + 1)
-                        )
-                    else:
-                        candidate_pages = {
-                            1,
-                            learned_total_pages,
-                            current_learned_page - 2,
-                            current_learned_page - 1,
-                            current_learned_page,
-                            current_learned_page + 1,
-                            current_learned_page + 2,
-                        }
-                        visible_page_numbers = sorted(
-                            page_number
-                            for page_number in candidate_pages
-                            if 1 <= page_number <= learned_total_pages
-                        )
-
-                    pagination_items = []
-                    previous_number = None
-
-                    for page_number in visible_page_numbers:
-                        if (
-                            previous_number is not None
-                            and page_number - previous_number > 1
-                        ):
-                            pagination_items.append("ellipsis")
-                        pagination_items.append(page_number)
-                        previous_number = page_number
-
-                    with st.container(
-                        key="latest_learned_text_pagination"
-                    ):
-                        pagination_columns = st.columns(
-                            len(pagination_items),
-                            gap="small",
-                        )
-
-                        for column, item in zip(
-                            pagination_columns,
-                            pagination_items,
-                        ):
-                            with column:
-                                if item == "ellipsis":
-                                    st.markdown(
-                                        "<div class='latest-learned-ellipsis'>"
-                                        "…</div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                else:
-                                    page_number = int(item)
-                                    is_current_page = (
-                                        page_number
-                                        == current_learned_page
-                                    )
-
-                                    if st.button(
-                                        str(page_number),
-                                        key=(
-                                            "latest_learned_page_"
-                                            f"{page_number}"
-                                        ),
-                                        use_container_width=False,
-                                        disabled=is_current_page,
-                                        help=(
-                                            f"Open page {page_number}"
-                                            if not is_current_page
-                                            else f"Current page {page_number}"
-                                        ),
-                                    ):
-                                        st.session_state[
-                                            learned_page_key
-                                        ] = page_number
-                                        st.rerun()
             else:
                 st.info("No learned knowledge saved yet.")
 
