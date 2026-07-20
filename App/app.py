@@ -4561,6 +4561,25 @@ def inject_base_css():
             text-indent: -2.05em;
         }
 
+        .assistant-bubble .atp-customer-reply-line {
+            margin: 0;
+            padding: 0 0 12px 16px;
+            border-left: 3px solid rgba(245, 158, 11, 0.72);
+            background: rgba(245, 158, 11, 0.055);
+            line-height: 1.72;
+            white-space: normal;
+        }
+
+        .assistant-bubble .atp-customer-reply-line:first-of-type {
+            padding-top: 12px;
+            border-top-right-radius: 10px;
+        }
+
+        .assistant-bubble .atp-customer-reply-line:last-child {
+            padding-bottom: 12px;
+            border-bottom-right-radius: 10px;
+        }
+
         .chat-bubble table {
             width: 100%;
             border-collapse: collapse;
@@ -9064,6 +9083,54 @@ def table_to_html(table_lines):
     return "\n".join(html_rows)
 
 
+def normalize_assistant_markdown(text):
+    """Repair common AI markdown layout issues without changing response facts.
+
+    The normalizer only separates unmistakable inline list markers. It does not
+    rewrite wording, alter values, infer headings, or change business content.
+    """
+    value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    normalized_lines = []
+
+    for raw_line in value.split("\n"):
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        # Preserve markdown tables, headings, code fences, and already-correct
+        # list rows exactly as supplied.
+        if (
+            not stripped
+            or stripped.startswith(("#", "```", "> ", "|"))
+        ):
+            normalized_lines.append(line)
+            continue
+
+        # Split multiple inline bullet markers only when each marker is preceded
+        # by whitespace. This avoids touching hyphenated model names and prose.
+        bullet_markers = list(re.finditer(r"(?:^|\s)[•]\s+", stripped))
+        if len(bullet_markers) >= 2:
+            bullet_parts = re.split(r"\s+(?=[•]\s+)", stripped)
+            normalized_lines.extend(
+                part if part.startswith("• ") else f"• {part}"
+                for part in bullet_parts
+                if part.strip()
+            )
+            continue
+
+        # Split inline numbered steps such as "1. ... 2. ... 3. ..." only
+        # when at least two unambiguous numbered markers are present.
+        numbered_markers = list(re.finditer(r"(?:^|\s)(\d{1,2})[.)]\s+", stripped))
+        if len(numbered_markers) >= 2:
+            parts = re.split(r"\s+(?=\d{1,2}[.)]\s+)", stripped)
+            if len(parts) > 1:
+                normalized_lines.extend(part.strip() for part in parts if part.strip())
+                continue
+
+        normalized_lines.append(line)
+
+    return "\n".join(normalized_lines)
+
+
 @st.cache_data(ttl=900, max_entries=512, show_spinner=False)
 def html_from_text(text, assistant_mode=False):
     """Render safe markdown-like chat HTML with richer assistant spacing."""
@@ -9071,10 +9138,13 @@ def html_from_text(text, assistant_mode=False):
         return ""
 
     text = clean_visible_chat_text(text)
+    if assistant_mode:
+        text = normalize_assistant_markdown(text)
     lines = str(text).splitlines()
     html_lines = []
     in_ul = False
     in_ol = False
+    in_customer_reply = False
     i = 0
 
     def close_lists():
@@ -9140,13 +9210,25 @@ def html_from_text(text, assistant_mode=False):
 
         if stripped.startswith("### "):
             close_lists()
-            html_lines.append(f"<h3>{inline_format(stripped[4:])}</h3>")
+            heading_text = stripped[4:].strip()
+            in_customer_reply = heading_text.casefold() in {
+                "customer reply", "customer reply draft", "reply to customer"
+            }
+            html_lines.append(f"<h3>{inline_format(heading_text)}</h3>")
         elif stripped.startswith("## "):
             close_lists()
-            html_lines.append(f"<h2>{inline_format(stripped[3:])}</h2>")
+            heading_text = stripped[3:].strip()
+            in_customer_reply = heading_text.casefold() in {
+                "customer reply", "customer reply draft", "reply to customer"
+            }
+            html_lines.append(f"<h2>{inline_format(heading_text)}</h2>")
         elif stripped.startswith("# "):
             close_lists()
-            html_lines.append(f"<h1>{inline_format(stripped[2:])}</h1>")
+            heading_text = stripped[2:].strip()
+            in_customer_reply = heading_text.casefold() in {
+                "customer reply", "customer reply draft", "reply to customer"
+            }
+            html_lines.append(f"<h1>{inline_format(heading_text)}</h1>")
         elif assistant_mode and bold_heading:
             close_lists()
             heading_text = bold_heading.group(1).rstrip(":").strip()
@@ -9173,7 +9255,11 @@ def html_from_text(text, assistant_mode=False):
             )
         else:
             close_lists()
-            if assistant_mode:
+            if assistant_mode and in_customer_reply:
+                html_lines.append(
+                    f'<div class="atp-customer-reply-line">{inline_format(stripped)}</div>'
+                )
+            elif assistant_mode:
                 html_lines.append(
                     f'<p class="atp-chat-paragraph">{inline_format(stripped)}</p>'
                 )
@@ -15259,8 +15345,14 @@ RESPONSE PRESENTATION RULES:
 - Keep paragraphs short: normally one to three sentences per paragraph.
 - When several label-and-value facts are needed, place each fact on its own
   bullet or line instead of combining them into one long sentence.
+- Use a Markdown table when comparing two or more products, options, vehicle
+  configurations, specifications, compatibility results, or order records.
+- Keep tables compact. Use clear column labels and do not create a table for a
+  single simple fact or when a short list is easier to read.
 - Put customer-facing drafts under a separate ## Customer Reply Draft heading.
   Format the draft as clean paragraphs with blank lines, ready to copy and send.
+  Do not place bullets, analysis notes, or internal instructions inside the draft.
+- Never place multiple bullet points or numbered steps on the same line.
 - Do not add decorative separators after every section, excessive emoji, HTML,
   or code fences. Preserve all facts, uncertainty, warnings, and required steps.
 """
