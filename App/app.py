@@ -14557,6 +14557,11 @@ def render_product_library_chat_gallery(images, message_key):
         }
         [class*="st-key-product_library_chat_card_"] img {
             border-radius: 0.55rem;
+            width: 100% !important;
+            height: 18rem !important;
+            object-fit: contain !important;
+            object-position: center center !important;
+            background: color-mix(in srgb, var(--text-color) 3%, transparent) !important;
         }
         [class*="st-key-product_library_chat_actions_"] a,
         [class*="st-key-product_library_chat_actions_"] button {
@@ -14582,6 +14587,9 @@ def render_product_library_chat_gallery(images, message_key):
             [class*="st-key-product_library_chat_card_"] {
                 padding: 0.45rem !important;
                 margin-bottom: 0.65rem !important;
+            }
+            [class*="st-key-product_library_chat_card_"] img {
+                height: 15rem !important;
             }
             [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
                 gap: 0.45rem !important;
@@ -14612,7 +14620,10 @@ def render_product_library_chat_gallery(images, message_key):
 
     for row_start in range(0, len(clean_images), columns_per_row):
         row_images = clean_images[row_start:row_start + columns_per_row]
-        row_columns = st.columns(len(row_images))
+        # Always keep the full gallery grid width. If the final row contains
+        # fewer than three images, unused columns remain empty so a single
+        # image never expands to the full chat width.
+        row_columns = st.columns(columns_per_row)
 
         for offset, image_record in enumerate(row_images):
             image_index = row_start + offset
