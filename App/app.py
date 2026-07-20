@@ -15810,10 +15810,14 @@ Do not output HTML or code-fence formatting.
         return """
 You are AutoTecPro Sales AI.
 
-Always search the AutoTecPro Sales Vector Store before answering questions
-about products, policies, compatibility, dealer communications, customer
-replies, quotations, promotions, warranty, returns, refunds, shipping, and
-live WooCommerce order inquiries.
+Always search both the AutoTecPro Sales Vector Store and the AutoTecPro
+Technical Support Vector Store before answering. Use Sales knowledge for
+commercial policies, dealer communications, customer replies, quotations,
+promotions, warranty, returns, refunds, shipping, and live WooCommerce order
+inquiries. Use Technical knowledge as the source of truth for compatibility,
+functionality, specifications, retained factory features, installation
+requirements, product differences, known limitations, and verified technical
+resources.
 
 The AutoTecPro application may provide a verified WooCommerce REST API result.
 
@@ -15901,17 +15905,22 @@ Do not output HTML or code-fence formatting.
         return """
 You are AutoTecPro Marketing AI.
 
-Always search the AutoTecPro Marketing Vector Store and AutoTecPro Sales
-Vector Store. For installation resources attached to an order, also use the
-AutoTecPro Technical Support Vector Store.
+Always search the AutoTecPro Marketing Vector Store, AutoTecPro Sales Vector
+Store, and AutoTecPro Technical Support Vector Store. Technical knowledge is
+shared one way into Marketing for verified compatibility, functionality,
+specifications, retained factory features, product differences, installation
+requirements, known limitations, and technical resources.
 
 Use Marketing knowledge for brand voice, campaigns, SEO, advertising,
 listings, social media, product launches, and creative direction.
 Use Sales knowledge for accurate product facts, approved warranty language,
 promotions, dealer information, pricing rules, and customer-facing policies.
-Use Technical knowledge only for verified installation links and concise,
-customer-safe installation facts. Do not provide installer-only procedures in
-Marketing.
+Use Technical knowledge for verified compatibility, functionality,
+specifications, retained factory features, product differences, installation
+requirements, known limitations, installation links, and concise customer-safe
+technical facts. Do not expose installer-only troubleshooting or detailed
+procedures unless the staff member explicitly requests technically detailed
+marketing material.
 
 The AutoTecPro application may also provide verified, live WooCommerce REST
 API data for marketing analysis and order-related requests.
@@ -16722,9 +16731,9 @@ def build_ai_loading_status(
         if selected_assistant == "🔧 Technical Support":
             return "Searching AutoTecPro Technical Support knowledge base…"
         if is_sales_workspace(selected_assistant):
-            return "Searching AutoTecPro Sales knowledge base…"
+            return "Searching AutoTecPro Sales and Technical knowledge bases…"
         if is_marketing_workspace(selected_assistant):
-            return "Searching AutoTecPro Marketing knowledge base…"
+            return "Searching AutoTecPro Marketing, Sales, and Technical knowledge bases…"
         return "Searching AutoTecPro knowledge base…"
 
     if live_type == "web":
@@ -17061,24 +17070,20 @@ def _build_ai_request(
 
     if use_file_search:
         if assistant == "🔧 Technical Support":
-            # Technical order workflows need Sales knowledge for exact product
-            # identity/AutoTecPro model matching and Technical knowledge for KVN
-            # numbers, installation procedures, manuals, videos, wiring, CANBUS,
-            # and troubleshooting resources.
+            # One-way knowledge sharing: Technical Support reads only Technical
+            # knowledge. Sales and Marketing may read Technical knowledge, but
+            # commercial or marketing records must never influence Technical.
             tools.insert(
                 0,
                 {
                     "type": "file_search",
-                    "vector_store_ids": [
-                        SALES_VECTOR_STORE_ID,
-                        TECHNICAL_VECTOR_STORE_ID,
-                    ],
+                    "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
                 },
             )
         elif is_sales_workspace(assistant):
-            # Sales order workflows need both commercial product knowledge and
-            # verified technical resources such as KVN matches, installation
-            # instructions, manuals, and video links.
+            # One-way sharing: Sales reads its own commercial knowledge plus
+            # Technical knowledge for compatibility, functionality, specifications,
+            # retained features, installation requirements, limitations, and links.
             tools.insert(
                 0,
                 {
@@ -17090,9 +17095,8 @@ def _build_ai_request(
                 },
             )
         elif is_marketing_workspace(assistant):
-            # Marketing order workflows use Marketing knowledge for campaign
-            # guidance, Sales knowledge for product/order facts, and Technical
-            # knowledge only for verified brief installation details and links.
+            # One-way sharing: Marketing reads Marketing + Sales + Technical.
+            # Technical remains isolated from Sales and Marketing knowledge.
             tools.insert(
                 0,
                 {
