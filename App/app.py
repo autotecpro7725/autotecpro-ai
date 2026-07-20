@@ -15697,47 +15697,58 @@ purchased items, selected options, shipping method, or other currently visible
 order details. After the displayed order, append the verified technical
 enrichment sections below in this exact order when information is available:
 
-1. ## AutoTecPro / KVN Part Number Match
-   - Use one compact Markdown table.
-   - Include AutoTecPro product/model, AutoTecPro part number or SKU, KVN series,
-     KVN part number, screen size, vehicle/year range, climate version, drive
-     side, Android version, RAM/storage, camera option, harness/CANBUS version,
-     and match confidence when supported by the live order or knowledge base.
+1. ## AutoTecPro Model Match
+   - Use a compact Markdown table.
+   - Match the Sales workspace structure and include AutoTecPro product/model,
+     AutoTecPro part number or SKU, screen size, vehicle/year range, climate
+     version, drive side, Android version, RAM/storage, camera option, and match
+     confidence when supported by the live order or knowledge base.
    - Clearly label values as Confirmed, Likely, or Requires Verification.
-   - Never present an inferred KVN suffix or warehouse SKU as confirmed.
-2. ## Compatibility Status
+2. ## KVN Part Number Match
+   - Use a separate compact Markdown table matching the Sales workspace.
+   - Include KVN series, likely/confirmed KVN part number, ordered configuration,
+     and confidence.
+   - Never present an inferred KVN suffix or warehouse SKU as confirmed. State
+     when WooCommerce SKU, packing slip, warehouse label, or carton verification
+     is still required.
+3. ## Product Specifications
+   - Use a separate compact Markdown table matching the Sales workspace.
+   - Include only verified specifications such as screen size, resolution,
+     Android version, processor, RAM/storage, connectivity, CarPlay/Android Auto,
+     DSP, camera retention, climate retention, and other supported features.
+4. ## Compatibility Status
    - State Compatible, Conditionally Compatible, or Not Confirmed and explain the
      reason briefly.
-3. ## Technical Notes
+5. ## Technical Notes
    - Put every note on its own line. Preserve warnings and known limitations.
-4. ## Information to Request
+6. ## Information to Request
    - Use a numbered checklist only when more customer information is required.
-5. ## Installation Summary
+7. ## Installation Summary
    - Use a compact table covering vehicle, product, part number, climate type,
      screen size, installation type, harness/CANBUS, camera configuration, and
      whether wire cutting or modification is required.
-6. ## Required Tools
+8. ## Required Tools
    - Put one verified tool per checklist line.
-7. ## Before Installation
+9. ## Before Installation
    - Use a numbered checklist. Include vehicle/configuration verification,
      battery disconnection, wiring photos, and part/harness verification when
      supported by the retrieved installation documentation.
-8. ## Installation Steps
-   - Provide the complete numbered procedure from verified Technical knowledge.
-   - Keep one action per numbered line and preserve all safety warnings.
-9. ## Final Testing Checklist
-   - Put one function per checklist line, including climate, steering-wheel
-     controls, audio, Bluetooth, CarPlay, Android Auto, GPS, cameras, USB, and
-     other configuration-specific functions when applicable.
-10. ## Important Technical Notes
+10. ## Installation Steps
+    - Provide the complete numbered procedure from verified Technical knowledge.
+    - Keep one action per numbered line and preserve all safety warnings.
+11. ## Final Testing Checklist
+    - Put one function per checklist line, including climate, steering-wheel
+      controls, audio, Bluetooth, CarPlay, Android Auto, GPS, cameras, USB, and
+      other configuration-specific functions when applicable.
+12. ## Important Technical Notes
     - Include only verified configuration notes, CANBUS settings, amplifier/audio
       notes, camera notes, known limitations, and common installation mistakes.
-11. ## Installation Resources
+13. ## Installation Resources
     - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
       reference, firmware link, or technical bulletin returned by file_search.
     - Keep full URLs visible and clickable. Do not replace URLs with buttons.
     - Never invent a link. If no exact verified resource is found, say so.
-12. ## Customer Reply Draft
+14. ## Customer Reply Draft
     - Always place this last and format it as Markdown blockquote paragraphs.
 
 For ordinary non-order Technical Support questions, use the most relevant
@@ -16700,7 +16711,8 @@ def build_user_input(
                 "append the organized enrichment sections required by the Sales "
                 "order workflow after the displayed order details. In Technical "
                 "Support, preserve the displayed order and append the complete "
-                "AutoTecPro/KVN match, compatibility, detailed installation, "
+                "separate AutoTecPro Model Match, KVN Part Number Match, "
+                "Product Specifications, compatibility, detailed installation, "
                 "verified resources, and customer-reply workflow required by the "
                 "Technical order instructions."
             )
