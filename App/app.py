@@ -44,6 +44,7 @@ except Exception:
 # - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
 #   knowledge submission, generated-image actions, and Admin user management
 # - lightweight cached uploader thumbnails and short-lived WooCommerce payload reuse
+# - full fragment/cache audit across management UIs; AI request/response flow unchanged
 
 # ============================================================
 # App Paths / API
@@ -27674,13 +27675,13 @@ def render_product_library_manage_fragment():
 
     search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
     try:
-        query = (
-            supabase.table("product_library")
-            .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active,updated_at")
-            .order("updated_at", desc=True)
-            .limit(500)
+        # Reuse the bounded Product Library cache so search, expansion, and
+        # section switching never repeat the same Supabase catalogue query.
+        products = [dict(row) for row in (_product_library_cached_products() or [])]
+        products.sort(
+            key=lambda row: str(row.get("updated_at") or ""),
+            reverse=True,
         )
-        products = query.execute().data or []
         needle = str(search_value or "").strip().casefold()
         if needle:
             products = [
@@ -28916,6 +28917,48 @@ def render_product_library_workspace():
             )
 
 
+@st.cache_data(ttl=30, max_entries=128, show_spinner=False)
+def _admin_learned_records_view_cached(
+    rows_json, search_text, assistant_filter, sync_filter, sort_order,
+):
+    """Cache learned-record search, filters, and sorting independently."""
+    try:
+        rows = json.loads(rows_json)
+    except Exception:
+        rows = []
+    needle = str(search_text or "").strip().casefold()
+    clean_assistant = str(assistant_filter or "All").strip()
+    clean_sync = str(sync_filter or "All").strip()
+    filtered = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        if clean_assistant != "All" and str(row.get("assistant") or "") != clean_assistant:
+            continue
+        synced = bool(row.get("synced"))
+        if clean_sync == "Synced" and not synced:
+            continue
+        if clean_sync == "Not synced" and synced:
+            continue
+        if needle:
+            searchable = " ".join([
+                str(row.get("issue") or row.get("question") or ""),
+                str(row.get("solution") or row.get("approved_answer") or ""),
+                str(row.get("vehicle") or row.get("vehicle_model") or ""),
+                str(row.get("product") or ""),
+                str(row.get("keywords") or ""),
+                str(row.get("assistant") or ""),
+            ]).casefold()
+            if needle not in searchable:
+                continue
+        filtered.append(row)
+    filtered.sort(
+        key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""),
+        reverse=str(sort_order or "Newest first") != "Oldest first",
+    )
+    return filtered
+
+
 @_optional_ui_fragment
 def render_admin_latest_learned_fragment():
     """Render learned-record pagination and expanders with local reruns.
@@ -28923,9 +28966,54 @@ def render_admin_latest_learned_fragment():
     The dataset uses the existing short Supabase cache. Deleting a record still
     performs a full rerun so analytics and vector-related views remain consistent.
     """
-    _, fragment_learned_rows = load_admin_analytics_rows()
-    fragment_learned_rows = list(fragment_learned_rows or [])
+    _, raw_fragment_learned_rows = load_admin_analytics_rows()
+    raw_fragment_learned_rows = list(raw_fragment_learned_rows or [])
     st.markdown("#### Latest Learned Knowledge")
+    assistant_options = sorted({
+        str(row.get("assistant") or "").strip()
+        for row in raw_fragment_learned_rows
+        if str(row.get("assistant") or "").strip()
+    })
+    learned_filter_columns = st.columns([2.2, 1.2, 1.1, 1.1], gap="small")
+    with learned_filter_columns[0]:
+        learned_search = st.text_input(
+            "Search learned records",
+            placeholder="Issue, solution, vehicle, product, or keyword",
+            key="latest_learned_search",
+        )
+    with learned_filter_columns[1]:
+        learned_assistant_filter = st.selectbox(
+            "Assistant", ["All", *assistant_options],
+            key="latest_learned_assistant_filter",
+        )
+    with learned_filter_columns[2]:
+        learned_sync_filter = st.selectbox(
+            "Sync status", ["All", "Synced", "Not synced"],
+            key="latest_learned_sync_filter",
+        )
+    with learned_filter_columns[3]:
+        learned_sort_order = st.selectbox(
+            "Sort", ["Newest first", "Oldest first"],
+            key="latest_learned_sort_order",
+        )
+    try:
+        learned_rows_json = json.dumps(
+            raw_fragment_learned_rows, ensure_ascii=False,
+            sort_keys=True, default=str,
+        )
+    except Exception:
+        learned_rows_json = "[]"
+    fragment_learned_rows = _admin_learned_records_view_cached(
+        learned_rows_json, learned_search, learned_assistant_filter,
+        learned_sync_filter, learned_sort_order,
+    )
+    learned_filter_signature = (
+        learned_search, learned_assistant_filter,
+        learned_sync_filter, learned_sort_order,
+    )
+    if st.session_state.get("latest_learned_filter_signature") != learned_filter_signature:
+        st.session_state["latest_learned_filter_signature"] = learned_filter_signature
+        st.session_state["latest_learned_knowledge_page"] = 1
     if fragment_learned_rows:
         learned_page_size = 100
         learned_total_records = len(fragment_learned_rows)
@@ -29083,9 +29171,13 @@ def render_admin_latest_learned_fragment():
                         )
                         // learned_page_size,
                     )
+                    invalidate_admin_read_caches()
+                    try:
+                        _admin_learned_records_view_cached.clear()
+                    except Exception:
+                        pass
                     st.session_state[learned_page_key] = min(
-                        current_learned_page,
-                        remaining_pages,
+                        current_learned_page, remaining_pages,
                     )
                     st.rerun()
 
@@ -29250,7 +29342,10 @@ def render_admin_latest_learned_fragment():
         )
 
     else:
-        st.info("No learned knowledge saved yet.")
+        if raw_fragment_learned_rows:
+            st.info("No learned records match the current search or filters.")
+        else:
+            st.info("No learned knowledge saved yet.")
 
 
 
@@ -29267,9 +29362,67 @@ def render_admin_user_management_fragment():
     if delete_success:
         st.success(delete_success)
 
-    users = load_admin_users()
-
-    for user in users:
+    users = list(load_admin_users() or [])
+    all_users = list(users)
+    user_filter_columns = st.columns([2.0, 1.0, 1.0], gap="small")
+    with user_filter_columns[0]:
+        admin_user_search = st.text_input(
+            "Search users", placeholder="Username", key="admin_user_search",
+        )
+    with user_filter_columns[1]:
+        admin_role_filter = st.selectbox(
+            "Role filter", ["All", *ROLE_OPTIONS], key="admin_user_role_filter",
+        )
+    with user_filter_columns[2]:
+        admin_active_filter = st.selectbox(
+            "Status filter", ["All", "Active", "Inactive"],
+            key="admin_user_active_filter",
+        )
+    user_needle = str(admin_user_search or "").strip().casefold()
+    filtered_users = []
+    for user in all_users:
+        username_value = str(user.get("username") or "")
+        role_value = str(user.get("role") or "staff")
+        active_value = bool(user.get("active"))
+        if user_needle and user_needle not in username_value.casefold():
+            continue
+        if admin_role_filter != "All" and role_value != admin_role_filter:
+            continue
+        if admin_active_filter == "Active" and not active_value:
+            continue
+        if admin_active_filter == "Inactive" and active_value:
+            continue
+        filtered_users.append(user)
+    user_page_size = 25
+    user_total_pages = max(1, (len(filtered_users) + user_page_size - 1) // user_page_size)
+    user_page_key = "admin_user_management_page"
+    user_filter_signature = (admin_user_search, admin_role_filter, admin_active_filter)
+    if st.session_state.get("admin_user_filter_signature") != user_filter_signature:
+        st.session_state["admin_user_filter_signature"] = user_filter_signature
+        st.session_state[user_page_key] = 1
+    current_user_page = max(1, min(int(st.session_state.get(user_page_key, 1)), user_total_pages))
+    st.session_state[user_page_key] = current_user_page
+    user_start = (current_user_page - 1) * user_page_size
+    visible_users = filtered_users[user_start:user_start + user_page_size]
+    st.caption(
+        f"Showing {user_start + 1 if filtered_users else 0}–"
+        f"{min(user_start + user_page_size, len(filtered_users))} of "
+        f"{len(filtered_users)} user(s)"
+    )
+    if user_total_pages > 1:
+        page_start = max(1, min(current_user_page - 4, user_total_pages - 9))
+        page_numbers = list(range(page_start, min(user_total_pages, page_start + 9) + 1))
+        page_columns = st.columns(len(page_numbers), gap="small")
+        for column, page_number in zip(page_columns, page_numbers):
+            with column:
+                st.button(
+                    str(page_number), key=f"admin_user_page_{page_number}",
+                    disabled=page_number == current_user_page,
+                    on_click=lambda target=page_number: st.session_state.__setitem__(
+                        user_page_key, target
+                    ),
+                )
+    for user in visible_users:
         username_value = str(user.get("username") or "")
         role_value = str(user.get("role") or "staff")
         active_value = bool(user.get("active"))
@@ -29288,7 +29441,7 @@ def render_admin_user_management_fragment():
 
     user_lookup = {
         str(user.get("username") or ""): user
-        for user in users
+        for user in all_users
         if user.get("username")
     }
     edit_options = ["— New user —"] + sorted(user_lookup)
