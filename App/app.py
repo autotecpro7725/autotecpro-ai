@@ -14533,7 +14533,7 @@ def _product_library_image_download_payload(image_record):
 
 
 def render_product_library_chat_gallery(images, message_key):
-    """Render each Product Library image, filename, and actions in one HTML card."""
+    """Render all matching Product Library images in stable, self-contained cards."""
     clean_images = [
         image for image in (images or [])
         if isinstance(image, dict)
@@ -14581,22 +14581,23 @@ def render_product_library_chat_gallery(images, message_key):
             text-align: center;
         }
         .atp-pl-image-actions {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(7.25rem, 8.75rem));
             align-items: center;
             justify-content: center;
-            width: fit-content;
+            width: 100%;
             max-width: 100%;
             box-sizing: border-box;
-            gap: 0.65rem;
+            column-gap: 0.65rem;
             margin: 0.45rem auto 0;
         }
         .atp-pl-image-action {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 8.75rem;
-            max-width: calc(50vw - 1.75rem);
-            min-width: 7.25rem;
+            width: 100%;
+            min-width: 0;
+            max-width: none;
             height: 2.5rem;
             box-sizing: border-box;
             padding: 0 0.7rem;
@@ -14632,11 +14633,11 @@ def render_product_library_chat_gallery(images, message_key):
             }
             .atp-pl-image-actions {
                 width: 100%;
-                gap: 0.45rem;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                column-gap: 0.45rem;
             }
             .atp-pl-image-action {
-                flex: 1 1 0;
-                width: auto;
+                width: 100%;
                 min-width: 0;
                 max-width: none;
                 height: 2.65rem;
@@ -26363,7 +26364,14 @@ def _product_library_pending_candidates():
 
 
 def _product_library_resolve_pending_selection(prompt):
-    """Resolve a number or product-code reply from a prior clarification."""
+    """Resolve a clarification reply and auto-open once one product remains.
+
+    Besides option numbers and exact product codes, accept natural narrowing replies
+    such as ``SYNC 1`` and ``14.4``. When those details reduce the pending list to a
+    single verified Product Library product, return it immediately so the normal
+    image lookup runs in the same turn. This avoids an unnecessary final request for
+    an option number or product code.
+    """
     candidates = _product_library_pending_candidates()
     if not candidates:
         return None
@@ -26393,6 +26401,56 @@ def _product_library_resolve_pending_selection(prompt):
         ):
             st.session_state.pop("product_library_pending_candidates", None)
             return {"product": candidate}
+
+    # Natural clarification replies: filter the existing verified candidate set by
+    # factory system, screen size, model text, compatibility, aliases, or description.
+    # Examples: "sync1", "SYNC 1", "14.4", "17 inch", "manual climate".
+    normalized_text = re.sub(r"[^a-z0-9.]+", " ", lowered).strip()
+    compact_text = _product_library_normalize_code(value)
+    reply_tokens = [token for token in normalized_text.split() if token]
+
+    def candidate_search_text(candidate):
+        aliases = candidate.get("aliases") or []
+        if not isinstance(aliases, list):
+            aliases = [aliases]
+        values = [
+            candidate.get("product_code"),
+            candidate.get("product_name"),
+            candidate.get("vehicle_compatibility"),
+            candidate.get("description"),
+            *aliases,
+        ]
+        joined = " ".join(str(item or "") for item in values).casefold()
+        normalized = re.sub(r"[^a-z0-9.]+", " ", joined).strip()
+        compact = _product_library_normalize_code(joined)
+        return normalized, compact
+
+    filtered = []
+    if reply_tokens or compact_text:
+        for candidate in candidates:
+            searchable, searchable_compact = candidate_search_text(candidate)
+            token_match = bool(reply_tokens) and all(
+                token in searchable or token in searchable_compact
+                for token in reply_tokens
+            )
+            compact_match = bool(compact_text) and compact_text in searchable_compact
+            if token_match or compact_match:
+                filtered.append(candidate)
+
+    if len(filtered) == 1:
+        selected = filtered[0]
+        st.session_state.pop("product_library_pending_candidates", None)
+        return {"product": selected, "auto_resolved": True}
+
+    if len(filtered) > 1:
+        # Keep only the narrowed candidates for the next clarification. For example,
+        # after "SYNC 1", the next reply "14.4" can resolve directly to 732-QS1.
+        st.session_state["product_library_pending_candidates"] = filtered
+        return {
+            "clarification": True,
+            "candidates": filtered,
+            "narrowed": True,
+        }
 
     # Keep asking from the same bounded list for an invalid short reply.
     if len(value) <= 40:
