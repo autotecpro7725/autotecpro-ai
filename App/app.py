@@ -14533,7 +14533,7 @@ def _product_library_image_download_payload(image_record):
 
 
 def render_product_library_chat_gallery(images, message_key):
-    """Render responsive Product Library cards with structurally aligned actions."""
+    """Render Product Library cards whose action row matches each image width."""
     clean_images = [
         image for image in (images or [])
         if isinstance(image, dict)
@@ -14575,21 +14575,21 @@ def render_product_library_chat_gallery(images, message_key):
             margin-right: auto !important;
         }
         .atp-product-image-actions {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            align-items: stretch;
             gap: 0.55rem;
             width: 100%;
-            margin: 0.3rem auto 0;
+            margin: 0.3rem 0 0;
             padding: 0;
             box-sizing: border-box;
         }
         .atp-product-image-action {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             justify-content: center;
-            width: 8.25rem;
-            min-width: 8.25rem;
+            width: 100%;
+            min-width: 0;
             height: 2.5rem;
             padding: 0 0.7rem;
             box-sizing: border-box;
@@ -14635,7 +14635,7 @@ def render_product_library_chat_gallery(images, message_key):
                 gap: 0.4rem;
             }
             .atp-product-image-action {
-                width: min(8.25rem, calc(50vw - 1.6rem));
+                width: 100%;
                 min-width: 0;
                 height: 2.65rem;
                 padding: 0 0.45rem;
