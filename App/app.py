@@ -25718,6 +25718,24 @@ def _product_library_delete_asset(asset):
     _product_library_clear_read_caches()
 
 
+def _product_library_toggle_asset_panel(product_id, asset_id, panel):
+    """Open the correct product/file section before Streamlit reruns."""
+    clean_product_id = str(product_id or "")
+    clean_asset_id = str(asset_id or "")
+    replace_key = f"replace_panel_{clean_asset_id}"
+    delete_key = f"delete_panel_{clean_asset_id}"
+
+    st.session_state["product_library_open_product_id"] = clean_product_id
+    st.session_state[f"product_library_section_{clean_product_id}"] = "Files"
+
+    if panel == "replace":
+        st.session_state[replace_key] = not bool(st.session_state.get(replace_key, False))
+        st.session_state[delete_key] = False
+    elif panel == "delete":
+        st.session_state[delete_key] = not bool(st.session_state.get(delete_key, False))
+        st.session_state[replace_key] = False
+
+
 def _product_library_replace_asset(product, asset, replacement_file):
     """
     Replace one Product Library asset while preserving the product and asset type.
@@ -27647,9 +27665,18 @@ def render_product_library_admin():
                         == product_id
                     )
                     with st.expander(title, expanded=product_is_open):
-                        edit_tab, files_tab, danger_tab = st.tabs(["Edit Product", "Files", "Delete Product"])
+                        section_key = f"product_library_section_{product_id}"
+                        if section_key not in st.session_state:
+                            st.session_state[section_key] = "Edit Product"
+                        selected_product_section = st.radio(
+                            "Product section",
+                            ["Edit Product", "Files", "Delete Product"],
+                            horizontal=True,
+                            key=section_key,
+                            label_visibility="collapsed",
+                        )
 
-                        with edit_tab:
+                        if selected_product_section == "Edit Product":
                             with st.form(f"product_edit_{product_id}"):
                                 st.text_input("Product / Model Code", value=str(product.get("product_code") or ""), disabled=True)
                                 edit_name = st.text_input("Product Name", value=str(product.get("product_name") or ""))
@@ -27675,7 +27702,7 @@ def render_product_library_admin():
                                 except Exception as error:
                                     st.error(f"Product update failed: {error}")
 
-                        with files_tab:
+                        if selected_product_section == "Files":
                             with st.form(f"product_add_files_{product_id}"):
                                 add_asset_type = st.selectbox(
                                     "Asset Type", PRODUCT_ASSET_TYPES,
@@ -27893,38 +27920,24 @@ def render_product_library_admin():
                                                 )
 
                                         with action_cols[2]:
-                                            replace_clicked = st.button(
+                                            st.button(
                                                 "Replace",
                                                 key=f"replace_asset_toggle_{asset_id}",
                                                 use_container_width=True,
                                                 help="Replace this Product Library file",
+                                                on_click=_product_library_toggle_asset_panel,
+                                                args=(product_id, asset_id, "replace"),
                                             )
 
                                         with action_cols[3]:
-                                            delete_clicked = st.button(
+                                            st.button(
                                                 "Delete",
                                                 key=f"delete_asset_toggle_{asset_id}",
                                                 use_container_width=True,
                                                 help="Delete this Product Library file",
+                                                on_click=_product_library_toggle_asset_panel,
+                                                args=(product_id, asset_id, "delete"),
                                             )
-
-                                    # The button click has already triggered the normal Streamlit
-                                    # rerun. Update panel state and continue rendering in this same
-                                    # run; a second st.rerun() would reset st.tabs to Edit Product
-                                    # and make Replace/Delete appear to require multiple clicks.
-                                    if replace_clicked:
-                                        st.session_state["product_library_open_product_id"] = product_id
-                                        st.session_state[replace_panel_key] = not bool(
-                                            st.session_state.get(replace_panel_key, False)
-                                        )
-                                        st.session_state[delete_panel_key] = False
-
-                                    if delete_clicked:
-                                        st.session_state["product_library_open_product_id"] = product_id
-                                        st.session_state[delete_panel_key] = not bool(
-                                            st.session_state.get(delete_panel_key, False)
-                                        )
-                                        st.session_state[replace_panel_key] = False
 
                                     if st.session_state.get(replace_panel_key, False):
                                         with st.container(
@@ -27963,6 +27976,7 @@ def render_product_library_admin():
                                                         )
                                                         st.session_state[replace_panel_key] = False
                                                         st.session_state["product_library_open_product_id"] = product_id
+                                                        st.session_state[f"product_library_section_{product_id}"] = "Files"
                                                         st.session_state["product_library_notice"] = "File replaced successfully."
                                                         st.rerun()
                                                     except Exception as error:
@@ -28004,6 +28018,7 @@ def render_product_library_admin():
                                                         st.session_state.pop(delete_panel_key, None)
                                                         st.session_state.pop(replace_panel_key, None)
                                                         st.session_state["product_library_open_product_id"] = product_id
+                                                        st.session_state[f"product_library_section_{product_id}"] = "Files"
                                                         st.session_state["product_library_notice"] = (
                                                             "File deleted from Product Library, Supabase Storage, "
                                                             "and Google Drive archive."
@@ -28017,7 +28032,7 @@ def render_product_library_admin():
 
                                     st.divider()
 
-                        with danger_tab:
+                        if selected_product_section == "Delete Product":
                             st.warning(
                                 "This permanently removes the product metadata and all linked Product Library files. "
                                 "Google Drive originals are moved to Trash."
