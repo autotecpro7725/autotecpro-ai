@@ -1582,19 +1582,63 @@ def _build_docx_with_options(document_text, title, cleaner=None, options=None):
         run.font.size = Pt(9.5 if opts["style"] != "Presentation" else 11)
         run.font.color.rgb = RGBColor(107, 114, 128)
 
+    previous_kind = ""
+    first_content_block = True
+    normalized_title = _strip_docx_inline_markdown(title).casefold().strip(" .:-")
+
     for kind, value in _iter_markdown_blocks(text):
-        value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
-        value = re.sub(r"`([^`]+)`", r"\1", value)
+        if (
+            first_content_block
+            and kind.startswith("heading")
+            and _strip_docx_inline_markdown(value).casefold().strip(" .:-")
+            == normalized_title
+        ):
+            first_content_block = False
+            previous_kind = kind
+            continue
+
+        if kind != "blank":
+            first_content_block = False
+
+        if kind == "table":
+            _add_docx_markdown_table(document, value)
+            previous_kind = kind
+            continue
+
         if kind == "blank":
-            paragraph = document.add_paragraph("")
-        elif kind.startswith("heading"):
-            paragraph = document.add_heading(value, level=int(kind[-1]))
+            if previous_kind not in {
+                "", "blank", "heading1", "heading2", "heading3", "table"
+            }:
+                paragraph = document.add_paragraph("")
+                paragraph.paragraph_format.space_after = Pt(1)
+            previous_kind = "blank"
+            continue
+
+        clean_value = _strip_docx_inline_markdown(value)
+
+        if kind.startswith("heading"):
+            paragraph = document.add_heading(
+                clean_value,
+                level=int(kind[-1]),
+            )
         elif kind == "bullet":
-            paragraph = document.add_paragraph(value, style="List Bullet")
+            paragraph = document.add_paragraph(style="List Bullet")
+            _add_docx_inline_text(paragraph, value)
         elif kind == "number":
-            paragraph = document.add_paragraph(value, style="List Number")
+            paragraph = document.add_paragraph(style="List Number")
+            _add_docx_inline_text(paragraph, value)
+        elif kind == "quote":
+            style_name = (
+                "Intense Quote"
+                if "Intense Quote" in document.styles
+                else "Quote"
+            )
+            paragraph = document.add_paragraph(style=style_name)
+            _add_docx_inline_text(paragraph, value)
+            _shade_docx_element(paragraph._p, "F2F2F2")
         else:
-            paragraph = document.add_paragraph(value)
+            paragraph = document.add_paragraph()
+            _add_docx_inline_text(paragraph, value)
 
         paragraph.paragraph_format.space_after = Pt(
             2 if opts["style"] == "Minimal"
@@ -1604,6 +1648,7 @@ def _build_docx_with_options(document_text, title, cleaner=None, options=None):
             1.0 if opts["style"] == "Minimal"
             else (1.35 if opts["style"] == "Presentation" else 1.15)
         )
+        previous_kind = kind
 
     _set_docx_cell_watermark(section, opts["watermark"])
 
