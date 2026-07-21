@@ -27784,20 +27784,37 @@ def render_product_library_admin():
                                     width: min(100%, 760px) !important;
                                     margin: 0 auto 0.15rem auto !important;
                                 }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                > div[data-testid="stHorizontalBlock"] {
+                                /* Streamlit inserts one or more element wrappers between the
+                                   keyed container and stHorizontalBlock. Target descendants instead
+                                   of relying on an immediate-child selector. */
+                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stHorizontalBlock"] {
                                     display: grid !important;
                                     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
                                     gap: 0.55rem !important;
                                     align-items: stretch !important;
+                                    width: 100% !important;
                                 }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                > div[data-testid="stHorizontalBlock"]
-                                > div[data-testid="stColumn"] {
-                                    width: auto !important;
+                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stColumn"] {
+                                    width: 100% !important;
                                     min-width: 0 !important;
                                     flex: none !important;
                                     padding: 0 !important;
+                                }
+                                /* Native buttons and link buttons have different wrapper elements.
+                                   Force every wrapper in each action column to occupy the full grid
+                                   cell before normalizing the actual control. */
+                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stElementContainer"],
+                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stButton"],
+                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stLinkButton"] {
+                                    width: 100% !important;
+                                    min-width: 0 !important;
+                                    height: 2.55rem !important;
+                                    min-height: 2.55rem !important;
+                                    max-height: 2.55rem !important;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
+                                    display: flex !important;
+                                    align-items: stretch !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"] button,
                                 div[class*="st-key-product_asset_toolbar_"] a {
@@ -27809,7 +27826,7 @@ def render_product_library_admin():
                                     max-height: 2.55rem !important;
                                     padding: 0 0.7rem !important;
                                     margin: 0 !important;
-                                    display: inline-flex !important;
+                                    display: flex !important;
                                     align-items: center !important;
                                     justify-content: center !important;
                                     text-align: center !important;
@@ -27832,11 +27849,13 @@ def render_product_library_admin():
                                     div[class*="st-key-product_asset_toolbar_"] {
                                         width: 100% !important;
                                     }
-                                    div[class*="st-key-product_asset_toolbar_"]
-                                    > div[data-testid="stHorizontalBlock"] {
+                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stHorizontalBlock"] {
                                         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
                                         gap: 0.5rem !important;
                                     }
+                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stElementContainer"],
+                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stButton"],
+                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stLinkButton"],
                                     div[class*="st-key-product_asset_toolbar_"] button,
                                     div[class*="st-key-product_asset_toolbar_"] a {
                                         height: 2.7rem !important;
