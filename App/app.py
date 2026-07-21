@@ -4041,6 +4041,38 @@ def _upload_preview_icon_for_file(file_name):
     return None
 
 
+def _managed_uploader_fragment_decorator(function):
+    """Run uploader interactions inside a Streamlit fragment when available.
+
+    Removing a pending file then reruns only the uploader region instead of the
+    entire application. Older Streamlit versions safely keep the original
+    full-page behavior.
+    """
+    fragment = getattr(st, "fragment", None)
+    if callable(fragment):
+        return fragment(function)
+    return function
+
+
+def _rerun_upload_region():
+    """Refresh only the active uploader fragment when the runtime supports it."""
+    try:
+        st.rerun(scope="fragment")
+    except (TypeError, Exception) as error:
+        # Older Streamlit versions do not support scoped reruns. Avoid masking
+        # unrelated runtime failures while retaining a safe compatibility path.
+        if "scope" not in str(error).lower() and "fragment" not in str(error).lower():
+            raise
+        st.rerun()
+
+
+@st.cache_data(max_entries=256, show_spinner=False)
+def _managed_image_data_url(file_type, file_bytes):
+    """Cache preview encoding so repeated uploader interactions stay lightweight."""
+    encoded = base64.b64encode(bytes(file_bytes or b"")).decode()
+    return f"data:{str(file_type or 'image/png')};base64,{encoded}"
+
+
 def render_managed_upload_preview(record, delete_key, on_delete):
     """Render one preview card with a real Streamlit delete button."""
     file_type = str(record.get("type") or "")
@@ -4051,10 +4083,13 @@ def render_managed_upload_preview(record, delete_key, on_delete):
 
     with st.container(key=card_key):
         if file_type.startswith("image/"):
-            encoded = base64.b64encode(record["data"]).decode()
+            preview_data_url = _managed_image_data_url(
+                file_type,
+                record["data"],
+            )
             media_html = (
                 '<div class="atp-gpt-upload-media">'
-                f'<img src="data:{html.escape(file_type)};base64,{encoded}" '
+                f'<img src="{html.escape(preview_data_url)}" '
                 f'alt="{file_name}">'
                 "</div>"
             )
@@ -4099,6 +4134,7 @@ def render_managed_upload_preview(record, delete_key, on_delete):
         )
 
 
+@_managed_uploader_fragment_decorator
 def managed_file_uploader(
     *,
     storage_key,
@@ -4110,9 +4146,8 @@ def managed_file_uploader(
     """
     Stable GPT-style upload manager.
 
-    A short rerun is intentionally used after selection so Streamlit's native
-    temporary file row disappears completely. This is more reliable than
-    trying to hide every temporary control with browser-side JavaScript.
+    On supported Streamlit versions, uploader selection and removal rerun only
+    this fragment. Older versions retain the original full-page fallback.
     """
     install_gpt_uploader_css()
 
@@ -4211,9 +4246,10 @@ def managed_file_uploader(
                 + ", ".join(oversized_names)
             )
 
-        # Intentional single rerun after selection: refreshes the custom
-        # preview cards and resets the hidden native uploader input.
-        st.rerun()
+        # Refresh only this uploader region when fragments are supported.
+        # This resets the native input without rerunning database, history,
+        # Auto Learning, sidebar, or workspace code.
+        _rerun_upload_region()
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
     if size_error:
@@ -22288,14 +22324,12 @@ def render_learn_from_website(database_choice):
 
 
 def _admin_upload_fragment_decorator(function):
+    """Keep the Admin upload renderer compatible with the shared uploader fragment.
+
+    The reusable managed uploader now owns fragment-scoped interactions. Keeping
+    this outer renderer undecorated avoids unsupported nested fragments while
+    preserving all Admin upload behavior.
     """
-    Use a fragment when supported so database selection reruns only the
-    Upload Knowledge section. Older Streamlit versions safely fall back to
-    the original full-page behavior without changing the interface.
-    """
-    fragment = getattr(st, "fragment", None)
-    if callable(fragment):
-        return fragment(function)
     return function
 
 
