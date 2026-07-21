@@ -27356,27 +27356,72 @@ def render_product_library_admin():
     html body div[class*="st-key-atp_product_library_panel"] [data-testid="stMetric"] {
         border: 1px solid rgba(128,128,128,.22); border-radius: 12px; padding: 12px 14px; min-height: 104px;
     }
-    html body div[class*="st-key-product_asset_actions_"] button {
+    /* Product Library asset toolbar: normalize link buttons, normal buttons,
+       and popover triggers so all four actions share one exact baseline. */
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        align-items: stretch !important;
+        gap: 0.55rem !important;
+        width: 100% !important;
+    }
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] {
+        min-width: 0 !important;
+        width: auto !important;
+        flex: none !important;
+        display: flex !important;
+        align-items: stretch !important;
+    }
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] > div,
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stPopover"],
+    html body div[class*="st-key-product_asset_toolbar_"] .stButton,
+    html body div[class*="st-key-product_asset_toolbar_"] .stLinkButton {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+    }
+    html body div[class*="st-key-product_asset_toolbar_"] button,
+    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] {
         background: transparent !important;
         background-color: transparent !important;
-        color: inherit !important;
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
         border: 1px solid rgba(250, 250, 250, 0.24) !important;
         border-radius: 0.5rem !important;
         box-shadow: none !important;
-        min-height: 2.5rem !important;
-        height: 2.5rem !important;
+        min-height: 2.65rem !important;
+        height: 2.65rem !important;
         width: 100% !important;
-        padding: 0 0.75rem !important;
+        padding: 0 0.65rem !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        line-height: 1 !important;
+        font-size: 0.94rem !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
     }
-    html body div[class*="st-key-product_asset_actions_"] button:hover {
+    html body div[class*="st-key-product_asset_toolbar_"] button *,
+    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] * {
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+    }
+    html body div[class*="st-key-product_asset_toolbar_"] button:hover,
+    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"]:hover {
         background: rgba(255, 255, 255, 0.035) !important;
         border-color: rgba(250, 250, 250, 0.48) !important;
-        color: inherit !important;
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
         box-shadow: none !important;
     }
-    html body div[class*="st-key-product_asset_actions_"] button:disabled {
+    html body div[class*="st-key-product_asset_toolbar_"] button:disabled {
         background: transparent !important;
-        color: inherit !important;
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
         opacity: 0.45 !important;
     }
     @media (max-width: 768px) {
@@ -27421,6 +27466,32 @@ def render_product_library_admin():
         html body div[class*="st-key-atp_product_library_panel"] small {
             color: var(--text-color) !important;
             opacity: .78 !important;
+        }
+        /* Keep asset actions balanced on phones: two equal columns per row.
+           This overrides the general mobile rule that stacks every Streamlit column. */
+        html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.5rem !important;
+            align-items: stretch !important;
+        }
+        html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] {
+            min-width: 0 !important;
+            width: auto !important;
+            flex: none !important;
+        }
+        html body div[class*="st-key-product_asset_toolbar_"] button,
+        html body div[class*="st-key-product_asset_toolbar_"] a[role="button"],
+        html body div[class*="st-key-product_asset_toolbar_"] button *,
+        html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] * {
+            min-height: 2.75rem !important;
+            height: 2.75rem !important;
+            color: var(--text-color) !important;
+            -webkit-text-fill-color: var(--text-color) !important;
+            font-size: 0.92rem !important;
+            font-weight: 600 !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
         }
     }
     </style>
