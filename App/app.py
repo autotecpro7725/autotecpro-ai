@@ -39,6 +39,12 @@ try:
 except Exception:
     create_supabase_client = None
 
+# AutoTecPro AI performance/stability revision: v369
+# v370 UI performance architecture:
+# - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
+#   knowledge submission, generated-image actions, and Admin user management
+# - lightweight cached uploader thumbnails and short-lived WooCommerce payload reuse
+
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -743,6 +749,24 @@ def sanitize_woocommerce_order(order, access_level="sales"):
     return clean_order
 
 
+@st.cache_data(ttl=45, max_entries=256, show_spinner=False)
+def _cached_woocommerce_result_payload(result_json):
+    """Reuse an immutable sanitized WooCommerce payload across UI and AI steps."""
+    try:
+        return json.loads(result_json)
+    except Exception:
+        return {}
+
+
+def cache_woocommerce_result(result):
+    """Return a defensive cached copy of a read-only WooCommerce result."""
+    try:
+        payload = json.dumps(result or {}, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        return result or {}
+    return _cached_woocommerce_result_payload(payload)
+
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def get_woocommerce_order_by_id(order_id, access_level="sales"):
     """Retrieve one WooCommerce order using its numeric internal ID."""
     clean_order_id = str(order_id or "").strip()
@@ -750,15 +774,16 @@ def get_woocommerce_order_by_id(order_id, access_level="sales"):
         raise RuntimeError("Invalid WooCommerce order ID.")
 
     order = woocommerce_api_request(f"orders/{clean_order_id}")
-    return {
+    return cache_woocommerce_result({
         "configured": True,
         "source": "WooCommerce REST API",
         "query_type": "order_id",
         "access_level": access_level,
         "order": sanitize_woocommerce_order(order, access_level),
-    }
+    })
 
 
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def search_woocommerce_order_number(order_number, access_level="sales"):
     """Find an order by internal ID or displayed WooCommerce order number."""
     clean_number = re.sub(r"[^0-9]", "", str(order_number or ""))
@@ -806,6 +831,7 @@ def search_woocommerce_order_number(order_number, access_level="sales"):
     }
 
 
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def search_multiple_woocommerce_orders(order_numbers, access_level="sales"):
     """
     Retrieve up to 10 unique WooCommerce orders in the supplied order.
@@ -886,6 +912,7 @@ def search_multiple_woocommerce_orders(order_numbers, access_level="sales"):
     }
 
 
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def search_woocommerce_orders_by_email(email_address, access_level="sales"):
     """Search recent orders by exact billing email address."""
     email_value = str(email_address or "").strip().lower()
@@ -923,6 +950,7 @@ def search_woocommerce_orders_by_email(email_address, access_level="sales"):
     }
 
 
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def get_recent_woocommerce_orders(limit=10, status="any", access_level="sales"):
     """Retrieve a small list of recent WooCommerce orders."""
     try:
@@ -964,6 +992,7 @@ def get_recent_woocommerce_orders(limit=10, status="any", access_level="sales"):
     }
 
 
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def get_woocommerce_order_notes(order_id):
     """Retrieve notes associated with one WooCommerce order."""
     clean_order_id = str(order_id or "").strip()
@@ -4054,16 +4083,41 @@ def _managed_uploader_fragment_decorator(function):
     return function
 
 
-def _rerun_upload_region():
-    """Refresh only the active uploader fragment when the runtime supports it."""
+def _optional_ui_fragment(function):
+    """Isolate frequent UI interactions when fragments are supported.
+
+    Older Streamlit versions retain the original full-app rerun path. Successful
+    database/storage mutations still call ``st.rerun()`` and invalidate their
+    existing caches, preserving cross-workspace consistency.
+    """
+    fragment = getattr(st, "fragment", None)
+    if callable(fragment):
+        try:
+            return fragment(function)
+        except Exception:
+            pass
+    return function
+
+
+def _rerun_fragment_or_app():
+    """Rerun only the active fragment when supported, otherwise the full app.
+
+    Streamlit versions before fragment-scoped reruns raise TypeError or a
+    Streamlit API exception for ``scope="fragment"``. The compatibility
+    fallback preserves the existing behavior without hiding unrelated errors.
+    """
     try:
         st.rerun(scope="fragment")
-    except (TypeError, Exception) as error:
-        # Older Streamlit versions do not support scoped reruns. Avoid masking
-        # unrelated runtime failures while retaining a safe compatibility path.
-        if "scope" not in str(error).lower() and "fragment" not in str(error).lower():
+    except Exception as error:
+        message = str(error).lower()
+        if "scope" not in message and "fragment" not in message:
             raise
         st.rerun()
+
+
+def _rerun_upload_region():
+    """Refresh only the active uploader fragment when the runtime supports it."""
+    _rerun_fragment_or_app()
 
 
 @st.cache_data(max_entries=256, show_spinner=False)
@@ -4181,8 +4235,7 @@ def render_managed_upload_preview(record, delete_key, on_delete):
         )
 
 
-@_managed_uploader_fragment_decorator
-def managed_file_uploader(
+def _managed_file_uploader_core(
     *,
     storage_key,
     generation_key,
@@ -4305,6 +4358,25 @@ def managed_file_uploader(
     return _managed_upload_objects(st.session_state.get(storage_key) or [])
 
 
+
+
+@_managed_uploader_fragment_decorator
+def managed_file_uploader(
+    *,
+    storage_key,
+    generation_key,
+    widget_prefix,
+    accepted_types,
+    heading,
+):
+    """Fragment-scoped public uploader wrapper."""
+    return _managed_file_uploader_core(
+        storage_key=storage_key,
+        generation_key=generation_key,
+        widget_prefix=widget_prefix,
+        accepted_types=accepted_types,
+        heading=heading,
+    )
 
 # ============================================================
 # Styling
@@ -15478,6 +15550,7 @@ def render_generated_png_download(
         st.download_button(**button_kwargs)
 
 
+@_optional_ui_fragment
 def render_generated_image_actions(images, message_index=None):
     """
     Render equal-size Full Size, Download, and Regenerate controls.
@@ -21446,31 +21519,9 @@ def auto_scroll_to_latest():
 
 
 # ============================================================
-# Chat History Sidebar
-# ============================================================
-
-if (
-    history_is_enabled()
-    and assistant not in {
-        "⚙️ Admin Panel",
-        "🧠 Knowledge Submission",
-        "📦 Product Library",
-    }
-):
-    if "rename_conversation_id" not in st.session_state:
-        st.session_state.rename_conversation_id = None
-    if "rename_conversation_value" not in st.session_state:
-        st.session_state.rename_conversation_value = ""
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown(
-        (
-            '<div class="history-title">History</div>'
-            '<div class="history-heading-gap" aria-hidden="true"></div>'
-        ),
-        unsafe_allow_html=True,
-    )
-
+@_optional_ui_fragment
+def render_history_sidebar_fragment():
+    """Render/search/manage sidebar history without rerunning the chat body."""
     try:
         if "history_unpinned_limit" not in st.session_state:
             st.session_state.history_unpinned_limit = (
@@ -21534,7 +21585,7 @@ if (
                     INITIAL_HISTORY_PAGE_SIZE
                 )
                 invalidate_history_cache()
-                st.rerun()
+                _rerun_fragment_or_app()
 
         with search_col:
             st.text_input(
@@ -21652,7 +21703,7 @@ if (
                     )
                     + HISTORY_PAGE_INCREMENT,
                 )
-                st.rerun()
+                _rerun_fragment_or_app()
 
         render_rename_form(conversations)
 
@@ -21669,6 +21720,38 @@ if (
 
     except Exception as e:
         st.sidebar.error(f"Chat history error: {e}")
+
+# Chat History Sidebar
+# ============================================================
+
+if (
+    history_is_enabled()
+    and assistant not in {
+        "⚙️ Admin Panel",
+        "🧠 Knowledge Submission",
+        "📦 Product Library",
+    }
+):
+    if "rename_conversation_id" not in st.session_state:
+        st.session_state.rename_conversation_id = None
+    if "rename_conversation_value" not in st.session_state:
+        st.session_state.rename_conversation_value = ""
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+        (
+            '<div class="history-title">History</div>'
+            '<div class="history-heading-gap" aria-hidden="true"></div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # Streamlit requires sidebar fragments to be invoked from inside the
+    # sidebar context. This prevents fragment/container ownership errors on
+    # current releases while preserving the older full-rerun fallback.
+    with st.sidebar:
+        render_history_sidebar_fragment()
+
 
     st.sidebar.markdown(
         '<div class="sidebar-logout-divider"></div>',
@@ -22466,7 +22549,7 @@ def render_admin_upload_knowledge_tab():
         key="stable_admin_upload_context"
     )
 
-    admin_files = managed_file_uploader(
+    admin_files = _managed_file_uploader_core(
         storage_key="admin_managed_uploads",
         generation_key="admin_managed_upload_generation",
         widget_prefix="admin_knowledge",
@@ -23622,6 +23705,7 @@ def render_pending_knowledge_review():
 
 
 
+@_optional_ui_fragment
 def render_knowledge_submission_workspace():
     """Render the structured staff-facing knowledge submission page."""
     install_knowledge_submission_css()
@@ -23664,7 +23748,7 @@ def render_knowledge_submission_workspace():
                                 st.session_state.knowledge_submission_type = (
                                     type_key
                                 )
-                                st.rerun()
+                                _rerun_fragment_or_app()
 
         selected_type = st.session_state.knowledge_submission_type
         destination_label, _ = knowledge_submission_destination(selected_type)
@@ -23715,7 +23799,7 @@ def render_knowledge_submission_workspace():
                 ),
             )
 
-        supporting_files = managed_file_uploader(
+        supporting_files = _managed_file_uploader_core(
             storage_key="knowledge_submission_uploads",
             generation_key="knowledge_submission_upload_generation",
             widget_prefix="knowledge_submission_files",
@@ -27538,6 +27622,618 @@ def _product_library_format_bytes(value):
         size /= 1024
 
 
+@_optional_ui_fragment
+def render_product_library_dashboard_fragment():
+    """Render dashboard metrics without rerunning unrelated app sections."""
+    refresh_col, _ = st.columns([0.22, 0.78])
+    with refresh_col:
+        if st.button(
+            "Refresh dashboard",
+            key="product_library_dashboard_fragment_refresh",
+            use_container_width=True,
+        ):
+            _product_library_dashboard_data.clear()
+            _product_library_clear_read_caches()
+            _rerun_fragment_or_app()
+    try:
+        data = _product_library_dashboard_data()
+        cols = st.columns(4)
+        metrics = [
+            ("Total Products", data["products"]),
+            ("Active Products", data["active"]),
+            ("Total Assets", data["assets"]),
+            ("Optimized Storage", _product_library_format_bytes(data["optimized_bytes"])),
+        ]
+        for column, (label, value) in zip(cols, metrics):
+            with column:
+                st.metric(label, value)
+        status_cols = st.columns(2)
+        with status_cols[0]:
+            st.metric("Assets Missing Display Copy", data["storage_missing"])
+        with status_cols[1]:
+            st.metric("Assets Missing Drive Archive", data["archive_missing"])
+    except Exception as error:
+        st.error(f"Product Library dashboard could not load: {error}")
+
+
+
+
+@_optional_ui_fragment
+def render_product_library_manage_fragment():
+    """Isolate high-frequency Product Library management interactions.
+
+    Search, product expansion, section switching, and Replace/Delete panel toggles
+    stay local. Existing successful mutation paths still perform full reruns.
+    """
+    product_library_notice = (
+        st.session_state.pop("product_library_notice", "")
+        or st.session_state.pop("product_library_delete_notice", "")
+    )
+    if product_library_notice:
+        st.success(product_library_notice)
+
+    search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
+    try:
+        query = (
+            supabase.table("product_library")
+            .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active,updated_at")
+            .order("updated_at", desc=True)
+            .limit(500)
+        )
+        products = query.execute().data or []
+        needle = str(search_value or "").strip().casefold()
+        if needle:
+            products = [
+                row for row in products
+                if needle in " ".join([
+                    str(row.get("product_code") or ""),
+                    str(row.get("product_name") or ""),
+                    str(row.get("vehicle_compatibility") or ""),
+                    json.dumps(row.get("aliases") or [], ensure_ascii=False),
+                ]).casefold()
+            ]
+        st.caption(f"Showing {len(products)} product(s)")
+        for product in products:
+            product_id = str(product.get("id") or "")
+            title = f"{product.get('product_code')} — {product.get('product_name')}"
+            product_is_open = (
+                str(st.session_state.get("product_library_open_product_id") or "")
+                == product_id
+            )
+            with st.expander(title, expanded=product_is_open):
+                section_key = f"product_library_section_{product_id}"
+                if section_key not in st.session_state:
+                    st.session_state[section_key] = "Edit Product"
+                selected_product_section = st.radio(
+                    "Product section",
+                    ["Edit Product", "Files", "Delete Product"],
+                    horizontal=True,
+                    key=section_key,
+                    label_visibility="collapsed",
+                    on_change=_product_library_select_section,
+                    args=(product_id, section_key),
+                )
+
+                if selected_product_section == "Edit Product":
+                    with st.form(f"product_edit_{product_id}"):
+                        st.text_input("Product / Model Code", value=str(product.get("product_code") or ""), disabled=True)
+                        edit_name = st.text_input("Product Name", value=str(product.get("product_name") or ""))
+                        edit_compatibility = st.text_area("Vehicle Compatibility", value=str(product.get("vehicle_compatibility") or ""), height=90)
+                        edit_description = st.text_area("Description", value=str(product.get("description") or ""), height=120)
+                        edit_aliases = st.text_input("Aliases", value=", ".join(str(item) for item in (product.get("aliases") or [])))
+                        edit_active = st.checkbox("Active Product", value=bool(product.get("active")), key=f"active_{product_id}")
+                        save_edit_submit_cols = st.columns([1, 2, 1])
+                        with save_edit_submit_cols[1]:
+                            save_edit = st.form_submit_button(
+                                "Save Product Changes",
+                                use_container_width=True,
+                            )
+                    if save_edit:
+                        try:
+                            aliases = [item.strip() for item in edit_aliases.split(",") if item.strip()]
+                            _product_library_update_product(
+                                product_id, edit_name, edit_compatibility,
+                                edit_description, aliases, edit_active,
+                            )
+                            st.success("Product information updated.")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(f"Product update failed: {error}")
+
+                if selected_product_section == "Files":
+                    with st.form(f"product_add_files_{product_id}"):
+                        add_asset_type = st.selectbox(
+                            "Asset Type", PRODUCT_ASSET_TYPES,
+                            format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
+                            key=f"asset_type_{product_id}",
+                        )
+                        add_asset_subtype = st.selectbox(
+                            "Asset Subtype",
+                            _product_library_subtype_options(add_asset_type),
+                            format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title()),
+                            key=f"asset_subtype_{product_id}_{add_asset_type}",
+                            help="Choose the specific view, component, or document purpose.",
+                        )
+                        add_uploads = file_uploader_with_limit(
+                            "Upload more files",
+                            accept_multiple_files=True,
+                            type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
+                            key=f"add_files_{product_id}",
+                        )
+                        add_files_submit_cols = st.columns([1, 2, 1])
+                        with add_files_submit_cols[1]:
+                            add_files_submitted = st.form_submit_button(
+                                "Upload More Files",
+                                use_container_width=True,
+                            )
+                    if add_files_submitted:
+                        if not add_uploads:
+                            st.warning("Please select at least one file.")
+                        else:
+                            failures = []
+                            for uploaded_file in add_uploads:
+                                try:
+                                    _product_library_upload_asset(product, add_asset_type, uploaded_file, add_asset_subtype)
+                                except Exception as error:
+                                    failures.append(f"{uploaded_file.name}: {error}")
+                            if failures:
+                                for failure in failures:
+                                    st.error(failure)
+                            else:
+                                st.success(f"Uploaded {len(add_uploads)} additional file(s).")
+                                # Do not force a full-app rerun here. The asset query below
+                                # runs after the upload and immediately shows the new files.
+
+                    assets = (
+                        supabase.table("product_assets")
+                        .select("id,asset_type,asset_subtype,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
+                        .eq("product_id", product_id)
+                        .order("created_at", desc=True)
+                        .execute().data
+                        or []
+                    )
+
+                    # Hide duplicate legacy rows in the manager while keeping the newest
+                    # record. Future exact duplicates are blocked during upload.
+                    unique_assets = []
+                    seen_asset_keys = set()
+                    st.markdown(
+                        """
+                        <style>
+                        div[class*="st-key-replace_asset_panel_"],
+                        div[class*="st-key-delete_asset_panel_"] {
+                            position: relative;
+                        }
+
+                        div[class*="st-key-replace_panel_minimize_"] button,
+                        div[class*="st-key-delete_panel_minimize_"] button {
+                            width: 26px !important;
+                            min-width: 26px !important;
+                            max-width: 26px !important;
+                            height: 26px !important;
+                            min-height: 26px !important;
+                            padding: 0 !important;
+                            border-radius: 7px !important;
+                            font-size: 17px !important;
+                            line-height: 1 !important;
+                        }
+
+                        .atp-replacement-help-row {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 10px;
+                            margin: 0 0 6px;
+                        }
+
+                        .atp-replacement-help-label {
+                            font-weight: 600;
+                        }
+
+                        .atp-replacement-help-icon {
+                            width: 18px;
+                            height: 18px;
+                            border: 1px solid rgba(148, 163, 184, 0.9);
+                            border-radius: 50%;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 11px;
+                            font-weight: 700;
+                            line-height: 1;
+                            cursor: help;
+                            opacity: 0.9;
+                            flex: 0 0 auto;
+                        }
+
+                        div[class*="st-key-replacement_upload_shell_"]
+                        div[data-testid="stFileUploader"] small,
+                        div[class*="st-key-replacement_upload_shell_"]
+                        div[data-testid="stFileUploaderDropzoneInstructions"] {
+                            display: none !important;
+                        }
+
+                        div[class*="st-key-replacement_upload_shell_"]
+                        div[data-testid="stFileUploader"] section::after,
+                        div[class*="st-key-replacement_upload_shell_"]
+                        div[data-testid="stFileUploaderDropzone"]::after {
+                            content: "20MB per file • JPG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
+                            display: block;
+                            width: 100%;
+                            margin-top: 6px;
+                            color: #94a3b8;
+                            font-size: 11.5px;
+                            line-height: 1.3;
+                            text-align: center;
+                            pointer-events: none;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    for asset in assets:
+                        stable_key = (
+                            str(asset.get("storage_path") or "").strip()
+                            or str(asset.get("archive_file_id") or "").strip()
+                            or "|".join([
+                                str(asset.get("asset_type") or ""),
+                                str(asset.get("asset_subtype") or ""),
+                                str(asset.get("original_filename") or ""),
+                            ])
+                        )
+                        if stable_key in seen_asset_keys:
+                            continue
+                        seen_asset_keys.add(stable_key)
+                        unique_assets.append(asset)
+                    assets = unique_assets
+
+                    if not assets:
+                        st.info("No files have been uploaded for this product.")
+
+                    st.markdown(
+                        """
+                        <style>
+                        div[class*="st-key-product_asset_meta_"] {
+                            width: min(100%, 920px) !important;
+                            margin: 0.45rem auto 0.7rem auto !important;
+                        }
+                        div[class*="st-key-product_asset_meta_"] p {
+                            margin: 0.08rem 0 !important;
+                            line-height: 1.35 !important;
+                            color: var(--text-color) !important;
+                        }
+                        div[class*="st-key-product_asset_toolbar_"] {
+                            width: min(100%, 1040px) !important;
+                            margin: 0 auto 0.15rem auto !important;
+                        }
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stHorizontalBlock"] {
+                            display: grid !important;
+                            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+                            gap: 0.65rem !important;
+                        }
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stColumn"] {
+                            width: auto !important;
+                            min-width: 0 !important;
+                            flex: none !important;
+                        }
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stLinkButton"],
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stButton"] {
+                            width: 100% !important;
+                        }
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stLinkButton"] > a,
+                        div[class*="st-key-product_asset_toolbar_"]
+                        div[data-testid="stButton"] > button {
+                            width: 100% !important;
+                            min-height: 2.5rem !important;
+                            height: 2.5rem !important;
+                            padding-top: 0 !important;
+                            padding-bottom: 0 !important;
+                            display: inline-flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            box-sizing: border-box !important;
+                        }
+                        @media (max-width: 768px) {
+                            div[class*="st-key-product_asset_meta_"],
+                            div[class*="st-key-product_asset_toolbar_"] {
+                                width: 100% !important;
+                            }
+                            div[class*="st-key-product_asset_toolbar_"]
+                            div[data-testid="stHorizontalBlock"] {
+                                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                            }
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    for asset in assets:
+                        asset_id = str(asset.get("id") or "")
+                        asset_placeholder = st.empty()
+                        with asset_placeholder.container():
+                            signed_url = _product_library_signed_url(asset.get("storage_path"))
+                            if signed_url and str(asset.get("content_type") or "").startswith("image/"):
+                                st.image(signed_url, use_container_width=True)
+
+                            filename = str(
+                                asset.get("original_filename") or "Unnamed file"
+                            )
+                            asset_type = str(asset.get("asset_type") or "other")
+                            subtype = str(asset.get("asset_subtype") or "").strip()
+                            type_label = PRODUCT_ASSET_LABELS.get(
+                                asset_type,
+                                asset_type.replace("_", " ").title(),
+                            )
+                            subtype_label = PRODUCT_ASSET_SUBTYPE_LABELS.get(
+                                subtype,
+                                subtype.replace("_", " ").title(),
+                            )
+                            location_label = (
+                                f"{type_label} / {subtype_label}"
+                                if subtype_label
+                                else type_label
+                            )
+
+                            with st.container(
+                                key=f"product_asset_meta_{asset_id}"
+                            ):
+                                st.markdown(f"**{html.escape(filename)}**")
+                                st.caption(location_label)
+                                st.caption(
+                                    f"Display: {asset.get('storage_status') or 'unknown'}  ·  "
+                                    f"Archive: {asset.get('archive_status') or 'unknown'}"
+                                )
+
+                            replace_panel_key = f"replace_panel_{asset_id}"
+                            delete_panel_key = f"delete_panel_{asset_id}"
+
+                            archive_url = str(asset.get("archive_web_url") or "").strip()
+                            with st.container(
+                                key=f"product_asset_toolbar_{asset_id}"
+                            ):
+                                action_cols = st.columns(4, gap="small")
+
+                                with action_cols[0]:
+                                    if signed_url:
+                                        st.link_button(
+                                            "View",
+                                            str(signed_url),
+                                            use_container_width=True,
+                                            help="Open the optimized display copy",
+                                        )
+                                    else:
+                                        st.button(
+                                            "View",
+                                            key=f"view_asset_disabled_{asset_id}",
+                                            disabled=True,
+                                            use_container_width=True,
+                                        )
+
+                                with action_cols[1]:
+                                    if archive_url:
+                                        st.link_button(
+                                            "Original",
+                                            archive_url,
+                                            use_container_width=True,
+                                            help="Open the original Google Drive archive",
+                                        )
+                                    else:
+                                        st.button(
+                                            "Original",
+                                            key=f"original_asset_disabled_{asset_id}",
+                                            disabled=True,
+                                            use_container_width=True,
+                                        )
+
+                                with action_cols[2]:
+                                    st.button(
+                                        "Replace",
+                                        key=f"replace_asset_toggle_{asset_id}",
+                                        use_container_width=True,
+                                        help="Replace this Product Library file",
+                                        on_click=_product_library_toggle_asset_panel,
+                                        args=(product_id, asset_id, "replace"),
+                                    )
+
+                                with action_cols[3]:
+                                    st.button(
+                                        "Delete",
+                                        key=f"delete_asset_toggle_{asset_id}",
+                                        use_container_width=True,
+                                        help="Delete this Product Library file",
+                                        on_click=_product_library_toggle_asset_panel,
+                                        args=(product_id, asset_id, "delete"),
+                                    )
+
+                            if st.session_state.get(replace_panel_key, False):
+                                with st.container(
+                                    border=True,
+                                    key=f"replace_asset_panel_{asset_id}",
+                                ):
+                                    panel_header_cols = st.columns(
+                                        [1, 0.05],
+                                        gap="small",
+                                        vertical_alignment="center",
+                                    )
+                                    with panel_header_cols[0]:
+                                        st.markdown("**Replace File**")
+                                    with panel_header_cols[1]:
+                                        with st.container(
+                                            key=f"replace_panel_minimize_{asset_id}"
+                                        ):
+                                            st.button(
+                                                "−",
+                                                key=f"minimize_replace_{asset_id}",
+                                                help="Minimize Replace File",
+                                                on_click=_product_library_close_asset_panel,
+                                                args=(product_id, asset_id, "replace"),
+                                            )
+
+                                    with st.form(f"replace_asset_form_{asset_id}"):
+                                        st.markdown(
+                                            """
+                                            <div class="atp-replacement-help-row">
+                                                <span class="atp-replacement-help-label">Choose one replacement file</span>
+                                                <span class="atp-replacement-help-icon" title="The replacement keeps the same asset type. The old file is removed only after the new file uploads successfully.">?</span>
+                                            </div>
+                                            """,
+                                            unsafe_allow_html=True,
+                                        )
+                                        with st.container(
+                                            key=f"replacement_upload_shell_{asset_id}"
+                                        ):
+                                            replacement_file = file_uploader_with_limit(
+                                                "Choose one replacement file",
+                                                accept_multiple_files=False,
+                                                type=[
+                                                    "jpg", "jpeg", "png", "webp",
+                                                    "pdf", "docx", "txt", "csv", "zip",
+                                                ],
+                                                key=f"replacement_upload_{asset_id}",
+                                                label_visibility="collapsed",
+                                                max_upload_size_mb=MAX_UPLOAD_SIZE_MB,
+                                            )
+                                        replacement_submitted = st.form_submit_button(
+                                            "Save Replacement",
+                                            use_container_width=True,
+                                        )
+                                    if replacement_submitted:
+                                        if replacement_file is None:
+                                            st.warning("Please select a replacement file.")
+                                        else:
+                                            try:
+                                                _product_library_replace_asset(
+                                                    product,
+                                                    asset,
+                                                    replacement_file,
+                                                )
+                                                st.session_state[replace_panel_key] = False
+                                                st.session_state["product_library_open_product_id"] = product_id
+                                                st.session_state[f"product_library_section_{product_id}"] = "Files"
+                                                st.session_state["product_library_notice"] = "File replaced successfully."
+                                                st.rerun()
+                                            except Exception as error:
+                                                st.error(
+                                                    "File replacement failed: "
+                                                    f"{error}"
+                                                )
+
+                            if st.session_state.get(delete_panel_key, False):
+                                with st.container(
+                                    border=True,
+                                    key=f"delete_asset_panel_{asset_id}",
+                                ):
+                                    delete_header_cols = st.columns(
+                                        [1, 0.05],
+                                        gap="small",
+                                        vertical_alignment="center",
+                                    )
+                                    with delete_header_cols[0]:
+                                        st.markdown("**Delete this file?**")
+                                    with delete_header_cols[1]:
+                                        with st.container(
+                                            key=f"delete_panel_minimize_{asset_id}"
+                                        ):
+                                            st.button(
+                                                "−",
+                                                key=f"minimize_delete_{asset_id}",
+                                                help="Minimize Delete File",
+                                                on_click=_product_library_close_asset_panel,
+                                                args=(product_id, asset_id, "delete"),
+                                            )
+                                    st.caption(
+                                        "This removes the display copy, Product Library "
+                                        "record, and Google Drive archive."
+                                    )
+                                    with st.form(f"delete_asset_form_{asset_id}"):
+                                        confirm_asset = st.checkbox(
+                                            "Confirm delete this file",
+                                            key=f"confirm_asset_{asset_id}",
+                                        )
+                                        delete_asset_clicked = st.form_submit_button(
+                                            "Delete File",
+                                            type="primary",
+                                            use_container_width=True,
+                                        )
+
+                                    if delete_asset_clicked:
+                                        if not confirm_asset:
+                                            st.warning(
+                                                "Please check ‘Confirm delete this file’ first."
+                                            )
+                                        else:
+                                            try:
+                                                with st.spinner("Deleting file..."):
+                                                    _product_library_delete_asset(asset)
+                                                st.session_state.pop(delete_panel_key, None)
+                                                st.session_state.pop(replace_panel_key, None)
+                                                st.session_state["product_library_open_product_id"] = product_id
+                                                st.session_state[f"product_library_section_{product_id}"] = "Files"
+                                                st.session_state["product_library_notice"] = (
+                                                    "File deleted from Product Library, Supabase Storage, "
+                                                    "and Google Drive archive."
+                                                )
+                                                st.rerun()
+                                            except Exception as error:
+                                                st.error(
+                                                    "File deletion failed: "
+                                                    f"{error}"
+                                                )
+
+                            st.divider()
+
+                if selected_product_section == "Delete Product":
+                    st.warning(
+                        "This permanently removes the product metadata and all linked Product Library files. "
+                        "Google Drive originals are moved to Trash."
+                    )
+                    delete_submit_cols = st.columns([1, 2, 1])
+                    with delete_submit_cols[1]:
+                        delete_product_clicked = st.button(
+                            "Delete Product Permanently",
+                            key=f"delete_product_{product_id}",
+                            type="primary",
+                            use_container_width=True,
+                        )
+
+                    if delete_product_clicked:
+                        try:
+                            with st.spinner("Deleting product and linked files..."):
+                                delete_result = _product_library_delete_product(product)
+
+                            cleanup_warnings = delete_result.get("cleanup_warnings") or []
+                            if cleanup_warnings:
+                                diagnostic_log(
+                                    "product_library_delete_completed_with_warnings",
+                                    product_id=product_id,
+                                    warning_count=len(cleanup_warnings),
+                                )
+
+                            st.session_state["product_library_delete_notice"] = (
+                                "Product and linked records deleted successfully."
+                            )
+                            st.rerun()
+                        except Exception as error:
+                            diagnostic_log(
+                                "product_library_delete_failed",
+                                product_id=product_id,
+                                error=error,
+                            )
+                            st.error(f"Product deletion failed: {error}")
+    except Exception as error:
+        st.error(f"Product records could not load: {error}")
+
+
+
+
+
 def render_product_library_admin():
     st.markdown("""
     <style>
@@ -27683,25 +28379,7 @@ def render_product_library_admin():
         ])
 
         with dashboard_tab:
-            try:
-                data = _product_library_dashboard_data()
-                cols = st.columns(4)
-                metrics = [
-                    ("Total Products", data["products"]),
-                    ("Active Products", data["active"]),
-                    ("Total Assets", data["assets"]),
-                    ("Optimized Storage", _product_library_format_bytes(data["optimized_bytes"])),
-                ]
-                for column, (label, value) in zip(cols, metrics):
-                    with column:
-                        st.metric(label, value)
-                status_cols = st.columns(2)
-                with status_cols[0]:
-                    st.metric("Assets Missing Display Copy", data["storage_missing"])
-                with status_cols[1]:
-                    st.metric("Assets Missing Drive Archive", data["archive_missing"])
-            except Exception as error:
-                st.error(f"Product Library dashboard could not load: {error}")
+            render_product_library_dashboard_fragment()
 
         with upload_tab:
             code = st.text_input(
@@ -27808,572 +28486,7 @@ def render_product_library_admin():
                         st.error(f"Product upload failed: {error}")
 
         with manage_tab:
-            product_library_notice = (
-                st.session_state.pop("product_library_notice", "")
-                or st.session_state.pop("product_library_delete_notice", "")
-            )
-            if product_library_notice:
-                st.success(product_library_notice)
-
-            search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
-            try:
-                query = (
-                    supabase.table("product_library")
-                    .select("id,product_code,product_name,vehicle_compatibility,description,aliases,active,updated_at")
-                    .order("updated_at", desc=True)
-                    .limit(500)
-                )
-                products = query.execute().data or []
-                needle = str(search_value or "").strip().casefold()
-                if needle:
-                    products = [
-                        row for row in products
-                        if needle in " ".join([
-                            str(row.get("product_code") or ""),
-                            str(row.get("product_name") or ""),
-                            str(row.get("vehicle_compatibility") or ""),
-                            json.dumps(row.get("aliases") or [], ensure_ascii=False),
-                        ]).casefold()
-                    ]
-                st.caption(f"Showing {len(products)} product(s)")
-                for product in products:
-                    product_id = str(product.get("id") or "")
-                    title = f"{product.get('product_code')} — {product.get('product_name')}"
-                    product_is_open = (
-                        str(st.session_state.get("product_library_open_product_id") or "")
-                        == product_id
-                    )
-                    with st.expander(title, expanded=product_is_open):
-                        section_key = f"product_library_section_{product_id}"
-                        if section_key not in st.session_state:
-                            st.session_state[section_key] = "Edit Product"
-                        selected_product_section = st.radio(
-                            "Product section",
-                            ["Edit Product", "Files", "Delete Product"],
-                            horizontal=True,
-                            key=section_key,
-                            label_visibility="collapsed",
-                            on_change=_product_library_select_section,
-                            args=(product_id, section_key),
-                        )
-
-                        if selected_product_section == "Edit Product":
-                            with st.form(f"product_edit_{product_id}"):
-                                st.text_input("Product / Model Code", value=str(product.get("product_code") or ""), disabled=True)
-                                edit_name = st.text_input("Product Name", value=str(product.get("product_name") or ""))
-                                edit_compatibility = st.text_area("Vehicle Compatibility", value=str(product.get("vehicle_compatibility") or ""), height=90)
-                                edit_description = st.text_area("Description", value=str(product.get("description") or ""), height=120)
-                                edit_aliases = st.text_input("Aliases", value=", ".join(str(item) for item in (product.get("aliases") or [])))
-                                edit_active = st.checkbox("Active Product", value=bool(product.get("active")), key=f"active_{product_id}")
-                                save_edit_submit_cols = st.columns([1, 2, 1])
-                                with save_edit_submit_cols[1]:
-                                    save_edit = st.form_submit_button(
-                                        "Save Product Changes",
-                                        use_container_width=True,
-                                    )
-                            if save_edit:
-                                try:
-                                    aliases = [item.strip() for item in edit_aliases.split(",") if item.strip()]
-                                    _product_library_update_product(
-                                        product_id, edit_name, edit_compatibility,
-                                        edit_description, aliases, edit_active,
-                                    )
-                                    st.success("Product information updated.")
-                                    st.rerun()
-                                except Exception as error:
-                                    st.error(f"Product update failed: {error}")
-
-                        if selected_product_section == "Files":
-                            with st.form(f"product_add_files_{product_id}"):
-                                add_asset_type = st.selectbox(
-                                    "Asset Type", PRODUCT_ASSET_TYPES,
-                                    format_func=lambda value: PRODUCT_ASSET_LABELS.get(value, value.title()),
-                                    key=f"asset_type_{product_id}",
-                                )
-                                add_asset_subtype = st.selectbox(
-                                    "Asset Subtype",
-                                    _product_library_subtype_options(add_asset_type),
-                                    format_func=lambda value: PRODUCT_ASSET_SUBTYPE_LABELS.get(value, value.replace("_", " ").title()),
-                                    key=f"asset_subtype_{product_id}_{add_asset_type}",
-                                    help="Choose the specific view, component, or document purpose.",
-                                )
-                                add_uploads = file_uploader_with_limit(
-                                    "Upload more files",
-                                    accept_multiple_files=True,
-                                    type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
-                                    key=f"add_files_{product_id}",
-                                )
-                                add_files_submit_cols = st.columns([1, 2, 1])
-                                with add_files_submit_cols[1]:
-                                    add_files_submitted = st.form_submit_button(
-                                        "Upload More Files",
-                                        use_container_width=True,
-                                    )
-                            if add_files_submitted:
-                                if not add_uploads:
-                                    st.warning("Please select at least one file.")
-                                else:
-                                    failures = []
-                                    for uploaded_file in add_uploads:
-                                        try:
-                                            _product_library_upload_asset(product, add_asset_type, uploaded_file, add_asset_subtype)
-                                        except Exception as error:
-                                            failures.append(f"{uploaded_file.name}: {error}")
-                                    if failures:
-                                        for failure in failures:
-                                            st.error(failure)
-                                    else:
-                                        st.success(f"Uploaded {len(add_uploads)} additional file(s).")
-                                        # Do not force a full-app rerun here. The asset query below
-                                        # runs after the upload and immediately shows the new files.
-
-                            assets = (
-                                supabase.table("product_assets")
-                                .select("id,asset_type,asset_subtype,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
-                                .eq("product_id", product_id)
-                                .order("created_at", desc=True)
-                                .execute().data
-                                or []
-                            )
-
-                            # Hide duplicate legacy rows in the manager while keeping the newest
-                            # record. Future exact duplicates are blocked during upload.
-                            unique_assets = []
-                            seen_asset_keys = set()
-                            st.markdown(
-                                """
-                                <style>
-                                div[class*="st-key-replace_asset_panel_"],
-                                div[class*="st-key-delete_asset_panel_"] {
-                                    position: relative;
-                                }
-
-                                div[class*="st-key-replace_panel_minimize_"] button,
-                                div[class*="st-key-delete_panel_minimize_"] button {
-                                    width: 26px !important;
-                                    min-width: 26px !important;
-                                    max-width: 26px !important;
-                                    height: 26px !important;
-                                    min-height: 26px !important;
-                                    padding: 0 !important;
-                                    border-radius: 7px !important;
-                                    font-size: 17px !important;
-                                    line-height: 1 !important;
-                                }
-
-                                .atp-replacement-help-row {
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    gap: 10px;
-                                    margin: 0 0 6px;
-                                }
-
-                                .atp-replacement-help-label {
-                                    font-weight: 600;
-                                }
-
-                                .atp-replacement-help-icon {
-                                    width: 18px;
-                                    height: 18px;
-                                    border: 1px solid rgba(148, 163, 184, 0.9);
-                                    border-radius: 50%;
-                                    display: inline-flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                    line-height: 1;
-                                    cursor: help;
-                                    opacity: 0.9;
-                                    flex: 0 0 auto;
-                                }
-
-                                div[class*="st-key-replacement_upload_shell_"]
-                                div[data-testid="stFileUploader"] small,
-                                div[class*="st-key-replacement_upload_shell_"]
-                                div[data-testid="stFileUploaderDropzoneInstructions"] {
-                                    display: none !important;
-                                }
-
-                                div[class*="st-key-replacement_upload_shell_"]
-                                div[data-testid="stFileUploader"] section::after,
-                                div[class*="st-key-replacement_upload_shell_"]
-                                div[data-testid="stFileUploaderDropzone"]::after {
-                                    content: "20MB per file • JPG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
-                                    display: block;
-                                    width: 100%;
-                                    margin-top: 6px;
-                                    color: #94a3b8;
-                                    font-size: 11.5px;
-                                    line-height: 1.3;
-                                    text-align: center;
-                                    pointer-events: none;
-                                }
-                                </style>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-
-                            for asset in assets:
-                                stable_key = (
-                                    str(asset.get("storage_path") or "").strip()
-                                    or str(asset.get("archive_file_id") or "").strip()
-                                    or "|".join([
-                                        str(asset.get("asset_type") or ""),
-                                        str(asset.get("asset_subtype") or ""),
-                                        str(asset.get("original_filename") or ""),
-                                    ])
-                                )
-                                if stable_key in seen_asset_keys:
-                                    continue
-                                seen_asset_keys.add(stable_key)
-                                unique_assets.append(asset)
-                            assets = unique_assets
-
-                            if not assets:
-                                st.info("No files have been uploaded for this product.")
-
-                            st.markdown(
-                                """
-                                <style>
-                                div[class*="st-key-product_asset_meta_"] {
-                                    width: min(100%, 920px) !important;
-                                    margin: 0.45rem auto 0.7rem auto !important;
-                                }
-                                div[class*="st-key-product_asset_meta_"] p {
-                                    margin: 0.08rem 0 !important;
-                                    line-height: 1.35 !important;
-                                    color: var(--text-color) !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"] {
-                                    width: min(100%, 1040px) !important;
-                                    margin: 0 auto 0.15rem auto !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stHorizontalBlock"] {
-                                    display: grid !important;
-                                    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-                                    gap: 0.65rem !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stColumn"] {
-                                    width: auto !important;
-                                    min-width: 0 !important;
-                                    flex: none !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stLinkButton"],
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stButton"] {
-                                    width: 100% !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stLinkButton"] > a,
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stButton"] > button {
-                                    width: 100% !important;
-                                    min-height: 2.5rem !important;
-                                    height: 2.5rem !important;
-                                    padding-top: 0 !important;
-                                    padding-bottom: 0 !important;
-                                    display: inline-flex !important;
-                                    align-items: center !important;
-                                    justify-content: center !important;
-                                    box-sizing: border-box !important;
-                                }
-                                @media (max-width: 768px) {
-                                    div[class*="st-key-product_asset_meta_"],
-                                    div[class*="st-key-product_asset_toolbar_"] {
-                                        width: 100% !important;
-                                    }
-                                    div[class*="st-key-product_asset_toolbar_"]
-                                    div[data-testid="stHorizontalBlock"] {
-                                        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                                    }
-                                }
-                                </style>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-
-                            for asset in assets:
-                                asset_id = str(asset.get("id") or "")
-                                asset_placeholder = st.empty()
-                                with asset_placeholder.container():
-                                    signed_url = _product_library_signed_url(asset.get("storage_path"))
-                                    if signed_url and str(asset.get("content_type") or "").startswith("image/"):
-                                        st.image(signed_url, use_container_width=True)
-
-                                    filename = str(
-                                        asset.get("original_filename") or "Unnamed file"
-                                    )
-                                    asset_type = str(asset.get("asset_type") or "other")
-                                    subtype = str(asset.get("asset_subtype") or "").strip()
-                                    type_label = PRODUCT_ASSET_LABELS.get(
-                                        asset_type,
-                                        asset_type.replace("_", " ").title(),
-                                    )
-                                    subtype_label = PRODUCT_ASSET_SUBTYPE_LABELS.get(
-                                        subtype,
-                                        subtype.replace("_", " ").title(),
-                                    )
-                                    location_label = (
-                                        f"{type_label} / {subtype_label}"
-                                        if subtype_label
-                                        else type_label
-                                    )
-
-                                    with st.container(
-                                        key=f"product_asset_meta_{asset_id}"
-                                    ):
-                                        st.markdown(f"**{html.escape(filename)}**")
-                                        st.caption(location_label)
-                                        st.caption(
-                                            f"Display: {asset.get('storage_status') or 'unknown'}  ·  "
-                                            f"Archive: {asset.get('archive_status') or 'unknown'}"
-                                        )
-
-                                    replace_panel_key = f"replace_panel_{asset_id}"
-                                    delete_panel_key = f"delete_panel_{asset_id}"
-
-                                    archive_url = str(asset.get("archive_web_url") or "").strip()
-                                    with st.container(
-                                        key=f"product_asset_toolbar_{asset_id}"
-                                    ):
-                                        action_cols = st.columns(4, gap="small")
-
-                                        with action_cols[0]:
-                                            if signed_url:
-                                                st.link_button(
-                                                    "View",
-                                                    str(signed_url),
-                                                    use_container_width=True,
-                                                    help="Open the optimized display copy",
-                                                )
-                                            else:
-                                                st.button(
-                                                    "View",
-                                                    key=f"view_asset_disabled_{asset_id}",
-                                                    disabled=True,
-                                                    use_container_width=True,
-                                                )
-
-                                        with action_cols[1]:
-                                            if archive_url:
-                                                st.link_button(
-                                                    "Original",
-                                                    archive_url,
-                                                    use_container_width=True,
-                                                    help="Open the original Google Drive archive",
-                                                )
-                                            else:
-                                                st.button(
-                                                    "Original",
-                                                    key=f"original_asset_disabled_{asset_id}",
-                                                    disabled=True,
-                                                    use_container_width=True,
-                                                )
-
-                                        with action_cols[2]:
-                                            st.button(
-                                                "Replace",
-                                                key=f"replace_asset_toggle_{asset_id}",
-                                                use_container_width=True,
-                                                help="Replace this Product Library file",
-                                                on_click=_product_library_toggle_asset_panel,
-                                                args=(product_id, asset_id, "replace"),
-                                            )
-
-                                        with action_cols[3]:
-                                            st.button(
-                                                "Delete",
-                                                key=f"delete_asset_toggle_{asset_id}",
-                                                use_container_width=True,
-                                                help="Delete this Product Library file",
-                                                on_click=_product_library_toggle_asset_panel,
-                                                args=(product_id, asset_id, "delete"),
-                                            )
-
-                                    if st.session_state.get(replace_panel_key, False):
-                                        with st.container(
-                                            border=True,
-                                            key=f"replace_asset_panel_{asset_id}",
-                                        ):
-                                            panel_header_cols = st.columns(
-                                                [1, 0.05],
-                                                gap="small",
-                                                vertical_alignment="center",
-                                            )
-                                            with panel_header_cols[0]:
-                                                st.markdown("**Replace File**")
-                                            with panel_header_cols[1]:
-                                                with st.container(
-                                                    key=f"replace_panel_minimize_{asset_id}"
-                                                ):
-                                                    st.button(
-                                                        "−",
-                                                        key=f"minimize_replace_{asset_id}",
-                                                        help="Minimize Replace File",
-                                                        on_click=_product_library_close_asset_panel,
-                                                        args=(product_id, asset_id, "replace"),
-                                                    )
-
-                                            with st.form(f"replace_asset_form_{asset_id}"):
-                                                st.markdown(
-                                                    """
-                                                    <div class="atp-replacement-help-row">
-                                                        <span class="atp-replacement-help-label">Choose one replacement file</span>
-                                                        <span class="atp-replacement-help-icon" title="The replacement keeps the same asset type. The old file is removed only after the new file uploads successfully.">?</span>
-                                                    </div>
-                                                    """,
-                                                    unsafe_allow_html=True,
-                                                )
-                                                with st.container(
-                                                    key=f"replacement_upload_shell_{asset_id}"
-                                                ):
-                                                    replacement_file = file_uploader_with_limit(
-                                                        "Choose one replacement file",
-                                                        accept_multiple_files=False,
-                                                        type=[
-                                                            "jpg", "jpeg", "png", "webp",
-                                                            "pdf", "docx", "txt", "csv", "zip",
-                                                        ],
-                                                        key=f"replacement_upload_{asset_id}",
-                                                        label_visibility="collapsed",
-                                                        max_upload_size_mb=MAX_UPLOAD_SIZE_MB,
-                                                    )
-                                                replacement_submitted = st.form_submit_button(
-                                                    "Save Replacement",
-                                                    use_container_width=True,
-                                                )
-                                            if replacement_submitted:
-                                                if replacement_file is None:
-                                                    st.warning("Please select a replacement file.")
-                                                else:
-                                                    try:
-                                                        _product_library_replace_asset(
-                                                            product,
-                                                            asset,
-                                                            replacement_file,
-                                                        )
-                                                        st.session_state[replace_panel_key] = False
-                                                        st.session_state["product_library_open_product_id"] = product_id
-                                                        st.session_state[f"product_library_section_{product_id}"] = "Files"
-                                                        st.session_state["product_library_notice"] = "File replaced successfully."
-                                                        st.rerun()
-                                                    except Exception as error:
-                                                        st.error(
-                                                            "File replacement failed: "
-                                                            f"{error}"
-                                                        )
-
-                                    if st.session_state.get(delete_panel_key, False):
-                                        with st.container(
-                                            border=True,
-                                            key=f"delete_asset_panel_{asset_id}",
-                                        ):
-                                            delete_header_cols = st.columns(
-                                                [1, 0.05],
-                                                gap="small",
-                                                vertical_alignment="center",
-                                            )
-                                            with delete_header_cols[0]:
-                                                st.markdown("**Delete this file?**")
-                                            with delete_header_cols[1]:
-                                                with st.container(
-                                                    key=f"delete_panel_minimize_{asset_id}"
-                                                ):
-                                                    st.button(
-                                                        "−",
-                                                        key=f"minimize_delete_{asset_id}",
-                                                        help="Minimize Delete File",
-                                                        on_click=_product_library_close_asset_panel,
-                                                        args=(product_id, asset_id, "delete"),
-                                                    )
-                                            st.caption(
-                                                "This removes the display copy, Product Library "
-                                                "record, and Google Drive archive."
-                                            )
-                                            with st.form(f"delete_asset_form_{asset_id}"):
-                                                confirm_asset = st.checkbox(
-                                                    "Confirm delete this file",
-                                                    key=f"confirm_asset_{asset_id}",
-                                                )
-                                                delete_asset_clicked = st.form_submit_button(
-                                                    "Delete File",
-                                                    type="primary",
-                                                    use_container_width=True,
-                                                )
-
-                                            if delete_asset_clicked:
-                                                if not confirm_asset:
-                                                    st.warning(
-                                                        "Please check ‘Confirm delete this file’ first."
-                                                    )
-                                                else:
-                                                    try:
-                                                        with st.spinner("Deleting file..."):
-                                                            _product_library_delete_asset(asset)
-                                                        st.session_state.pop(delete_panel_key, None)
-                                                        st.session_state.pop(replace_panel_key, None)
-                                                        st.session_state["product_library_open_product_id"] = product_id
-                                                        st.session_state[f"product_library_section_{product_id}"] = "Files"
-                                                        st.session_state["product_library_notice"] = (
-                                                            "File deleted from Product Library, Supabase Storage, "
-                                                            "and Google Drive archive."
-                                                        )
-                                                        st.rerun()
-                                                    except Exception as error:
-                                                        st.error(
-                                                            "File deletion failed: "
-                                                            f"{error}"
-                                                        )
-
-                                    st.divider()
-
-                        if selected_product_section == "Delete Product":
-                            st.warning(
-                                "This permanently removes the product metadata and all linked Product Library files. "
-                                "Google Drive originals are moved to Trash."
-                            )
-                            delete_submit_cols = st.columns([1, 2, 1])
-                            with delete_submit_cols[1]:
-                                delete_product_clicked = st.button(
-                                    "Delete Product Permanently",
-                                    key=f"delete_product_{product_id}",
-                                    type="primary",
-                                    use_container_width=True,
-                                )
-
-                            if delete_product_clicked:
-                                try:
-                                    with st.spinner("Deleting product and linked files..."):
-                                        delete_result = _product_library_delete_product(product)
-
-                                    cleanup_warnings = delete_result.get("cleanup_warnings") or []
-                                    if cleanup_warnings:
-                                        diagnostic_log(
-                                            "product_library_delete_completed_with_warnings",
-                                            product_id=product_id,
-                                            warning_count=len(cleanup_warnings),
-                                        )
-
-                                    st.session_state["product_library_delete_notice"] = (
-                                        "Product and linked records deleted successfully."
-                                    )
-                                    st.rerun()
-                                except Exception as error:
-                                    diagnostic_log(
-                                        "product_library_delete_failed",
-                                        product_id=product_id,
-                                        error=error,
-                                    )
-                                    st.error(f"Product deletion failed: {error}")
-            except Exception as error:
-                st.error(f"Product records could not load: {error}")
-
-
+            render_product_library_manage_fragment()
 
 def render_product_library_storage_settings():
     """Render admin-only Product Library storage configuration and diagnostics."""
@@ -28803,7 +28916,732 @@ def render_product_library_workspace():
             )
 
 
+@_optional_ui_fragment
+def render_admin_latest_learned_fragment():
+    """Render learned-record pagination and expanders with local reruns.
+
+    The dataset uses the existing short Supabase cache. Deleting a record still
+    performs a full rerun so analytics and vector-related views remain consistent.
+    """
+    _, fragment_learned_rows = load_admin_analytics_rows()
+    fragment_learned_rows = list(fragment_learned_rows or [])
+    st.markdown("#### Latest Learned Knowledge")
+    if fragment_learned_rows:
+        learned_page_size = 100
+        learned_total_records = len(fragment_learned_rows)
+        learned_total_pages = max(
+            1,
+            (learned_total_records + learned_page_size - 1)
+            // learned_page_size,
+        )
+
+        learned_page_key = "latest_learned_knowledge_page"
+        current_learned_page = int(
+            st.session_state.get(learned_page_key, 1)
+        )
+        current_learned_page = max(
+            1,
+            min(current_learned_page, learned_total_pages),
+        )
+        st.session_state[learned_page_key] = current_learned_page
+
+        learned_start_index = (
+            current_learned_page - 1
+        ) * learned_page_size
+        learned_end_index = min(
+            learned_start_index + learned_page_size,
+            learned_total_records,
+        )
+        learned_page_rows = fragment_learned_rows[
+            learned_start_index:learned_end_index
+        ]
+
+        visible_page_numbers = []
+        pagination_items = []
+
+        if learned_total_pages > 1:
+            if learned_total_pages <= 7:
+                visible_page_numbers = list(
+                    range(1, learned_total_pages + 1)
+                )
+            else:
+                candidate_pages = {
+                    1,
+                    learned_total_pages,
+                    current_learned_page - 2,
+                    current_learned_page - 1,
+                    current_learned_page,
+                    current_learned_page + 1,
+                    current_learned_page + 2,
+                }
+                visible_page_numbers = sorted(
+                    page_number
+                    for page_number in candidate_pages
+                    if 1 <= page_number <= learned_total_pages
+                )
+
+            previous_number = None
+            for page_number in visible_page_numbers:
+                if (
+                    previous_number is not None
+                    and page_number - previous_number > 1
+                ):
+                    pagination_items.append("ellipsis")
+                pagination_items.append(page_number)
+                previous_number = page_number
+
+        learned_summary_column, learned_pagination_column = st.columns(
+            [4, 2],
+            gap="small",
+            vertical_alignment="center",
+        )
+
+        with learned_summary_column:
+            st.caption(
+                f"Showing {learned_start_index + 1:,}–"
+                f"{learned_end_index:,} of "
+                f"{learned_total_records:,} learned records"
+            )
+
+        with learned_pagination_column:
+            if pagination_items:
+                with st.container(
+                    key="latest_learned_text_pagination"
+                ):
+                    pagination_columns = st.columns(
+                        len(pagination_items),
+                        gap="small",
+                    )
+
+                    for column, item in zip(
+                        pagination_columns,
+                        pagination_items,
+                    ):
+                        with column:
+                            if item == "ellipsis":
+                                st.markdown(
+                                    "<div class='latest-learned-ellipsis'>"
+                                    "…</div>",
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                page_number = int(item)
+                                is_current_page = (
+                                    page_number
+                                    == current_learned_page
+                                )
+
+                                st.button(
+                                    str(page_number),
+                                    key=(
+                                        "latest_learned_page_"
+                                        f"{page_number}"
+                                    ),
+                                    use_container_width=False,
+                                    disabled=is_current_page,
+                                    help=(
+                                        f"Open page {page_number}"
+                                        if not is_current_page
+                                        else (
+                                            "Current page "
+                                            f"{page_number}"
+                                        )
+                                    ),
+                                    on_click=(
+                                        lambda target_page=page_number: st.session_state.__setitem__(
+                                            learned_page_key, target_page
+                                        )
+                                    ),
+                                )
+
+        for row in learned_page_rows:
+            issue = row.get("issue") or row.get("question") or "Learned Knowledge"
+            vehicle = display_learning_vehicle(row)
+            confidence = row.get("confidence_score") or 0
+            times_seen = row.get("times_seen") or 1
+            with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
+                st.write(f"**Assistant:** {row.get('assistant') or ''}")
+                st.write(f"**Product:** {row.get('product') or ''}")
+                st.write(f"**Keywords:** {row.get('keywords') or ''}")
+                st.write(f"**Synced:** {row.get('synced')}")
+                st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
+                st.markdown("**Solution**")
+                st.write(row.get("solution") or row.get("approved_answer") or "")
+                st.markdown("**Source Question**")
+                st.write(row.get("source_question") or row.get("question") or "")
+                st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
+
+                if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
+                    supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                    remaining_records = max(0, learned_total_records - 1)
+                    remaining_pages = max(
+                        1,
+                        (
+                            remaining_records
+                            + learned_page_size
+                            - 1
+                        )
+                        // learned_page_size,
+                    )
+                    st.session_state[learned_page_key] = min(
+                        current_learned_page,
+                        remaining_pages,
+                    )
+                    st.rerun()
+
+        st.markdown(
+            """
+            <style>
+            /* Latest Learned Knowledge upper-right pagination only.
+               Plain clickable text with no inherited global button style. */
+            html body div[class*="st-key-latest_learned_text_pagination"] {
+                width: 100% !important;
+                margin: 0 0 0 auto !important;
+                padding: 0 !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            div[data-testid="stHorizontalBlock"] {
+                display: flex !important;
+                width: fit-content !important;
+                max-width: 100% !important;
+                justify-content: flex-end !important;
+                align-items: center !important;
+                gap: 5px !important;
+                margin: 0 0 0 auto !important;
+                padding: 0 !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            div[data-testid="stHorizontalBlock"]
+            > div[data-testid="column"] {
+                flex: 0 0 22px !important;
+                flex-grow: 0 !important;
+                flex-shrink: 0 !important;
+                flex-basis: 22px !important;
+                width: 22px !important;
+                min-width: 22px !important;
+                max-width: 22px !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            .stButton,
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            div[data-testid="stButton"] {
+                width: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            button {
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 2px 1px !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                color: #cbd5e1 !important;
+                -webkit-text-fill-color: #cbd5e1 !important;
+                font-size: 13px !important;
+                font-weight: 500 !important;
+                line-height: 1.2 !important;
+                transform: none !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            button:hover:not(:disabled) {
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                text-decoration: underline !important;
+                transform: none !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            button:disabled {
+                opacity: 1 !important;
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                font-weight: 800 !important;
+                text-decoration: underline !important;
+                cursor: default !important;
+            }
+
+            html body div[class*="st-key-latest_learned_text_pagination"]
+            button p {
+                margin: 0 !important;
+                padding: 0 !important;
+                font-size: 13px !important;
+                line-height: 1.2 !important;
+            }
+
+            .latest-learned-ellipsis {
+                color: #94a3b8;
+                font-size: 13px;
+                line-height: 1.2;
+                text-align: center;
+                padding: 2px 0;
+            }
+
+            @media (max-width: 768px) {
+                html body div[class*="st-key-latest_learned_text_pagination"] {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    overflow-x: auto !important;
+                    overflow-y: hidden !important;
+                    -webkit-overflow-scrolling: touch !important;
+                    scrollbar-width: none !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]::-webkit-scrollbar {
+                    display: none !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    width: max-content !important;
+                    min-width: max-content !important;
+                    justify-content: flex-start !important;
+                    align-items: center !important;
+                    gap: 4px !important;
+                    margin: 0 auto !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                div[data-testid="stHorizontalBlock"]
+                > div[data-testid="column"] {
+                    display: block !important;
+                    flex: 0 0 20px !important;
+                    flex-basis: 20px !important;
+                    width: 20px !important;
+                    min-width: 20px !important;
+                    max-width: 20px !important;
+                }
+
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button,
+                html body div[class*="st-key-latest_learned_text_pagination"]
+                button p,
+                .latest-learned-ellipsis {
+                    font-size: 12px !important;
+                    white-space: nowrap !important;
+                }
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    else:
+        st.info("No learned knowledge saved yet.")
+
+
+
 # ============================================================
+@_optional_ui_fragment
+def render_admin_user_management_fragment():
+    """Isolate user search, permissions, edits, and pagination from other tabs."""
+    st.markdown("### Current Users")
+
+    delete_success = st.session_state.pop(
+        "permanent_delete_success_message",
+        None
+    )
+    if delete_success:
+        st.success(delete_success)
+
+    users = load_admin_users()
+
+    for user in users:
+        username_value = str(user.get("username") or "")
+        role_value = str(user.get("role") or "staff")
+        active_value = bool(user.get("active"))
+        current_note = (
+            " | Current User"
+            if username_value == st.session_state.username
+            else ""
+        )
+        st.write(
+            f"**{username_value}** | {role_value} | "
+            f"Active: {active_value}{current_note}"
+        )
+
+    st.markdown("---")
+    st.markdown("### Add / Update User")
+
+    user_lookup = {
+        str(user.get("username") or ""): user
+        for user in users
+        if user.get("username")
+    }
+    edit_options = ["— New user —"] + sorted(user_lookup)
+    selected_edit_user = st.selectbox(
+        "Edit existing user (optional)",
+        edit_options,
+        key="stable_admin_edit_user",
+    )
+    selected_record = user_lookup.get(selected_edit_user, {})
+
+    editor_key = (
+        re.sub(r"[^a-zA-Z0-9_-]", "_", selected_edit_user)
+        if selected_edit_user != "— New user —"
+        else "new"
+    )
+
+    default_username = (
+        selected_edit_user
+        if selected_edit_user != "— New user —"
+        else ""
+    )
+    default_role = str(selected_record.get("role") or "staff").lower()
+    if default_role not in ROLE_OPTIONS:
+        default_role = "staff"
+    default_active = bool(selected_record.get("active", True))
+
+    stored_workspace_permissions = effective_workspace_permissions(
+        default_role,
+        selected_record.get("workspace_permissions"),
+    )
+    stored_feature_permissions = effective_feature_permissions(
+        default_role,
+        selected_record.get("feature_permissions"),
+    )
+
+    new_username = st.text_input(
+        "Username",
+        value=default_username,
+        disabled=selected_edit_user != "— New user —",
+        key=f"stable_admin_username_{editor_key}",
+    )
+    new_password = st.text_input(
+        (
+            "New Password (leave blank to keep current password)"
+            if selected_edit_user != "— New user —"
+            else "Password"
+        ),
+        type="password",
+        key=f"stable_admin_password_{editor_key}",
+    )
+    new_role = st.selectbox(
+        "Role",
+        ROLE_OPTIONS,
+        index=ROLE_OPTIONS.index(default_role),
+        key=f"stable_admin_role_{editor_key}",
+    )
+    new_active = st.checkbox(
+        "Active",
+        value=default_active,
+        key=f"stable_admin_active_{editor_key}",
+    )
+
+    st.markdown("#### Workspace Access")
+    workspace_values = {}
+    # Keep one ordered permission column on every screen size. Streamlit's
+    # multi-column layout reorders/segments checkboxes when columns stack on
+    # iPhone, which made Product Library appear missing in the mobile editor.
+    for permission_key, permission_label in WORKSPACE_LABELS.items():
+        workspace_values[permission_key] = st.checkbox(
+            permission_label,
+            value=bool(
+                stored_workspace_permissions.get(permission_key)
+            ),
+            key=(
+                f"stable_workspace_permission_"
+                f"{editor_key}_{permission_key}"
+            ),
+            disabled=(
+                new_role == "admin"
+                or (
+                    new_role in STRICT_EXTERNAL_ROLES
+                    and permission_key != "technical"
+                )
+            ),
+        )
+
+    st.markdown("#### Feature Access")
+    feature_values = {}
+    for permission_key, permission_label in FEATURE_LABELS.items():
+        forced_external_off = (
+            new_role in STRICT_EXTERNAL_ROLES
+            and permission_key in {
+                "history", "woocommerce", "knowledge_upload",
+                "product_library_upload", "product_library_manage"
+            }
+        )
+        feature_values[permission_key] = st.checkbox(
+            permission_label,
+            value=bool(
+                stored_feature_permissions.get(permission_key)
+            ),
+            key=(
+                f"stable_feature_permission_"
+                f"{editor_key}_{permission_key}"
+            ),
+            disabled=new_role == "admin" or forced_external_off,
+        )
+
+    if new_role == "admin":
+        workspace_values = {
+            key: True for key in WORKSPACE_LABELS
+        }
+        feature_values = {
+            key: True for key in FEATURE_LABELS
+        }
+    elif new_role in STRICT_EXTERNAL_ROLES:
+        workspace_values = {
+            key: key == "technical"
+            for key in WORKSPACE_LABELS
+        }
+        feature_values["history"] = False
+        feature_values["woocommerce"] = False
+        feature_values["knowledge_upload"] = False
+        feature_values["product_library_upload"] = False
+        feature_values["product_library_manage"] = False
+
+    # Keep Product Library permissions internally consistent. Manage implies
+    # upload, and either action requires the Product Library workspace. These
+    # rules also protect legacy records and accidental checkbox combinations.
+    if feature_values.get("product_library_manage"):
+        feature_values["product_library_upload"] = True
+        workspace_values["product_library"] = True
+    elif feature_values.get("product_library_upload"):
+        workspace_values["product_library"] = True
+    elif not workspace_values.get("product_library"):
+        feature_values["product_library_upload"] = False
+        feature_values["product_library_manage"] = False
+
+    if st.button(
+        "Save User",
+        key=f"stable_admin_save_user_{editor_key}",
+    ):
+        clean_username = str(new_username or "").strip()
+
+        if not clean_username:
+            st.warning("Please enter a username.")
+        elif selected_edit_user == "— New user —" and not new_password:
+            st.warning("Please enter a password for the new user.")
+        elif not any(workspace_values.values()):
+            st.warning("Please allow at least one workspace.")
+        else:
+            try:
+                existing = (
+                    supabase
+                    .table("users")
+                    .select("username")
+                    .eq("username", clean_username)
+                    .execute()
+                    .data
+                )
+
+                payload = {
+                    "role": new_role,
+                    "active": new_active,
+                    "workspace_permissions": workspace_values,
+                    "feature_permissions": feature_values,
+                }
+                if new_password:
+                    payload["password"] = new_password
+
+                if existing:
+                    (
+                        supabase
+                        .table("users")
+                        .update(payload)
+                        .eq("username", clean_username)
+                        .execute()
+                    )
+                    st.success("User updated successfully.")
+                else:
+                    payload.update({
+                        "username": clean_username,
+                        "password": new_password,
+                    })
+                    (
+                        supabase
+                        .table("users")
+                        .insert(payload)
+                        .execute()
+                    )
+                    st.success("User added successfully.")
+
+                # Apply permission changes immediately to the current user.
+                if clean_username == st.session_state.username:
+                    st.session_state.role = new_role
+                    st.session_state.workspace_permissions = (
+                        effective_workspace_permissions(
+                            new_role,
+                            workspace_values,
+                        )
+                    )
+                    st.session_state.feature_permissions = (
+                        effective_feature_permissions(
+                            new_role,
+                            feature_values,
+                        )
+                    )
+                    if not history_is_enabled():
+                        st.session_state.conversation_id = None
+
+                invalidate_admin_read_caches()
+                st.rerun()
+
+            except Exception as error:
+                st.error(f"Unable to save user: {error}")
+
+    st.markdown("---")
+    st.markdown("### Permanently Delete User")
+    st.caption(
+        "This uses the database function delete_user_permanently and "
+        "removes the selected account and all associated records."
+    )
+
+    deletable_usernames = [
+        str(user.get("username"))
+        for user in users
+        if user.get("username")
+        and str(user.get("username")) != st.session_state.username
+    ]
+
+    if not deletable_usernames:
+        st.info("There are no other users available to delete.")
+    else:
+        with st.form(
+            "stable_permanent_delete_user_form",
+            clear_on_submit=True
+        ):
+            selected_delete_username = st.selectbox(
+                "Select user",
+                ["— Select a user —"] + deletable_usernames,
+                key="stable_permanent_delete_user_select",
+            )
+
+            typed_delete_username = st.text_input(
+                "Type the username exactly to confirm",
+                key="stable_permanent_delete_username_confirm",
+            )
+
+            confirm_permanent_delete = st.checkbox(
+                "I understand this deletion is permanent and cannot be undone."
+            )
+
+            permanent_delete_submitted = st.form_submit_button(
+                "Permanently Delete User"
+            )
+
+        if permanent_delete_submitted:
+            if selected_delete_username == "— Select a user —":
+                st.warning("Please select a user to delete.")
+
+            elif typed_delete_username.strip() != selected_delete_username:
+                st.warning(
+                    "The confirmation username does not match "
+                    "the selected user."
+                )
+
+            elif not confirm_permanent_delete:
+                st.warning(
+                    "Please confirm that you understand this action "
+                    "is permanent."
+                )
+
+            else:
+                selected_rows = [
+                    user
+                    for user in users
+                    if str(user.get("username"))
+                    == selected_delete_username
+                ]
+                selected_user = selected_rows[0] if selected_rows else {}
+
+                active_admins = [
+                    user
+                    for user in users
+                    if str(user.get("role") or "").lower() == "admin"
+                    and bool(user.get("active"))
+                ]
+
+                if (
+                    str(selected_user.get("role") or "").lower() == "admin"
+                    and bool(selected_user.get("active"))
+                    and len(active_admins) <= 1
+                ):
+                    st.error(
+                        "The final active administrator account "
+                        "cannot be deleted."
+                    )
+                else:
+                    try:
+                        admin_supabase = get_supabase_admin_client()
+
+                        result = (
+                            admin_supabase
+                            .rpc(
+                                "delete_user_permanently",
+                                {
+                                    "p_requesting_username":
+                                        st.session_state.username,
+                                    "p_target_username":
+                                        selected_delete_username,
+                                },
+                            )
+                            .execute()
+                        )
+
+                        result_data = result.data
+                        deletion_confirmed = True
+
+                        if isinstance(result_data, dict):
+                            deletion_confirmed = bool(
+                                result_data.get("success", True)
+                            )
+                        elif (
+                            isinstance(result_data, list)
+                            and result_data
+                            and isinstance(result_data[0], dict)
+                        ):
+                            deletion_confirmed = bool(
+                                result_data[0].get("success", True)
+                            )
+
+                        if not deletion_confirmed:
+                            raise RuntimeError(
+                                "The database did not confirm "
+                                "successful deletion."
+                            )
+
+                        st.session_state[
+                            "permanent_delete_success_message"
+                        ] = (
+                            f"User '{selected_delete_username}' and "
+                            "all associated records were permanently deleted."
+                        )
+                        invalidate_admin_read_caches()
+                        st.rerun()
+
+                    except Exception as error:
+                        st.error(
+                            f"Permanent deletion failed: {error}"
+                        )
+
+
+
 # Admin Panel
 # ============================================================
 
@@ -28847,387 +29685,7 @@ if (
         )
 
         with tab1:
-            st.markdown("### Current Users")
-
-            delete_success = st.session_state.pop(
-                "permanent_delete_success_message",
-                None
-            )
-            if delete_success:
-                st.success(delete_success)
-
-            users = load_admin_users()
-
-            for user in users:
-                username_value = str(user.get("username") or "")
-                role_value = str(user.get("role") or "staff")
-                active_value = bool(user.get("active"))
-                current_note = (
-                    " | Current User"
-                    if username_value == st.session_state.username
-                    else ""
-                )
-                st.write(
-                    f"**{username_value}** | {role_value} | "
-                    f"Active: {active_value}{current_note}"
-                )
-
-            st.markdown("---")
-            st.markdown("### Add / Update User")
-
-            user_lookup = {
-                str(user.get("username") or ""): user
-                for user in users
-                if user.get("username")
-            }
-            edit_options = ["— New user —"] + sorted(user_lookup)
-            selected_edit_user = st.selectbox(
-                "Edit existing user (optional)",
-                edit_options,
-                key="stable_admin_edit_user",
-            )
-            selected_record = user_lookup.get(selected_edit_user, {})
-
-            editor_key = (
-                re.sub(r"[^a-zA-Z0-9_-]", "_", selected_edit_user)
-                if selected_edit_user != "— New user —"
-                else "new"
-            )
-
-            default_username = (
-                selected_edit_user
-                if selected_edit_user != "— New user —"
-                else ""
-            )
-            default_role = str(selected_record.get("role") or "staff").lower()
-            if default_role not in ROLE_OPTIONS:
-                default_role = "staff"
-            default_active = bool(selected_record.get("active", True))
-
-            stored_workspace_permissions = effective_workspace_permissions(
-                default_role,
-                selected_record.get("workspace_permissions"),
-            )
-            stored_feature_permissions = effective_feature_permissions(
-                default_role,
-                selected_record.get("feature_permissions"),
-            )
-
-            new_username = st.text_input(
-                "Username",
-                value=default_username,
-                disabled=selected_edit_user != "— New user —",
-                key=f"stable_admin_username_{editor_key}",
-            )
-            new_password = st.text_input(
-                (
-                    "New Password (leave blank to keep current password)"
-                    if selected_edit_user != "— New user —"
-                    else "Password"
-                ),
-                type="password",
-                key=f"stable_admin_password_{editor_key}",
-            )
-            new_role = st.selectbox(
-                "Role",
-                ROLE_OPTIONS,
-                index=ROLE_OPTIONS.index(default_role),
-                key=f"stable_admin_role_{editor_key}",
-            )
-            new_active = st.checkbox(
-                "Active",
-                value=default_active,
-                key=f"stable_admin_active_{editor_key}",
-            )
-
-            st.markdown("#### Workspace Access")
-            workspace_values = {}
-            # Keep one ordered permission column on every screen size. Streamlit's
-            # multi-column layout reorders/segments checkboxes when columns stack on
-            # iPhone, which made Product Library appear missing in the mobile editor.
-            for permission_key, permission_label in WORKSPACE_LABELS.items():
-                workspace_values[permission_key] = st.checkbox(
-                    permission_label,
-                    value=bool(
-                        stored_workspace_permissions.get(permission_key)
-                    ),
-                    key=(
-                        f"stable_workspace_permission_"
-                        f"{editor_key}_{permission_key}"
-                    ),
-                    disabled=(
-                        new_role == "admin"
-                        or (
-                            new_role in STRICT_EXTERNAL_ROLES
-                            and permission_key != "technical"
-                        )
-                    ),
-                )
-
-            st.markdown("#### Feature Access")
-            feature_values = {}
-            for permission_key, permission_label in FEATURE_LABELS.items():
-                forced_external_off = (
-                    new_role in STRICT_EXTERNAL_ROLES
-                    and permission_key in {
-                        "history", "woocommerce", "knowledge_upload",
-                        "product_library_upload", "product_library_manage"
-                    }
-                )
-                feature_values[permission_key] = st.checkbox(
-                    permission_label,
-                    value=bool(
-                        stored_feature_permissions.get(permission_key)
-                    ),
-                    key=(
-                        f"stable_feature_permission_"
-                        f"{editor_key}_{permission_key}"
-                    ),
-                    disabled=new_role == "admin" or forced_external_off,
-                )
-
-            if new_role == "admin":
-                workspace_values = {
-                    key: True for key in WORKSPACE_LABELS
-                }
-                feature_values = {
-                    key: True for key in FEATURE_LABELS
-                }
-            elif new_role in STRICT_EXTERNAL_ROLES:
-                workspace_values = {
-                    key: key == "technical"
-                    for key in WORKSPACE_LABELS
-                }
-                feature_values["history"] = False
-                feature_values["woocommerce"] = False
-                feature_values["knowledge_upload"] = False
-                feature_values["product_library_upload"] = False
-                feature_values["product_library_manage"] = False
-
-            # Keep Product Library permissions internally consistent. Manage implies
-            # upload, and either action requires the Product Library workspace. These
-            # rules also protect legacy records and accidental checkbox combinations.
-            if feature_values.get("product_library_manage"):
-                feature_values["product_library_upload"] = True
-                workspace_values["product_library"] = True
-            elif feature_values.get("product_library_upload"):
-                workspace_values["product_library"] = True
-            elif not workspace_values.get("product_library"):
-                feature_values["product_library_upload"] = False
-                feature_values["product_library_manage"] = False
-
-            if st.button(
-                "Save User",
-                key=f"stable_admin_save_user_{editor_key}",
-            ):
-                clean_username = str(new_username or "").strip()
-
-                if not clean_username:
-                    st.warning("Please enter a username.")
-                elif selected_edit_user == "— New user —" and not new_password:
-                    st.warning("Please enter a password for the new user.")
-                elif not any(workspace_values.values()):
-                    st.warning("Please allow at least one workspace.")
-                else:
-                    try:
-                        existing = (
-                            supabase
-                            .table("users")
-                            .select("username")
-                            .eq("username", clean_username)
-                            .execute()
-                            .data
-                        )
-
-                        payload = {
-                            "role": new_role,
-                            "active": new_active,
-                            "workspace_permissions": workspace_values,
-                            "feature_permissions": feature_values,
-                        }
-                        if new_password:
-                            payload["password"] = new_password
-
-                        if existing:
-                            (
-                                supabase
-                                .table("users")
-                                .update(payload)
-                                .eq("username", clean_username)
-                                .execute()
-                            )
-                            st.success("User updated successfully.")
-                        else:
-                            payload.update({
-                                "username": clean_username,
-                                "password": new_password,
-                            })
-                            (
-                                supabase
-                                .table("users")
-                                .insert(payload)
-                                .execute()
-                            )
-                            st.success("User added successfully.")
-
-                        # Apply permission changes immediately to the current user.
-                        if clean_username == st.session_state.username:
-                            st.session_state.role = new_role
-                            st.session_state.workspace_permissions = (
-                                effective_workspace_permissions(
-                                    new_role,
-                                    workspace_values,
-                                )
-                            )
-                            st.session_state.feature_permissions = (
-                                effective_feature_permissions(
-                                    new_role,
-                                    feature_values,
-                                )
-                            )
-                            if not history_is_enabled():
-                                st.session_state.conversation_id = None
-
-                        invalidate_admin_read_caches()
-                        st.rerun()
-
-                    except Exception as error:
-                        st.error(f"Unable to save user: {error}")
-
-            st.markdown("---")
-            st.markdown("### Permanently Delete User")
-            st.caption(
-                "This uses the database function delete_user_permanently and "
-                "removes the selected account and all associated records."
-            )
-
-            deletable_usernames = [
-                str(user.get("username"))
-                for user in users
-                if user.get("username")
-                and str(user.get("username")) != st.session_state.username
-            ]
-
-            if not deletable_usernames:
-                st.info("There are no other users available to delete.")
-            else:
-                with st.form(
-                    "stable_permanent_delete_user_form",
-                    clear_on_submit=True
-                ):
-                    selected_delete_username = st.selectbox(
-                        "Select user",
-                        ["— Select a user —"] + deletable_usernames,
-                        key="stable_permanent_delete_user_select",
-                    )
-
-                    typed_delete_username = st.text_input(
-                        "Type the username exactly to confirm",
-                        key="stable_permanent_delete_username_confirm",
-                    )
-
-                    confirm_permanent_delete = st.checkbox(
-                        "I understand this deletion is permanent and cannot be undone."
-                    )
-
-                    permanent_delete_submitted = st.form_submit_button(
-                        "Permanently Delete User"
-                    )
-
-                if permanent_delete_submitted:
-                    if selected_delete_username == "— Select a user —":
-                        st.warning("Please select a user to delete.")
-
-                    elif typed_delete_username.strip() != selected_delete_username:
-                        st.warning(
-                            "The confirmation username does not match "
-                            "the selected user."
-                        )
-
-                    elif not confirm_permanent_delete:
-                        st.warning(
-                            "Please confirm that you understand this action "
-                            "is permanent."
-                        )
-
-                    else:
-                        selected_rows = [
-                            user
-                            for user in users
-                            if str(user.get("username"))
-                            == selected_delete_username
-                        ]
-                        selected_user = selected_rows[0] if selected_rows else {}
-
-                        active_admins = [
-                            user
-                            for user in users
-                            if str(user.get("role") or "").lower() == "admin"
-                            and bool(user.get("active"))
-                        ]
-
-                        if (
-                            str(selected_user.get("role") or "").lower() == "admin"
-                            and bool(selected_user.get("active"))
-                            and len(active_admins) <= 1
-                        ):
-                            st.error(
-                                "The final active administrator account "
-                                "cannot be deleted."
-                            )
-                        else:
-                            try:
-                                admin_supabase = get_supabase_admin_client()
-
-                                result = (
-                                    admin_supabase
-                                    .rpc(
-                                        "delete_user_permanently",
-                                        {
-                                            "p_requesting_username":
-                                                st.session_state.username,
-                                            "p_target_username":
-                                                selected_delete_username,
-                                        },
-                                    )
-                                    .execute()
-                                )
-
-                                result_data = result.data
-                                deletion_confirmed = True
-
-                                if isinstance(result_data, dict):
-                                    deletion_confirmed = bool(
-                                        result_data.get("success", True)
-                                    )
-                                elif (
-                                    isinstance(result_data, list)
-                                    and result_data
-                                    and isinstance(result_data[0], dict)
-                                ):
-                                    deletion_confirmed = bool(
-                                        result_data[0].get("success", True)
-                                    )
-
-                                if not deletion_confirmed:
-                                    raise RuntimeError(
-                                        "The database did not confirm "
-                                        "successful deletion."
-                                    )
-
-                                st.session_state[
-                                    "permanent_delete_success_message"
-                                ] = (
-                                    f"User '{selected_delete_username}' and "
-                                    "all associated records were permanently deleted."
-                                )
-                                invalidate_admin_read_caches()
-                                st.rerun()
-
-                            except Exception as error:
-                                st.error(
-                                    f"Permanent deletion failed: {error}"
-                                )
+            render_admin_user_management_fragment()
 
         with tab2:
             render_admin_upload_knowledge_tab()
@@ -29262,331 +29720,7 @@ if (
             else:
                 st.info("No learned knowledge yet.")
 
-            st.markdown("#### Latest Learned Knowledge")
-            if learned_rows_for_analytics:
-                learned_page_size = 100
-                learned_total_records = len(learned_rows_for_analytics)
-                learned_total_pages = max(
-                    1,
-                    (learned_total_records + learned_page_size - 1)
-                    // learned_page_size,
-                )
-
-                learned_page_key = "latest_learned_knowledge_page"
-                current_learned_page = int(
-                    st.session_state.get(learned_page_key, 1)
-                )
-                current_learned_page = max(
-                    1,
-                    min(current_learned_page, learned_total_pages),
-                )
-                st.session_state[learned_page_key] = current_learned_page
-
-                learned_start_index = (
-                    current_learned_page - 1
-                ) * learned_page_size
-                learned_end_index = min(
-                    learned_start_index + learned_page_size,
-                    learned_total_records,
-                )
-                learned_page_rows = learned_rows_for_analytics[
-                    learned_start_index:learned_end_index
-                ]
-
-                visible_page_numbers = []
-                pagination_items = []
-
-                if learned_total_pages > 1:
-                    if learned_total_pages <= 7:
-                        visible_page_numbers = list(
-                            range(1, learned_total_pages + 1)
-                        )
-                    else:
-                        candidate_pages = {
-                            1,
-                            learned_total_pages,
-                            current_learned_page - 2,
-                            current_learned_page - 1,
-                            current_learned_page,
-                            current_learned_page + 1,
-                            current_learned_page + 2,
-                        }
-                        visible_page_numbers = sorted(
-                            page_number
-                            for page_number in candidate_pages
-                            if 1 <= page_number <= learned_total_pages
-                        )
-
-                    previous_number = None
-                    for page_number in visible_page_numbers:
-                        if (
-                            previous_number is not None
-                            and page_number - previous_number > 1
-                        ):
-                            pagination_items.append("ellipsis")
-                        pagination_items.append(page_number)
-                        previous_number = page_number
-
-                learned_summary_column, learned_pagination_column = st.columns(
-                    [4, 2],
-                    gap="small",
-                    vertical_alignment="center",
-                )
-
-                with learned_summary_column:
-                    st.caption(
-                        f"Showing {learned_start_index + 1:,}–"
-                        f"{learned_end_index:,} of "
-                        f"{learned_total_records:,} learned records"
-                    )
-
-                with learned_pagination_column:
-                    if pagination_items:
-                        with st.container(
-                            key="latest_learned_text_pagination"
-                        ):
-                            pagination_columns = st.columns(
-                                len(pagination_items),
-                                gap="small",
-                            )
-
-                            for column, item in zip(
-                                pagination_columns,
-                                pagination_items,
-                            ):
-                                with column:
-                                    if item == "ellipsis":
-                                        st.markdown(
-                                            "<div class='latest-learned-ellipsis'>"
-                                            "…</div>",
-                                            unsafe_allow_html=True,
-                                        )
-                                    else:
-                                        page_number = int(item)
-                                        is_current_page = (
-                                            page_number
-                                            == current_learned_page
-                                        )
-
-                                        if st.button(
-                                            str(page_number),
-                                            key=(
-                                                "latest_learned_page_"
-                                                f"{page_number}"
-                                            ),
-                                            use_container_width=False,
-                                            disabled=is_current_page,
-                                            help=(
-                                                f"Open page {page_number}"
-                                                if not is_current_page
-                                                else (
-                                                    "Current page "
-                                                    f"{page_number}"
-                                                )
-                                            ),
-                                        ):
-                                            st.session_state[
-                                                learned_page_key
-                                            ] = page_number
-                                            st.rerun()
-
-                for row in learned_page_rows:
-                    issue = row.get("issue") or row.get("question") or "Learned Knowledge"
-                    vehicle = display_learning_vehicle(row)
-                    confidence = row.get("confidence_score") or 0
-                    times_seen = row.get("times_seen") or 1
-                    with st.expander(f"{vehicle} | {issue[:90]} | Confidence {confidence}% | Seen {times_seen}x"):
-                        st.write(f"**Assistant:** {row.get('assistant') or ''}")
-                        st.write(f"**Product:** {row.get('product') or ''}")
-                        st.write(f"**Keywords:** {row.get('keywords') or ''}")
-                        st.write(f"**Synced:** {row.get('synced')}")
-                        st.write(f"**Vector Store:** {row.get('vector_store_id') or ''}")
-                        st.markdown("**Solution**")
-                        st.write(row.get("solution") or row.get("approved_answer") or "")
-                        st.markdown("**Source Question**")
-                        st.write(row.get("source_question") or row.get("question") or "")
-                        st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
-
-                        if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-                            remaining_records = max(0, learned_total_records - 1)
-                            remaining_pages = max(
-                                1,
-                                (
-                                    remaining_records
-                                    + learned_page_size
-                                    - 1
-                                )
-                                // learned_page_size,
-                            )
-                            st.session_state[learned_page_key] = min(
-                                current_learned_page,
-                                remaining_pages,
-                            )
-                            st.rerun()
-
-                st.markdown(
-                    """
-                    <style>
-                    /* Latest Learned Knowledge upper-right pagination only.
-                       Plain clickable text with no inherited global button style. */
-                    html body div[class*="st-key-latest_learned_text_pagination"] {
-                        width: 100% !important;
-                        margin: 0 0 0 auto !important;
-                        padding: 0 !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    div[data-testid="stHorizontalBlock"] {
-                        display: flex !important;
-                        width: fit-content !important;
-                        max-width: 100% !important;
-                        justify-content: flex-end !important;
-                        align-items: center !important;
-                        gap: 5px !important;
-                        margin: 0 0 0 auto !important;
-                        padding: 0 !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    div[data-testid="stHorizontalBlock"]
-                    > div[data-testid="column"] {
-                        flex: 0 0 22px !important;
-                        flex-grow: 0 !important;
-                        flex-shrink: 0 !important;
-                        flex-basis: 22px !important;
-                        width: 22px !important;
-                        min-width: 22px !important;
-                        max-width: 22px !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    .stButton,
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    div[data-testid="stButton"] {
-                        width: auto !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    button {
-                        width: auto !important;
-                        min-width: 0 !important;
-                        max-width: none !important;
-                        height: auto !important;
-                        min-height: 0 !important;
-                        margin: 0 !important;
-                        padding: 2px 1px !important;
-                        border: 0 !important;
-                        border-radius: 0 !important;
-                        background: transparent !important;
-                        box-shadow: none !important;
-                        color: #cbd5e1 !important;
-                        -webkit-text-fill-color: #cbd5e1 !important;
-                        font-size: 13px !important;
-                        font-weight: 500 !important;
-                        line-height: 1.2 !important;
-                        transform: none !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    button:hover:not(:disabled) {
-                        border: 0 !important;
-                        background: transparent !important;
-                        box-shadow: none !important;
-                        color: #ffffff !important;
-                        -webkit-text-fill-color: #ffffff !important;
-                        text-decoration: underline !important;
-                        transform: none !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    button:disabled {
-                        opacity: 1 !important;
-                        border: 0 !important;
-                        background: transparent !important;
-                        box-shadow: none !important;
-                        color: #ffffff !important;
-                        -webkit-text-fill-color: #ffffff !important;
-                        font-weight: 800 !important;
-                        text-decoration: underline !important;
-                        cursor: default !important;
-                    }
-
-                    html body div[class*="st-key-latest_learned_text_pagination"]
-                    button p {
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        font-size: 13px !important;
-                        line-height: 1.2 !important;
-                    }
-
-                    .latest-learned-ellipsis {
-                        color: #94a3b8;
-                        font-size: 13px;
-                        line-height: 1.2;
-                        text-align: center;
-                        padding: 2px 0;
-                    }
-
-                    @media (max-width: 768px) {
-                        html body div[class*="st-key-latest_learned_text_pagination"] {
-                            display: block !important;
-                            width: 100% !important;
-                            max-width: 100% !important;
-                            overflow-x: auto !important;
-                            overflow-y: hidden !important;
-                            -webkit-overflow-scrolling: touch !important;
-                            scrollbar-width: none !important;
-                        }
-
-                        html body div[class*="st-key-latest_learned_text_pagination"]::-webkit-scrollbar {
-                            display: none !important;
-                        }
-
-                        html body div[class*="st-key-latest_learned_text_pagination"]
-                        div[data-testid="stHorizontalBlock"] {
-                            display: flex !important;
-                            flex-direction: row !important;
-                            flex-wrap: nowrap !important;
-                            width: max-content !important;
-                            min-width: max-content !important;
-                            justify-content: flex-start !important;
-                            align-items: center !important;
-                            gap: 4px !important;
-                            margin: 0 auto !important;
-                        }
-
-                        html body div[class*="st-key-latest_learned_text_pagination"]
-                        div[data-testid="stHorizontalBlock"]
-                        > div[data-testid="column"] {
-                            display: block !important;
-                            flex: 0 0 20px !important;
-                            flex-basis: 20px !important;
-                            width: 20px !important;
-                            min-width: 20px !important;
-                            max-width: 20px !important;
-                        }
-
-                        html body div[class*="st-key-latest_learned_text_pagination"]
-                        button,
-                        html body div[class*="st-key-latest_learned_text_pagination"]
-                        button p,
-                        .latest-learned-ellipsis {
-                            font-size: 12px !important;
-                            white-space: nowrap !important;
-                        }
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            else:
-                st.info("No learned knowledge saved yet.")
+            render_admin_latest_learned_fragment()
 
         with tab5:
             st.markdown("### 📦 Product Library")
