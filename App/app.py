@@ -26818,10 +26818,27 @@ def _product_library_chat_lookup(prompt, max_images=None):
         active_products,
     )
 
-    # An explicitly named model always replaces the remembered model, including
-    # combined requests such as "front photo of 861-Pro".
-    if len(explicit_products) == 1:
+    # IMPORTANT: a pending clarification reply must be resolved before broad
+    # explicit-product matching. Replies such as ``14.4`` can match every 14.4-inch
+    # product in the catalogue; if explicit matching runs first, it discards the
+    # previously confirmed SYNC filter and reopens an unnecessary confirmation
+    # table. Preserve the cumulative clarification state and immediately continue
+    # to the verified image lookup once one candidate remains.
+    if pending_result:
+        if pending_result.get("cancelled"):
+            return {
+                "cancelled": True,
+                "images": [],
+            }
+        if pending_result.get("clarification"):
+            return pending_result
+        product = pending_result.get("product")
+    # An explicitly named model replaces the remembered model when there is no
+    # active clarification result, including combined requests such as
+    # "front photo of 861-Pro".
+    elif len(explicit_products) == 1:
         st.session_state.pop("product_library_pending_candidates", None)
+        st.session_state.pop("product_library_pending_filters", None)
         product = explicit_products[0]
     elif len(explicit_products) > 1:
         st.session_state["product_library_pending_candidates"] = explicit_products[:8]
@@ -26835,21 +26852,11 @@ def _product_library_chat_lookup(prompt, max_images=None):
     # Reuse only the last verified Product Library product when the current
     # message does not explicitly name a different product.
     elif (
-        not pending_result
-        and _product_library_is_asset_refinement_followup(prompt)
+        _product_library_is_asset_refinement_followup(prompt)
         and isinstance(last_product, dict)
         and last_product.get("product_code")
     ):
         product = last_product
-    elif pending_result:
-        if pending_result.get("cancelled"):
-            return {
-                "cancelled": True,
-                "images": [],
-            }
-        if pending_result.get("clarification"):
-            return pending_result
-        product = pending_result.get("product")
     else:
         if not _product_library_prompt_requests_images(prompt):
             return None
@@ -27072,14 +27079,37 @@ def _product_library_chat_context(lookup):
             if lookup.get("invalid_selection")
             else ""
         )
+        candidate_facets = [
+            _product_library_candidate_facets(product)
+            for product in candidates
+        ]
+        sync_options = sorted({
+            value
+            for facets in candidate_facets
+            for value in facets.get("sync_versions", set())
+        })
+        screen_options = sorted({
+            value
+            for facets in candidate_facets
+            for value in facets.get("screen_sizes", set())
+        })
+        missing_detail = "the remaining distinguishing detail"
+        if len(sync_options) > 1:
+            missing_detail = "the factory SYNC version"
+        elif len(screen_options) > 1:
+            missing_detail = "the desired screen size"
+
         return (
             "\n\nPRODUCT LIBRARY CLARIFICATION REQUIRED:\n"
             f"{invalid_note}"
             f"I found {len(candidates)} possible matching products.\n"
             + "\n".join(candidate_lines)
-            + "\nAsk the user to reply with the number or product code. "
-              "Do not select a product, show photos, or add unrelated technical "
-              "details until the user confirms."
+            + f"\nAsk only for {missing_detail}. Accept a natural reply such as "
+              "SYNC 1, 14.4, or 17. Do not ask for an option number or product "
+              "code when the supplied detail leaves exactly one candidate. Once "
+              "one candidate remains, the app will automatically load and display "
+              "its verified Product Library photos in the same turn. Do not add "
+              "unrelated technical details while clarification is still required."
         )
 
     if not lookup.get("product"):
