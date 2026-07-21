@@ -55,6 +55,9 @@ except Exception:
 #   * Main chat, login/logout, workspace switching, AI streaming, Auto Learning, and writes
 #     that change shared application state intentionally remain in the primary execution flow.
 # - full fragment/cache audit across management UIs; AI request/response flow unchanged
+# v383 consolidated optimization: permission memoization, indexed history lookup,
+#   indexed Product Library legacy matching, cached timezone resource, and bounded cache invalidation.
+#   AI prompts, streaming, Auto Learning, auth transitions, and business rules unchanged.
 
 # ============================================================
 # App Paths / API
@@ -237,55 +240,55 @@ def default_feature_permissions(role):
     }
 
 
-def effective_workspace_permissions(role=None, stored=None):
-    clean_role = str(
-        role if role is not None else st.session_state.get("role", "staff")
-    ).strip().lower()
+def _permission_cache_payload(value):
+    """Return deterministic JSON for cache-safe permission evaluation."""
+    normalized = _permission_dict(value)
+    try:
+        return json.dumps(
+            normalized,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except Exception:
+        return "{}"
 
+
+@st.cache_data(max_entries=256, show_spinner=False)
+def _effective_workspace_permissions_cached(clean_role, stored_payload):
+    """Compute workspace permissions once per role/permission payload."""
     if clean_role == "admin":
         return {key: True for key in WORKSPACE_LABELS}
 
     defaults = default_workspace_permissions(clean_role)
-    supplied = _permission_dict(
-        stored if stored is not None
-        else st.session_state.get("workspace_permissions")
-    )
+    supplied = _permission_dict(stored_payload)
     permissions = {
         key: bool(supplied.get(key, defaults[key]))
         for key in WORKSPACE_LABELS
     }
 
-    # Customer and Distributor are always Technical-only.
     if clean_role in STRICT_EXTERNAL_ROLES:
         permissions = {key: key == "technical" for key in WORKSPACE_LABELS}
 
-    # Every account must retain at least one safe workspace.
     if not any(permissions.values()):
         permissions["technical"] = True
 
     return permissions
 
 
-def effective_feature_permissions(role=None, stored=None):
-    clean_role = str(
-        role if role is not None else st.session_state.get("role", "staff")
-    ).strip().lower()
-
+@st.cache_data(max_entries=256, show_spinner=False)
+def _effective_feature_permissions_cached(clean_role, stored_payload):
+    """Compute feature permissions once per role/permission payload."""
     if clean_role == "admin":
         return {key: True for key in FEATURE_LABELS}
 
     defaults = default_feature_permissions(clean_role)
-    supplied = _permission_dict(
-        stored if stored is not None
-        else st.session_state.get("feature_permissions")
-    )
+    supplied = _permission_dict(stored_payload)
     permissions = {
         key: bool(supplied.get(key, defaults[key]))
         for key in FEATURE_LABELS
     }
 
-    # Customer and Distributor never receive persistent history,
-    # WooCommerce, or knowledge-upload capabilities.
     if clean_role in STRICT_EXTERNAL_ROLES:
         permissions["history"] = False
         permissions["woocommerce"] = False
@@ -294,6 +297,34 @@ def effective_feature_permissions(role=None, stored=None):
         permissions["product_library_manage"] = False
 
     return permissions
+
+
+def effective_workspace_permissions(role=None, stored=None):
+    clean_role = str(
+        role if role is not None else st.session_state.get("role", "staff")
+    ).strip().lower()
+    stored_value = (
+        stored if stored is not None
+        else st.session_state.get("workspace_permissions")
+    )
+    return dict(_effective_workspace_permissions_cached(
+        clean_role,
+        _permission_cache_payload(stored_value),
+    ))
+
+
+def effective_feature_permissions(role=None, stored=None):
+    clean_role = str(
+        role if role is not None else st.session_state.get("role", "staff")
+    ).strip().lower()
+    stored_value = (
+        stored if stored is not None
+        else st.session_state.get("feature_permissions")
+    )
+    return dict(_effective_feature_permissions_cached(
+        clean_role,
+        _permission_cache_payload(stored_value),
+    ))
 
 
 def user_can_access_workspace(workspace_key):
@@ -1122,8 +1153,9 @@ def _safe_decimal(value):
         return 0.0
 
 
+@st.cache_resource(show_spinner=False)
 def _toronto_timezone():
-    """Return the business timezone used for WooCommerce analytics."""
+    """Return the reused business timezone used for WooCommerce analytics."""
     try:
         return ZoneInfo("America/Toronto")
     except Exception:
@@ -20495,6 +20527,19 @@ def _load_conversations_cached(
     )
 
 
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+def _conversation_summary_index_cached(
+    username,
+    unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+):
+    """Index cached sidebar summaries by id for constant-time title/action lookup."""
+    return {
+        str(row.get("id")): row
+        for row in _load_conversations_cached(username, unpinned_limit)
+        if isinstance(row, dict) and row.get("id") is not None
+    }
+
+
 @st.cache_data(ttl=60, max_entries=128, show_spinner=False)
 def _active_conversation_count_cached(username):
     """Return the exact active saved-conversation count for one user."""
@@ -20564,6 +20609,10 @@ def invalidate_history_cache(
         # cache together with the exact count cache.
         try:
             _load_conversations_cached.clear()
+        except Exception:
+            pass
+        try:
+            _conversation_summary_index_cached.clear()
         except Exception:
             pass
         try:
@@ -20698,12 +20747,10 @@ def _cached_conversation_row(conversation_id):
             )
             or INITIAL_HISTORY_PAGE_SIZE
         )
-        for conversation in _load_conversations_cached(
+        return _conversation_summary_index_cached(
             username,
             history_limit,
-        ):
-            if str(conversation.get("id")) == str(conversation_id):
-                return conversation
+        ).get(str(conversation_id))
     except Exception:
         pass
 
@@ -27043,6 +27090,37 @@ def _product_library_cached_asset_catalog():
     return _product_library_normalize_rows(getattr(response, "data", response))
 
 
+@st.cache_data(ttl=60, max_entries=2, show_spinner=False)
+def _product_library_cached_asset_index():
+    """Index the legacy asset catalogue once instead of rescanning 5,000 rows per product."""
+    catalogue = _product_library_cached_asset_catalog()
+    by_code = {}
+    by_product_id = {}
+    by_path_root = {}
+
+    for index, asset in enumerate(catalogue):
+        if not isinstance(asset, dict):
+            continue
+        asset_code = _product_library_normalize_code(asset.get("product_code"))
+        product_id = str(asset.get("product_id") or "").strip()
+        storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
+        path_root = _product_library_normalize_code(
+            storage_path.split("/", 1)[0] if storage_path else ""
+        )
+        if asset_code:
+            by_code.setdefault(asset_code, []).append(index)
+        if product_id:
+            by_product_id.setdefault(product_id, []).append(index)
+        if path_root:
+            by_path_root.setdefault(path_root, []).append(index)
+
+    return {
+        "by_code": by_code,
+        "by_product_id": by_product_id,
+        "by_path_root": by_path_root,
+    }
+
+
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _product_library_cached_assets(product_code, product_id):
     """Return every asset belonging to one product, including legacy rows.
@@ -27101,21 +27179,22 @@ def _product_library_cached_assets(product_code, product_id):
     # Keep it bounded to protect performance.
     if normalized_code:
         all_assets = _product_library_cached_asset_catalog()
+        asset_index = _product_library_cached_asset_index()
         used_legacy_scan = True
-
-        for asset in all_assets:
-            asset_code = _product_library_normalize_code(asset.get("product_code"))
-            asset_product_id = str(asset.get("product_id") or "").strip()
-            storage_path = str(asset.get("storage_path") or "").strip().lstrip("/")
-            path_root = _product_library_normalize_code(
-                storage_path.split("/", 1)[0] if storage_path else ""
+        candidate_indexes = set(
+            asset_index.get("by_code", {}).get(normalized_code, [])
+        )
+        candidate_indexes.update(
+            asset_index.get("by_path_root", {}).get(normalized_code, [])
+        )
+        if clean_id:
+            candidate_indexes.update(
+                asset_index.get("by_product_id", {}).get(clean_id, [])
             )
-            if (
-                (asset_code and asset_code == normalized_code)
-                or (clean_id and asset_product_id == clean_id)
-                or (path_root and path_root == normalized_code)
-            ):
-                collected.append(asset)
+
+        for index in sorted(candidate_indexes):
+            if 0 <= index < len(all_assets):
+                collected.append(all_assets[index])
 
     # Prefer the database id. For malformed legacy rows without id, use a stable
     # composite key so the same image is never rendered twice.
@@ -27140,6 +27219,7 @@ def _product_library_clear_read_caches():
     """Clear Product Library read caches after any mutation."""
     _product_library_cached_products.clear()
     _product_library_cached_asset_catalog.clear()
+    _product_library_cached_asset_index.clear()
     _product_library_cached_assets.clear()
     _product_library_dashboard_data.clear()
 
