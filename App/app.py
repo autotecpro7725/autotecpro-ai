@@ -27639,7 +27639,11 @@ def render_product_library_admin():
                 for product in products:
                     product_id = str(product.get("id") or "")
                     title = f"{product.get('product_code')} — {product.get('product_name')}"
-                    with st.expander(title):
+                    product_is_open = (
+                        str(st.session_state.get("product_library_open_product_id") or "")
+                        == product_id
+                    )
+                    with st.expander(title, expanded=product_is_open):
                         edit_tab, files_tab, danger_tab = st.tabs(["Edit Product", "Files", "Delete Product"])
 
                         with edit_tab:
@@ -27748,7 +27752,7 @@ def render_product_library_admin():
                                 """
                                 <style>
                                 div[class*="st-key-product_asset_meta_"] {
-                                    width: min(100%, 760px) !important;
+                                    width: min(100%, 920px) !important;
                                     margin: 0.45rem auto 0.7rem auto !important;
                                 }
                                 div[class*="st-key-product_asset_meta_"] p {
@@ -27757,13 +27761,49 @@ def render_product_library_admin():
                                     color: var(--text-color) !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"] {
-                                    width: min(100%, 760px) !important;
+                                    width: min(100%, 920px) !important;
                                     margin: 0 auto 0.15rem auto !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stHorizontalBlock"] {
+                                    display: grid !important;
+                                    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+                                    gap: 0.65rem !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stColumn"] {
+                                    width: auto !important;
+                                    min-width: 0 !important;
+                                    flex: none !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stLinkButton"],
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stButton"] {
+                                    width: 100% !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stLinkButton"] > a,
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stButton"] > button {
+                                    width: 100% !important;
+                                    min-height: 2.5rem !important;
+                                    height: 2.5rem !important;
+                                    padding-top: 0 !important;
+                                    padding-bottom: 0 !important;
+                                    display: inline-flex !important;
+                                    align-items: center !important;
+                                    justify-content: center !important;
+                                    box-sizing: border-box !important;
                                 }
                                 @media (max-width: 768px) {
                                     div[class*="st-key-product_asset_meta_"],
                                     div[class*="st-key-product_asset_toolbar_"] {
                                         width: 100% !important;
+                                    }
+                                    div[class*="st-key-product_asset_toolbar_"]
+                                    div[data-testid="stHorizontalBlock"] {
+                                        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
                                     }
                                 }
                                 </style>
@@ -27811,29 +27851,43 @@ def render_product_library_admin():
                                     replace_panel_key = f"replace_panel_{asset_id}"
                                     delete_panel_key = f"delete_panel_{asset_id}"
 
+                                    archive_url = str(asset.get("archive_web_url") or "").strip()
                                     with st.container(
                                         key=f"product_asset_toolbar_{asset_id}"
                                     ):
                                         action_cols = st.columns(4, gap="small")
 
                                         with action_cols[0]:
-                                            view_clicked = st.button(
-                                                "View",
-                                                key=f"view_asset_{asset_id}",
-                                                disabled=not bool(signed_url),
-                                                use_container_width=True,
-                                                help="Open the optimized display copy",
-                                            )
+                                            if signed_url:
+                                                st.link_button(
+                                                    "View",
+                                                    str(signed_url),
+                                                    use_container_width=True,
+                                                    help="Open the optimized display copy",
+                                                )
+                                            else:
+                                                st.button(
+                                                    "View",
+                                                    key=f"view_asset_disabled_{asset_id}",
+                                                    disabled=True,
+                                                    use_container_width=True,
+                                                )
 
                                         with action_cols[1]:
-                                            archive_url = asset.get("archive_web_url")
-                                            original_clicked = st.button(
-                                                "Original",
-                                                key=f"original_asset_{asset_id}",
-                                                disabled=not bool(archive_url),
-                                                use_container_width=True,
-                                                help="Open the original Google Drive archive",
-                                            )
+                                            if archive_url:
+                                                st.link_button(
+                                                    "Original",
+                                                    archive_url,
+                                                    use_container_width=True,
+                                                    help="Open the original Google Drive archive",
+                                                )
+                                            else:
+                                                st.button(
+                                                    "Original",
+                                                    key=f"original_asset_disabled_{asset_id}",
+                                                    disabled=True,
+                                                    use_container_width=True,
+                                                )
 
                                         with action_cols[2]:
                                             replace_clicked = st.button(
@@ -27851,29 +27905,21 @@ def render_product_library_admin():
                                                 help="Delete this Product Library file",
                                             )
 
-                                    if view_clicked and signed_url:
-                                        components.html(
-                                            f"""<script>window.open({json.dumps(str(signed_url))}, '_blank', 'noopener,noreferrer');</script>""",
-                                            height=0,
-                                        )
-
-                                    if original_clicked and archive_url:
-                                        components.html(
-                                            f"""<script>window.open({json.dumps(str(archive_url))}, '_blank', 'noopener,noreferrer');</script>""",
-                                            height=0,
-                                        )
-
                                     if replace_clicked:
+                                        st.session_state["product_library_open_product_id"] = product_id
                                         st.session_state[replace_panel_key] = not bool(
                                             st.session_state.get(replace_panel_key, False)
                                         )
                                         st.session_state[delete_panel_key] = False
+                                        st.rerun()
 
                                     if delete_clicked:
+                                        st.session_state["product_library_open_product_id"] = product_id
                                         st.session_state[delete_panel_key] = not bool(
                                             st.session_state.get(delete_panel_key, False)
                                         )
                                         st.session_state[replace_panel_key] = False
+                                        st.rerun()
 
                                     if st.session_state.get(replace_panel_key, False):
                                         with st.container(
@@ -27911,7 +27957,9 @@ def render_product_library_admin():
                                                             replacement_file,
                                                         )
                                                         st.session_state[replace_panel_key] = False
-                                                        st.success("File replaced successfully.")
+                                                        st.session_state["product_library_open_product_id"] = product_id
+                                                        st.session_state["product_library_notice"] = "File replaced successfully."
+                                                        st.rerun()
                                                     except Exception as error:
                                                         st.error(
                                                             "File replacement failed: "
@@ -27950,11 +27998,12 @@ def render_product_library_admin():
                                                             _product_library_delete_asset(asset)
                                                         st.session_state.pop(delete_panel_key, None)
                                                         st.session_state.pop(replace_panel_key, None)
-                                                        asset_placeholder.empty()
-                                                        st.success(
-                                                            "File deleted from Product Library, "
-                                                            "Supabase Storage, and Google Drive archive."
+                                                        st.session_state["product_library_open_product_id"] = product_id
+                                                        st.session_state["product_library_notice"] = (
+                                                            "File deleted from Product Library, Supabase Storage, "
+                                                            "and Google Drive archive."
                                                         )
+                                                        st.rerun()
                                                     except Exception as error:
                                                         st.error(
                                                             "File deletion failed: "
