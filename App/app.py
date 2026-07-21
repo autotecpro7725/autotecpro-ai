@@ -19011,13 +19011,8 @@ def process_pending_ai_postprocess():
         st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
     postprocess_started_at = time.perf_counter()
-    diagnostic_log(
-        "ai_postprocess_started",
-        fingerprint=fingerprint[:12],
-        assistant=job.get("selected_assistant"),
-        conversation_id=st.session_state.get("conversation_id"),
-        logged_in=st.session_state.get("logged_in"),
-    )
+    # Keep diagnostics compact. Detailed failures are still logged below; normal
+    # maintenance runs only emit the final timing record.
 
     learning_result = None
     if (
@@ -19082,6 +19077,24 @@ def process_pending_ai_postprocess():
 
 
 
+def _auto_learning_is_eligible(question, selected_assistant, explicit_learning=False):
+    """Return True only when a message can produce authoritative durable knowledge.
+
+    Auto Learning is intentionally staff-driven. This fast local gate avoids an
+    unnecessary OpenAI extraction request for ordinary customer questions and AI
+    drafts that can never pass the later authority checks.
+    """
+    if bool(explicit_learning):
+        return True
+
+    safe_question = redact_learning_private_data(question)
+    return bool(
+        detect_unlabeled_staff_final_reply(safe_question, selected_assistant)
+        or detect_staff_teaching_content(safe_question)
+        or detect_staff_confirmed_solution(safe_question)
+    )
+
+
 def auto_learn_from_latest_answer(
     question,
     answer,
@@ -19122,6 +19135,24 @@ def auto_learn_from_latest_answer(
                 "Live-data requests are excluded from automatic learning "
                 "to avoid storing temporary, changing, or private data."
             ),
+            "analytics_payload": build_local_analytics_payload(
+                question,
+                answer,
+                selected_assistant,
+            ),
+        }
+
+    # Ordinary questions and unapproved AI drafts cannot become permanent
+    # knowledge. Skip the expensive extraction call and still save lightweight
+    # local analytics for the interaction.
+    if not _auto_learning_is_eligible(
+        question,
+        selected_assistant,
+        explicit_learning=explicit_learning,
+    ):
+        return {
+            "learned": False,
+            "reason": "No explicit or confirmed staff teaching signal.",
             "analytics_payload": build_local_analytics_payload(
                 question,
                 answer,
@@ -25809,7 +25840,6 @@ def _product_library_replace_asset(product, asset, replacement_file):
             str(asset.get("asset_subtype") or "other"),
         )
         _product_library_delete_asset(asset)
-        _product_library_clear_read_caches()
         return new_asset
     except Exception:
         # If the replacement uploaded but the old record could not be removed,
@@ -26655,6 +26685,31 @@ def _product_library_cached_products():
     )
 
 
+@st.cache_data(ttl=60, max_entries=2, show_spinner=False)
+def _product_library_cached_asset_catalog():
+    """Cache the bounded legacy asset catalogue once per minute.
+
+    Older Product Library rows sometimes require normalized matching. Previously
+    every expanded product repeated the same 5,000-row Supabase scan. Sharing one
+    cached catalogue makes Manage Products substantially smoother without changing
+    legacy matching behavior.
+    """
+    asset_columns = (
+        "id,product_id,product_code,asset_type,asset_subtype,original_filename,"
+        "optimized_filename,content_type,storage_bucket,storage_path,"
+        "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
+    )
+    return (
+        get_supabase_admin_client()
+        .table("product_assets")
+        .select(asset_columns)
+        .order("created_at", desc=False)
+        .limit(5000)
+        .execute().data
+        or []
+    )
+
+
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _product_library_cached_assets(product_code, product_id):
     """Return every asset belonging to one product, including legacy rows.
@@ -26712,14 +26767,7 @@ def _product_library_cached_assets(product_code, product_id):
     # case-sensitive and older rows may have missing/incorrect product_id values.
     # Keep it bounded to protect performance.
     if normalized_code:
-        all_assets = (
-            database.table("product_assets")
-            .select(asset_columns)
-            .order("created_at", desc=False)
-            .limit(5000)
-            .execute().data
-            or []
-        )
+        all_assets = _product_library_cached_asset_catalog()
         used_legacy_scan = True
 
         for asset in all_assets:
@@ -26758,6 +26806,7 @@ def _product_library_cached_assets(product_code, product_id):
 def _product_library_clear_read_caches():
     """Clear Product Library read caches after any mutation."""
     _product_library_cached_products.clear()
+    _product_library_cached_asset_catalog.clear()
     _product_library_cached_assets.clear()
     _product_library_dashboard_data.clear()
 
