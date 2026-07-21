@@ -27769,27 +27769,98 @@ def render_product_library_admin():
                             st.markdown(
                                 """
                                 <style>
+                                /* Product Library asset card: keep metadata and actions in one
+                                   compact centered block instead of stretching across the page. */
+                                div[class*="st-key-product_asset_meta_"] {
+                                    width: min(100%, 760px) !important;
+                                    margin: 0.45rem auto 0.7rem auto !important;
+                                }
+                                div[class*="st-key-product_asset_meta_"] p {
+                                    margin: 0.08rem 0 !important;
+                                    line-height: 1.35 !important;
+                                    color: var(--text-color) !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"] {
+                                    width: min(100%, 760px) !important;
+                                    margin: 0 auto 0.15rem auto !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                > div[data-testid="stHorizontalBlock"] {
+                                    display: grid !important;
+                                    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+                                    gap: 0.55rem !important;
+                                    align-items: stretch !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"]
+                                > div[data-testid="stHorizontalBlock"]
+                                > div[data-testid="stColumn"] {
+                                    width: auto !important;
+                                    min-width: 0 !important;
+                                    flex: none !important;
+                                    padding: 0 !important;
+                                }
                                 div[class*="st-key-product_asset_toolbar_"] button,
-                                div[class*="st-key-product_asset_toolbar_"] a {
+                                div[class*="st-key-product_asset_toolbar_"] a,
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stPopover"] > button {
+                                    box-sizing: border-box !important;
                                     width: 100% !important;
+                                    min-width: 0 !important;
+                                    height: 2.55rem !important;
                                     min-height: 2.55rem !important;
+                                    max-height: 2.55rem !important;
+                                    padding: 0 0.7rem !important;
+                                    margin: 0 !important;
                                     display: inline-flex !important;
                                     align-items: center !important;
                                     justify-content: center !important;
                                     text-align: center !important;
                                     white-space: nowrap !important;
+                                    line-height: 1 !important;
+                                    font-size: 0.92rem !important;
+                                    color: var(--text-color) !important;
+                                    vertical-align: middle !important;
+                                }
+                                div[class*="st-key-product_asset_toolbar_"] button *,
+                                div[class*="st-key-product_asset_toolbar_"] a *,
+                                div[class*="st-key-product_asset_toolbar_"]
+                                div[data-testid="stPopover"] > button * {
+                                    color: var(--text-color) !important;
+                                    line-height: 1 !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stPopover"] > button {
+                                div[data-testid="stPopover"] {
                                     width: 100% !important;
+                                    height: 2.55rem !important;
+                                    margin: 0 !important;
                                 }
-                                div[class*="st-key-product_asset_meta_"] {
-                                    margin-top: 0.35rem !important;
-                                    margin-bottom: 0.65rem !important;
-                                }
-                                div[class*="st-key-product_asset_meta_"] p {
-                                    margin: 0.08rem 0 !important;
-                                    line-height: 1.35 !important;
+
+                                /* Phones and narrow tablets: balanced 2 x 2 action grid with
+                                   readable theme-aware text. */
+                                @media (max-width: 768px) {
+                                    div[class*="st-key-product_asset_meta_"],
+                                    div[class*="st-key-product_asset_toolbar_"] {
+                                        width: 100% !important;
+                                    }
+                                    div[class*="st-key-product_asset_toolbar_"]
+                                    > div[data-testid="stHorizontalBlock"] {
+                                        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                                        gap: 0.5rem !important;
+                                    }
+                                    div[class*="st-key-product_asset_toolbar_"] button,
+                                    div[class*="st-key-product_asset_toolbar_"] a,
+                                    div[class*="st-key-product_asset_toolbar_"]
+                                    div[data-testid="stPopover"] > button {
+                                        height: 2.7rem !important;
+                                        min-height: 2.7rem !important;
+                                        max-height: 2.7rem !important;
+                                        font-size: 0.95rem !important;
+                                        color: var(--text-color) !important;
+                                    }
+                                    div[class*="st-key-product_asset_toolbar_"]
+                                    div[data-testid="stPopover"] {
+                                        height: 2.7rem !important;
+                                    }
                                 }
                                 </style>
                                 """,
