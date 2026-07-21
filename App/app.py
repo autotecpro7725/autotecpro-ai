@@ -44,6 +44,16 @@ except Exception:
 # - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
 #   knowledge submission, generated-image actions, and Admin user management
 # - lightweight cached uploader thumbnails and short-lived WooCommerce payload reuse
+# v373 production optimization acceptance coverage:
+#   * Product Library dashboard/manage interactions are fragment-scoped; reads cached.
+#   * History search/pin/rename/load-more and inactive-row mutations are fragment-local.
+#   * Learned-record search/filter/sort/page reads are cached and fragment-scoped.
+#   * WooCommerce read-only lookups and sanitized payloads use bounded TTL caches.
+#   * Knowledge Submission/Admin Upload metadata, validation and file removal are fragments.
+#   * Generated image open/download controls are local; regeneration stays full-flow by design.
+#   * Admin user search/filter/pagination/edit UI is fragment-scoped; writes invalidate caches.
+#   * Main chat, login/logout, workspace switching, AI streaming, Auto Learning, and writes
+#     that change shared application state intentionally remain in the primary execution flow.
 # - full fragment/cache audit across management UIs; AI request/response flow unchanged
 
 # ============================================================
@@ -15773,6 +15783,9 @@ def render_generated_image_actions(images, message_index=None):
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
                     }
+                    # Regeneration intentionally enters the primary app flow because
+                    # it creates and persists a new assistant message. Open/download
+                    # remain fragment-local and do not rebuild the app.
                     st.rerun()
 
 
@@ -20677,12 +20690,13 @@ def render_rename_form(conversations):
 
         st.session_state.rename_conversation_id = None
         st.session_state.rename_conversation_value = ""
-        st.rerun()
+        invalidate_history_cache(conversation_id=rename_id)
+        _rerun_fragment_or_app()
 
     if cancel_clicked:
         st.session_state.rename_conversation_id = None
         st.session_state.rename_conversation_value = ""
-        st.rerun()
+        _rerun_fragment_or_app()
 
 
 
@@ -21052,7 +21066,7 @@ def render_history_cards(conversations):
                                 conversation_id
                             )
                             st.session_state.rename_conversation_value = title
-                            st.rerun()
+                            _rerun_fragment_or_app()
 
                         pin_label = (
                             "Unpin chat"
@@ -21070,7 +21084,8 @@ def render_history_cards(conversations):
                                     conversation_id,
                                     not pinned,
                                 )
-                                st.rerun()
+                                invalidate_history_cache(conversation_id=conversation_id)
+                                _rerun_fragment_or_app()
                             except Exception:
                                 st.toast(
                                     "Pin needs the pinned column in Supabase."
@@ -21082,13 +21097,18 @@ def render_history_cards(conversations):
                             use_container_width=True,
                         ):
                             archive_conversation(conversation_id)
-                            if (
+                            was_active = (
                                 st.session_state.conversation_id
                                 == conversation_id
-                            ):
+                            )
+                            if was_active:
                                 st.session_state.conversation_id = None
                                 st.session_state.messages = []
-                            st.rerun()
+                            invalidate_history_cache(conversation_id=conversation_id)
+                            if was_active:
+                                st.rerun()
+                            else:
+                                _rerun_fragment_or_app()
 
                         if st.button(
                             "Delete",
@@ -21096,13 +21116,18 @@ def render_history_cards(conversations):
                             use_container_width=True,
                         ):
                             delete_conversation(conversation_id)
-                            if (
+                            was_active = (
                                 st.session_state.conversation_id
                                 == conversation_id
-                            ):
+                            )
+                            if was_active:
                                 st.session_state.conversation_id = None
                                 st.session_state.messages = []
-                            st.rerun()
+                            invalidate_history_cache(conversation_id=conversation_id)
+                            if was_active:
+                                st.rerun()
+                            else:
+                                _rerun_fragment_or_app()
 
 
 def install_global_chat_file_dropzone():
@@ -27781,18 +27806,18 @@ def render_product_library_manage_fragment():
                                 for failure in failures:
                                     st.error(failure)
                             else:
-                                st.success(f"Uploaded {len(add_uploads)} additional file(s).")
-                                # Do not force a full-app rerun here. The asset query below
-                                # runs after the upload and immediately shows the new files.
+                                st.session_state["product_library_notice"] = (
+                                    f"Uploaded {len(add_uploads)} additional file(s)."
+                                )
+                                st.session_state["product_library_open_product_id"] = product_id
+                                st.session_state[f"product_library_section_{product_id}"] = "Files"
+                                _rerun_fragment_or_app()
 
-                    assets = (
-                        supabase.table("product_assets")
-                        .select("id,asset_type,asset_subtype,original_filename,content_type,storage_path,storage_status,archive_status,archive_file_id,archive_web_url,created_at")
-                        .eq("product_id", product_id)
-                        .order("created_at", desc=True)
-                        .execute().data
-                        or []
+                    cached_assets, _ = _product_library_cached_assets(
+                        str(product.get("product_code") or ""),
+                        product_id,
                     )
+                    assets = list(reversed([dict(row) for row in (cached_assets or [])]))
 
                     # Hide duplicate legacy rows in the manager while keeping the newest
                     # record. Future exact duplicates are blocked during upload.
