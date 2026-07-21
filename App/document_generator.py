@@ -512,20 +512,199 @@ def build_text_pdf(
     return bytes(pdf), len(pages)
 
 
+def _strip_docx_inline_markdown(value: Any) -> str:
+    """Remove lightweight inline Markdown while preserving readable content."""
+    text = str(value or "")
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"__(.*?)__", r"\1", text)
+    text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", text)
+    return text.strip()
+
+
+def _split_docx_markdown_table_row(value: Any) -> list[str]:
+    """Split a Markdown table row, tolerating optional outer pipes."""
+    line = str(value or "").strip()
+    if line.startswith("|"):
+        line = line[1:]
+    if line.endswith("|") and not line.endswith(r"\|"):
+        line = line[:-1]
+    placeholder = "\x00ATP_ESCAPED_PIPE\x00"
+    line = line.replace(r"\|", placeholder)
+    cells = [
+        _strip_docx_inline_markdown(cell.replace(placeholder, "|").strip())
+        for cell in line.split("|")
+    ]
+    return cells
+
+
+def _is_docx_markdown_table_separator(value: Any) -> bool:
+    cells = _split_docx_markdown_table_row(value)
+    return bool(cells) and all(
+        re.fullmatch(r":?-{3,}:?", str(cell or "").replace(" ", ""))
+        for cell in cells
+    )
+
+
+def _looks_like_markdown_table_row(value: Any) -> bool:
+    line = str(value or "").strip()
+    return "|" in line and len(_split_docx_markdown_table_row(line)) >= 2
+
+
 def _iter_markdown_blocks(text: str):
-    for raw in text.splitlines():
+    """Yield grouped Markdown blocks, including native-table candidates."""
+    lines = str(text or "").splitlines()
+    index = 0
+    while index < len(lines):
+        raw = lines[index]
         stripped = raw.strip()
+
+        # A valid Markdown table starts with a header row followed by a divider.
+        if (
+            _looks_like_markdown_table_row(stripped)
+            and index + 1 < len(lines)
+            and _is_docx_markdown_table_separator(lines[index + 1])
+        ):
+            rows = [_split_docx_markdown_table_row(stripped)]
+            index += 2  # Skip the Markdown divider; it is formatting, not content.
+            while index < len(lines) and _looks_like_markdown_table_row(lines[index]):
+                if not _is_docx_markdown_table_separator(lines[index]):
+                    rows.append(_split_docx_markdown_table_row(lines[index]))
+                index += 1
+            width = max((len(row) for row in rows), default=1)
+            normalized = [row + [""] * (width - len(row)) for row in rows]
+            yield ("table", normalized)
+            continue
+
         if not stripped:
             yield ("blank", "")
         elif re.match(r"^#{1,6}\s+", stripped):
             level = len(stripped) - len(stripped.lstrip("#"))
             yield (f"heading{min(level, 3)}", stripped[level:].strip())
+        elif stripped.startswith(">"):
+            yield ("quote", stripped.lstrip(">").strip())
         elif stripped.startswith(("- ", "* ", "• ")):
             yield ("bullet", stripped[2:].strip())
         elif re.match(r"^\d+[.)]\s+", stripped):
             yield ("number", re.sub(r"^\d+[.)]\s+", "", stripped))
         else:
             yield ("paragraph", stripped)
+        index += 1
+
+
+def _add_docx_inline_text(paragraph, value: Any, *, bold: bool = False) -> None:
+    """Add basic bold/code Markdown as Word runs instead of exposing markers."""
+    text = str(value or "")
+    token_pattern = re.compile(r"(\*\*.*?\*\*|__.*?__|`[^`]+`)")
+    cursor = 0
+    for match in token_pattern.finditer(text):
+        if match.start() > cursor:
+            run = paragraph.add_run(text[cursor:match.start()])
+            run.bold = bold
+        token = match.group(0)
+        if token.startswith("`"):
+            run = paragraph.add_run(token[1:-1])
+            run.bold = bold
+            run.font.name = "Consolas"
+        else:
+            run = paragraph.add_run(token[2:-2])
+            run.bold = True
+        cursor = match.end()
+    if cursor < len(text):
+        run = paragraph.add_run(text[cursor:])
+        run.bold = bold
+
+
+def _set_docx_cell_text(cell, value: Any, *, bold: bool = False) -> None:
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    paragraph.paragraph_format.space_after = 0
+    _add_docx_inline_text(paragraph, value, bold=bold)
+
+
+def _shade_docx_element(element, fill: str) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    xml_element = getattr(element, "_tc", None)
+    if xml_element is None:
+        xml_element = getattr(element, "_p", None)
+    if xml_element is None:
+        xml_element = element
+    properties = (
+        xml_element.get_or_add_tcPr()
+        if hasattr(xml_element, "get_or_add_tcPr")
+        else xml_element.get_or_add_pPr()
+    )
+    shade = properties.find(qn("w:shd"))
+    if shade is None:
+        shade = OxmlElement("w:shd")
+        properties.append(shade)
+    shade.set(qn("w:fill"), fill)
+
+
+def _configure_docx_styles(document) -> None:
+    from docx.enum.text import WD_LINE_SPACING
+    from docx.shared import Pt, RGBColor
+
+    styles = document.styles
+    normal = styles["Normal"]
+    normal.font.name = "Arial"
+    normal.font.size = Pt(10.5)
+    normal.paragraph_format.space_after = Pt(6)
+    normal.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+
+    heading_settings = {
+        "Title": (20, 14),
+        "Heading 1": (15, 12),
+        "Heading 2": (12.5, 10),
+        "Heading 3": (11, 8),
+    }
+    for style_name, (size, before) in heading_settings.items():
+        if style_name not in styles:
+            continue
+        style = styles[style_name]
+        style.font.name = "Arial"
+        style.font.size = Pt(size)
+        style.font.bold = True
+        style.font.color.rgb = RGBColor(128, 24, 24)
+        style.paragraph_format.space_before = Pt(before)
+        style.paragraph_format.space_after = Pt(5)
+        style.paragraph_format.keep_with_next = True
+
+    for style_name in ("List Bullet", "List Number"):
+        if style_name in styles:
+            styles[style_name].font.name = "Arial"
+            styles[style_name].font.size = Pt(10.5)
+            styles[style_name].paragraph_format.space_after = Pt(2)
+
+
+def _add_docx_markdown_table(document, rows: list[list[str]]) -> None:
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+    from docx.shared import Pt
+
+    if not rows:
+        return
+    column_count = max(len(row) for row in rows)
+    table = document.add_table(rows=len(rows), cols=column_count)
+    table.style = "Table Grid"
+    table.autofit = True
+
+    for row_index, row in enumerate(rows):
+        for column_index in range(column_count):
+            cell = table.cell(row_index, column_index)
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            value = row[column_index] if column_index < len(row) else ""
+            _set_docx_cell_text(cell, value, bold=(row_index == 0))
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(2)
+            if row_index == 0:
+                _shade_docx_element(cell, "D9E2F3")
+
+    document.add_paragraph("").paragraph_format.space_after = Pt(2)
 
 
 def build_docx(
@@ -533,7 +712,9 @@ def build_docx(
     title: str,
     visible_text_cleaner=None,
 ) -> tuple[bytes, int]:
+    """Build a polished DOCX with native headings, lists, quotes, and tables."""
     from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Inches, Pt
 
     text = _clean_document_text(document_text, visible_text_cleaner)
@@ -543,29 +724,72 @@ def build_docx(
     section.bottom_margin = Inches(0.7)
     section.left_margin = Inches(0.8)
     section.right_margin = Inches(0.8)
-    document.add_heading(title, 0)
 
+    _configure_docx_styles(document)
+    title_paragraph = document.add_heading(_strip_docx_inline_markdown(title), 0)
+    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+    previous_kind = ""
+    first_content_block = True
+    normalized_title = _strip_docx_inline_markdown(title).casefold().strip(" .:-")
     for kind, value in _iter_markdown_blocks(text):
-        value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
-        value = re.sub(r"`([^`]+)`", r"\1", value)
+        if (
+            first_content_block
+            and kind.startswith("heading")
+            and _strip_docx_inline_markdown(value).casefold().strip(" .:-") == normalized_title
+        ):
+            # The document title already appears above; avoid printing it twice.
+            first_content_block = False
+            previous_kind = kind
+            continue
+        if kind != "blank":
+            first_content_block = False
         if kind == "blank":
-            document.add_paragraph("")
-        elif kind.startswith("heading"):
-            document.add_heading(value, level=int(kind[-1]))
-        elif kind == "bullet":
-            document.add_paragraph(value, style="List Bullet")
-        elif kind == "number":
-            document.add_paragraph(value, style="List Number")
-        else:
-            document.add_paragraph(value)
+            # Avoid large empty gaps while retaining separation between sections.
+            if previous_kind not in {"", "blank", "heading1", "heading2", "heading3", "table"}:
+                spacer = document.add_paragraph("")
+                spacer.paragraph_format.space_after = Pt(1)
+            previous_kind = "blank"
+            continue
 
-    styles = document.styles
-    styles["Normal"].font.name = "Arial"
-    styles["Normal"].font.size = Pt(10.5)
+        if kind == "table":
+            _add_docx_markdown_table(document, value)
+        elif kind.startswith("heading"):
+            paragraph = document.add_heading(
+                _strip_docx_inline_markdown(value),
+                level=int(kind[-1]),
+            )
+        elif kind == "bullet":
+            paragraph = document.add_paragraph(style="List Bullet")
+            _add_docx_inline_text(paragraph, value)
+        elif kind == "number":
+            paragraph = document.add_paragraph(style="List Number")
+            _add_docx_inline_text(paragraph, value)
+        elif kind == "quote":
+            style_name = "Intense Quote" if "Intense Quote" in document.styles else "Quote"
+            paragraph = document.add_paragraph(style=style_name)
+            _add_docx_inline_text(paragraph, value)
+            paragraph.paragraph_format.space_before = Pt(3)
+            paragraph.paragraph_format.space_after = Pt(3)
+            _shade_docx_element(paragraph._p, "F2F2F2")
+        else:
+            clean_value = str(value or "").strip()
+            # Conversation speaker labels should read as labels, not body copy.
+            if clean_value.casefold() in {"user", "autotecpro ai", "assistant"}:
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.space_before = Pt(8)
+                paragraph.paragraph_format.space_after = Pt(2)
+                _add_docx_inline_text(paragraph, clean_value, bold=True)
+            else:
+                paragraph = document.add_paragraph()
+                _add_docx_inline_text(paragraph, clean_value)
+
+        previous_kind = kind
+
     buffer = io.BytesIO()
     document.save(buffer)
-    return buffer.getvalue(), max(1, len(document.paragraphs))
-
+    element_count = len(document.paragraphs) + len(document.tables)
+    return buffer.getvalue(), max(1, element_count)
 
 def _split_slide_sections(text: str) -> list[tuple[str, list[str]]]:
     sections: list[tuple[str, list[str]]] = []
