@@ -40,6 +40,7 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
+# v385 document conversion: direct “convert this to PDF/Word” follow-ups reuse the previous response without AI rewriting.
 # v370 UI performance architecture:
 # - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
 #   knowledge submission, generated-image actions, and Admin user management
@@ -13477,15 +13478,43 @@ def _document_request_uses_conversation(prompt_text):
             "this conversation",
             "the conversation",
             "current conversation",
-            "this chat",
-            "current chat",
+            "last conversation",
+            "previous conversation",
+            "above conversation",
             "entire conversation",
             "whole conversation",
+            "this chat",
+            "current chat",
+            "last chat",
+            "previous chat",
+            "above chat",
             "convert this to a document",
             "convert this into a document",
             "turn this into a document",
             "export this as a document",
             "save this as a document",
+            # Natural follow-up commands should export the immediately preceding
+            # assistant response directly instead of asking the AI to rewrite it.
+            "convert this to pdf",
+            "convert this into pdf",
+            "convert this to a pdf",
+            "convert this into a pdf",
+            "turn this into pdf",
+            "turn this into a pdf",
+            "export this as pdf",
+            "export this as a pdf",
+            "save this as pdf",
+            "save this as a pdf",
+            "convert this to word",
+            "convert this into word",
+            "convert this to a word document",
+            "convert this into a word document",
+            "turn this into word",
+            "turn this into a word document",
+            "export this as word",
+            "export this as a word document",
+            "save this as word",
+            "save this as a word document",
         )
     )
 
