@@ -27356,8 +27356,8 @@ def render_product_library_admin():
     html body div[class*="st-key-atp_product_library_panel"] [data-testid="stMetric"] {
         border: 1px solid rgba(128,128,128,.22); border-radius: 12px; padding: 12px 14px; min-height: 104px;
     }
-    /* Product Library asset toolbar: normalize link buttons, normal buttons,
-       and popover triggers so all four actions share one exact baseline. */
+    /* Product Library asset actions are rendered as four native Streamlit buttons.
+       Desktop uses one equal four-column row; mobile reflows to a balanced 2 x 2 grid. */
     html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stHorizontalBlock"] {
         display: grid !important;
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -27365,64 +27365,44 @@ def render_product_library_admin():
         gap: 0.55rem !important;
         width: 100% !important;
     }
-    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] {
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"],
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stColumn"] {
         min-width: 0 !important;
         width: auto !important;
         flex: none !important;
-        display: flex !important;
-        align-items: stretch !important;
+        padding: 0 !important;
     }
-    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] > div,
-    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stPopover"],
-    html body div[class*="st-key-product_asset_toolbar_"] .stButton,
-    html body div[class*="st-key-product_asset_toolbar_"] .stLinkButton {
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stElementContainer"],
+    html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stButton"],
+    html body div[class*="st-key-product_asset_toolbar_"] .stButton {
         width: 100% !important;
-        height: 100% !important;
         margin: 0 !important;
+        padding: 0 !important;
     }
-    html body div[class*="st-key-product_asset_toolbar_"] button,
-    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] {
-        background: transparent !important;
-        background-color: transparent !important;
-        color: var(--text-color) !important;
-        -webkit-text-fill-color: var(--text-color) !important;
-        border: 1px solid rgba(250, 250, 250, 0.24) !important;
-        border-radius: 0.5rem !important;
-        box-shadow: none !important;
-        min-height: 2.65rem !important;
+    html body div[class*="st-key-product_asset_toolbar_"] button {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        min-width: 0 !important;
         height: 2.65rem !important;
-        width: 100% !important;
-        padding: 0 0.65rem !important;
+        min-height: 2.65rem !important;
         margin: 0 !important;
+        padding: 0 0.65rem !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
+        white-space: nowrap !important;
         line-height: 1 !important;
         font-size: 0.94rem !important;
         font-weight: 600 !important;
-        white-space: nowrap !important;
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
     }
-    html body div[class*="st-key-product_asset_toolbar_"] button *,
-    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] * {
+    html body div[class*="st-key-product_asset_toolbar_"] button * {
         color: var(--text-color) !important;
         -webkit-text-fill-color: var(--text-color) !important;
         line-height: 1 !important;
         margin: 0 !important;
-    }
-    html body div[class*="st-key-product_asset_toolbar_"] button:hover,
-    html body div[class*="st-key-product_asset_toolbar_"] a[role="button"]:hover {
-        background: rgba(255, 255, 255, 0.035) !important;
-        border-color: rgba(250, 250, 250, 0.48) !important;
-        color: var(--text-color) !important;
-        -webkit-text-fill-color: var(--text-color) !important;
-        box-shadow: none !important;
-    }
-    html body div[class*="st-key-product_asset_toolbar_"] button:disabled {
-        background: transparent !important;
-        color: var(--text-color) !important;
-        -webkit-text-fill-color: var(--text-color) !important;
-        opacity: 0.45 !important;
     }
     @media (max-width: 768px) {
         html body div[class*="st-key-atp_product_library_panel"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .55rem !important; }
@@ -27467,23 +27447,21 @@ def render_product_library_admin():
             color: var(--text-color) !important;
             opacity: .78 !important;
         }
-        /* Keep asset actions balanced on phones: two equal columns per row.
-           This overrides the general mobile rule that stacks every Streamlit column. */
+        /* Product asset actions stay two-per-row on phones instead of stacking. */
         html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stHorizontalBlock"] {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 0.5rem !important;
             align-items: stretch !important;
         }
-        html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"] {
+        html body div[class*="st-key-product_asset_toolbar_"] [data-testid="column"],
+        html body div[class*="st-key-product_asset_toolbar_"] [data-testid="stColumn"] {
             min-width: 0 !important;
             width: auto !important;
             flex: none !important;
         }
         html body div[class*="st-key-product_asset_toolbar_"] button,
-        html body div[class*="st-key-product_asset_toolbar_"] a[role="button"],
-        html body div[class*="st-key-product_asset_toolbar_"] button *,
-        html body div[class*="st-key-product_asset_toolbar_"] a[role="button"] * {
+        html body div[class*="st-key-product_asset_toolbar_"] button * {
             min-height: 2.75rem !important;
             height: 2.75rem !important;
             color: var(--text-color) !important;
@@ -27769,8 +27747,6 @@ def render_product_library_admin():
                             st.markdown(
                                 """
                                 <style>
-                                /* Product Library asset card: keep metadata and actions in one
-                                   compact centered block instead of stretching across the page. */
                                 div[class*="st-key-product_asset_meta_"] {
                                     width: min(100%, 760px) !important;
                                     margin: 0.45rem auto 0.7rem auto !important;
@@ -27784,85 +27760,10 @@ def render_product_library_admin():
                                     width: min(100%, 760px) !important;
                                     margin: 0 auto 0.15rem auto !important;
                                 }
-                                /* Streamlit inserts one or more element wrappers between the
-                                   keyed container and stHorizontalBlock. Target descendants instead
-                                   of relying on an immediate-child selector. */
-                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stHorizontalBlock"] {
-                                    display: grid !important;
-                                    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-                                    gap: 0.55rem !important;
-                                    align-items: stretch !important;
-                                    width: 100% !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stColumn"] {
-                                    width: 100% !important;
-                                    min-width: 0 !important;
-                                    flex: none !important;
-                                    padding: 0 !important;
-                                }
-                                /* Native buttons and link buttons have different wrapper elements.
-                                   Force every wrapper in each action column to occupy the full grid
-                                   cell before normalizing the actual control. */
-                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stElementContainer"],
-                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stButton"],
-                                div[class*="st-key-product_asset_toolbar_"] div[data-testid="stLinkButton"] {
-                                    width: 100% !important;
-                                    min-width: 0 !important;
-                                    height: 2.55rem !important;
-                                    min-height: 2.55rem !important;
-                                    max-height: 2.55rem !important;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                    display: flex !important;
-                                    align-items: stretch !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"] button,
-                                div[class*="st-key-product_asset_toolbar_"] a {
-                                    box-sizing: border-box !important;
-                                    width: 100% !important;
-                                    min-width: 0 !important;
-                                    height: 2.55rem !important;
-                                    min-height: 2.55rem !important;
-                                    max-height: 2.55rem !important;
-                                    padding: 0 0.7rem !important;
-                                    margin: 0 !important;
-                                    display: flex !important;
-                                    align-items: center !important;
-                                    justify-content: center !important;
-                                    text-align: center !important;
-                                    white-space: nowrap !important;
-                                    line-height: 1 !important;
-                                    font-size: 0.92rem !important;
-                                    color: var(--text-color) !important;
-                                    vertical-align: middle !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"] button *,
-                                div[class*="st-key-product_asset_toolbar_"] a * {
-                                    color: var(--text-color) !important;
-                                    line-height: 1 !important;
-                                }
-
-                                /* Phones and narrow tablets: balanced 2 x 2 action grid with
-                                   readable theme-aware text. */
                                 @media (max-width: 768px) {
                                     div[class*="st-key-product_asset_meta_"],
                                     div[class*="st-key-product_asset_toolbar_"] {
                                         width: 100% !important;
-                                    }
-                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stHorizontalBlock"] {
-                                        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                                        gap: 0.5rem !important;
-                                    }
-                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stElementContainer"],
-                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stButton"],
-                                    div[class*="st-key-product_asset_toolbar_"] div[data-testid="stLinkButton"],
-                                    div[class*="st-key-product_asset_toolbar_"] button,
-                                    div[class*="st-key-product_asset_toolbar_"] a {
-                                        height: 2.7rem !important;
-                                        min-height: 2.7rem !important;
-                                        max-height: 2.7rem !important;
-                                        font-size: 0.95rem !important;
-                                        color: var(--text-color) !important;
                                     }
                                 }
                                 </style>
@@ -27907,68 +27808,72 @@ def render_product_library_admin():
                                             f"Archive: {asset.get('archive_status') or 'unknown'}"
                                         )
 
+                                    replace_panel_key = f"replace_panel_{asset_id}"
+                                    delete_panel_key = f"delete_panel_{asset_id}"
+
                                     with st.container(
                                         key=f"product_asset_toolbar_{asset_id}"
                                     ):
                                         action_cols = st.columns(4, gap="small")
 
                                         with action_cols[0]:
-                                            if signed_url:
-                                                st.link_button(
-                                                    "View",
-                                                    signed_url,
-                                                    use_container_width=True,
-                                                )
-                                            else:
-                                                st.button(
-                                                    "View",
-                                                    key=f"view_unavailable_{asset_id}",
-                                                    disabled=True,
-                                                    use_container_width=True,
-                                                )
+                                            view_clicked = st.button(
+                                                "View",
+                                                key=f"view_asset_{asset_id}",
+                                                disabled=not bool(signed_url),
+                                                use_container_width=True,
+                                                help="Open the optimized display copy",
+                                            )
 
                                         with action_cols[1]:
                                             archive_url = asset.get("archive_web_url")
-                                            if archive_url:
-                                                st.link_button(
-                                                    "Original",
-                                                    archive_url,
-                                                    use_container_width=True,
-                                                )
-                                            else:
-                                                st.button(
-                                                    "Original",
-                                                    key=f"original_unavailable_{asset_id}",
-                                                    disabled=True,
-                                                    use_container_width=True,
-                                                )
-
-                                        replace_panel_key = f"replace_panel_{asset_id}"
-                                        delete_panel_key = f"delete_panel_{asset_id}"
+                                            original_clicked = st.button(
+                                                "Original",
+                                                key=f"original_asset_{asset_id}",
+                                                disabled=not bool(archive_url),
+                                                use_container_width=True,
+                                                help="Open the original Google Drive archive",
+                                            )
 
                                         with action_cols[2]:
-                                            if st.button(
+                                            replace_clicked = st.button(
                                                 "Replace",
                                                 key=f"replace_asset_toggle_{asset_id}",
                                                 use_container_width=True,
                                                 help="Replace this Product Library file",
-                                            ):
-                                                st.session_state[replace_panel_key] = not bool(
-                                                    st.session_state.get(replace_panel_key, False)
-                                                )
-                                                st.session_state[delete_panel_key] = False
+                                            )
 
                                         with action_cols[3]:
-                                            if st.button(
+                                            delete_clicked = st.button(
                                                 "Delete",
                                                 key=f"delete_asset_toggle_{asset_id}",
                                                 use_container_width=True,
                                                 help="Delete this Product Library file",
-                                            ):
-                                                st.session_state[delete_panel_key] = not bool(
-                                                    st.session_state.get(delete_panel_key, False)
-                                                )
-                                                st.session_state[replace_panel_key] = False
+                                            )
+
+                                    if view_clicked and signed_url:
+                                        components.html(
+                                            f"""<script>window.open({json.dumps(str(signed_url))}, '_blank', 'noopener,noreferrer');</script>""",
+                                            height=0,
+                                        )
+
+                                    if original_clicked and archive_url:
+                                        components.html(
+                                            f"""<script>window.open({json.dumps(str(archive_url))}, '_blank', 'noopener,noreferrer');</script>""",
+                                            height=0,
+                                        )
+
+                                    if replace_clicked:
+                                        st.session_state[replace_panel_key] = not bool(
+                                            st.session_state.get(replace_panel_key, False)
+                                        )
+                                        st.session_state[delete_panel_key] = False
+
+                                    if delete_clicked:
+                                        st.session_state[delete_panel_key] = not bool(
+                                            st.session_state.get(delete_panel_key, False)
+                                        )
+                                        st.session_state[replace_panel_key] = False
 
                                     if st.session_state.get(replace_panel_key, False):
                                         with st.container(
