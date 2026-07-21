@@ -336,6 +336,75 @@ st.set_page_config(
 )
 
 
+def _render_auth_transition_overlay():
+    """Cover stale Streamlit DOM while login/logout reruns are completing."""
+    transition = str(st.session_state.get("_auth_transition") or "").strip().lower()
+    if transition not in {"login", "logout"}:
+        return None
+
+    message = (
+        "Loading AutoTecPro AI System..."
+        if transition == "login"
+        else "Signing out..."
+    )
+    placeholder = st.empty()
+    placeholder.markdown(
+        f"""
+        <style>
+        .atp-auth-transition-overlay {{
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f1117;
+        }}
+        .atp-auth-transition-content {{
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            color: #f8fafc;
+            font-size: 16px;
+            font-weight: 750;
+        }}
+        .atp-auth-transition-spinner {{
+            width: 22px;
+            height: 22px;
+            border: 2px solid rgba(255,255,255,0.22);
+            border-top-color: #ff4d3d;
+            border-radius: 50%;
+            animation: atpAuthTransitionSpin 0.72s linear infinite;
+        }}
+        @keyframes atpAuthTransitionSpin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+        </style>
+        <div class="atp-auth-transition-overlay">
+            <div class="atp-auth-transition-content">
+                <div class="atp-auth-transition-spinner"></div>
+                <div>{message}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return placeholder
+
+
+def _finish_auth_transition(placeholder):
+    """Remove the transition cover only after the destination UI is rendered."""
+    if placeholder is not None:
+        try:
+            placeholder.empty()
+        except Exception:
+            pass
+    st.session_state.pop("_auth_transition", None)
+
+
+_auth_transition_placeholder = _render_auth_transition_overlay()
+
+
 # Hide zero-height custom-component containers before the cookie controller
 # mounts. This prevents temporary grey bars/empty overlay blocks from appearing
 # above the login logo while cookies are loading, without changing the original
@@ -10310,10 +10379,10 @@ def restore_login_session():
 
 def logout_user():
     """
-    Log out of the current Streamlit session.
+    Log out cleanly and prevent authenticated fragments from flashing behind
+    the login screen during Streamlit's rerun transition.
 
-    Saved credentials are intentionally kept so a user who previously checked
-    Remember me can return to a prefilled login page and manually sign in.
+    Saved credentials remain in the separate Remember Me cookie.
     """
     try:
         st.query_params.clear()
@@ -10325,10 +10394,25 @@ def logout_user():
         username=st.session_state.get("username"),
         conversation_id=st.session_state.get("conversation_id"),
     )
+
+    # Remove the signed authentication cookie before clearing local state.
     remove_authenticated_session()
-    st.session_state.logged_in = False
-    st.session_state.messages = []
-    st.session_state.conversation_id = None
+
+    # Clear all user/workspace/fragment/widget state so no authenticated page,
+    # cached selection, or fragment panel can render under the login screen.
+    try:
+        st.session_state.clear()
+    except Exception:
+        for key in list(st.session_state.keys()):
+            try:
+                del st.session_state[key]
+            except Exception:
+                pass
+
+    st.session_state["logged_in"] = False
+    st.session_state["messages"] = []
+    st.session_state["conversation_id"] = None
+    st.session_state["_auth_transition"] = "logout"
 
 
 # ============================================================
@@ -10484,6 +10568,7 @@ def login_screen():
                 user = result.data[0]
 
                 st.session_state.logged_in = True
+                st.session_state["_auth_transition"] = "login"
                 st.session_state.username = user["username"]
                 st.session_state.role = str(user.get("role") or "staff").lower()
                 st.session_state.workspace_permissions = (
@@ -10553,6 +10638,9 @@ if not bool(st.session_state.get("logged_in")):
 
 if not bool(st.session_state.get("logged_in")):
     login_screen()
+    # The destination login UI is now complete; remove the transition cover
+    # before stopping execution so authenticated content cannot render below it.
+    _finish_auth_transition(_auth_transition_placeholder)
     st.stop()
 
 # Complete any Remember Me cookie write/removal on a stable authenticated
@@ -26860,20 +26948,57 @@ def _product_library_normalize_code(value):
     return re.sub(r"[^a-z0-9]+", "", clean)
 
 
+def _product_library_normalize_rows(payload):
+    """Return a flat list of dictionary rows from Supabase/cache payloads.
+
+    Depending on the Supabase client version, cache serialization, or a legacy
+    helper, a read result may be returned as a normal row list, a response-like
+    mapping containing ``data``, or a one-level nested list. Product Library UI
+    code expects each row to be a mapping and calls ``row.get(...)``. Normalizing
+    at the read boundary prevents a malformed/nested payload from crashing the
+    entire Browse Products view while leaving valid rows unchanged.
+    """
+    if payload is None:
+        return []
+
+    if isinstance(payload, dict):
+        if "data" in payload:
+            payload = payload.get("data")
+        else:
+            return [payload]
+
+    rows = []
+    pending = list(payload) if isinstance(payload, (list, tuple)) else [payload]
+    while pending:
+        item = pending.pop(0)
+        if isinstance(item, dict):
+            # A response-shaped mapping can occasionally be nested in a list.
+            if set(item.keys()) == {"data"} and isinstance(
+                item.get("data"), (list, tuple)
+            ):
+                pending[0:0] = list(item.get("data") or [])
+            else:
+                rows.append(item)
+        elif isinstance(item, (list, tuple)):
+            pending[0:0] = list(item)
+
+    return rows
+
+
 @st.cache_data(ttl=60, max_entries=4, show_spinner=False)
 def _product_library_cached_products():
     """Cache the bounded Product Library catalogue used by chat lookup."""
     database = get_supabase_admin_client()
-    return (
+    response = (
         database.table("product_library")
         .select(
             "id,product_code,product_name,vehicle_compatibility,"
             "description,aliases,active,updated_at"
         )
         .limit(1000)
-        .execute().data
-        or []
+        .execute()
     )
+    return _product_library_normalize_rows(getattr(response, "data", response))
 
 
 @st.cache_data(ttl=60, max_entries=2, show_spinner=False)
@@ -26890,15 +27015,15 @@ def _product_library_cached_asset_catalog():
         "optimized_filename,content_type,storage_bucket,storage_path,"
         "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
     )
-    return (
+    response = (
         get_supabase_admin_client()
         .table("product_assets")
         .select(asset_columns)
         .order("created_at", desc=False)
         .limit(5000)
-        .execute().data
-        or []
+        .execute()
     )
+    return _product_library_normalize_rows(getattr(response, "data", response))
 
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
@@ -28758,7 +28883,9 @@ def render_product_library_workspace():
                 key="employee_product_library_search",
             )
             try:
-                products = list(_product_library_cached_products() or [])
+                products = _product_library_normalize_rows(
+                    _product_library_cached_products()
+                )
                 normalized_query = re.sub(
                     r"\s+", " ", str(browse_query or "").strip().lower()
                 )
@@ -31549,3 +31676,9 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# Authentication transition cleanup must be the final UI operation.  Keeping
+# the fixed cover until this point prevents stale login or authenticated DOM
+# from flashing during Streamlit reruns.
+_finish_auth_transition(_auth_transition_placeholder)
