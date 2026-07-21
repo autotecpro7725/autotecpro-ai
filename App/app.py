@@ -26363,14 +26363,102 @@ def _product_library_pending_candidates():
     return value if isinstance(value, list) else []
 
 
+def _product_library_candidate_facets(candidate):
+    """Return normalized selection facets for one Product Library candidate.
+
+    Older Product Library rows do not always store screen size and factory system in
+    dedicated columns. Infer the well-established AutoTecPro code conventions as a
+    fallback so clarification replies such as ``SYNC 1`` followed by ``14.4`` can
+    resolve deterministically without asking for a final option number.
+    """
+    aliases = candidate.get("aliases") or []
+    if not isinstance(aliases, list):
+        aliases = [aliases]
+
+    code = str(candidate.get("product_code") or "").strip()
+    values = [
+        code,
+        candidate.get("product_name"),
+        candidate.get("vehicle_compatibility"),
+        candidate.get("description"),
+        *aliases,
+    ]
+    joined = " ".join(str(item or "") for item in values).casefold()
+    normalized = re.sub(r"[^a-z0-9.]+", " ", joined).strip()
+    compact = _product_library_normalize_code(joined)
+    code_compact = _product_library_normalize_code(code)
+
+    sync_versions = set()
+    for match in re.findall(r"\bsync\s*([123])\b", normalized):
+        sync_versions.add(match)
+    # AutoTecPro Ford 732 family conventions: QS1/S2/S3 map to SYNC 1/2/3.
+    if re.search(r"(?:^|pro)qs1$", code_compact) or code_compact.endswith("qs1"):
+        sync_versions.add("1")
+    if code_compact.endswith("s2"):
+        sync_versions.add("2")
+    if code_compact.endswith("s3"):
+        sync_versions.add("3")
+
+    screen_sizes = set(re.findall(r"\b(\d{2}(?:\.\d)?)\s*(?:inch|inches|in|\")?\b", normalized))
+    # Product-code fallback for the Ford 732 family.
+    if code_compact.startswith("732pro"):
+        screen_sizes.add("17")
+    elif code_compact.startswith("732"):
+        screen_sizes.add("14.4")
+
+    climate_terms = set()
+    if re.search(r"\bmanual\s*(?:a/?c|ac|climate)\b", normalized):
+        climate_terms.add("manual")
+    if re.search(r"\bauto(?:matic)?\s*(?:a/?c|ac|climate)\b", normalized):
+        climate_terms.add("automatic")
+
+    return {
+        "normalized": normalized,
+        "compact": compact,
+        "sync_versions": sync_versions,
+        "screen_sizes": screen_sizes,
+        "climate_terms": climate_terms,
+    }
+
+
+def _product_library_reply_facets(prompt):
+    """Extract only explicit clarification facets from a short user reply."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
+    normalized = re.sub(r"[^a-z0-9.]+", " ", value).strip()
+
+    sync_versions = set(re.findall(r"\bsync\s*([123])\b", normalized))
+    if not sync_versions:
+        compact = re.sub(r"[^a-z0-9]+", "", value)
+        compact_match = re.search(r"sync([123])", compact)
+        if compact_match:
+            sync_versions.add(compact_match.group(1))
+
+    screen_sizes = set()
+    for match in re.findall(r"(?<!\d)(\d{2}(?:\.\d)?)(?!\d)", value):
+        if match in {"14.4", "17", "12.1", "13.8", "15.6", "17.2"}:
+            screen_sizes.add(match)
+
+    climate_terms = set()
+    if re.search(r"\bmanual\s*(?:a/?c|ac|climate)?\b", normalized):
+        climate_terms.add("manual")
+    if re.search(r"\bauto(?:matic)?\s*(?:a/?c|ac|climate)?\b", normalized):
+        climate_terms.add("automatic")
+
+    return {
+        "sync_versions": sync_versions,
+        "screen_sizes": screen_sizes,
+        "climate_terms": climate_terms,
+    }
+
+
 def _product_library_resolve_pending_selection(prompt):
     """Resolve a clarification reply and auto-open once one product remains.
 
-    Besides option numbers and exact product codes, accept natural narrowing replies
-    such as ``SYNC 1`` and ``14.4``. When those details reduce the pending list to a
-    single verified Product Library product, return it immediately so the normal
-    image lookup runs in the same turn. This avoids an unnecessary final request for
-    an option number or product code.
+    The narrowed candidate list is preserved between turns. Factory-system and
+    screen-size replies are applied as structured facets, including Product Library
+    rows that rely on AutoTecPro product-code conventions instead of dedicated
+    metadata fields. As soon as one verified candidate remains, it is returned to
+    the normal image lookup in the same turn—no final option-number confirmation.
     """
     candidates = _product_library_pending_candidates()
     if not candidates:
@@ -26381,78 +26469,89 @@ def _product_library_resolve_pending_selection(prompt):
 
     if lowered in {"cancel", "none", "neither", "start over"}:
         st.session_state.pop("product_library_pending_candidates", None)
+        st.session_state.pop("product_library_pending_filters", None)
         return {"cancelled": True}
 
-    number_match = re.fullmatch(
-        r"(?:option\s*)?(\d{1,2})",
-        lowered,
-    )
+    number_match = re.fullmatch(r"(?:option\s*)?(\d{1,2})", lowered)
     if number_match:
         selected_index = int(number_match.group(1)) - 1
         if 0 <= selected_index < len(candidates):
             selected = candidates[selected_index]
             st.session_state.pop("product_library_pending_candidates", None)
+            st.session_state.pop("product_library_pending_filters", None)
             return {"product": selected}
 
     normalized_reply = _product_library_normalize_code(value)
     for candidate in candidates:
-        if normalized_reply == _product_library_normalize_code(
-            candidate.get("product_code")
-        ):
+        if normalized_reply == _product_library_normalize_code(candidate.get("product_code")):
             st.session_state.pop("product_library_pending_candidates", None)
+            st.session_state.pop("product_library_pending_filters", None)
             return {"product": candidate}
 
-    # Natural clarification replies: filter the existing verified candidate set by
-    # factory system, screen size, model text, compatibility, aliases, or description.
-    # Examples: "sync1", "SYNC 1", "14.4", "17 inch", "manual climate".
-    normalized_text = re.sub(r"[^a-z0-9.]+", " ", lowered).strip()
-    compact_text = _product_library_normalize_code(value)
-    reply_tokens = [token for token in normalized_text.split() if token]
+    reply_facets = _product_library_reply_facets(value)
+    previous_filters = st.session_state.get("product_library_pending_filters")
+    if not isinstance(previous_filters, dict):
+        previous_filters = {}
+    cumulative = {
+        "sync_versions": set(previous_filters.get("sync_versions") or []),
+        "screen_sizes": set(previous_filters.get("screen_sizes") or []),
+        "climate_terms": set(previous_filters.get("climate_terms") or []),
+    }
+    for key in cumulative:
+        cumulative[key].update(reply_facets.get(key) or set())
 
-    def candidate_search_text(candidate):
-        aliases = candidate.get("aliases") or []
-        if not isinstance(aliases, list):
-            aliases = [aliases]
-        values = [
-            candidate.get("product_code"),
-            candidate.get("product_name"),
-            candidate.get("vehicle_compatibility"),
-            candidate.get("description"),
-            *aliases,
-        ]
-        joined = " ".join(str(item or "") for item in values).casefold()
-        normalized = re.sub(r"[^a-z0-9.]+", " ", joined).strip()
-        compact = _product_library_normalize_code(joined)
-        return normalized, compact
-
+    has_structured_facets = any(cumulative.values())
     filtered = []
-    if reply_tokens or compact_text:
+    if has_structured_facets:
         for candidate in candidates:
-            searchable, searchable_compact = candidate_search_text(candidate)
+            facets = _product_library_candidate_facets(candidate)
+            if cumulative["sync_versions"] and not (
+                cumulative["sync_versions"] & facets["sync_versions"]
+            ):
+                continue
+            if cumulative["screen_sizes"] and not (
+                cumulative["screen_sizes"] & facets["screen_sizes"]
+            ):
+                continue
+            if cumulative["climate_terms"] and not (
+                cumulative["climate_terms"] & facets["climate_terms"]
+            ):
+                continue
+            filtered.append(candidate)
+
+    # Preserve legacy natural text matching for aliases or model wording that is not
+    # represented by the structured facets above.
+    if not has_structured_facets:
+        normalized_text = re.sub(r"[^a-z0-9.]+", " ", lowered).strip()
+        compact_text = _product_library_normalize_code(value)
+        reply_tokens = [token for token in normalized_text.split() if token]
+        for candidate in candidates:
+            facets = _product_library_candidate_facets(candidate)
             token_match = bool(reply_tokens) and all(
-                token in searchable or token in searchable_compact
+                token in facets["normalized"] or token in facets["compact"]
                 for token in reply_tokens
             )
-            compact_match = bool(compact_text) and compact_text in searchable_compact
+            compact_match = bool(compact_text) and compact_text in facets["compact"]
             if token_match or compact_match:
                 filtered.append(candidate)
 
     if len(filtered) == 1:
         selected = filtered[0]
         st.session_state.pop("product_library_pending_candidates", None)
+        st.session_state.pop("product_library_pending_filters", None)
         return {"product": selected, "auto_resolved": True}
 
     if len(filtered) > 1:
-        # Keep only the narrowed candidates for the next clarification. For example,
-        # after "SYNC 1", the next reply "14.4" can resolve directly to 732-QS1.
         st.session_state["product_library_pending_candidates"] = filtered
+        st.session_state["product_library_pending_filters"] = {
+            key: sorted(values) for key, values in cumulative.items()
+        }
         return {
             "clarification": True,
             "candidates": filtered,
             "narrowed": True,
         }
 
-    # Keep asking from the same bounded list for an invalid short reply.
     if len(value) <= 40:
         return {
             "clarification": True,
@@ -26460,8 +26559,8 @@ def _product_library_resolve_pending_selection(prompt):
             "invalid_selection": True,
         }
 
-    # A new longer request replaces the old clarification.
     st.session_state.pop("product_library_pending_candidates", None)
+    st.session_state.pop("product_library_pending_filters", None)
     return None
 
 
@@ -26726,6 +26825,7 @@ def _product_library_chat_lookup(prompt, max_images=None):
         product = explicit_products[0]
     elif len(explicit_products) > 1:
         st.session_state["product_library_pending_candidates"] = explicit_products[:8]
+        st.session_state.pop("product_library_pending_filters", None)
         return {
             "clarification": True,
             "candidates": explicit_products[:8],
@@ -26783,6 +26883,7 @@ def _product_library_chat_lookup(prompt, max_images=None):
 
         if not exact_code_match and len(candidates) > 1:
             st.session_state["product_library_pending_candidates"] = candidates
+            st.session_state.pop("product_library_pending_filters", None)
             return {
                 "clarification": True,
                 "candidates": candidates,
