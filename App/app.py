@@ -14578,24 +14578,28 @@ def render_product_library_chat_gallery(images, message_key):
             font-size: 0.88rem;
             line-height: 1.35;
             overflow-wrap: anywhere;
+            text-align: center;
         }
         .atp-pl-image-actions {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100%;
-            box-sizing: border-box;
-            gap: 0.55rem;
-            margin-top: 0.45rem;
-        }
-        .atp-pl-image-action {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            min-width: 0;
+            width: fit-content;
+            max-width: 100%;
+            box-sizing: border-box;
+            gap: 0.65rem;
+            margin: 0.45rem auto 0;
+        }
+        .atp-pl-image-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 8.75rem;
+            max-width: calc(50vw - 1.75rem);
+            min-width: 7.25rem;
             height: 2.5rem;
             box-sizing: border-box;
-            padding: 0 0.55rem;
+            padding: 0 0.7rem;
             border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent);
             border-radius: 0.5rem;
             background: transparent;
@@ -14626,8 +14630,15 @@ def render_product_library_chat_gallery(images, message_key):
                 min-height: 0;
                 max-height: 70vh;
             }
-            .atp-pl-image-actions { gap: 0.4rem; }
+            .atp-pl-image-actions {
+                width: 100%;
+                gap: 0.45rem;
+            }
             .atp-pl-image-action {
+                flex: 1 1 0;
+                width: auto;
+                min-width: 0;
+                max-width: none;
                 height: 2.65rem;
                 padding: 0 0.35rem;
                 font-size: 0.88rem;
