@@ -27800,9 +27800,7 @@ def render_product_library_admin():
                                     padding: 0 !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"] button,
-                                div[class*="st-key-product_asset_toolbar_"] a,
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stPopover"] > button {
+                                div[class*="st-key-product_asset_toolbar_"] a {
                                     box-sizing: border-box !important;
                                     width: 100% !important;
                                     min-width: 0 !important;
@@ -27822,17 +27820,9 @@ def render_product_library_admin():
                                     vertical-align: middle !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"] button *,
-                                div[class*="st-key-product_asset_toolbar_"] a *,
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stPopover"] > button * {
+                                div[class*="st-key-product_asset_toolbar_"] a * {
                                     color: var(--text-color) !important;
                                     line-height: 1 !important;
-                                }
-                                div[class*="st-key-product_asset_toolbar_"]
-                                div[data-testid="stPopover"] {
-                                    width: 100% !important;
-                                    height: 2.55rem !important;
-                                    margin: 0 !important;
                                 }
 
                                 /* Phones and narrow tablets: balanced 2 x 2 action grid with
@@ -27848,18 +27838,12 @@ def render_product_library_admin():
                                         gap: 0.5rem !important;
                                     }
                                     div[class*="st-key-product_asset_toolbar_"] button,
-                                    div[class*="st-key-product_asset_toolbar_"] a,
-                                    div[class*="st-key-product_asset_toolbar_"]
-                                    div[data-testid="stPopover"] > button {
+                                    div[class*="st-key-product_asset_toolbar_"] a {
                                         height: 2.7rem !important;
                                         min-height: 2.7rem !important;
                                         max-height: 2.7rem !important;
                                         font-size: 0.95rem !important;
                                         color: var(--text-color) !important;
-                                    }
-                                    div[class*="st-key-product_asset_toolbar_"]
-                                    div[data-testid="stPopover"] {
-                                        height: 2.7rem !important;
                                     }
                                 }
                                 </style>
@@ -27940,106 +27924,118 @@ def render_product_library_admin():
                                                     use_container_width=True,
                                                 )
 
+                                        replace_panel_key = f"replace_panel_{asset_id}"
+                                        delete_panel_key = f"delete_panel_{asset_id}"
+
                                         with action_cols[2]:
-                                            with st.popover(
+                                            if st.button(
                                                 "Replace",
+                                                key=f"replace_asset_toggle_{asset_id}",
+                                                use_container_width=True,
                                                 help="Replace this Product Library file",
                                             ):
-                                                st.markdown("**Replace File**")
-                                                with st.form(
-                                                    f"replace_asset_form_{asset_id}"
-                                                ):
-                                                    replacement_file = st.file_uploader(
-                                                        "Choose one replacement file",
-                                                        accept_multiple_files=False,
-                                                        type=[
-                                                            "jpg", "jpeg", "png", "webp",
-                                                            "pdf", "docx", "txt", "csv", "zip",
-                                                        ],
-                                                        key=f"replacement_upload_{asset_id}",
-                                                        help=(
-                                                            "The replacement keeps the same asset type. "
-                                                            "The old file is removed only after the new "
-                                                            "file uploads successfully."
-                                                        ),
-                                                    )
-                                                    replacement_submitted = (
-                                                        st.form_submit_button(
-                                                            "Save Replacement",
-                                                            use_container_width=True,
-                                                        )
-                                                    )
-                                                if replacement_submitted:
-                                                    if replacement_file is None:
-                                                        st.warning(
-                                                            "Please select a replacement file."
-                                                        )
-                                                    else:
-                                                        try:
-                                                            _product_library_replace_asset(
-                                                                product,
-                                                                asset,
-                                                                replacement_file,
-                                                            )
-                                                            st.success(
-                                                                "File replaced successfully."
-                                                            )
-                                                        except Exception as error:
-                                                            st.error(
-                                                                "File replacement failed: "
-                                                                f"{error}"
-                                                            )
+                                                st.session_state[replace_panel_key] = not bool(
+                                                    st.session_state.get(replace_panel_key, False)
+                                                )
+                                                st.session_state[delete_panel_key] = False
 
                                         with action_cols[3]:
-                                            with st.popover(
+                                            if st.button(
                                                 "Delete",
+                                                key=f"delete_asset_toggle_{asset_id}",
+                                                use_container_width=True,
                                                 help="Delete this Product Library file",
                                             ):
-                                                st.markdown("**Delete this file?**")
-                                                st.caption(
-                                                    "This removes the display copy, Product "
-                                                    "Library record, and Google Drive archive."
+                                                st.session_state[delete_panel_key] = not bool(
+                                                    st.session_state.get(delete_panel_key, False)
                                                 )
-                                                with st.form(
-                                                    f"delete_asset_form_{asset_id}"
-                                                ):
-                                                    confirm_asset = st.checkbox(
-                                                        "Confirm delete this file",
-                                                        key=f"confirm_asset_{asset_id}",
-                                                    )
-                                                    delete_asset_clicked = (
-                                                        st.form_submit_button(
-                                                            "Delete File",
-                                                            type="primary",
-                                                            use_container_width=True,
-                                                        )
-                                                    )
+                                                st.session_state[replace_panel_key] = False
 
-                                                if delete_asset_clicked:
-                                                    if not confirm_asset:
-                                                        st.warning(
-                                                            "Please check ‘Confirm delete this "
-                                                            "file’ first."
+                                    if st.session_state.get(replace_panel_key, False):
+                                        with st.container(
+                                            border=True,
+                                            key=f"replace_asset_panel_{asset_id}",
+                                        ):
+                                            st.markdown("**Replace File**")
+                                            with st.form(f"replace_asset_form_{asset_id}"):
+                                                replacement_file = st.file_uploader(
+                                                    "Choose one replacement file",
+                                                    accept_multiple_files=False,
+                                                    type=[
+                                                        "jpg", "jpeg", "png", "webp",
+                                                        "pdf", "docx", "txt", "csv", "zip",
+                                                    ],
+                                                    key=f"replacement_upload_{asset_id}",
+                                                    help=(
+                                                        "The replacement keeps the same asset type. "
+                                                        "The old file is removed only after the new "
+                                                        "file uploads successfully."
+                                                    ),
+                                                )
+                                                replacement_submitted = st.form_submit_button(
+                                                    "Save Replacement",
+                                                    use_container_width=True,
+                                                )
+                                            if replacement_submitted:
+                                                if replacement_file is None:
+                                                    st.warning("Please select a replacement file.")
+                                                else:
+                                                    try:
+                                                        _product_library_replace_asset(
+                                                            product,
+                                                            asset,
+                                                            replacement_file,
                                                         )
-                                                    else:
-                                                        try:
-                                                            with st.spinner(
-                                                                "Deleting file..."
-                                                            ):
-                                                                _product_library_delete_asset(
-                                                                    asset
-                                                                )
-                                                            asset_placeholder.empty()
-                                                            st.success(
-                                                                "File deleted from Product "
-                                                                "Library, Supabase Storage, "
-                                                                "and Google Drive archive."
-                                                            )
-                                                        except Exception as error:
-                                                            st.error(
-                                                                "File deletion failed: "
-                                                                f"{error}"
-                                                            )
+                                                        st.session_state[replace_panel_key] = False
+                                                        st.success("File replaced successfully.")
+                                                    except Exception as error:
+                                                        st.error(
+                                                            "File replacement failed: "
+                                                            f"{error}"
+                                                        )
+
+                                    if st.session_state.get(delete_panel_key, False):
+                                        with st.container(
+                                            border=True,
+                                            key=f"delete_asset_panel_{asset_id}",
+                                        ):
+                                            st.markdown("**Delete this file?**")
+                                            st.caption(
+                                                "This removes the display copy, Product Library "
+                                                "record, and Google Drive archive."
+                                            )
+                                            with st.form(f"delete_asset_form_{asset_id}"):
+                                                confirm_asset = st.checkbox(
+                                                    "Confirm delete this file",
+                                                    key=f"confirm_asset_{asset_id}",
+                                                )
+                                                delete_asset_clicked = st.form_submit_button(
+                                                    "Delete File",
+                                                    type="primary",
+                                                    use_container_width=True,
+                                                )
+
+                                            if delete_asset_clicked:
+                                                if not confirm_asset:
+                                                    st.warning(
+                                                        "Please check ‘Confirm delete this file’ first."
+                                                    )
+                                                else:
+                                                    try:
+                                                        with st.spinner("Deleting file..."):
+                                                            _product_library_delete_asset(asset)
+                                                        st.session_state.pop(delete_panel_key, None)
+                                                        st.session_state.pop(replace_panel_key, None)
+                                                        asset_placeholder.empty()
+                                                        st.success(
+                                                            "File deleted from Product Library, "
+                                                            "Supabase Storage, and Google Drive archive."
+                                                        )
+                                                    except Exception as error:
+                                                        st.error(
+                                                            "File deletion failed: "
+                                                            f"{error}"
+                                                        )
 
                                     st.divider()
 
