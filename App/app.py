@@ -14533,7 +14533,7 @@ def _product_library_image_download_payload(image_record):
 
 
 def render_product_library_chat_gallery(images, message_key):
-    """Render responsive Product Library cards with per-image actions."""
+    """Render responsive Product Library cards with structurally aligned actions."""
     clean_images = [
         image for image in (images or [])
         if isinstance(image, dict)
@@ -14574,107 +14574,51 @@ def render_product_library_chat_gallery(images, message_key):
             margin-left: auto !important;
             margin-right: auto !important;
         }
-        /* Keep the two single-image actions together, centered, equal-width,
-           and directly beneath the filename instead of stretching across the
-           full chat column. Multi-image gallery actions remain unchanged. */
-        [class*="st-key-product_library_chat_actions_"] {
-            width: 100% !important;
-            margin: 0.15rem auto 0 !important;
-            padding: 0 !important;
+        .atp-product-image-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            width: 100%;
+            margin: 0.3rem auto 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
-            width: min(100%, 18rem) !important;
-            max-width: 18rem !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            gap: 0.55rem !important;
-            align-items: stretch !important;
-            justify-content: center !important;
+        .atp-product-image-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 8.25rem;
+            min-width: 8.25rem;
+            height: 2.5rem;
+            padding: 0 0.7rem;
+            box-sizing: border-box;
+            border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent);
+            border-radius: 0.5rem;
+            background: transparent;
+            color: var(--text-color) !important;
+            text-decoration: none !important;
+            font: inherit;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
         }
-        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
-            width: min(100%, 26rem) !important;
-            max-width: 26rem !important;
-            gap: 0.65rem !important;
+        .atp-product-image-action:hover {
+            background: color-mix(in srgb, var(--text-color) 4%, transparent);
+            border-color: color-mix(in srgb, var(--text-color) 48%, transparent);
+            color: var(--text-color) !important;
+            text-decoration: none !important;
         }
-        [class*="st-key-product_library_chat_actions_"] [data-testid="stColumn"] {
-            min-width: 0 !important;
-            flex: 1 1 0 !important;
-        }
-        [class*="st-key-product_library_chat_actions_"] a,
-        [class*="st-key-product_library_chat_actions_"] button {
-            background: transparent !important;
-            background-color: transparent !important;
-            color: inherit !important;
-            border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent) !important;
-            border-radius: 0.5rem !important;
-            box-shadow: none !important;
-            min-height: 2.5rem !important;
-            height: 2.5rem !important;
-            width: 100% !important;
-            padding: 0 0.65rem !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            line-height: 1.1 !important;
-        }
-        [class*="st-key-product_library_chat_actions_"] button p,
-        [class*="st-key-product_library_chat_actions_"] a p,
-        [class*="st-key-product_library_chat_actions_"] a span {
-            white-space: nowrap !important;
-            margin: 0 !important;
-            line-height: 1.1 !important;
+        .atp-product-image-action.is-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
         }
         [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"],
-        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"] p,
-        [class*="st-key-product_library_chat_actions_"] a,
-        [class*="st-key-product_library_chat_actions_"] button,
-        [class*="st-key-product_library_chat_actions_"] button p {
+        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"] p {
             color: var(--text-color) !important;
-        }
-        [class*="st-key-product_library_chat_actions_"] a:hover,
-        [class*="st-key-product_library_chat_actions_"] button:hover {
-            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
-            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
-            color: inherit !important;
-            box-shadow: none !important;
-        }
-        .atp-pl-action-row {
-            width: min(100%, 19rem) !important;
-            margin: 0.2rem auto 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 0.6rem !important;
-        }
-        [class*="st-key-product_library_chat_actions_solo_"] .atp-pl-action-row {
-            width: min(100%, 26rem) !important;
-        }
-        .atp-pl-action {
-            flex: 1 1 0 !important;
-            min-width: 0 !important;
-            height: 2.5rem !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 0.75rem !important;
-            border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent) !important;
-            border-radius: 0.5rem !important;
-            color: var(--text-color) !important;
-            background: transparent !important;
-            text-decoration: none !important;
-            white-space: nowrap !important;
-            line-height: 1 !important;
-            box-sizing: border-box !important;
-        }
-        .atp-pl-action:hover {
-            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
-            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
-            color: var(--text-color) !important;
-            text-decoration: none !important;
-        }
-        .atp-pl-action.atp-disabled {
-            opacity: 0.45 !important;
-            pointer-events: none !important;
         }
         @media (max-width: 640px) {
             [class*="st-key-product_library_chat_card_"] {
@@ -14687,22 +14631,15 @@ def render_product_library_chat_gallery(images, message_key):
                 min-height: 0 !important;
                 max-height: 70vh !important;
             }
-            [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
-                gap: 0.45rem !important;
+            .atp-product-image-actions {
+                gap: 0.4rem;
             }
-            [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
-                width: 100% !important;
-                max-width: 100% !important;
-                margin: 0 auto !important;
-                gap: 0.45rem !important;
-            }
-            [class*="st-key-product_library_chat_actions_"] a,
-            [class*="st-key-product_library_chat_actions_"] button {
-                min-height: 2.65rem !important;
-                height: auto !important;
-                padding: 0.45rem 0.5rem !important;
-                white-space: normal !important;
-                line-height: 1.15 !important;
+            .atp-product-image-action {
+                width: min(8.25rem, calc(50vw - 1.6rem));
+                min-width: 0;
+                height: 2.65rem;
+                padding: 0 0.45rem;
+                font-size: 0.9rem;
             }
         }
         </style>
@@ -14729,6 +14666,17 @@ def render_product_library_chat_gallery(images, message_key):
         if not full_size_url and image_source.startswith("https://"):
             full_size_url = image_source
 
+        file_bytes, download_name, mime_type = (
+            _product_library_image_download_payload(image_record)
+        )
+        download_href = ""
+        if file_bytes:
+            clean_mime = str(mime_type or "application/octet-stream").split(";", 1)[0]
+            download_href = (
+                f"data:{clean_mime};base64,"
+                f"{base64.b64encode(file_bytes).decode('ascii')}"
+            )
+
         card_key = (
             f"product_library_chat_card_solo_{message_key}_{image_index}"
             if solo
@@ -14738,54 +14686,45 @@ def render_product_library_chat_gallery(images, message_key):
             with st.container(key=card_key):
                 st.image(image_source, use_container_width=True)
                 st.caption(filename)
-                action_key = (
-                    f"product_library_chat_actions_solo_{message_key}_{image_index}"
-                    if solo
-                    else f"product_library_chat_actions_{message_key}_{image_index}"
-                )
-                with st.container(key=action_key):
-                    # Render both actions in one native flex row instead of separate
-                    # Streamlit columns. Streamlit column wrappers inherit flexible
-                    # widths from the outer gallery and repeatedly pushed Download
-                    # toward the card edge. One HTML action bar guarantees the same
-                    # baseline, equal widths, and a compact centered group.
-                    file_bytes, download_name, mime_type = (
-                        _product_library_image_download_payload(image_record)
-                    )
-                    safe_view_url = html.escape(full_size_url, quote=True)
-                    safe_download_name = html.escape(download_name, quote=True)
-                    if file_bytes:
-                        encoded_download = base64.b64encode(file_bytes).decode("ascii")
-                        download_href = (
-                            f"data:{html.escape(mime_type, quote=True)};base64,"
-                            f"{encoded_download}"
-                        )
-                    else:
-                        download_href = ""
 
-                    view_class = "atp-pl-action" + (" atp-disabled" if not safe_view_url else "")
-                    download_class = "atp-pl-action" + (" atp-disabled" if not download_href else "")
-                    view_attrs = (
-                        f'href="{safe_view_url}" target="_blank" rel="noopener noreferrer"'
-                        if safe_view_url else 'aria-disabled="true" tabindex="-1"'
+                safe_full_size_url = html.escape(full_size_url, quote=True)
+                safe_download_href = html.escape(download_href, quote=True)
+                safe_download_name = html.escape(download_name or filename, quote=True)
+
+                if safe_full_size_url:
+                    view_action = (
+                        f'<a class="atp-product-image-action" '
+                        f'href="{safe_full_size_url}" target="_blank" '
+                        f'rel="noopener noreferrer">View Full Size</a>'
                     )
-                    download_attrs = (
-                        f'href="{download_href}" download="{safe_download_name}"'
-                        if download_href else 'aria-disabled="true" tabindex="-1"'
+                else:
+                    view_action = (
+                        '<span class="atp-product-image-action is-disabled" '
+                        'aria-disabled="true">View Full Size</span>'
                     )
-                    st.markdown(
-                        f"""
-                        <div class="atp-pl-action-row" role="group" aria-label="Image actions">
-                          <a class="{view_class}" {view_attrs}>View Full Size</a>
-                          <a class="{download_class}" {download_attrs}>Download</a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+
+                if safe_download_href:
+                    download_action = (
+                        f'<a class="atp-product-image-action" '
+                        f'href="{safe_download_href}" '
+                        f'download="{safe_download_name}">Download</a>'
                     )
+                else:
+                    download_action = (
+                        '<span class="atp-product-image-action is-disabled" '
+                        'aria-disabled="true">Download</span>'
+                    )
+
+                st.markdown(
+                    (
+                        '<div class="atp-product-image-actions">'
+                        f'{view_action}{download_action}'
+                        '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
 
     if len(clean_images) == 1:
-        # A single technical/reference image needs enough room to inspect details.
-        # Keep it centered and place both actions directly beneath the image.
         solo_columns = st.columns([1, 2.4, 1])
         render_image_card(solo_columns[1], clean_images[0], 0, solo=True)
         return
