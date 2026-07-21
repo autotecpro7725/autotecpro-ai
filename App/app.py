@@ -14533,7 +14533,7 @@ def _product_library_image_download_payload(image_record):
 
 
 def render_product_library_chat_gallery(images, message_key):
-    """Render Product Library cards whose action row matches each image width."""
+    """Render each Product Library image, filename, and actions in one HTML card."""
     clean_images = [
         image for image in (images or [])
         if isinstance(image, dict)
@@ -14545,54 +14545,57 @@ def render_product_library_chat_gallery(images, message_key):
     st.markdown(
         """
         <style>
-        [class*="st-key-product_library_chat_card_"] {
+        .atp-pl-image-card {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
             border: 1px solid color-mix(in srgb, var(--text-color) 16%, transparent);
             border-radius: 0.75rem;
             padding: 0.55rem;
-            height: 100%;
-            color: var(--text-color) !important;
-            background: transparent !important;
-            min-width: 0 !important;
-            overflow: hidden !important;
+            background: transparent;
+            color: var(--text-color);
+            overflow: hidden;
         }
-        [class*="st-key-product_library_chat_card_"] img {
-            border-radius: 0.55rem;
-            width: 100% !important;
-            height: 18rem !important;
-            object-fit: contain !important;
-            object-position: center center !important;
-            background: color-mix(in srgb, var(--text-color) 3%, transparent) !important;
-        }
-        [class*="st-key-product_library_chat_card_solo_"] img {
-            height: min(38rem, 68vh) !important;
-            min-height: 28rem !important;
-        }
-        [class*="st-key-product_library_chat_card_solo_"] [data-testid="stCaptionContainer"],
-        [class*="st-key-product_library_chat_card_solo_"] [data-testid="stCaptionContainer"] p {
-            text-align: center !important;
-            width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-        }
-        .atp-product-image-actions {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            align-items: stretch;
-            gap: 0.55rem;
+        .atp-pl-image-card img {
+            display: block;
             width: 100%;
-            margin: 0.3rem 0 0;
-            padding: 0;
+            height: 18rem;
+            object-fit: contain;
+            object-position: center;
             box-sizing: border-box;
+            border-radius: 0.55rem;
+            background: color-mix(in srgb, var(--text-color) 3%, transparent);
         }
-        .atp-product-image-action {
+        .atp-pl-image-card.atp-pl-image-card-solo img {
+            height: min(38rem, 68vh);
+            min-height: 28rem;
+        }
+        .atp-pl-image-filename {
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0.45rem 0 0;
+            color: var(--text-color);
+            font-size: 0.88rem;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+        .atp-pl-image-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            width: 100%;
+            box-sizing: border-box;
+            gap: 0.55rem;
+            margin-top: 0.45rem;
+        }
+        .atp-pl-image-action {
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
             min-width: 0;
             height: 2.5rem;
-            padding: 0 0.7rem;
             box-sizing: border-box;
+            padding: 0 0.55rem;
             border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent);
             border-radius: 0.5rem;
             background: transparent;
@@ -14603,43 +14606,31 @@ def render_product_library_chat_gallery(images, message_key):
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            cursor: pointer;
         }
-        .atp-product-image-action:hover {
+        .atp-pl-image-action:hover {
             background: color-mix(in srgb, var(--text-color) 4%, transparent);
             border-color: color-mix(in srgb, var(--text-color) 48%, transparent);
             color: var(--text-color) !important;
             text-decoration: none !important;
         }
-        .atp-product-image-action.is-disabled {
+        .atp-pl-image-action.is-disabled {
             opacity: 0.5;
             cursor: not-allowed;
             pointer-events: none;
         }
-        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"],
-        [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"] p {
-            color: var(--text-color) !important;
-        }
         @media (max-width: 640px) {
-            [class*="st-key-product_library_chat_card_"] {
-                padding: 0.45rem !important;
-                margin-bottom: 0.65rem !important;
+            .atp-pl-image-card { padding: 0.45rem; }
+            .atp-pl-image-card img,
+            .atp-pl-image-card.atp-pl-image-card-solo img {
+                height: auto;
+                min-height: 0;
+                max-height: 70vh;
             }
-            [class*="st-key-product_library_chat_card_"] img,
-            [class*="st-key-product_library_chat_card_solo_"] img {
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: 70vh !important;
-            }
-            .atp-product-image-actions {
-                gap: 0.4rem;
-            }
-            .atp-product-image-action {
-                width: 100%;
-                min-width: 0;
+            .atp-pl-image-actions { gap: 0.4rem; }
+            .atp-pl-image-action {
                 height: 2.65rem;
-                padding: 0 0.45rem;
-                font-size: 0.9rem;
+                padding: 0 0.35rem;
+                font-size: 0.88rem;
             }
         }
         </style>
@@ -14677,52 +14668,46 @@ def render_product_library_chat_gallery(images, message_key):
                 f"{base64.b64encode(file_bytes).decode('ascii')}"
             )
 
-        card_key = (
-            f"product_library_chat_card_solo_{message_key}_{image_index}"
-            if solo
-            else f"product_library_chat_card_{message_key}_{image_index}"
+        safe_image_source = html.escape(image_source, quote=True)
+        safe_filename = html.escape(filename)
+        safe_full_size_url = html.escape(full_size_url, quote=True)
+        safe_download_href = html.escape(download_href, quote=True)
+        safe_download_name = html.escape(download_name or filename, quote=True)
+
+        if safe_full_size_url:
+            view_action = (
+                f'<a class="atp-pl-image-action" href="{safe_full_size_url}" '
+                f'target="_blank" rel="noopener noreferrer">View Full Size</a>'
+            )
+        else:
+            view_action = (
+                '<span class="atp-pl-image-action is-disabled" '
+                'aria-disabled="true">View Full Size</span>'
+            )
+
+        if safe_download_href:
+            download_action = (
+                f'<a class="atp-pl-image-action" href="{safe_download_href}" '
+                f'download="{safe_download_name}">Download</a>'
+            )
+        else:
+            download_action = (
+                '<span class="atp-pl-image-action is-disabled" '
+                'aria-disabled="true">Download</span>'
+            )
+
+        solo_class = " atp-pl-image-card-solo" if solo else ""
+        card_html = (
+            f'<div class="atp-pl-image-card{solo_class}">'
+            f'<img src="{safe_image_source}" alt="{safe_filename}">'
+            f'<div class="atp-pl-image-filename">{safe_filename}</div>'
+            '<div class="atp-pl-image-actions">'
+            f'{view_action}{download_action}'
+            '</div>'
+            '</div>'
         )
         with parent:
-            with st.container(key=card_key):
-                st.image(image_source, use_container_width=True)
-                st.caption(filename)
-
-                safe_full_size_url = html.escape(full_size_url, quote=True)
-                safe_download_href = html.escape(download_href, quote=True)
-                safe_download_name = html.escape(download_name or filename, quote=True)
-
-                if safe_full_size_url:
-                    view_action = (
-                        f'<a class="atp-product-image-action" '
-                        f'href="{safe_full_size_url}" target="_blank" '
-                        f'rel="noopener noreferrer">View Full Size</a>'
-                    )
-                else:
-                    view_action = (
-                        '<span class="atp-product-image-action is-disabled" '
-                        'aria-disabled="true">View Full Size</span>'
-                    )
-
-                if safe_download_href:
-                    download_action = (
-                        f'<a class="atp-product-image-action" '
-                        f'href="{safe_download_href}" '
-                        f'download="{safe_download_name}">Download</a>'
-                    )
-                else:
-                    download_action = (
-                        '<span class="atp-product-image-action is-disabled" '
-                        'aria-disabled="true">Download</span>'
-                    )
-
-                st.markdown(
-                    (
-                        '<div class="atp-product-image-actions">'
-                        f'{view_action}{download_action}'
-                        '</div>'
-                    ),
-                    unsafe_allow_html=True,
-                )
+            st.markdown(card_html, unsafe_allow_html=True)
 
     if len(clean_images) == 1:
         solo_columns = st.columns([1, 2.4, 1])
@@ -14740,21 +14725,6 @@ def render_product_library_chat_gallery(images, message_key):
                 row_start + offset,
                 solo=False,
             )
-
-
-GRAPHIC_IMAGE_COUNT = 1
-GRAPHIC_IMAGE_MODEL = "gpt-image-1"
-GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
-GRAPHIC_IMAGE_MAX_RETRIES = 0
-
-# Official AutoTecPro branding is composited after AI generation so the model
-# never has to redraw or imitate the company logo.
-GRAPHIC_BRAND_LOGO_DEFAULT_POSITION = "top_left"
-GRAPHIC_BRAND_LOGO_WIDTH_RATIO = 0.29
-GRAPHIC_BRAND_LOGO_MARGIN_RATIO = 0.025
-GRAPHIC_BRAND_LOGO_PANEL_OPACITY = 232
-GRAPHIC_BRAND_LOGO_PANEL_RADIUS_RATIO = 0.014
-
 
 
 def graphic_prompt_requests_no_brand_logo(prompt_text):
