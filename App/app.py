@@ -25,6 +25,7 @@ import re
 import json
 import time
 import io
+import inspect
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
@@ -408,6 +409,25 @@ CANADA_POST_PASSWORD = get_optional_secret("CANADA_POST_PASSWORD")
 
 LIVE_HTTP_TIMEOUT = 15
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_UPLOAD_SIZE_MB = 20
+
+
+def file_uploader_with_limit(label, *, max_upload_size_mb=MAX_UPLOAD_SIZE_MB, **kwargs):
+    """Render a file uploader with a per-widget limit when supported.
+
+    Streamlit added ``max_upload_size`` in newer releases. Older deployed
+    versions continue to work through the compatibility fallback, while the
+    application-level byte validation remains authoritative.
+    """
+    try:
+        parameters = inspect.signature(st.file_uploader).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+
+    if "max_upload_size" in parameters:
+        kwargs["max_upload_size"] = int(max_upload_size_mb)
+
+    return st.file_uploader(label, **kwargs)
 
 # Long document/catalogue responses may exceed a single Responses API output.
 # Keep each request bounded, then continue only when OpenAI explicitly reports
@@ -4159,7 +4179,7 @@ def managed_file_uploader(
                 unsafe_allow_html=True,
             )
 
-        incoming_files = st.file_uploader(
+        incoming_files = file_uploader_with_limit(
             "Upload files",
             type=accepted_types,
             accept_multiple_files=True,
@@ -25736,6 +25756,15 @@ def _product_library_toggle_asset_panel(product_id, asset_id, panel):
         st.session_state[replace_key] = False
 
 
+def _product_library_close_asset_panel(product_id, asset_id, panel):
+    """Minimize one asset action panel while preserving the Files view."""
+    clean_product_id = str(product_id or "")
+    clean_asset_id = str(asset_id or "")
+    st.session_state["product_library_open_product_id"] = clean_product_id
+    st.session_state[f"product_library_section_{clean_product_id}"] = "Files"
+    st.session_state[f"{panel}_panel_{clean_asset_id}"] = False
+
+
 def _product_library_replace_asset(product, asset, replacement_file):
     """
     Replace one Product Library asset while preserving the product and asset type.
@@ -27716,7 +27745,7 @@ def render_product_library_admin():
                                     key=f"asset_subtype_{product_id}_{add_asset_type}",
                                     help="Choose the specific view, component, or document purpose.",
                                 )
-                                add_uploads = st.file_uploader(
+                                add_uploads = file_uploader_with_limit(
                                     "Upload more files",
                                     accept_multiple_files=True,
                                     type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
@@ -27759,6 +27788,81 @@ def render_product_library_admin():
                             # record. Future exact duplicates are blocked during upload.
                             unique_assets = []
                             seen_asset_keys = set()
+                            st.markdown(
+                                """
+                                <style>
+                                div[class*="st-key-replace_asset_panel_"],
+                                div[class*="st-key-delete_asset_panel_"] {
+                                    position: relative;
+                                }
+
+                                div[class*="st-key-replace_panel_minimize_"] button,
+                                div[class*="st-key-delete_panel_minimize_"] button {
+                                    width: 26px !important;
+                                    min-width: 26px !important;
+                                    max-width: 26px !important;
+                                    height: 26px !important;
+                                    min-height: 26px !important;
+                                    padding: 0 !important;
+                                    border-radius: 7px !important;
+                                    font-size: 17px !important;
+                                    line-height: 1 !important;
+                                }
+
+                                .atp-replacement-help-row {
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    gap: 10px;
+                                    margin: 0 0 6px;
+                                }
+
+                                .atp-replacement-help-label {
+                                    font-weight: 600;
+                                }
+
+                                .atp-replacement-help-icon {
+                                    width: 18px;
+                                    height: 18px;
+                                    border: 1px solid rgba(148, 163, 184, 0.9);
+                                    border-radius: 50%;
+                                    display: inline-flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    line-height: 1;
+                                    cursor: help;
+                                    opacity: 0.9;
+                                    flex: 0 0 auto;
+                                }
+
+                                div[class*="st-key-replacement_upload_shell_"]
+                                div[data-testid="stFileUploader"] small,
+                                div[class*="st-key-replacement_upload_shell_"]
+                                div[data-testid="stFileUploaderDropzoneInstructions"] {
+                                    display: none !important;
+                                }
+
+                                div[class*="st-key-replacement_upload_shell_"]
+                                div[data-testid="stFileUploader"] section::after,
+                                div[class*="st-key-replacement_upload_shell_"]
+                                div[data-testid="stFileUploaderDropzone"]::after {
+                                    content: "20MB per file • JPG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
+                                    display: block;
+                                    width: 100%;
+                                    margin-top: 6px;
+                                    color: #94a3b8;
+                                    font-size: 11.5px;
+                                    line-height: 1.3;
+                                    text-align: center;
+                                    pointer-events: none;
+                                }
+                                </style>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
                             for asset in assets:
                                 stable_key = (
                                     str(asset.get("storage_path") or "").strip()
@@ -27944,22 +28048,49 @@ def render_product_library_admin():
                                             border=True,
                                             key=f"replace_asset_panel_{asset_id}",
                                         ):
-                                            st.markdown("**Replace File**")
+                                            panel_header_cols = st.columns(
+                                                [1, 0.05],
+                                                gap="small",
+                                                vertical_alignment="center",
+                                            )
+                                            with panel_header_cols[0]:
+                                                st.markdown("**Replace File**")
+                                            with panel_header_cols[1]:
+                                                with st.container(
+                                                    key=f"replace_panel_minimize_{asset_id}"
+                                                ):
+                                                    st.button(
+                                                        "−",
+                                                        key=f"minimize_replace_{asset_id}",
+                                                        help="Minimize Replace File",
+                                                        on_click=_product_library_close_asset_panel,
+                                                        args=(product_id, asset_id, "replace"),
+                                                    )
+
                                             with st.form(f"replace_asset_form_{asset_id}"):
-                                                replacement_file = st.file_uploader(
-                                                    "Choose one replacement file",
-                                                    accept_multiple_files=False,
-                                                    type=[
-                                                        "jpg", "jpeg", "png", "webp",
-                                                        "pdf", "docx", "txt", "csv", "zip",
-                                                    ],
-                                                    key=f"replacement_upload_{asset_id}",
-                                                    help=(
-                                                        "The replacement keeps the same asset type. "
-                                                        "The old file is removed only after the new "
-                                                        "file uploads successfully."
-                                                    ),
+                                                st.markdown(
+                                                    """
+                                                    <div class="atp-replacement-help-row">
+                                                        <span class="atp-replacement-help-label">Choose one replacement file</span>
+                                                        <span class="atp-replacement-help-icon" title="The replacement keeps the same asset type. The old file is removed only after the new file uploads successfully.">?</span>
+                                                    </div>
+                                                    """,
+                                                    unsafe_allow_html=True,
                                                 )
+                                                with st.container(
+                                                    key=f"replacement_upload_shell_{asset_id}"
+                                                ):
+                                                    replacement_file = file_uploader_with_limit(
+                                                        "Choose one replacement file",
+                                                        accept_multiple_files=False,
+                                                        type=[
+                                                            "jpg", "jpeg", "png", "webp",
+                                                            "pdf", "docx", "txt", "csv", "zip",
+                                                        ],
+                                                        key=f"replacement_upload_{asset_id}",
+                                                        label_visibility="collapsed",
+                                                        max_upload_size_mb=MAX_UPLOAD_SIZE_MB,
+                                                    )
                                                 replacement_submitted = st.form_submit_button(
                                                     "Save Replacement",
                                                     use_container_width=True,
@@ -27990,7 +28121,24 @@ def render_product_library_admin():
                                             border=True,
                                             key=f"delete_asset_panel_{asset_id}",
                                         ):
-                                            st.markdown("**Delete this file?**")
+                                            delete_header_cols = st.columns(
+                                                [1, 0.05],
+                                                gap="small",
+                                                vertical_alignment="center",
+                                            )
+                                            with delete_header_cols[0]:
+                                                st.markdown("**Delete this file?**")
+                                            with delete_header_cols[1]:
+                                                with st.container(
+                                                    key=f"delete_panel_minimize_{asset_id}"
+                                                ):
+                                                    st.button(
+                                                        "−",
+                                                        key=f"minimize_delete_{asset_id}",
+                                                        help="Minimize Delete File",
+                                                        on_click=_product_library_close_asset_panel,
+                                                        args=(product_id, asset_id, "delete"),
+                                                    )
                                             st.caption(
                                                 "This removes the display copy, Product Library "
                                                 "record, and Google Drive archive."
