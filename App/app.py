@@ -25738,6 +25738,26 @@ def _product_library_delete_asset(asset):
     _product_library_clear_read_caches()
 
 
+def _product_library_select_section(product_id, section_key):
+    """Keep the selected product expanded when its internal section changes.
+
+    Streamlit radio changes trigger a full script rerun. The product expander is
+    rebuilt before its contents render, so the open product id must be saved in
+    an on_change callback before that rerun begins.
+    """
+    clean_product_id = str(product_id or "").strip()
+    if not clean_product_id:
+        return
+
+    st.session_state["product_library_open_product_id"] = clean_product_id
+
+    # The radio widget already stores the selected section under section_key.
+    # Normalize unexpected/stale values without changing normal user choices.
+    selected_section = str(st.session_state.get(section_key) or "Edit Product")
+    if selected_section not in {"Edit Product", "Files", "Delete Product"}:
+        st.session_state[section_key] = "Edit Product"
+
+
 def _product_library_toggle_asset_panel(product_id, asset_id, panel):
     """Open the correct product/file section before Streamlit reruns."""
     clean_product_id = str(product_id or "")
@@ -27703,6 +27723,8 @@ def render_product_library_admin():
                             horizontal=True,
                             key=section_key,
                             label_visibility="collapsed",
+                            on_change=_product_library_select_section,
+                            args=(product_id, section_key),
                         )
 
                         if selected_product_section == "Edit Product":
