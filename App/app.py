@@ -10412,6 +10412,10 @@ def logout_user():
     st.session_state["logged_in"] = False
     st.session_state["messages"] = []
     st.session_state["conversation_id"] = None
+    # CookieController writes are applied in the browser asynchronously. Keep a
+    # session-local guard so the still-visible auth cookie cannot immediately
+    # restore the user during the automatic callback rerun.
+    st.session_state["_explicit_logout_pending"] = True
     st.session_state["_auth_transition"] = "logout"
 
 
@@ -10586,11 +10590,6 @@ def login_screen():
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
 
-                # Replace the complete login page (logo, heading, and form)
-                # with the requested text-only loading message.
-                login_page_placeholder.empty()
-                show_login_loading_message(login_page_placeholder)
-
                 if remember_me:
                     queue_login_cookie_action(
                         "save",
@@ -10631,10 +10630,28 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # A workspace change, mobile reconnect, or Streamlit rerun may leave a false
-# login flag in an otherwise recoverable browser session. Always attempt one
-# signed-cookie restoration before showing the login page.
+# login flag in an otherwise recoverable browser session. Restore only when this
+# is not an explicit logout transition. Cookie deletion is browser-side and may
+# require one or more reruns before the old signed cookie disappears.
 if not bool(st.session_state.get("logged_in")):
-    restore_login_session()
+    explicit_logout_pending = bool(
+        st.session_state.get("_explicit_logout_pending")
+    )
+    if explicit_logout_pending:
+        try:
+            remaining_auth_cookie = auth_cookie_controller.get(
+                AUTH_SESSION_COOKIE
+            )
+        except Exception:
+            remaining_auth_cookie = None
+
+        if remaining_auth_cookie:
+            # Retry deletion and continue showing only the logged-out UI.
+            remove_authenticated_session()
+        else:
+            st.session_state.pop("_explicit_logout_pending", None)
+    else:
+        restore_login_session()
 
 if not bool(st.session_state.get("logged_in")):
     login_screen()
@@ -28929,10 +28946,11 @@ def render_product_library_workspace():
                         if description_value:
                             st.write(description_value)
 
-                        assets = list(
-                            _product_library_cached_assets(product_code, product_id)
-                            or []
+                        assets, _used_legacy_scan = _product_library_cached_assets(
+                            product_code,
+                            product_id,
                         )
+                        assets = list(assets or [])
                         if not assets:
                             st.caption("No files are attached to this product yet.")
                             continue
