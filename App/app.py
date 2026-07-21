@@ -14577,22 +14577,28 @@ def render_product_library_chat_gallery(images, message_key):
         /* Keep the two single-image actions together, centered, equal-width,
            and directly beneath the filename instead of stretching across the
            full chat column. Multi-image gallery actions remain unchanged. */
-        [class*="st-key-product_library_chat_actions_solo_"] {
+        [class*="st-key-product_library_chat_actions_"] {
             width: 100% !important;
             margin: 0.15rem auto 0 !important;
             padding: 0 !important;
         }
-        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
-            width: min(100%, 26rem) !important;
-            max-width: 26rem !important;
+        [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
+            width: min(100%, 18rem) !important;
+            max-width: 18rem !important;
             margin: 0 auto !important;
             padding: 0 !important;
-            gap: 0.65rem !important;
+            gap: 0.55rem !important;
             align-items: stretch !important;
             justify-content: center !important;
         }
-        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stColumn"] {
+        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
+            width: min(100%, 26rem) !important;
+            max-width: 26rem !important;
+            gap: 0.65rem !important;
+        }
+        [class*="st-key-product_library_chat_actions_"] [data-testid="stColumn"] {
             min-width: 0 !important;
+            flex: 1 1 0 !important;
         }
         [class*="st-key-product_library_chat_actions_"] a,
         [class*="st-key-product_library_chat_actions_"] button {
@@ -14696,9 +14702,11 @@ def render_product_library_chat_gallery(images, message_key):
                         view_column = action_columns[1]
                         download_column = action_columns[2]
                     else:
-                        action_columns = st.columns(2, gap="small")
-                        view_column = action_columns[0]
-                        download_column = action_columns[1]
+                        # Keep every gallery card's actions paired directly beneath
+                        # its own image instead of stretching to opposite card edges.
+                        action_columns = st.columns([0.12, 1, 1, 0.12], gap="small")
+                        view_column = action_columns[1]
+                        download_column = action_columns[2]
 
                     with view_column:
                         if full_size_url:
