@@ -14638,6 +14638,44 @@ def render_product_library_chat_gallery(images, message_key):
             color: inherit !important;
             box-shadow: none !important;
         }
+        .atp-pl-action-row {
+            width: min(100%, 19rem) !important;
+            margin: 0.2rem auto 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.6rem !important;
+        }
+        [class*="st-key-product_library_chat_actions_solo_"] .atp-pl-action-row {
+            width: min(100%, 26rem) !important;
+        }
+        .atp-pl-action {
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            height: 2.5rem !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 0.75rem !important;
+            border: 1px solid color-mix(in srgb, var(--text-color) 24%, transparent) !important;
+            border-radius: 0.5rem !important;
+            color: var(--text-color) !important;
+            background: transparent !important;
+            text-decoration: none !important;
+            white-space: nowrap !important;
+            line-height: 1 !important;
+            box-sizing: border-box !important;
+        }
+        .atp-pl-action:hover {
+            background: color-mix(in srgb, var(--text-color) 4%, transparent) !important;
+            border-color: color-mix(in srgb, var(--text-color) 48%, transparent) !important;
+            color: var(--text-color) !important;
+            text-decoration: none !important;
+        }
+        .atp-pl-action.atp-disabled {
+            opacity: 0.45 !important;
+            pointer-events: none !important;
+        }
         @media (max-width: 640px) {
             [class*="st-key-product_library_chat_card_"] {
                 padding: 0.45rem !important;
@@ -14706,49 +14744,44 @@ def render_product_library_chat_gallery(images, message_key):
                     else f"product_library_chat_actions_{message_key}_{image_index}"
                 )
                 with st.container(key=action_key):
-                    # Always use exactly two action columns. Spacer columns made
-                    # each button too narrow inside multi-image cards, which forced
-                    # labels such as "View Full Size" and "Download" to wrap into
-                    # vertical stacks. The surrounding action container handles
-                    # centering and max-width through CSS.
-                    action_columns = st.columns(2, gap="small")
-                    view_column = action_columns[0]
-                    download_column = action_columns[1]
-
-                    with view_column:
-                        if full_size_url:
-                            st.link_button(
-                                "View Full Size",
-                                full_size_url,
-                                use_container_width=True,
-                            )
-                        else:
-                            st.button(
-                                "View Full Size",
-                                disabled=True,
-                                use_container_width=True,
-                                key=(
-                                    f"product_library_chat_view_disabled_"
-                                    f"{message_key}_{image_index}"
-                                ),
-                            )
-
+                    # Render both actions in one native flex row instead of separate
+                    # Streamlit columns. Streamlit column wrappers inherit flexible
+                    # widths from the outer gallery and repeatedly pushed Download
+                    # toward the card edge. One HTML action bar guarantees the same
+                    # baseline, equal widths, and a compact centered group.
                     file_bytes, download_name, mime_type = (
                         _product_library_image_download_payload(image_record)
                     )
-                    with download_column:
-                        st.download_button(
-                            "Download",
-                            data=file_bytes,
-                            file_name=download_name,
-                            mime=mime_type,
-                            disabled=not bool(file_bytes),
-                            use_container_width=True,
-                            key=(
-                                f"product_library_chat_download_"
-                                f"{message_key}_{image_index}"
-                            ),
+                    safe_view_url = html.escape(full_size_url, quote=True)
+                    safe_download_name = html.escape(download_name, quote=True)
+                    if file_bytes:
+                        encoded_download = base64.b64encode(file_bytes).decode("ascii")
+                        download_href = (
+                            f"data:{html.escape(mime_type, quote=True)};base64,"
+                            f"{encoded_download}"
                         )
+                    else:
+                        download_href = ""
+
+                    view_class = "atp-pl-action" + (" atp-disabled" if not safe_view_url else "")
+                    download_class = "atp-pl-action" + (" atp-disabled" if not download_href else "")
+                    view_attrs = (
+                        f'href="{safe_view_url}" target="_blank" rel="noopener noreferrer"'
+                        if safe_view_url else 'aria-disabled="true" tabindex="-1"'
+                    )
+                    download_attrs = (
+                        f'href="{download_href}" download="{safe_download_name}"'
+                        if download_href else 'aria-disabled="true" tabindex="-1"'
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="atp-pl-action-row" role="group" aria-label="Image actions">
+                          <a class="{view_class}" {view_attrs}>View Full Size</a>
+                          <a class="{download_class}" {download_attrs}>Download</a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
     if len(clean_images) == 1:
         # A single technical/reference image needs enough room to inspect details.
