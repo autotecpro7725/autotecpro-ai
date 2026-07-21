@@ -14567,6 +14567,33 @@ def render_product_library_chat_gallery(images, message_key):
             height: min(38rem, 68vh) !important;
             min-height: 28rem !important;
         }
+        [class*="st-key-product_library_chat_card_solo_"] [data-testid="stCaptionContainer"],
+        [class*="st-key-product_library_chat_card_solo_"] [data-testid="stCaptionContainer"] p {
+            text-align: center !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+        /* Keep the two single-image actions together, centered, equal-width,
+           and directly beneath the filename instead of stretching across the
+           full chat column. Multi-image gallery actions remain unchanged. */
+        [class*="st-key-product_library_chat_actions_solo_"] {
+            width: 100% !important;
+            margin: 0.15rem auto 0 !important;
+            padding: 0 !important;
+        }
+        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
+            width: min(100%, 26rem) !important;
+            max-width: 26rem !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            gap: 0.65rem !important;
+            align-items: stretch !important;
+            justify-content: center !important;
+        }
+        [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stColumn"] {
+            min-width: 0 !important;
+        }
         [class*="st-key-product_library_chat_actions_"] a,
         [class*="st-key-product_library_chat_actions_"] button {
             background: transparent !important;
@@ -14606,6 +14633,12 @@ def render_product_library_chat_gallery(images, message_key):
                 max-height: 70vh !important;
             }
             [class*="st-key-product_library_chat_actions_"] [data-testid="stHorizontalBlock"] {
+                gap: 0.45rem !important;
+            }
+            [class*="st-key-product_library_chat_actions_solo_"] [data-testid="stHorizontalBlock"] {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 auto !important;
                 gap: 0.45rem !important;
             }
             [class*="st-key-product_library_chat_actions_"] a,
@@ -14650,11 +14683,24 @@ def render_product_library_chat_gallery(images, message_key):
             with st.container(key=card_key):
                 st.image(image_source, use_container_width=True)
                 st.caption(filename)
-                with st.container(
-                    key=f"product_library_chat_actions_{message_key}_{image_index}"
-                ):
-                    action_columns = st.columns(2)
-                    with action_columns[0]:
+                action_key = (
+                    f"product_library_chat_actions_solo_{message_key}_{image_index}"
+                    if solo
+                    else f"product_library_chat_actions_{message_key}_{image_index}"
+                )
+                with st.container(key=action_key):
+                    if solo:
+                        # Keep both actions directly under the image instead of
+                        # spreading them across the full single-image card.
+                        action_columns = st.columns([0.55, 1, 1, 0.55], gap="small")
+                        view_column = action_columns[1]
+                        download_column = action_columns[2]
+                    else:
+                        action_columns = st.columns(2, gap="small")
+                        view_column = action_columns[0]
+                        download_column = action_columns[1]
+
+                    with view_column:
                         if full_size_url:
                             st.link_button(
                                 "View Full Size",
@@ -14675,7 +14721,7 @@ def render_product_library_chat_gallery(images, message_key):
                     file_bytes, download_name, mime_type = (
                         _product_library_image_download_payload(image_record)
                     )
-                    with action_columns[1]:
+                    with download_column:
                         st.download_button(
                             "Download",
                             data=file_bytes,
@@ -26081,17 +26127,47 @@ PRODUCT_LIBRARY_ASSET_INTENTS = {
 }
 
 
+def _product_library_normalize_followup_phrase(prompt):
+    """Normalize natural Product Library follow-ups that refer to the current model."""
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    if not value:
+        return ""
+
+    # Staff often refer to the remembered Product Library record indirectly.
+    # Remove those references so commands such as
+    # "show me all photo of this model" normalize to "show me all photo".
+    value = re.sub(
+        r"\b(?:of|for)\s+(?:this|the|same)\s+"
+        r"(?:model|unit|screen|radio|product|one)\b",
+        "",
+        value,
+    )
+    value = re.sub(
+        r"\b(?:this|the|same)\s+"
+        r"(?:model|unit|screen|radio|product|one)\b",
+        "",
+        value,
+    )
+    value = re.sub(r"\s+", " ", value).strip(" .,:;!?-")
+    return value
+
+
 def _product_library_is_asset_refinement_followup(prompt):
     """Detect natural short commands that refine the previous product gallery."""
-    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    value = _product_library_normalize_followup_phrase(prompt)
     if not value:
         return False
 
     # These commands intentionally work without repeating the model number after
     # a verified Product Library product has already been selected.
     exact_commands = {
-        "photo", "photos", "image", "images", "all", "all photos",
-        "all images", "show all", "show all photos", "show photos",
+        "photo", "photos", "image", "images", "all", "all photo", "all photos",
+        "all image", "all images", "show all", "show all photo",
+        "show all photos", "show all image", "show all images",
+        "show photo", "show photos", "show image", "show images",
+        "show me all", "show me all photo", "show me all photos",
+        "show me all image", "show me all images", "show them all",
+        "show every photo", "show every image",
         "front", "rear", "back", "left", "right", "installed",
         "screen on", "screen off", "packaging", "package",
         "part", "parts", "accessory", "accessories", "kit",
@@ -26122,16 +26198,21 @@ def _product_library_is_asset_refinement_followup(prompt):
 
 def _product_library_requests_all_photos(prompt):
     """Return True when a follow-up asks to restore every photo for the product."""
-    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    value = _product_library_normalize_followup_phrase(prompt)
     return value in {
-        "photo", "photos", "image", "images", "all", "all photos",
-        "all images", "show all", "show all photos", "show photos",
+        "photo", "photos", "image", "images", "all", "all photo", "all photos",
+        "all image", "all images", "show all", "show all photo",
+        "show all photos", "show all image", "show all images",
+        "show photo", "show photos", "show image", "show images",
+        "show me all", "show me all photo", "show me all photos",
+        "show me all image", "show me all images", "show them all",
+        "show every photo", "show every image",
     }
 
 
 def _product_library_parts_only_requested(prompt):
     """Return True when the user wants only included-parts/accessory images."""
-    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    value = _product_library_normalize_followup_phrase(prompt)
     return any(phrase in value for phrase in (
         "only parts", "parts only", "part only", "only accessories",
         "accessories only", "parts photo", "parts photos", "part photo",
@@ -26141,7 +26222,7 @@ def _product_library_parts_only_requested(prompt):
 
 def _product_library_requested_subtypes(prompt):
     """Return ordered subtype intents inferred from the user's wording."""
-    value = re.sub(r"\s+", " ", str(prompt or "")).strip().lower()
+    value = _product_library_normalize_followup_phrase(prompt)
     if not value:
         return []
 
