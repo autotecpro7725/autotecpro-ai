@@ -26642,7 +26642,7 @@ def _product_library_explicit_product_matches(prompt, products):
             deduplicated[key] = product
     return list(deduplicated.values())
 
-def _product_library_chat_lookup(prompt, max_images=6):
+def _product_library_chat_lookup(prompt, max_images=None):
     """
     Resolve Product Library photo requests.
 
@@ -26806,6 +26806,16 @@ def _product_library_chat_lookup(prompt, max_images=6):
     else:
         candidate_assets = preferred or image_assets
 
+    # By default, return every verified matching image. A caller may still pass an
+    # explicit positive max_images value for a future constrained view, but the chat
+    # gallery itself must not silently stop at six images.
+    try:
+        image_limit = int(max_images) if max_images is not None else None
+    except (TypeError, ValueError):
+        image_limit = None
+    if image_limit is not None and image_limit <= 0:
+        image_limit = None
+
     if requested_subtypes:
         ranked_assets = sorted(
             (
@@ -26819,12 +26829,20 @@ def _product_library_chat_lookup(prompt, max_images=6):
             reverse=True,
         )
         relevant_assets = [asset for score, asset in ranked_assets if score >= 180]
-        selected = relevant_assets[:max(1, int(max_images or 6))]
+        selected = (
+            relevant_assets[:image_limit]
+            if image_limit is not None
+            else relevant_assets
+        )
     elif all_photos_requested:
         # The user explicitly asked for all photos for the remembered model.
         selected = list(candidate_assets)
     else:
-        selected = candidate_assets[:max(1, int(max_images or 6))]
+        selected = (
+            candidate_assets[:image_limit]
+            if image_limit is not None
+            else list(candidate_assets)
+        )
 
     images = []
     for asset in selected:
