@@ -104,6 +104,12 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
             requested_format = format_name
             break
 
+    # Plain-language follow-ups such as “Convert this to Word” use the
+    # standalone product name rather than “Word document” or “DOCX”. Match
+    # the complete word only so unrelated text such as “wording” is ignored.
+    if not requested_format and re.search(r"\bword\b", value):
+        requested_format = "docx"
+
     creation_terms = (
         "create", "generate", "make", "produce", "prepare", "build", "compile",
         "export", "save", "download", "turn this into", "turn this conversation into",
