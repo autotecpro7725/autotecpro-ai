@@ -14612,6 +14612,17 @@ def render_product_library_chat_gallery(images, message_key):
             height: 2.5rem !important;
             width: 100% !important;
             padding: 0 0.65rem !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.1 !important;
+        }
+        [class*="st-key-product_library_chat_actions_"] button p,
+        [class*="st-key-product_library_chat_actions_"] a p,
+        [class*="st-key-product_library_chat_actions_"] a span {
+            white-space: nowrap !important;
+            margin: 0 !important;
+            line-height: 1.1 !important;
         }
         [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"],
         [class*="st-key-product_library_chat_card_"] [data-testid="stCaptionContainer"] p,
@@ -14695,18 +14706,14 @@ def render_product_library_chat_gallery(images, message_key):
                     else f"product_library_chat_actions_{message_key}_{image_index}"
                 )
                 with st.container(key=action_key):
-                    if solo:
-                        # Keep both actions directly under the image instead of
-                        # spreading them across the full single-image card.
-                        action_columns = st.columns([0.55, 1, 1, 0.55], gap="small")
-                        view_column = action_columns[1]
-                        download_column = action_columns[2]
-                    else:
-                        # Keep every gallery card's actions paired directly beneath
-                        # its own image instead of stretching to opposite card edges.
-                        action_columns = st.columns([0.12, 1, 1, 0.12], gap="small")
-                        view_column = action_columns[1]
-                        download_column = action_columns[2]
+                    # Always use exactly two action columns. Spacer columns made
+                    # each button too narrow inside multi-image cards, which forced
+                    # labels such as "View Full Size" and "Download" to wrap into
+                    # vertical stacks. The surrounding action container handles
+                    # centering and max-width through CSS.
+                    action_columns = st.columns(2, gap="small")
+                    view_column = action_columns[0]
+                    download_column = action_columns[1]
 
                     with view_column:
                         if full_size_url:
