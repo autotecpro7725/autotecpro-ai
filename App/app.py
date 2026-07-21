@@ -40,7 +40,7 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
-# v385 document conversion: direct “convert this to PDF/Word” follow-ups reuse the previous response without AI rewriting.
+# v386 document conversion: merges v384 conversation-command support with direct previous-response PDF/Word export; no AI rewriting.
 # v370 UI performance architecture:
 # - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
 #   knowledge submission, generated-image actions, and Admin user management
@@ -13471,6 +13471,7 @@ def _conversation_document_text(messages, current_answer=""):
 
 
 def _document_request_uses_conversation(prompt_text):
+    """Return True only when the user explicitly requests the chat transcript."""
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
     return any(
         phrase in value
@@ -13484,39 +13485,76 @@ def _document_request_uses_conversation(prompt_text):
             "entire conversation",
             "whole conversation",
             "this chat",
+            "the chat",
             "current chat",
             "last chat",
             "previous chat",
             "above chat",
-            "convert this to a document",
-            "convert this into a document",
-            "turn this into a document",
-            "export this as a document",
-            "save this as a document",
-            # Natural follow-up commands should export the immediately preceding
-            # assistant response directly instead of asking the AI to rewrite it.
-            "convert this to pdf",
-            "convert this into pdf",
-            "convert this to a pdf",
-            "convert this into a pdf",
-            "turn this into pdf",
-            "turn this into a pdf",
-            "export this as pdf",
-            "export this as a pdf",
-            "save this as pdf",
-            "save this as a pdf",
-            "convert this to word",
-            "convert this into word",
-            "convert this to a word document",
-            "convert this into a word document",
-            "turn this into word",
-            "turn this into a word document",
-            "export this as word",
-            "export this as a word document",
-            "save this as word",
-            "save this as a word document",
+            "entire chat",
+            "whole chat",
         )
     )
+
+
+def _document_request_uses_previous_response(prompt_text):
+    """Return True for follow-up exports of the immediately preceding AI answer."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    response_references = (
+        "this response",
+        "this answer",
+        "the response",
+        "the answer",
+        "last response",
+        "last answer",
+        "previous response",
+        "previous answer",
+        "above response",
+        "above answer",
+    )
+    direct_followups = (
+        "convert this to pdf",
+        "convert this into pdf",
+        "convert this to a pdf",
+        "convert this into a pdf",
+        "turn this into pdf",
+        "turn this into a pdf",
+        "export this as pdf",
+        "export this as a pdf",
+        "save this as pdf",
+        "save this as a pdf",
+        "convert this to word",
+        "convert this into word",
+        "convert this to a word document",
+        "convert this into a word document",
+        "turn this into word",
+        "turn this into a word document",
+        "export this as word",
+        "export this as a word document",
+        "save this as word",
+        "save this as a word document",
+        "convert this to a document",
+        "convert this into a document",
+        "turn this into a document",
+        "export this as a document",
+        "save this as a document",
+    )
+    return any(phrase in value for phrase in response_references + direct_followups)
+
+
+def _previous_assistant_document_text(messages):
+    """Return the latest visible assistant response before the export command."""
+    for message in reversed(list(messages or [])):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(message.get("content") or "")
+        content, _ = extract_documents_from_message_content(content)
+        content, _ = extract_images_from_message_content(content)
+        content = clean_visible_chat_text(content).strip()
+        if content and content.lower() != "your document is ready.":
+            return content
+    return ""
 
 
 def _document_widget_prefix(workspace):
@@ -30646,6 +30684,8 @@ else:
         # revision assigned this only inside the ordinary AI-response branch,
         # which caused a NameError after an explicit "learn this" command.
         conversation_export_requested = False
+        previous_response_export_requested = False
+        direct_document_export_requested = False
 
         if explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
@@ -30693,7 +30733,16 @@ else:
                 document_generation_requested
                 and _document_request_uses_conversation(prompt)
             )
-            if conversation_export_requested:
+            previous_response_export_requested = bool(
+                document_generation_requested
+                and _document_request_uses_previous_response(prompt)
+                and not conversation_export_requested
+            )
+            direct_document_export_requested = bool(
+                conversation_export_requested
+                or previous_response_export_requested
+            )
+            if direct_document_export_requested:
                 response_start_time = time.time()
                 answer = "Your document is ready."
                 response_time = round(time.time() - response_start_time, 2)
@@ -30936,12 +30985,17 @@ else:
         if document_generation_requested and not is_graphic_generation:
             try:
                 document_source_text = answer
+                prior_messages = list(st.session_state.messages[:-1])
                 if _document_request_uses_conversation(prompt):
-                    prior_messages = list(st.session_state.messages[:-1])
                     document_source_text = _conversation_document_text(
                         prior_messages,
                         current_answer="",
                     ) or answer
+                elif _document_request_uses_previous_response(prompt):
+                    document_source_text = (
+                        _previous_assistant_document_text(prior_messages)
+                        or answer
+                    )
 
                 generated_documents = [
                     create_document_record(
@@ -30980,7 +31034,7 @@ else:
         )
 
         # Streaming already rendered ordinary text responses.
-        if is_graphic_generation or conversation_export_requested:
+        if is_graphic_generation or direct_document_export_requested:
             render_chat_message(
                 "assistant",
                 assistant_content_to_save,

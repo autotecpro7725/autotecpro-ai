@@ -1,6 +1,6 @@
 
 """
-AutoTecPro AI document generator framework.
+AutoTecPro AI document generator framework (v386 conversation export compatibility).
 
 This module is independent of Streamlit, OpenAI, Supabase, WooCommerce, and
 workspace UI code. It generates real downloadable files for PDF, DOCX, PPTX,
@@ -109,7 +109,16 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
         "export", "save", "download", "turn this into", "turn this conversation into",
         "turn this chat into", "convert this to", "convert this into",
         "convert this conversation to", "convert this conversation into",
+        "convert the conversation to", "convert the conversation into",
+        "convert the current conversation to", "convert the current conversation into",
+        "convert the last conversation to", "convert the last conversation into",
+        "convert the previous conversation to", "convert the previous conversation into",
+        "convert the above conversation to", "convert the above conversation into",
         "convert this chat to", "convert this chat into",
+        "convert the current chat to", "convert the current chat into",
+        "convert the last chat to", "convert the last chat into",
+        "convert the previous chat to", "convert the previous chat into",
+        "convert the above chat to", "convert the above chat into",
     )
     artifact_terms = (
         "file", "document", "manual", "guide", "report", "proposal",
@@ -121,8 +130,26 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
         "convert this into a document",
         "convert this conversation to a document",
         "convert this conversation into a document",
+        "convert the conversation to a document",
+        "convert the conversation into a document",
+        "convert the current conversation to a document",
+        "convert the current conversation into a document",
+        "convert the last conversation to a document",
+        "convert the last conversation into a document",
+        "convert the previous conversation to a document",
+        "convert the previous conversation into a document",
+        "convert the above conversation to a document",
+        "convert the above conversation into a document",
         "convert this chat to a document",
         "convert this chat into a document",
+        "convert the current chat to a document",
+        "convert the current chat into a document",
+        "convert the last chat to a document",
+        "convert the last chat into a document",
+        "convert the previous chat to a document",
+        "convert the previous chat into a document",
+        "convert the above chat to a document",
+        "convert the above chat into a document",
         "turn this into a document",
         "turn this conversation into a document",
         "turn this chat into a document",
@@ -151,9 +178,6 @@ def detect_document_generation_request(prompt_text: Any) -> dict[str, str] | Non
             term in value
             for term in (
                 "conversation", "chat",
-                "convert this to a document",
-                "convert this into a document",
-                "turn this into a document",
             )
         )
         else "response"
@@ -189,7 +213,16 @@ def _is_document_command_text(value: Any) -> bool:
         "convert this to a document",
         "convert this into a document",
         "convert this conversation",
+        "convert the conversation",
+        "convert the current conversation",
+        "convert the last conversation",
+        "convert the previous conversation",
+        "convert the above conversation",
         "convert this chat",
+        "convert the current chat",
+        "convert the last chat",
+        "convert the previous chat",
+        "convert the above chat",
         "turn this into a document",
         "turn this conversation",
         "turn this chat",
