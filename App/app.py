@@ -27204,6 +27204,7 @@ def _product_library_upsert_product(product_code, product_name, compatibility, d
 
 
 def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subtype="other"):
+    """Upload one Product Library asset and prevent exact duplicate records."""
     product_code = str(product.get("product_code") or "")
     product_id = product.get("id")
     clean_subtype = str(asset_subtype or "other").strip().lower()
@@ -27215,11 +27216,60 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
     if len(original) > PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES:
         raise RuntimeError(f"{filename} exceeds the 20 MB Product Library limit.")
 
+    # Build a deterministic fingerprint before any external upload. Images use a
+    # deterministic Supabase path; non-images use filename + byte size because the
+    # current product_assets schema does not contain a checksum column.
+    digest = hashlib.sha256(original).hexdigest()[:16]
+    optimized = b""
+    optimized_filename = ""
+    optimized_type = ""
+    optimized_bytes = 0
+    storage_path = ""
+    storage_status = "not_applicable"
+
+    if content_type.startswith("image/"):
+        optimized, optimized_filename, optimized_type = _product_library_optimize_image(
+            original, filename, PRODUCT_LIBRARY_DISPLAY_MAX_PX
+        )
+        storage_path = (
+            f"{product_code}/{asset_type}/{clean_subtype}/"
+            f"{digest}-{optimized_filename}"
+        )
+        duplicate_query = (
+            supabase.table("product_assets")
+            .select("id,original_filename,storage_path")
+            .eq("product_id", product_id)
+            .eq("storage_path", storage_path)
+            .limit(1)
+            .execute().data
+            or []
+        )
+    else:
+        duplicate_query = (
+            supabase.table("product_assets")
+            .select("id,original_filename,original_bytes")
+            .eq("product_id", product_id)
+            .eq("asset_type", asset_type)
+            .eq("asset_subtype", clean_subtype)
+            .eq("original_filename", filename)
+            .eq("original_bytes", len(original))
+            .limit(1)
+            .execute().data
+            or []
+        )
+
+    if duplicate_query:
+        raise RuntimeError(
+            f"{filename} is already saved for this product and asset category."
+        )
+
     archive_status = "not_configured"
     archive_file_id = ""
     archive_web_url = ""
     if _product_library_google_configured():
-        product_folder = _product_library_drive_create_folder(product_code, GOOGLE_DRIVE_ROOT_FOLDER_ID)
+        product_folder = _product_library_drive_create_folder(
+            product_code, GOOGLE_DRIVE_ROOT_FOLDER_ID
+        )
         category_folder = _product_library_drive_create_folder(
             PRODUCT_ASSET_LABELS.get(asset_type, "Other"), product_folder["id"]
         )
@@ -27234,16 +27284,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
         archive_file_id = str(drive_file.get("id") or "")
         archive_web_url = str(drive_file.get("webViewLink") or "")
 
-    optimized_filename = ""
-    optimized_bytes = 0
-    storage_path = ""
-    storage_status = "not_applicable"
-    if content_type.startswith("image/"):
-        optimized, optimized_filename, optimized_type = _product_library_optimize_image(
-            original, filename, PRODUCT_LIBRARY_DISPLAY_MAX_PX
-        )
-        digest = hashlib.sha256(original).hexdigest()[:16]
-        storage_path = f"{product_code}/{asset_type}/{clean_subtype}/{digest}-{optimized_filename}"
+    if storage_path:
         _product_library_storage_upload(storage_path, optimized, optimized_type)
         optimized_bytes = len(optimized)
         storage_status = "available"
@@ -27268,7 +27309,9 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
         "uploaded_by": str(st.session_state.get("username") or ""),
     }
     result = supabase.table("product_assets").insert(record).execute()
-    return (result.data or [record])[0]
+    saved = (result.data or [record])[0]
+    _product_library_clear_read_caches()
+    return saved
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -27617,7 +27660,8 @@ def render_product_library_admin():
                                             st.error(failure)
                                     else:
                                         st.success(f"Uploaded {len(add_uploads)} additional file(s).")
-                                        st.rerun()
+                                        # Do not force a full-app rerun here. The asset query below
+                                        # runs after the upload and immediately shows the new files.
 
                             assets = (
                                 supabase.table("product_assets")
@@ -27627,129 +27671,127 @@ def render_product_library_admin():
                                 .execute().data
                                 or []
                             )
+
+                            # Hide duplicate legacy rows in the manager while keeping the newest
+                            # record. Future exact duplicates are blocked during upload.
+                            unique_assets = []
+                            seen_asset_keys = set()
+                            for asset in assets:
+                                stable_key = (
+                                    str(asset.get("storage_path") or "").strip()
+                                    or str(asset.get("archive_file_id") or "").strip()
+                                    or "|".join([
+                                        str(asset.get("asset_type") or ""),
+                                        str(asset.get("asset_subtype") or ""),
+                                        str(asset.get("original_filename") or ""),
+                                    ])
+                                )
+                                if stable_key in seen_asset_keys:
+                                    continue
+                                seen_asset_keys.add(stable_key)
+                                unique_assets.append(asset)
+                            assets = unique_assets
+
                             if not assets:
                                 st.info("No files have been uploaded for this product.")
+
                             for asset in assets:
                                 asset_id = str(asset.get("id") or "")
-                                st.markdown(f"**{_product_library_asset_heading(asset)}**")
-                                signed_url = _product_library_signed_url(asset.get("storage_path"))
-                                if signed_url and str(asset.get("content_type") or "").startswith("image/"):
-                                    st.image(signed_url, use_container_width=True)
-                                st.caption(
-                                    f"Display: {asset.get('storage_status') or 'unknown'} | "
-                                    f"Archive: {asset.get('archive_status') or 'unknown'}"
-                                )
+                                asset_placeholder = st.empty()
+                                with asset_placeholder.container():
+                                    st.markdown(f"**{_product_library_asset_heading(asset)}**")
+                                    signed_url = _product_library_signed_url(asset.get("storage_path"))
+                                    if signed_url and str(asset.get("content_type") or "").startswith("image/"):
+                                        st.image(signed_url, use_container_width=True)
+                                    st.caption(
+                                        f"Display: {asset.get('storage_status') or 'unknown'} | "
+                                        f"Archive: {asset.get('archive_status') or 'unknown'}"
+                                    )
 
-                                link_cols = st.columns(2)
-                                with link_cols[0]:
-                                    if signed_url:
-                                        st.link_button(
-                                            "Open Display Copy",
-                                            signed_url,
-                                            use_container_width=True,
-                                        )
-                                with link_cols[1]:
-                                    if asset.get("archive_web_url"):
-                                        st.link_button(
-                                            "Open Original in Drive",
-                                            asset.get("archive_web_url"),
-                                            use_container_width=True,
-                                        )
-
-                                replace_panel_key = f"replace_panel_{asset_id}"
-                                replace_open = bool(
-                                    st.session_state.get(replace_panel_key, False)
-                                )
-
-                                confirm_asset = st.session_state.get(
-                                    f"confirm_asset_{asset_id}",
-                                    False,
-                                )
-
-                                with st.container(
-                                    key=f"product_asset_actions_{asset_id}"
-                                ):
-                                    action_cols = st.columns(2)
-                                    with action_cols[0]:
-                                        if st.button(
-                                            "Replace File",
-                                            key=f"replace_asset_toggle_{asset_id}",
-                                            use_container_width=True,
-                                        ):
-                                            st.session_state[replace_panel_key] = not replace_open
-                                            st.rerun()
-
-                                    with action_cols[1]:
-                                        if st.button(
-                                            "Delete File",
-                                            key=f"delete_asset_{asset_id}",
-                                            disabled=not confirm_asset,
-                                            use_container_width=True,
-                                        ):
-                                            try:
-                                                _product_library_delete_asset(asset)
-                                                st.success(
-                                                    "File deleted from Product Library, "
-                                                    "Supabase Storage, and Google Drive archive."
-                                                )
-                                                st.rerun()
-                                            except Exception as error:
-                                                st.error(f"File deletion failed: {error}")
-
-                                st.checkbox(
-                                    "Confirm delete this file",
-                                    key=f"confirm_asset_{asset_id}",
-                                )
-
-                                if st.session_state.get(replace_panel_key, False):
-                                    with st.container(border=True):
-                                        st.caption("Replace this file")
-                                        replacement_file = st.file_uploader(
-                                            "Choose one replacement file",
-                                            accept_multiple_files=False,
-                                            type=[
-                                                "jpg", "jpeg", "png", "webp",
-                                                "pdf", "docx", "txt", "csv", "zip",
-                                            ],
-                                            key=f"replacement_upload_{asset_id}",
-                                            help=(
-                                                "The replacement keeps the same asset type. "
-                                                "The old file is removed only after the new "
-                                                "file uploads successfully."
-                                            ),
-                                        )
-                                        replace_submit_cols = st.columns([1, 1, 2])
-                                        with replace_submit_cols[0]:
-                                            if st.button(
-                                                "Save Replacement",
-                                                key=f"replace_asset_submit_{asset_id}",
-                                                disabled=replacement_file is None,
+                                    link_cols = st.columns(2)
+                                    with link_cols[0]:
+                                        if signed_url:
+                                            st.link_button(
+                                                "Open Display Copy",
+                                                signed_url,
                                                 use_container_width=True,
-                                                
-                                            ):
+                                            )
+                                    with link_cols[1]:
+                                        if asset.get("archive_web_url"):
+                                            st.link_button(
+                                                "Open Original in Drive",
+                                                asset.get("archive_web_url"),
+                                                use_container_width=True,
+                                            )
+
+                                    # Replacement uses an expander instead of a toggle + rerun.
+                                    # Opening or closing the panel is handled in the browser and does
+                                    # not rebuild the entire Product Library page.
+                                    with st.expander("Replace File", expanded=False):
+                                        with st.form(f"replace_asset_form_{asset_id}"):
+                                            replacement_file = st.file_uploader(
+                                                "Choose one replacement file",
+                                                accept_multiple_files=False,
+                                                type=[
+                                                    "jpg", "jpeg", "png", "webp",
+                                                    "pdf", "docx", "txt", "csv", "zip",
+                                                ],
+                                                key=f"replacement_upload_{asset_id}",
+                                                help=(
+                                                    "The replacement keeps the same asset type. "
+                                                    "The old file is removed only after the new "
+                                                    "file uploads successfully."
+                                                ),
+                                            )
+                                            replacement_submitted = st.form_submit_button(
+                                                "Save Replacement",
+                                                use_container_width=True,
+                                            )
+                                        if replacement_submitted:
+                                            if replacement_file is None:
+                                                st.warning("Please select a replacement file.")
+                                            else:
                                                 try:
                                                     _product_library_replace_asset(
-                                                        product,
-                                                        asset,
-                                                        replacement_file,
+                                                        product, asset, replacement_file
                                                     )
-                                                    st.session_state[replace_panel_key] = False
                                                     st.success("File replaced successfully.")
-                                                    st.rerun()
                                                 except Exception as error:
                                                     st.error(
                                                         f"File replacement failed: {error}"
                                                     )
-                                        with replace_submit_cols[1]:
-                                            if st.button(
-                                                "Cancel",
-                                                key=f"replace_asset_cancel_{asset_id}",
-                                                use_container_width=True,
-                                            ):
-                                                st.session_state[replace_panel_key] = False
-                                                st.rerun()
 
-                                st.divider()
+                                    # Confirmation is inside a form. Checking the box no longer
+                                    # triggers a full Streamlit rerun or sends the user back to the
+                                    # first Product Library tab. Deletion occurs only on submit.
+                                    with st.form(f"delete_asset_form_{asset_id}"):
+                                        confirm_asset = st.checkbox(
+                                            "Confirm delete this file",
+                                            key=f"confirm_asset_{asset_id}",
+                                        )
+                                        delete_asset_clicked = st.form_submit_button(
+                                            "Delete File",
+                                            use_container_width=True,
+                                        )
+
+                                    if delete_asset_clicked:
+                                        if not confirm_asset:
+                                            st.warning(
+                                                "Please check ‘Confirm delete this file’ first."
+                                            )
+                                        else:
+                                            try:
+                                                with st.spinner("Deleting file..."):
+                                                    _product_library_delete_asset(asset)
+                                                asset_placeholder.empty()
+                                                st.success(
+                                                    "File deleted from Product Library, "
+                                                    "Supabase Storage, and Google Drive archive."
+                                                )
+                                            except Exception as error:
+                                                st.error(f"File deletion failed: {error}")
+
+                                    st.divider()
 
                         with danger_tab:
                             st.warning(
