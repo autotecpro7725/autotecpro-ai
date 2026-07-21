@@ -27611,9 +27611,12 @@ def render_product_library_admin():
                         st.error(f"Product upload failed: {error}")
 
         with manage_tab:
-            delete_notice = st.session_state.pop("product_library_delete_notice", "")
-            if delete_notice:
-                st.success(delete_notice)
+            product_library_notice = (
+                st.session_state.pop("product_library_notice", "")
+                or st.session_state.pop("product_library_delete_notice", "")
+            )
+            if product_library_notice:
+                st.success(product_library_notice)
 
             search_value = st.text_input("Search products", placeholder="Product code, name, compatibility, or alias")
             try:
@@ -27761,7 +27764,7 @@ def render_product_library_admin():
                                     color: var(--text-color) !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"] {
-                                    width: min(100%, 920px) !important;
+                                    width: min(100%, 1040px) !important;
                                     margin: 0 auto 0.15rem auto !important;
                                 }
                                 div[class*="st-key-product_asset_toolbar_"]
@@ -27905,13 +27908,16 @@ def render_product_library_admin():
                                                 help="Delete this Product Library file",
                                             )
 
+                                    # The button click has already triggered the normal Streamlit
+                                    # rerun. Update panel state and continue rendering in this same
+                                    # run; a second st.rerun() would reset st.tabs to Edit Product
+                                    # and make Replace/Delete appear to require multiple clicks.
                                     if replace_clicked:
                                         st.session_state["product_library_open_product_id"] = product_id
                                         st.session_state[replace_panel_key] = not bool(
                                             st.session_state.get(replace_panel_key, False)
                                         )
                                         st.session_state[delete_panel_key] = False
-                                        st.rerun()
 
                                     if delete_clicked:
                                         st.session_state["product_library_open_product_id"] = product_id
@@ -27919,7 +27925,6 @@ def render_product_library_admin():
                                             st.session_state.get(delete_panel_key, False)
                                         )
                                         st.session_state[replace_panel_key] = False
-                                        st.rerun()
 
                                     if st.session_state.get(replace_panel_key, False):
                                         with st.container(
