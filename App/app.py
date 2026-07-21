@@ -4068,8 +4068,55 @@ def _rerun_upload_region():
 
 @st.cache_data(max_entries=256, show_spinner=False)
 def _managed_image_data_url(file_type, file_bytes):
-    """Cache preview encoding so repeated uploader interactions stay lightweight."""
-    encoded = base64.b64encode(bytes(file_bytes or b"")).decode()
+    """Return a compact cached thumbnail instead of embedding the full upload.
+
+    Pending uploads can be several megabytes each. Embedding every original file
+    as Base64 made each delete interaction resend and repaint all full-resolution
+    images, even when Streamlit fragments were enabled. A small thumbnail keeps
+    the preview visually identical while reducing browser payload and rerender
+    work by orders of magnitude. The original bytes remain untouched in session
+    state and are still used for the eventual upload.
+    """
+    raw = bytes(file_bytes or b"")
+    if not raw:
+        return ""
+
+    if Image is not None:
+        try:
+            with Image.open(io.BytesIO(raw)) as source:
+                preview = ImageOps.exif_transpose(source).copy()
+                preview.thumbnail((420, 300), Image.Resampling.LANCZOS)
+
+                # JPEG is much smaller for ordinary product photos. Preserve
+                # transparency only when the source actually contains it.
+                has_alpha = preview.mode in {"RGBA", "LA"} or (
+                    preview.mode == "P" and "transparency" in preview.info
+                )
+                buffer = io.BytesIO()
+                if has_alpha:
+                    if preview.mode != "RGBA":
+                        preview = preview.convert("RGBA")
+                    preview.save(buffer, format="PNG", optimize=True)
+                    mime_type = "image/png"
+                else:
+                    if preview.mode != "RGB":
+                        preview = preview.convert("RGB")
+                    preview.save(
+                        buffer,
+                        format="JPEG",
+                        quality=74,
+                        optimize=True,
+                        progressive=True,
+                    )
+                    mime_type = "image/jpeg"
+
+                encoded = base64.b64encode(buffer.getvalue()).decode()
+                return f"data:{mime_type};base64,{encoded}"
+        except Exception:
+            # Unsupported/corrupt images retain the previous safe fallback.
+            pass
+
+    encoded = base64.b64encode(raw).decode()
     return f"data:{str(file_type or 'image/png')};base64,{encoded}"
 
 
