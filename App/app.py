@@ -109,6 +109,11 @@ except Exception:
 # v500 Graphic Intelligence Engine: add named style collections, prompt-aware style
 #   routing, Creative Director production briefs, campaign metadata, shared style
 #   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
+# v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
+#   default governance, archive/delete, comparison, merge, and version snapshots.
+# v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
+#   campaign and brand memory, Product Library grounding hooks, cleanup/comparison
+#   workflows, continuous generation learning, expanded QA, and admin governance.
 # v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
 #   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
 #   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
@@ -16647,6 +16652,248 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
         return {}
 
 
+
+# ============================================================
+# Consolidated Graphic Platform Intelligence (v700 / Phases 1-15)
+# ============================================================
+
+GRAPHIC_CAMPAIGN_SOURCE_TYPE = "graphic_campaign_memory"
+GRAPHIC_BRAND_RULE_SOURCE_TYPE = "graphic_brand_rule"
+GRAPHIC_GENERATION_INTELLIGENCE_SOURCE_TYPE = "graphic_generation_intelligence"
+GRAPHIC_AGENT_VERSION = "v700-multi-agent"
+
+
+def _graphic_intelligence_rows(source_types=None, limit=1000):
+    """Load Graphic intelligence records without requiring a new SQL schema."""
+    wanted = {str(x) for x in (source_types or []) if str(x).strip()}
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=limit
+        )
+    except Exception as error:
+        diagnostic_log("graphic_intelligence_rows_failed", error=str(error))
+        return []
+    result = []
+    for row in rows or []:
+        if str(row.get("department") or "").strip().lower() not in {"graphic", "graphic marketing"}:
+            continue
+        source = str(row.get("source_type") or "")
+        record_type = str(row.get("record_type") or "")
+        if wanted and source not in wanted and record_type not in wanted:
+            continue
+        result.append(row)
+    return result
+
+
+def extract_graphic_campaign_name(prompt_text):
+    """Resolve an explicit campaign name from structured or natural-language prompts."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    patterns = [
+        r"\bCampaign\s*:\s*([^\n|]{2,120})",
+        r"\b(?:campaign|launch)\s+(?:named|called)\s+[\"“']([^\"”']{2,120})[\"”']",
+        r"\bfor\s+(?:the\s+)?[\"“']([^\"”']{2,120})[\"”']\s+campaign\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, value, flags=re.IGNORECASE)
+        if match:
+            return re.sub(r"\s+", " ", match.group(1)).strip(" .,:;-")[:120]
+    return ""
+
+
+def retrieve_graphic_campaign_memory(prompt_text, limit=6):
+    """Retrieve matching persistent campaign decisions and prior generation lessons."""
+    campaign = extract_graphic_campaign_name(prompt_text)
+    query = re.sub(r"[^a-z0-9]+", " ", f"{campaign} {prompt_text}".casefold()).strip()
+    tokens = {x for x in query.split() if len(x) >= 3}
+    rows = _graphic_intelligence_rows(
+        {GRAPHIC_CAMPAIGN_SOURCE_TYPE, GRAPHIC_GENERATION_INTELLIGENCE_SOURCE_TYPE},
+        limit=500,
+    )
+    scored = []
+    for row in rows:
+        haystack = " ".join(str(row.get(k) or "") for k in (
+            "issue", "question", "solution", "keywords", "vehicle", "category"
+        )).casefold()
+        score = sum(1 for token in tokens if token in haystack)
+        if campaign and campaign.casefold() in haystack:
+            score += 12
+        if score:
+            scored.append((score, row))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    snippets = []
+    for _, row in scored[:max(1, int(limit))]:
+        solution = str(row.get("solution") or "").strip()
+        if solution:
+            snippets.append(solution[:2500])
+    return "\n\n".join(snippets)[:10000]
+
+
+def retrieve_graphic_brand_rules(limit=20):
+    """Return persistent brand rules plus the built-in non-invention guardrails."""
+    rows = _graphic_intelligence_rows({GRAPHIC_BRAND_RULE_SOURCE_TYPE}, limit=200)
+    rules = []
+    for row in rows[:limit]:
+        value = str(row.get("solution") or row.get("issue") or "").strip()
+        if value and value not in rules:
+            rules.append(value)
+    base = [
+        "Use only verified product facts and user-supplied marketing copy.",
+        "Preserve official AutoTecPro logo geometry and wording.",
+        "Never invent vehicle compatibility, specifications, warranty, pricing, or promotions.",
+        "Keep the uploaded product physically accurate and visually dominant.",
+    ]
+    return "\n".join(f"- {x}" for x in (base + rules)[:30])
+
+
+def detect_graphic_special_workflow(prompt_text):
+    """Identify product cleanup and comparison workflows requested in either Graphic mode."""
+    lower = str(prompt_text or "").casefold()
+    cleanup = any(x in lower for x in (
+        "clean up", "cleanup", "remove dust", "remove scratches", "remove reflection",
+        "white background", "transparent background", "isolate product", "retouch product",
+        "enhance product photo", "product cleanup",
+    ))
+    comparison = any(x in lower for x in (
+        "compare products", "product comparison", "side by side", "versus", " vs ",
+        "comparison graphic", "comparison chart",
+    ))
+    return {"cleanup": cleanup, "comparison": comparison}
+
+
+def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength="High"):
+    """Run the six-agent planning layer in one bounded Responses call.
+
+    One call avoids latency from six sequential requests while preserving distinct
+    Creative Director, Product Expert, Brand Guardian, Copywriter, Campaign
+    Strategist, and QA responsibilities.
+    """
+    roles = ", ".join(
+        f"{x.get('name')}: {x.get('role')}" for x in (role_items or [])[:12]
+        if isinstance(x, dict)
+    ) or "No uploaded images"
+    campaign_memory = retrieve_graphic_campaign_memory(prompt_text)
+    brand_rules = retrieve_graphic_brand_rules()
+    workflow = detect_graphic_special_workflow(prompt_text)
+    instructions = (
+        "Act as a coordinated AutoTecPro Graphic Marketing production team. Return one strict "
+        "JSON object only with keys: creative_director, product_expert, brand_guardian, "
+        "copywriter, campaign_strategist, visual_qa, final_image_prompt, prohibited_changes, "
+        "required_copy, verified_facts_only, campaign_memory_used. Each agent must stay in its "
+        "role. Never invent specs, prices, compatibility, promotions, warranties, product parts, "
+        "logos, or claims. final_image_prompt must be directly usable by an image model and must "
+        "not contain internal analysis labels. For cleanup, preserve every product feature and only "
+        "retouch defects/background. For comparisons, preserve each distinct product and never "
+        "fabricate comparison facts."
+    )
+    user_text = (
+        f"REQUEST:\n{str(prompt_text or '')[:7000]}\n\n"
+        f"UPLOADED ROLES:\n{roles}\n\nSTYLE STRENGTH: {style_strength}\n"
+        f"SPECIAL WORKFLOW: {json.dumps(workflow)}\n\nBRAND RULES:\n{brand_rules[:6000]}\n\n"
+        f"RELEVANT CAMPAIGN MEMORY:\n{campaign_memory[:7000] or 'None'}"
+    )
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=instructions,
+            input=user_text,
+            max_output_tokens=3200,
+        )
+        plan = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if isinstance(plan, dict):
+            plan["agent_version"] = GRAPHIC_AGENT_VERSION
+            plan["special_workflow"] = workflow
+            return plan
+    except Exception as error:
+        diagnostic_log("graphic_multi_agent_plan_failed", error_type=type(error).__name__, error=str(error))
+    return {
+        "agent_version": GRAPHIC_AGENT_VERSION,
+        "special_workflow": workflow,
+        "creative_director": "Follow the user request with clear hierarchy and platform-appropriate composition.",
+        "product_expert": "Preserve uploaded product geometry and use verified facts only.",
+        "brand_guardian": brand_rules,
+        "copywriter": "Use only exact user-supplied copy; keep it readable and concise.",
+        "campaign_strategist": campaign_memory or "No prior campaign memory was selected.",
+        "visual_qa": "Check product fidelity, text readability, logo accuracy, layout, and claim safety.",
+        "final_image_prompt": str(prompt_text or ""),
+        "prohibited_changes": ["invented product parts", "invented claims", "altered logo"],
+        "required_copy": [],
+        "verified_facts_only": True,
+    }
+
+
+def _graphic_save_memory_record(source_type, issue, solution, *, keywords="", category="Graphic Intelligence", confidence=90):
+    """Save one Graphic intelligence record through the existing compatible table."""
+    payload = {
+        "department": "graphic",
+        "category": category,
+        "vehicle": "Graphic Marketing",
+        "issue": str(issue or "Graphic intelligence")[:500],
+        "question": str(issue or "Graphic intelligence")[:500],
+        "solution": str(solution or "")[:50000],
+        "keywords": str(keywords or "")[:4000],
+        "source_type": source_type,
+        "record_type": source_type,
+        "confidence_score": int(max(0, min(100, confidence))),
+        "approved": True,
+        "synced": False,
+        "embedding_status": "pending",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "created_by": st.session_state.get("username") or "system",
+    }
+    try:
+        return safe_insert_row("learned_knowledge", payload)
+    except Exception as error:
+        diagnostic_log("graphic_memory_record_save_failed", source_type=source_type, error=str(error))
+        return None
+
+
+def save_graphic_campaign_memory(campaign_name, prompt_text, multi_agent_plan, image_metadata=None):
+    """Persist campaign decisions so future assets remain visually and strategically consistent."""
+    campaign = str(campaign_name or extract_graphic_campaign_name(prompt_text) or "").strip()
+    if not campaign:
+        return None
+    payload = {
+        "campaign": campaign,
+        "request": str(prompt_text or "")[:8000],
+        "plan": multi_agent_plan or {},
+        "image": image_metadata or {},
+        "saved_at": now_iso(),
+    }
+    return _graphic_save_memory_record(
+        GRAPHIC_CAMPAIGN_SOURCE_TYPE,
+        f"Campaign Memory: {campaign}",
+        json.dumps(payload, ensure_ascii=False, default=str),
+        keywords=f"campaign {campaign} graphic marketing",
+        category="Campaign Memory",
+        confidence=92,
+    )
+
+
+def save_graphic_generation_intelligence(prompt_text, generated_image, multi_agent_plan, review=None):
+    """Continuously learn reusable production and QA lessons from each completed generation."""
+    campaign = extract_graphic_campaign_name(prompt_text)
+    style = str((generated_image or {}).get("style_collection") or "")
+    compact = {
+        "campaign": campaign,
+        "style_collection": style,
+        "request": str(prompt_text or "")[:5000],
+        "agent_plan": multi_agent_plan or {},
+        "quality_review": review or {},
+        "output_size": (generated_image or {}).get("size"),
+        "upload_roles": (generated_image or {}).get("upload_roles") or [],
+        "created_at": now_iso(),
+    }
+    issue = f"Generation Intelligence: {campaign or style or 'Graphic Asset'}"
+    return _graphic_save_memory_record(
+        GRAPHIC_GENERATION_INTELLIGENCE_SOURCE_TYPE,
+        issue,
+        json.dumps(compact, ensure_ascii=False, default=str),
+        keywords=f"{campaign} {style} generation qa product preservation".strip(),
+        category="Continuous Graphic Learning",
+        confidence=88,
+    )
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True):
@@ -16679,6 +16926,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         role_items=role_items,
         style_strength=style_strength,
     )
+    multi_agent_plan = build_graphic_multi_agent_plan(
+        prompt_text, role_items=role_items, style_strength=style_strength
+    )
+    final_agent_prompt = str((multi_agent_plan or {}).get("final_image_prompt") or "").strip()
+    if final_agent_prompt:
+        image_api_prompt += (
+            "\n\nMULTI-AGENT FINAL PRODUCTION DIRECTION:\n"
+            + final_agent_prompt[:12000]
+            + "\nThis direction is mandatory but must not be rendered as internal notes."
+        )
     if creative_director_brief:
         image_api_prompt += (
             "\n\nCREATIVE DIRECTOR PRODUCTION BRIEF:\n"
@@ -16828,6 +17085,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 or ""
             ),
             "creative_director_brief": creative_director_brief[:10000],
+            "multi_agent_plan": multi_agent_plan,
+            "multi_agent_version": GRAPHIC_AGENT_VERSION,
+            "campaign_name": extract_graphic_campaign_name(prompt_text),
+            "special_workflow": detect_graphic_special_workflow(prompt_text),
             "upload_roles": [
                 {"name": item.get("name"), "role": item.get("role")}
                 for item in role_items
@@ -16870,6 +17131,26 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 retried[0]["auto_corrected_after_review"] = True
                 retried[0]["initial_quality_review"] = review
                 return retried
+
+    # Phase 8/9: persist campaign context and reusable QA intelligence. These
+    # writes fail open and use the existing learned_knowledge schema.
+    try:
+        final_review = generated_images[0].get("quality_review") or review or {}
+        save_graphic_generation_intelligence(
+            prompt_text, generated_images[0], multi_agent_plan, final_review
+        )
+        campaign_name = extract_graphic_campaign_name(prompt_text)
+        if campaign_name:
+            save_graphic_campaign_memory(
+                campaign_name, prompt_text, multi_agent_plan,
+                {
+                    "style_collection": generated_images[0].get("style_collection"),
+                    "size": generated_images[0].get("size"),
+                    "quality_review": final_review,
+                },
+            )
+    except Exception as error:
+        diagnostic_log("graphic_continuous_learning_failed", error=str(error))
 
     return generated_images
 
@@ -32394,8 +32675,9 @@ def render_graphic_intelligence_center():
         suffix = " · Default" if profile["is_default"] else (" · Archived" if profile["is_archived"] else "")
         label_map[str(row.get("id"))] = f"{profile['name']}{suffix}"
 
-    browse_tab, edit_tab, compare_tab, merge_tab, history_tab = st.tabs([
-        "Browse", "Rename & Tags", "Compare", "Merge", "History & Versions"
+    browse_tab, edit_tab, compare_tab, merge_tab, campaign_tab, brand_tab, analytics_tab, history_tab = st.tabs([
+        "Browse", "Rename & Tags", "Compare", "Merge", "Campaign Memory",
+        "Brand & Agents", "Intelligence Analytics", "History & Versions"
     ])
 
     with browse_tab:
@@ -32484,6 +32766,84 @@ def render_graphic_intelligence_center():
             _graphic_style_merge_records(selected_rows, merge_name, [x.strip() for x in merge_tags.split(",") if x.strip()])
             st.success("Styles merged. Source collections were archived and versioned.")
             st.rerun()
+
+    with campaign_tab:
+        st.markdown("#### Campaign Memory")
+        campaign_rows = _graphic_intelligence_rows({GRAPHIC_CAMPAIGN_SOURCE_TYPE}, limit=500)
+        st.caption("Campaign decisions are automatically reused when a future prompt names the same campaign.")
+        if campaign_rows:
+            for row in campaign_rows[:100]:
+                with st.expander(f"{row.get('issue') or 'Campaign'} · {row.get('created_at') or ''}"):
+                    st.text_area("Campaign record", str(row.get("solution") or "")[:16000], height=260, disabled=True, key=f"campaign_memory_{row.get('id')}")
+        else:
+            st.info("No campaign memory has been saved yet. Add a campaign name in Advanced Designer or mention one in Graphic Chat.")
+
+    with brand_tab:
+        st.markdown("#### Brand Governance and Multi-Agent System")
+        st.write("**Active production agents:** Creative Director, Product Expert, Brand Guardian, Copywriter, Campaign Strategist, Visual QA.")
+        st.code(retrieve_graphic_brand_rules(), language=None)
+        with st.form("graphic_brand_rule_form", clear_on_submit=True):
+            rule_name = st.text_input("Brand rule name", placeholder="Example: Facebook CTA rule")
+            rule_text = st.text_area("Brand rule", placeholder="Example: Keep CTA to three words or fewer and never cover the product.")
+            save_rule = st.form_submit_button("Save Brand Rule", use_container_width=True)
+        if save_rule:
+            if len(rule_name.strip()) < 2 or len(rule_text.strip()) < 5:
+                st.warning("Enter a clear rule name and rule.")
+            else:
+                _graphic_save_memory_record(
+                    GRAPHIC_BRAND_RULE_SOURCE_TYPE, rule_name, rule_text,
+                    keywords=f"brand rule {rule_name}", category="Brand Governance", confidence=95
+                )
+                st.success("Brand rule saved and will be used by the Brand Guardian agent.")
+                st.rerun()
+        brand_rows = _graphic_intelligence_rows({GRAPHIC_BRAND_RULE_SOURCE_TYPE}, limit=200)
+        for row in brand_rows[:100]:
+            with st.expander(str(row.get("issue") or "Brand rule")):
+                st.write(str(row.get("solution") or ""))
+                confirm_key = f"delete_brand_rule_confirm_{row.get('id')}"
+                if st.checkbox("Confirm delete", key=confirm_key):
+                    if st.button("Delete Brand Rule", key=f"delete_brand_rule_{row.get('id')}"):
+                        try:
+                            supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                            st.success("Brand rule deleted.")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(f"Could not delete brand rule: {error}")
+
+    with analytics_tab:
+        st.markdown("#### Graphic Intelligence Analytics")
+        generation_rows = _graphic_intelligence_rows({GRAPHIC_GENERATION_INTELLIGENCE_SOURCE_TYPE}, limit=1000)
+        campaign_rows = _graphic_intelligence_rows({GRAPHIC_CAMPAIGN_SOURCE_TYPE}, limit=1000)
+        brand_rows = _graphic_intelligence_rows({GRAPHIC_BRAND_RULE_SOURCE_TYPE}, limit=1000)
+        render_metric_row([
+            ("Saved Styles", len(active_rows)),
+            ("Campaign Records", len(campaign_rows)),
+            ("Generation Lessons", len(generation_rows)),
+            ("Custom Brand Rules", len(brand_rows)),
+        ])
+        workflow_counts = {"cleanup": 0, "comparison": 0, "standard": 0}
+        quality_scores = []
+        for row in generation_rows:
+            try:
+                data = json.loads(str(row.get("solution") or "{}"))
+            except Exception:
+                data = {}
+            special = ((data.get("agent_plan") or {}).get("special_workflow") or {})
+            if special.get("cleanup"):
+                workflow_counts["cleanup"] += 1
+            elif special.get("comparison"):
+                workflow_counts["comparison"] += 1
+            else:
+                workflow_counts["standard"] += 1
+            review = data.get("quality_review") or {}
+            try:
+                quality_scores.append(float(review.get("product_accuracy_score")))
+            except Exception:
+                pass
+        st.write(f"**Workflow usage:** Standard {workflow_counts['standard']} · Cleanup {workflow_counts['cleanup']} · Comparison {workflow_counts['comparison']}")
+        if quality_scores:
+            st.write(f"**Average product-accuracy score:** {round(sum(quality_scores)/len(quality_scores), 1)} / 100")
+        st.caption("This section uses generation provenance and QA records saved automatically after successful Graphic outputs.")
 
     with history_tab:
         st.caption("Version snapshots are created automatically before rename, tag, default, archive, merge, or delete operations.")
