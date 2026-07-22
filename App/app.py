@@ -106,6 +106,9 @@ except Exception:
 #   Designer selector while keeping one shared memory pipeline; automatically reuse
 #   approved styles in both modes; classify uploaded image roles, preserve product
 #   identity, and run a bounded post-generation visual accuracy review with one retry.
+# v500 Graphic Intelligence Engine: add named style collections, prompt-aware style
+#   routing, Creative Director production briefs, campaign metadata, shared style
+#   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
 
 # ============================================================
 # App Paths / API
@@ -15339,7 +15342,7 @@ def _graphic_style_profile_text(profile):
     """Serialize a style profile into vector-search-friendly plain text."""
     profile = dict(profile or {})
     ordered_keys = (
-        "title", "feedback", "record_type", "original_prompt",
+        "title", "collection_name", "collection_slug", "collection_tags", "feedback", "record_type", "original_prompt",
         "composition", "camera_angle", "crop", "product_position",
         "vehicle_position", "lighting", "background", "color_palette",
         "typography", "text_hierarchy", "logo_rules", "cta_style",
@@ -15360,6 +15363,7 @@ def _graphic_style_profile_text(profile):
             value = json.dumps(value, ensure_ascii=False)
         lines.append(f"{key.replace('_', ' ').title()}: {value}")
     return "\n".join(lines)
+
 
 
 def _ensure_graphic_style_bucket(admin_client):
@@ -15672,6 +15676,121 @@ def is_graphic_reference_style_learning_request(
     )
 
 
+
+def extract_graphic_style_collection_name(prompt_text):
+    """Extract an explicit named Graphic style collection from natural language."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    patterns = [
+        r'(?:save|remember|learn|name|call)(?:\s+(?:this|the))?(?:\s+style)?\s+(?:as|named)\s+["“\']([^"”\']{2,100})["”\']',
+        r'(?:use|apply|follow)(?:\s+(?:the|my|saved))?\s+(?:style|collection)\s+["“\']([^"”\']{2,100})["”\']',
+        r'(?:style|collection)\s*:\s*["“\']?([^"”\']{2,100})["”\']?',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, value, flags=re.IGNORECASE)
+        if match:
+            name = re.sub(r"\s+", " ", match.group(1)).strip(" .,:;-")
+            if name:
+                return name[:100]
+    return ""
+
+
+def _graphic_style_collection_registry():
+    """Return session-local named style index while persistent records remain in Supabase/vector search."""
+    return st.session_state.setdefault("graphic_style_collections", {})
+
+
+def list_graphic_style_collection_names():
+    """Return stable named collections known in the active session."""
+    names = []
+    for key, value in _graphic_style_collection_registry().items():
+        profile = (value or {}).get("profile") if isinstance(value, dict) else {}
+        title = str((profile or {}).get("title") or key or "").strip()
+        if title and title not in names:
+            names.append(title)
+    return sorted(names, key=str.casefold)
+
+
+def get_approved_graphic_reference_for_prompt(prompt_text=""):
+    """Select an explicitly requested named style, otherwise the newest approved style."""
+    requested = extract_graphic_style_collection_name(prompt_text)
+    registry = _graphic_style_reference_registry()
+    if not registry:
+        hydrate_latest_graphic_reference_from_storage()
+        registry = _graphic_style_reference_registry()
+    if not registry:
+        return None
+
+    if requested:
+        requested_key = re.sub(r"[^a-z0-9]+", " ", requested.casefold()).strip()
+        for reference in reversed(list(registry.values())):
+            if not isinstance(reference, dict):
+                continue
+            title = str((reference.get("profile") or {}).get("title") or "").strip()
+            title_key = re.sub(r"[^a-z0-9]+", " ", title.casefold()).strip()
+            if title_key and (title_key == requested_key or requested_key in title_key or title_key in requested_key):
+                return reference
+
+    try:
+        _, reference = next(reversed(registry.items()))
+    except Exception:
+        return None
+    return reference if isinstance(reference, dict) else None
+
+
+def build_graphic_creative_director_brief(prompt_text, role_items=None, style_strength="High"):
+    """Create a concise internal production brief before image generation.
+
+    This is intentionally bounded and fails open so image generation remains
+    available if the planning call is unavailable.
+    """
+    role_summary = ", ".join(
+        f"{item.get('name')}: {item.get('role')}"
+        for item in (role_items or [])[:10]
+        if isinstance(item, dict)
+    ) or "No uploaded images"
+    requested_collection = extract_graphic_style_collection_name(prompt_text) or "Automatically select the closest approved style"
+    instructions = (
+        "Act as AutoTecPro's senior Creative Director. Convert the request into a "
+        "concise production brief for an image model. Return plain text only with "
+        "these headings: Objective, Platform and Ratio, Product Identity Lock, "
+        "Selected Style Collection, Layout, Typography, Color and Lighting, "
+        "Brand Rules, Required Copy, Required Product Facts, Negative Constraints, "
+        "Final Quality Checklist. Never invent specifications, prices, compatibility, "
+        "warranty, claims, or product features. Uploaded product geometry must be preserved."
+    )
+    user_text = (
+        f"REQUEST:\n{str(prompt_text or '')[:6000]}\n\n"
+        f"UPLOADED IMAGE ROLES:\n{role_summary}\n\n"
+        f"STYLE STRENGTH: {style_strength}\n"
+        f"REQUESTED STYLE COLLECTION: {requested_collection}"
+    )
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=instructions,
+            input=user_text,
+            max_output_tokens=1400,
+        )
+        brief = str(getattr(response, "output_text", "") or "").strip()
+        if brief:
+            return brief[:10000]
+    except Exception as error:
+        diagnostic_log(
+            "graphic_creative_director_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+
+    return (
+        "Objective: Create the requested AutoTecPro marketing image.\n"
+        f"Selected Style Collection: {requested_collection}.\n"
+        f"Uploaded Image Roles: {role_summary}.\n"
+        "Product Identity Lock: Preserve all real product geometry and physical details.\n"
+        "Negative Constraints: Do not invent specifications, claims, text, logos, or product features.\n"
+        "Final Quality Checklist: product fidelity, readable copy, correct ratio, brand-safe composition."
+    )
+
+
 def analyze_uploaded_graphic_style_set(reference_payloads, prompt_text=""):
     """Analyze multiple uploaded references as one reusable shared style profile."""
     payloads = [item for item in (reference_payloads or []) if isinstance(item, dict)]
@@ -15730,6 +15849,22 @@ def analyze_uploaded_graphic_style_set(reference_payloads, prompt_text=""):
         ).encode("utf-8")
         profile["record_type"] = "approved_reference_style_set"
         profile["feedback"] = "approved"
+        requested_title = extract_graphic_style_collection_name(prompt_text)
+        if requested_title:
+            profile["title"] = requested_title
+        profile["collection_name"] = str(
+            profile.get("title") or requested_title or "Approved Reference Style Set"
+        ).strip()[:100]
+        profile["collection_slug"] = re.sub(
+            r"[^a-z0-9]+", "-", profile["collection_name"].casefold()
+        ).strip("-")[:120]
+        profile["collection_tags"] = [
+            item for item in {
+                str(profile.get("visual_mood") or "").strip(),
+                str(profile.get("background") or "").strip(),
+                str(profile.get("color_palette") or "").strip(),
+            } if item
+        ]
         profile["reference_count"] = len(payloads)
         profile["original_prompt"] = str(prompt_text or "").strip()
         profile["image_fingerprint"] = hashlib.sha256(aggregate_seed).hexdigest()
@@ -15746,6 +15881,7 @@ def analyze_uploaded_graphic_style_set(reference_payloads, prompt_text=""):
             reference_count=len(payloads),
         )
         return {}
+
 
 
 def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
@@ -15863,7 +15999,7 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
 
     if saved_references:
         newest = saved_references[-1]
-        _graphic_style_reference_registry()[fingerprint] = {
+        reference_record = {
             # Preserve legacy single-reference fields for compatibility.
             "bytes": newest["bytes"],
             "name": newest["name"],
@@ -15873,6 +16009,11 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
             "prompt": str(prompt_text or ""),
             "profile": profile,
         }
+        _graphic_style_reference_registry()[fingerprint] = reference_record
+        collection_name = str(
+            profile.get("collection_name") or profile.get("title") or fingerprint
+        ).strip()
+        _graphic_style_collection_registry()[collection_name] = reference_record
 
     return {
         "profile": profile,
@@ -15881,7 +16022,9 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
         "vector_ready": bool(vector_ready),
         "already_saved": False,
         "filenames": filenames,
+        "collection_name": str(profile.get("collection_name") or title).strip(),
     }
+
 
 
 def hydrate_latest_graphic_reference_from_storage():
@@ -15959,19 +16102,10 @@ def hydrate_latest_graphic_reference_from_storage():
     return True
 
 
-def get_latest_approved_graphic_reference():
-    """Return the newest approved reference, restoring it from Storage if needed."""
-    registry = _graphic_style_reference_registry()
-    if not registry:
-        hydrate_latest_graphic_reference_from_storage()
-        registry = _graphic_style_reference_registry()
-    if not registry:
-        return None
-    try:
-        _, reference = next(reversed(registry.items()))
-    except Exception:
-        return None
-    return reference if isinstance(reference, dict) else None
+def get_latest_approved_graphic_reference(prompt_text=""):
+    """Return the best approved reference for a prompt, restoring Storage if needed."""
+    return get_approved_graphic_reference_for_prompt(prompt_text)
+
 
 
 def graphic_prompt_disables_approved_reference(prompt_text):
@@ -15995,7 +16129,7 @@ def prepare_saved_graphic_reference(prompt_text, use_approved_style=True):
     """
     if not bool(use_approved_style) or graphic_prompt_disables_approved_reference(prompt_text):
         return []
-    reference = get_latest_approved_graphic_reference()
+    reference = get_latest_approved_graphic_reference(prompt_text)
     if not reference:
         diagnostic_log(
             "approved_graphic_reference_not_in_session",
@@ -16024,6 +16158,7 @@ def prepare_saved_graphic_reference(prompt_text, use_approved_style=True):
         files.append(file_obj)
     return files
 
+
 def retrieve_graphic_marketing_guidance(prompt_text):
     """
     Retrieve concise approved design and product guidance before image creation.
@@ -16046,7 +16181,10 @@ def retrieve_graphic_marketing_guidance(prompt_text):
             model="gpt-5.5",
             instructions=(
                 "Retrieve and rank only relevant AutoTecPro guidance for this "
-                "Graphic Marketing image. Prioritize approved_reference_style_set "
+                "Graphic Marketing image. If the request names a style collection, "
+                "prioritize an exact or closest collection-title match. Otherwise choose "
+                "the most relevant approved style by product, platform, campaign, color, "
+                "layout, and audience. Prioritize approved_reference_style_set "
                 "and approved_visual_style records with high confidence and repeated use. "
                 "Treat rejected_visual_style "
                 "records as negative constraints that must not be repeated. Prefer "
@@ -16074,6 +16212,7 @@ def retrieve_graphic_marketing_guidance(prompt_text):
             error=str(error),
         )
         return ""
+
 
 
 def build_graphic_brand_safe_prompt(prompt_text):
@@ -16532,6 +16671,18 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
     )
+    creative_director_brief = build_graphic_creative_director_brief(
+        prompt_text,
+        role_items=role_items,
+        style_strength=style_strength,
+    )
+    if creative_director_brief:
+        image_api_prompt += (
+            "\n\nCREATIVE DIRECTOR PRODUCTION BRIEF:\n"
+            + creative_director_brief
+            + "\nTreat this brief as internal production direction. "
+              "Do not render its headings or internal notes into the artwork."
+        )
     reference_images = prepare_graphic_reference_images(
         [item["file"] for item in role_items]
     )
@@ -16544,7 +16695,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     if saved_references:
         reference_images = list(saved_references) + reference_images
 
-        latest_reference = get_latest_approved_graphic_reference() or {}
+        latest_reference = get_latest_approved_graphic_reference(prompt_text) or {}
         profile = latest_reference.get("profile") or {}
         profile_text = _graphic_style_profile_text(profile) if profile else ""
         if profile_text:
@@ -16668,6 +16819,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 else ""
             ),
             "style_memory_status": "not_reviewed",
+            "style_collection": str(
+                ((get_latest_approved_graphic_reference(prompt_text) or {}).get("profile") or {}).get("title")
+                or extract_graphic_style_collection_name(prompt_text)
+                or ""
+            ),
+            "creative_director_brief": creative_director_brief[:10000],
+            "upload_roles": [
+                {"name": item.get("name"), "role": item.get("role")}
+                for item in role_items
+            ],
             "style_memory_fingerprint": hashlib.sha256(
                 (data_url + prompt_text).encode("utf-8")
             ).hexdigest(),
@@ -16708,6 +16869,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 return retried
 
     return generated_images
+
 
 
 def generated_image_answer_text(images, regenerated=False):
@@ -26817,6 +26979,8 @@ def build_advanced_image_designer_request(
     style_strength="High",
     upload_role="Auto-detect",
     quality_review=True,
+    style_collection="",
+    campaign_name="",
 ):
     """Build one polished image prompt for the existing Graphic pipeline."""
     category = _clean_graphic_designer_value(category, 120)
@@ -26843,6 +27007,8 @@ def build_advanced_image_designer_request(
     use_approved_reference_style = bool(use_approved_reference_style)
     preserve_product = bool(preserve_product)
     quality_review = bool(quality_review)
+    style_collection = _clean_graphic_designer_value(style_collection, 100)
+    campaign_name = _clean_graphic_designer_value(campaign_name, 120)
     style_strength = _clean_graphic_designer_value(style_strength, 40) or "High"
     upload_role = _clean_graphic_designer_value(upload_role, 60) or "Auto-detect"
     branding_text = ", ".join(
@@ -26866,6 +27032,7 @@ def build_advanced_image_designer_request(
 Create a finished professional marketing image for AutoTecPro.
 
 DESIGN BRIEF
+- Campaign / collection: {campaign_name or "Not specified"}
 - Category: {category}
 - Design type: {actual_design}
 - Product / model: {product or "Use the uploaded reference product image"}
@@ -26882,6 +27049,7 @@ DESIGN BRIEF
 - Intended output: {output_format}
 - Additional instructions: {additional_instructions or "None"}
 - Approved reference style: {"Required — use the approved reference style from Graphic Memory" if use_approved_reference_style else "Not requested"}
+- Named style collection: {style_collection or "Automatically select the closest approved style"}
 - Uploaded image role: {upload_role}
 - Preserve product exactly: {"Required" if preserve_product else "Flexible"}
 - Reference style strength: {style_strength}
@@ -26917,6 +27085,7 @@ DESIGN REQUIREMENTS
             "quality_retry": quality_review,
         },
     }
+
 
 
 def render_advanced_image_designer_panel():
@@ -27052,6 +27221,21 @@ def render_advanced_image_designer_panel():
                 "Website or contact information",
                 placeholder="Only enter text that should appear in the design",
             )
+            campaign_name = st.text_input(
+                "Campaign name (optional)",
+                placeholder="Example: 2026 Ford Digital Cluster Launch",
+            )
+            known_style_names = list_graphic_style_collection_names()
+            style_collection = st.selectbox(
+                "Saved style collection",
+                options=["Auto-select closest approved style"] + known_style_names,
+                help=(
+                    "Named collections learned in this session appear here. "
+                    "Collections saved earlier are still retrieved through Graphic Memory."
+                ),
+            )
+            if style_collection == "Auto-select closest approved style":
+                style_collection = ""
             use_approved_reference_style = st.checkbox(
                 "Use approved reference style from Graphic Memory",
                 value=True,
@@ -27126,10 +27310,13 @@ def render_advanced_image_designer_panel():
                 style_strength=style_strength,
                 upload_role=upload_role,
                 quality_review=quality_review,
+                style_collection=style_collection,
+                campaign_name=campaign_name,
             )
 
     # The normal Graphic Chat composer always remains active.
     return {"active": False, "prompt": None, "display_text": None}
+
 
 
 
