@@ -25,6 +25,7 @@ import re
 import json
 import time
 import io
+import zipfile
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
@@ -71,6 +72,9 @@ except Exception:
 # v394 upload correction: align Streamlit Cloud and application limits at 20 MB,
 #   remove obsolete per-widget upload-size introspection, retain stable native upload
 #   behavior, and allow ZIP attachments in the main chat uploader.
+# v396 intelligent archive analysis: safe recursive ZIP extraction, hidden-file filtering,
+#   folder manifests, supported-file routing, encryption/path-traversal/ZIP-bomb protection,
+#   and dedicated ZIP preview artwork without changing the stable uploader lifecycle.
 
 # ============================================================
 # App Paths / API
@@ -84,6 +88,7 @@ PDF_FILE_ICON = APP_DIR / "pdf_file_icon.png"
 WORD_FILE_ICON = APP_DIR / "word_file_icon.png"
 POWERPOINT_FILE_ICON = APP_DIR / "powerpoint_file_icon.png"
 EXCEL_FILE_ICON = APP_DIR / "excel_file_icon.png"
+ZIP_FILE_ICON = APP_DIR / "zip_file_icon.png"
 
 PAGE_ICON = "🚗"
 if Image is not None and LOGO_FILE.exists():
@@ -3552,6 +3557,7 @@ def _normalized_upload_mime_type(file_name, reported_type=""):
             "application/vnd.openxmlformats-officedocument."
             "presentationml.presentation"
         ),
+        ".zip": "application/zip",
     }
 
     expected_type = mime_by_extension.get(extension)
@@ -4175,6 +4181,8 @@ def _upload_preview_icon_for_file(file_name):
         return EXCEL_FILE_ICON
     if extension in {".ppt", ".pptx"}:
         return POWERPOINT_FILE_ICON
+    if extension == ".zip":
+        return ZIP_FILE_ICON
     return None
 
 
@@ -16852,6 +16860,176 @@ def upload_openai_file_once(uploaded_file):
 
     return uploaded_openai_file.id
 
+
+ARCHIVE_SUPPORTED_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp",
+    ".pdf", ".txt", ".doc", ".docx",
+    ".xls", ".xlsx", ".xlsm", ".xlsb", ".csv",
+    ".ppt", ".pptx",
+}
+ARCHIVE_IGNORED_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}
+ARCHIVE_MAX_FILES = 100
+ARCHIVE_MAX_DEPTH = 3
+ARCHIVE_MAX_EXTRACTED_BYTES = MAX_UPLOAD_BYTES
+ARCHIVE_MAX_COMPRESSION_RATIO = 200
+
+
+class ArchiveValidationError(ValueError):
+    """Raised when a ZIP attachment is unsafe or exceeds archive limits."""
+
+
+def _archive_member_is_hidden(member_name):
+    """Ignore macOS metadata, hidden folders/files, and common OS artifacts."""
+    normalized = str(member_name or "").replace("\\", "/").strip("/")
+    if not normalized:
+        return True
+    parts = [part for part in normalized.split("/") if part]
+    lowered = [part.casefold() for part in parts]
+    return (
+        any(part == "__macosx" for part in lowered)
+        or any(part.startswith(".") for part in parts)
+        or any(part in ARCHIVE_IGNORED_NAMES for part in lowered)
+    )
+
+
+def _safe_archive_member_path(member_name):
+    """Return a normalized relative ZIP path or reject traversal/absolute paths."""
+    raw = str(member_name or "").replace("\\", "/")
+    if not raw or raw.startswith("/") or re.match(r"^[A-Za-z]:/", raw):
+        raise ArchiveValidationError("The ZIP contains an unsafe absolute file path.")
+    parts = [part for part in raw.split("/") if part not in {"", "."}]
+    if any(part == ".." for part in parts):
+        raise ArchiveValidationError("The ZIP contains an unsafe parent-directory path.")
+    return "/".join(parts)
+
+
+def _archive_member_is_symlink(info):
+    """Reject Unix symbolic links stored inside an archive."""
+    unix_mode = (int(getattr(info, "external_attr", 0)) >> 16) & 0xFFFF
+    return (unix_mode & 0o170000) == 0o120000
+
+
+def _archive_flattened_filename(archive_label, relative_path):
+    """Create an OpenAI-safe filename while the manifest preserves exact folders."""
+    clean_archive = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(archive_label).stem).strip("_")
+    clean_path = re.sub(r"[^A-Za-z0-9._-]+", "__", relative_path).strip("_")
+    return f"{clean_archive or 'archive'}__{clean_path or 'file'}"
+
+
+def _extract_zip_payload(payload, archive_label, *, depth=0, parent_path="", state=None):
+    """Safely extract supported files from a ZIP entirely in memory."""
+    if depth > ARCHIVE_MAX_DEPTH:
+        raise ArchiveValidationError(
+            f"Nested ZIP depth exceeds the supported limit of {ARCHIVE_MAX_DEPTH}."
+        )
+    if state is None:
+        state = {
+            "files": [], "manifest": [], "ignored": [], "unsupported": [],
+            "total_bytes": 0, "member_count": 0,
+        }
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+    except (zipfile.BadZipFile, OSError) as error:
+        raise ArchiveValidationError(f"{archive_label} is not a valid ZIP archive.") from error
+    with archive:
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            state["member_count"] += 1
+            if state["member_count"] > ARCHIVE_MAX_FILES:
+                raise ArchiveValidationError(f"The ZIP contains more than {ARCHIVE_MAX_FILES} files.")
+            if int(getattr(info, "flag_bits", 0)) & 0x1:
+                raise ArchiveValidationError(
+                    f"Encrypted or password-protected ZIP entries are not supported: {info.filename}"
+                )
+            if _archive_member_is_symlink(info):
+                raise ArchiveValidationError(f"Symbolic links are not allowed in ZIP files: {info.filename}")
+            relative_path = _safe_archive_member_path(info.filename)
+            full_path = "/".join(part for part in (parent_path, relative_path) if part)
+            if _archive_member_is_hidden(relative_path):
+                state["ignored"].append(full_path)
+                continue
+            compressed_size = max(1, int(getattr(info, "compress_size", 0) or 0))
+            uncompressed_size = int(getattr(info, "file_size", 0) or 0)
+            if uncompressed_size > 1024 * 1024 and uncompressed_size / compressed_size > ARCHIVE_MAX_COMPRESSION_RATIO:
+                raise ArchiveValidationError(f"Potential ZIP bomb detected in {full_path}.")
+            if uncompressed_size > MAX_UPLOAD_BYTES:
+                raise ArchiveValidationError(
+                    f"Extracted file exceeds the {MAX_UPLOAD_SIZE_MB} MB limit: {full_path}"
+                )
+            if state["total_bytes"] + uncompressed_size > ARCHIVE_MAX_EXTRACTED_BYTES:
+                raise ArchiveValidationError(
+                    f"Total extracted ZIP content exceeds {MAX_UPLOAD_SIZE_MB} MB."
+                )
+            try:
+                member_bytes = archive.read(info)
+            except RuntimeError as error:
+                raise ArchiveValidationError(
+                    f"Could not read {full_path}; encrypted archives are not supported."
+                ) from error
+            state["total_bytes"] += len(member_bytes)
+            extension = Path(relative_path).suffix.lower()
+            if extension == ".zip":
+                state["manifest"].append(f"[Nested ZIP] {full_path}")
+                _extract_zip_payload(
+                    member_bytes, archive_label, depth=depth + 1,
+                    parent_path=full_path, state=state,
+                )
+                continue
+            if extension not in ARCHIVE_SUPPORTED_EXTENSIONS:
+                state["unsupported"].append(full_path)
+                continue
+            output_name = _archive_flattened_filename(archive_label, full_path)
+            state["files"].append(
+                ManagedUploadedFile(
+                    member_bytes, output_name, _normalized_upload_mime_type(output_name, "")
+                )
+            )
+            state["manifest"].append(
+                f"[Analyzed] {full_path} -> {output_name} ({len(member_bytes)} bytes)"
+            )
+    return state
+
+
+def expand_chat_archives(uploaded_files):
+    """Replace ZIP attachments with validated extracted files plus a folder manifest."""
+    expanded = []
+    archive_summaries = []
+    for uploaded_file in uploaded_files or []:
+        filename = str(getattr(uploaded_file, "name", "") or "attachment")
+        if Path(filename).suffix.lower() != ".zip":
+            expanded.append(uploaded_file)
+            continue
+        result = _extract_zip_payload(_uploaded_file_bytes(uploaded_file), filename)
+        if not result["files"]:
+            raise ArchiveValidationError(f"{filename} contains no supported files to analyze.")
+        manifest_lines = [
+            "AUTOTECPRO INTELLIGENT ARCHIVE MANIFEST",
+            f"Archive: {filename}",
+            f"Analyzed files: {len(result['files'])}",
+            f"Extracted bytes: {result['total_bytes']}",
+            "", "Folder structure and routing:", *result["manifest"],
+        ]
+        if result["ignored"]:
+            manifest_lines.extend(["", "Ignored hidden/system files:", *result["ignored"]])
+        if result["unsupported"]:
+            manifest_lines.extend(["", "Unsupported files not analyzed:", *result["unsupported"]])
+        manifest_lines.extend([
+            "",
+            "Instruction: Treat the extracted attachments as files from this one archive. "
+            "Use the manifest to preserve their original folder relationships. Do not infer "
+            "content from ignored or unsupported files.",
+        ])
+        expanded.append(ManagedUploadedFile(
+            "\n".join(manifest_lines).encode("utf-8"),
+            f"{Path(filename).stem}_Archive_Manifest.txt", "text/plain",
+        ))
+        expanded.extend(result["files"])
+        archive_summaries.append(
+            f"{filename}: {len(result['files'])} supported files, "
+            f"{result['total_bytes'] / (1024 * 1024):.1f} MB extracted"
+        )
+    return expanded, archive_summaries
 
 
 
@@ -31109,8 +31287,16 @@ else:
             diagnostic_log("product_library_chat_lookup_failed", error=error)
 
         # Managed uploads are SHA-256 deduplicated and are cleared
-        # immediately after this message is completed.
-        effective_uploaded_files = list(uploaded_files or [])
+        # immediately after this message is completed. ZIP attachments are safely
+        # expanded only after submit, keeping the stable uploader UI unchanged.
+        try:
+            effective_uploaded_files, archive_summaries = expand_chat_archives(
+                list(uploaded_files or [])
+            )
+        except ArchiveValidationError as error:
+            st.error(f"ZIP analysis was stopped: {error}")
+            st.stop()
+
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
             has_recent_context=bool(st.session_state.get("messages")),
@@ -31135,11 +31321,13 @@ else:
             effective_uploaded_files
         )
 
-        if effective_uploaded_files:
+        if uploaded_files:
             file_names = ", ".join(
-                [file.name for file in effective_uploaded_files]
+                [str(getattr(file, "name", "attachment")) for file in uploaded_files]
             )
             user_display += f"\n\n📎 Attached: {file_names}"
+        if archive_summaries:
+            user_display += "\n📦 Archive analysis: " + "; ".join(archive_summaries)
 
 
         user_content_to_save = (
