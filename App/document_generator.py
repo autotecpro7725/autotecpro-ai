@@ -806,8 +806,20 @@ def _split_slide_sections(text: str) -> list[tuple[str, list[str]]]:
             if current_title or current_lines:
                 sections.append((current_title or "Overview", current_lines))
             current_title, current_lines = value, []
+        elif kind == "table":
+            # PowerPoint text placeholders accept strings, while the shared
+            # Markdown parser returns tables as list[list[str]]. Convert every
+            # row to a readable line so table-containing exports remain stable.
+            for row_index, row in enumerate(value or []):
+                cells = [
+                    _strip_docx_inline_markdown(cell)
+                    for cell in (row or [])
+                ]
+                if any(cells):
+                    prefix = "" if row_index == 0 else "• "
+                    current_lines.append(prefix + " | ".join(cells))
         elif kind != "blank":
-            current_lines.append(value)
+            current_lines.append(str(value or ""))
     if current_title or current_lines:
         sections.append((current_title or "Overview", current_lines))
     return sections or [("Overview", [text])]
