@@ -85,6 +85,13 @@ except Exception:
 # v400 full compatibility audit: preserve all v398/v399 workflows; complete
 #   Graphic-specific learning-command detection and structured learning profile;
 #   add deterministic vector-store configuration diagnostics without exposing IDs.
+# v404 complete Graphic Memory Engine (combined v401-v403 roadmap):
+#   approved/rejected style feedback, visual-style extraction, persistent style
+#   records, optional Supabase image-library storage, ranked style retrieval,
+#   and approved-reference reuse for future image generation.
+# v405 production review: harden optional Supabase Storage fallbacks, normalize
+#   SDK response shapes and upload signatures, prevent duplicate approval writes,
+#   and preserve image-generation operation when memory services are unavailable.
 
 # ============================================================
 # App Paths / API
@@ -15169,6 +15176,442 @@ def detect_graphic_brand_logo_position(prompt_text):
     return GRAPHIC_BRAND_LOGO_DEFAULT_POSITION
 
 
+
+GRAPHIC_STYLE_LIBRARY_BUCKET = "graphic-style-library"
+
+
+def _graphic_image_fingerprint(image):
+    """Return a stable non-secret identifier for a generated image."""
+    data_url = str((image or {}).get("data_url") or "")
+    prompt = str((image or {}).get("prompt") or "")
+    seed = (data_url + "\n" + prompt).encode("utf-8")
+    return hashlib.sha256(seed).hexdigest()
+
+
+def _graphic_style_feedback_registry():
+    """Session-local cache of approved/rejected image feedback."""
+    return st.session_state.setdefault("graphic_style_feedback", {})
+
+
+def _graphic_style_reference_registry():
+    """Session-local cache of approved image bytes for immediate reuse."""
+    return st.session_state.setdefault("graphic_style_references", {})
+
+
+def graphic_prompt_requests_approved_reference(prompt_text):
+    """Detect requests to reuse a previously approved visual style."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    phrases = (
+        "use the approved style",
+        "use my approved style",
+        "same approved style",
+        "like the approved image",
+        "like the approved design",
+        "use the previous approved image",
+        "use the previous approved design",
+        "same style as before",
+        "same design style as before",
+        "create another one like this",
+        "create another image like this",
+        "create another ad like this",
+        "match the previous style",
+    )
+    return any(phrase in lower for phrase in phrases)
+
+
+def analyze_graphic_style_profile(image, feedback="approved"):
+    """
+    Extract a reusable structured visual profile from a generated image.
+
+    This runs only when staff explicitly approves or rejects a style, avoiding
+    extra vision calls during ordinary image generation.
+    """
+    image = image or {}
+    data_url = str(image.get("data_url") or "")
+    prompt_text = str(image.get("prompt") or "").strip()
+    if not data_url.startswith("data:image/"):
+        return {}
+
+    instructions = (
+        "Analyze this AutoTecPro marketing artwork as a reusable production "
+        "style profile. Return one strict JSON object only. Do not use markdown. "
+        "Describe only visible or prompt-supported details. Include: "
+        "record_type, title, feedback, composition, camera_angle, crop, "
+        "product_position, vehicle_position, lighting, background, color_palette, "
+        "typography, text_hierarchy, logo_rules, cta_style, spacing, visual_mood, "
+        "required_visual_elements, prohibited_visual_elements, "
+        "product_accuracy_rules, vehicle_accuracy_rules, reusable_prompt_guidance, "
+        "reference_description, search_keywords, confidence_score. "
+        "For rejected feedback, explain what must not be repeated in "
+        "prohibited_visual_elements and reusable_prompt_guidance."
+    )
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=instructions,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                f"Feedback: {feedback}\n"
+                                f"Original prompt: {prompt_text}"
+                            ),
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": data_url,
+                        },
+                    ],
+                }
+            ],
+            max_output_tokens=2200,
+        )
+        profile = extract_json_object(
+            str(getattr(response, "output_text", "") or "")
+        )
+        if not isinstance(profile, dict):
+            return {}
+        profile["feedback"] = feedback
+        profile["original_prompt"] = prompt_text
+        profile["image_fingerprint"] = _graphic_image_fingerprint(image)
+        profile["created_at"] = now_iso()
+        return profile
+    except Exception as error:
+        diagnostic_log(
+            "graphic_style_analysis_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return {}
+
+
+def _graphic_style_profile_text(profile):
+    """Serialize a style profile into vector-search-friendly plain text."""
+    profile = dict(profile or {})
+    ordered_keys = (
+        "title", "feedback", "record_type", "original_prompt",
+        "composition", "camera_angle", "crop", "product_position",
+        "vehicle_position", "lighting", "background", "color_palette",
+        "typography", "text_hierarchy", "logo_rules", "cta_style",
+        "spacing", "visual_mood", "required_visual_elements",
+        "prohibited_visual_elements", "product_accuracy_rules",
+        "vehicle_accuracy_rules", "reusable_prompt_guidance",
+        "reference_description", "search_keywords", "confidence_score",
+        "image_fingerprint", "image_storage_path", "created_at",
+    )
+    lines = ["AUTOTECPRO GRAPHIC STYLE MEMORY"]
+    for key in ordered_keys:
+        value = profile.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, (list, tuple, dict)):
+            value = json.dumps(value, ensure_ascii=False)
+        lines.append(f"{key.replace('_', ' ').title()}: {value}")
+    return "\n".join(lines)
+
+
+def _ensure_graphic_style_bucket(admin_client):
+    """Create the private style bucket when service-role access permits it."""
+    try:
+        response = admin_client.storage.list_buckets()
+        buckets = getattr(response, "data", response) or []
+        bucket_names = set()
+
+        for bucket in buckets:
+            if isinstance(bucket, dict):
+                name = bucket.get("name") or bucket.get("id") or ""
+            else:
+                name = (
+                    getattr(bucket, "name", "")
+                    or getattr(bucket, "id", "")
+                )
+            if name:
+                bucket_names.add(str(name))
+
+        if GRAPHIC_STYLE_LIBRARY_BUCKET not in bucket_names:
+            try:
+                admin_client.storage.create_bucket(
+                    GRAPHIC_STYLE_LIBRARY_BUCKET,
+                    options={"public": False},
+                )
+            except TypeError:
+                admin_client.storage.create_bucket(
+                    GRAPHIC_STYLE_LIBRARY_BUCKET,
+                    {"public": False},
+                )
+        return True
+    except Exception as error:
+        diagnostic_log(
+            "graphic_style_bucket_unavailable",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return False
+
+
+def store_graphic_reference_image(image, feedback="approved"):
+    """
+    Persist an approved/rejected reference image to private Supabase Storage.
+
+    Storage is optional. If service-role storage is unavailable, the style
+    profile still saves to Supabase learned_knowledge and the Graphic vector
+    store, so image generation remains functional.
+    """
+    image = image or {}
+    data_url = str(image.get("data_url") or "")
+    image_bytes, _ = data_url_to_bytes(data_url)
+    if not image_bytes:
+        return ""
+
+    try:
+        admin_client = get_supabase_admin_client()
+    except Exception as error:
+        diagnostic_log(
+            "graphic_style_admin_client_unavailable",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return ""
+
+    if admin_client is None or not _ensure_graphic_style_bucket(admin_client):
+        return ""
+
+    username = re.sub(
+        r"[^A-Za-z0-9_.-]+",
+        "_",
+        str(st.session_state.get("username") or "unknown"),
+    )
+    fingerprint = _graphic_image_fingerprint(image)
+    safe_feedback = "approved" if feedback == "approved" else "rejected"
+    storage_path = (
+        f"{username}/{safe_feedback}/"
+        f"{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/"
+        f"{fingerprint[:24]}.png"
+    )
+
+    try:
+        bucket = admin_client.storage.from_(GRAPHIC_STYLE_LIBRARY_BUCKET)
+        upload_attempts = (
+            lambda: bucket.upload(
+                storage_path,
+                image_bytes,
+                file_options={
+                    "content-type": "image/png",
+                    "upsert": "true",
+                },
+            ),
+            lambda: bucket.upload(
+                storage_path,
+                image_bytes,
+                {
+                    "content-type": "image/png",
+                    "upsert": "true",
+                },
+            ),
+            lambda: bucket.upload(
+                storage_path,
+                image_bytes,
+            ),
+        )
+
+        last_error = None
+        for upload_attempt in upload_attempts:
+            try:
+                upload_attempt()
+                return storage_path
+            except TypeError as error:
+                last_error = error
+                continue
+
+        if last_error is not None:
+            raise last_error
+        return ""
+    except Exception as error:
+        diagnostic_log(
+            "graphic_reference_storage_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return ""
+
+
+def save_graphic_style_memory(image, feedback="approved"):
+    """
+    Save visual feedback as a structured Supabase record and vector-store file.
+
+    Uses the existing learned_knowledge table, so no SQL schema migration or
+    requirements.txt change is required.
+    """
+    feedback = "approved" if feedback == "approved" else "rejected"
+    fingerprint = _graphic_image_fingerprint(image)
+    existing_feedback = _graphic_style_feedback_registry().get(
+        fingerprint,
+        {},
+    )
+    if str(existing_feedback.get("feedback") or "") == feedback:
+        return {
+            "feedback": feedback,
+            "profile": existing_feedback.get("profile") or {},
+            "storage_path": str(
+                (existing_feedback.get("profile") or {}).get(
+                    "image_storage_path"
+                )
+                or ""
+            ),
+            "vector_ready": bool(existing_feedback.get("vector_ready")),
+            "already_saved": True,
+        }
+
+    profile = analyze_graphic_style_profile(image, feedback=feedback)
+    if not profile:
+        raise RuntimeError(
+            "The visual style could not be analyzed. Please try again."
+        )
+
+    storage_path = store_graphic_reference_image(image, feedback=feedback)
+    profile["image_storage_path"] = storage_path
+    profile_text = _graphic_style_profile_text(profile)
+    fingerprint = (
+        profile.get("image_fingerprint")
+        or fingerprint
+        or _graphic_image_fingerprint(image)
+    )
+
+    record_type = (
+        "approved_visual_style"
+        if feedback == "approved"
+        else "rejected_visual_style"
+    )
+    title = str(profile.get("title") or "").strip()
+    if not title:
+        title = (
+            "Approved Graphic Style"
+            if feedback == "approved"
+            else "Rejected Graphic Style"
+        )
+
+    confidence = profile.get("confidence_score")
+    try:
+        confidence = int(float(confidence))
+    except Exception:
+        confidence = 95 if feedback == "approved" else 90
+    confidence = max(0, min(confidence, 100))
+
+    record = {
+        "username": st.session_state.get("username"),
+        "record_type": record_type,
+        "assistant": "Graphic Marketing",
+        "vehicle": resolve_learning_vehicle(
+            "",
+            question=str(image.get("prompt") or ""),
+            answer=profile_text,
+            selected_assistant="🎨 Graphic Marketing",
+        ),
+        "issue": title[:500],
+        "solution": profile_text,
+        "approved_answer": profile_text,
+        "question": str(image.get("prompt") or "")[:4000],
+        "keywords": str(profile.get("search_keywords") or "")[:2000],
+        "source_question": str(image.get("prompt") or "")[:4000],
+        "source_answer": profile_text,
+        "source_conversation_id": st.session_state.get("conversation_id"),
+        "confidence_score": confidence,
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": f"graphic_style_{feedback}",
+        "staff_confirmed": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    openai_file_id, vector_ready, ingestion_status = (
+        upload_learned_record_to_vector_store(
+            record,
+            GRAPHIC_VECTOR_STORE_ID,
+            return_status=True,
+        )
+    )
+    record["openai_file_id"] = openai_file_id
+    record["synced"] = bool(vector_ready)
+    record["embedding_status"] = (
+        "synced" if vector_ready else (ingestion_status or "processing")
+    )
+
+    result = safe_insert_row("learned_knowledge", record)
+    if not getattr(result, "data", None):
+        remove_old_learned_vector_file(
+            GRAPHIC_VECTOR_STORE_ID,
+            openai_file_id,
+        )
+        raise RuntimeError("The Graphic style memory was not saved.")
+
+    registry = _graphic_style_feedback_registry()
+    registry[fingerprint] = {
+        "feedback": feedback,
+        "profile": profile,
+        "record_id": result.data[0].get("id") if result.data else None,
+        "saved_at": now_iso(),
+        "vector_ready": bool(vector_ready),
+    }
+
+    if feedback == "approved":
+        image_bytes, _ = data_url_to_bytes(image.get("data_url"))
+        if image_bytes:
+            _graphic_style_reference_registry()[fingerprint] = {
+                "bytes": image_bytes,
+                "name": str(image.get("filename") or image.get("name") or "approved_style.png"),
+                "prompt": str(image.get("prompt") or ""),
+                "profile": profile,
+            }
+
+    return {
+        "feedback": feedback,
+        "profile": profile,
+        "storage_path": storage_path,
+        "vector_ready": bool(vector_ready),
+    }
+
+
+def get_latest_approved_graphic_reference():
+    """Return the newest approved in-session reference image, if available."""
+    registry = _graphic_style_reference_registry()
+    if not registry:
+        return None
+    try:
+        _, reference = next(reversed(registry.items()))
+    except Exception:
+        return None
+    return reference if isinstance(reference, dict) else None
+
+
+def prepare_saved_graphic_reference(prompt_text):
+    """Build an SDK-compatible file for explicit approved-style reuse."""
+    if not graphic_prompt_requests_approved_reference(prompt_text):
+        return None
+    reference = get_latest_approved_graphic_reference()
+    if not reference:
+        diagnostic_log(
+            "approved_graphic_reference_not_in_session",
+            requested=True,
+        )
+        return None
+    raw = bytes(reference.get("bytes") or b"")
+    if not raw:
+        return None
+    file_obj = io.BytesIO(raw)
+    filename = Path(str(reference.get("name") or "approved_style.png")).name
+    file_obj.name = filename if Path(filename).suffix else f"{filename}.png"
+    file_obj.seek(0)
+    return file_obj
+
 def retrieve_graphic_marketing_guidance(prompt_text):
     """
     Retrieve concise approved design and product guidance before image creation.
@@ -15190,11 +15633,16 @@ def retrieve_graphic_marketing_guidance(prompt_text):
         response = client.responses.create(
             model="gpt-5.5",
             instructions=(
-                "Retrieve only relevant approved AutoTecPro guidance for this "
-                "Graphic Marketing image. Return a concise production brief "
-                "covering applicable visual style, layout, colors, product facts, "
-                "vehicle accuracy, typography, logo rules, and prohibited elements. "
-                "Do not invent missing rules and do not write commentary."
+                "Retrieve and rank only relevant AutoTecPro guidance for this "
+                "Graphic Marketing image. Prioritize approved_visual_style records "
+                "with high confidence and repeated use. Treat rejected_visual_style "
+                "records as negative constraints that must not be repeated. Prefer "
+                "Graphic Marketing and Marketing guidance; use Sales or Technical "
+                "only for product facts, compatibility, vehicle accuracy, and known "
+                "limitations. Return a concise production brief covering style, "
+                "layout, colors, product facts, vehicle accuracy, typography, logo "
+                "rules, required elements, and prohibited elements. Do not invent "
+                "missing rules and do not write commentary."
             ),
             input=request_text,
             tools=[
@@ -15550,6 +15998,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         )
     image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
     reference_images = prepare_graphic_reference_images(uploaded_files)
+    saved_reference = prepare_saved_graphic_reference(prompt_text)
+    if saved_reference is not None:
+        reference_images.insert(0, saved_reference)
 
     # Apply reliability settings only to image requests. The shared client and
     # every other OpenAI feature in the application remain unchanged.
@@ -15661,6 +16112,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
                 if brand_logo_applied
                 else ""
             ),
+            "style_memory_status": "not_reviewed",
+            "style_memory_fingerprint": hashlib.sha256(
+                (data_url + prompt_text).encode("utf-8")
+            ).hexdigest(),
         })
 
     if not generated_images:
@@ -15811,7 +16266,7 @@ def render_generated_png_download(
 @_optional_ui_fragment
 def render_generated_image_actions(images, message_index=None):
     """
-    Render equal-size Full Size, Download, and Regenerate controls.
+    Render equal-size Full Size, Download, Regenerate, Approve, and Reject controls.
 
     The displayed image remains a standard HTML image, so desktop users can
     still right-click and use Save Image As or Copy Image.
@@ -15998,8 +16453,8 @@ def render_generated_image_actions(images, message_index=None):
                 unsafe_allow_html=True,
             )
 
-            open_column, download_column, regenerate_column = st.columns(
-                3,
+            open_column, download_column, regenerate_column, approve_column, reject_column = st.columns(
+                5,
                 gap="small",
                 vertical_alignment="center",
             )
@@ -16030,10 +16485,70 @@ def render_generated_image_actions(images, message_index=None):
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
                     }
-                    # Regeneration intentionally enters the primary app flow because
-                    # it creates and persists a new assistant message. Open/download
-                    # remain fragment-local and do not rebuild the app.
                     st.rerun()
+
+            fingerprint = _graphic_image_fingerprint(image)
+            feedback_record = _graphic_style_feedback_registry().get(
+                fingerprint,
+                {},
+            )
+            current_feedback = str(feedback_record.get("feedback") or "")
+
+            with approve_column:
+                approve_label = (
+                    "Approved"
+                    if current_feedback == "approved"
+                    else "Approve Style"
+                )
+                if st.button(
+                    approve_label,
+                    key=generated_image_action_key(
+                        image, message_index, image_index, "approve"
+                    ),
+                    use_container_width=True,
+                    type="secondary",
+                    disabled=current_feedback == "approved",
+                ):
+                    try:
+                        with st.spinner("Learning approved visual style..."):
+                            save_result = save_graphic_style_memory(
+                                image,
+                                feedback="approved",
+                            )
+                        if save_result.get("already_saved"):
+                            st.info("This style is already approved.")
+                        else:
+                            st.success("Approved style saved to Graphic Memory.")
+                    except Exception as error:
+                        st.error(f"Could not save approved style: {error}")
+
+            with reject_column:
+                reject_label = (
+                    "Rejected"
+                    if current_feedback == "rejected"
+                    else "Reject Style"
+                )
+                if st.button(
+                    reject_label,
+                    key=generated_image_action_key(
+                        image, message_index, image_index, "reject"
+                    ),
+                    use_container_width=True,
+                    type="secondary",
+                    disabled=current_feedback == "rejected",
+                ):
+                    try:
+                        with st.spinner("Learning rejected visual style..."):
+                            save_result = save_graphic_style_memory(
+                                image,
+                                feedback="rejected",
+                            )
+                        if save_result.get("already_saved"):
+                            st.info("This style is already rejected.")
+                        else:
+                            st.success("Rejected style saved as a negative rule.")
+                    except Exception as error:
+                        st.error(f"Could not save rejected style: {error}")
 
 
 def process_pending_graphic_regeneration():
