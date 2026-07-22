@@ -111,7 +111,7 @@ except Exception:
 #   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
 # v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
 #   default governance, archive/delete, comparison, merge, and version snapshots.
-# v710 product-preservation and style-fidelity hardening:
+# v720 product-preservation and style-fidelity hardening:
 # - immutable product/source ordering, exact screen-UI lock, stricter QA threshold,
 #   and correction prompts that restore altered details from the source image.
 # v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
@@ -16549,6 +16549,17 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
     images = []
     prompt_lower = str(prompt_text or "").lower()
     forced = str(forced_role or "Auto-detect").strip().lower()
+    ordered_example_request = (
+        any(token in prompt_lower for token in (
+            "first image", "first photo", "left photo", "left image",
+            "source photo", "source image", "photo i want to submit",
+            "product i want to submit", "original product"
+        ))
+        and any(token in prompt_lower for token in (
+            "other photos", "other images", "two photos", "two images",
+            "examples", "example images", "reference ads", "create like"
+        ))
+    )
     for index, item in enumerate(uploaded_files or []):
         mime = str(getattr(item, "type", "") or "").lower()
         if not mime.startswith("image/"):
@@ -16564,9 +16575,11 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
                 "background": "background",
                 "supporting image": "supporting_image",
             }.get(forced, "supporting_image")
-        elif "logo" in lower_name or "watermark" in lower_name:
+        elif ordered_example_request:
+            role = "product_photo" if index == 0 else "style_reference"
+        elif "logo" in lower_name and not any(word in lower_name for word in ("product", "cluster", "screen", "radio", "dashboard")):
             role = "logo_asset"
-        elif any(word in lower_name for word in ("style", "reference", "sample", "layout")):
+        elif any(word in lower_name for word in ("style", "reference", "sample", "layout", "example", "ad_", "advert")):
             role = "style_reference"
         elif any(word in lower_name for word in ("background", "backdrop", "scene")):
             role = "background"
@@ -16579,15 +16592,72 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
     return images
 
 
-def _graphic_role_instruction(role_items, preserve_product=True, style_strength="High"):
+GRAPHIC_PRODUCT_TRANSFORM_MODES = (
+    "Auto",
+    "Exact Product Lock",
+    "Controlled Product Adaptation",
+    "Creative Product Integration",
+)
+
+
+def resolve_graphic_product_transform_mode(prompt_text, requested_mode="Auto", preserve_product=True):
+    """Choose how much the image model may adapt an uploaded product photo.
+
+    Exact Lock is for pixel-faithful catalogue assets. Controlled Adaptation is
+    intended for real marketing composites: the product identity stays intact,
+    while background removal, scale, perspective cleanup, lighting and natural
+    integration are allowed. Creative Integration permits a modest re-render but
+    still forbids invented hardware or a different product model.
+    """
+    requested = str(requested_mode or "Auto").strip()
+    if not preserve_product:
+        return "Creative Product Integration"
+    if requested in GRAPHIC_PRODUCT_TRANSFORM_MODES and requested != "Auto":
+        return requested
+
+    lower = str(prompt_text or "").lower()
+    exact_terms = (
+        "pixel perfect", "pixel-perfect", "exactly unchanged", "do not modify",
+        "keep every pixel", "catalogue photo", "catalog photo", "cutout only",
+        "background only", "do not alter the product"
+    )
+    controlled_terms = (
+        "modify a little", "slightly modify", "integrate", "blend into",
+        "place into", "make it look like", "create like", "advertisement",
+        "marketing image", "hero banner", "lifestyle", "installed in",
+        "remove the white background", "change the angle slightly",
+        "match the lighting", "composite"
+    )
+    creative_terms = (
+        "new camera angle", "dramatic perspective", "cinematic render",
+        "3d render", "re-render", "different perspective", "concept art"
+    )
+    if any(term in lower for term in exact_terms):
+        return "Exact Product Lock"
+    if any(term in lower for term in creative_terms):
+        return "Creative Product Integration"
+    if any(term in lower for term in controlled_terms):
+        return "Controlled Product Adaptation"
+    return "Controlled Product Adaptation"
+
+
+def graphic_product_mode_threshold(mode):
+    return {
+        "Exact Product Lock": 90,
+        "Controlled Product Adaptation": 82,
+        "Creative Product Integration": 75,
+    }.get(str(mode or ""), 82)
+
+
+def _graphic_role_instruction(role_items, preserve_product=True, style_strength="High", product_transform_mode="Auto"):
     """Create strict role-aware instructions for the shared image pipeline.
 
-    Product photos are treated as immutable source assets. Style references may
-    influence only the surrounding art direction and must never overwrite the
-    product's hardware, screen UI, labels, or proportions.
+    Product photos remain the identity anchor, while the selected transformation
+    mode controls whether the model may perform realistic marketing integration.
     """
     if not role_items:
         return ""
+    mode = resolve_graphic_product_transform_mode("", product_transform_mode, preserve_product)
     product_names = [x["name"] for x in role_items if x["role"] == "product_photo"]
     style_names = [x["name"] for x in role_items if x["role"] == "style_reference"]
     logo_names = [x["name"] for x in role_items if x["role"] == "logo_asset"]
@@ -16595,13 +16665,31 @@ def _graphic_role_instruction(role_items, preserve_product=True, style_strength=
     if product_names:
         lines.append("- IMMUTABLE PRODUCT SOURCE(S): " + ", ".join(product_names))
         if preserve_product:
+            lines.append(f"  PRODUCT TRANSFORMATION MODE: {mode}.")
             lines.extend([
-                "  Treat every visible product pixel as identity-critical source material.",
-                "  LOCKED — DO NOT CHANGE: outer silhouette, dashboard/trim geometry, air vents, bezel, screen dimensions and aspect ratio, screen UI and icon layout, buttons, knobs, labels, openings, mounting brackets, ports, connectors, textures, colors, proportions, and relative placement of all physical components.",
-                "  Do not redraw, reinterpret, beautify, simplify, replace, crop away, mirror, rotate, or hallucinate any product component.",
-                "  The product must remain recognizably the exact uploaded item, not a similar model or a newly rendered substitute.",
-                "  EDITABLE ONLY: surrounding background, non-product environment, lighting falling around the product, natural contact shadow, reflections outside the product, marketing typography, graphic panels, and decorative effects that do not cover or alter product details.",
-                "  Keep marketing text and effects away from the product face, screen, controls, vents, and mounting areas.",
+                "  IDENTITY LOCK — NEVER CHANGE: product family/model, defining outer silhouette, screen aspect ratio, bezel architecture, physical controls, openings, vents, mounting points, connector locations, major trim geometry, brand marks, and the functional relationship between components.",
+                "  Never replace the uploaded product with a generic or similar-looking device. Never invent buttons, vents, ports, brackets, labels, screens, or unsupported features.",
+                "  Keep the original screen interface and visible product markings whenever legible; do not substitute a different UI merely for style.",
+            ])
+            if mode == "Exact Product Lock":
+                lines.extend([
+                    "  Preserve the source product pixel-faithfully. Do not redraw, rotate, reshape, perspective-warp, retouch, relight internally, or alter any visible product detail.",
+                    "  Allowed changes are limited to removing the source background, repositioning/scaling the unchanged cutout, adding a natural external shadow, and designing the surrounding advertisement.",
+                ])
+            elif mode == "Controlled Product Adaptation":
+                lines.extend([
+                    "  ALLOWED CONTROLLED ADAPTATION: remove the original background; clean minor dust or edge artifacts; crop, scale, and reposition; apply modest perspective correction; create believable scene-matched highlights, reflections, contact shadows, and color grading; and integrate the product into a vehicle/dashboard or premium marketing environment.",
+                    "  A small change in viewpoint or visible side depth is allowed only when it remains physically plausible and does not change component geometry or reveal invented hardware.",
+                    "  The result may look professionally photographed in the new scene, but must unmistakably remain the same uploaded product.",
+                ])
+            else:
+                lines.extend([
+                    "  ALLOWED CREATIVE INTEGRATION: modest re-rendering, camera-angle change, realistic perspective and environment interaction are permitted.",
+                    "  Even with creative integration, preserve all defining hardware architecture and product identity. Do not redesign the fascia, screen, controls, vents, brackets, ports, or proportions.",
+                ])
+            lines.extend([
+                "  Marketing text, icons, badges, effects, and vehicle elements must not cover critical product details.",
+                "  Use style references for layout and art direction; use the first product source as the sole authority for product identity.",
             ])
     if style_names:
         lines.append("- STYLE REFERENCE(S): " + ", ".join(style_names))
@@ -16622,7 +16710,7 @@ def _graphic_role_instruction(role_items, preserve_product=True, style_strength=
     return "\n".join(lines)
 
 
-def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text):
+def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text, product_transform_mode="Controlled Product Adaptation"):
     """Run one bounded vision review of product fidelity and style compliance."""
     product_payloads = []
     for item in product_role_items or []:
@@ -16638,17 +16726,21 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             break
     if not product_payloads or not str(generated_data_url or "").startswith("data:image/"):
         return {}
+    mode = resolve_graphic_product_transform_mode(prompt_text, product_transform_mode, True)
+    threshold = graphic_product_mode_threshold(mode)
     content = [{
         "type": "input_text",
         "text": (
-            "Compare the generated marketing image pixel-consciously with the original product photo(s). "
+            f"Compare the generated marketing image with the original product photo(s) under {mode}. "
             "Return strict JSON only with keys: product_accuracy_score (0-100), "
             "style_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
             "problems (array), correction_prompt (string). Fail the image if any visible product "
             "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
-            "trim geometry, openings, brackets, connectors, proportions, orientation, or colors. "
-            "Product fidelity has absolute priority over decorative style. A passing product score "
-            "requires at least 90/100. correction_prompt must explicitly list every altered detail and "
+            "trim geometry, openings, brackets, connectors, proportions, or product identity. "
+            "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
+            "For Creative Product Integration, also allow a modest camera-angle change, but still fail invented or redesigned hardware. "
+            "For Exact Product Lock, require near pixel-faithful preservation. Product fidelity has priority over decorative style. "
+            f"A passing product score requires at least {threshold}/100 for this mode. correction_prompt must explicitly list every impermissibly altered detail and "
             "instruct the image model to restore it from the original source photo. Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
@@ -16915,7 +17007,8 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
-                                      forced_upload_role="Auto-detect", quality_retry=True):
+                                      forced_upload_role="Auto-detect", quality_retry=True,
+                                      product_transform_mode="Auto"):
     """
     Generate or reference-edit Graphic Marketing images through the Image API.
 
@@ -16939,6 +17032,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
+    )
+    resolved_product_transform_mode = resolve_graphic_product_transform_mode(
+        prompt_text, product_transform_mode, preserve_product
     )
     creative_director_brief = build_graphic_creative_director_brief(
         prompt_text,
@@ -16974,7 +17070,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     product_reference_images = prepare_graphic_reference_images(product_role_files)
     other_reference_images = prepare_graphic_reference_images(other_role_files)
     image_api_prompt += _graphic_role_instruction(
-        role_items, preserve_product=preserve_product, style_strength=style_strength
+        role_items, preserve_product=preserve_product, style_strength=style_strength,
+        product_transform_mode=resolved_product_transform_mode,
     )
     saved_references = prepare_saved_graphic_reference(
         prompt_text, use_approved_style=use_approved_style
@@ -17120,6 +17217,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "multi_agent_version": GRAPHIC_AGENT_VERSION,
             "campaign_name": extract_graphic_campaign_name(prompt_text),
             "special_workflow": detect_graphic_special_workflow(prompt_text),
+            "product_transform_mode": resolved_product_transform_mode,
             "upload_roles": [
                 {"name": item.get("name"), "role": item.get("role")}
                 for item in role_items
@@ -17137,26 +17235,29 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     # Product-aware quality gate: inspect once and perform at most one corrective
     # regeneration. This is shared by Graphic Chat and Advanced Designer.
     review = review_graphic_output_accuracy(
-        generated_images[0].get("data_url"), role_items, prompt_text
+        generated_images[0].get("data_url"), role_items, prompt_text,
+        resolved_product_transform_mode,
     )
     if review:
         generated_images[0]["quality_review"] = review
         try:
             product_score = int(float(review.get("product_accuracy_score", 100)))
-            passed = bool(review.get("passed", product_score >= 90)) and product_score >= 90
+            product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
+            passed = bool(review.get("passed", product_score >= product_threshold)) and product_score >= product_threshold
         except Exception:
-            product_score, passed = 100, True
+            product_score, product_threshold, passed = 100, graphic_product_mode_threshold(resolved_product_transform_mode), True
         correction = str(review.get("correction_prompt") or "").strip()
-        if quality_retry and preserve_product and (not passed or product_score < 90) and correction:
+        if quality_retry and preserve_product and (not passed or product_score < product_threshold) and correction:
             diagnostic_log("graphic_quality_retry", product_score=product_score)
             retry_prompt = (
                 prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
-                "\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE. Preserve it pixel-faithfully, including the exact screen UI/icons, bezel, vents, controls, labels, trim, mounting geometry, openings, proportions, orientation, textures, and colors. Change only the surrounding creative treatment."
+                f"\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE under {resolved_product_transform_mode}. Preserve the exact product identity, screen UI, bezel architecture, controls, labels, trim, mounting geometry, openings and proportions. Keep any allowed lighting, perspective, cleanup and scene integration within the selected mode; remove only impermissible redesigns or invented hardware."
             )
             retried = generate_graphic_marketing_images(
                 retry_prompt, uploaded_files, use_approved_style=use_approved_style,
                 preserve_product=preserve_product, style_strength=style_strength,
                 forced_upload_role=forced_upload_role, quality_retry=False,
+                product_transform_mode=resolved_product_transform_mode,
             )
             if retried:
                 retried[0]["auto_corrected_after_review"] = True
@@ -27294,6 +27395,7 @@ def build_advanced_image_designer_request(
     style_strength="High",
     upload_role="Auto-detect",
     quality_review=True,
+    product_transform_mode="Auto",
     style_collection="",
     campaign_name="",
 ):
@@ -27398,6 +27500,7 @@ DESIGN REQUIREMENTS
             "style_strength": style_strength,
             "forced_upload_role": upload_role,
             "quality_retry": quality_review,
+            "product_transform_mode": product_transform_mode,
         },
     }
 
@@ -27560,9 +27663,19 @@ def render_advanced_image_designer_panel():
                 ),
             )
             preserve_product = st.checkbox(
-                "Preserve uploaded product exactly",
+                "Preserve uploaded product identity",
                 value=True,
-                help="Locks product shape, bezel, screen ratio, trim, buttons, openings, and proportions.",
+                help="Keeps the same product model and defining hardware while allowing the selected level of professional integration.",
+            )
+            product_transform_mode = st.selectbox(
+                "Product transformation mode",
+                list(GRAPHIC_PRODUCT_TRANSFORM_MODES),
+                index=0,
+                help=(
+                    "Auto normally uses Controlled Product Adaptation for ads. Exact Product Lock is for catalogue/cutout work. "
+                    "Controlled Product Adaptation allows background removal, cleanup, scale, modest perspective and realistic lighting. "
+                    "Creative Product Integration allows a modest new viewpoint while still preventing hardware redesign."
+                ),
             )
             control_col1, control_col2 = st.columns(2)
             with control_col1:
@@ -27625,6 +27738,7 @@ def render_advanced_image_designer_panel():
                 style_strength=style_strength,
                 upload_role=upload_role,
                 quality_review=quality_review,
+                product_transform_mode=product_transform_mode,
                 style_collection=style_collection,
                 campaign_name=campaign_name,
             )
@@ -33561,6 +33675,7 @@ else:
                         style_strength=graphic_options.get("style_strength", "High"),
                         forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
                         quality_retry=graphic_options.get("quality_retry", True),
+                        product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
                     )
                 answer = generated_image_answer_text(generated_images)
             except Exception as error:
