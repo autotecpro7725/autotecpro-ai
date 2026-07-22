@@ -79,6 +79,9 @@ except Exception:
 #   unused constants; retain active diagnostics, upload lifecycle, archive analyzer,
 #   authentication, history, AI, database, and business workflows unchanged.
 #   ZIP preview artwork is 30% larger than other document icons.
+# v399 vector-store configuration: load Technical, Sales, Marketing, and Graphic
+#   Marketing vector-store IDs from Streamlit Secrets; add Graphic retrieval,
+#   Admin upload routing, and explicit Graphic knowledge learning.
 
 # ============================================================
 # App Paths / API
@@ -137,9 +140,29 @@ def diagnostic_log(event, **fields):
         # Diagnostics must never affect application behavior.
         pass
 
-TECHNICAL_VECTOR_STORE_ID = "vs_6a4e9facdf2c8191b6c712329e398490"
-SALES_VECTOR_STORE_ID = "vs_6a4eaf5d33a081919722e8628a1c5e71"
-MARKETING_VECTOR_STORE_ID = "vs_6a55b9a2d1008191aa045f745fb489df"
+def _read_app_secret(name, default=""):
+    """Read one Streamlit secret safely without exposing its value."""
+    try:
+        value = st.secrets.get(name, default)
+    except Exception:
+        value = default
+    return str(value).strip() if value is not None else str(default)
+
+
+def _configured_vector_store_ids(*vector_store_ids):
+    """Return valid configured vector-store IDs in stable order."""
+    configured = []
+    for vector_store_id in vector_store_ids:
+        value = str(vector_store_id or "").strip()
+        if value and value.startswith("vs_") and value not in configured:
+            configured.append(value)
+    return configured
+
+
+TECHNICAL_VECTOR_STORE_ID = _read_app_secret("TECHNICAL_VECTOR_STORE_ID")
+SALES_VECTOR_STORE_ID = _read_app_secret("SALES_VECTOR_STORE_ID")
+MARKETING_VECTOR_STORE_ID = _read_app_secret("MARKETING_VECTOR_STORE_ID")
+GRAPHIC_VECTOR_STORE_ID = _read_app_secret("GRAPHIC_VECTOR_STORE_ID")
 
 
 WORKSPACE_LABELS = {
@@ -2041,6 +2064,11 @@ def is_sales_workspace(selected_assistant=None):
 def is_marketing_workspace(selected_assistant=None):
     """Return True only for the current Marketing workspace."""
     return _normalized_workspace_name(selected_assistant) == "marketing"
+
+
+def is_graphic_workspace(selected_assistant=None):
+    """Return True only for the current Graphic Marketing workspace."""
+    return _normalized_workspace_name(selected_assistant) == "graphic marketing"
 
 
 
@@ -13775,8 +13803,8 @@ def _generated_document_knowledge_destination(selected_assistant=None):
     """
     Resolve the active document card's knowledge destination.
 
-    Graphic Marketing, Admin, Knowledge Submission, and unknown workspaces do
-    not receive a direct save button.
+    Admin, Knowledge Submission, and unknown workspaces do not receive a
+    direct save button.
     """
     active = str(
         selected_assistant
@@ -13806,6 +13834,13 @@ def _generated_document_knowledge_destination(selected_assistant=None):
             "label": "Marketing",
             "button_label": "Save to Marketing Knowledge",
             "vector_store_id": MARKETING_VECTOR_STORE_ID,
+        }
+    if normalized == "graphic marketing":
+        return {
+            "key": "graphic",
+            "label": "Graphic Marketing",
+            "button_label": "Save to Graphic Knowledge",
+            "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
         }
     return None
 
@@ -15100,6 +15135,52 @@ def detect_graphic_brand_logo_position(prompt_text):
     return GRAPHIC_BRAND_LOGO_DEFAULT_POSITION
 
 
+def retrieve_graphic_marketing_guidance(prompt_text):
+    """
+    Retrieve concise approved design and product guidance before image creation.
+    """
+    vector_store_ids = _configured_vector_store_ids(
+        GRAPHIC_VECTOR_STORE_ID,
+        MARKETING_VECTOR_STORE_ID,
+        SALES_VECTOR_STORE_ID,
+        TECHNICAL_VECTOR_STORE_ID,
+    )
+    if not vector_store_ids:
+        return ""
+
+    request_text = str(prompt_text or "").strip()
+    if not request_text:
+        return ""
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=(
+                "Retrieve only relevant approved AutoTecPro guidance for this "
+                "Graphic Marketing image. Return a concise production brief "
+                "covering applicable visual style, layout, colors, product facts, "
+                "vehicle accuracy, typography, logo rules, and prohibited elements. "
+                "Do not invent missing rules and do not write commentary."
+            ),
+            input=request_text,
+            tools=[
+                {
+                    "type": "file_search",
+                    "vector_store_ids": vector_store_ids,
+                }
+            ],
+            max_output_tokens=1800,
+        )
+        return str(getattr(response, "output_text", "") or "").strip()[:12000]
+    except Exception as error:
+        diagnostic_log(
+            "graphic_vector_guidance_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return ""
+
+
 def build_graphic_brand_safe_prompt(prompt_text):
     """
     Prevent hallucinated AutoTecPro logos inside AI artwork.
@@ -15424,7 +15505,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         raise ValueError("Please enter an image-generation command.")
 
     output_size = choose_graphic_image_size(prompt_text)
-    image_api_prompt = build_graphic_brand_safe_prompt(prompt_text)
+    retrieved_guidance = retrieve_graphic_marketing_guidance(prompt_text)
+    grounded_prompt = prompt_text
+    if retrieved_guidance:
+        grounded_prompt += (
+            "\n\nAPPROVED GRAPHIC MARKETING KNOWLEDGE:\n"
+            + retrieved_guidance
+            + "\n\nApply this approved guidance only where relevant. "
+              "The user's current command controls the requested deliverable."
+        )
+    image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
     reference_images = prepare_graphic_reference_images(uploaded_files)
 
     # Apply reliability settings only to image requests. The shared client and
@@ -16367,6 +16457,16 @@ Do not output HTML or code-fence formatting.
     return """
 You are AutoTecPro Graphic Marketing AI.
 
+Search the Graphic Marketing Vector Store for approved visual styles, design
+rules, brand guidance, campaign examples, and reusable image instructions.
+Use supporting Marketing, Sales, and Technical knowledge only for relevant
+brand, product, compatibility, and specification facts. Never invent missing
+product details or visual rules.
+
+When staff explicitly says "learn this style", "remember this design", or gives
+another clear learning command, extract durable reusable graphic guidance rather
+than saving a customer-specific conversation verbatim.
+
 Analyze uploaded images when provided.
 
 The application may activate the prompt-driven AI Marketing Consultant when
@@ -16608,6 +16708,7 @@ def should_use_workspace_file_search(
         "sales",
         "sales & marketing",
         "marketing",
+        "graphic marketing",
     }
 
 
@@ -17622,43 +17723,36 @@ def _build_ai_request(
         tools.append({"type": "web_search"})
 
     if use_file_search:
+        vector_store_ids = []
         if assistant == "🔧 Technical Support":
-            # One-way knowledge sharing: Technical Support reads only Technical
-            # knowledge. Sales and Marketing may read Technical knowledge, but
-            # commercial or marketing records must never influence Technical.
-            tools.insert(
-                0,
-                {
-                    "type": "file_search",
-                    "vector_store_ids": [TECHNICAL_VECTOR_STORE_ID],
-                },
+            vector_store_ids = _configured_vector_store_ids(
+                TECHNICAL_VECTOR_STORE_ID,
             )
         elif is_sales_workspace(assistant):
-            # One-way sharing: Sales reads its own commercial knowledge plus
-            # Technical knowledge for compatibility, functionality, specifications,
-            # retained features, installation requirements, limitations, and links.
-            tools.insert(
-                0,
-                {
-                    "type": "file_search",
-                    "vector_store_ids": [
-                        SALES_VECTOR_STORE_ID,
-                        TECHNICAL_VECTOR_STORE_ID,
-                    ],
-                },
+            vector_store_ids = _configured_vector_store_ids(
+                SALES_VECTOR_STORE_ID,
+                TECHNICAL_VECTOR_STORE_ID,
             )
         elif is_marketing_workspace(assistant):
-            # One-way sharing: Marketing reads Marketing + Sales + Technical.
-            # Technical remains isolated from Sales and Marketing knowledge.
+            vector_store_ids = _configured_vector_store_ids(
+                MARKETING_VECTOR_STORE_ID,
+                SALES_VECTOR_STORE_ID,
+                TECHNICAL_VECTOR_STORE_ID,
+            )
+        elif is_graphic_workspace(assistant):
+            vector_store_ids = _configured_vector_store_ids(
+                GRAPHIC_VECTOR_STORE_ID,
+                MARKETING_VECTOR_STORE_ID,
+                SALES_VECTOR_STORE_ID,
+                TECHNICAL_VECTOR_STORE_ID,
+            )
+
+        if vector_store_ids:
             tools.insert(
                 0,
                 {
                     "type": "file_search",
-                    "vector_store_ids": [
-                        MARKETING_VECTOR_STORE_ID,
-                        SALES_VECTOR_STORE_ID,
-                        TECHNICAL_VECTOR_STORE_ID,
-                    ],
+                    "vector_store_ids": vector_store_ids,
                 },
             )
 
@@ -18441,6 +18535,12 @@ def convert_tabular_file_to_knowledge_file(uploaded_file, database_choice):
 
 
 def upload_to_vector_store(uploaded_file, vector_store_id):
+    vector_store_id = str(vector_store_id or "").strip()
+    if not vector_store_id.startswith("vs_"):
+        raise RuntimeError(
+            "The selected vector store is not configured. Add its vs_ ID to "
+            "Streamlit Secrets and restart the app."
+        )
     openai_file = client.files.create(file=uploaded_file, purpose="assistants")
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
     return openai_file.id
@@ -18456,6 +18556,8 @@ def get_learning_vector_store_id(selected_assistant):
         return SALES_VECTOR_STORE_ID
     if is_marketing_workspace(selected_assistant):
         return MARKETING_VECTOR_STORE_ID
+    if is_graphic_workspace(selected_assistant):
+        return GRAPHIC_VECTOR_STORE_ID
     return TECHNICAL_VECTOR_STORE_ID
 
 
@@ -20005,12 +20107,15 @@ def auto_learn_from_latest_answer(
     if selected_assistant == "⚙️ Admin Panel":
         return None
 
-    # Graphic generation output is handled separately and must not become
-    # technical or sales knowledge.
-    if selected_assistant == "🎨 Graphic Marketing":
+    # Ordinary Graphic Marketing generations are not auto-learned. Explicit
+    # staff commands such as "learn this style" may save reusable design guidance.
+    if selected_assistant == "🎨 Graphic Marketing" and not bool(explicit_learning):
         return {
             "learned": False,
-            "reason": "Graphic Marketing image-generation chats are not learned.",
+            "reason": (
+                "Graphic Marketing content is learned only through an explicit "
+                "staff learning command."
+            ),
             "analytics_payload": build_local_analytics_payload(
                 question,
                 answer,
@@ -23117,6 +23222,7 @@ def render_learn_from_website(database_choice):
             "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
             "Sales Database": SALES_VECTOR_STORE_ID,
             "Marketing Database": MARKETING_VECTOR_STORE_ID,
+            "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
         }[database_choice]
 
         filename = website_knowledge_filename(reviewed_extraction)
@@ -23246,6 +23352,7 @@ def render_admin_upload_knowledge_tab():
             "Technical Support Database",
             "Sales Database",
             "Marketing Database",
+            "Graphic Marketing Database",
         ],
         key="stable_admin_database_choice"
     )
@@ -23295,6 +23402,7 @@ def render_admin_upload_knowledge_tab():
                 "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
                 "Sales Database": SALES_VECTOR_STORE_ID,
                 "Marketing Database": MARKETING_VECTOR_STORE_ID,
+                "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
             }[database_choice]
 
             progress = st.progress(0)
