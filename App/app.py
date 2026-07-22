@@ -75,6 +75,8 @@ except Exception:
 # v396 intelligent archive analysis: safe recursive ZIP extraction, hidden-file filtering,
 #   folder manifests, supported-file routing, encryption/path-traversal/ZIP-bomb protection,
 #   and dedicated ZIP preview artwork without changing the stable uploader lifecycle.
+# v397 ZIP preview refinement: enlarge only the ZIP attachment artwork by 30%
+#   while preserving all other document icons, card dimensions, metadata, and delete controls.
 
 # ============================================================
 # App Paths / API
@@ -3737,6 +3739,21 @@ def install_gpt_uploader_css():
             background: transparent;
         }
 
+        /* ZIP preview only: 30% larger than the standard 41 px document icon. */
+        .atp-gpt-file-icon.atp-gpt-file-icon-zip {
+            width: 53px;
+            height: 53px;
+        }
+
+        .atp-gpt-file-icon.atp-gpt-file-icon-zip img {
+            width: 53px;
+            height: 53px;
+            min-width: 53px;
+            max-width: 53px;
+            min-height: 53px;
+            max-height: 53px;
+        }
+
         .atp-gpt-upload-meta {
             padding: 7px 8px 8px;
             text-align: center;
@@ -4326,9 +4343,14 @@ def render_managed_upload_preview(record, delete_key, on_delete):
             else:
                 icon_html = "📄"
 
+            file_icon_class = (
+                "atp-gpt-file-icon atp-gpt-file-icon-zip"
+                if Path(raw_file_name).suffix.lower() == ".zip"
+                else "atp-gpt-file-icon"
+            )
             media_html = (
                 '<div class="atp-gpt-upload-media">'
-                f'<div class="atp-gpt-file-icon">{icon_html}</div>'
+                f'<div class="{file_icon_class}">{icon_html}</div>'
                 "</div>"
             )
 
