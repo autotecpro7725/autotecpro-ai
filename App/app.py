@@ -10,7 +10,7 @@ from document_generator import (
     serialize_documents_marker,
 )
 try:
-    from PIL import Image, ImageOps, ImageFilter, ImageStat
+    from PIL import Image, ImageOps
 except Exception:
     Image = None
 import base64
@@ -111,7 +111,9 @@ except Exception:
 #   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
 # v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
 #   default governance, archive/delete, comparison, merge, and version snapshots.
-# v800 Product Lock Engine: pixel-preserving foreground extraction/compositing for clean studio product photos, forensic hardware QA, and Product Expert veto authority.
+# v710 product-preservation and style-fidelity hardening:
+# - immutable product/source ordering, exact screen-UI lock, stricter QA threshold,
+#   and correction prompts that restore altered details from the source image.
 # v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
 #   campaign and brand memory, Product Library grounding hooks, cleanup/comparison
 #   workflows, continuous generation learning, expanded QA, and admin governance.
@@ -15765,7 +15767,7 @@ def build_graphic_creative_director_brief(prompt_text, role_items=None, style_st
         "Selected Style Collection, Layout, Typography, Color and Lighting, "
         "Brand Rules, Required Copy, Required Product Facts, Negative Constraints, "
         "Final Quality Checklist. Never invent specifications, prices, compatibility, "
-        "warranty, claims, or product features. Product Expert has veto authority over Creative Director. Uploaded product pixels and geometry are immutable, including every vent slat, opening, bezel, button, knob, clip, lower slot, texture, and proportion. Never request a different product angle unless a separate real photo of that angle was uploaded."
+        "warranty, claims, or product features. Uploaded product geometry must be preserved."
     )
     user_text = (
         f"REQUEST:\n{str(prompt_text or '')[:6000]}\n\n"
@@ -16507,186 +16509,6 @@ def image_bytes_to_png(image_bytes):
         return raw
 
 
-
-
-def _graphic_product_lock_asset(uploaded_file):
-    """Extract a real product from a simple studio background for pixel-preserving compositing.
-
-    This deliberately fails closed: when the background is not sufficiently uniform,
-    the ordinary reference-edit pipeline remains in use rather than producing a poor cutout.
-    """
-    if Image is None or uploaded_file is None:
-        return None
-    try:
-        normalized_bytes, _ = normalize_uploaded_image_bytes(uploaded_file, max_dimension=2600, quality=94)
-        if not normalized_bytes:
-            return None
-        with Image.open(io.BytesIO(normalized_bytes)) as source:
-            image = ImageOps.exif_transpose(source).convert("RGBA")
-        width, height = image.size
-        if width < 160 or height < 160:
-            return None
-
-        rgb = image.convert("RGB")
-        sample = max(8, min(width, height) // 40)
-        corner_boxes = (
-            (0, 0, sample, sample),
-            (width - sample, 0, width, sample),
-            (0, height - sample, sample, height),
-            (width - sample, height - sample, width, height),
-        )
-        corner_values = []
-        corner_spread = []
-        for box in corner_boxes:
-            crop = rgb.crop(box)
-            stat = ImageStat.Stat(crop)
-            corner_values.append(tuple(float(x) for x in stat.mean[:3]))
-            corner_spread.append(max(float(x) for x in stat.stddev[:3]))
-        background = tuple(sum(v[i] for v in corner_values) / len(corner_values) for i in range(3))
-        disagreement = max(
-            sum((corner_values[a][i] - corner_values[b][i]) ** 2 for i in range(3)) ** 0.5
-            for a in range(len(corner_values)) for b in range(a + 1, len(corner_values))
-        )
-        if max(corner_spread) > 24 or disagreement > 62:
-            return None
-
-        bg_luma = sum(background) / 3.0
-        # Product Lock is intended for white/light-grey or black/dark studio backgrounds.
-        if 58 < bg_luma < 195:
-            return None
-
-        pixels = list(rgb.getdata())
-        alpha_values = []
-        for red, green, blue in pixels:
-            distance = ((red-background[0])**2 + (green-background[1])**2 + (blue-background[2])**2) ** 0.5
-            luma_delta = abs(((red + green + blue) / 3.0) - bg_luma)
-            signal = max(distance, luma_delta * 1.30)
-            # Soft edge: transparent below 18; fully opaque by about 72.
-            alpha = int(max(0, min(255, (signal - 16.0) * 255.0 / 56.0)))
-            alpha_values.append(alpha)
-
-        alpha = Image.new("L", image.size)
-        alpha.putdata(alpha_values)
-        alpha = alpha.filter(ImageFilter.MedianFilter(size=3))
-        alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(0.6, min(width, height) / 1800.0)))
-        bbox = alpha.point(lambda value: 255 if value >= 28 else 0).getbbox()
-        if not bbox:
-            return None
-        left, top, right, bottom = bbox
-        object_width, object_height = right-left, bottom-top
-        if object_width < width * 0.08 or object_height < height * 0.12:
-            return None
-        if object_width > width * 0.985 and object_height > height * 0.985:
-            return None
-
-        padding = max(4, int(min(width, height) * 0.008))
-        bbox = (
-            max(0, left-padding), max(0, top-padding),
-            min(width, right+padding), min(height, bottom+padding),
-        )
-        image.putalpha(alpha)
-        foreground = image.crop(bbox)
-        output = io.BytesIO()
-        foreground.save(output, format="PNG", optimize=True)
-        return {
-            "png_bytes": output.getvalue(),
-            "source_size": (width, height),
-            "foreground_size": foreground.size,
-            "background_rgb": tuple(int(round(x)) for x in background),
-            "confidence": max(0, min(100, int(100 - max(corner_spread) * 1.8 - disagreement * 0.5))),
-        }
-    except Exception as error:
-        diagnostic_log("graphic_product_lock_extract_failed", error_type=type(error).__name__, error=str(error))
-        return None
-
-
-def _graphic_select_product_lock(role_items, preserve_product=True):
-    """Return one reliable Product Lock asset, preferring the first product photo."""
-    if not preserve_product:
-        return None
-    for item in role_items or []:
-        if item.get("role") != "product_photo":
-            continue
-        asset = _graphic_product_lock_asset(item.get("file"))
-        if asset:
-            asset["name"] = item.get("name") or "product image"
-            return asset
-    return None
-
-
-def _graphic_product_lock_position(prompt_text):
-    lower = str(prompt_text or "").casefold()
-    if any(value in lower for value in ("product on the left", "place product left", "left-aligned product")):
-        return "left"
-    if any(value in lower for value in ("product on the right", "place product right", "right-aligned product")):
-        return "right"
-    return "center"
-
-
-def _graphic_composite_locked_product(background_bytes, lock_asset, prompt_text=""):
-    """Composite untouched uploaded product pixels onto an AI-created advertising scene."""
-    if Image is None or not background_bytes or not lock_asset:
-        return bytes(background_bytes or b"")
-    try:
-        with Image.open(io.BytesIO(background_bytes)) as base_source:
-            base = ImageOps.exif_transpose(base_source).convert("RGBA")
-        with Image.open(io.BytesIO(lock_asset.get("png_bytes") or b"")) as product_source:
-            product = ImageOps.exif_transpose(product_source).convert("RGBA")
-        canvas_w, canvas_h = base.size
-        product_w, product_h = product.size
-        if not product_w or not product_h:
-            return bytes(background_bytes)
-
-        # Preserve original pixels; resize only uniformly and never redraw geometry.
-        max_w = int(canvas_w * 0.62)
-        max_h = int(canvas_h * 0.78)
-        scale = min(max_w / product_w, max_h / product_h)
-        scale = max(0.05, scale)
-        new_size = (max(1, int(product_w * scale)), max(1, int(product_h * scale)))
-        product = product.resize(new_size, Image.Resampling.LANCZOS)
-        product_w, product_h = product.size
-
-        position = _graphic_product_lock_position(prompt_text)
-        margin_x = int(canvas_w * 0.055)
-        if position == "left":
-            x = margin_x
-        elif position == "right":
-            x = canvas_w - product_w - margin_x
-        else:
-            x = (canvas_w - product_w) // 2
-        y = max(int(canvas_h * 0.10), canvas_h - product_h - int(canvas_h * 0.075))
-
-        alpha = product.getchannel("A")
-        shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(8, int(canvas_h * 0.014))))
-        shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-        shadow.putalpha(shadow_alpha.point(lambda value: int(value * 0.42)))
-        base.alpha_composite(shadow, (x + max(4, int(canvas_w * 0.008)), y + max(7, int(canvas_h * 0.012))))
-        base.alpha_composite(product, (x, y))
-        output = io.BytesIO()
-        base.convert("RGB").save(output, format="PNG", optimize=True)
-        return output.getvalue()
-    except Exception as error:
-        diagnostic_log("graphic_product_lock_composite_failed", error_type=type(error).__name__, error=str(error))
-        return bytes(background_bytes or b"")
-
-
-def _graphic_product_lock_background_prompt(prompt_text, lock_asset):
-    """Transform a normal ad request into a product-free scene for later exact compositing."""
-    product_name = str((lock_asset or {}).get("name") or "the uploaded product")
-    position = _graphic_product_lock_position(prompt_text)
-    return (
-        str(prompt_text or "")
-        + "\n\nPRODUCT LOCK COMPOSITING MODE (ABSOLUTE):\n"
-        + f"The real product pixels from {product_name} will be composited after generation. "
-          "Generate ONLY the advertising background, typography, lighting, platform, shadows, "
-          "decorative graphics, and surrounding environment. DO NOT draw, render, imitate, outline, "
-          "silhouette, replace, or include any product, dashboard screen, infotainment unit, air vent, "
-          "bezel, button, knob, device, monitor, tablet, or placeholder object. "
-        + f"Reserve a clean unobstructed {position} presentation area occupying about 62% width and 78% height. "
-          "Keep all text and logos outside that reserved product area. The reserved area should contain only "
-          "natural background and lighting, with no frame or fake product shadow."
-    )
-
 def prepare_graphic_reference_images(uploaded_files):
     """Convert uploaded reference images into SDK-compatible in-memory files."""
     references = []
@@ -16758,36 +16580,44 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
 
 
 def _graphic_role_instruction(role_items, preserve_product=True, style_strength="High"):
-    """Create role-aware instructions for the shared image pipeline."""
+    """Create strict role-aware instructions for the shared image pipeline.
+
+    Product photos are treated as immutable source assets. Style references may
+    influence only the surrounding art direction and must never overwrite the
+    product's hardware, screen UI, labels, or proportions.
+    """
     if not role_items:
         return ""
     product_names = [x["name"] for x in role_items if x["role"] == "product_photo"]
     style_names = [x["name"] for x in role_items if x["role"] == "style_reference"]
     logo_names = [x["name"] for x in role_items if x["role"] == "logo_asset"]
-    lines = ["\n\nUPLOADED IMAGE ROLES (MANDATORY):"]
+    lines = ["\n\nIMAGE ROLE AND PRODUCT LOCK CONTRACT (MANDATORY):"]
     if product_names:
-        lines.append("- PRODUCT PHOTO(S): " + ", ".join(product_names))
+        lines.append("- IMMUTABLE PRODUCT SOURCE(S): " + ", ".join(product_names))
         if preserve_product:
-            lines.append(
-                "  PRODUCT AUTHORITY LOCK: preserve the uploaded pixels and exact physical geometry. "
-                "The fascia, every air-vent slat and divider, circular openings, inner mounting structures, "
-                "lower slot, bezel, screen ratio, trim, buttons, knobs, clips, edges, texture, color, and "
-                "proportions are immutable. Do not redraw, repair, complete, simplify, symmetrize, stylize, "
-                "replace, rotate to a new angle, or invent any physical part. Creative styling may affect only "
-                "the background, typography, lighting around the product, reflections, and natural shadows."
-            )
+            lines.extend([
+                "  Treat every visible product pixel as identity-critical source material.",
+                "  LOCKED — DO NOT CHANGE: outer silhouette, dashboard/trim geometry, air vents, bezel, screen dimensions and aspect ratio, screen UI and icon layout, buttons, knobs, labels, openings, mounting brackets, ports, connectors, textures, colors, proportions, and relative placement of all physical components.",
+                "  Do not redraw, reinterpret, beautify, simplify, replace, crop away, mirror, rotate, or hallucinate any product component.",
+                "  The product must remain recognizably the exact uploaded item, not a similar model or a newly rendered substitute.",
+                "  EDITABLE ONLY: surrounding background, non-product environment, lighting falling around the product, natural contact shadow, reflections outside the product, marketing typography, graphic panels, and decorative effects that do not cover or alter product details.",
+                "  Keep marketing text and effects away from the product face, screen, controls, vents, and mounting areas.",
+            ])
     if style_names:
         lines.append("- STYLE REFERENCE(S): " + ", ".join(style_names))
         lines.append(
-            f"  Use these only for composition, typography hierarchy, palette, spacing, panels, "
-            f"lighting language, and mood. Style strength: {style_strength}."
+            f"  Use only for composition, typography hierarchy, palette, spacing, panels, "
+            f"lighting language, and mood. Style strength: {style_strength}. Never borrow, "
+            "replace, or blend product hardware from a style reference."
         )
     if logo_names:
         lines.append("- LOGO ASSET(S): " + ", ".join(logo_names))
-        lines.append("  Keep logo geometry and wording exact; do not redraw or reinterpret it.")
+        lines.append("  Keep logo geometry, colors, spacing, and wording exact; do not redraw or reinterpret it.")
     support = [x["name"] for x in role_items if x["role"] in {"background", "supporting_image"}]
     if support:
         lines.append("- SUPPORT/BACKGROUND: " + ", ".join(support))
+        lines.append("  These may influence the scene only and must not overwrite the immutable product source.")
+    lines.append("Priority order: 1) exact product fidelity, 2) accurate required text/logo, 3) approved style, 4) decorative creativity.")
     lines.append("Never confuse a product photo with a style reference.")
     return "\n".join(lines)
 
@@ -16811,11 +16641,15 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
     content = [{
         "type": "input_text",
         "text": (
-            "Compare the generated marketing image with the original product photo(s). "
+            "Compare the generated marketing image pixel-consciously with the original product photo(s). "
             "Return strict JSON only with keys: product_accuracy_score (0-100), "
             "style_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
-            "problems (array), correction_prompt (string). Product geometry and physical "
-            "details are more important than decorative style. Inspect exact air-vent slat count and orientation, center dividers, circular opening geometry, inner mounting structures, lower fascia slot, bezel outline, buttons, knobs, clips, plastic texture, silhouette, and proportions. Any changed or invented physical feature must fail the review. Requested prompt: " + str(prompt_text or "")[:3000]
+            "problems (array), correction_prompt (string). Fail the image if any visible product "
+            "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
+            "trim geometry, openings, brackets, connectors, proportions, orientation, or colors. "
+            "Product fidelity has absolute priority over decorative style. A passing product score "
+            "requires at least 90/100. correction_prompt must explicitly list every altered detail and "
+            "instruct the image model to restore it from the original source photo. Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
     for url in product_payloads:
@@ -16824,7 +16658,7 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
     try:
         response = client.responses.create(
             model="gpt-5.5",
-            instructions="Act as a forensic automotive product-image quality inspector. Product fidelity has veto priority over aesthetics. Return JSON only. Set passed=false when any vent, opening, bezel, control, mounting feature, texture, silhouette, or proportion differs materially from the source.",
+            instructions="Act as a strict automotive product-image quality inspector. Return JSON only.",
             input=[{"role": "user", "content": content}],
             max_output_tokens=900,
         )
@@ -16963,7 +16797,9 @@ def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength=
         "copywriter, campaign_strategist, visual_qa, final_image_prompt, prohibited_changes, "
         "required_copy, verified_facts_only, campaign_memory_used. Each agent must stay in its "
         "role. Never invent specs, prices, compatibility, promotions, warranties, product parts, "
-        "logos, or claims. The Product Expert has final veto authority over every other agent. Product pixels and geometry are immutable: every vent slat, circular opening, mounting structure, lower slot, bezel, control, clip, texture, silhouette, and proportion must remain exact. Never propose a new viewing angle unless a real source image of that angle was uploaded. final_image_prompt must be directly usable by an image model and must "
+        "logos, or claims. When a product photo exists, the Product Expert must explicitly lock the "
+        "screen UI/icons, bezel, vents, buttons, knobs, labels, trim, brackets, openings, ports, "
+        "connectors, silhouette, proportions, orientation, textures, and colors. final_image_prompt must be directly usable by an image model and must "
         "not contain internal analysis labels. For cleanup, preserve every product feature and only "
         "retouch defects/background. For comparisons, preserve each distinct product and never "
         "fabricate comparison facts."
@@ -17104,9 +16940,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
     )
-    product_lock = _graphic_select_product_lock(
-        role_items, preserve_product=preserve_product
-    )
     creative_director_brief = build_graphic_creative_director_brief(
         prompt_text,
         role_items=role_items,
@@ -17115,10 +16948,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     multi_agent_plan = build_graphic_multi_agent_plan(
         prompt_text, role_items=role_items, style_strength=style_strength
     )
-    if product_lock:
-        image_api_prompt = _graphic_product_lock_background_prompt(
-            image_api_prompt, product_lock
-        )
     final_agent_prompt = str((multi_agent_plan or {}).get("final_image_prompt") or "").strip()
     if final_agent_prompt:
         image_api_prompt += (
@@ -17133,21 +16962,29 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             + "\nTreat this brief as internal production direction. "
               "Do not render its headings or internal notes into the artwork."
         )
-    reference_source_items = [
-        item for item in role_items
-        if not (product_lock and item.get("role") == "product_photo")
+    # Keep immutable product references first in the edit input. Image-edit
+    # models tend to weight early references strongly; placing a saved style
+    # image before the product can cause the style asset to overwrite hardware.
+    product_role_files = [
+        item["file"] for item in role_items if item.get("role") == "product_photo"
     ]
-    reference_images = prepare_graphic_reference_images(
-        [item["file"] for item in reference_source_items]
-    )
+    other_role_files = [
+        item["file"] for item in role_items if item.get("role") != "product_photo"
+    ]
+    product_reference_images = prepare_graphic_reference_images(product_role_files)
+    other_reference_images = prepare_graphic_reference_images(other_role_files)
     image_api_prompt += _graphic_role_instruction(
         role_items, preserve_product=preserve_product, style_strength=style_strength
     )
     saved_references = prepare_saved_graphic_reference(
         prompt_text, use_approved_style=use_approved_style
     )
+    reference_images = (
+        list(product_reference_images)
+        + list(saved_references or [])
+        + list(other_reference_images)
+    )
     if saved_references:
-        reference_images = list(saved_references) + reference_images
 
         latest_reference = get_latest_approved_graphic_reference(prompt_text) or {}
         profile = latest_reference.get("profile") or {}
@@ -17238,15 +17075,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         if not png_bytes:
             continue
 
-        product_lock_applied = False
-        if product_lock:
-            composited = _graphic_composite_locked_product(
-                png_bytes, product_lock, prompt_text=prompt_text
-            )
-            if composited:
-                png_bytes = composited
-                product_lock_applied = True
-
         png_bytes, brand_logo_applied, brand_logo_position = (
             apply_autotecpro_brand_logo(
                 png_bytes,
@@ -17281,10 +17109,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 if brand_logo_applied
                 else ""
             ),
-            "product_lock_applied": bool(product_lock_applied),
-            "product_lock_mode": "pixel_composite" if product_lock_applied else "strict_reference_edit",
-            "product_lock_source": str((product_lock or {}).get("name") or ""),
-            "product_lock_confidence": int((product_lock or {}).get("confidence") or 0),
             "style_memory_status": "not_reviewed",
             "style_collection": str(
                 ((get_latest_approved_graphic_reference(prompt_text) or {}).get("profile") or {}).get("title")
@@ -17319,7 +17143,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         generated_images[0]["quality_review"] = review
         try:
             product_score = int(float(review.get("product_accuracy_score", 100)))
-            passed = bool(review.get("passed", product_score >= 90))
+            passed = bool(review.get("passed", product_score >= 90)) and product_score >= 90
         except Exception:
             product_score, passed = 100, True
         correction = str(review.get("correction_prompt") or "").strip()
@@ -17327,7 +17151,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             diagnostic_log("graphic_quality_retry", product_score=product_score)
             retry_prompt = (
                 prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
-                "\nPreserve the uploaded product exactly. Do not change its physical design."
+                "\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE. Preserve it pixel-faithfully, including the exact screen UI/icons, bezel, vents, controls, labels, trim, mounting geometry, openings, proportions, orientation, textures, and colors. Change only the surrounding creative treatment."
             )
             retried = generate_graphic_marketing_images(
                 retry_prompt, uploaded_files, use_approved_style=use_approved_style,
