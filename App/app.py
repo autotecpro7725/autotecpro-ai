@@ -69,6 +69,8 @@ except Exception:
 # v391 intelligent Excel learning: row/column relationship preservation, inherited-cell
 #   fill-down, multi-level header mapping, explicit compatibility normalization, source-row
 #   traceability, and workspace-aware financial-field isolation for Admin knowledge uploads.
+# v392 upload stability: retain the 20 MB limit and parse large Excel catalogues in
+#   read-only streaming mode so embedded product images do not exhaust Streamlit Cloud memory.
 
 # ============================================================
 # App Paths / API
@@ -4465,7 +4467,7 @@ def _managed_file_uploader_core(
 
         if oversized_names:
             st.session_state[f"{storage_key}_size_error"] = (
-                "These files exceed the 20 MB limit: "
+                f"These files exceed the {MAX_UPLOAD_SIZE_MB} MB limit: "
                 + ", ".join(oversized_names)
             )
 
@@ -18277,24 +18279,50 @@ def _rows_to_structured_knowledge(rows, sheet_name, source_name, database_choice
 
 
 def _read_excel_rows(file_bytes, extension):
+    """Read workbook cell values without loading embedded images into memory.
+
+    Product catalogue workbooks can be only 10–20 MB on disk but contain hundreds
+    of embedded images. Opening those files in normal openpyxl mode can expand to
+    hundreds of megabytes and terminate a Streamlit Cloud worker, which appears in
+    the browser as an Axios status-code-500 upload failure. Read-only mode streams
+    worksheet cells and deliberately ignores drawing/image objects while preserving
+    the row/column values required by the structured learning engine.
+    """
     if load_workbook is None:
         raise RuntimeError(
             "Excel structured learning requires openpyxl. Add openpyxl to requirements.txt."
         )
-    workbook = load_workbook(
-        io.BytesIO(file_bytes),
-        data_only=True,
-        read_only=False,
-        keep_vba=(extension == ".xlsm"),
-    )
-    result = []
-    for worksheet in workbook.worksheets:
-        # Hidden helper/status sheets are usually validation sources, not knowledge tables.
-        if str(getattr(worksheet, "sheet_state", "visible")) != "visible":
-            continue
-        rows = [tuple(row) for row in worksheet.iter_rows(values_only=True)]
-        result.append((worksheet.title, rows))
-    return result
+
+    workbook = None
+    try:
+        workbook = load_workbook(
+            io.BytesIO(file_bytes),
+            data_only=True,
+            read_only=True,
+            keep_vba=(extension == ".xlsm"),
+            keep_links=False,
+        )
+        result = []
+        for worksheet in workbook.worksheets:
+            # Hidden helper/status sheets are usually validation sources, not knowledge tables.
+            if str(getattr(worksheet, "sheet_state", "visible")) != "visible":
+                continue
+
+            rows = []
+            for row in worksheet.iter_rows(values_only=True):
+                rows.append(tuple(row))
+            result.append((worksheet.title, rows))
+        return result
+    except Exception as error:
+        raise RuntimeError(
+            f"The Excel workbook could not be read safely: {error}"
+        ) from error
+    finally:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
 
 
 def _read_csv_rows(file_bytes):
@@ -28365,7 +28393,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
     original = uploaded_file.getvalue()
     content_type = str(uploaded_file.type or "application/octet-stream")
     if len(original) > PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES:
-        raise RuntimeError(f"{filename} exceeds the 20 MB Product Library limit.")
+        raise RuntimeError(f"{filename} exceeds the {MAX_UPLOAD_SIZE_MB} MB Product Library limit.")
 
     # Build a deterministic fingerprint before any external upload. Images use a
     # deterministic Supabase path; non-images use filename + byte size because the
