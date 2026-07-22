@@ -59,6 +59,8 @@ except Exception:
 # v383 consolidated optimization: permission memoization, indexed history lookup,
 #   indexed Product Library legacy matching, cached timezone resource, and bounded cache invalidation.
 #   AI prompts, streaming, Auto Learning, auth transitions, and business rules unchanged.
+# v390 knowledge integrity: one-way Sales/Marketing technical retrieval, strict department
+#   learning isolation, verified vector sync state, transactional rollback, and safe merge fallback.
 
 # ============================================================
 # App Paths / API
@@ -17433,6 +17435,48 @@ def build_user_input(
     return [{"role": "user", "content": content}]
 
 
+def _workspace_knowledge_priority_instruction(selected_assistant):
+    """Describe one-way knowledge access and source authority for the active workspace."""
+    if selected_assistant == "🔧 Technical Support":
+        return (
+            "KNOWLEDGE ACCESS AND AUTHORITY:\n"
+            "- This workspace may use Technical knowledge only.\n"
+            "- Never use or infer Sales/Marketing pricing, promotions, dealer terms, "
+            "campaigns, margins, or commercial policy.\n"
+            "- Technical sources are authoritative for compatibility, installation, "
+            "wiring, firmware, hardware behavior, retained functions, limitations, and "
+            "troubleshooting.\n"
+            "- When information is not supported by Technical knowledge, say what is "
+            "missing instead of guessing."
+        )
+    if is_sales_workspace(selected_assistant):
+        return (
+            "KNOWLEDGE ACCESS AND AUTHORITY:\n"
+            "- Search Sales knowledge and Technical knowledge.\n"
+            "- Sales knowledge is authoritative for pricing, promotions, dealer policy, "
+            "commercial terms, shipping, availability, warranty/returns, and sales SOP.\n"
+            "- Technical knowledge is authoritative for compatibility, installation, "
+            "wiring, firmware, hardware behavior, retained functions, limitations, and "
+            "troubleshooting.\n"
+            "- Do not let a Sales statement override a conflicting Technical fact.\n"
+            "- Combine both sources only when their subject areas are compatible; identify "
+            "uncertainty instead of blending conflicting records."
+        )
+    if is_marketing_workspace(selected_assistant):
+        return (
+            "KNOWLEDGE ACCESS AND AUTHORITY:\n"
+            "- Search Marketing, Sales, and Technical knowledge.\n"
+            "- Marketing knowledge is authoritative for brand voice, campaign rules, and "
+            "approved creative guidance.\n"
+            "- Sales knowledge is authoritative for pricing, promotions, dealer policy, "
+            "commercial terms, shipping, availability, and warranty/returns.\n"
+            "- Technical knowledge is authoritative for compatibility, specifications, "
+            "installation, wiring, firmware, hardware behavior, limitations, and troubleshooting.\n"
+            "- Never let marketing copy or a sales claim override a conflicting Technical fact."
+        )
+    return ""
+
+
 def _build_ai_request(
     prompt_text,
     uploaded_files,
@@ -17454,8 +17498,10 @@ def _build_ai_request(
         live_data_override=live_data_override,
         order_displayed_by_app=order_displayed_by_app,
     )
+    knowledge_priority_instruction = _workspace_knowledge_priority_instruction(assistant)
     instructions = (
         get_instructions(assistant)
+        + ("\n\n" + knowledge_priority_instruction if knowledge_priority_instruction else "")
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
@@ -19020,7 +19066,13 @@ def wait_for_learned_vector_file_ready(vector_store_id, file_id, timeout_seconds
         time.sleep(0.75)
     return False, last_status
 
-def upload_learned_record_to_vector_store(record, vector_store_id):
+def upload_learned_record_to_vector_store(
+    record,
+    vector_store_id,
+    *,
+    return_status=False,
+):
+    """Upload learned knowledge and report whether vector ingestion is complete."""
     doc_text = make_learned_knowledge_document(record)
     safe_name = normalize_text_for_match(record.get("issue") or "learned_case")[:50].replace(" ", "_") or "learned_case"
     filename = f"autotecpro_learned_{safe_name}.txt"
@@ -19029,21 +19081,23 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
         tmp.write(doc_text)
         tmp_path = tmp.name
 
+    openai_file_id = ""
     try:
         with open(tmp_path, "rb") as f:
             openai_file = client.files.create(file=(filename, f), purpose="assistants")
+        openai_file_id = str(openai_file.id or "")
 
         client.vector_stores.files.create(
             vector_store_id=vector_store_id,
-            file_id=openai_file.id,
+            file_id=openai_file_id,
         )
         ready, ingestion_status = wait_for_learned_vector_file_ready(
             vector_store_id,
-            openai_file.id,
+            openai_file_id,
         )
         diagnostic_log(
             "learned_vector_ingestion_status",
-            file_id=openai_file.id,
+            file_id=openai_file_id,
             vector_store_id=vector_store_id,
             ready=ready,
             status=ingestion_status,
@@ -19052,7 +19106,23 @@ def upload_learned_record_to_vector_store(record, vector_store_id):
             raise RuntimeError(
                 f"Learned record vector ingestion {ingestion_status}."
             )
-        return openai_file.id
+        result = (openai_file_id, bool(ready), ingestion_status)
+        return result if return_status else openai_file_id
+    except Exception:
+        # A failed attachment/ingestion must not leave an untracked OpenAI file.
+        if openai_file_id:
+            try:
+                client.vector_stores.files.delete(
+                    vector_store_id=vector_store_id,
+                    file_id=openai_file_id,
+                )
+            except Exception:
+                pass
+            try:
+                client.files.delete(openai_file_id)
+            except Exception:
+                pass
+        raise
     finally:
         try:
             os.remove(tmp_path)
@@ -19097,11 +19167,14 @@ def find_duplicate_learned_knowledge(candidate, selected_assistant):
             selected_assistant
         ).strip().lower()
 
+        # Duplicate merging is strictly department-scoped. Retrieval may be
+        # one-way across departments, but durable records must never be merged
+        # into or overwrite another department's knowledge.
         rows = [
             row for row in approved_rows
             if str(row.get("assistant") or "").strip().lower()
             == clean_assistant
-        ] or approved_rows
+        ]
     except Exception:
         return None, 0
 
@@ -19227,6 +19300,7 @@ Solution: {candidate.get("solution", "")}
 Keywords: {candidate.get("keywords", "")}
 Confidence: {candidate.get("confidence_score", 70)}
 """
+    merge_succeeded = False
     try:
         response = client.responses.create(
             model="gpt-5.5",
@@ -19234,7 +19308,14 @@ Confidence: {candidate.get("confidence_score", 70)}
             input=prompt
         )
         data = extract_json_object(response.output_text)
-    except Exception:
+        merge_succeeded = bool(data.get("solution"))
+    except Exception as error:
+        diagnostic_log(
+            "learned_knowledge_merge_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+            record_id=existing_row.get("id"),
+        )
         data = {}
 
     old_times_seen = int(existing_row.get("times_seen") or 1)
@@ -19270,10 +19351,22 @@ Confidence: {candidate.get("confidence_score", 70)}
     return {
         "vehicle": merged_vehicle,
         "issue": merged_issue,
-        "solution": str(data.get("solution") or candidate.get("solution") or existing_row.get("solution") or "").strip(),
+        # Preserve the established approved solution if the AI merge fails.
+        # A transient model/API failure must never replace stronger knowledge
+        # with an unmerged candidate.
+        "solution": str(
+            data.get("solution")
+            if merge_succeeded
+            else existing_row.get("solution") or existing_row.get("approved_answer") or candidate.get("solution") or ""
+        ).strip(),
         "keywords": merged_keywords,
-        "confidence_score": int(data.get("confidence_score") or merged_confidence),
-        "times_seen": old_times_seen + 1
+        "confidence_score": int(
+            data.get("confidence_score")
+            if merge_succeeded and data.get("confidence_score") is not None
+            else max(old_confidence, merged_confidence)
+        ),
+        "times_seen": old_times_seen + 1,
+        "merge_succeeded": merge_succeeded,
     }
 
 
@@ -19624,9 +19717,12 @@ def auto_learn_from_latest_answer(
             "source_answer": safe_answer,
         }
 
-        openai_file_id = upload_learned_record_to_vector_store(
-            record_for_file,
-            vector_store_id,
+        openai_file_id, vector_ready, ingestion_status = (
+            upload_learned_record_to_vector_store(
+                record_for_file,
+                vector_store_id,
+                return_status=True,
+            )
         )
 
         update_payload = {
@@ -19645,18 +19741,31 @@ def auto_learn_from_latest_answer(
             "times_seen": improved["times_seen"],
             "openai_file_id": openai_file_id,
             "vector_store_id": vector_store_id,
-            "synced": True,
-            "embedding_status": "synced",
+            "synced": bool(vector_ready),
+            "embedding_status": "synced" if vector_ready else (ingestion_status or "processing"),
             "source_type": source_type,
             "staff_confirmed": bool(staff_confirmed),
             "updated_at": now_iso(),
         }
 
-        safe_update_row(
-            "learned_knowledge",
-            update_payload,
-            duplicate_row["id"],
-        )
+        try:
+            update_result = safe_update_row(
+                "learned_knowledge",
+                update_payload,
+                duplicate_row["id"],
+            )
+            if not getattr(update_result, "data", None):
+                raise RuntimeError("Learning record update returned no saved row.")
+        except Exception as error:
+            diagnostic_log(
+                "learned_knowledge_update_rollback",
+                error_type=type(error).__name__,
+                error=str(error),
+                record_id=duplicate_row.get("id"),
+                file_id=openai_file_id,
+            )
+            remove_old_learned_vector_file(vector_store_id, openai_file_id)
+            raise
 
         # Only remove the superseded vector after the replacement has uploaded
         # and the Supabase master record has been updated successfully.
@@ -19712,17 +19821,32 @@ def auto_learn_from_latest_answer(
         "updated_at": now_iso(),
     }
 
-    openai_file_id = upload_learned_record_to_vector_store(
-        new_record,
-        vector_store_id,
+    openai_file_id, vector_ready, ingestion_status = (
+        upload_learned_record_to_vector_store(
+            new_record,
+            vector_store_id,
+            return_status=True,
+        )
     )
     new_record["openai_file_id"] = openai_file_id
-    new_record["synced"] = True
-    new_record["embedding_status"] = "synced"
+    new_record["synced"] = bool(vector_ready)
+    new_record["embedding_status"] = (
+        "synced" if vector_ready else (ingestion_status or "processing")
+    )
 
-    result = safe_insert_row("learned_knowledge", new_record)
-    if not result.data:
-        raise RuntimeError("Learning record was not saved.")
+    try:
+        result = safe_insert_row("learned_knowledge", new_record)
+        if not result.data:
+            raise RuntimeError("Learning record was not saved.")
+    except Exception as error:
+        diagnostic_log(
+            "learned_knowledge_insert_rollback",
+            error_type=type(error).__name__,
+            error=str(error),
+            file_id=openai_file_id,
+        )
+        remove_old_learned_vector_file(vector_store_id, openai_file_id)
+        raise
 
     return {
         "learned": True,
@@ -23726,10 +23850,11 @@ def approve_pending_knowledge(row, edited_solution=None):
             }
 
             approval_stage = "uploading merged knowledge"
-            learned_file_id = (
+            learned_file_id, vector_ready, ingestion_status = (
                 upload_learned_record_to_vector_store(
                     record_for_file,
                     vector_store_id,
+                    return_status=True,
                 )
             )
 
@@ -23754,8 +23879,8 @@ def approve_pending_knowledge(row, edited_solution=None):
                 "times_seen": record_for_file["times_seen"],
                 "openai_file_id": str(learned_file_id or ""),
                 "vector_store_id": str(vector_store_id or ""),
-                "synced": True,
-                "embedding_status": "synced",
+                "synced": bool(vector_ready),
+                "embedding_status": "synced" if vector_ready else (ingestion_status or "processing"),
                 "source_type": (
                     "approved_knowledge_submission:"
                     f"{knowledge_type}"
@@ -23765,10 +23890,23 @@ def approve_pending_knowledge(row, edited_solution=None):
             }
 
             approval_stage = "saving merged knowledge"
-            admin_update_pending_row(
-                duplicate_row["id"],
-                update_payload,
-            )
+            try:
+                update_result = admin_update_pending_row(
+                    duplicate_row["id"],
+                    update_payload,
+                )
+                if not getattr(update_result, "data", None):
+                    raise RuntimeError("Approved knowledge update returned no saved row.")
+            except Exception:
+                remove_old_learned_vector_file(vector_store_id, learned_file_id)
+                raise
+
+            old_file_id = duplicate_row.get("openai_file_id")
+            if old_file_id and old_file_id != learned_file_id:
+                remove_old_learned_vector_file(
+                    duplicate_row.get("vector_store_id") or vector_store_id,
+                    old_file_id,
+                )
             admin_delete_pending_row(row.get("id"))
 
             return {
@@ -23811,22 +23949,33 @@ def approve_pending_knowledge(row, edited_solution=None):
         }
 
         approval_stage = "uploading approved knowledge"
-        learned_file_id = upload_learned_record_to_vector_store(
-            approved_record,
-            vector_store_id,
+        learned_file_id, vector_ready, ingestion_status = (
+            upload_learned_record_to_vector_store(
+                approved_record,
+                vector_store_id,
+                return_status=True,
+            )
         )
 
         approved_record["openai_file_id"] = str(
             learned_file_id or ""
         )
-        approved_record["synced"] = True
-        approved_record["embedding_status"] = "synced"
+        approved_record["synced"] = bool(vector_ready)
+        approved_record["embedding_status"] = (
+            "synced" if vector_ready else (ingestion_status or "processing")
+        )
 
         approval_stage = "saving approved knowledge"
-        admin_update_pending_row(
-            row.get("id"),
-            approved_record,
-        )
+        try:
+            update_result = admin_update_pending_row(
+                row.get("id"),
+                approved_record,
+            )
+            if not getattr(update_result, "data", None):
+                raise RuntimeError("Approved knowledge save returned no saved row.")
+        except Exception:
+            remove_old_learned_vector_file(vector_store_id, learned_file_id)
+            raise
 
         return {
             "mode": "approved",
