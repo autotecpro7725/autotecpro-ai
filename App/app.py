@@ -92,6 +92,9 @@ except Exception:
 # v405 production review: harden optional Supabase Storage fallbacks, normalize
 #   SDK response shapes and upload signatures, prevent duplicate approval writes,
 #   and preserve image-generation operation when memory services are unavailable.
+# v406.1 production hotfix: restore all Graphic image-generation and branding
+#   constants omitted during prior cleanup; no login, transition, memory, UI, or
+#   business-flow behavior changed.
 # v406 reference-style learning: allow staff to upload one or more reference
 #   images in Graphic Marketing, analyze their shared visual language, save one
 #   reusable style-set record, retain optional source images, and reuse the newest
@@ -15180,6 +15183,23 @@ def detect_graphic_brand_logo_position(prompt_text):
     return GRAPHIC_BRAND_LOGO_DEFAULT_POSITION
 
 
+
+# Graphic image-generation reliability settings. These constants were
+# unintentionally omitted from v405/v406 while their call sites remained.
+# Restoring the established production values prevents NameError failures
+# without changing the existing image-generation behavior.
+GRAPHIC_IMAGE_COUNT = 1
+GRAPHIC_IMAGE_MODEL = "gpt-image-1"
+GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
+GRAPHIC_IMAGE_MAX_RETRIES = 0
+
+# Official AutoTecPro branding is composited after AI generation so the model
+# never has to redraw or imitate the company logo.
+GRAPHIC_BRAND_LOGO_DEFAULT_POSITION = "top_left"
+GRAPHIC_BRAND_LOGO_WIDTH_RATIO = 0.29
+GRAPHIC_BRAND_LOGO_MARGIN_RATIO = 0.025
+GRAPHIC_BRAND_LOGO_PANEL_OPACITY = 232
+GRAPHIC_BRAND_LOGO_PANEL_RADIUS_RATIO = 0.014
 
 GRAPHIC_STYLE_LIBRARY_BUCKET = "graphic-style-library"
 
