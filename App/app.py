@@ -75,14 +75,15 @@ except Exception:
 # v396 intelligent archive analysis: safe recursive ZIP extraction, hidden-file filtering,
 #   folder manifests, supported-file routing, encryption/path-traversal/ZIP-bomb protection,
 #   and dedicated ZIP preview artwork without changing the stable uploader lifecycle.
-# v397 ZIP preview refinement: enlarge only the ZIP attachment artwork by 30%
-#   while preserving all other document icons, card dimensions, metadata, and delete controls.
+# v398 production cleanup: remove 11 verified unreferenced legacy helpers and 3
+#   unused constants; retain active diagnostics, upload lifecycle, archive analyzer,
+#   authentication, history, AI, database, and business workflows unchanged.
+#   ZIP preview artwork is 30% larger than other document icons.
 
 # ============================================================
 # App Paths / API
 # ============================================================
 
-BASE_DIR = Path(__file__).parent.parent
 APP_DIR = Path(__file__).parent
 LOGO_FILE = APP_DIR / "logo.png"
 AUTOTECPRO_BRAND_LOGO_FILE = APP_DIR / "autotecpro_brand_logo.png"
@@ -637,48 +638,6 @@ def _clean_woocommerce_meta_text(value):
     return cleaned
 
 
-def _friendly_woocommerce_meta_label(label):
-    """Shorten common product-option questions into support-friendly labels."""
-    cleaned = _clean_woocommerce_meta_text(label)
-    lowered = cleaned.lower()
-
-    label_rules = [
-        (
-            ("which year", "year is your truck", "vehicle year", "truck year"),
-            "Vehicle Year",
-        ),
-        (
-            ("microsoft sync", "sync version", "original sync"),
-            "Original Microsoft SYNC Version",
-        ),
-        (
-            ("climate control", "a/c system", "ac system"),
-            "Climate Control",
-        ),
-        (
-            ("left-hand drive", "right-hand drive", "drive side", "steering side"),
-            "Drive Side",
-        ),
-        (
-            ("hardware version", "select the hardware", "ram", "storage"),
-            "Hardware Version",
-        ),
-        (
-            ("dash camera", "dvr", "usb dash camera"),
-            "DVR / Dash Camera",
-        ),
-        (
-            ("dashboard picture", "original dashboard", "picture required"),
-            "Original Dashboard Picture",
-        ),
-    ]
-
-    for keywords, friendly_label in label_rules:
-        if any(keyword in lowered for keyword in keywords):
-            return friendly_label
-
-    cleaned = cleaned.strip(" :-")
-    return cleaned or "Product Option"
 
 
 def _sanitize_woocommerce_item_metadata(metadata, technical_view=False):
@@ -9415,12 +9374,6 @@ def get_table_columns(table_name):
     return fallback.get(table_name, [])
 
 
-def refresh_schema_cache():
-    """Clear cached schema after SQL migration or Streamlit reboot."""
-    try:
-        get_table_columns.clear()
-    except Exception:
-        pass
 
 
 def filter_payload_for_table(table_name, payload):
@@ -10481,56 +10434,6 @@ def logout_user():
 # Login Screen
 # ============================================================
 
-def show_login_loading_message(placeholder):
-    """
-    Replace the complete login page with a small text-only loading state.
-
-    Rendering inside the same placeholder guarantees the login logo and form
-    are removed before the authenticated page appears.
-    """
-    placeholder.markdown(
-        """
-        <style>
-        .atp-inline-login-loading {
-            width: 100%;
-            min-height: 220px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .atp-inline-login-loading-content {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-            color: #f8fafc;
-            font-size: 16px;
-            font-weight: 750;
-        }
-
-        .atp-inline-login-spinner {
-            width: 21px;
-            height: 21px;
-            border: 2px solid rgba(255,255,255,0.22);
-            border-top-color: #ff4d3d;
-            border-radius: 50%;
-            animation: atpInlineLoginSpin 0.72s linear infinite;
-        }
-
-        @keyframes atpInlineLoginSpin {
-            to { transform: rotate(360deg); }
-        }
-        </style>
-
-        <div class="atp-inline-login-loading">
-            <div class="atp-inline-login-loading-content">
-                <div class="atp-inline-login-spinner"></div>
-                <div>Loading AutoTecPro AI System...</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def login_screen():
@@ -13342,15 +13245,6 @@ def _make_image_preview_data_url_cached(
     return f"data:{mime_type};base64,{encoded}"
 
 
-def make_image_preview_data_url(uploaded_file, max_size=(1200, 1200), quality=76):
-    raw = uploaded_file.getvalue()
-    mime_type = getattr(uploaded_file, "type", "") or "image/jpeg"
-    return _make_image_preview_data_url_cached(
-        raw,
-        mime_type,
-        max_size=max_size,
-        quality=quality,
-    )
 
 
 def get_uploaded_image_previews(uploaded_files):
@@ -18056,31 +17950,6 @@ def ask_ai_stream(
             return
 
 
-def ask_ai(
-    prompt_text,
-    uploaded_files,
-    detected_live_request=None,
-    detected_technical_tool=None,
-    detected_workspace_tool=None,
-    response_mode=None,
-    use_file_search=True,
-    live_data_override=_LIVE_DATA_UNSET,
-    order_displayed_by_app=False,
-):
-    """Compatibility wrapper for non-streaming callers."""
-    return "".join(
-        ask_ai_stream(
-            prompt_text,
-            uploaded_files,
-            detected_live_request=detected_live_request,
-            detected_technical_tool=detected_technical_tool,
-            detected_workspace_tool=detected_workspace_tool,
-            response_mode=response_mode,
-            use_file_search=use_file_search,
-            live_data_override=live_data_override,
-            order_displayed_by_app=order_displayed_by_app,
-        )
-    )
 
 
 
@@ -20581,16 +20450,6 @@ def top_counts(rows, field, limit=10):
     return sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
 
 
-def keyword_counts(rows, limit=10):
-    counts = {}
-    for row in rows:
-        keywords = str(row.get("keywords") or "")
-        for kw in keywords.split(","):
-            key = kw.strip().lower()
-            if not key:
-                continue
-            counts[key] = counts.get(key, 0) + 1
-    return sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
 
 
 def render_count_table(title, data, col_name):
@@ -20627,11 +20486,6 @@ def user_counts(rows, limit=10):
     return top_counts(rows, "username", limit)
 
 
-def learning_success_rate(rows):
-    if not rows:
-        return 0
-    learned = len([r for r in rows if r.get("learned")])
-    return round((learned / max(len(rows), 1)) * 100)
 
 
 
@@ -20711,21 +20565,6 @@ def clean_assistant_label(assistant_name):
     return value.strip()
 
 
-def normalize_workspace_assistant_name(assistant_name):
-    """Map legacy saved workspace labels to current workspace names."""
-    cleaned = clean_assistant_label(assistant_name)
-    mapping = {
-        "Sales & Marketing": "📈 Sales",
-        "Sales and Marketing": "📈 Sales",
-        "Sales": "📈 Sales",
-        "Marketing": "📣 Marketing",
-        "Technical Support": "🔧 Technical Support",
-        "Graphic Marketing": "🎨 Graphic Marketing",
-        "Knowledge Submission": "🧠 Knowledge Submission",
-        "Product Library": "📦 Product Library",
-        "Admin Panel": "⚙️ Admin Panel",
-    }
-    return mapping.get(cleaned, str(assistant_name or "").strip())
 
 
 def conversation_title_from_text(text):
@@ -21468,20 +21307,6 @@ def toggle_pin_conversation(conversation_id, pinned):
     )
 
 
-def format_history_date(value):
-    if not value:
-        return ""
-
-    text = str(value)[:10]
-    try:
-        dt = datetime.fromisoformat(text)
-        return dt.strftime("%b %-d")
-    except Exception:
-        try:
-            dt = datetime.strptime(text, "%Y-%m-%d")
-            return dt.strftime("%b %d").replace(" 0", " ")
-        except Exception:
-            return text
 
 
 def _cached_conversation_row(conversation_id):
@@ -21610,15 +21435,6 @@ def render_rename_form(conversations):
 # ChatGPT-style HTML History Actions
 # ============================================================
 
-def app_action_url(action, conversation_id):
-    """Build query-string URL for custom HTML history actions."""
-    session_token = st.query_params.get("session")
-    parts = []
-    if session_token:
-        parts.append(f"session={html.escape(str(session_token), quote=True)}")
-    parts.append(f"hist_action={html.escape(str(action), quote=True)}")
-    parts.append(f"cid={html.escape(str(conversation_id), quote=True)}")
-    return "?" + "&".join(parts)
 
 
 def clear_history_action_params():
@@ -21629,66 +21445,6 @@ def clear_history_action_params():
         st.query_params["session"] = session_token
 
 
-def process_history_action():
-    """Process open / rename / pin / archive / delete from custom HTML history links."""
-    action = st.query_params.get("hist_action")
-    cid = st.query_params.get("cid")
-
-    if not action or not cid:
-        return
-
-    if "rename_conversation_id" not in st.session_state:
-        st.session_state.rename_conversation_id = None
-    if "history_unpinned_limit" not in st.session_state:
-        st.session_state.history_unpinned_limit = INITIAL_HISTORY_PAGE_SIZE
-    if "rename_conversation_value" not in st.session_state:
-        st.session_state.rename_conversation_value = ""
-
-    try:
-        if action == "open":
-            st.session_state.conversation_id = cid
-            st.session_state.messages = load_messages(cid)
-            st.session_state.rename_conversation_id = None
-            st.session_state.scroll_to_bottom = True
-
-        elif action == "rename":
-            st.session_state.rename_conversation_id = str(cid)
-            st.session_state.rename_conversation_value = get_conversation_title_by_id(cid)
-
-        elif action == "pin":
-            cached_conversation = _cached_conversation_row(cid)
-            if cached_conversation is not None:
-                pinned = bool(cached_conversation.get("pinned", False))
-            else:
-                current = (
-                    supabase.table("conversations")
-                    .select("pinned")
-                    .eq("id", cid)
-                    .limit(1)
-                    .execute()
-                )
-                pinned = False
-                if current.data:
-                    pinned = bool(current.data[0].get("pinned", False))
-            toggle_pin_conversation(cid, not pinned)
-
-        elif action == "archive":
-            archive_conversation(cid)
-            if st.session_state.conversation_id == cid:
-                st.session_state.conversation_id = None
-                st.session_state.messages = []
-
-        elif action == "delete":
-            delete_conversation(cid)
-            if st.session_state.conversation_id == cid:
-                st.session_state.conversation_id = None
-                st.session_state.messages = []
-
-    except Exception as e:
-        st.session_state.history_action_error = str(e)
-
-    clear_history_action_params()
-    st.rerun()
 
 
 def get_conversation_title_by_id(conversation_id):
@@ -23956,7 +23712,6 @@ def install_knowledge_submission_css():
     )
 
 
-PENDING_KNOWLEDGE_PREFIX = "[PENDING_KNOWLEDGE]"
 PENDING_ATTACHMENT_PREFIX = "pending_attachments:"
 
 
@@ -26446,7 +26201,6 @@ def render_marketing_tools_panel():
 PRODUCT_LIBRARY_BUCKET = "product-images"
 PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
 PRODUCT_LIBRARY_DISPLAY_MAX_PX = 2200
-PRODUCT_LIBRARY_THUMB_MAX_PX = 560
 
 GOOGLE_DRIVE_CLIENT_ID = get_optional_secret("GOOGLE_DRIVE_CLIENT_ID")
 GOOGLE_DRIVE_CLIENT_SECRET = get_optional_secret("GOOGLE_DRIVE_CLIENT_SECRET")
