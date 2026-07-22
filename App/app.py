@@ -32,7 +32,12 @@ from urllib.parse import quote, urlparse
 from html.parser import HTMLParser
 import socket
 import ipaddress
+import csv
 from difflib import SequenceMatcher
+try:
+    from openpyxl import load_workbook
+except Exception:
+    load_workbook = None
 from config import supabase
 try:
     from supabase import create_client as create_supabase_client
@@ -61,6 +66,9 @@ except Exception:
 #   AI prompts, streaming, Auto Learning, auth transitions, and business rules unchanged.
 # v390 knowledge integrity: one-way Sales/Marketing technical retrieval, strict department
 #   learning isolation, verified vector sync state, transactional rollback, and safe merge fallback.
+# v391 intelligent Excel learning: row/column relationship preservation, inherited-cell
+#   fill-down, multi-level header mapping, explicit compatibility normalization, source-row
+#   traceability, and workspace-aware financial-field isolation for Admin knowledge uploads.
 
 # ============================================================
 # App Paths / API
@@ -18008,6 +18016,372 @@ Do not output HTML, markdown code fences, or JSON.
     return output, final_text
 
 
+
+
+# ============================================================
+# Intelligent Excel / CSV Knowledge Extraction
+# ============================================================
+
+TABULAR_KNOWLEDGE_EXTENSIONS = {".xlsx", ".xlsm", ".csv"}
+
+
+def is_tabular_knowledge_file(uploaded_file):
+    """Return True for spreadsheet formats supported by the structured importer."""
+    extension = Path(str(getattr(uploaded_file, "name", ""))).suffix.lower()
+    return extension in TABULAR_KNOWLEDGE_EXTENSIONS
+
+
+def _clean_tabular_cell(value):
+    """Convert one spreadsheet value to stable searchable text."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    cleaned = html.unescape(str(value))
+    cleaned = cleaned.replace("\u00a0", " ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _canonical_tabular_header(header, column_index):
+    """Map common workbook headings to stable field names without losing labels."""
+    original = _clean_tabular_cell(header)
+    normalized = re.sub(r"[^a-z0-9]+", " ", original.casefold()).strip()
+
+    if normalized == "vehicle brand":
+        return "Vehicle Brand"
+    if normalized == "original system climate configuration":
+        return "Original System / Climate Configuration"
+
+    rules = [
+        (("kvn part", "part number", "part no", "model number", "model no"), "Model / Part Number"),
+        (("autotec part", "item number", "item no", "item #", "sku"), "AutoTec Item Number"),
+        (("retain original system", "original system retained", "retain factory system", "compatibility original system"), "Original System Retained"),
+        (("original system", "factory system", "oem system", "sync version"), "Original System Type / Retention"),
+        (("original amplifier", "factory amplifier", "oem amplifier"), "Original Amplifier Retained"),
+        (("original camera", "factory camera", "oem camera"), "Original Camera Retained"),
+        (("rear ent", "rear entertainment"), "Original Rear Entertainment Retained"),
+        (("rca output",), "RCA Output"),
+        (("xm", "satellite radio"), "XM Retained"),
+        (("screen", "display size"), "Screen Size"),
+        (("model", "vehicle model", "vehicle"), "Vehicle / Model"),
+        (("year", "years"), "Vehicle Year / Range"),
+        (("brand", "make", "manufacturer"), "Vehicle Brand"),
+        (("description", "product description"), "Description"),
+        (("factory code",), "Factory Code"),
+        (("price cad", "cad price"), "Price CAD"),
+        (("price usd", "usd price"), "Price USD"),
+        (("installation video",), "Installation Video Link"),
+        (("youtube", "demo link"), "Demo Link"),
+        (("website", "product page"), "Website Link"),
+        (("camera type",), "Camera Type"),
+        (("camera",), "Camera"),
+        (("note", "notes"), "Notes"),
+    ]
+
+    for aliases, canonical in rules:
+        if any(alias in normalized for alias in aliases):
+            return canonical
+
+    return original or f"Column {column_index}"
+
+
+def _tabular_header_score(values):
+    """Score a possible header row using density and AutoTecPro table vocabulary."""
+    cleaned = [_clean_tabular_cell(value) for value in values]
+    nonempty = [value for value in cleaned if value]
+    if len(nonempty) < 2:
+        return -1
+
+    vocabulary = (
+        "model", "screen", "part", "item", "description", "compatibility",
+        "original", "camera", "amplifier", "xm", "rca", "price", "factory",
+        "year", "vehicle", "brand", "note", "link", "system", "retain",
+    )
+    hits = sum(
+        1 for value in nonempty
+        if any(word in value.casefold() for word in vocabulary)
+    )
+    text_ratio = sum(not re.fullmatch(r"[-+]?\d+(?:\.\d+)?", value) for value in nonempty)
+    return (hits * 5) + (len(nonempty) * 2) + text_ratio
+
+
+def _detect_tabular_header_row(rows, max_scan=30):
+    """Locate the most likely header row near the top of a worksheet."""
+    candidates = []
+    for index, row in enumerate(rows[:max_scan], start=1):
+        candidates.append((_tabular_header_score(row), index))
+    candidates.sort(reverse=True)
+    return candidates[0][1] if candidates and candidates[0][0] >= 6 else 1
+
+
+def _normalize_compatibility_value(header, value):
+    """Translate compatibility symbols only inside feature/retention columns."""
+    raw = _clean_tabular_cell(value)
+    lowered_header = str(header or "").casefold()
+    is_feature = any(
+        token in lowered_header
+        for token in (
+            "retain", "compatibility", "original system", "amplifier",
+            "camera", "rear entertainment", "xm", "rca output", "supported",
+        )
+    )
+    if not is_feature or not raw:
+        return raw
+
+    compact = raw.casefold().strip()
+    if compact in {"•", "●", "✓", "✔", "yes", "y", "true", "supported", "retain", "retained"}:
+        return "Yes / Supported / Retained"
+    if compact in {"x", "✕", "✖", "no", "n", "false", "not supported", "not retained"}:
+        return "No / Not Supported / Not Retained"
+    if compact in {"-", "—", "n/a", "na"}:
+        return "Not Applicable / Not Specified"
+    return raw
+
+
+def _is_financial_tabular_header(header):
+    normalized = str(header or "").casefold()
+    return any(
+        term in normalized
+        for term in (
+            "price", "cost", "subtotal", "total", "tax", "fee", "discount",
+            "coupon", "payment", "currency", "profit", "margin", "wholesale",
+        )
+    )
+
+
+def _is_inherited_context_header(header):
+    """Identify identity columns where blank cells conventionally mean same as above."""
+    normalized = str(header or "").casefold()
+    return any(
+        term in normalized
+        for term in (
+            "brand", "vehicle", "model", "year", "category", "make",
+            "manufacturer", "product family",
+        )
+    ) and not any(
+        term in normalized
+        for term in ("part number", "item number", "price", "retained", "compatibility")
+    )
+
+
+def _combine_multilevel_headers(rows, header_row_number):
+    """Combine a sparse parent heading row with the detected detailed header row."""
+    header_values = list(rows[header_row_number - 1])
+    parent_values = list(rows[header_row_number - 2]) if header_row_number > 1 else []
+    combined = []
+    parent_context = ""
+
+    for index, value in enumerate(header_values, start=1):
+        parent = _clean_tabular_cell(parent_values[index - 1]) if index <= len(parent_values) else ""
+        if parent:
+            parent_context = parent
+        child = _clean_tabular_cell(value)
+
+        # Human-formatted compatibility sheets often leave the Brand and
+        # Configuration header cells blank. Infer only these high-confidence
+        # positions so the row relationship remains explicit.
+        if not child and index == 1 and len(header_values) >= 2:
+            second_header = _clean_tabular_cell(header_values[1]).casefold()
+            if "model" in second_header or "vehicle" in second_header:
+                child = "Vehicle Brand"
+        if not child and index == 4 and len(header_values) >= 5:
+            left_header = _clean_tabular_cell(header_values[2]).casefold()
+            right_header = _clean_tabular_cell(header_values[4]).casefold()
+            if "screen" in left_header and ("part" in right_header or "model" in right_header):
+                child = "Original System / Climate Configuration"
+
+        # Titles such as "KVN Android 13 Part Number" should not prefix the first
+        # identity column, while section labels such as Compatibility add useful context.
+        useful_parent = parent_context if parent_context.casefold() in {"compatibility", "specification", "specifications", "features"} else ""
+        display = " | ".join(part for part in (useful_parent, child) if part)
+        combined.append(_canonical_tabular_header(display, index))
+    return combined
+
+
+def _make_unique_headers(headers):
+    seen = {}
+    unique = []
+    for header in headers:
+        base = str(header or "Column").strip() or "Column"
+        seen[base] = seen.get(base, 0) + 1
+        unique.append(base if seen[base] == 1 else f"{base} ({seen[base]})")
+    return unique
+
+
+def _structured_row_sentence(record):
+    """Create one natural-language sentence that keeps every row relationship intact."""
+    model = next((v for k, v in record.items() if "part number" in k.casefold()), "")
+    vehicle = next((v for k, v in record.items() if "vehicle / model" in k.casefold()), "")
+    brand = next((v for k, v in record.items() if "brand" in k.casefold()), "")
+    retention = next((v for k, v in record.items() if k == "Original System Retained"), "")
+    identity = " ".join(value for value in (brand, vehicle) if value).strip()
+    parts = []
+    if model:
+        parts.append(f"Model or part number {model}")
+    if identity:
+        parts.append(f"applies to {identity}")
+    if retention:
+        parts.append(f"original system retained: {retention}")
+    if parts:
+        return "; ".join(parts) + "."
+    return "This row is one complete product or compatibility configuration."
+
+
+def _rows_to_structured_knowledge(rows, sheet_name, source_name, database_choice):
+    """Convert worksheet rows into row-bound knowledge records."""
+    if not rows:
+        return [], {"header_row": 0, "records": 0}
+
+    header_row_number = _detect_tabular_header_row(rows)
+    headers = _make_unique_headers(_combine_multilevel_headers(rows, header_row_number))
+    financial_allowed = database_choice != "Technical Support Database"
+    inherited = {}
+    records = []
+
+    for source_row_number, row in enumerate(rows[header_row_number:], start=header_row_number + 1):
+        values = list(row) + [None] * max(0, len(headers) - len(row))
+        raw_nonempty = sum(bool(_clean_tabular_cell(value)) for value in values[:len(headers)])
+        if raw_nonempty == 0:
+            # Do not clear inherited identity context across visual separator rows.
+            continue
+
+        record = {}
+        for column_index, header in enumerate(headers):
+            value = _clean_tabular_cell(values[column_index] if column_index < len(values) else "")
+            if _is_inherited_context_header(header):
+                if value:
+                    inherited[header] = value
+                elif inherited.get(header):
+                    value = inherited[header]
+
+            value = _normalize_compatibility_value(header, value)
+            if not value:
+                continue
+            if not financial_allowed and _is_financial_tabular_header(header):
+                continue
+            record[header] = value
+
+        # Skip decorative or title-only rows that do not contain enough relational data.
+        if len(record) < 2:
+            continue
+
+        records.append({
+            "source_row": source_row_number,
+            "fields": record,
+        })
+
+    return records, {"header_row": header_row_number, "records": len(records)}
+
+
+def _read_excel_rows(file_bytes, extension):
+    if load_workbook is None:
+        raise RuntimeError(
+            "Excel structured learning requires openpyxl. Add openpyxl to requirements.txt."
+        )
+    workbook = load_workbook(
+        io.BytesIO(file_bytes),
+        data_only=True,
+        read_only=False,
+        keep_vba=(extension == ".xlsm"),
+    )
+    result = []
+    for worksheet in workbook.worksheets:
+        # Hidden helper/status sheets are usually validation sources, not knowledge tables.
+        if str(getattr(worksheet, "sheet_state", "visible")) != "visible":
+            continue
+        rows = [tuple(row) for row in worksheet.iter_rows(values_only=True)]
+        result.append((worksheet.title, rows))
+    return result
+
+
+def _read_csv_rows(file_bytes):
+    decoded = bytes(file_bytes or b"").decode("utf-8-sig", errors="replace")
+    sample = decoded[:8192]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except Exception:
+        dialect = csv.excel
+    return [("CSV", [tuple(row) for row in csv.reader(io.StringIO(decoded), dialect)])]
+
+
+def convert_tabular_file_to_knowledge_file(uploaded_file, database_choice):
+    """Create a searchable text companion with exact row-to-column relationships."""
+    original_name = Path(str(getattr(uploaded_file, "name", "spreadsheet.xlsx"))).name
+    extension = Path(original_name).suffix.lower()
+    file_bytes = uploaded_file.getvalue()
+    if not file_bytes:
+        raise ValueError("The spreadsheet is empty.")
+
+    if extension in {".xlsx", ".xlsm"}:
+        sheets = _read_excel_rows(file_bytes, extension)
+    elif extension == ".csv":
+        sheets = _read_csv_rows(file_bytes)
+    else:
+        raise ValueError(f"Structured learning does not support {extension or 'this file type'}.")
+
+    output_lines = [
+        "AUTOTECPRO INTELLIGENT STRUCTURED SPREADSHEET KNOWLEDGE",
+        f"Original file: {original_name}",
+        f"Destination: {database_choice}",
+        f"Created at (UTC): {datetime.now(timezone.utc).isoformat()}",
+        "Learning rule: Every RECORD below represents one complete source row. Do not mix a field from one record with another record.",
+        "Blank identity cells were filled from the nearest preceding row only for brand, vehicle, year, category, or product-family context.",
+        "Compatibility symbols were normalized only in feature/retention columns. Blank feature cells remain unspecified and must not be assumed Yes or No.",
+        "Technical Support exports exclude financial and commercial fields.",
+        "",
+    ]
+
+    total_records = 0
+    sheet_summaries = []
+    for sheet_name, rows in sheets:
+        records, summary = _rows_to_structured_knowledge(
+            rows,
+            sheet_name,
+            original_name,
+            database_choice,
+        )
+        total_records += len(records)
+        sheet_summaries.append((sheet_name, summary))
+        if not records:
+            continue
+        output_lines.extend([
+            f"===== SHEET: {sheet_name} =====",
+            f"Detected header row: {summary['header_row']}",
+            f"Structured records: {len(records)}",
+            "",
+        ])
+        for record_index, item in enumerate(records, start=1):
+            fields = item["fields"]
+            output_lines.append(
+                f"RECORD {record_index} | Source: {original_name} | Sheet: {sheet_name} | Excel row: {item['source_row']}"
+            )
+            output_lines.append(_structured_row_sentence(fields))
+            for header, value in fields.items():
+                output_lines.append(f"- {header}: {value}")
+            output_lines.append("END RECORD")
+            output_lines.append("")
+
+    if total_records == 0:
+        raise ValueError("No structured spreadsheet records could be detected.")
+
+    output_lines.insert(4, f"Total structured records: {total_records}")
+    final_text = "\n".join(output_lines).strip() + "\n"
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original_name).stem).strip("._-")
+    digest = hashlib.sha256(file_bytes).hexdigest()[:12]
+    searchable_file = ManagedUploadedFile(
+        final_text.encode("utf-8"),
+        f"{safe_stem or 'spreadsheet'}__structured_rows_{digest}.txt",
+        "text/plain",
+    )
+    return searchable_file, final_text, {
+        "records": total_records,
+        "sheets": sheet_summaries,
+    }
+
+
 def upload_to_vector_store(uploaded_file, vector_store_id):
     openai_file = client.files.create(file=uploaded_file, purpose="assistants")
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
@@ -22913,7 +23287,7 @@ def render_admin_upload_knowledge_tab():
         ),
         help=(
             "Optional. This helps the AI interpret reference images accurately. "
-            "It is not required for PDF, TXT, or DOCX files."
+            "Excel and CSV files are automatically converted into structured row-linked knowledge."
         ),
         key="stable_admin_upload_context"
     )
@@ -22922,13 +23296,13 @@ def render_admin_upload_knowledge_tab():
         storage_key="admin_managed_uploads",
         generation_key="admin_managed_upload_generation",
         widget_prefix="admin_knowledge",
-        accepted_types=["pdf", "txt", "docx", "jpg", "jpeg", "png"],
+        accepted_types=["pdf", "txt", "docx", "xlsx", "xlsm", "csv", "jpg", "jpeg", "png"],
         heading="Upload documents or reference images",
     )
 
     st.caption(
-        "Reference images are converted into searchable text before being "
-        "added to the knowledge base."
+        "Reference images are converted into searchable text. Excel and CSV files are "
+        "converted into row-linked records so every model remains matched to the correct columns."
     )
 
     _admin_upload_left, _admin_upload_center, _admin_upload_right = st.columns(
@@ -22985,6 +23359,38 @@ def render_admin_upload_knowledge_tab():
                             f"Extracted knowledge — {admin_file.name}"
                         ):
                             st.text(extracted_text)
+                    elif is_tabular_knowledge_file(admin_file):
+                        with st.spinner(
+                            f"Structuring spreadsheet relationships: {admin_file.name}"
+                        ):
+                            (
+                                searchable_file,
+                                structured_text,
+                                structured_summary,
+                            ) = convert_tabular_file_to_knowledge_file(
+                                admin_file,
+                                database_choice,
+                            )
+                            file_id = upload_to_vector_store(
+                                searchable_file,
+                                selected_vector_store_id,
+                            )
+
+                        st.success(
+                            f"Spreadsheet structured and uploaded: {admin_file.name} "
+                            f"| {structured_summary.get('records', 0):,} row-linked records "
+                            f"| Search file: {searchable_file.name} "
+                            f"| File ID: {file_id}"
+                        )
+
+                        with st.expander(
+                            f"Structured knowledge preview — {admin_file.name}"
+                        ):
+                            preview_limit = 20000
+                            preview = structured_text[:preview_limit]
+                            if len(structured_text) > preview_limit:
+                                preview += "\n\n[Preview truncated; the complete structured file was uploaded.]"
+                            st.text(preview)
                     else:
                         file_id = upload_to_vector_store(
                             admin_file,
