@@ -92,6 +92,9 @@ except Exception:
 # v405 production review: harden optional Supabase Storage fallbacks, normalize
 #   SDK response shapes and upload signatures, prevent duplicate approval writes,
 #   and preserve image-generation operation when memory services are unavailable.
+# v407 unified Graphic workspace: combine free-form Graphic Chat and Advanced AI
+#   Image Designer on one page, keep the normal chat composer always available,
+#   and route both creation paths through the same approved reference-style memory.
 # v406.1 production hotfix: restore all Graphic image-generation and branding
 #   constants omitted during prior cleanup; no login, transition, memory, UI, or
 #   business-flow behavior changed.
@@ -26552,6 +26555,7 @@ def build_advanced_image_designer_request(
     contact_information,
     output_format,
     additional_instructions,
+    use_approved_reference_style=True,
 ):
     """Build one polished image prompt for the existing Graphic pipeline."""
     category = _clean_graphic_designer_value(category, 120)
@@ -26575,6 +26579,7 @@ def build_advanced_image_designer_request(
         additional_instructions,
         3000,
     )
+    use_approved_reference_style = bool(use_approved_reference_style)
     branding_text = ", ".join(
         _clean_graphic_designer_value(item, 100)
         for item in (branding_elements or [])
@@ -26611,9 +26616,11 @@ DESIGN BRIEF
 - Website / contact information: {contact_information or "Not supplied"}
 - Intended output: {output_format}
 - Additional instructions: {additional_instructions or "None"}
+- Approved reference style: {"Required — use the approved reference style from Graphic Memory" if use_approved_reference_style else "Not requested"}
 
 DESIGN REQUIREMENTS
 - Produce a polished, commercially usable AutoTecPro marketing creative.
+- When approved reference style is required, use the approved reference style and its saved reference images as the primary visual direction. Match its composition, typography hierarchy, color treatment, spacing, product framing, information-panel structure, and overall advertising language instead of defaulting to a generic automotive advertisement.
 - Preserve the real product shape, dashboard layout, controls, screen proportions,
   vehicle interior, and uploaded reference details whenever reference images exist.
 - Use a clean professional hierarchy with enough negative space and strong product focus.
@@ -26637,214 +26644,183 @@ DESIGN REQUIREMENTS
 
 
 def render_advanced_image_designer_panel():
-    """Render Graphic Chat or one lazy Advanced Image Designer form."""
+    """Render one unified Graphic workspace with chat and structured designer."""
     apply_graphic_designer_mobile_css()
 
-    selected_label = st.selectbox(
-        "Graphic Marketing mode",
-        options=list(GRAPHIC_MARKETING_MODE_OPTIONS),
-        key="graphic_marketing_mode",
-        help="Use normal Graphic Chat or build a structured branded design.",
+    st.caption(
+        "Use Graphic Chat below for free-form generation, editing, analysis, and "
+        "creative questions. Open the Advanced AI Image Designer here whenever "
+        "you want a structured brief; both paths use the same Graphic Memory."
     )
 
-    selected_mode = GRAPHIC_MARKETING_MODE_OPTIONS[selected_label]
-    if selected_mode == "chat":
-        st.caption(
-            "Use normal Graphic Chat for free-form image generation, editing, "
-            "image analysis, and creative questions."
+    with st.expander("🎨 Advanced AI Image Designer", expanded=False):
+        category = st.selectbox(
+            "Design category",
+            options=list(GRAPHIC_DESIGN_TYPES),
+            key="graphic_design_category",
         )
-        return {"active": False, "prompt": None, "display_text": None}
-
-    category = st.selectbox(
-        "Design category",
-        options=list(GRAPHIC_DESIGN_TYPES),
-        key="graphic_design_category",
-    )
-    design_type = st.selectbox(
-        "Design type",
-        options=GRAPHIC_DESIGN_TYPES[category],
-        key="graphic_design_type",
-    )
-
-    with st.form("advanced_ai_image_designer_form", clear_on_submit=False):
-        st.markdown("#### 🎨 Advanced AI Image Designer")
-        st.caption(
-            "Build a structured design brief. No image request runs until "
-            "Generate Design is clicked."
+        design_type = st.selectbox(
+            "Design type",
+            options=GRAPHIC_DESIGN_TYPES[category],
+            key="graphic_design_type",
         )
 
-        custom_design = ""
-        if design_type == "Custom Design":
-            custom_design = st.text_area(
-                "Describe your custom design",
+        with st.form("advanced_ai_image_designer_form", clear_on_submit=False):
+            st.caption(
+                "Build a structured design brief. The completed brief is sent through "
+                "the same image-generation and approved-style pipeline as Graphic Chat."
+            )
+
+            custom_design = ""
+            if design_type == "Custom Design":
+                custom_design = st.text_area(
+                    "Describe your custom design",
+                    height=120,
+                    placeholder=(
+                        "Example: Create a SEMA trade-show booth backdrop for our "
+                        "Ford digital gauge cluster."
+                    ),
+                )
+
+            product = st.text_input(
+                "Product / model",
+                placeholder="Example: Silverado 17.2-inch Elite Android Screen",
+            )
+            vehicle = st.text_input(
+                "Vehicle / compatibility",
+                placeholder="Example: 2019–2026 Chevrolet Silverado",
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                marketing_goal = st.selectbox(
+                    "Marketing goal",
+                    [
+                        "Increase Sales", "Product Launch", "New Arrival",
+                        "Dealer Promotion", "Limited-Time Promotion",
+                        "Brand Awareness", "Feature Highlight", "Trade Show",
+                        "Website Hero",
+                    ],
+                )
+                style = st.selectbox(
+                    "Design style",
+                    [
+                        "AutoTecPro Premium", "Luxury", "Modern", "OEM Style",
+                        "Minimal", "Aggressive", "High Technology", "Racing",
+                    ],
+                )
+                color_theme = st.selectbox(
+                    "Color theme",
+                    [
+                        "AutoTecPro Red / Black / White", "Dark Premium",
+                        "Clean White", "Silver / Charcoal", "Blue Technology",
+                        "Custom from Instructions",
+                    ],
+                )
+            with col2:
+                background = st.selectbox(
+                    "Background",
+                    [
+                        "Black Studio", "White Studio", "Modern Garage",
+                        "Luxury Garage", "OEM Vehicle Interior",
+                        "Technology Environment", "Mountain Road", "City at Night",
+                        "Off-road Landscape", "Transparent / Isolated Product",
+                        "Custom from Instructions",
+                    ],
+                )
+                output_format = st.selectbox(
+                    "Output format",
+                    [
+                        "Landscape 16:9", "Square 1:1", "Portrait 4:5",
+                        "Vertical 9:16", "Wide Website Banner", "Print Layout",
+                        "Use Best Format for Design Type",
+                    ],
+                )
+                audience = st.text_input(
+                    "Target audience",
+                    placeholder="Example: Canadian Silverado owners",
+                )
+
+            headline = st.text_input(
+                "Headline",
+                placeholder="Example: Upgrade Your Truck",
+            )
+            call_to_action = st.text_input(
+                "Call to action",
+                placeholder="Example: Shop Now",
+            )
+
+            branding_elements = st.multiselect(
+                "Include branding elements",
+                [
+                    "AutoTecPro Logo", "Website", "QR Code", "Warranty",
+                    "Free Shipping", "Canada Flag", "USA Flag", "Dealer Logo",
+                    "Dealer Contact Information", "Installation Available",
+                ],
+                default=[],
+            )
+            contact_information = st.text_input(
+                "Website or contact information",
+                placeholder="Only enter text that should appear in the design",
+            )
+            use_approved_reference_style = st.checkbox(
+                "Use approved reference style from Graphic Memory",
+                value=True,
+                help=(
+                    "Uses the same approved style profile and saved reference images "
+                    "available to normal Graphic Chat."
+                ),
+            )
+            additional_instructions = st.text_area(
+                "Additional instructions",
                 height=120,
                 placeholder=(
-                    "Example: Create a SEMA trade-show booth backdrop for our "
-                    "Ford digital gauge cluster."
+                    "Add any special composition, lighting, product placement, "
+                    "seasonal, dealer, or campaign instructions."
                 ),
             )
 
-        product = st.text_input(
-            "Product / model",
-            placeholder="Example: Silverado 17.2-inch Elite Android Screen",
-        )
-        vehicle = st.text_input(
-            "Vehicle / compatibility",
-            placeholder="Example: 2019–2026 Chevrolet Silverado",
-        )
+            valid_custom = (
+                design_type != "Custom Design"
+                or len(str(custom_design or "").strip()) >= 3
+            )
+            has_product_context = bool(str(product or "").strip())
 
-        col1, col2 = st.columns(2)
-        with col1:
-            marketing_goal = st.selectbox(
-                "Marketing goal",
-                [
-                    "Increase Sales",
-                    "Product Launch",
-                    "New Arrival",
-                    "Dealer Promotion",
-                    "Limited-Time Promotion",
-                    "Brand Awareness",
-                    "Feature Highlight",
-                    "Trade Show",
-                    "Website Hero",
-                ],
-            )
-            style = st.selectbox(
-                "Design style",
-                [
-                    "AutoTecPro Premium",
-                    "Luxury",
-                    "Modern",
-                    "OEM Style",
-                    "Minimal",
-                    "Aggressive",
-                    "High Technology",
-                    "Racing",
-                ],
-            )
-            color_theme = st.selectbox(
-                "Color theme",
-                [
-                    "AutoTecPro Red / Black / White",
-                    "Dark Premium",
-                    "Clean White",
-                    "Silver / Charcoal",
-                    "Blue Technology",
-                    "Custom from Instructions",
-                ],
-            )
-        with col2:
-            background = st.selectbox(
-                "Background",
-                [
-                    "Black Studio",
-                    "White Studio",
-                    "Modern Garage",
-                    "Luxury Garage",
-                    "OEM Vehicle Interior",
-                    "Technology Environment",
-                    "Mountain Road",
-                    "City at Night",
-                    "Off-road Landscape",
-                    "Transparent / Isolated Product",
-                    "Custom from Instructions",
-                ],
-            )
-            output_format = st.selectbox(
-                "Output format",
-                [
-                    "Landscape 16:9",
-                    "Square 1:1",
-                    "Portrait 4:5",
-                    "Vertical 9:16",
-                    "Wide Website Banner",
-                    "Print Layout",
-                    "Use Best Format for Design Type",
-                ],
-            )
-            audience = st.text_input(
-                "Target audience",
-                placeholder="Example: Canadian Silverado owners",
+            submitted = st.form_submit_button(
+                "Generate Design",
+                use_container_width=True,
             )
 
-        headline = st.text_input(
-            "Headline",
-            placeholder="Example: Upgrade Your Truck",
-        )
-        call_to_action = st.text_input(
-            "Call to action",
-            placeholder="Example: Shop Now",
-        )
+        if submitted:
+            if not valid_custom:
+                st.warning("Please describe the custom design you want to create.")
+                return {"active": False, "prompt": None, "display_text": None}
+            if not has_product_context:
+                st.warning("Please enter a product/model before generating the design.")
+                return {"active": False, "prompt": None, "display_text": None}
 
-        branding_elements = st.multiselect(
-            "Include branding elements",
-            [
-                "AutoTecPro Logo",
-                "Website",
-                "QR Code",
-                "Warranty",
-                "Free Shipping",
-                "Canada Flag",
-                "USA Flag",
-                "Dealer Logo",
-                "Dealer Contact Information",
-                "Installation Available",
-            ],
-            default=[],
-        )
-        contact_information = st.text_input(
-            "Website or contact information",
-            placeholder="Only enter text that should appear in the design",
-        )
-        additional_instructions = st.text_area(
-            "Additional instructions",
-            height=120,
-            placeholder=(
-                "Add any special composition, lighting, product placement, "
-                "seasonal, dealer, or campaign instructions."
-            ),
-        )
+            return build_advanced_image_designer_request(
+                category,
+                design_type,
+                custom_design,
+                product,
+                vehicle,
+                marketing_goal,
+                audience,
+                style,
+                background,
+                color_theme,
+                headline,
+                call_to_action,
+                branding_elements,
+                contact_information,
+                output_format,
+                additional_instructions,
+                use_approved_reference_style=use_approved_reference_style,
+            )
 
-        valid_custom = (
-            design_type != "Custom Design"
-            or len(str(custom_design or "").strip()) >= 3
-        )
-        has_product_context = bool(str(product or "").strip())
-
-        submitted = st.form_submit_button(
-            "Generate Design",
-            
-            use_container_width=True,
-        )
-
-    if submitted:
-        if not valid_custom:
-            st.warning("Please describe the custom design you want to create.")
-            return {"active": True, "prompt": None, "display_text": None}
-        if not has_product_context:
-            st.warning("Please enter a product/model before generating the design.")
-            return {"active": True, "prompt": None, "display_text": None}
-
-        return build_advanced_image_designer_request(
-            category,
-            design_type,
-            custom_design,
-            product,
-            vehicle,
-            marketing_goal,
-            audience,
-            style,
-            background,
-            color_theme,
-            headline,
-            call_to_action,
-            branding_elements,
-            contact_information,
-            output_format,
-            additional_instructions,
-        )
-
-    return {"active": True, "prompt": None, "display_text": None}
+    # The normal Graphic Chat composer always remains active.
+    return {"active": False, "prompt": None, "display_text": None}
 
 
 
@@ -32017,15 +31993,10 @@ else:
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
-    graphic_designer_active = bool(
-        isinstance(graphic_tool_request, dict)
-        and graphic_tool_request.get("active")
-    )
-    chat_prompt = (
-        None
-        if graphic_designer_active
-        else st.chat_input("Message AutoTecPro AI...")
-    )
+    # Unified Graphic workspace: the normal chat composer stays available even
+    # while the Advanced AI Image Designer is visible. A submitted designer form
+    # temporarily takes priority for that rerun, then the composer continues normally.
+    chat_prompt = st.chat_input("Message AutoTecPro AI...")
 
     if (
         isinstance(graphic_tool_request, dict)
