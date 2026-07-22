@@ -15223,12 +15223,25 @@ def _graphic_style_reference_registry():
 
 
 def graphic_prompt_requests_approved_reference(prompt_text):
-    """Detect requests to reuse a previously approved visual style."""
+    """Detect natural requests to reuse a saved/approved reference style."""
     lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    if not lower:
+        return False
+
     phrases = (
         "use the approved style",
+        "using the approved style",
         "use my approved style",
+        "using my approved style",
+        "use the approved reference style",
+        "using the approved reference style",
+        "use my approved reference style",
+        "using my approved reference style",
+        "approved reference style",
+        "saved reference style",
+        "saved approved style",
         "same approved style",
+        "same reference style",
         "like the approved image",
         "like the approved design",
         "use the previous approved image",
@@ -15239,6 +15252,8 @@ def graphic_prompt_requests_approved_reference(prompt_text):
         "create another image like this",
         "create another ad like this",
         "match the previous style",
+        "follow the submitted reference style",
+        "follow the uploaded reference style",
     )
     return any(phrase in lower for phrase in phrases)
 
@@ -15829,12 +15844,25 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
         "vector_ready": bool(vector_ready),
     }
 
-    newest = reference_payloads[-1]
-    image_bytes, _ = data_url_to_bytes(newest.get("data_url"))
-    if image_bytes:
-        _graphic_style_reference_registry()[fingerprint] = {
+    saved_references = []
+    for payload in reference_payloads:
+        image_bytes, _ = data_url_to_bytes(payload.get("data_url"))
+        if not image_bytes:
+            continue
+        saved_references.append({
             "bytes": image_bytes,
-            "name": str(newest.get("name") or "approved_reference.png"),
+            "name": str(payload.get("name") or "approved_reference.png"),
+        })
+
+    if saved_references:
+        newest = saved_references[-1]
+        _graphic_style_reference_registry()[fingerprint] = {
+            # Preserve legacy single-reference fields for compatibility.
+            "bytes": newest["bytes"],
+            "name": newest["name"],
+            # Keep the complete approved set so future image edits can actually
+            # see the submitted visual references instead of only a text summary.
+            "references": saved_references,
             "prompt": str(prompt_text or ""),
             "profile": profile,
         }
@@ -15862,24 +15890,37 @@ def get_latest_approved_graphic_reference():
 
 
 def prepare_saved_graphic_reference(prompt_text):
-    """Build an SDK-compatible file for explicit approved-style reuse."""
+    """Build SDK-compatible files for explicit approved-style reuse."""
     if not graphic_prompt_requests_approved_reference(prompt_text):
-        return None
+        return []
     reference = get_latest_approved_graphic_reference()
     if not reference:
         diagnostic_log(
             "approved_graphic_reference_not_in_session",
             requested=True,
         )
-        return None
-    raw = bytes(reference.get("bytes") or b"")
-    if not raw:
-        return None
-    file_obj = io.BytesIO(raw)
-    filename = Path(str(reference.get("name") or "approved_style.png")).name
-    file_obj.name = filename if Path(filename).suffix else f"{filename}.png"
-    file_obj.seek(0)
-    return file_obj
+        return []
+
+    stored = reference.get("references")
+    if not isinstance(stored, list) or not stored:
+        stored = [{
+            "bytes": reference.get("bytes"),
+            "name": reference.get("name"),
+        }]
+
+    files = []
+    # Reuse up to six approved images. This gives the image model the actual
+    # visual language while keeping request size and latency bounded.
+    for index, item in enumerate(stored[-6:]):
+        raw = bytes((item or {}).get("bytes") or b"")
+        if not raw:
+            continue
+        filename = Path(str((item or {}).get("name") or f"approved_style_{index + 1}.png")).name
+        file_obj = io.BytesIO(raw)
+        file_obj.name = filename if Path(filename).suffix else f"{filename}.png"
+        file_obj.seek(0)
+        files.append(file_obj)
+    return files
 
 def retrieve_graphic_marketing_guidance(prompt_text):
     """
@@ -15903,8 +15944,9 @@ def retrieve_graphic_marketing_guidance(prompt_text):
             model="gpt-5.5",
             instructions=(
                 "Retrieve and rank only relevant AutoTecPro guidance for this "
-                "Graphic Marketing image. Prioritize approved_visual_style records "
-                "with high confidence and repeated use. Treat rejected_visual_style "
+                "Graphic Marketing image. Prioritize approved_reference_style_set "
+                "and approved_visual_style records with high confidence and repeated use. "
+                "Treat rejected_visual_style "
                 "records as negative constraints that must not be repeated. Prefer "
                 "Graphic Marketing and Marketing guidance; use Sales or Technical "
                 "only for product facts, compatibility, vehicle accuracy, and known "
@@ -16267,9 +16309,22 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         )
     image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
     reference_images = prepare_graphic_reference_images(uploaded_files)
-    saved_reference = prepare_saved_graphic_reference(prompt_text)
-    if saved_reference is not None:
-        reference_images.insert(0, saved_reference)
+    saved_references = prepare_saved_graphic_reference(prompt_text)
+    if saved_references:
+        reference_images = list(saved_references) + reference_images
+
+        latest_reference = get_latest_approved_graphic_reference() or {}
+        profile = latest_reference.get("profile") or {}
+        profile_text = _graphic_style_profile_text(profile) if profile else ""
+        if profile_text:
+            image_api_prompt += (
+                "\n\nMANDATORY APPROVED REFERENCE STYLE:\n"
+                + profile_text[:9000]
+                + "\nUse the attached approved reference images as the primary visual "
+                  "direction. Match their composition, typography hierarchy, color "
+                  "treatment, spacing, product framing, and overall advertising language. "
+                  "Do not replace them with a generic automotive-ad style."
+            )
 
     # Apply reliability settings only to image requests. The shared client and
     # every other OpenAI feature in the application remain unchanged.
