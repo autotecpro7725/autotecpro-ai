@@ -92,6 +92,10 @@ except Exception:
 # v405 production review: harden optional Supabase Storage fallbacks, normalize
 #   SDK response shapes and upload signatures, prevent duplicate approval writes,
 #   and preserve image-generation operation when memory services are unavailable.
+# v406 reference-style learning: allow staff to upload one or more reference
+#   images in Graphic Marketing, analyze their shared visual language, save one
+#   reusable style-set record, retain optional source images, and reuse the newest
+#   approved reference immediately without accidentally generating a new image.
 
 # ============================================================
 # App Paths / API
@@ -15300,8 +15304,10 @@ def _graphic_style_profile_text(profile):
         "spacing", "visual_mood", "required_visual_elements",
         "prohibited_visual_elements", "product_accuracy_rules",
         "vehicle_accuracy_rules", "reusable_prompt_guidance",
-        "reference_description", "search_keywords", "confidence_score",
-        "image_fingerprint", "image_storage_path", "created_at",
+        "reference_description", "shared_patterns", "acceptable_variations",
+        "optional_visual_elements", "reference_count", "reference_filenames",
+        "search_keywords", "confidence_score", "image_fingerprint",
+        "image_storage_path", "image_storage_paths", "created_at",
     )
     lines = ["AUTOTECPRO GRAPHIC STYLE MEMORY"]
     for key in ordered_keys:
@@ -15577,6 +15583,249 @@ def save_graphic_style_memory(image, feedback="approved"):
         "profile": profile,
         "storage_path": storage_path,
         "vector_ready": bool(vector_ready),
+    }
+
+
+def _uploaded_graphic_reference_payload(uploaded_file):
+    """Return a safe image payload from one Streamlit uploaded reference file."""
+    mime_type = str(getattr(uploaded_file, "type", "") or "").strip().lower()
+    if not mime_type.startswith("image/"):
+        return None
+
+    try:
+        image_url = normalized_image_data_url(uploaded_file)
+    except Exception as error:
+        diagnostic_log(
+            "graphic_reference_data_url_failed",
+            filename=Path(str(getattr(uploaded_file, "name", "reference"))).name,
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return None
+
+    if not str(image_url or "").startswith("data:image/"):
+        return None
+
+    return {
+        "data_url": image_url,
+        "name": Path(str(getattr(uploaded_file, "name", "reference.png"))).name,
+        "filename": Path(str(getattr(uploaded_file, "name", "reference.png"))).name,
+    }
+
+
+def is_graphic_reference_style_learning_request(
+    selected_assistant,
+    prompt_text,
+    uploaded_files,
+    *,
+    explicit_learning=False,
+):
+    """Detect an explicit Graphic Marketing request to learn uploaded styles."""
+    if selected_assistant != "🎨 Graphic Marketing" or not explicit_learning:
+        return False
+
+    return any(
+        str(getattr(item, "type", "") or "").lower().startswith("image/")
+        for item in (uploaded_files or [])
+    )
+
+
+def analyze_uploaded_graphic_style_set(reference_payloads, prompt_text=""):
+    """Analyze multiple uploaded references as one reusable shared style profile."""
+    payloads = [item for item in (reference_payloads or []) if isinstance(item, dict)]
+    payloads = [
+        item for item in payloads
+        if str(item.get("data_url") or "").startswith("data:image/")
+    ][:10]
+    if not payloads:
+        return {}
+
+    instructions = (
+        "Analyze the uploaded AutoTecPro reference images as one coherent visual "
+        "style set. Return one strict JSON object only, with no markdown. Identify "
+        "the shared visual language across the set and separate durable patterns "
+        "from one-off image differences. Never invent text, products, vehicle "
+        "details, dimensions, or brand rules that are not visible or supplied. "
+        "Include: record_type, title, feedback, reference_count, composition, "
+        "camera_angle, crop, product_position, vehicle_position, lighting, "
+        "background, color_palette, typography, text_hierarchy, logo_rules, "
+        "cta_style, spacing, visual_mood, required_visual_elements, "
+        "optional_visual_elements, prohibited_visual_elements, "
+        "product_accuracy_rules, vehicle_accuracy_rules, reusable_prompt_guidance, "
+        "reference_description, shared_patterns, acceptable_variations, "
+        "search_keywords, confidence_score. Set record_type to "
+        "approved_reference_style_set and feedback to approved."
+    )
+
+    content = [{
+        "type": "input_text",
+        "text": (
+            f"Staff instruction: {str(prompt_text or '').strip()}\n"
+            f"Reference image count: {len(payloads)}"
+        ),
+    }]
+    for item in payloads:
+        content.append({
+            "type": "input_image",
+            "image_url": str(item.get("data_url") or ""),
+        })
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=instructions,
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=2800,
+        )
+        profile = extract_json_object(
+            str(getattr(response, "output_text", "") or "")
+        )
+        if not isinstance(profile, dict):
+            return {}
+
+        aggregate_seed = "\n".join(
+            str(item.get("data_url") or "") for item in payloads
+        ).encode("utf-8")
+        profile["record_type"] = "approved_reference_style_set"
+        profile["feedback"] = "approved"
+        profile["reference_count"] = len(payloads)
+        profile["original_prompt"] = str(prompt_text or "").strip()
+        profile["image_fingerprint"] = hashlib.sha256(aggregate_seed).hexdigest()
+        profile["reference_filenames"] = [
+            str(item.get("name") or "reference.png") for item in payloads
+        ]
+        profile["created_at"] = now_iso()
+        return profile
+    except Exception as error:
+        diagnostic_log(
+            "uploaded_graphic_style_set_analysis_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+            reference_count=len(payloads),
+        )
+        return {}
+
+
+def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
+    """Analyze and permanently save uploaded Graphic Marketing references."""
+    reference_payloads = []
+    for uploaded_file in uploaded_files or []:
+        payload = _uploaded_graphic_reference_payload(uploaded_file)
+        if payload:
+            reference_payloads.append(payload)
+
+    if not reference_payloads:
+        raise RuntimeError(
+            "Please upload at least one JPG, JPEG, PNG, or WEBP reference image."
+        )
+
+    profile = analyze_uploaded_graphic_style_set(reference_payloads, prompt_text)
+    if not profile:
+        raise RuntimeError(
+            "The uploaded reference style could not be analyzed. Please try again."
+        )
+
+    fingerprint = str(profile.get("image_fingerprint") or "")
+    existing = _graphic_style_feedback_registry().get(fingerprint, {})
+    if str(existing.get("feedback") or "") == "approved":
+        return {
+            "profile": existing.get("profile") or profile,
+            "reference_count": len(reference_payloads),
+            "vector_ready": bool(existing.get("vector_ready")),
+            "already_saved": True,
+        }
+
+    storage_paths = []
+    for payload in reference_payloads:
+        stored_path = store_graphic_reference_image(payload, feedback="approved")
+        if stored_path:
+            storage_paths.append(stored_path)
+    profile["image_storage_paths"] = storage_paths
+
+    profile_text = _graphic_style_profile_text(profile)
+    filenames = ", ".join(profile.get("reference_filenames") or [])
+    title = str(profile.get("title") or "Approved Reference Style Set").strip()
+    confidence = profile.get("confidence_score")
+    try:
+        confidence = int(float(confidence))
+    except Exception:
+        confidence = 95
+    confidence = max(0, min(confidence, 100))
+
+    record = {
+        "username": st.session_state.get("username"),
+        "record_type": "approved_reference_style_set",
+        "assistant": "Graphic Marketing",
+        "vehicle": resolve_learning_vehicle(
+            "",
+            question=str(prompt_text or ""),
+            answer=profile_text,
+            selected_assistant="🎨 Graphic Marketing",
+        ),
+        "issue": title[:500],
+        "solution": profile_text,
+        "approved_answer": profile_text,
+        "question": str(prompt_text or "")[:4000],
+        "keywords": str(profile.get("search_keywords") or "")[:2000],
+        "source_question": str(prompt_text or "")[:4000],
+        "source_answer": profile_text,
+        "source_conversation_id": st.session_state.get("conversation_id"),
+        "confidence_score": confidence,
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": "graphic_uploaded_reference_style_set",
+        "staff_confirmed": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+
+    openai_file_id, vector_ready, ingestion_status = (
+        upload_learned_record_to_vector_store(
+            record,
+            GRAPHIC_VECTOR_STORE_ID,
+            return_status=True,
+        )
+    )
+    record["openai_file_id"] = openai_file_id
+    record["synced"] = bool(vector_ready)
+    record["embedding_status"] = (
+        "synced" if vector_ready else (ingestion_status or "processing")
+    )
+
+    result = safe_insert_row("learned_knowledge", record)
+    if not getattr(result, "data", None):
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+        raise RuntimeError("The uploaded Graphic reference style was not saved.")
+
+    _graphic_style_feedback_registry()[fingerprint] = {
+        "feedback": "approved",
+        "profile": profile,
+        "record_id": result.data[0].get("id") if result.data else None,
+        "saved_at": now_iso(),
+        "vector_ready": bool(vector_ready),
+    }
+
+    newest = reference_payloads[-1]
+    image_bytes, _ = data_url_to_bytes(newest.get("data_url"))
+    if image_bytes:
+        _graphic_style_reference_registry()[fingerprint] = {
+            "bytes": image_bytes,
+            "name": str(newest.get("name") or "approved_reference.png"),
+            "prompt": str(prompt_text or ""),
+            "profile": profile,
+        }
+
+    return {
+        "profile": profile,
+        "reference_count": len(reference_payloads),
+        "storage_count": len(storage_paths),
+        "vector_ready": bool(vector_ready),
+        "already_saved": False,
+        "filenames": filenames,
     }
 
 
@@ -31891,6 +32140,17 @@ else:
                 effective_uploaded_files,
             )
         )
+        is_graphic_reference_learning = (
+            is_graphic_reference_style_learning_request(
+                assistant,
+                interaction_prompt,
+                effective_uploaded_files,
+                explicit_learning=explicit_learning_requested,
+            )
+        )
+        if is_graphic_reference_learning:
+            # Learning uploaded references must never be misrouted to Image Edit.
+            is_graphic_generation = False
 
         # Default for learning and graphic-generation branches. The previous
         # revision assigned this only inside the ordinary AI-response branch,
@@ -31899,7 +32159,47 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if explicit_learning_requested and not is_graphic_generation:
+        if is_graphic_reference_learning:
+            response_start_time = time.time()
+            try:
+                with st.spinner("Analyzing and saving reference style..."):
+                    style_result = save_uploaded_graphic_style_set(
+                        effective_uploaded_files,
+                        interaction_prompt,
+                    )
+                reference_count = int(style_result.get("reference_count") or 0)
+                title = str(
+                    (style_result.get("profile") or {}).get("title")
+                    or "Approved Reference Style Set"
+                )
+                if style_result.get("already_saved"):
+                    answer = (
+                        f'The reference style “{title}” is already saved in Graphic Memory. '
+                        f"I analyzed {reference_count} reference image(s) and will reuse the "
+                        "stored visual profile for future Graphic Marketing requests."
+                    )
+                else:
+                    sync_note = (
+                        "The style profile is synced to the Graphic vector store."
+                        if style_result.get("vector_ready")
+                        else "The style profile was saved and vector synchronization is processing."
+                    )
+                    answer = (
+                        f'Saved “{title}” to Graphic Memory from {reference_count} '
+                        f"reference image(s). {sync_note} You can now ask: "
+                        '“Create a new ad using the approved reference style.”'
+                    )
+            except Exception as error:
+                answer = "The reference style was not saved.\n\n" + str(error)
+                st.error(str(error))
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
             if inline_learning_payload:
@@ -32317,7 +32617,7 @@ else:
             and graphic_tool_request.get("prompt")
         )
 
-        if not is_woocommerce_request:
+        if not is_woocommerce_request and not is_graphic_reference_learning:
             queue_ai_postprocess(
                 interaction_prompt,
                 answer,
