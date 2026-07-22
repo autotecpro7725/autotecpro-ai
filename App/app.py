@@ -109,6 +109,9 @@ except Exception:
 # v500 Graphic Intelligence Engine: add named style collections, prompt-aware style
 #   routing, Creative Director production briefs, campaign metadata, shared style
 #   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
+# v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
+#   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
+#   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
 
 # ============================================================
 # App Paths / API
@@ -32110,6 +32113,388 @@ def render_admin_user_management_fragment():
 
 
 
+# ============================================================
+# Graphic Intelligence Center / Admin Style Manager (v600)
+# ============================================================
+
+GRAPHIC_STYLE_RECORD_TYPES = {
+    "approved_reference_style_set",
+    "approved_visual_style",
+    "graphic_style_version",
+}
+GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE = "graphic_style_archived"
+GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE = "graphic_style_default"
+
+
+def _graphic_style_admin_rows(include_archived=False, limit=1000):
+    """Load Graphic style rows from the existing learned_knowledge table."""
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=limit,
+        )
+    except Exception as error:
+        diagnostic_log("graphic_style_admin_query_failed", error=str(error))
+        return []
+    username = str(st.session_state.get("username") or "").strip()
+    result = []
+    for row in rows or []:
+        if str(row.get("assistant") or "").strip().lower() != "graphic marketing":
+            continue
+        if str(row.get("record_type") or "").strip().lower() not in GRAPHIC_STYLE_RECORD_TYPES:
+            continue
+        if username and str(row.get("username") or "").strip() not in {"", username}:
+            continue
+        if not include_archived and str(row.get("source_type") or "").strip() == GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE:
+            continue
+        result.append(dict(row))
+    return result
+
+
+def _graphic_style_row_profile(row):
+    """Recover a useful style profile from a learned_knowledge row."""
+    solution = str(row.get("solution") or row.get("approved_answer") or row.get("source_answer") or "")
+    profile = {}
+    for line in solution.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized = re.sub(r"[^a-z0-9]+", "_", key.strip().casefold()).strip("_")
+        value = value.strip()
+        if normalized and value:
+            profile[normalized] = value
+    name = str(
+        profile.get("collection_name")
+        or profile.get("title")
+        or row.get("issue")
+        or "Untitled Graphic Style"
+    ).strip()
+    tags_text = str(profile.get("collection_tags") or row.get("keywords") or "")
+    tags = [x.strip(" []\"'") for x in re.split(r"[,|;]", tags_text) if x.strip(" []\"'")]
+    paths = []
+    for pattern in (r"Image Storage Paths:\s*(\[[^\n]+\])", r"image_storage_paths:\s*(\[[^\n]+\])"):
+        match = re.search(pattern, solution, flags=re.I)
+        if match:
+            try:
+                parsed = json.loads(match.group(1).replace("'", '"'))
+                if isinstance(parsed, list):
+                    paths.extend(str(x).strip() for x in parsed if str(x).strip())
+            except Exception:
+                pass
+    if not paths:
+        match = re.search(r"Image Storage Path:\s*([^\n]+)", solution, flags=re.I)
+        if match and match.group(1).strip():
+            paths.append(match.group(1).strip())
+    return {
+        "name": name[:100],
+        "slug": re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")[:120],
+        "tags": list(dict.fromkeys(tags))[:30],
+        "storage_paths": list(dict.fromkeys(paths))[:20],
+        "solution": solution,
+        "profile": profile,
+        "is_default": str(row.get("source_type") or "") == GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE,
+        "is_archived": str(row.get("source_type") or "") == GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE,
+    }
+
+
+def _graphic_style_version_snapshot(row, action="update"):
+    """Create a reversible version snapshot before a destructive style edit."""
+    snapshot = dict(row)
+    snapshot.pop("id", None)
+    snapshot["record_type"] = "graphic_style_version"
+    snapshot["source_type"] = f"graphic_style_version_{action}"
+    snapshot["issue"] = f"Version snapshot — {row.get('issue') or 'Graphic Style'}"[:500]
+    snapshot["source_question"] = str(row.get("id") or "")
+    snapshot["created_at"] = now_iso()
+    snapshot["updated_at"] = now_iso()
+    snapshot["synced"] = False
+    snapshot["openai_file_id"] = None
+    snapshot["embedding_status"] = "snapshot"
+    try:
+        safe_insert_row("learned_knowledge", snapshot)
+        return True
+    except Exception as error:
+        diagnostic_log("graphic_style_snapshot_failed", error=str(error), action=action)
+        return False
+
+
+def _graphic_style_rebuild_solution(row, *, name=None, tags=None, extra_note=""):
+    profile = _graphic_style_row_profile(row)
+    current = profile["solution"]
+    new_name = str(name or profile["name"]).strip()[:100]
+    new_tags = [str(x).strip() for x in (tags if tags is not None else profile["tags"]) if str(x).strip()]
+    lines = current.splitlines()
+    replaced_name = False
+    replaced_tags = False
+    output = []
+    for line in lines:
+        lower = line.strip().casefold()
+        if lower.startswith("collection name:") or lower.startswith("title:"):
+            if not replaced_name:
+                output.append(f"Collection Name: {new_name}")
+                replaced_name = True
+            continue
+        if lower.startswith("collection tags:"):
+            output.append(f"Collection Tags: {json.dumps(new_tags, ensure_ascii=False)}")
+            replaced_tags = True
+            continue
+        output.append(line)
+    if not replaced_name:
+        output.insert(0, f"Collection Name: {new_name}")
+    if not replaced_tags:
+        output.insert(1, f"Collection Tags: {json.dumps(new_tags, ensure_ascii=False)}")
+    if extra_note:
+        output.append(f"Admin Note: {extra_note}")
+    output.append(f"Style Manager Updated At: {now_iso()}")
+    return "\n".join(output).strip(), new_name, new_tags
+
+
+def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None, note=""):
+    _graphic_style_version_snapshot(row, action="update")
+    solution, clean_name, clean_tags = _graphic_style_rebuild_solution(
+        row, name=name, tags=tags, extra_note=note
+    )
+    payload = {
+        "issue": clean_name[:500],
+        "solution": solution,
+        "approved_answer": solution,
+        "source_answer": solution,
+        "keywords": ", ".join(clean_tags)[:2000],
+        "updated_at": now_iso(),
+    }
+    if source_type is not None:
+        payload["source_type"] = source_type
+    return safe_update_row("learned_knowledge", payload, row.get("id"))
+
+
+def _graphic_style_delete_record(row):
+    """Permanently delete one style and remove its vector file when possible."""
+    _graphic_style_version_snapshot(row, action="delete")
+    openai_file_id = str(row.get("openai_file_id") or "").strip()
+    try:
+        result = supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+    except Exception as error:
+        raise RuntimeError(f"Supabase deletion failed: {error}") from error
+    if openai_file_id:
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+    return result
+
+
+def _graphic_style_set_default(rows, selected_id):
+    """Ensure one active collection is marked as the default style."""
+    for row in rows:
+        target = str(row.get("id")) == str(selected_id)
+        current = str(row.get("source_type") or "")
+        if target and current != GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE:
+            _graphic_style_update_record(row, source_type=GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE, note="Set as default style")
+        elif not target and current == GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE:
+            _graphic_style_update_record(row, source_type="graphic_uploaded_reference_style_set", note="Default style changed")
+
+
+def _graphic_style_merge_records(rows, merged_name, merged_tags):
+    """Merge style guidance into a new approved collection and archive sources."""
+    if len(rows) < 2:
+        raise RuntimeError("Select at least two styles to merge.")
+    merged_name = str(merged_name or "Merged Graphic Style").strip()[:100]
+    merged_tags = [str(x).strip() for x in merged_tags if str(x).strip()]
+    sections = []
+    storage_paths = []
+    for row in rows:
+        profile = _graphic_style_row_profile(row)
+        sections.append(f"## Source Style: {profile['name']}\n{profile['solution']}")
+        storage_paths.extend(profile["storage_paths"])
+    solution = (
+        f"Collection Name: {merged_name}\n"
+        f"Collection Tags: {json.dumps(list(dict.fromkeys(merged_tags)), ensure_ascii=False)}\n"
+        f"Record Type: approved_reference_style_set\n"
+        f"Image Storage Paths: {json.dumps(list(dict.fromkeys(storage_paths)), ensure_ascii=False)}\n"
+        "Merge Policy: Preserve shared rules; conflicting rules require Creative Director selection.\n\n"
+        + "\n\n".join(sections)
+    )
+    record = {
+        "username": st.session_state.get("username"),
+        "record_type": "approved_reference_style_set",
+        "assistant": "Graphic Marketing",
+        "vehicle": "Graphic Style Collection",
+        "issue": merged_name[:500],
+        "solution": solution,
+        "approved_answer": solution,
+        "question": f"Admin merged {len(rows)} Graphic style collections",
+        "keywords": ", ".join(list(dict.fromkeys(merged_tags)))[:2000],
+        "source_question": ",".join(str(r.get("id")) for r in rows),
+        "source_answer": solution,
+        "source_conversation_id": st.session_state.get("conversation_id"),
+        "confidence_score": 95,
+        "times_seen": 1,
+        "times_used": 0,
+        "search_count": 0,
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": "graphic_style_merged",
+        "staff_confirmed": True,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    openai_file_id, vector_ready, ingestion_status = upload_learned_record_to_vector_store(
+        record, GRAPHIC_VECTOR_STORE_ID, return_status=True
+    )
+    record["openai_file_id"] = openai_file_id
+    record["synced"] = bool(vector_ready)
+    record["embedding_status"] = "synced" if vector_ready else (ingestion_status or "processing")
+    result = safe_insert_row("learned_knowledge", record)
+    if not getattr(result, "data", None):
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+        raise RuntimeError("Merged style was not saved.")
+    for row in rows:
+        _graphic_style_update_record(row, source_type=GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE, note=f"Merged into {merged_name}")
+    return result
+
+
+def _graphic_style_reference_preview(path):
+    """Download a reference image for an admin thumbnail without exposing secrets."""
+    if not path:
+        return None
+    try:
+        admin_client = get_supabase_admin_client()
+        raw = admin_client.storage.from_(GRAPHIC_STYLE_LIBRARY_BUCKET).download(path)
+        return bytes(raw) if isinstance(raw, (bytes, bytearray)) else None
+    except Exception as error:
+        diagnostic_log("graphic_style_preview_failed", path=path, error=str(error))
+        return None
+
+
+def render_graphic_intelligence_center():
+    """Admin UI for browsing, editing, comparing, merging and governing styles."""
+    st.markdown("### 🎨 Graphic Intelligence Center")
+    st.caption(
+        "Manage shared Graphic Memory used by Graphic Chat and Advanced AI Image Designer. "
+        "All edits create a version snapshot before changing the active collection."
+    )
+    include_archived = st.checkbox("Show archived styles", value=False, key="graphic_style_show_archived")
+    rows = _graphic_style_admin_rows(include_archived=include_archived)
+    active_rows = [r for r in rows if str(r.get("record_type") or "") != "graphic_style_version"]
+    version_rows = [r for r in _graphic_style_admin_rows(include_archived=True) if str(r.get("record_type") or "") == "graphic_style_version"]
+    default_rows = [r for r in active_rows if str(r.get("source_type") or "") == GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE]
+    total_refs = sum(len(_graphic_style_row_profile(r)["storage_paths"]) for r in active_rows)
+    render_metric_row([
+        ("Active Styles", len([r for r in active_rows if str(r.get("source_type") or "") != GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE])),
+        ("Reference Images", total_refs),
+        ("Version Snapshots", len(version_rows)),
+        ("Default Style", _graphic_style_row_profile(default_rows[0])["name"] if default_rows else "Automatic"),
+    ])
+    if not active_rows:
+        st.info("No saved Graphic styles are available yet. Learn a style in Graphic Marketing first.")
+        return
+
+    label_map = {}
+    for row in active_rows:
+        profile = _graphic_style_row_profile(row)
+        suffix = " · Default" if profile["is_default"] else (" · Archived" if profile["is_archived"] else "")
+        label_map[str(row.get("id"))] = f"{profile['name']}{suffix}"
+
+    browse_tab, edit_tab, compare_tab, merge_tab, history_tab = st.tabs([
+        "Browse", "Rename & Tags", "Compare", "Merge", "History & Versions"
+    ])
+
+    with browse_tab:
+        query = st.text_input("Search styles", key="graphic_style_admin_search", placeholder="Search name, tag, platform, campaign...")
+        q = query.strip().casefold()
+        filtered = [r for r in active_rows if not q or q in (label_map[str(r.get('id'))] + " " + str(r.get('keywords') or '') + " " + str(r.get('solution') or '')).casefold()]
+        for row in filtered[:100]:
+            profile = _graphic_style_row_profile(row)
+            with st.expander(label_map[str(row.get("id"))], expanded=False):
+                st.write(f"**Tags:** {', '.join(profile['tags']) if profile['tags'] else 'None'}")
+                st.write(f"**Created:** {row.get('created_at') or 'Unknown'}")
+                st.write(f"**Last updated:** {row.get('updated_at') or 'Unknown'}")
+                st.write(f"**Vector sync:** {'Synced' if row.get('synced') else row.get('embedding_status') or 'Pending'}")
+                if profile["storage_paths"]:
+                    cols = st.columns(min(4, len(profile["storage_paths"])))
+                    for idx, path in enumerate(profile["storage_paths"][:8]):
+                        preview = _graphic_style_reference_preview(path)
+                        if preview:
+                            cols[idx % len(cols)].image(preview, caption=Path(path).name, use_container_width=True)
+                else:
+                    st.caption("No persistent reference images are attached to this style.")
+                st.text_area("Style profile", value=profile["solution"][:12000], height=220, disabled=True, key=f"style_profile_{row.get('id')}")
+                c1, c2, c3 = st.columns(3)
+                if c1.button("Set as Default", key=f"style_default_{row.get('id')}", disabled=profile["is_default"]):
+                    _graphic_style_set_default(active_rows, row.get("id"))
+                    st.success("Default Graphic style updated.")
+                    st.rerun()
+                archive_label = "Restore" if profile["is_archived"] else "Archive"
+                if c2.button(archive_label, key=f"style_archive_{row.get('id')}"):
+                    source = "graphic_uploaded_reference_style_set" if profile["is_archived"] else GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE
+                    _graphic_style_update_record(row, source_type=source, note=f"{archive_label} from Graphic Intelligence Center")
+                    st.success(f"Style {archive_label.lower()}d.")
+                    st.rerun()
+                confirm = c3.checkbox("Confirm delete", key=f"style_delete_confirm_{row.get('id')}")
+                if c3.button("Delete Permanently", key=f"style_delete_{row.get('id')}", disabled=not confirm):
+                    _graphic_style_delete_record(row)
+                    st.success("Style deleted. A version snapshot was retained.")
+                    st.rerun()
+
+    with edit_tab:
+        selected_id = st.selectbox("Style collection", options=list(label_map), format_func=lambda x: label_map[x], key="graphic_style_edit_select")
+        selected = next(r for r in active_rows if str(r.get("id")) == str(selected_id))
+        profile = _graphic_style_row_profile(selected)
+        with st.form("graphic_style_edit_form"):
+            new_name = st.text_input("Collection name", value=profile["name"], max_chars=100)
+            new_tags_text = st.text_input("Tags", value=", ".join(profile["tags"]), help="Comma-separated: Facebook, Holiday, OEM, Dealer")
+            submitted = st.form_submit_button("Save Style Changes", use_container_width=True)
+        if submitted:
+            tags = [x.strip() for x in new_tags_text.split(",") if x.strip()]
+            _graphic_style_update_record(selected, name=new_name, tags=tags, note="Renamed or retagged by admin")
+            st.success("Style collection updated and versioned.")
+            st.rerun()
+
+    with compare_tab:
+        c1, c2 = st.columns(2)
+        first_id = c1.selectbox("Style A", options=list(label_map), format_func=lambda x: label_map[x], key="graphic_compare_a")
+        second_options = [x for x in label_map if x != first_id] or list(label_map)
+        second_id = c2.selectbox("Style B", options=second_options, format_func=lambda x: label_map[x], key="graphic_compare_b")
+        row_a = next(r for r in active_rows if str(r.get("id")) == str(first_id))
+        row_b = next(r for r in active_rows if str(r.get("id")) == str(second_id))
+        pa, pb = _graphic_style_row_profile(row_a), _graphic_style_row_profile(row_b)
+        c1.write(f"**{pa['name']}**")
+        c1.write(f"Tags: {', '.join(pa['tags']) or 'None'}")
+        c1.text_area("Profile A", pa["solution"][:10000], height=300, disabled=True, key="compare_profile_a")
+        c2.write(f"**{pb['name']}**")
+        c2.write(f"Tags: {', '.join(pb['tags']) or 'None'}")
+        c2.text_area("Profile B", pb["solution"][:10000], height=300, disabled=True, key="compare_profile_b")
+        if st.button("AI Compare Styles", use_container_width=True):
+            try:
+                response = client.responses.create(
+                    model="gpt-5.5",
+                    instructions=("Compare two Graphic Marketing style profiles. Return concise sections: Shared Traits, Key Differences, Best Use for A, Best Use for B, Recommended Merge Rules. Do not invent facts."),
+                    input=f"STYLE A\n{pa['solution'][:12000]}\n\nSTYLE B\n{pb['solution'][:12000]}",
+                    max_output_tokens=1800,
+                )
+                st.markdown(str(getattr(response, "output_text", "") or "No comparison was returned."))
+            except Exception as error:
+                st.error(f"Style comparison failed: {error}")
+
+    with merge_tab:
+        merge_ids = st.multiselect("Styles to merge", options=list(label_map), format_func=lambda x: label_map[x], key="graphic_merge_ids")
+        merge_name = st.text_input("Merged collection name", key="graphic_merge_name")
+        merge_tags = st.text_input("Merged tags", key="graphic_merge_tags")
+        if st.button("Merge Selected Styles", use_container_width=True, disabled=len(merge_ids) < 2 or not merge_name.strip()):
+            selected_rows = [r for r in active_rows if str(r.get("id")) in set(map(str, merge_ids))]
+            _graphic_style_merge_records(selected_rows, merge_name, [x.strip() for x in merge_tags.split(",") if x.strip()])
+            st.success("Styles merged. Source collections were archived and versioned.")
+            st.rerun()
+
+    with history_tab:
+        st.caption("Version snapshots are created automatically before rename, tag, default, archive, merge, or delete operations.")
+        if not version_rows:
+            st.info("No style versions have been created yet.")
+        for version in version_rows[:200]:
+            with st.expander(f"{version.get('issue') or 'Style version'} · {version.get('created_at') or ''}"):
+                st.write(f"Action: {version.get('source_type') or 'snapshot'}")
+                st.text_area("Snapshot", str(version.get("solution") or "")[:12000], height=220, disabled=True, key=f"version_{version.get('id')}")
+
+
 # Admin Panel
 # ============================================================
 
@@ -32127,7 +32512,7 @@ if (
 
         (
             tab1, tab2, tab3, tab4, tab5, tab6,
-            tab7, tab8, tab9, tab10, tab11
+            tab7, tab8, tab9, tab10, tab11, tab12
         ) = st.tabs([
             "👥 Users",
             "📚 Upload Knowledge",
@@ -32139,7 +32524,8 @@ if (
             "🔧 Technical Analytics",
             "📊 AI Analytics",
             "📈 Learning Analytics",
-            "🔌 Live Integrations"
+            "🔌 Live Integrations",
+            "🎨 Graphic Intelligence"
         ])
 
         # Streamlit evaluates every tab body during a rerun. Reuse these large
@@ -32422,6 +32808,10 @@ if (
                 "rates are available without additional secrets. UPS and Canada "
                 "Post tracking become active after their credentials are added."
             )
+
+
+        with tab12:
+            render_graphic_intelligence_center()
 
 
 
