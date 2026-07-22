@@ -102,6 +102,10 @@ except Exception:
 #   images in Graphic Marketing, analyze their shared visual language, save one
 #   reusable style-set record, retain optional source images, and reuse the newest
 #   approved reference immediately without accidentally generating a new image.
+# v408 smart product-preserving Graphic engine: restore the Graphic Chat / Advanced
+#   Designer selector while keeping one shared memory pipeline; automatically reuse
+#   approved styles in both modes; classify uploaded image roles, preserve product
+#   identity, and run a bounded post-generation visual accuracy review with one retry.
 
 # ============================================================
 # App Paths / API
@@ -15880,9 +15884,87 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
     }
 
 
-def get_latest_approved_graphic_reference():
-    """Return the newest approved in-session reference image, if available."""
+def hydrate_latest_graphic_reference_from_storage():
+    """Restore the newest approved reference set after logout/restart when possible."""
     registry = _graphic_style_reference_registry()
+    if registry:
+        return True
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=200
+        )
+    except Exception as error:
+        diagnostic_log("graphic_style_hydration_query_failed", error=str(error))
+        return False
+    username = str(st.session_state.get("username") or "").strip()
+    candidates = [
+        row for row in rows
+        if str(row.get("assistant") or "").strip().lower() == "graphic marketing"
+        and str(row.get("record_type") or "").strip().lower() in {
+            "approved_reference_style_set", "approved_visual_style"
+        }
+        and (not username or str(row.get("username") or "").strip() == username)
+    ]
+    if not candidates:
+        return False
+    row = candidates[0]
+    solution = str(row.get("solution") or row.get("approved_answer") or "")
+    paths = []
+    match = re.search(r"Image Storage Paths:\s*(\[[^\n]+\])", solution, flags=re.I)
+    if match:
+        try:
+            parsed = json.loads(match.group(1))
+            paths = [str(x) for x in parsed if str(x).strip()] if isinstance(parsed, list) else []
+        except Exception:
+            paths = []
+    if not paths:
+        single = re.search(r"Image Storage Path:\s*([^\n]+)", solution, flags=re.I)
+        if single and single.group(1).strip():
+            paths = [single.group(1).strip()]
+    if not paths:
+        return False
+    try:
+        admin_client = get_supabase_admin_client()
+        bucket = admin_client.storage.from_(GRAPHIC_STYLE_LIBRARY_BUCKET)
+    except Exception as error:
+        diagnostic_log("graphic_style_hydration_client_failed", error=str(error))
+        return False
+    references = []
+    for index, path in enumerate(paths[-6:]):
+        try:
+            raw = bucket.download(path)
+            if isinstance(raw, (bytes, bytearray)) and raw:
+                references.append({
+                    "bytes": bytes(raw),
+                    "name": Path(path).name or f"approved_reference_{index+1}.png",
+                })
+        except Exception as error:
+            diagnostic_log("graphic_style_hydration_download_failed", path=path, error=str(error))
+    if not references:
+        return False
+    fingerprint = hashlib.sha256(("\n".join(paths)).encode("utf-8")).hexdigest()
+    registry[fingerprint] = {
+        "bytes": references[-1]["bytes"],
+        "name": references[-1]["name"],
+        "references": references,
+        "prompt": str(row.get("question") or row.get("source_question") or ""),
+        "profile": {
+            "title": str(row.get("issue") or "Approved Graphic Style"),
+            "record_type": str(row.get("record_type") or "approved_reference_style_set"),
+            "reusable_prompt_guidance": solution[:12000],
+            "image_storage_paths": paths,
+        },
+        "restored_from_storage": True,
+    }
+    return True
+
+
+def get_latest_approved_graphic_reference():
+    """Return the newest approved reference, restoring it from Storage if needed."""
+    registry = _graphic_style_reference_registry()
+    if not registry:
+        hydrate_latest_graphic_reference_from_storage()
+        registry = _graphic_style_reference_registry()
     if not registry:
         return None
     try:
@@ -15892,9 +15974,26 @@ def get_latest_approved_graphic_reference():
     return reference if isinstance(reference, dict) else None
 
 
-def prepare_saved_graphic_reference(prompt_text):
-    """Build SDK-compatible files for explicit approved-style reuse."""
-    if not graphic_prompt_requests_approved_reference(prompt_text):
+def graphic_prompt_disables_approved_reference(prompt_text):
+    """Detect an explicit request not to use learned Graphic Memory styles."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).strip().lower()
+    phrases = (
+        "do not use the approved style", "don't use the approved style",
+        "do not use graphic memory", "don't use graphic memory",
+        "ignore saved style", "ignore the saved style",
+        "no reference style", "without the approved style",
+    )
+    return any(phrase in lower for phrase in phrases)
+
+
+def prepare_saved_graphic_reference(prompt_text, use_approved_style=True):
+    """Build SDK-compatible approved-style files for either Graphic workflow.
+
+    v408 makes approved Graphic Memory the shared default for Graphic Chat and the
+    Advanced Designer. A user can still opt out explicitly in the prompt or through
+    the Advanced Designer checkbox.
+    """
+    if not bool(use_approved_style) or graphic_prompt_disables_approved_reference(prompt_text):
         return []
     reference = get_latest_approved_graphic_reference()
     if not reference:
@@ -16289,7 +16388,126 @@ def prepare_graphic_reference_images(uploaded_files):
     return references
 
 
-def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
+def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced_role="Auto-detect"):
+    """Classify image uploads into product/style/logo/support roles.
+
+    The classifier is deterministic and conservative so it adds no extra API call.
+    Advanced Designer users may force a role; ordinary Graphic Chat uses prompt and
+    filename signals. The first ordinary uploaded image defaults to Product Photo
+    for generation requests, protecting the actual item from style references.
+    """
+    images = []
+    prompt_lower = str(prompt_text or "").lower()
+    forced = str(forced_role or "Auto-detect").strip().lower()
+    for index, item in enumerate(uploaded_files or []):
+        mime = str(getattr(item, "type", "") or "").lower()
+        if not mime.startswith("image/"):
+            continue
+        name = Path(str(getattr(item, "name", "") or f"image_{index+1}.png")).name
+        lower_name = name.lower()
+        role = "supporting_image"
+        if forced and forced != "auto-detect":
+            role = {
+                "product photo": "product_photo",
+                "style reference": "style_reference",
+                "logo asset": "logo_asset",
+                "background": "background",
+                "supporting image": "supporting_image",
+            }.get(forced, "supporting_image")
+        elif "logo" in lower_name or "watermark" in lower_name:
+            role = "logo_asset"
+        elif any(word in lower_name for word in ("style", "reference", "sample", "layout")):
+            role = "style_reference"
+        elif any(word in lower_name for word in ("background", "backdrop", "scene")):
+            role = "background"
+        elif index == 0 or any(word in prompt_lower for word in (
+            "product photo", "this product", "uploaded product", "preserve the product",
+            "use this photo", "use this image", "product image"
+        )):
+            role = "product_photo"
+        images.append({"file": item, "name": name, "role": role})
+    return images
+
+
+def _graphic_role_instruction(role_items, preserve_product=True, style_strength="High"):
+    """Create role-aware instructions for the shared image pipeline."""
+    if not role_items:
+        return ""
+    product_names = [x["name"] for x in role_items if x["role"] == "product_photo"]
+    style_names = [x["name"] for x in role_items if x["role"] == "style_reference"]
+    logo_names = [x["name"] for x in role_items if x["role"] == "logo_asset"]
+    lines = ["\n\nUPLOADED IMAGE ROLES (MANDATORY):"]
+    if product_names:
+        lines.append("- PRODUCT PHOTO(S): " + ", ".join(product_names))
+        if preserve_product:
+            lines.append(
+                "  Preserve the exact product identity: silhouette, bezel, screen ratio, trim, "
+                "buttons, openings, vents, mounting shape, color, and proportions. Do not redesign, "
+                "replace, simplify, or invent physical parts. Only adjust placement, background, "
+                "lighting, reflections, and natural shadows."
+            )
+    if style_names:
+        lines.append("- STYLE REFERENCE(S): " + ", ".join(style_names))
+        lines.append(
+            f"  Use these only for composition, typography hierarchy, palette, spacing, panels, "
+            f"lighting language, and mood. Style strength: {style_strength}."
+        )
+    if logo_names:
+        lines.append("- LOGO ASSET(S): " + ", ".join(logo_names))
+        lines.append("  Keep logo geometry and wording exact; do not redraw or reinterpret it.")
+    support = [x["name"] for x in role_items if x["role"] in {"background", "supporting_image"}]
+    if support:
+        lines.append("- SUPPORT/BACKGROUND: " + ", ".join(support))
+    lines.append("Never confuse a product photo with a style reference.")
+    return "\n".join(lines)
+
+
+def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text):
+    """Run one bounded vision review of product fidelity and style compliance."""
+    product_payloads = []
+    for item in product_role_items or []:
+        if item.get("role") != "product_photo":
+            continue
+        try:
+            data_url = normalized_image_data_url(item.get("file"))
+        except Exception:
+            data_url = ""
+        if str(data_url).startswith("data:image/"):
+            product_payloads.append(data_url)
+        if len(product_payloads) >= 2:
+            break
+    if not product_payloads or not str(generated_data_url or "").startswith("data:image/"):
+        return {}
+    content = [{
+        "type": "input_text",
+        "text": (
+            "Compare the generated marketing image with the original product photo(s). "
+            "Return strict JSON only with keys: product_accuracy_score (0-100), "
+            "style_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
+            "problems (array), correction_prompt (string). Product geometry and physical "
+            "details are more important than decorative style. Requested prompt: " + str(prompt_text or "")[:3000]
+        ),
+    }]
+    for url in product_payloads:
+        content.append({"type": "input_image", "image_url": url})
+    content.append({"type": "input_image", "image_url": generated_data_url})
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Act as a strict automotive product-image quality inspector. Return JSON only.",
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=900,
+        )
+        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        return result if isinstance(result, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_output_review_failed", error_type=type(error).__name__, error=str(error))
+        return {}
+
+
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
+                                      preserve_product=True, style_strength="High",
+                                      forced_upload_role="Auto-detect", quality_retry=True):
     """
     Generate or reference-edit Graphic Marketing images through the Image API.
 
@@ -16311,8 +16529,18 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
               "The user's current command controls the requested deliverable."
         )
     image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
-    reference_images = prepare_graphic_reference_images(uploaded_files)
-    saved_references = prepare_saved_graphic_reference(prompt_text)
+    role_items = classify_graphic_uploaded_image_roles(
+        uploaded_files, prompt_text, forced_role=forced_upload_role
+    )
+    reference_images = prepare_graphic_reference_images(
+        [item["file"] for item in role_items]
+    )
+    image_api_prompt += _graphic_role_instruction(
+        role_items, preserve_product=preserve_product, style_strength=style_strength
+    )
+    saved_references = prepare_saved_graphic_reference(
+        prompt_text, use_approved_style=use_approved_style
+    )
     if saved_references:
         reference_images = list(saved_references) + reference_images
 
@@ -16449,6 +16677,35 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None):
         raise RuntimeError(
             "OpenAI completed the request but did not return usable image data."
         )
+
+    # Product-aware quality gate: inspect once and perform at most one corrective
+    # regeneration. This is shared by Graphic Chat and Advanced Designer.
+    review = review_graphic_output_accuracy(
+        generated_images[0].get("data_url"), role_items, prompt_text
+    )
+    if review:
+        generated_images[0]["quality_review"] = review
+        try:
+            product_score = int(float(review.get("product_accuracy_score", 100)))
+            passed = bool(review.get("passed", product_score >= 78))
+        except Exception:
+            product_score, passed = 100, True
+        correction = str(review.get("correction_prompt") or "").strip()
+        if quality_retry and preserve_product and (not passed or product_score < 78) and correction:
+            diagnostic_log("graphic_quality_retry", product_score=product_score)
+            retry_prompt = (
+                prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
+                "\nPreserve the uploaded product exactly. Do not change its physical design."
+            )
+            retried = generate_graphic_marketing_images(
+                retry_prompt, uploaded_files, use_approved_style=use_approved_style,
+                preserve_product=preserve_product, style_strength=style_strength,
+                forced_upload_role=forced_upload_role, quality_retry=False,
+            )
+            if retried:
+                retried[0]["auto_corrected_after_review"] = True
+                retried[0]["initial_quality_review"] = review
+                return retried
 
     return generated_images
 
@@ -26556,6 +26813,10 @@ def build_advanced_image_designer_request(
     output_format,
     additional_instructions,
     use_approved_reference_style=True,
+    preserve_product=True,
+    style_strength="High",
+    upload_role="Auto-detect",
+    quality_review=True,
 ):
     """Build one polished image prompt for the existing Graphic pipeline."""
     category = _clean_graphic_designer_value(category, 120)
@@ -26580,6 +26841,10 @@ def build_advanced_image_designer_request(
         3000,
     )
     use_approved_reference_style = bool(use_approved_reference_style)
+    preserve_product = bool(preserve_product)
+    quality_review = bool(quality_review)
+    style_strength = _clean_graphic_designer_value(style_strength, 40) or "High"
+    upload_role = _clean_graphic_designer_value(upload_role, 60) or "Auto-detect"
     branding_text = ", ".join(
         _clean_graphic_designer_value(item, 100)
         for item in (branding_elements or [])
@@ -26617,6 +26882,10 @@ DESIGN BRIEF
 - Intended output: {output_format}
 - Additional instructions: {additional_instructions or "None"}
 - Approved reference style: {"Required — use the approved reference style from Graphic Memory" if use_approved_reference_style else "Not requested"}
+- Uploaded image role: {upload_role}
+- Preserve product exactly: {"Required" if preserve_product else "Flexible"}
+- Reference style strength: {style_strength}
+- Post-generation quality review: {"Enabled" if quality_review else "Disabled"}
 
 DESIGN REQUIREMENTS
 - Produce a polished, commercially usable AutoTecPro marketing creative.
@@ -26640,6 +26909,13 @@ DESIGN REQUIREMENTS
         "display_text": display_text,
         "prompt": prompt.strip(),
         "active": True,
+        "graphic_options": {
+            "use_approved_style": use_approved_reference_style,
+            "preserve_product": preserve_product,
+            "style_strength": style_strength,
+            "forced_upload_role": upload_role,
+            "quality_retry": quality_review,
+        },
     }
 
 
@@ -26647,13 +26923,26 @@ def render_advanced_image_designer_panel():
     """Render one unified Graphic workspace with chat and structured designer."""
     apply_graphic_designer_mobile_css()
 
-    st.caption(
-        "Use Graphic Chat below for free-form generation, editing, analysis, and "
-        "creative questions. Open the Advanced AI Image Designer here whenever "
-        "you want a structured brief; both paths use the same Graphic Memory."
+    selected_label = st.selectbox(
+        "Graphic Marketing mode",
+        options=list(GRAPHIC_MARKETING_MODE_OPTIONS),
+        key="graphic_marketing_mode",
+        help="Both modes use the same learned styles, approved references, and Graphic Memory.",
     )
+    selected_mode = GRAPHIC_MARKETING_MODE_OPTIONS[selected_label]
+    if selected_mode == "chat":
+        st.caption(
+            "Use normal Graphic Chat for free-form generation, editing, image analysis, "
+            "style learning, and creative questions. Learned styles are shared with the "
+            "Advanced AI Image Designer."
+        )
+        return {"active": False, "prompt": None, "display_text": None}
 
-    with st.expander("🎨 Advanced AI Image Designer", expanded=False):
+    st.caption(
+        "Build a structured design brief. This mode uses the same Graphic Memory and "
+        "approved reference styles as Graphic Chat."
+    )
+    with st.container(border=True):
         category = st.selectbox(
             "Design category",
             options=list(GRAPHIC_DESIGN_TYPES),
@@ -26771,6 +27060,26 @@ def render_advanced_image_designer_panel():
                     "available to normal Graphic Chat."
                 ),
             )
+            preserve_product = st.checkbox(
+                "Preserve uploaded product exactly",
+                value=True,
+                help="Locks product shape, bezel, screen ratio, trim, buttons, openings, and proportions.",
+            )
+            control_col1, control_col2 = st.columns(2)
+            with control_col1:
+                style_strength = st.selectbox(
+                    "Reference style strength", ["Low", "Medium", "High"], index=2
+                )
+            with control_col2:
+                upload_role = st.selectbox(
+                    "Uploaded image role",
+                    ["Auto-detect", "Product Photo", "Style Reference", "Logo Asset", "Background", "Supporting Image"],
+                )
+            quality_review = st.checkbox(
+                "Review product accuracy and auto-correct once",
+                value=True,
+                help="Runs one vision check and retries once only when product fidelity is too low.",
+            )
             additional_instructions = st.text_area(
                 "Additional instructions",
                 height=120,
@@ -26784,7 +27093,7 @@ def render_advanced_image_designer_panel():
                 design_type != "Custom Design"
                 or len(str(custom_design or "").strip()) >= 3
             )
-            has_product_context = bool(str(product or "").strip())
+            has_product_context = True
 
             submitted = st.form_submit_button(
                 "Generate Design",
@@ -26795,10 +27104,6 @@ def render_advanced_image_designer_panel():
             if not valid_custom:
                 st.warning("Please describe the custom design you want to create.")
                 return {"active": False, "prompt": None, "display_text": None}
-            if not has_product_context:
-                st.warning("Please enter a product/model before generating the design.")
-                return {"active": False, "prompt": None, "display_text": None}
-
             return build_advanced_image_designer_request(
                 category,
                 design_type,
@@ -26817,6 +27122,10 @@ def render_advanced_image_designer_panel():
                 output_format,
                 additional_instructions,
                 use_approved_reference_style=use_approved_reference_style,
+                preserve_product=preserve_product,
+                style_strength=style_strength,
+                upload_role=upload_role,
+                quality_review=quality_review,
             )
 
     # The normal Graphic Chat composer always remains active.
@@ -32271,9 +32580,19 @@ else:
             response_start_time = time.time()
             try:
                 with st.spinner("Creating your image..."):
+                    graphic_options = (
+                        active_structured_tool.get("graphic_options", {})
+                        if isinstance(active_structured_tool, dict)
+                        else {}
+                    )
                     generated_images = generate_graphic_marketing_images(
                         prompt,
                         effective_uploaded_files,
+                        use_approved_style=graphic_options.get("use_approved_style", True),
+                        preserve_product=graphic_options.get("preserve_product", True),
+                        style_strength=graphic_options.get("style_strength", "High"),
+                        forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
+                        quality_retry=graphic_options.get("quality_retry", True),
                     )
                 answer = generated_image_answer_text(generated_images)
             except Exception as error:
