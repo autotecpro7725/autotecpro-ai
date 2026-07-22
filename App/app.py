@@ -69,8 +69,8 @@ except Exception:
 # v391 intelligent Excel learning: row/column relationship preservation, inherited-cell
 #   fill-down, multi-level header mapping, explicit compatibility normalization, source-row
 #   traceability, and workspace-aware financial-field isolation for Admin knowledge uploads.
-# v392 upload stability: retain the 20 MB limit and parse large Excel catalogues in
-#   read-only streaming mode so embedded product images do not exhaust Streamlit Cloud memory.
+# v393 upload reliability: stable 20 MB global chat drag/drop handoff, single native
+#   change event, duplicate-upload guard, client-side size validation, and memory-safe Excel reading.
 
 # ============================================================
 # App Paths / API
@@ -3972,7 +3972,7 @@ def install_gpt_uploader_css():
         div[data-testid="stFileUploader"] section::after,
         html body div[class*="st-key-atp_upload_shell_"]
         div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"]::after {
-            content: "20MB per file • JPG, JPEG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
+            content: "20MB per file • JPG, JPEG, PNG, WEBP, PDF, DOCX, XLS, XLSX, XLSM, XLSB, CSV, PPT, PPTX, ZIP";
             display: block;
             width: 100%;
             margin: 2px 0 0;
@@ -18279,50 +18279,28 @@ def _rows_to_structured_knowledge(rows, sheet_name, source_name, database_choice
 
 
 def _read_excel_rows(file_bytes, extension):
-    """Read workbook cell values without loading embedded images into memory.
-
-    Product catalogue workbooks can be only 10–20 MB on disk but contain hundreds
-    of embedded images. Opening those files in normal openpyxl mode can expand to
-    hundreds of megabytes and terminate a Streamlit Cloud worker, which appears in
-    the browser as an Axios status-code-500 upload failure. Read-only mode streams
-    worksheet cells and deliberately ignores drawing/image objects while preserving
-    the row/column values required by the structured learning engine.
-    """
     if load_workbook is None:
         raise RuntimeError(
             "Excel structured learning requires openpyxl. Add openpyxl to requirements.txt."
         )
-
-    workbook = None
+    workbook = load_workbook(
+        io.BytesIO(file_bytes),
+        data_only=True,
+        read_only=True,
+        keep_links=False,
+        keep_vba=(extension == ".xlsm"),
+    )
+    result = []
     try:
-        workbook = load_workbook(
-            io.BytesIO(file_bytes),
-            data_only=True,
-            read_only=True,
-            keep_vba=(extension == ".xlsm"),
-            keep_links=False,
-        )
-        result = []
         for worksheet in workbook.worksheets:
             # Hidden helper/status sheets are usually validation sources, not knowledge tables.
             if str(getattr(worksheet, "sheet_state", "visible")) != "visible":
                 continue
-
-            rows = []
-            for row in worksheet.iter_rows(values_only=True):
-                rows.append(tuple(row))
+            rows = [tuple(row) for row in worksheet.iter_rows(values_only=True)]
             result.append((worksheet.title, rows))
-        return result
-    except Exception as error:
-        raise RuntimeError(
-            f"The Excel workbook could not be read safely: {error}"
-        ) from error
     finally:
-        if workbook is not None:
-            try:
-                workbook.close()
-            except Exception:
-                pass
+        workbook.close()
+    return result
 
 
 def _read_csv_rows(file_bytes):
@@ -21890,7 +21868,7 @@ def install_global_chat_file_dropzone():
         (() => {
             const parentWindow = window.parent;
             const doc = parentWindow.document;
-            const CONTROLLER_KEY = "__atpGlobalChatDropzoneV2";
+            const CONTROLLER_KEY = "__atpGlobalChatDropzoneV3";
             const CHAT_SHELL_SELECTOR =
                 'div[class*="st-key-atp_upload_shell_chat_files"]';
             const ACCEPTED_EXTENSIONS = [
@@ -21914,6 +21892,8 @@ def install_global_chat_file_dropzone():
             let disposed = false;
             let dragActive = false;
             let hideTimer = null;
+            let uploadInProgress = false;
+            const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
             function ensureOverlay() {
                 let overlay = doc.getElementById("atp-global-drop-overlay");
@@ -22058,33 +22038,40 @@ def install_global_chat_file_dropzone():
             }
 
             function acceptedFiles(fileList) {
-                // Preserve the browser's original File objects. Rebuilding Office
-                // files can make Excel uploads fail in Chromium even when Word,
-                // PDF, and images continue to work.
-                return Array.from(fileList || []).filter(
-                    (file) => Boolean(fileExtension(file))
-                );
+                // Keep the original browser File objects. Reconstructing an XLSX
+                // File can corrupt Chromium's upload handoff for larger workbooks.
+                const supported = [];
+                const oversized = [];
+
+                for (const file of Array.from(fileList || [])) {
+                    if (!fileExtension(file)) continue;
+                    if (Number(file.size || 0) > MAX_UPLOAD_BYTES) {
+                        oversized.push(file.name || "Unnamed file");
+                        continue;
+                    }
+                    supported.push(file);
+                }
+
+                if (oversized.length) {
+                    parentWindow.alert(
+                        `These files exceed the 20 MB limit: ${oversized.join(", ")}`
+                    );
+                }
+
+                return supported;
             }
 
             function setInputFiles(input, files) {
-                const transfer = new DataTransfer();
+                if (!input || !input.isConnected || uploadInProgress) return false;
+
+                const transfer = new parentWindow.DataTransfer();
                 const seen = new Set();
 
-                // Preserve files already present in the current uploader.
-                for (const file of Array.from(input.files || [])) {
-                    const signature = [
-                        file.name,
-                        file.size,
-                        file.lastModified,
-                        file.type
-                    ].join("|");
-
-                    if (!seen.has(signature)) {
-                        seen.add(signature);
-                        transfer.items.add(file);
-                    }
-                }
-
+                // The managed uploader stores completed files in session state and
+                // remounts a fresh native input after each upload. Assign only the
+                // newly dropped files here; preserving a stale input.files list can
+                // submit the same large workbook twice and leave Streamlit's upload
+                // endpoint waiting indefinitely.
                 for (const file of files) {
                     const signature = [
                         file.name,
@@ -22099,10 +22086,15 @@ def install_global_chat_file_dropzone():
                     }
                 }
 
+                if (!transfer.files.length) return false;
+
                 const filesSetter = Object.getOwnPropertyDescriptor(
                     parentWindow.HTMLInputElement.prototype,
                     "files"
                 )?.set;
+
+                uploadInProgress = true;
+                input.dataset.atpProgrammaticUpload = "1";
 
                 if (filesSetter) {
                     filesSetter.call(input, transfer.files);
@@ -22110,20 +22102,26 @@ def install_global_chat_file_dropzone():
                     input.files = transfer.files;
                 }
 
-                // Dispatch both events because Streamlit/React versions can
-                // listen to either one.
-                input.dispatchEvent(
-                    new parentWindow.Event("input", {
-                        bubbles: true,
-                        composed: true
-                    })
-                );
+                // A file input's native semantic event is "change". Dispatching
+                // both input and change can trigger duplicate upload requests in
+                // some Streamlit/React combinations, especially for large XLSX files.
                 input.dispatchEvent(
                     new parentWindow.Event("change", {
                         bubbles: true,
                         composed: true
                     })
                 );
+
+                // Streamlit normally reruns and replaces the input after completion.
+                // Release the guard as a fallback if the component remains mounted.
+                parentWindow.setTimeout(() => {
+                    uploadInProgress = false;
+                    try {
+                        delete input.dataset.atpProgrammaticUpload;
+                    } catch (_) {}
+                }, 2500);
+
+                return true;
             }
 
             function attachFilesWithRetry(fileList, attempt = 0) {
@@ -22152,7 +22150,12 @@ def install_global_chat_file_dropzone():
                 }
 
                 try {
-                    setInputFiles(input, files);
+                    if (!setInputFiles(input, files) && attempt < 20) {
+                        parentWindow.setTimeout(
+                            () => attachFilesWithRetry(files, attempt + 1),
+                            125
+                        );
+                    }
                 } catch (error) {
                     // A stale input can disappear between lookup and assignment.
                     // Retry against the newest mounted input.
@@ -28393,7 +28396,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
     original = uploaded_file.getvalue()
     content_type = str(uploaded_file.type or "application/octet-stream")
     if len(original) > PRODUCT_LIBRARY_MAX_ORIGINAL_BYTES:
-        raise RuntimeError(f"{filename} exceeds the {MAX_UPLOAD_SIZE_MB} MB Product Library limit.")
+        raise RuntimeError(f"{filename} exceeds the 20 MB Product Library limit.")
 
     # Build a deterministic fingerprint before any external upload. Images use a
     # deterministic Supabase path; non-images use filename + byte size because the
@@ -28755,7 +28758,7 @@ def render_product_library_manage_fragment():
                         div[data-testid="stFileUploader"] section::after,
                         div[class*="st-key-replacement_upload_shell_"]
                         div[data-testid="stFileUploaderDropzone"]::after {
-                            content: "20MB per file • JPG, PNG, WEBP, PDF, DOCX, TXT, CSV, ZIP";
+                            content: "20MB per file • JPG, PNG, WEBP, PDF, DOCX, XLS, XLSX, XLSM, XLSB, CSV, PPT, PPTX, ZIP";
                             display: block;
                             width: 100%;
                             margin-top: 6px;
