@@ -82,6 +82,9 @@ except Exception:
 # v399 vector-store configuration: load Technical, Sales, Marketing, and Graphic
 #   Marketing vector-store IDs from Streamlit Secrets; add Graphic retrieval,
 #   Admin upload routing, and explicit Graphic knowledge learning.
+# v400 full compatibility audit: preserve all v398/v399 workflows; complete
+#   Graphic-specific learning-command detection and structured learning profile;
+#   add deterministic vector-store configuration diagnostics without exposing IDs.
 
 # ============================================================
 # App Paths / API
@@ -163,6 +166,37 @@ TECHNICAL_VECTOR_STORE_ID = _read_app_secret("TECHNICAL_VECTOR_STORE_ID")
 SALES_VECTOR_STORE_ID = _read_app_secret("SALES_VECTOR_STORE_ID")
 MARKETING_VECTOR_STORE_ID = _read_app_secret("MARKETING_VECTOR_STORE_ID")
 GRAPHIC_VECTOR_STORE_ID = _read_app_secret("GRAPHIC_VECTOR_STORE_ID")
+
+
+def vector_store_configuration_status():
+    """Return configuration presence only; never return or log secret IDs."""
+    configured = {
+        "technical": bool(
+            _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+        ),
+        "sales": bool(
+            _configured_vector_store_ids(SALES_VECTOR_STORE_ID)
+        ),
+        "marketing": bool(
+            _configured_vector_store_ids(MARKETING_VECTOR_STORE_ID)
+        ),
+        "graphic": bool(
+            _configured_vector_store_ids(GRAPHIC_VECTOR_STORE_ID)
+        ),
+    }
+    configured["all_configured"] = all(configured.values())
+    return configured
+
+
+_VECTOR_STORE_CONFIGURATION = vector_store_configuration_status()
+diagnostic_log(
+    "vector_store_configuration",
+    technical=_VECTOR_STORE_CONFIGURATION["technical"],
+    sales=_VECTOR_STORE_CONFIGURATION["sales"],
+    marketing=_VECTOR_STORE_CONFIGURATION["marketing"],
+    graphic=_VECTOR_STORE_CONFIGURATION["graphic"],
+    all_configured=_VECTOR_STORE_CONFIGURATION["all_configured"],
+)
 
 
 WORKSPACE_LABELS = {
@@ -19035,9 +19069,12 @@ EXPLICIT_LEARNING_COMMAND_PATTERNS = (
 
     # Professional multi-file / department-specific teaching commands.
     r"\blearn (?:these|the) uploaded (?:files?|photos?|images?|documents?)\b",
-    r"\blearn (?:this|these) as (?:an? )?(?:technical|sales|marketing) (?:record|knowledge|guideline|rule)\b",
-    r"\bcreate (?:and )?save (?:an? )?(?:technical|sales|marketing) (?:record|knowledge|guideline)\b",
-    r"\badd (?:these|the) (?:photos?|images?|files?|documents?) to (?:the )?(?:technical|sales|marketing) (?:database|knowledge base)\b",
+    r"\blearn (?:this|these) as (?:an? )?(?:technical|sales|marketing|graphic(?: marketing)?) (?:record|knowledge|guideline|rule|style)\b",
+    r"\bcreate (?:and )?save (?:an? )?(?:technical|sales|marketing|graphic(?: marketing)?) (?:record|knowledge|guideline|style)\b",
+    r"\badd (?:these|the) (?:photos?|images?|files?|documents?) to (?:the )?(?:technical|sales|marketing|graphic(?: marketing)?) (?:database|knowledge base)\b",
+    r"\blearn (?:and )?(?:remember )?(?:this|the) (?:visual |graphic |design )?style\b",
+    r"\bremember (?:this|the) (?:visual |graphic |design )?style\b",
+    r"\bsave (?:this|the) (?:visual |graphic |design )?style (?:for future use|to (?:the )?graphic(?: marketing)? (?:database|knowledge base))\b",
 )
 
 
@@ -19118,6 +19155,25 @@ def _professional_learning_profile(selected_assistant):
                 "part_numbers, connector_details, compatibility_conditions, "
                 "diagnostic_steps, confirmed_solution, installation_notes, warnings, "
                 "evidence, uncertain_information, search_keywords"
+            ),
+        }
+
+    if "graphic marketing" in label:
+        return {
+            "department": "Graphic Marketing",
+            "record_types": (
+                "visual_style, brand_layout, campaign_art_direction, product_render_rule, "
+                "vehicle_accuracy_rule, logo_placement, typography_rule, color_palette, "
+                "background_style, lighting_style, composition_rule, image_editing_rule, "
+                "social_media_format, packaging_artwork_rule, prohibited_visual_element"
+            ),
+            "required_fields": (
+                "record_type, title, product, vehicle, year_range, campaign, channel, "
+                "aspect_ratio, composition, camera_angle, lighting, background, "
+                "color_palette, typography, logo_rules, required_visual_elements, "
+                "prohibited_visual_elements, product_accuracy_rules, vehicle_accuracy_rules, "
+                "reusable_prompt_guidance, reference_description, effective_date, "
+                "expiration_date, evidence, uncertain_information, search_keywords"
             ),
         }
 
