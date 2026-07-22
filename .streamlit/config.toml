@@ -3,5 +3,7 @@
 toolbarMode = "viewer"
 
 [server]
-maxUploadSize = 10
-
+# Keep this aligned with MAX_UPLOAD_SIZE_MB in App/app.py.
+maxUploadSize = 20
+maxMessageSize = 50
+enableWebsocketCompression = true

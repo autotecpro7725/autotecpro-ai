@@ -25,7 +25,6 @@ import re
 import json
 import time
 import io
-import inspect
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlparse
@@ -69,8 +68,9 @@ except Exception:
 # v391 intelligent Excel learning: row/column relationship preservation, inherited-cell
 #   fill-down, multi-level header mapping, explicit compatibility normalization, source-row
 #   traceability, and workspace-aware financial-field isolation for Admin knowledge uploads.
-# v393 upload reliability: stable 20 MB global chat drag/drop handoff, single native
-#   change event, duplicate-upload guard, client-side size validation, and memory-safe Excel reading.
+# v394 upload correction: align Streamlit Cloud and application limits at 20 MB,
+#   remove obsolete per-widget upload-size introspection, retain stable native upload
+#   behavior, and allow ZIP attachments in the main chat uploader.
 
 # ============================================================
 # App Paths / API
@@ -541,23 +541,6 @@ LIVE_HTTP_TIMEOUT = 15
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_SIZE_MB = 20
 
-
-def file_uploader_with_limit(label, *, max_upload_size_mb=MAX_UPLOAD_SIZE_MB, **kwargs):
-    """Render a file uploader with a per-widget limit when supported.
-
-    Streamlit added ``max_upload_size`` in newer releases. Older deployed
-    versions continue to work through the compatibility fallback, while the
-    application-level byte validation remains authoritative.
-    """
-    try:
-        parameters = inspect.signature(st.file_uploader).parameters
-    except (TypeError, ValueError):
-        parameters = {}
-
-    if "max_upload_size" in parameters:
-        kwargs["max_upload_size"] = int(max_upload_size_mb)
-
-    return st.file_uploader(label, **kwargs)
 
 # Long document/catalogue responses may exceed a single Responses API output.
 # Keep each request bounded, then continue only when OpenAI explicitly reports
@@ -4439,7 +4422,7 @@ def _managed_file_uploader_core(
                 unsafe_allow_html=True,
             )
 
-        incoming_files = file_uploader_with_limit(
+        incoming_files = st.file_uploader(
             "Upload files",
             type=accepted_types,
             accept_multiple_files=True,
@@ -21874,7 +21857,7 @@ def install_global_chat_file_dropzone():
             const ACCEPTED_EXTENSIONS = [
                 ".jpg", ".jpeg", ".png", ".pdf", ".txt",
                 ".doc", ".docx", ".xls", ".xlsx", ".xlsm", ".xlsb", ".csv",
-                ".ppt", ".pptx"
+                ".ppt", ".pptx", ".zip"
             ];
 
             // Streamlit reruns can destroy the component iframe while leaving
@@ -21920,7 +21903,7 @@ def install_global_chat_file_dropzone():
                                 Drop files to attach
                             </div>
                             <div style="font-size:14px;color:#cbd5e1;">
-                                JPG, PNG, PDF, TXT, Word, Excel, CSV, or PowerPoint
+                                JPG, PNG, PDF, TXT, Word, Excel, CSV, PowerPoint, or ZIP
                             </div>
                         </div>
                     `;
@@ -22027,7 +22010,8 @@ def install_global_chat_file_dropzone():
                 ".xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
                 ".csv": "text/csv",
                 ".ppt": "application/vnd.ms-powerpoint",
-                ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".zip": "application/zip"
             };
 
             function fileExtension(file) {
@@ -28655,7 +28639,7 @@ def render_product_library_manage_fragment():
                             key=f"asset_subtype_{product_id}_{add_asset_type}",
                             help="Choose the specific view, component, or document purpose.",
                         )
-                        add_uploads = file_uploader_with_limit(
+                        add_uploads = st.file_uploader(
                             "Upload more files",
                             accept_multiple_files=True,
                             type=["jpg", "jpeg", "png", "webp", "pdf", "docx", "txt", "csv", "zip"],
@@ -28990,7 +28974,7 @@ def render_product_library_manage_fragment():
                                         with st.container(
                                             key=f"replacement_upload_shell_{asset_id}"
                                         ):
-                                            replacement_file = file_uploader_with_limit(
+                                            replacement_file = st.file_uploader(
                                                 "Choose one replacement file",
                                                 accept_multiple_files=False,
                                                 type=[
@@ -28999,7 +28983,6 @@ def render_product_library_manage_fragment():
                                                 ],
                                                 key=f"replacement_upload_{asset_id}",
                                                 label_visibility="collapsed",
-                                                max_upload_size_mb=MAX_UPLOAD_SIZE_MB,
                                             )
                                         replacement_submitted = st.form_submit_button(
                                             "Save Replacement",
@@ -31051,7 +31034,7 @@ else:
         widget_prefix="chat_files",
         accepted_types=[
             "jpg", "jpeg", "png", "pdf", "txt",
-            "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx",
+            "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
         ],
         heading="📎 Attach files or photos",
     )
