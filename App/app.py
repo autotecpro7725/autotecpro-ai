@@ -3593,14 +3593,24 @@ def live_integration_statuses():
     ]
 
 class ManagedUploadedFile(io.BytesIO):
-    """Reusable in-memory upload object with Streamlit-compatible metadata."""
+    """Reusable in-memory upload object with Streamlit-compatible metadata.
 
-    def __init__(self, data, name, mime_type="application/octet-stream"):
+    ``graphic_role`` and ``graphic_asset_id`` are optional internal metadata used
+    by the conversation-level Graphic Project Engine. They do not affect any
+    Technical, Sales, Marketing, Admin, or knowledge-upload workflow.
+    """
+
+    def __init__(
+        self, data, name, mime_type="application/octet-stream",
+        *, graphic_role="", graphic_asset_id="",
+    ):
         file_bytes = bytes(data or b"")
         super().__init__(file_bytes)
         self.name = str(name or "upload")
         self.type = str(mime_type or "application/octet-stream")
         self.size = len(file_bytes)
+        self.graphic_role = str(graphic_role or "").strip()
+        self.graphic_asset_id = str(graphic_asset_id or "").strip()
 
     def getvalue(self):
         """Return the complete file bytes without changing the current position."""
@@ -16720,22 +16730,58 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
 
 
 def graphic_project_uploaded_files(include_current=None):
-    """Materialize persistent Graphic project images, deduplicated with current files."""
+    """Materialize persistent Graphic assets while preserving their saved roles.
+
+    v1600 correctly retained image bytes across turns, but role metadata was lost
+    when those bytes were converted back into upload-like objects. A reference ad
+    whose filename did not contain words such as ``reference`` could therefore be
+    reclassified as a supporting/product image and overwrite the requested product.
+    This function now attaches the authoritative project role to every materialized
+    image, including files uploaded in the current turn.
+    """
     combined = []
     seen = set()
+    state_assets = list(get_graphic_project_state().get("assets") or [])
+    role_by_digest = {
+        str(record.get("id") or ""): str(record.get("role") or "supporting")
+        for record in state_assets
+        if str(record.get("id") or "")
+    }
+
     for item in include_current or []:
         try:
-            digest = hashlib.sha256(item.getvalue()).hexdigest()
+            raw = item.getvalue()
+            digest = hashlib.sha256(raw).hexdigest()
         except Exception:
+            raw = b""
             digest = str(id(item))
-        if digest not in seen:
-            combined.append(item)
-            seen.add(digest)
-    for record in get_graphic_project_state().get("assets") or []:
+        if digest in seen:
+            continue
+        saved_role = role_by_digest.get(digest, "")
+        if saved_role and not str(getattr(item, "graphic_role", "") or "").strip():
+            try:
+                item.graphic_role = saved_role
+                item.graphic_asset_id = digest
+            except Exception:
+                item = ManagedUploadedFile(
+                    raw, getattr(item, "name", "image"),
+                    getattr(item, "type", "image/png"),
+                    graphic_role=saved_role, graphic_asset_id=digest,
+                )
+        combined.append(item)
+        seen.add(digest)
+
+    for record in state_assets:
         digest = str(record.get("id") or "")
         if not digest or digest in seen:
             continue
-        combined.append(ManagedUploadedFile(record.get("data") or b"", record.get("name") or "image", record.get("type") or "image/png"))
+        combined.append(ManagedUploadedFile(
+            record.get("data") or b"",
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("role") or "supporting",
+            graphic_asset_id=digest,
+        ))
         seen.add(digest)
     return combined
 
@@ -17080,6 +17126,20 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
         name = Path(str(getattr(item, "name", "") or f"image_{index+1}.png")).name
         lower_name = name.lower()
         role = "supporting_image"
+        authoritative_project_role = str(
+            getattr(item, "graphic_role", "") or ""
+        ).strip().casefold()
+        project_role_map = {
+            "reference": "style_reference",
+            "style_reference": "style_reference",
+            "product": "product_photo",
+            "product_photo": "product_photo",
+            "logo": "logo_asset",
+            "logo_asset": "logo_asset",
+            "background": "background",
+            "supporting": "supporting_image",
+            "supporting_image": "supporting_image",
+        }
         if forced and forced != "auto-detect":
             role = {
                 "product photo": "product_photo",
@@ -17088,6 +17148,10 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
                 "background": "background",
                 "supporting image": "supporting_image",
             }.get(forced, "supporting_image")
+        elif authoritative_project_role in project_role_map:
+            # Conversation-project metadata is authoritative. Never infer a
+            # persistent reference ad from its filename or current prompt again.
+            role = project_role_map[authoritative_project_role]
         elif ordered_example_request:
             role = "product_photo" if index == 0 else "style_reference"
         elif "logo" in lower_name and not any(word in lower_name for word in ("product", "cluster", "screen", "radio", "dashboard")):
@@ -17262,7 +17326,9 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
             "For Creative Product Integration, also allow a modest camera-angle change, but still fail invented or redesigned hardware. "
             "For Exact Product Lock, require near pixel-faithful preservation. Product fidelity has priority over decorative style. "
-            f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
+            "Immediately fail if the generated hero hardware matches, resembles, or substitutes the product shown in a STYLE REFERENCE rather than the ORIGINAL PRODUCT SOURCE. "
+            "Immediately fail major silhouette/category mismatches such as vertical-vs-horizontal orientation, different screen aspect ratio, different housing outline, different bracket/vent/control architecture, or a gauge cluster replacing an infotainment unit. "
+            f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must explicitly prohibit the reference product and list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
             "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
@@ -17911,7 +17977,24 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     )
     has_product_source = any(item.get("role") == "product_photo" for item in role_items)
     has_current_style_references = any(item.get("role") == "style_reference" for item in role_items)
-    layered_studio_active = bool(professional_layered_studio and preserve_product and has_product_source and has_current_style_references)
+    diagnostic_log(
+        "graphic_generation_role_resolution",
+        roles=[f"{item.get('role')}:{item.get('name')}" for item in role_items],
+        product_count=sum(1 for item in role_items if item.get("role") == "product_photo"),
+        style_reference_count=sum(1 for item in role_items if item.get("role") == "style_reference"),
+    )
+    if preserve_product and has_current_style_references and not has_product_source:
+        raise RuntimeError(
+            "A product source could not be identified for this Graphic project. "
+            "Please upload or reselect the product photo before generating."
+        )
+    # When both a product source and a style reference exist, exact source-pixel
+    # compositing is the safest production path. The image model creates only the
+    # environment; compose_graphic_layered_ad places the uploaded product itself.
+    # This prevents the style reference's hardware from becoming the hero object.
+    layered_studio_active = bool(
+        preserve_product and has_product_source and has_current_style_references
+    )
     vehicle_profile = research_graphic_vehicle_profile(role_items, prompt_text) if has_product_source else {}
     vehicle_profile_text = _graphic_vehicle_profile_text(vehicle_profile)
     reference_blueprint = analyze_graphic_reference_blueprint(
@@ -17964,7 +18047,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         image_api_prompt += (
             "\n\nPROFESSIONAL LAYERED STUDIO CONTRACT (MANDATORY):\n"
             "Generate ONLY the cinematic automotive background/environment and lighting plate. "
-            "Do not draw, recreate, imitate, or place the uploaded product. Do not render headline, CTA, logo, icons, "
+            "ABSOLUTELY DO NOT DRAW OR INCLUDE ANY PRODUCT DEVICE FROM THE STYLE REFERENCE. "
+            "The style reference product is forbidden content and must not appear even as a silhouette, screen, cluster, radio, dashboard module, reflection, or background prop. "
+            "Do not draw, recreate, imitate, or place the uploaded product either; the application will place its exact pixels later. Do not render headline, CTA, logo, icons, "
             "feature labels, benefit bars, prices, or any customer-facing text. Reserve clean dark negative space on the "
             "left 34 percent for typography and a clear hero zone across the center-right for the original product layer. "
             "Use the verified compatible vehicle exterior/interior context and the reference blueprint's depth, color, "
@@ -18140,6 +18225,11 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "data_url": data_url,
             "generated": True,
             "professional_layered_studio": bool(layered_studio_active),
+            "strict_product_identity_lock": bool(preserve_product and has_product_source),
+            "product_identity_method": (
+                "exact_source_pixel_composite" if layered_studio_active
+                else "high_fidelity_image_edit"
+            ),
             "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION if layered_studio_active else "",
             "layered_metadata": layered_metadata,
             "vehicle_profile": vehicle_profile,
@@ -18187,6 +18277,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
 
     # Product-aware quality gate: inspect once and perform at most one corrective
     # regeneration. This is shared by Graphic Chat and Advanced Designer.
+    # Layered mode already uses the original product pixels, but the review still
+    # checks placement, occlusion, style adherence, and accidental reference-product
+    # leakage in the generated background.
     review = review_graphic_output_accuracy(
         generated_images[0].get("data_url"), role_items, prompt_text,
         resolved_product_transform_mode, reference_blueprint=reference_blueprint,
