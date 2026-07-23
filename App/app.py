@@ -128,6 +128,7 @@ except Exception:
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
+# v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
@@ -17618,7 +17619,7 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 # v1000 Professional Layered Automotive Ad Studio
 # ============================================================
 
-GRAPHIC_LAYERED_ENGINE_VERSION = "v1100-adaptive-layered-studio"
+GRAPHIC_LAYERED_ENGINE_VERSION = "v2000-chatgpt-professional-layered-studio"
 GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
 
 
@@ -17766,7 +17767,7 @@ def _graphic_extract_product_cutout(uploaded_file):
         return image
 
     alpha=[]
-    soft_start, hard_end = 18.0, 88.0
+    soft_start, hard_end = 12.0, 72.0
     for r,g,b in rgb.getdata():
         dr,dg,db=r-bg[0],g-bg[1],b-bg[2]
         euclid=(dr*dr+dg*dg+db*db)**0.5
@@ -17779,7 +17780,7 @@ def _graphic_extract_product_cutout(uploaded_file):
             a=int(255*(t*t*(3-2*t)))
         alpha.append(a)
     mask=Image.new("L",(w,h)); mask.putdata(alpha)
-    mask=mask.filter(ImageFilter.GaussianBlur(radius=max(.65,min(w,h)/1200)))
+    mask=mask.filter(ImageFilter.GaussianBlur(radius=max(.45,min(w,h)/1500)))
     # Preserve enclosed light UI/product areas by retaining pixels surrounded by foreground.
     dilated=mask.filter(ImageFilter.MaxFilter(5))
     mask=ImageChops.lighter(mask, ImageChops.multiply(dilated,dilated))
@@ -17895,56 +17896,82 @@ def _graphic_compact_image_prompt(prompt_text, max_chars=26000):
 
 
 def _graphic_reference_background_plate(role_items, output_size="1536x1024"):
-    """Build a safe local cinematic plate when the image provider is unavailable."""
+    """Build a clean reference-derived commercial plate with no product imagery.
+
+    v2000 intentionally does not blur or reuse the reference advertisement pixels,
+    because even heavy blur can leave a recognisable device silhouette that competes
+    with the user's product. The plate borrows only palette, contrast, composition,
+    accent rhythm, and rugged automotive atmosphere from the reference.
+    """
     if Image is None:
         return b""
     try:
-        from PIL import ImageDraw, ImageFilter, ImageEnhance
+        from PIL import ImageDraw, ImageFilter
         width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
     except Exception:
         width, height = 1536, 1024
-    source = None
-    for item in role_items or []:
-        if item.get("role") != "style_reference":
-            continue
-        raw = _graphic_uploaded_file_bytes(item.get("file"))
-        try:
-            source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
-            break
-        except Exception:
-            source = None
-    if source is None:
-        source = Image.new("RGB", (width, height), (7, 15, 28))
-    scale = max(width / max(1, source.width), height / max(1, source.height))
-    source = source.resize(
-        (max(width, int(source.width * scale)), max(height, int(source.height * scale))),
-        Image.Resampling.LANCZOS,
-    )
-    left = max(0, (source.width - width) // 2)
-    top = max(0, (source.height - height) // 2)
-    source = source.crop((left, top, left + width, top + height))
-    source = source.filter(ImageFilter.GaussianBlur(radius=max(28, min(width, height) // 24)))
-    source = ImageEnhance.Contrast(source).enhance(1.18)
-    source = ImageEnhance.Color(source).enhance(1.12).convert("RGBA")
-    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay, "RGBA")
-    draw.rectangle((0, 0, width, height), fill=(2, 8, 18, 105))
-    palette = _graphic_reference_palette(role_items)
-    accent = tuple(palette.get("accent") or (40, 110, 210))
-    for i in range(18):
-        alpha = max(0, 55 - i * 3)
-        inset = i * max(12, width // 100)
-        draw.ellipse(
-            (width * 0.34 - inset, height * 0.18 - inset,
-             width * 1.06 + inset, height * 1.08 + inset),
-            outline=accent + (alpha,), width=max(8, width // 90),
-        )
-    draw.rectangle((0, int(height * 0.82), width, height), fill=(2, 5, 12, 145))
-    plate = Image.alpha_composite(source, overlay).convert("RGB")
-    buffer = io.BytesIO()
-    plate.save(buffer, format="PNG", optimize=True)
-    return buffer.getvalue()
 
+    palette = _graphic_reference_palette(role_items)
+    accent = tuple(palette.get("accent") or (236, 52, 45))
+    dark = tuple(palette.get("panel") or (6, 9, 14))
+
+    canvas = Image.new("RGBA", (width, height), dark + (255,))
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # Cinematic vertical gradient.
+    for y in range(height):
+        t = y / max(1, height - 1)
+        r = int(dark[0] * (1 - t) + 3 * t)
+        g = int(dark[1] * (1 - t) + 8 * t)
+        b = int(dark[2] * (1 - t) + 18 * t)
+        draw.line((0, y, width, y), fill=(r, g, b, 255))
+
+    # Reference-inspired atmospheric glow, deliberately free of devices/screens.
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow, "RGBA")
+    for i in range(26, 0, -1):
+        alpha = int(6 + (26 - i) * 2.1)
+        rx = int(width * (0.22 + i * 0.018))
+        ry = int(height * (0.16 + i * 0.014))
+        cx, cy = int(width * 0.72), int(height * 0.44)
+        gd.ellipse((cx-rx, cy-ry, cx+rx, cy+ry), fill=accent + (min(alpha, 58),))
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=max(32, min(width, height)//20)))
+    canvas = Image.alpha_composite(canvas, glow)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # Abstract terrain / road bands: style cue only, never a copied object.
+    horizon = int(height * 0.69)
+    draw.polygon([
+        (0, horizon), (int(width*.12), int(height*.58)), (int(width*.27), int(height*.66)),
+        (int(width*.42), int(height*.53)), (int(width*.58), int(height*.65)),
+        (int(width*.76), int(height*.49)), (width, int(height*.62)), (width, height), (0, height)
+    ], fill=(6, 12, 22, 220))
+    draw.polygon([
+        (0, int(height*.79)), (int(width*.24), int(height*.72)),
+        (int(width*.52), int(height*.83)), (int(width*.78), int(height*.70)),
+        (width, int(height*.78)), (width, height), (0, height)
+    ], fill=(2, 6, 12, 245))
+
+    # Dynamic diagonal accent lines and a clean hero zone.
+    for i in range(4):
+        y1 = int(height * (.18 + i*.075))
+        draw.line((int(width*.57), y1, int(width*.97), y1-int(height*.12)),
+                  fill=accent + (48-i*7,), width=max(2, width//420))
+    draw.rounded_rectangle((int(width*.51), int(height*.12), int(width*.95), int(height*.82)),
+                           radius=max(30, width//45), outline=(255,255,255,22), width=max(2,width//700))
+
+    # Dark copy zone and bottom information rail.
+    copy_overlay = Image.new("RGBA", (width, height), (0,0,0,0))
+    cod = ImageDraw.Draw(copy_overlay, "RGBA")
+    for i in range(24):
+        alpha = int(178 * (1 - i/24)**1.8)
+        cod.rectangle((0, 0, int(width*(.42-i*.008)), height), fill=(0,0,0,alpha))
+    cod.rectangle((0, int(height*.88), width, height), fill=(1,4,9,228))
+    canvas = Image.alpha_composite(canvas, copy_overlay).convert("RGB")
+
+    buffer = io.BytesIO()
+    canvas.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
 
 def _graphic_result_raw_bytes(result_item):
     """Read an Image API result from base64 or a temporary result URL."""
@@ -18320,12 +18347,17 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     result = None
     try:
         if layered_studio_active:
-            result = image_client.images.generate(
-                model=GRAPHIC_IMAGE_MODEL,
-                prompt=image_api_prompt,
-                n=GRAPHIC_IMAGE_COUNT,
-                size=output_size,
-            )
+            # v2000 product-first studio: create a clean no-device plate locally.
+            # This avoids provider backgrounds that may hallucinate another radio,
+            # cluster, screen, or dashboard and guarantees a single hero product.
+            local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
+            if not local_fallback_bytes:
+                result = image_client.images.generate(
+                    model=GRAPHIC_IMAGE_MODEL,
+                    prompt=image_api_prompt,
+                    n=GRAPHIC_IMAGE_COUNT,
+                    size=output_size,
+                )
         elif reference_images:
             for reference in reference_images:
                 reference.seek(0)
@@ -18432,7 +18464,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
             "prompt": prompt_text,
             "created_at": created_at.isoformat(),
-            "model": GRAPHIC_IMAGE_MODEL,
+            "model": ("local-reference-derived-layered-studio" if layered_studio_active and local_fallback_bytes else GRAPHIC_IMAGE_MODEL),
             "size": output_size,
             "resolution": output_size,
             "mime_type": "image/png",
@@ -34959,6 +34991,18 @@ else:
         )
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
             graphic_chat_intent = "analyze"
+        if assistant == "🎨 Graphic Marketing" and not attachment_only_mode:
+            # Project-aware explicit consent: once both reference and product are
+            # present, short ChatGPT-style commands must enter generation directly.
+            project_assets = list((get_graphic_project_state() or {}).get("assets") or [])
+            project_roles = {str(item.get("role") or "").strip().casefold() for item in project_assets if isinstance(item, dict)}
+            short_command = re.sub(r"[^a-z0-9]+", " ", str(interaction_prompt or "").casefold()).strip()
+            if ({"reference", "product"} <= project_roles or {"style_reference", "product_photo"} <= project_roles) and short_command in {
+                "create it", "generate it", "make it", "do it", "proceed", "go ahead",
+                "create the image", "create the image now", "generate the image",
+                "generate the image now", "create the ad", "make the ad", "retry", "try again"
+            }:
+                graphic_chat_intent = "generate"
         is_graphic_generation = bool(
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
