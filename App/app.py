@@ -127,6 +127,7 @@ except Exception:
 # v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
+# v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
@@ -17880,6 +17881,94 @@ def _graphic_reference_palette(role_items):
     return {"accent":tuple(accent),"panel":(6,9,14),"text":(255,255,255)}
 
 
+
+def _graphic_compact_image_prompt(prompt_text, max_chars=26000):
+    """Keep Image API requests focused, ordered, and below context limits."""
+    value = str(prompt_text or "").replace("\x00", " ")
+    value = re.sub(r"[ \t]+", " ", value)
+    value = re.sub(r"\n{3,}", "\n\n", value).strip()
+    if len(value) <= int(max_chars):
+        return value
+    head = int(max_chars * 0.68)
+    tail = int(max_chars) - head - 80
+    return value[:head].rstrip() + "\n\n[INTERNAL CONTEXT COMPACTED]\n\n" + value[-tail:].lstrip()
+
+
+def _graphic_reference_background_plate(role_items, output_size="1536x1024"):
+    """Build a safe local cinematic plate when the image provider is unavailable."""
+    if Image is None:
+        return b""
+    try:
+        from PIL import ImageDraw, ImageFilter, ImageEnhance
+        width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
+    except Exception:
+        width, height = 1536, 1024
+    source = None
+    for item in role_items or []:
+        if item.get("role") != "style_reference":
+            continue
+        raw = _graphic_uploaded_file_bytes(item.get("file"))
+        try:
+            source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+            break
+        except Exception:
+            source = None
+    if source is None:
+        source = Image.new("RGB", (width, height), (7, 15, 28))
+    scale = max(width / max(1, source.width), height / max(1, source.height))
+    source = source.resize(
+        (max(width, int(source.width * scale)), max(height, int(source.height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    left = max(0, (source.width - width) // 2)
+    top = max(0, (source.height - height) // 2)
+    source = source.crop((left, top, left + width, top + height))
+    source = source.filter(ImageFilter.GaussianBlur(radius=max(28, min(width, height) // 24)))
+    source = ImageEnhance.Contrast(source).enhance(1.18)
+    source = ImageEnhance.Color(source).enhance(1.12).convert("RGBA")
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay, "RGBA")
+    draw.rectangle((0, 0, width, height), fill=(2, 8, 18, 105))
+    palette = _graphic_reference_palette(role_items)
+    accent = tuple(palette.get("accent") or (40, 110, 210))
+    for i in range(18):
+        alpha = max(0, 55 - i * 3)
+        inset = i * max(12, width // 100)
+        draw.ellipse(
+            (width * 0.34 - inset, height * 0.18 - inset,
+             width * 1.06 + inset, height * 1.08 + inset),
+            outline=accent + (alpha,), width=max(8, width // 90),
+        )
+    draw.rectangle((0, int(height * 0.82), width, height), fill=(2, 5, 12, 145))
+    plate = Image.alpha_composite(source, overlay).convert("RGB")
+    buffer = io.BytesIO()
+    plate.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+
+def _graphic_result_raw_bytes(result_item):
+    """Read an Image API result from base64 or a temporary result URL."""
+    encoded = getattr(result_item, "b64_json", None) or (
+        result_item.get("b64_json") if isinstance(result_item, dict) else None
+    )
+    if encoded:
+        try:
+            return base64.b64decode(encoded)
+        except Exception:
+            return b""
+    url = getattr(result_item, "url", None) or (
+        result_item.get("url") if isinstance(result_item, dict) else None
+    )
+    if url:
+        try:
+            response = http_session.get(str(url), timeout=45)
+            response.raise_for_status()
+            return bytes(response.content or b"")
+        except Exception as error:
+            diagnostic_log("graphic_result_url_download_failed", error_type=type(error).__name__, error=error)
+    return b""
+
+
 def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, reference_blueprint=None, vehicle_profile=None, role_items=None):
     """Compose an agency-style ad from protected product pixels and deterministic layers."""
     if Image is None: return bytes(background_bytes or b""), {}
@@ -18108,6 +18197,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                   "Do not replace them with a generic automotive-ad style."
             )
 
+    image_api_prompt = _graphic_compact_image_prompt(image_api_prompt)
+
     # Apply reliability settings only to image requests. The shared client and
     # every other OpenAI feature in the application remain unchanged.
     image_client = client.with_options(
@@ -18115,10 +18206,11 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         max_retries=GRAPHIC_IMAGE_MAX_RETRIES,
     )
 
+    local_fallback_bytes = b""
+    provider_error = None
+    result = None
     try:
         if layered_studio_active:
-            # Generate a clean background plate only; preserve the source product
-            # later as an immutable composited layer.
             result = image_client.images.generate(
                 model=GRAPHIC_IMAGE_MODEL,
                 prompt=image_api_prompt,
@@ -18128,12 +18220,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         elif reference_images:
             for reference in reference_images:
                 reference.seek(0)
-
-            image_input = (
-                reference_images
-                if len(reference_images) > 1
-                else reference_images[0]
-            )
+            image_input = reference_images if len(reference_images) > 1 else reference_images[0]
             edit_kwargs = dict(
                 model=GRAPHIC_IMAGE_MODEL,
                 image=image_input,
@@ -18156,46 +18243,31 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 size=output_size,
             )
     except Exception as error:
-        error_name = type(error).__name__
-        safe_error = str(error).strip() or "No additional details were returned."
-        print(
-            "[GRAPHIC IMAGE ERROR] "
-            f"type={error_name} model={GRAPHIC_IMAGE_MODEL} "
-            f"details={safe_error}",
-            flush=True,
+        provider_error = error
+        diagnostic_log(
+            "graphic_image_provider_failed",
+            error_type=type(error).__name__, error=error,
+            model=GRAPHIC_IMAGE_MODEL, layered=layered_studio_active,
+            prompt_chars=len(image_api_prompt),
         )
-
-        if error_name == "APITimeoutError":
-            raise RuntimeError(
-                "Image generation timed out after 3 minutes. "
-                "Please try again with one clear prompt or a smaller number "
-                "of reference images."
-            ) from error
-
-        raise RuntimeError(
-            f"Image generation failed: {safe_error}"
-        ) from error
+        if layered_studio_active:
+            local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
+        if not local_fallback_bytes:
+            if type(error).__name__ == "APITimeoutError":
+                raise RuntimeError(
+                    "Image generation timed out. Your project assets are preserved; please retry once."
+                ) from error
+            raise RuntimeError("The image provider could not complete this request.") from error
 
     result_items = list(getattr(result, "data", None) or [])
+    raw_result_bytes = [local_fallback_bytes] if local_fallback_bytes else [
+        raw for raw in (_graphic_result_raw_bytes(item) for item in result_items) if raw
+    ]
+    if not raw_result_bytes:
+        raise RuntimeError("The image provider returned no usable image data.")
+
     generated_images = []
-
-    for item in result_items:
-        encoded = (
-            getattr(item, "b64_json", None)
-            or (
-                item.get("b64_json")
-                if isinstance(item, dict)
-                else None
-            )
-        )
-        if not encoded:
-            continue
-
-        try:
-            raw_bytes = base64.b64decode(encoded)
-        except Exception:
-            continue
-
+    for raw_bytes in raw_result_bytes:
         png_bytes = image_bytes_to_png(raw_bytes)
         if not png_bytes:
             continue
@@ -18236,6 +18308,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "data_url": data_url,
             "generated": True,
             "professional_layered_studio": bool(layered_studio_active),
+            "provider_fallback_used": bool(local_fallback_bytes),
+            "provider_error_type": type(provider_error).__name__ if provider_error else "",
             "strict_product_identity_lock": bool(preserve_product and has_product_source),
             "product_identity_method": (
                 "exact_source_pixel_composite" if layered_studio_active
@@ -18341,6 +18415,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             )
     except Exception as error:
         diagnostic_log("graphic_continuous_learning_failed", error=str(error))
+
+    if not generated_images:
+        raise RuntimeError("No displayable image could be produced from this request.")
 
     return generated_images
 
@@ -34608,9 +34685,10 @@ else:
             ]
             # Image cards already communicate the attachment visually. Keep names
             # only for documents/archives so image-only turns remain uncluttered.
-            if non_image_files or not attachment_only_mode:
+            if non_image_files:
                 file_names = ", ".join(
-                    [str(getattr(file, "name", "attachment")) for file in uploaded_files]
+                    str(getattr(file, "name", "attachment"))
+                    for file in non_image_files
                 )
                 user_display += f"\n\n📎 Attached: {file_names}"
         if archive_summaries:
@@ -34914,10 +34992,13 @@ else:
                     error=error,
                 )
                 answer = (
-                    "Image generation was not completed. Please retry. "
+                    "Image generation was not completed. Your reference and product photos are still saved, so you can retry. "
                     f"Diagnostic ID: {diagnostic_id}"
                 )
-                st.error(answer)
+                graphic_project = get_graphic_project_state()
+                graphic_project["stage"] = "ready_to_generate"
+                graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
 
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
