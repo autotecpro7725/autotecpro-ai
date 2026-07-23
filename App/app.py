@@ -112,6 +112,10 @@ except Exception:
 # v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
 #   default governance, archive/delete, comparison, merge, and version snapshots.
 # v720 product-preservation and style-fidelity hardening:
+# v800 Visual Reference Analysis Engine: analyze uploaded advertisement references
+#   before generation, extract a structured composition/style blueprint, prioritize
+#   current references over stale saved styles, and inject the blueprint into the
+#   Creative Director, multi-agent planner, image prompt, output metadata, and QA.
 # - immutable product/source ordering, exact screen-UI lock, stricter QA threshold,
 #   and correction prompts that restore altered details from the source image.
 # v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
@@ -15748,7 +15752,101 @@ def get_approved_graphic_reference_for_prompt(prompt_text=""):
     return reference if isinstance(reference, dict) else None
 
 
-def build_graphic_creative_director_brief(prompt_text, role_items=None, style_strength="High"):
+def _graphic_role_data_url(item):
+    """Return a normalized data URL for one classified Graphic upload."""
+    try:
+        value = normalized_image_data_url((item or {}).get("file"))
+    except Exception:
+        value = ""
+    return value if str(value).startswith("data:image/") else ""
+
+
+def analyze_graphic_reference_blueprint(role_items, prompt_text="", style_strength="High"):
+    """Convert current style references into an explicit production blueprint."""
+    items = [item for item in (role_items or []) if isinstance(item, dict)]
+    style_items = [item for item in items if item.get("role") == "style_reference"][:6]
+    product_items = [item for item in items if item.get("role") == "product_photo"][:2]
+    if not style_items:
+        return {}
+
+    content = [{
+        "type": "input_text",
+        "text": (
+            "Analyze these images for an AutoTecPro advertising workflow. Images are labelled PRODUCT SOURCE "
+            "or STYLE REFERENCE. Return one strict JSON object only. Never transfer or substitute the product "
+            "inside a STYLE REFERENCE. Extract the reusable visual system and create a concrete blueprint for "
+            "placing the PRODUCT SOURCE into a new advertisement. Required keys: reference_summary, layout_archetype, "
+            "canvas_zones, product_scale_percent, product_position, product_crop_and_perspective, background_scene, "
+            "vehicle_or_environment_role, lighting_direction, color_palette, typography_system, headline_zone, "
+            "subheadline_zone, logo_zone, feature_icon_system, feature_copy_structure, bottom_feature_bar, cta_system, "
+            "spacing_and_margins, depth_and_layering, product_integration_instructions, must_copy_visual_patterns, "
+            "acceptable_variations, forbidden_transfers, negative_constraints, final_generation_blueprint, confidence_score. "
+            "canvas_zones must include approximate percentages and positions. final_generation_blueprint must be concise "
+            "and directly usable by an image model. Requested style strength: " + str(style_strength) + ". Staff request: " + str(prompt_text or "")[:5000]
+        ),
+    }]
+    for item in product_items:
+        url = _graphic_role_data_url(item)
+        if url:
+            content.append({"type": "input_text", "text": "PRODUCT SOURCE — preserve identity: " + str(item.get("name") or "")})
+            content.append({"type": "input_image", "image_url": url})
+    for index, item in enumerate(style_items, 1):
+        url = _graphic_role_data_url(item)
+        if url:
+            content.append({"type": "input_text", "text": f"STYLE REFERENCE {index} — analyze layout/style only; never copy its product: {item.get('name')}"})
+            content.append({"type": "input_image", "image_url": url})
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=(
+                "Act as a senior automotive advertising art director and visual systems analyst. "
+                "Distinguish product identity from reference-ad style. Return JSON only."
+            ),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=3200,
+        )
+        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if isinstance(result, dict):
+            result["analysis_version"] = "v800-reference-blueprint"
+            result["product_filenames"] = [str(x.get("name") or "") for x in product_items]
+            result["style_reference_filenames"] = [str(x.get("name") or "") for x in style_items]
+            return result
+    except Exception as error:
+        diagnostic_log("graphic_reference_blueprint_failed", error_type=type(error).__name__, error=str(error), style_reference_count=len(style_items))
+    return {
+        "analysis_version": "v800-reference-blueprint-fallback",
+        "reference_summary": "Use current advertisements as layout and visual-language references only.",
+        "product_integration_instructions": "Place the uploaded product prominently while preserving identity and geometry.",
+        "forbidden_transfers": ["products in style references", "reference claims", "reference watermarks"],
+        "final_generation_blueprint": "Recreate the references' hierarchy, product scale, icon organization, background depth, typography rhythm, and bottom feature bar while advertising only the uploaded product source.",
+        "confidence_score": 55,
+    }
+
+
+def _graphic_reference_blueprint_text(blueprint):
+    """Serialize the strongest reference-analysis fields."""
+    if not isinstance(blueprint, dict) or not blueprint:
+        return ""
+    ordered = (
+        "reference_summary", "layout_archetype", "canvas_zones", "product_scale_percent", "product_position",
+        "product_crop_and_perspective", "background_scene", "vehicle_or_environment_role", "lighting_direction",
+        "color_palette", "typography_system", "headline_zone", "subheadline_zone", "logo_zone", "feature_icon_system",
+        "feature_copy_structure", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",
+        "product_integration_instructions", "must_copy_visual_patterns", "acceptable_variations", "forbidden_transfers",
+        "negative_constraints", "final_generation_blueprint", "confidence_score",
+    )
+    lines = []
+    for key in ordered:
+        value = blueprint.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value, ensure_ascii=False, default=str)
+        lines.append(key.replace("_", " ").upper() + ": " + str(value))
+    return "\n".join(lines)[:14000]
+
+
+def build_graphic_creative_director_brief(prompt_text, role_items=None, style_strength="High", reference_blueprint=None):
     """Create a concise internal production brief before image generation.
 
     This is intentionally bounded and fails open so image generation remains
@@ -15760,6 +15858,7 @@ def build_graphic_creative_director_brief(prompt_text, role_items=None, style_st
         if isinstance(item, dict)
     ) or "No uploaded images"
     requested_collection = extract_graphic_style_collection_name(prompt_text) or "Automatically select the closest approved style"
+    blueprint_text = _graphic_reference_blueprint_text(reference_blueprint)
     instructions = (
         "Act as AutoTecPro's senior Creative Director. Convert the request into a "
         "concise production brief for an image model. Return plain text only with "
@@ -15773,7 +15872,8 @@ def build_graphic_creative_director_brief(prompt_text, role_items=None, style_st
         f"REQUEST:\n{str(prompt_text or '')[:6000]}\n\n"
         f"UPLOADED IMAGE ROLES:\n{role_summary}\n\n"
         f"STYLE STRENGTH: {style_strength}\n"
-        f"REQUESTED STYLE COLLECTION: {requested_collection}"
+        f"REQUESTED STYLE COLLECTION: {requested_collection}\n\n"
+        f"CURRENT REFERENCE-IMAGE BLUEPRINT:\n{blueprint_text or 'None'}"
     )
     try:
         response = client.responses.create(
@@ -16710,9 +16810,10 @@ def _graphic_role_instruction(role_items, preserve_product=True, style_strength=
     return "\n".join(lines)
 
 
-def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text, product_transform_mode="Controlled Product Adaptation"):
+def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text, product_transform_mode="Controlled Product Adaptation", reference_blueprint=None):
     """Run one bounded vision review of product fidelity and style compliance."""
     product_payloads = []
+    style_payloads = []
     for item in product_role_items or []:
         if item.get("role") != "product_photo":
             continue
@@ -16724,6 +16825,14 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             product_payloads.append(data_url)
         if len(product_payloads) >= 2:
             break
+    for item in product_role_items or []:
+        if item.get("role") != "style_reference":
+            continue
+        url = _graphic_role_data_url(item)
+        if url:
+            style_payloads.append(url)
+        if len(style_payloads) >= 3:
+            break
     if not product_payloads or not str(generated_data_url or "").startswith("data:image/"):
         return {}
     mode = resolve_graphic_product_transform_mode(prompt_text, product_transform_mode, True)
@@ -16733,19 +16842,24 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
         "text": (
             f"Compare the generated marketing image with the original product photo(s) under {mode}. "
             "Return strict JSON only with keys: product_accuracy_score (0-100), "
-            "style_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
+            "style_adherence_score (0-100), layout_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
             "problems (array), correction_prompt (string). Fail the image if any visible product "
             "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
             "trim geometry, openings, brackets, connectors, proportions, or product identity. "
             "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
             "For Creative Product Integration, also allow a modest camera-angle change, but still fail invented or redesigned hardware. "
             "For Exact Product Lock, require near pixel-faithful preservation. Product fidelity has priority over decorative style. "
-            f"A passing product score requires at least {threshold}/100 for this mode. correction_prompt must explicitly list every impermissibly altered detail and "
-            "instruct the image model to restore it from the original source photo. Requested prompt: " + str(prompt_text or "")[:3000]
+            f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
+            "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
     for url in product_payloads:
+        content.append({"type": "input_text", "text": "ORIGINAL PRODUCT SOURCE"})
         content.append({"type": "input_image", "image_url": url})
+    for url in style_payloads:
+        content.append({"type": "input_text", "text": "STYLE REFERENCE — evaluate composition only, not its product"})
+        content.append({"type": "input_image", "image_url": url})
+    content.append({"type": "input_text", "text": "GENERATED RESULT TO REVIEW"})
     content.append({"type": "input_image", "image_url": generated_data_url})
     try:
         response = client.responses.create(
@@ -16869,7 +16983,7 @@ def detect_graphic_special_workflow(prompt_text):
     return {"cleanup": cleanup, "comparison": comparison}
 
 
-def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength="High"):
+def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength="High", reference_blueprint=None):
     """Run the six-agent planning layer in one bounded Responses call.
 
     One call avoids latency from six sequential requests while preserving distinct
@@ -16881,6 +16995,7 @@ def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength=
         if isinstance(x, dict)
     ) or "No uploaded images"
     campaign_memory = retrieve_graphic_campaign_memory(prompt_text)
+    reference_blueprint_text = _graphic_reference_blueprint_text(reference_blueprint)
     brand_rules = retrieve_graphic_brand_rules()
     workflow = detect_graphic_special_workflow(prompt_text)
     instructions = (
@@ -16900,7 +17015,8 @@ def build_graphic_multi_agent_plan(prompt_text, role_items=None, style_strength=
         f"REQUEST:\n{str(prompt_text or '')[:7000]}\n\n"
         f"UPLOADED ROLES:\n{roles}\n\nSTYLE STRENGTH: {style_strength}\n"
         f"SPECIAL WORKFLOW: {json.dumps(workflow)}\n\nBRAND RULES:\n{brand_rules[:6000]}\n\n"
-        f"RELEVANT CAMPAIGN MEMORY:\n{campaign_memory[:7000] or 'None'}"
+        f"RELEVANT CAMPAIGN MEMORY:\n{campaign_memory[:7000] or 'None'}\n\n"
+        f"CURRENT VISUAL REFERENCE BLUEPRINT:\n{reference_blueprint_text[:12000] or 'None'}"
     )
     try:
         response = client.responses.create(
@@ -17033,6 +17149,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
     )
+    reference_blueprint = analyze_graphic_reference_blueprint(
+        role_items, prompt_text=prompt_text, style_strength=style_strength
+    )
+    reference_blueprint_text = _graphic_reference_blueprint_text(reference_blueprint)
     resolved_product_transform_mode = resolve_graphic_product_transform_mode(
         prompt_text, product_transform_mode, preserve_product
     )
@@ -17040,9 +17160,11 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         prompt_text,
         role_items=role_items,
         style_strength=style_strength,
+        reference_blueprint=reference_blueprint,
     )
     multi_agent_plan = build_graphic_multi_agent_plan(
-        prompt_text, role_items=role_items, style_strength=style_strength
+        prompt_text, role_items=role_items, style_strength=style_strength,
+        reference_blueprint=reference_blueprint,
     )
     final_agent_prompt = str((multi_agent_plan or {}).get("final_image_prompt") or "").strip()
     if final_agent_prompt:
@@ -17057,6 +17179,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             + creative_director_brief
             + "\nTreat this brief as internal production direction. "
               "Do not render its headings or internal notes into the artwork."
+        )
+    if reference_blueprint_text:
+        image_api_prompt += (
+            "\n\nCURRENT UPLOADED REFERENCE BLUEPRINT (MANDATORY):\n"
+            + reference_blueprint_text
+            + "\nReproduce the reference advertisements' structural design language: canvas zoning, "
+              "product prominence, headline hierarchy, icon and feature organization, bottom information bar, "
+              "background depth, lighting, spacing, and typography rhythm. Use only the uploaded PRODUCT SOURCE "
+              "as the advertised hardware. Never copy, blend, or substitute a product shown in a STYLE REFERENCE. "
+              "Do not render this blueprint text into the artwork."
         )
     # Keep immutable product references first in the edit input. Image-edit
     # models tend to weight early references strongly; placing a saved style
@@ -17073,13 +17205,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         role_items, preserve_product=preserve_product, style_strength=style_strength,
         product_transform_mode=resolved_product_transform_mode,
     )
+    has_current_style_references = any(item.get("role") == "style_reference" for item in role_items)
+    explicitly_requested_saved_style = graphic_prompt_requests_approved_reference(prompt_text)
     saved_references = prepare_saved_graphic_reference(
-        prompt_text, use_approved_style=use_approved_style
+        prompt_text,
+        use_approved_style=(use_approved_style and (not has_current_style_references or explicitly_requested_saved_style)),
     )
     reference_images = (
         list(product_reference_images)
-        + list(saved_references or [])
         + list(other_reference_images)
+        + list(saved_references or [])
     )
     if saved_references:
 
@@ -17218,6 +17353,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "campaign_name": extract_graphic_campaign_name(prompt_text),
             "special_workflow": detect_graphic_special_workflow(prompt_text),
             "product_transform_mode": resolved_product_transform_mode,
+            "reference_blueprint": reference_blueprint,
+            "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
             "upload_roles": [
                 {"name": item.get("name"), "role": item.get("role")}
                 for item in role_items
@@ -17236,7 +17373,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     # regeneration. This is shared by Graphic Chat and Advanced Designer.
     review = review_graphic_output_accuracy(
         generated_images[0].get("data_url"), role_items, prompt_text,
-        resolved_product_transform_mode,
+        resolved_product_transform_mode, reference_blueprint=reference_blueprint,
     )
     if review:
         generated_images[0]["quality_review"] = review
