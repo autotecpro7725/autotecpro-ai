@@ -124,6 +124,7 @@ except Exception:
 # v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
 # v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
+# v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
 #   conversational guidance before any image-generation request.
@@ -4451,6 +4452,7 @@ def _managed_file_uploader_core(
     widget_prefix,
     accepted_types,
     heading,
+    attachment_submit_key=None,
 ):
     """
     Stable GPT-style upload manager.
@@ -4523,6 +4525,29 @@ def _managed_file_uploader_core(
                 unsafe_allow_html=True,
             )
 
+            # The uploader is fragment-scoped, so controls rendered outside this
+            # function do not see newly selected files until a full app rerun.
+            # Render the attachment-only send action inside the same fragment and
+            # explicitly promote the click to a full rerun. This mirrors ChatGPT:
+            # an attachment is valid message content even when the composer is empty.
+            if attachment_submit_key:
+                def _submit_managed_attachments():
+                    st.session_state[attachment_submit_key] = True
+                    try:
+                        st.rerun(scope="app")
+                    except TypeError:
+                        st.rerun()
+
+                send_columns = st.columns([1, 1.8, 1], gap="small")
+                with send_columns[1]:
+                    st.button(
+                        "Send attachments",
+                        key=f"{widget_prefix}_attachment_only_send",
+                        type="primary",
+                        use_container_width=True,
+                        on_click=_submit_managed_attachments,
+                    )
+
         incoming_files = st.file_uploader(
             "Upload files",
             type=accepted_types,
@@ -4577,6 +4602,7 @@ def managed_file_uploader(
     widget_prefix,
     accepted_types,
     heading,
+    attachment_submit_key=None,
 ):
     """Fragment-scoped public uploader wrapper."""
     return _managed_file_uploader_core(
@@ -4585,6 +4611,7 @@ def managed_file_uploader(
         widget_prefix=widget_prefix,
         accepted_types=accepted_types,
         heading=heading,
+        attachment_submit_key=attachment_submit_key,
     )
 
 # ============================================================
@@ -34149,18 +34176,15 @@ else:
             "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
         ],
         heading="📎 Attach files or photos",
+        attachment_submit_key="chat_attachment_only_submit_requested",
     )
 
-    attachment_only_submit = False
-    if uploaded_files:
-        send_col, spacer_col = st.columns([1, 5])
-        with send_col:
-            attachment_only_submit = st.button(
-                "Send attachments",
-                key=f"send_chat_attachments_{assistant}",
-                type="primary",
-                use_container_width=True,
-            )
+    # The submit button lives inside the fragment-scoped uploader. Its callback
+    # sets this flag and performs a full app rerun, so the main chat pipeline sees
+    # the latest managed files immediately. Pop it once to prevent duplicate sends.
+    attachment_only_submit = bool(
+        st.session_state.pop("chat_attachment_only_submit_requested", False)
+    )
 
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
