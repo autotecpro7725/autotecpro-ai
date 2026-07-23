@@ -15319,7 +15319,7 @@ def detect_graphic_brand_logo_position(prompt_text):
 GRAPHIC_IMAGE_COUNT = 1
 GRAPHIC_IMAGE_MODEL = "gpt-image-1"
 GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
-GRAPHIC_IMAGE_MAX_RETRIES = 1
+GRAPHIC_IMAGE_MAX_RETRIES = 0
 
 # Official AutoTecPro branding is composited after AI generation so the model
 # never has to redraw or imitate the company logo.
@@ -17969,98 +17969,6 @@ def _graphic_result_raw_bytes(result_item):
     return b""
 
 
-
-def _graphic_open_product_layer(uploaded_file):
-    """Return a usable RGBA product layer even when automatic cutout fails.
-
-    The exact uploaded pixels are preferred. When background removal cannot be
-    performed safely, the original image is preserved inside a clean rounded
-    presentation card rather than failing the entire generation.
-    """
-    if Image is None:
-        return None, False
-    cutout = _graphic_extract_product_cutout(uploaded_file)
-    if cutout is not None:
-        try:
-            if cutout.mode != "RGBA":
-                cutout = cutout.convert("RGBA")
-            if cutout.width > 8 and cutout.height > 8:
-                return cutout, True
-        except Exception:
-            pass
-    raw = _graphic_uploaded_file_bytes(uploaded_file)
-    if not raw:
-        return None, False
-    try:
-        with Image.open(io.BytesIO(raw)) as source:
-            image = ImageOps.exif_transpose(source).convert("RGBA")
-        image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
-        return image, False
-    except Exception as error:
-        diagnostic_log("graphic_product_layer_open_failed", error_type=type(error).__name__, error=error)
-        return None, False
-
-
-def _graphic_collect_result_bytes(result):
-    """Collect final image bytes across compatible OpenAI SDK response shapes."""
-    if result is None:
-        return []
-    candidates = []
-    data = getattr(result, "data", None)
-    if data:
-        try:
-            candidates.extend(list(data))
-        except Exception:
-            pass
-    # Some SDK surfaces expose the completed image directly.
-    if getattr(result, "b64_json", None) or getattr(result, "url", None):
-        candidates.append(result)
-    if isinstance(result, dict):
-        raw_data = result.get("data")
-        if isinstance(raw_data, list):
-            candidates.extend(raw_data)
-        if result.get("b64_json") or result.get("url"):
-            candidates.append(result)
-    collected = []
-    seen = set()
-    for item in candidates:
-        raw = _graphic_result_raw_bytes(item)
-        if not raw:
-            continue
-        digest = hashlib.sha256(raw).hexdigest()
-        if digest in seen:
-            continue
-        seen.add(digest)
-        collected.append(raw)
-    return collected
-
-
-def _graphic_guaranteed_local_composite(role_items, output_size, prompt_text, reference_blueprint=None, vehicle_profile=None):
-    """Produce a displayable exact-product ad without any provider dependency."""
-    product_item = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
-    if not product_item:
-        return b"", {}
-    plate = _graphic_reference_background_plate(role_items, output_size)
-    if not plate:
-        try:
-            width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
-        except Exception:
-            width, height = 1536, 1024
-        fallback = Image.new("RGB", (width, height), (6, 14, 28)) if Image is not None else None
-        if fallback is not None:
-            buffer = io.BytesIO(); fallback.save(buffer, format="PNG"); plate = buffer.getvalue()
-    if not plate:
-        return b"", {}
-    return compose_graphic_layered_ad(
-        plate,
-        product_item.get("file"),
-        prompt_text,
-        reference_blueprint=reference_blueprint,
-        vehicle_profile=vehicle_profile,
-        role_items=role_items,
-    )
-
-
 def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, reference_blueprint=None, vehicle_profile=None, role_items=None):
     """Compose an agency-style ad from protected product pixels and deterministic layers."""
     if Image is None: return bytes(background_bytes or b""), {}
@@ -18071,10 +17979,8 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
     except Exception:
         return bytes(background_bytes or b""), {}
     W,H=canvas.size
-    product, transparent_cutout = _graphic_open_product_layer(product_file)
-    if product is None:
-        diagnostic_log("graphic_layered_composite_missing_product")
-        return bytes(background_bytes or b""), {"product_composited": False}
+    product=_graphic_extract_product_cutout(product_file)
+    if product is None: return bytes(background_bytes or b""), {}
     bp=reference_blueprint or {}; plan=_graphic_layout_plan(bp,prompt_text); palette=_graphic_reference_palette(role_items)
     accent=palette["accent"]
 
@@ -18087,21 +17993,6 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
         else: od.rectangle((int(W*(.57+i*.012)),0,W,H),fill=(2,5,9,a))
     od.rectangle((0,int(H*.88),W,H),fill=(3,6,10,205))
     canvas=Image.alpha_composite(canvas,overlay)
-
-    # If safe cutout extraction was not possible, preserve the source image in a
-    # premium card instead of altering or dropping the product.
-    if not transparent_cutout:
-        card_pad = max(18, int(min(W, H) * .024))
-        card = Image.new("RGBA", (product.width + card_pad * 2, product.height + card_pad * 2), (246, 248, 252, 248))
-        try:
-            from PIL import ImageDraw as _ImageDraw
-            card_mask = Image.new("L", card.size, 0)
-            _ImageDraw.Draw(card_mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(20, card_pad), fill=255)
-            card.putalpha(card_mask)
-        except Exception:
-            pass
-        card.alpha_composite(product, (card_pad, card_pad))
-        product = card
 
     # Product placement follows reconstructed reference zoning.
     target_w=int(W*plan["product_ratio"]); target_h=int(H*.69)
@@ -18368,12 +18259,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 ) from error
             raise RuntimeError("The image provider could not complete this request.") from error
 
-    raw_result_bytes = [local_fallback_bytes] if local_fallback_bytes else _graphic_collect_result_bytes(result)
-    if not raw_result_bytes and layered_studio_active:
-        diagnostic_log("graphic_provider_empty_using_local_fallback")
-        local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
-        if local_fallback_bytes:
-            raw_result_bytes = [local_fallback_bytes]
+    result_items = list(getattr(result, "data", None) or [])
+    raw_result_bytes = [local_fallback_bytes] if local_fallback_bytes else [
+        raw for raw in (_graphic_result_raw_bytes(item) for item in result_items) if raw
+    ]
     if not raw_result_bytes:
         raise RuntimeError("The image provider returned no usable image data.")
 
@@ -18466,42 +18355,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             ).hexdigest(),
         })
 
-    if not generated_images and layered_studio_active:
-        diagnostic_log("graphic_composite_failed_using_guaranteed_local_result")
-        fallback_png, fallback_metadata = _graphic_guaranteed_local_composite(
-            role_items, output_size, prompt_text,
-            reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile,
-        )
-        fallback_png = image_bytes_to_png(fallback_png) if fallback_png else b""
-        if fallback_png:
-            fallback_png, brand_logo_applied, brand_logo_position = apply_autotecpro_brand_logo(
-                fallback_png, prompt_text=prompt_text
-            )
-            created_at = datetime.now(timezone.utc)
-            filename = graphic_image_filename(prompt_text, created_at)
-            data_url = "data:image/png;base64," + base64.b64encode(fallback_png).decode()
-            generated_images.append({
-                "name": filename, "filename": filename, "data_url": data_url,
-                "generated": True, "professional_layered_studio": True,
-                "provider_fallback_used": True, "provider_error_type": type(provider_error).__name__ if provider_error else "EmptyImageResult",
-                "strict_product_identity_lock": True, "product_identity_method": "exact_source_pixel_composite",
-                "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION, "layered_metadata": fallback_metadata,
-                "vehicle_profile": vehicle_profile, "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
-                "prompt": prompt_text, "created_at": created_at.isoformat(), "model": "local-layered-fallback",
-                "size": output_size, "resolution": output_size, "mime_type": "image/png",
-                "official_brand_logo_applied": bool(brand_logo_applied), "official_brand_logo_position": brand_logo_position,
-                "official_brand_logo_file": AUTOTECPRO_BRAND_LOGO_FILE.name if brand_logo_applied else "",
-                "style_memory_status": "not_reviewed", "style_collection": extract_graphic_style_collection_name(prompt_text) or "",
-                "creative_director_brief": creative_director_brief[:10000], "multi_agent_plan": multi_agent_plan,
-                "multi_agent_version": GRAPHIC_AGENT_VERSION, "campaign_name": extract_graphic_campaign_name(prompt_text),
-                "special_workflow": detect_graphic_special_workflow(prompt_text),
-                "product_transform_mode": resolved_product_transform_mode, "reference_blueprint": reference_blueprint,
-                "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
-                "upload_roles": [{"name": item.get("name"), "role": item.get("role")} for item in role_items],
-                "style_memory_fingerprint": hashlib.sha256((data_url + prompt_text).encode("utf-8")).hexdigest(),
-            })
     if not generated_images:
-        raise RuntimeError("Image generation did not return a displayable result.")
+        raise RuntimeError(
+            "OpenAI completed the request but did not return usable image data."
+        )
 
     # Product-aware quality gate: inspect once and perform at most one corrective
     # regeneration. This is shared by Graphic Chat and Advanced Designer.
@@ -18521,7 +18378,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         except Exception:
             product_score, product_threshold, passed = 100, graphic_product_mode_threshold(resolved_product_transform_mode), True
         correction = str(review.get("correction_prompt") or "").strip()
-        if quality_retry and preserve_product and not layered_studio_active and (not passed or product_score < product_threshold) and correction:
+        if quality_retry and preserve_product and (not passed or product_score < product_threshold) and correction:
             diagnostic_log("graphic_quality_retry", product_score=product_score)
             retry_prompt = (
                 prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
@@ -35135,7 +34992,7 @@ else:
                     error=error,
                 )
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
+                    "Image generation was not completed. Your reference and product photos are still saved, so you can retry. "
                     f"Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
