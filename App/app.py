@@ -16879,20 +16879,31 @@ def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured
     ]
     has_images = bool(image_uploads)
 
-    # Questions and preparation statements must never launch the image API.
+    # Questions, future intentions, and upload-preparation statements must never
+    # launch the image API. This gate intentionally runs before every generation
+    # pattern so phrases such as "I want to create... let me send a reference"
+    # remain planning turns even though they contain creation words.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
         r"\bshould i (?:send|upload|show|attach|provide)\b",
+        r"\b(?:let me|allow me to) (?:send|upload|show|attach|provide)\b",
+        r"\b(?:i am|i'm|im|we are|we're) (?:going to|about to) (?:send|upload|show|attach|provide)\b",
+        r"\b(?:i|we) (?:will|shall|plan to|intend to) (?:send|upload|show|attach|provide)\b",
+        r"\bwait (?:for|until) (?:my|the|another|next) (?:reference|sample|product|photo|image|file|upload)\b",
+        r"\b(?:sample|reference|product) (?:photo|image|file)?\s*(?:first|later|afterwards|next)\b",
+        r"\b(?:send|upload|show|attach|provide) (?:you )?(?:a |an |the |my )?(?:sample|reference|product) (?:photo|image|file)\b.*\b(?:first|next|before|then)\b",
+        r"\bfor (?:your )?reference\b",
         r"\bcan you (?:first )?(?:look at|review|analy[sz]e|inspect|compare|study)\b",
         r"\b(?:before|prior to) (?:you )?(?:create|generate|make|design|edit)\b",
         r"\b(?:reference|product) (?:first|later|afterwards|next)\b",
-        r"\b(?:i want|i would like|i'd like|we want|we would like) to (?:create|make|design|generate)\b.*\b(?:can|may|should|first|before)\b",
+        r"\b(?:i want|i would like|i'd like|we want|we would like) to (?:create|make|design|generate)\b.*\b(?:can|may|should|first|before|send|upload|attach|provide|reference|sample)\b",
         r"\b(?:i want|i would like|i'd like|we want|we would like|planning|thinking) to (?:create|make|design|generate)\b.*\b(?:later|eventually|afterwards|next|soon)\b",
         r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
         r"\bwhat (?:do you|should i|would you) need\b",
         r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
         r"\bdo not (?:create|generate|make|edit) (?:it|anything|the image) yet\b",
+        r"\b(?:don't|do not) (?:create|generate|make|edit)\b",
         r"\bnot ready to (?:create|generate|make|edit)\b",
     )
     if any(re.search(pattern, text) for pattern in defer_patterns):
