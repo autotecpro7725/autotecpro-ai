@@ -17619,7 +17619,7 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 # v1000 Professional Layered Automotive Ad Studio
 # ============================================================
 
-GRAPHIC_LAYERED_ENGINE_VERSION = "v2000-chatgpt-professional-layered-studio"
+GRAPHIC_LAYERED_ENGINE_VERSION = "v2002-reference-faithful-resilient-studio"
 GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
 
 
@@ -17916,6 +17916,34 @@ def _graphic_reference_background_plate(role_items, output_size="1536x1024"):
     dark = tuple(palette.get("panel") or (6, 9, 14))
 
     canvas = Image.new("RGBA", (width, height), dark + (255,))
+
+    # v2002: retain the reference's real color distribution, lighting direction,
+    # broad scene geometry and atmosphere. The reference is resized, heavily
+    # blurred and darkened so its advertised hardware and readable text cannot
+    # survive, while its authentic visual style still guides the final layout.
+    reference_item = next(
+        (item for item in (role_items or []) if item.get("role") == "style_reference"),
+        None,
+    )
+    reference_raw = _graphic_uploaded_file_bytes((reference_item or {}).get("file"))
+    if reference_raw:
+        try:
+            with Image.open(io.BytesIO(reference_raw)) as reference_source:
+                reference_layer = ImageOps.exif_transpose(reference_source).convert("RGB")
+            reference_layer = ImageOps.fit(
+                reference_layer, (width, height), method=Image.Resampling.LANCZOS
+            ).filter(ImageFilter.GaussianBlur(radius=max(46, min(width, height) // 13)))
+            reference_layer = reference_layer.convert("RGBA")
+            reference_layer.putalpha(178)
+            canvas = Image.alpha_composite(canvas, reference_layer)
+            neutralizer = Image.new("RGBA", (width, height), dark + (112,))
+            canvas = Image.alpha_composite(canvas, neutralizer)
+        except Exception as error:
+            diagnostic_log(
+                "graphic_reference_plate_style_transfer_failed",
+                error_type=type(error).__name__, error=error,
+            )
+
     draw = ImageDraw.Draw(canvas, "RGBA")
 
     # Cinematic vertical gradient.
@@ -18062,6 +18090,52 @@ def _graphic_collect_result_bytes(result):
     return collected
 
 
+def _graphic_emergency_exact_product_composite(role_items, output_size, prompt_text, reference_blueprint=None):
+    """Last-resort compositor that never calls the main layered studio.
+
+    It preserves the uploaded product pixels and produces a valid PNG even if
+    cutout, typography, review, logo, or the professional compositor fails.
+    """
+    if Image is None:
+        return b"", {"emergency_composite": False}
+    try:
+        width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
+    except Exception:
+        width, height = 1536, 1024
+    product_item = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    raw = _graphic_uploaded_file_bytes((product_item or {}).get("file"))
+    if not raw:
+        return b"", {"emergency_composite": False}
+    try:
+        plate = _graphic_reference_background_plate(role_items, f"{width}x{height}")
+        if plate:
+            with Image.open(io.BytesIO(plate)) as bg:
+                canvas = ImageOps.exif_transpose(bg).convert("RGBA")
+        else:
+            canvas = Image.new("RGBA", (width, height), (7, 12, 22, 255))
+        with Image.open(io.BytesIO(raw)) as source:
+            product = ImageOps.exif_transpose(source).convert("RGBA")
+        product.thumbnail((int(width * 0.52), int(height * 0.68)), Image.Resampling.LANCZOS)
+        pad = max(18, int(min(width, height) * 0.018))
+        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (248, 250, 252, 246))
+        mask = Image.new("L", card.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(18, pad), fill=255)
+        card.putalpha(mask)
+        card.alpha_composite(product, (pad, pad))
+        x = max(20, width - card.width - int(width * 0.055))
+        y = max(20, (height - card.height) // 2)
+        shadow = Image.new("RGBA", card.size, (0, 0, 0, 0))
+        shadow.putalpha(card.getchannel("A").filter(ImageFilter.GaussianBlur(radius=max(12, min(width, height)//55))).point(lambda a: int(a * .48)))
+        canvas.alpha_composite(shadow, (x + 12, y + 16))
+        canvas.alpha_composite(card, (x, y))
+        buffer = io.BytesIO()
+        canvas.convert("RGB").save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue(), {"emergency_composite": True, "product_composited": True}
+    except Exception as error:
+        diagnostic_log("graphic_emergency_composite_failed", error_type=type(error).__name__, error=error)
+        return b"", {"emergency_composite": False}
+
+
 def _graphic_guaranteed_local_composite(role_items, output_size, prompt_text, reference_blueprint=None, vehicle_profile=None):
     """Produce a displayable exact-product ad without any provider dependency."""
     product_item = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
@@ -18078,13 +18152,21 @@ def _graphic_guaranteed_local_composite(role_items, output_size, prompt_text, re
             buffer = io.BytesIO(); fallback.save(buffer, format="PNG"); plate = buffer.getvalue()
     if not plate:
         return b"", {}
-    return compose_graphic_layered_ad(
-        plate,
-        product_item.get("file"),
-        prompt_text,
-        reference_blueprint=reference_blueprint,
-        vehicle_profile=vehicle_profile,
-        role_items=role_items,
+    try:
+        composed, metadata = compose_graphic_layered_ad(
+            plate,
+            product_item.get("file"),
+            prompt_text,
+            reference_blueprint=reference_blueprint,
+            vehicle_profile=vehicle_profile,
+            role_items=role_items,
+        )
+        if composed:
+            return composed, metadata
+    except Exception as error:
+        diagnostic_log("graphic_primary_local_composite_failed", error_type=type(error).__name__, error=error)
+    return _graphic_emergency_exact_product_composite(
+        role_items, output_size, prompt_text, reference_blueprint=reference_blueprint
     )
 
 
@@ -18418,14 +18500,20 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         layered_metadata = {}
         if layered_studio_active:
             product_item = next((x for x in role_items if x.get("role") == "product_photo"), None)
-            png_bytes, layered_metadata = compose_graphic_layered_ad(
-                png_bytes,
-                (product_item or {}).get("file"),
-                prompt_text,
-                reference_blueprint=reference_blueprint,
-                vehicle_profile=vehicle_profile,
-                role_items=role_items,
-            )
+            try:
+                png_bytes, layered_metadata = compose_graphic_layered_ad(
+                    png_bytes,
+                    (product_item or {}).get("file"),
+                    prompt_text,
+                    reference_blueprint=reference_blueprint,
+                    vehicle_profile=vehicle_profile,
+                    role_items=role_items,
+                )
+            except Exception as error:
+                diagnostic_log("graphic_layered_composite_runtime_failed", error_type=type(error).__name__, error=error)
+                png_bytes, layered_metadata = _graphic_emergency_exact_product_composite(
+                    role_items, output_size, prompt_text, reference_blueprint=reference_blueprint
+                )
             if not png_bytes:
                 continue
 
@@ -18540,10 +18628,14 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     # Layered mode already uses the original product pixels, but the review still
     # checks placement, occlusion, style adherence, and accidental reference-product
     # leakage in the generated background.
-    review = review_graphic_output_accuracy(
-        generated_images[0].get("data_url"), role_items, prompt_text,
-        resolved_product_transform_mode, reference_blueprint=reference_blueprint,
-    )
+    try:
+        review = review_graphic_output_accuracy(
+            generated_images[0].get("data_url"), role_items, prompt_text,
+            resolved_product_transform_mode, reference_blueprint=reference_blueprint,
+        )
+    except Exception as error:
+        diagnostic_log("graphic_quality_review_failed_open", error_type=type(error).__name__, error=error)
+        review = {}
     if review:
         generated_images[0]["quality_review"] = review
         try:
