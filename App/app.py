@@ -46,6 +46,7 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
+# v5000 Complete Graphic Project Engine: persistent conversation-restorable project snapshots, richer object geometry, semantic edit interpretation, explicit multi-image selection, exact-product structure locks, and final visual validation; non-Graphic workflows unchanged.
 # v2002 Graphic completion reliability: protect advanced preparation, recover multi-turn reference/product roles, add provider retry headroom, and guarantee a local exact-product result when optional AI stages fail.
 # v2001 regression-checked release (2026-07-23): full-file syntax/AST validation,
 # duplicate top-level definition audit, and conservative preservation of all existing
@@ -14961,6 +14962,17 @@ def extract_images_from_message_content(content):
             "storage_path",
             "content_type",
             "archive_web_url",
+            "graphic_project_snapshot",
+            "graphic_engine_version",
+            "canvas_id",
+            "canvas_version",
+            "reference_geometry",
+            "campaign_spec",
+            "verification_status",
+            "verification_warning",
+            "edit_mode",
+            "edit_directive",
+            "object_model",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -16724,28 +16736,285 @@ def _normalize_native_chat_submission(value):
 
 
 
+
+GRAPHIC_V5000_ENGINE_VERSION = "v5000-complete-project-engine"
+GRAPHIC_PROJECT_SCHEMA_VERSION = 5
+
+
+def _graphic_json_safe_v5000(value, max_text=4000):
+    """Return a JSON-safe bounded copy without raw bytes or SDK objects."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:max_text]
+    if isinstance(value, bytes):
+        return None
+    if isinstance(value, dict):
+        clean = {}
+        for key, item in value.items():
+            if str(key) in {"data", "raw", "bytes"}:
+                continue
+            safe = _graphic_json_safe_v5000(item, max_text=max_text)
+            if safe is not None:
+                clean[str(key)[:120]] = safe
+        return clean
+    if isinstance(value, (list, tuple)):
+        return [_graphic_json_safe_v5000(item, max_text=max_text) for item in list(value)[:30]]
+    return str(value)[:max_text]
+
+
+def _graphic_compact_project_snapshot_v5000(state=None):
+    """Create the compact project record persisted inside generated-image history."""
+    state = dict(state or st.session_state.get(GRAPHIC_PROJECT_STATE_KEY) or {})
+    assets = []
+    for item in state.get("assets") or []:
+        if not isinstance(item, dict):
+            continue
+        assets.append({
+            "id": str(item.get("id") or ""),
+            "name": str(item.get("name") or "image"),
+            "type": str(item.get("type") or "image/png"),
+            "role": str(item.get("role") or "supporting"),
+            "created_at": str(item.get("created_at") or ""),
+        })
+    latest = dict(state.get("latest_generated") or {})
+    latest.pop("data_url", None)
+    return _graphic_json_safe_v5000({
+        "schema_version": GRAPHIC_PROJECT_SCHEMA_VERSION,
+        "stage": state.get("stage"),
+        "explicit_vehicle": state.get("explicit_vehicle") or {},
+        "campaign_spec": state.get("campaign_spec") or {},
+        "project_brief_history": (state.get("project_brief_history") or [])[-12:],
+        "visual_object_state": state.get("visual_object_state") or {},
+        "objects": state.get("objects") or {},
+        "context_summary": state.get("context_summary") or "",
+        "selected_asset_ids": state.get("selected_asset_ids") or {},
+        "edit_history": (state.get("edit_history") or [])[-20:],
+        "current_canvas_id": state.get("current_canvas_id") or "",
+        "current_canvas_version": int(state.get("current_canvas_version") or 0),
+        "generation_history": [
+            {k: v for k, v in dict(item).items() if k != "data_url"}
+            for item in (state.get("generation_history") or [])[-10:]
+            if isinstance(item, dict)
+        ],
+        "latest_generated": latest,
+        "assets": assets,
+        "graphic_engine_version": GRAPHIC_V5000_ENGINE_VERSION,
+        "updated_at": state.get("updated_at") or datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def _graphic_asset_role_from_history_v5000(text, image, index, total):
+    """Recover a stable role from message text and image metadata."""
+    if image.get("generated"):
+        return "generated"
+    value = str(text or "").casefold()
+    name = str(image.get("name") or "").casefold()
+    if any(term in value or term in name for term in ("reference", "sample", "style", "inspiration", "watermark")):
+        return "reference"
+    if any(term in value or term in name for term in ("logo", "brand mark")):
+        return "logo"
+    if any(term in value for term in ("product photo", "actual unit", "this is the unit", "my product", "infotainment system")):
+        return "product"
+    return "product" if index == total - 1 else "reference"
+
+
+def _graphic_restore_project_from_messages_v5000(base_state):
+    """Restore visual project memory from saved conversation image metadata."""
+    messages = st.session_state.get("messages") or []
+    if not isinstance(messages, list) or not messages:
+        return base_state
+    state = dict(base_state)
+    restored_snapshot = None
+    latest_generated = None
+    restored_assets = []
+    known = set()
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        visible, images = extract_images_from_message_content(message.get("content") or "")
+        for idx, image in enumerate(images):
+            snapshot = image.get("graphic_project_snapshot")
+            if isinstance(snapshot, dict):
+                restored_snapshot = snapshot
+            data_url = str(image.get("data_url") or "")
+            if image.get("generated") and data_url.startswith("data:image/"):
+                latest_generated = dict(image)
+            elif data_url.startswith("data:image/"):
+                try:
+                    raw, mime = data_url_to_bytes(data_url)
+                except Exception:
+                    raw, mime = b"", str(image.get("mime_type") or "image/png")
+                if not raw:
+                    continue
+                digest = hashlib.sha256(raw).hexdigest()
+                if digest in known:
+                    continue
+                known.add(digest)
+                role = _graphic_asset_role_from_history_v5000(visible, image, idx, len(images))
+                restored_assets.append({
+                    "id": digest,
+                    "name": str(image.get("name") or "image"),
+                    "type": mime or "image/png",
+                    "data": raw,
+                    "role": role,
+                    "created_at": str(image.get("created_at") or ""),
+                })
+    if isinstance(restored_snapshot, dict):
+        for key in (
+            "stage", "explicit_vehicle", "campaign_spec", "project_brief_history",
+            "visual_object_state", "objects", "context_summary", "selected_asset_ids",
+            "edit_history", "current_canvas_id", "current_canvas_version",
+            "generation_history", "graphic_engine_version", "updated_at",
+        ):
+            if key in restored_snapshot:
+                state[key] = restored_snapshot.get(key)
+    if restored_assets:
+        state["assets"] = restored_assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+    if latest_generated:
+        merged_latest = dict(state.get("latest_generated") or {})
+        merged_latest.update(latest_generated)
+        state["latest_generated"] = merged_latest
+        state["current_canvas_id"] = str(latest_generated.get("canvas_id") or state.get("current_canvas_id") or "")
+        state["current_canvas_version"] = int(latest_generated.get("canvas_version") or state.get("current_canvas_version") or 1)
+        state["stage"] = "generated"
+    state["project_snapshot_restored"] = bool(restored_snapshot or restored_assets or latest_generated)
+    state["schema_version"] = GRAPHIC_PROJECT_SCHEMA_VERSION
+    return state
+
+
+def _graphic_semantic_edit_parse_v5000(text, existing_spec=None, object_model=None):
+    """Use a bounded semantic pass only when deterministic edit parsing is ambiguous."""
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not value:
+        return {}
+    system = (
+        "Classify an image-edit instruction for an automotive advertisement. Return one JSON object only with keys: "
+        "is_edit boolean, change_targets array chosen from headline, hero_product, vehicle, background, logo, feature_matrix, bottom_benefit_bar, layout, lighting, color, screen_ui; "
+        "preserve_targets array; copy_updates object; replacement_from string; replacement_to string; strict_preservation boolean; semantic_summary string. "
+        "A wording change such as change vertical dash display to Tesla infotainment system is a headline/copy edit unless the user explicitly requests replacing physical hardware."
+    )
+    payload = {
+        "instruction": value[:1200],
+        "campaign_spec": _graphic_json_safe_v5000(existing_spec or {}),
+        "objects": _graphic_json_safe_v5000(object_model or {}),
+    }
+    try:
+        response = client.responses.create(
+            model=get_optional_secret("GRAPHIC_RESPONSES_MODEL", "gpt-5.5") or "gpt-5.5",
+            instructions=system,
+            input=json.dumps(payload, ensure_ascii=False),
+            max_output_tokens=700,
+        )
+        raw = str(getattr(response, "output_text", "") or "").strip()
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            parsed = json.loads(match.group(0)) if match else {}
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v5000_semantic_edit_parse_failed", error_type=type(error).__name__, error=str(error))
+        return {}
+
+
+def _graphic_merge_edit_directives_v5000(primary, semantic):
+    result = dict(primary or {})
+    semantic = dict(semantic or {})
+    allowed = {"headline", "hero_product", "vehicle", "background", "logo", "feature_matrix", "bottom_benefit_bar", "layout", "lighting", "color", "screen_ui"}
+    changes = [str(x) for x in (result.get("change_targets") or []) if str(x) in allowed]
+    for item in semantic.get("change_targets") or []:
+        item = str(item)
+        if item in allowed and item not in changes:
+            changes.append(item)
+    result["change_targets"] = changes
+    all_targets = list(allowed)
+    result["preserve_targets"] = [x for x in all_targets if x not in changes]
+    copy_updates = dict(result.get("copy_updates") or {})
+    if isinstance(semantic.get("copy_updates"), dict):
+        copy_updates.update({str(k): str(v) for k, v in semantic["copy_updates"].items() if str(v).strip()})
+    result["copy_updates"] = copy_updates
+    for key in ("replacement_from", "replacement_to", "semantic_summary"):
+        if not str(result.get(key) or "").strip() and str(semantic.get(key) or "").strip():
+            result[key] = str(semantic.get(key)).strip()
+    result["is_edit"] = bool(result.get("is_edit") or semantic.get("is_edit"))
+    result["strict_preservation"] = bool(result.get("strict_preservation") or semantic.get("strict_preservation") or changes)
+    result["semantic_enhanced"] = bool(semantic)
+    return result
+
+
+def _graphic_refresh_object_model_v5000(state, geometry=None, campaign_spec=None, role_items=None):
+    """Maintain an editable object tree with geometry, source IDs and lock state."""
+    state = state if isinstance(state, dict) else {}
+    geometry = dict(geometry or {})
+    spec = dict(campaign_spec or state.get("campaign_spec") or {})
+    existing = dict(state.get("objects") or {})
+    role_items = role_items or []
+    source_by_role = {}
+    for item in role_items:
+        role = str(item.get("role") or "")
+        source_by_role.setdefault(role, str(item.get("asset_id") or item.get("name") or ""))
+    mapping = {
+        "logo": ("logo_box", "AutoTec"),
+        "website": ("website_box", spec.get("website") or "www.AutoTecPro.com"),
+        "headline": ("headline_box", spec.get("headline") or ""),
+        "compatibility_ribbon": ("ribbon_box", spec.get("compatibility") or ""),
+        "tagline": ("tagline_box", spec.get("tagline") or ""),
+        "hero_product": ("product_box", source_by_role.get("product_photo", "")),
+        "vehicle": ("vehicle_box", str((state.get("explicit_vehicle") or {}).get("display_name") or spec.get("vehicle_label") or "")),
+        "feature_matrix": ("feature_boxes", spec.get("features") or []),
+        "bottom_benefit_bar": ("bottom_bar_box", spec.get("benefits") or []),
+        "background": ("background_box", "generated_scene"),
+    }
+    locks = dict(state.get("visual_object_state") or {})
+    for name, (box_key, content) in mapping.items():
+        obj = dict(existing.get(name) or {})
+        obj.update({
+            "id": obj.get("id") or f"graphic_object_{name}",
+            "type": name,
+            "box": geometry.get(box_key, obj.get("box")),
+            "content": _graphic_json_safe_v5000(content),
+            "source_asset_id": source_by_role.get("product_photo") if name == "hero_product" else source_by_role.get("logo_asset") if name == "logo" else obj.get("source_asset_id", ""),
+            "locked": bool(locks.get("product_locked")) if name == "hero_product" else bool(locks.get("vehicle_locked")) if name == "vehicle" else bool(locks.get("layout_locked")),
+        })
+        existing[name] = obj
+    state["objects"] = existing
+    state["context_summary"] = (
+        f"Vehicle: {spec.get('compatibility') or 'not specified'}; "
+        f"headline: {spec.get('headline') or 'not specified'}; "
+        f"canvas version: {state.get('current_canvas_version') or 0}; "
+        f"available objects: {', '.join(sorted(existing))}."
+    )[:2000]
+    return state
+
+
 def _empty_graphic_project_state():
     return {
+        "schema_version": GRAPHIC_PROJECT_SCHEMA_VERSION,
         "stage": "planning",
         "assets": [],
         "latest_generated": None,
         "generation_history": [],
         "last_intent": "conversation",
         "last_error": "",
+        "last_failed_stage": "",
         "explicit_vehicle": {},
         "project_brief_history": [],
         "campaign_spec": {},
-        # v4200 visual-editing state. The latest generated artwork is the active
-        # canvas until New Case clears the project.
         "current_canvas_id": "",
         "current_canvas_version": 0,
         "edit_history": [],
         "last_edit_directive": {},
+        "selected_asset_ids": {},
+        "objects": {},
+        "context_summary": "",
+        "project_snapshot_restored": False,
         "visual_object_state": {
             "layout_locked": False,
             "style_locked": False,
             "vehicle_locked": False,
             "product_locked": False,
+            "branding_locked": False,
         },
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -16754,35 +17023,36 @@ def _empty_graphic_project_state():
 
 
 def get_graphic_project_state():
-    """Return the current conversation-level Graphic asset workspace."""
+    """Return the active Graphic project, restoring it from saved chat metadata when needed."""
     state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     if not isinstance(state, dict):
         state = _empty_graphic_project_state()
+        state = _graphic_restore_project_from_messages_v5000(state)
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    state.setdefault("stage", "planning")
-    state.setdefault("assets", [])
-    state.setdefault("latest_generated", None)
-    state.setdefault("generation_history", [])
-    state.setdefault("last_intent", "conversation")
-    state.setdefault("last_error", "")
-    state.setdefault("explicit_vehicle", {})
-    state.setdefault("project_brief_history", [])
-    state.setdefault("campaign_spec", {})
-    state.setdefault("current_canvas_id", "")
-    state.setdefault("current_canvas_version", 0)
-    state.setdefault("edit_history", [])
-    state.setdefault("last_edit_directive", {})
+    defaults = _empty_graphic_project_state()
+    for key, value in defaults.items():
+        if key not in state:
+            state[key] = value
     object_state = state.setdefault("visual_object_state", {})
-    object_state.setdefault("layout_locked", False)
-    object_state.setdefault("style_locked", False)
-    object_state.setdefault("vehicle_locked", False)
-    object_state.setdefault("product_locked", False)
+    for key, value in defaults["visual_object_state"].items():
+        object_state.setdefault(key, value)
+    if not state.get("project_snapshot_restored") and st.session_state.get("messages"):
+        restored = _graphic_restore_project_from_messages_v5000(state)
+        if restored.get("project_snapshot_restored"):
+            state = restored
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return state
 
 
 
 def clear_graphic_project_state():
+    """Start a genuinely new visual project and clear all canvas/object memory."""
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = _empty_graphic_project_state()
+    for key in (
+        "graphic_generation_progress", "pending_graphic_regeneration",
+        "graphic_selected_version", "graphic_pending_edit",
+    ):
+        st.session_state.pop(key, None)
 
 
 def _graphic_extract_explicit_vehicle(text):
@@ -17002,7 +17272,7 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
 
 
 def _graphic_update_project_brief(prompt_text):
-    """Persist explicit project facts, canvas edits and recent user directions."""
+    """Persist facts and produce a semantic object-level edit directive."""
     state = get_graphic_project_state()
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if value:
@@ -17015,8 +17285,18 @@ def _graphic_update_project_brief(prompt_text):
             state["explicit_vehicle"] = explicit
             state.setdefault("visual_object_state", {})["vehicle_locked"] = True
         existing_spec = state.get("campaign_spec") or {}
-        edit = _graphic_parse_followup_edit_v4200(value, existing_spec)
-        state["campaign_spec"] = _graphic_extract_campaign_spec(value, existing_spec)
+        deterministic = _graphic_parse_followup_edit_v4200(value, existing_spec)
+        ambiguous = bool(state.get("latest_generated")) and (
+            not deterministic.get("change_targets")
+            or any(term in value.casefold() for term in ("more premium", "less busy", "breathing room", "same style", "use the first", "use the second", "feel more", "make it better"))
+        )
+        semantic = _graphic_semantic_edit_parse_v5000(value, existing_spec, state.get("objects") or {}) if ambiguous else {}
+        edit = _graphic_merge_edit_directives_v5000(deterministic, semantic)
+        new_spec = _graphic_extract_campaign_spec(value, existing_spec)
+        for key, item in (edit.get("copy_updates") or {}).items():
+            if str(item).strip():
+                new_spec[str(key)] = str(item).strip()
+        state["campaign_spec"] = new_spec
         if edit.get("is_edit") and state.get("latest_generated"):
             edit["canvas_id"] = state.get("current_canvas_id") or ""
             edit["canvas_version"] = int(state.get("current_canvas_version") or 0)
@@ -17026,10 +17306,17 @@ def _graphic_update_project_brief(prompt_text):
             edits.append(edit)
             state["edit_history"] = edits[-20:]
             object_state = state.setdefault("visual_object_state", {})
-            object_state["layout_locked"] = "layout" not in (edit.get("change_targets") or [])
-            object_state["style_locked"] = True
-            object_state["product_locked"] = "hero_product" not in (edit.get("change_targets") or [])
+            changes = set(edit.get("change_targets") or [])
+            object_state["layout_locked"] = "layout" not in changes
+            object_state["style_locked"] = not bool(changes & {"color", "lighting", "background"})
+            object_state["product_locked"] = "hero_product" not in changes
+            object_state["vehicle_locked"] = "vehicle" not in changes or bool(state.get("explicit_vehicle"))
+            object_state["branding_locked"] = not bool(changes & {"logo", "headline", "feature_matrix", "bottom_benefit_bar"})
+            for name, obj in (state.get("objects") or {}).items():
+                if isinstance(obj, dict):
+                    obj["locked"] = name not in changes
             state["stage"] = "editing"
+    state = _graphic_refresh_object_model_v5000(state)
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return state
@@ -18794,36 +19081,55 @@ def _graphic_safe_optional_call(event_name, callback, default):
 
 
 def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
-    """Resolve persistent project assets into one authoritative ordered role list."""
+    """Resolve persistent assets with explicit filename/ordinal selection and stable ordering."""
     effective_files = graphic_project_uploaded_files(uploaded_files or [])
-    role_items = classify_graphic_uploaded_image_roles(
-        effective_files, prompt_text, forced_role=forced_role
-    )
-    # Recover the common reference-first/product-second sequence if the deterministic
-    # classifier cannot locate both required roles.
+    role_items = classify_graphic_uploaded_image_roles(effective_files, prompt_text, forced_role=forced_role)
     has_product = any(item.get("role") == "product_photo" for item in role_items)
     has_style = any(item.get("role") == "style_reference" for item in role_items)
     if effective_files and (not has_product or not has_style):
-        recovered = _graphic_recover_role_items(
-            effective_files, prompt_text, forced_role=forced_role
-        )
+        recovered = _graphic_recover_role_items(effective_files, prompt_text, forced_role=forced_role)
         if recovered:
             role_items = recovered
+    value = str(prompt_text or "").casefold()
+    # Explicitly named files win. Otherwise support first/second/latest product/reference wording.
+    named = []
+    for item in role_items:
+        filename = str(item.get("name") or "")
+        stem = Path(filename).stem.casefold()
+        if stem and len(stem) >= 4 and stem in value:
+            named.append(item)
+    if named:
+        named_ids = {id(x) for x in named}
+        role_items = named + [x for x in role_items if id(x) not in named_ids]
+    for role, noun in (("product_photo", "product"), ("style_reference", "reference")):
+        group = [x for x in role_items if x.get("role") == role]
+        if len(group) > 1:
+            chosen = None
+            if f"first {noun}" in value:
+                chosen = group[0]
+            elif f"second {noun}" in value:
+                chosen = group[1]
+            elif f"latest {noun}" in value or f"newest {noun}" in value:
+                chosen = group[-1]
+            if chosen:
+                role_items = [chosen] + [x for x in role_items if x is not chosen]
+                state = get_graphic_project_state()
+                state.setdefault("selected_asset_ids", {})[role] = str(chosen.get("asset_id") or chosen.get("name") or "")
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     edit_base = _graphic_latest_generated_role_item(prompt_text)
     if edit_base:
         role_items = [edit_base] + [item for item in role_items if item.get("role") != "edit_base"]
-    role_priority = {
-        "edit_base": 0,
-        "product_photo": 1,
-        "style_reference": 2,
-        "logo_asset": 3,
-        "supporting_image": 4,
-    }
-    role_items = sorted(
-        role_items,
-        key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
-    )
-    return role_items
+    role_priority = {"edit_base": 0, "product_photo": 1, "style_reference": 2, "logo_asset": 3, "supporting_image": 4}
+    role_items = sorted(role_items, key=lambda item: role_priority.get(str(item.get("role") or ""), 9))
+    # Keep one authoritative product, up to four style references, one logo and two supporting assets.
+    limits = {"edit_base": 1, "product_photo": 1, "style_reference": 4, "logo_asset": 1, "supporting_image": 2}
+    counts, bounded = {}, []
+    for item in role_items:
+        role = str(item.get("role") or "supporting_image")
+        counts[role] = counts.get(role, 0) + 1
+        if counts[role] <= limits.get(role, 1):
+            bounded.append(item)
+    return bounded
 
 
 
@@ -18932,6 +19238,8 @@ def _graphic_chatgpt_production_prompt(
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
     project_context = _graphic_project_context_text()
+    project_state = get_graphic_project_state()
+    object_model = _graphic_json_safe_v5000(project_state.get("objects") or {})
     explicit_name = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
     make = str((vehicle_profile or {}).get("make") or "").strip()
     model = str((vehicle_profile or {}).get("model") or "").strip()
@@ -18947,6 +19255,8 @@ def _graphic_chatgpt_production_prompt(
     ]
     if project_context:
         lines.append("PERSISTENT PROJECT CONTEXT FROM EARLIER USER TURNS: " + project_context)
+    if object_model:
+        lines.append("EDITABLE OBJECT MODEL AND LOCKS: " + json.dumps(object_model, ensure_ascii=False, default=str)[:6500])
     if explicit_name:
         lines.extend([
             "HARD VEHICLE CONTENT LOCK — THIS OVERRIDES EVERY STYLE REFERENCE AND EVERY VISUAL GUESS:",
@@ -18964,6 +19274,7 @@ def _graphic_chatgpt_production_prompt(
             "IMAGE 1 is the CURRENT ARTWORK TO EDIT. This is an EDIT, not a new design.",
             "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar and spacing unless the user explicitly names that object for change.",
             "Do not redesign or reinterpret unaffected areas. Make the smallest possible visual change that satisfies the current command.",
+            "Treat locked objects as immutable layers. Preserve their position, scale, typography, geometry, lighting and pixels unless explicitly unlocked by the edit directive.",
             "OBJECTS ALLOWED TO CHANGE: " + (", ".join(change_targets) if change_targets else "only the specifically requested wording/object"),
             "OBJECTS THAT MUST REMAIN UNCHANGED: " + (", ".join(preserve_targets) if preserve_targets else "all other objects"),
         ])
@@ -19380,13 +19691,20 @@ def _graphic_build_provider_result_v3000(
 
 
 def _graphic_save_latest_project_result(image):
-    """Persist the latest result as the active editable canvas and version snapshot."""
+    """Persist the active canvas, editable object model, and restorable project snapshot."""
     if not isinstance(image, dict) or not str(image.get("data_url") or "").startswith("data:image/"):
         return
     state = get_graphic_project_state()
     raw, _mime = data_url_to_bytes(str(image.get("data_url") or ""))
     canvas_id = hashlib.sha256(raw or str(image.get("data_url") or "").encode()).hexdigest()[:20]
     next_version = int(state.get("current_canvas_version") or 0) + 1
+    state["current_canvas_id"] = canvas_id
+    state["current_canvas_version"] = next_version
+    state = _graphic_refresh_object_model_v5000(
+        state,
+        geometry=image.get("reference_geometry") or {},
+        campaign_spec=image.get("campaign_spec") or state.get("campaign_spec") or {},
+    )
     snapshot = {
         key: image.get(key)
         for key in (
@@ -19394,20 +19712,28 @@ def _graphic_save_latest_project_result(image):
             "mime_type", "provider_route", "output_status", "quality_review",
             "reference_geometry", "campaign_spec", "vehicle_validation",
             "zone_completeness", "graphic_engine_version", "verification_status",
-            "verification_warning", "edit_mode", "edit_directive",
+            "verification_warning", "edit_mode", "edit_directive", "object_model",
         )
     }
     snapshot["canvas_id"] = canvas_id
     snapshot["canvas_version"] = next_version
+    snapshot["object_model"] = _graphic_json_safe_v5000(state.get("objects") or {})
     history = [item for item in (state.get("generation_history") or []) if isinstance(item, dict)]
     history.append(snapshot)
     state["generation_history"] = history[-10:]
     state["latest_generated"] = snapshot
-    state["current_canvas_id"] = canvas_id
-    state["current_canvas_version"] = next_version
     state["stage"] = "generated"
     state["last_error"] = ""
+    state["last_failed_stage"] = ""
+    state["schema_version"] = GRAPHIC_PROJECT_SCHEMA_VERSION
+    state["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    project_snapshot = _graphic_compact_project_snapshot_v5000(state)
+    image["canvas_id"] = canvas_id
+    image["canvas_version"] = next_version
+    image["object_model"] = _graphic_json_safe_v5000(state.get("objects") or {})
+    image["graphic_project_snapshot"] = project_snapshot
+    image["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
 
@@ -20678,7 +21004,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000(failed_stage, provider_errors or ["No image bytes were returned by the available provider routes."])
             raise RuntimeError(f"Graphic stage '{failed_stage}' did not produce a usable image. The complete project is preserved for Retry.")
 
-        final_result["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
+        final_result["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
         final_result["reference_geometry"] = geometry
         final_result["campaign_spec"] = campaign_spec
         final_result["project_editable"] = True
@@ -20694,13 +21020,13 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             None,
         )
         state = get_graphic_project_state()
-        state["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
+        state["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
         state["stage"] = "generated"
         state["last_error"] = ""
         state["last_failed_stage"] = ""
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        completion = "Graphic artwork completed and verified." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
+        completion = "Graphic artwork completed and verified with persistent project memory." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
         _graphic_progress_update_v3300(status, completion, "complete")
         return [final_result]
     except Exception as error:
