@@ -112,7 +112,6 @@ except Exception:
 # v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
 #   default governance, archive/delete, comparison, merge, and version snapshots.
 # v720 product-preservation and style-fidelity hardening:
-# v900 Professional Automotive Creative Engine: automatic vehicle identification with live web verification, strict reference-template contracts, high-fidelity image editing, and stronger layout QA.
 # v800 Visual Reference Analysis Engine: analyze uploaded advertisement references
 #   before generation, extract a structured composition/style blueprint, prioritize
 #   current references over stale saved styles, and inject the blueprint into the
@@ -122,6 +121,7 @@ except Exception:
 # v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
 #   campaign and brand memory, Product Library grounding hooks, cleanup/comparison
 #   workflows, continuous generation learning, expanded QA, and admin governance.
+# v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
 # v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
 #   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
 #   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
@@ -17124,192 +17124,355 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 
 
 
-def _graphic_product_source_data_url(role_items):
-    """Return the first current product source as a normalized image data URL."""
-    for item in role_items or []:
-        if isinstance(item, dict) and item.get("role") == "product_photo":
-            url = _graphic_role_data_url(item)
-            if url:
-                return url
-    return ""
+# ============================================================
+# v1000 Professional Layered Automotive Ad Studio
+# ============================================================
+
+GRAPHIC_LAYERED_ENGINE_VERSION = "v1100-adaptive-layered-studio"
+GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
 
 
-@st.cache_data(ttl=60 * 60 * 24 * 30, max_entries=256, show_spinner=False)
-def _cached_graphic_vehicle_research(product_fingerprint, product_data_url, prompt_hint):
-    """Identify and verify the compatible vehicle using vision plus live web search.
+def _graphic_uploaded_file_bytes(uploaded_file):
+    """Read an uploaded file without permanently changing its stream position."""
+    if uploaded_file is None:
+        return b""
+    try:
+        position = uploaded_file.tell()
+    except Exception:
+        position = None
+    try:
+        if hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(0)
+        data = uploaded_file.read() if hasattr(uploaded_file, "read") else bytes(uploaded_file)
+        return bytes(data or b"")
+    except Exception:
+        return b""
+    finally:
+        if position is not None:
+            try:
+                uploaded_file.seek(position)
+            except Exception:
+                pass
 
-    The cache key includes a non-secret product fingerprint so repeated use of the
-    same unit photo does not repeat the research call.
+
+def _graphic_product_fingerprint(role_items):
+    product = next((x for x in (role_items or []) if x.get("role") == "product_photo"), None)
+    raw = _graphic_uploaded_file_bytes((product or {}).get("file"))
+    return hashlib.sha256(raw).hexdigest() if raw else ""
+
+
+def research_graphic_vehicle_profile(role_items, prompt_text=""):
+    """Identify and web-verify the compatible vehicle for the uploaded unit.
+
+    Results are cached in session state by source-image fingerprint. The function
+    fails open: low-confidence or unavailable research never blocks generation.
     """
-    if not product_data_url:
+    product = next((x for x in (role_items or []) if x.get("role") == "product_photo"), None)
+    if not product:
         return {}
-    request_text = (
-        "Identify the vehicle application represented by this AutoTecPro dashboard/head-unit fascia or product. "
-        "Use visible evidence first (fascia outline, vents, knobs, hazard switch, button arrangement, mounting geometry, "
-        "screen orientation and dashboard architecture), then use live web search to verify the most likely make, model, "
-        "generation and year range. Search official/OEM material, reputable vehicle references, and relevant AutoTecPro "
-        "product context when available. Do not guess silently. Return one strict JSON object only with keys: "
-        "detected_make, detected_model, detected_generation, likely_year_range, vehicle_type, confidence_score, "
-        "visual_evidence, web_verification_summary, search_queries_used, alternate_matches, exterior_scene_guidance, "
-        "interior_scene_guidance, dashboard_accuracy_constraints, safe_generation_label, requires_manual_confirmation. "
-        "confidence_score must be 0-100. Set requires_manual_confirmation true below 75 or when multiple generations remain plausible. "
-        "The generated-ad context must never claim compatibility beyond the verified evidence.\n\n"
-        f"STAFF REQUEST CONTEXT:\n{str(prompt_hint or '')[:2500]}"
-    )
+    fingerprint = _graphic_product_fingerprint(role_items)
+    cache = st.session_state.setdefault("graphic_vehicle_research_cache_v1000", {})
+    cached = cache.get(fingerprint) if fingerprint else None
+    if isinstance(cached, dict) and cached.get("profile"):
+        return dict(cached["profile"])
+    image_url = _graphic_role_data_url(product)
+    if not image_url:
+        return {}
+    content = [
+        {"type": "input_text", "text": (
+            "Identify the vehicle compatibility of this AutoTecPro dashboard unit/fascia. "
+            "Inspect the screen aspect ratio, fascia outline, vents, knobs, buttons, trim, mounting geometry, "
+            "and any filename/model clues. Search the live web to verify the most likely make, model, generation, "
+            "and year range using reputable automotive/OEM/parts sources. Return one JSON object only with keys: "
+            "make, model, generation, year_range, vehicle_type, confidence_score, visual_evidence, web_evidence, "
+            "alternative_matches, safe_exterior_description, safe_interior_description, generation_restrictions, "
+            "search_summary. Do not invent certainty. Below 75 confidence, keep descriptions generic and list alternatives. "
+            "Staff request: " + str(prompt_text or "")[:2500]
+        )},
+        {"type": "input_image", "image_url": image_url},
+    ]
     try:
         response = client.responses.create(
             model="gpt-5.5",
             tools=[{"type": "web_search"}],
             instructions=(
-                "Act as a meticulous automotive fitment researcher and visual vehicle-identification specialist. "
-                "Use web search to verify visual hypotheses. Prefer cautious, evidence-based conclusions. Return JSON only."
+                "Act as a cautious automotive fitment researcher. Use live web search to verify visual hypotheses. "
+                "Prefer OEM, manufacturer, established parts catalog, and reputable automotive sources. Return JSON only."
             ),
-            input=[{
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": request_text},
-                    {"type": "input_image", "image_url": product_data_url, "detail": "high"},
-                ],
-            }],
-            max_output_tokens=2200,
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=1800,
         )
-        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        if isinstance(result, dict):
-            result["research_version"] = "v900-live-vehicle-research"
-            result["product_fingerprint"] = str(product_fingerprint or "")[:24]
-            return result
+        profile = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if not isinstance(profile, dict):
+            profile = {}
     except Exception as error:
-        diagnostic_log(
-            "graphic_vehicle_research_failed",
-            error_type=type(error).__name__,
-            error=str(error),
-        )
-    return {}
+        diagnostic_log("graphic_vehicle_research_failed", error_type=type(error).__name__, error=str(error))
+        profile = {}
+    if profile:
+        profile["research_version"] = GRAPHIC_VEHICLE_RESEARCH_VERSION
+        profile["source_filename"] = str(product.get("name") or "")
+        if fingerprint:
+            cache[fingerprint] = {"profile": dict(profile), "cached_at": now_iso()}
+    return profile
 
 
-def research_graphic_vehicle_context(role_items, prompt_text=""):
-    """Return verified vehicle context for the current product image, failing open."""
-    product_url = _graphic_product_source_data_url(role_items)
-    if not product_url:
-        return {}
-    digest = hashlib.sha256(product_url.encode("utf-8")).hexdigest()
-    result = _cached_graphic_vehicle_research(digest, product_url, str(prompt_text or ""))
-    if not isinstance(result, dict):
-        return {}
-    try:
-        result["confidence_score"] = max(0, min(100, int(float(result.get("confidence_score", 0)))))
-    except Exception:
-        result["confidence_score"] = 0
-    return result
-
-
-def _graphic_vehicle_context_text(vehicle_profile):
-    """Serialize verified vehicle research for the image pipeline."""
-    if not isinstance(vehicle_profile, dict) or not vehicle_profile:
+def _graphic_vehicle_profile_text(profile):
+    if not isinstance(profile, dict) or not profile:
         return ""
     keys = (
-        "detected_make", "detected_model", "detected_generation", "likely_year_range",
-        "vehicle_type", "confidence_score", "visual_evidence", "web_verification_summary",
-        "alternate_matches", "exterior_scene_guidance", "interior_scene_guidance",
-        "dashboard_accuracy_constraints", "safe_generation_label", "requires_manual_confirmation",
+        "make", "model", "generation", "year_range", "vehicle_type", "confidence_score",
+        "visual_evidence", "web_evidence", "alternative_matches", "safe_exterior_description",
+        "safe_interior_description", "generation_restrictions", "search_summary",
     )
-    lines = []
-    for key in keys:
-        value = vehicle_profile.get(key)
-        if value in (None, "", [], {}):
-            continue
-        if isinstance(value, (dict, list)):
-            value = json.dumps(value, ensure_ascii=False, default=str)
-        lines.append(key.replace("_", " ").upper() + ": " + str(value))
-    return "\n".join(lines)[:9000]
+    return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
-def build_professional_automotive_ad_contract(prompt_text, reference_blueprint, vehicle_profile, role_items):
-    """Build a strict, model-ready commercial layout contract.
+def _graphic_extract_product_cutout(uploaded_file):
+    """Create a production-safe transparent cutout while preserving source pixels.
 
-    Unlike a loose style prompt, this contract requires a complete advertisement
-    with defined zones, product prominence, vehicle context, features and branding.
+    v1100 keeps existing alpha when supplied, estimates neutral backgrounds from
+    border samples, uses luminance/chroma distance, suppresses white spill only
+    at partially transparent edges, and crops conservatively. Complex scenes are
+    preserved rather than risking damage to product geometry.
     """
-    blueprint = reference_blueprint if isinstance(reference_blueprint, dict) else {}
-    vehicle = vehicle_profile if isinstance(vehicle_profile, dict) else {}
-    has_style_refs = any(
-        isinstance(item, dict) and item.get("role") == "style_reference"
-        for item in (role_items or [])
-    )
-    confidence = int(vehicle.get("confidence_score") or 0)
-    vehicle_label = str(vehicle.get("safe_generation_label") or "").strip()
-    if not vehicle_label:
-        vehicle_label = " ".join(str(vehicle.get(k) or "").strip() for k in (
-            "detected_make", "detected_model", "detected_generation", "likely_year_range"
-        )).strip()
-    scene_rule = (
-        f"Use a visually accurate {vehicle_label} interior or exterior context verified from the product source."
-        if vehicle_label and confidence >= 75
-        else "Use a premium automotive environment without displaying an unverified make/model badge or unsupported fitment claim."
-    )
-    reference_layout = str(blueprint.get("final_generation_blueprint") or "").strip()
-    if not reference_layout and has_style_refs:
-        reference_layout = (
-            "Rebuild the reference advertisements' complete commercial structure: prominent product hero, "
-            "strong headline block, organized feature icons/copy, realistic automotive environment, and a bottom benefit bar."
-        )
-    return (
-        "PROFESSIONAL AUTOMOTIVE ADVERTISEMENT CONTRACT — MANDATORY\n"
-        "1. DELIVERABLE: A finished, agency-quality AutoTecPro advertisement, not a simple product-on-dark-background poster.\n"
-        "2. PRODUCT HERO: The FIRST PRODUCT SOURCE is the only advertised hardware. Make it visually dominant (normally 42–62% of canvas height), crisply readable, and integrated with realistic contact shadow/reflection. Preserve its model identity and defining geometry.\n"
-        "3. VEHICLE CONTEXT: " + scene_rule + " Never substitute a product from a reference advertisement.\n"
-        "4. COMPLETE LAYOUT: Use multiple intentional zones: brand/logo zone, major headline/subheadline zone, product/vehicle hero zone, feature/icon zone, and bottom benefit strip or equivalent structured information area when present in the references.\n"
-        "5. REFERENCE FIDELITY: Reproduce the references' visual grammar—relative zone sizes, hierarchy, product scale, background depth, icon organization, typography rhythm, margins and lighting—not merely their general mood.\n"
-        "6. TEXT DISCIPLINE: Render only short, correctly spelled customer-facing copy. Never render planning notes, JSON keys, filenames, internal instructions or unsupported specifications.\n"
-        "7. BRAND: Leave a clean area for the official AutoTecPro logo compositor. Keep the composition premium, automotive, credible and retail-ready.\n"
-        "8. REJECTION CONDITIONS: Reject generic black-background layouts when references show a vehicle/outdoor scene; reject tiny products; reject missing feature architecture; reject copied reference products; reject invented controls or altered fascia.\n"
-        "9. REFERENCE-DERIVED BLUEPRINT: " + (reference_layout[:5000] or "Use the uploaded references as a strict layout system.") + "\n"
-        "10. STAFF REQUEST: " + str(prompt_text or "")[:3500]
-    )
-
-
-def _graphic_images_edit_high_fidelity(image_client, *, image_input, prompt, output_size):
-    """Call the Image API with highest supported fidelity, with SDK-safe fallback."""
-    kwargs = {
-        "model": GRAPHIC_IMAGE_MODEL,
-        "image": image_input,
-        "prompt": prompt,
-        "n": GRAPHIC_IMAGE_COUNT,
-        "size": output_size,
-        "input_fidelity": "high",
-        "quality": "high",
-    }
+    if Image is None:
+        return None
+    raw = _graphic_uploaded_file_bytes(uploaded_file)
+    if not raw:
+        return None
     try:
-        return image_client.images.edit(**kwargs)
-    except TypeError:
-        # Older installed SDKs may not expose the newer optional parameters yet.
-        kwargs.pop("quality", None)
+        from PIL import ImageFilter, ImageChops
+        with Image.open(io.BytesIO(raw)) as source:
+            image = ImageOps.exif_transpose(source).convert("RGBA")
+    except Exception:
+        return None
+    image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
+    existing_alpha = image.getchannel("A")
+    extrema = existing_alpha.getextrema()
+    if extrema and extrema[0] < 250:
+        bbox = existing_alpha.getbbox()
+        return image.crop(bbox) if bbox else image
+
+    rgb = image.convert("RGB")
+    w, h = rgb.size
+    if w < 12 or h < 12:
+        return image
+    border = max(3, min(w, h)//70)
+    samples=[]
+    # Sample the full border, not only four corners, to resist shadows/crop noise.
+    for box in ((0,0,w,border),(0,h-border,w,h),(0,0,border,h),(w-border,0,w,h)):
+        patch=rgb.crop(box).resize((max(1,patch_w:=min(128, max(1, box[2]-box[0]))), max(1,patch_h:=min(128,max(1,box[3]-box[1])))))
+        samples.extend(list(patch.getdata()))
+    if not samples:
+        return image
+    # Median is more robust than the mean when the product touches an edge.
+    ordered=[sorted(px[i] for px in samples) for i in range(3)]
+    mid=len(samples)//2
+    bg=tuple(ch[mid] for ch in ordered)
+    spread=max(ch[min(len(ch)-1,int(len(ch)*.9))]-ch[max(0,int(len(ch)*.1))] for ch in ordered)
+    neutral=max(bg)-min(bg)<38
+    bright=sum(bg)/3>168
+    if not (neutral and bright and spread<105):
+        return image
+
+    alpha=[]
+    soft_start, hard_end = 18.0, 88.0
+    for r,g,b in rgb.getdata():
+        dr,dg,db=r-bg[0],g-bg[1],b-bg[2]
+        euclid=(dr*dr+dg*dg+db*db)**0.5
+        chroma=(max(r,g,b)-min(r,g,b))*0.35
+        distance=euclid+chroma
+        if distance<=soft_start: a=0
+        elif distance>=hard_end: a=255
+        else:
+            t=(distance-soft_start)/(hard_end-soft_start)
+            a=int(255*(t*t*(3-2*t)))
+        alpha.append(a)
+    mask=Image.new("L",(w,h)); mask.putdata(alpha)
+    mask=mask.filter(ImageFilter.GaussianBlur(radius=max(.65,min(w,h)/1200)))
+    # Preserve enclosed light UI/product areas by retaining pixels surrounded by foreground.
+    dilated=mask.filter(ImageFilter.MaxFilter(5))
+    mask=ImageChops.lighter(mask, ImageChops.multiply(dilated,dilated))
+    image.putalpha(mask)
+
+    # Edge decontamination: neutralize white halo only on semi-transparent pixels.
+    px=image.load(); mp=mask.load()
+    for y in range(h):
+        for x in range(w):
+            a=mp[x,y]
+            if 8<a<245:
+                r,g,b,_=px[x,y]
+                strength=(245-a)/245.0
+                r=max(0,min(255,int(r-(bg[0]-r)*strength*.18)))
+                g=max(0,min(255,int(g-(bg[1]-g)*strength*.18)))
+                b=max(0,min(255,int(b-(bg[2]-b)*strength*.18)))
+                px[x,y]=(r,g,b,a)
+    bbox=mask.getbbox()
+    if not bbox:
+        return image
+    pad=max(2,min(w,h)//180)
+    bbox=(max(0,bbox[0]-pad),max(0,bbox[1]-pad),min(w,bbox[2]+pad),min(h,bbox[3]+pad))
+    return image.crop(bbox)
+
+def _graphic_font(size, bold=False):
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    ]
+    if Image is not None:
         try:
-            return image_client.images.edit(**kwargs)
-        except TypeError:
-            kwargs.pop("input_fidelity", None)
-            return image_client.images.edit(**kwargs)
+            from PIL import ImageFont
+            for path in candidates:
+                if Path(path).exists():
+                    return ImageFont.truetype(path, max(10, int(size)))
+            return ImageFont.load_default()
+        except Exception:
+            return None
+    return None
 
 
-def _graphic_images_generate_high_quality(image_client, *, prompt, output_size):
-    """Generate at high quality with compatibility fallback."""
-    kwargs = {
-        "model": GRAPHIC_IMAGE_MODEL,
-        "prompt": prompt,
-        "n": GRAPHIC_IMAGE_COUNT,
-        "size": output_size,
-        "quality": "high",
-    }
+def _graphic_extract_copy(prompt_text, reference_blueprint=None):
+    text = str(prompt_text or "")
+    def field(label):
+        match = re.search(rf"(?im)^\s*-?\s*{re.escape(label)}\s*:\s*(.+)$", text)
+        value = re.sub(r"\s+", " ", match.group(1)).strip() if match else ""
+        return "" if value.lower().startswith(("no ", "not supplied", "none")) else value[:120]
+    headline = field("Headline")
+    cta = field("Call to action")
+    product = field("Product / model")
+    if not headline:
+        quoted = re.search(r'["“]([^"”]{4,70})["”]', text)
+        headline = quoted.group(1).strip() if quoted else "UPGRADE YOUR DRIVE"
+    if not cta:
+        cta = "SHOP AUTOTECPRO"
+    features = []
+    blueprint = reference_blueprint or {}
+    raw_features = blueprint.get("feature_copy_structure")
+    if isinstance(raw_features, list):
+        features = [re.sub(r"\s+", " ", str(x)).strip()[:44] for x in raw_features if str(x).strip()][:4]
+    elif isinstance(raw_features, str):
+        features = [x.strip()[:44] for x in re.split(r"[;|•\n]+", raw_features) if x.strip()][:4]
+    if not features:
+        features = ["OEM-STYLE FITMENT", "PREMIUM DISPLAY", "SMART CONNECTIVITY", "BUILT FOR YOUR VEHICLE"]
+    return {"headline": headline.upper(), "cta": cta.upper(), "product": product, "features": features}
+
+
+def _graphic_layout_plan(reference_blueprint, prompt_text=""):
+    """Normalize free-form reference analysis into deterministic safe zones."""
+    bp=reference_blueprint if isinstance(reference_blueprint,dict) else {}
+    blob=" ".join(str(bp.get(k) or "") for k in ("layout_archetype","canvas_zones","blueprint","product_placement","typography"))
+    blob=(blob+" "+str(prompt_text or "")).lower()
+    product_side="left" if any(x in blob for x in ("product left","left-side product","product on left")) else "right"
+    copy_side="right" if product_side=="left" else "left"
+    if any(x in blob for x in ("copy right","headline right","text right")): copy_side="right"; product_side="left"
+    if any(x in blob for x in ("copy left","headline left","text left")): copy_side="left"; product_side="right"
+    return {"product_side":product_side,"copy_side":copy_side,"bottom_bar":True,"product_ratio":0.50}
+
+
+def _graphic_reference_palette(role_items):
+    """Extract a stable accent/dark palette from current style references."""
+    if Image is None: return {"accent":(236,52,45),"panel":(6,9,14),"text":(255,255,255)}
+    colors=[]
+    for item in role_items or []:
+        if item.get("role")!="style_reference": continue
+        raw=_graphic_uploaded_file_bytes(item.get("file"))
+        try:
+            with Image.open(io.BytesIO(raw)) as im:
+                q=ImageOps.exif_transpose(im).convert("RGB").resize((64,64)).quantize(colors=12).convert("RGB")
+                colors.extend(q.getdata())
+        except Exception: pass
+    if not colors: return {"accent":(236,52,45),"panel":(6,9,14),"text":(255,255,255)}
+    # Prefer saturated, moderately bright colors as accent.
+    def score(c):
+        hi,lo=max(c),min(c); sat=hi-lo; lum=sum(c)/3
+        return sat*2-abs(lum-145)
+    accent=max(colors,key=score)
+    if max(accent)-min(accent)<45: accent=(236,52,45)
+    return {"accent":tuple(accent),"panel":(6,9,14),"text":(255,255,255)}
+
+
+def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, reference_blueprint=None, vehicle_profile=None, role_items=None):
+    """Compose an agency-style ad from protected product pixels and deterministic layers."""
+    if Image is None: return bytes(background_bytes or b""), {}
     try:
-        return image_client.images.generate(**kwargs)
-    except TypeError:
-        kwargs.pop("quality", None)
-        return image_client.images.generate(**kwargs)
+        from PIL import ImageDraw, ImageFilter
+        with Image.open(io.BytesIO(background_bytes)) as bg_source:
+            canvas=ImageOps.exif_transpose(bg_source).convert("RGBA")
+    except Exception:
+        return bytes(background_bytes or b""), {}
+    W,H=canvas.size
+    product=_graphic_extract_product_cutout(product_file)
+    if product is None: return bytes(background_bytes or b""), {}
+    bp=reference_blueprint or {}; plan=_graphic_layout_plan(bp,prompt_text); palette=_graphic_reference_palette(role_items)
+    accent=palette["accent"]
+
+    # Cinematic grading and subtle vignette unify generated plate and product.
+    overlay=Image.new("RGBA",(W,H),(0,0,0,0)); od=ImageDraw.Draw(overlay,"RGBA")
+    copy_left=plan["copy_side"]=="left"
+    for i in range(18):
+        a=int(150*(1-i/18)**1.5)
+        if copy_left: od.rectangle((0,0,int(W*(.43-i*.012)),H),fill=(2,5,9,a))
+        else: od.rectangle((int(W*(.57+i*.012)),0,W,H),fill=(2,5,9,a))
+    od.rectangle((0,int(H*.88),W,H),fill=(3,6,10,205))
+    canvas=Image.alpha_composite(canvas,overlay)
+
+    # Product placement follows reconstructed reference zoning.
+    target_w=int(W*plan["product_ratio"]); target_h=int(H*.69)
+    scale=min(target_w/max(1,product.width),target_h/max(1,product.height))
+    product=product.resize((max(1,int(product.width*scale)),max(1,int(product.height*scale))),Image.Resampling.LANCZOS)
+    x=int(W*.47) if plan["product_side"]=="right" else int(W*.045)
+    if plan["product_side"]=="right": x=min(W-product.width-int(W*.035),x)
+    y=max(int(H*.15),int(H*.50-product.height*.48))
+    shadow_alpha=product.getchannel("A").filter(ImageFilter.GaussianBlur(radius=max(12,H//48)))
+    shadow=Image.new("RGBA",product.size,(0,0,0,0)); shadow.putalpha(shadow_alpha.point(lambda a:int(a*.55)))
+    canvas.alpha_composite(shadow,(x+max(7,W//150),y+max(10,H//90)))
+    canvas.alpha_composite(product,(x,y))
+
+    draw=ImageDraw.Draw(canvas,"RGBA"); copy=_graphic_extract_copy(prompt_text,bp)
+    copy_x=int(W*.055) if copy_left else int(W*.63); copy_w=int(W*.31)
+    headline_font=_graphic_font(H*.066,True); body_font=_graphic_font(H*.024,True); small_font=_graphic_font(H*.019,False); cta_font=_graphic_font(H*.023,True)
+    # Accent rule creates consistent hierarchy without a heavy opaque box.
+    draw.rounded_rectangle((copy_x,int(H*.165),copy_x+int(W*.075),int(H*.173)),radius=4,fill=accent+(255,))
+    words=copy["headline"].split(); lines=[]; current=""
+    for word in words:
+        trial=(current+" "+word).strip()
+        try: width=draw.textbbox((0,0),trial,font=headline_font)[2]
+        except Exception: width=len(trial)*24
+        if current and width>copy_w: lines.append(current); current=word
+        else: current=trial
+    if current: lines.append(current)
+    ty=int(H*.205)
+    for idx,line in enumerate(lines[:4]):
+        draw.text((copy_x,ty),line,font=headline_font,fill=((accent+(255,)) if idx==0 else (255,255,255,255)),stroke_width=max(1,H//700),stroke_fill=(0,0,0,150)); ty+=int(H*.072)
+    if copy.get("product"):
+        draw.text((copy_x,ty+int(H*.008)),copy["product"][:58],font=small_font,fill=(218,226,236,250)); ty+=int(H*.05)
+    fy=max(ty+int(H*.028),int(H*.53))
+    for feature in copy["features"][:4]:
+        icon=int(H*.027); cy=fy+icon//2
+        draw.rounded_rectangle((copy_x,fy,copy_x+icon,fy+icon),radius=max(4,icon//4),fill=accent+(235,))
+        draw.text((copy_x+icon+int(W*.012),fy-int(H*.001)),feature.upper(),font=small_font,fill=(247,249,252,250))
+        fy+=int(H*.052)
+    cta_y=min(int(H*.81),fy+int(H*.018)); cta_w=int(copy_w*.68); cta_h=int(H*.058)
+    draw.rounded_rectangle((copy_x,cta_y,copy_x+cta_w,cta_y+cta_h),radius=cta_h//2,fill=accent+(255,))
+    try: bb=draw.textbbox((0,0),copy["cta"],font=cta_font); tw=bb[2]-bb[0]; th=bb[3]-bb[1]
+    except Exception: tw=len(copy["cta"])*12; th=20
+    draw.text((copy_x+(cta_w-tw)//2,cta_y+(cta_h-th)//2-int(H*.003)),copy["cta"],font=cta_font,fill=(255,255,255,255))
+
+    bar_y=int(H*.90); benefits=["OEM FIT","PREMIUM DISPLAY","SMART CONNECTIVITY","AUTOTECPRO SUPPORT"]
+    cell=W/4
+    for i,label in enumerate(benefits):
+        cx=int(cell*i+cell/2)
+        try: bb=draw.textbbox((0,0),label,font=body_font); tw=bb[2]-bb[0]
+        except Exception: tw=len(label)*10
+        draw.text((cx-tw//2,bar_y+int(H*.033)),label,font=body_font,fill=(245,247,250,245))
+        if i: draw.line((int(cell*i),bar_y+int(H*.025),int(cell*i),H-int(H*.025)),fill=(255,255,255,48),width=1)
+    output=io.BytesIO(); canvas.convert("RGB").save(output,format="PNG",optimize=True)
+    return output.getvalue(), {"engine":GRAPHIC_LAYERED_ENGINE_VERSION,"product_pixels_preserved":True,"product_box":[x,y,product.width,product.height],"layout_plan":plan,"palette":{"accent":list(accent)},"copy":copy,"vehicle_profile":vehicle_profile or {}}
 
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
-                                      product_transform_mode="Auto"):
+                                      product_transform_mode="Auto", professional_layered_studio=True):
     """
     Generate or reference-edit Graphic Marketing images through the Image API.
 
@@ -17334,15 +17497,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
     )
-    vehicle_profile = research_graphic_vehicle_context(role_items, prompt_text)
+    has_product_source = any(item.get("role") == "product_photo" for item in role_items)
+    has_current_style_references = any(item.get("role") == "style_reference" for item in role_items)
+    layered_studio_active = bool(professional_layered_studio and preserve_product and has_product_source and has_current_style_references)
+    vehicle_profile = research_graphic_vehicle_profile(role_items, prompt_text) if has_product_source else {}
+    vehicle_profile_text = _graphic_vehicle_profile_text(vehicle_profile)
     reference_blueprint = analyze_graphic_reference_blueprint(
         role_items, prompt_text=prompt_text, style_strength=style_strength
     )
     reference_blueprint_text = _graphic_reference_blueprint_text(reference_blueprint)
-    vehicle_context_text = _graphic_vehicle_context_text(vehicle_profile)
-    professional_ad_contract = build_professional_automotive_ad_contract(
-        prompt_text, reference_blueprint, vehicle_profile, role_items
-    )
     resolved_product_transform_mode = resolve_graphic_product_transform_mode(
         prompt_text, product_transform_mode, preserve_product
     )
@@ -17380,17 +17543,22 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
               "as the advertised hardware. Never copy, blend, or substitute a product shown in a STYLE REFERENCE. "
               "Do not render this blueprint text into the artwork."
         )
-    if vehicle_context_text:
+    if vehicle_profile_text:
         image_api_prompt += (
-            "\n\nLIVE-VERIFIED VEHICLE CONTEXT (MANDATORY, CAUTIOUS):\n"
-            + vehicle_context_text
-            + "\nUse the verified vehicle only when confidence is sufficient. Do not print confidence, research notes, "
-              "search queries, or uncertain alternate matches in the artwork. Never claim a broader year range than verified."
+            "\n\nWEB-VERIFIED VEHICLE CONTEXT:\n" + vehicle_profile_text[:7000] +
+            "\nUse only confidence-supported vehicle details. Do not show a conflicting model or generation."
         )
-    image_api_prompt += (
-        "\n\n" + professional_ad_contract
-        + "\nTreat this as a strict production specification. Do not render the numbered instructions themselves."
-    )
+    if layered_studio_active:
+        image_api_prompt += (
+            "\n\nPROFESSIONAL LAYERED STUDIO CONTRACT (MANDATORY):\n"
+            "Generate ONLY the cinematic automotive background/environment and lighting plate. "
+            "Do not draw, recreate, imitate, or place the uploaded product. Do not render headline, CTA, logo, icons, "
+            "feature labels, benefit bars, prices, or any customer-facing text. Reserve clean dark negative space on the "
+            "left 34 percent for typography and a clear hero zone across the center-right for the original product layer. "
+            "Use the verified compatible vehicle exterior/interior context and the reference blueprint's depth, color, "
+            "lighting, and visual grammar. The application will composite the exact original product pixels and render "
+            "all typography separately after this background is generated. Produce a clean, premium, realistic plate with no fake UI, no floating products, no duplicated screens, and no readable text anywhere in the generated background."
+        )
 
     # Keep immutable product references first in the edit input. Image-edit
     # models tend to weight early references strongly; placing a saved style
@@ -17407,7 +17575,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         role_items, preserve_product=preserve_product, style_strength=style_strength,
         product_transform_mode=resolved_product_transform_mode,
     )
-    has_current_style_references = any(item.get("role") == "style_reference" for item in role_items)
     explicitly_requested_saved_style = graphic_prompt_requests_approved_reference(prompt_text)
     saved_references = prepare_saved_graphic_reference(
         prompt_text,
@@ -17441,7 +17608,16 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     )
 
     try:
-        if reference_images:
+        if layered_studio_active:
+            # Generate a clean background plate only; preserve the source product
+            # later as an immutable composited layer.
+            result = image_client.images.generate(
+                model=GRAPHIC_IMAGE_MODEL,
+                prompt=image_api_prompt,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
+            )
+        elif reference_images:
             for reference in reference_images:
                 reference.seek(0)
 
@@ -17450,17 +17626,26 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 if len(reference_images) > 1
                 else reference_images[0]
             )
-            result = _graphic_images_edit_high_fidelity(
-                image_client,
-                image_input=image_input,
+            edit_kwargs = dict(
+                model=GRAPHIC_IMAGE_MODEL,
+                image=image_input,
                 prompt=image_api_prompt,
-                output_size=output_size,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
             )
+            try:
+                result = image_client.images.edit(input_fidelity="high", quality="high", **edit_kwargs)
+            except TypeError:
+                try:
+                    result = image_client.images.edit(input_fidelity="high", **edit_kwargs)
+                except TypeError:
+                    result = image_client.images.edit(**edit_kwargs)
         else:
-            result = _graphic_images_generate_high_quality(
-                image_client,
+            result = image_client.images.generate(
+                model=GRAPHIC_IMAGE_MODEL,
                 prompt=image_api_prompt,
-                output_size=output_size,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
             )
     except Exception as error:
         error_name = type(error).__name__
@@ -17507,6 +17692,20 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         if not png_bytes:
             continue
 
+        layered_metadata = {}
+        if layered_studio_active:
+            product_item = next((x for x in role_items if x.get("role") == "product_photo"), None)
+            png_bytes, layered_metadata = compose_graphic_layered_ad(
+                png_bytes,
+                (product_item or {}).get("file"),
+                prompt_text,
+                reference_blueprint=reference_blueprint,
+                vehicle_profile=vehicle_profile,
+                role_items=role_items,
+            )
+            if not png_bytes:
+                continue
+
         png_bytes, brand_logo_applied, brand_logo_position = (
             apply_autotecpro_brand_logo(
                 png_bytes,
@@ -17528,6 +17727,11 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "filename": filename,
             "data_url": data_url,
             "generated": True,
+            "professional_layered_studio": bool(layered_studio_active),
+            "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION if layered_studio_active else "",
+            "layered_metadata": layered_metadata,
+            "vehicle_profile": vehicle_profile,
+            "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
             "prompt": prompt_text,
             "created_at": created_at.isoformat(),
             "model": GRAPHIC_IMAGE_MODEL,
@@ -17555,9 +17759,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "product_transform_mode": resolved_product_transform_mode,
             "reference_blueprint": reference_blueprint,
             "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
-            "vehicle_research": vehicle_profile,
-            "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
-            "professional_ad_engine_version": "v900",
             "upload_roles": [
                 {"name": item.get("name"), "role": item.get("role")}
                 for item in role_items
@@ -17582,40 +17783,23 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         generated_images[0]["quality_review"] = review
         try:
             product_score = int(float(review.get("product_accuracy_score", 100)))
-            layout_score = int(float(review.get("layout_adherence_score", 100)))
-            style_score = int(float(review.get("style_adherence_score", 100)))
             product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
-            has_style_references = any(item.get("role") == "style_reference" for item in role_items)
-            layout_passed = (not has_style_references) or layout_score >= 78
-            style_passed = (not has_style_references) or style_score >= 72
-            passed = (
-                bool(review.get("passed", product_score >= product_threshold))
-                and product_score >= product_threshold
-                and layout_passed
-                and style_passed
-            )
+            passed = bool(review.get("passed", product_score >= product_threshold)) and product_score >= product_threshold
         except Exception:
-            product_score = 100
-            product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
-            layout_score, style_score, passed = 100, 100, True
+            product_score, product_threshold, passed = 100, graphic_product_mode_threshold(resolved_product_transform_mode), True
         correction = str(review.get("correction_prompt") or "").strip()
-        if quality_retry and preserve_product and (not passed) and correction:
-            diagnostic_log(
-                "graphic_quality_retry",
-                product_score=product_score,
-                layout_score=layout_score,
-                style_score=style_score,
-            )
+        if quality_retry and preserve_product and (not passed or product_score < product_threshold) and correction:
+            diagnostic_log("graphic_quality_retry", product_score=product_score)
             retry_prompt = (
                 prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
                 f"\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE under {resolved_product_transform_mode}. Preserve the exact product identity, screen UI, bezel architecture, controls, labels, trim, mounting geometry, openings and proportions. Keep any allowed lighting, perspective, cleanup and scene integration within the selected mode; remove only impermissible redesigns or invented hardware."
-                "\nAlso rebuild the complete reference-derived commercial layout. Do not return a minimal product poster. Restore the intended vehicle/environment scene, product scale, headline hierarchy, feature/icon structure, depth, and bottom benefit bar when present in the references."
             )
             retried = generate_graphic_marketing_images(
                 retry_prompt, uploaded_files, use_approved_style=use_approved_style,
                 preserve_product=preserve_product, style_strength=style_strength,
                 forced_upload_role=forced_upload_role, quality_retry=False,
                 product_transform_mode=resolved_product_transform_mode,
+                professional_layered_studio=professional_layered_studio,
             )
             if retried:
                 retried[0]["auto_corrected_after_review"] = True
@@ -27756,6 +27940,7 @@ def build_advanced_image_designer_request(
     product_transform_mode="Auto",
     style_collection="",
     campaign_name="",
+    professional_layered_studio=True,
 ):
     """Build one polished image prompt for the existing Graphic pipeline."""
     category = _clean_graphic_designer_value(category, 120)
@@ -27859,6 +28044,7 @@ DESIGN REQUIREMENTS
             "forced_upload_role": upload_role,
             "quality_retry": quality_review,
             "product_transform_mode": product_transform_mode,
+            "professional_layered_studio": bool(professional_layered_studio),
         },
     }
 
@@ -28045,6 +28231,14 @@ def render_advanced_image_designer_panel():
                     "Uploaded image role",
                     ["Auto-detect", "Product Photo", "Style Reference", "Logo Asset", "Background", "Supporting Image"],
                 )
+            professional_layered_studio = st.checkbox(
+                "Professional Layered Automotive Ad Studio",
+                value=True,
+                help=(
+                    "Recommended for one product photo plus advertisement references. Generates the vehicle/background separately, "
+                    "keeps the original product pixels as a protected layer, and renders headline, CTA, feature labels and benefit bar separately."
+                ),
+            )
             quality_review = st.checkbox(
                 "Review product accuracy and auto-correct once",
                 value=True,
@@ -28099,6 +28293,7 @@ def render_advanced_image_designer_panel():
                 product_transform_mode=product_transform_mode,
                 style_collection=style_collection,
                 campaign_name=campaign_name,
+                professional_layered_studio=professional_layered_studio,
             )
 
     # The normal Graphic Chat composer always remains active.
@@ -34034,6 +34229,7 @@ else:
                         forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
                         quality_retry=graphic_options.get("quality_retry", True),
                         product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
+                        professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 answer = generated_image_answer_text(generated_images)
             except Exception as error:
