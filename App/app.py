@@ -132,6 +132,7 @@ except Exception:
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
+# v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
@@ -15755,6 +15756,69 @@ def save_graphic_style_memory(image, feedback="approved"):
     }
 
 
+def reject_graphic_style_fast(image):
+    """Reject one generated style immediately without a vision/vector round trip.
+
+    Rejection is a lightweight negative preference, so the UI must not wait for
+    image analysis, storage upload, vector ingestion, or a full-app rerun. The
+    session record is used immediately by subsequent Graphic generations.
+    Approved styles continue to use the full persistent learning pipeline.
+    """
+    image = image or {}
+    fingerprint = _graphic_image_fingerprint(image)
+    registry = _graphic_style_feedback_registry()
+    existing = registry.get(fingerprint, {})
+    if str(existing.get("feedback") or "") == "rejected":
+        return {"feedback": "rejected", "already_saved": True, "instant": True}
+
+    prompt_text = str(image.get("prompt") or "").strip()
+    model_name = str(image.get("model") or "").strip()
+    profile = {
+        "record_type": "rejected_visual_style_session",
+        "title": "Rejected Generated Style",
+        "feedback": "rejected",
+        "original_prompt": prompt_text,
+        "image_fingerprint": fingerprint,
+        "prohibited_visual_elements": [
+            "Do not repeat the rejected composition, hierarchy, background treatment, or generic template styling."
+        ],
+        "reusable_prompt_guidance": (
+            "The user rejected this result. Return to the currently uploaded style references as the primary "
+            "visual direction and do not reuse the rejected result's layout or generic fallback template."
+        ),
+        "source_model": model_name,
+        "created_at": now_iso(),
+    }
+    registry[fingerprint] = {
+        "feedback": "rejected",
+        "profile": profile,
+        "record_id": None,
+        "saved_at": now_iso(),
+        "vector_ready": False,
+        "instant": True,
+    }
+    diagnostic_log("graphic_style_rejected_fast", fingerprint=fingerprint[:12], model=model_name)
+    return {"feedback": "rejected", "profile": profile, "already_saved": False, "instant": True}
+
+
+def _graphic_session_rejection_guidance(limit=4):
+    """Return concise negative guidance from styles rejected in this session."""
+    records = []
+    for entry in reversed(list(_graphic_style_feedback_registry().values())):
+        if str((entry or {}).get("feedback") or "") != "rejected":
+            continue
+        profile = (entry or {}).get("profile") or {}
+        guidance = str(profile.get("reusable_prompt_guidance") or "").strip()
+        original = str(profile.get("original_prompt") or "").strip()
+        if guidance:
+            records.append(f"- {guidance}")
+        elif original:
+            records.append(f"- Do not repeat the rejected result made for: {original[:500]}")
+        if len(records) >= max(1, int(limit)):
+            break
+    return "\n".join(records)
+
+
 def _uploaded_graphic_reference_payload(uploaded_file):
     """Return a safe image payload from one Streamlit uploaded reference file."""
     mime_type = str(getattr(uploaded_file, "type", "") or "").strip().lower()
@@ -18294,6 +18358,14 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
               "The user's current command controls the requested deliverable."
         )
     image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
+    session_rejections = _graphic_session_rejection_guidance()
+    if session_rejections:
+        image_api_prompt += (
+            "\n\nUSER-REJECTED VISUAL DIRECTIONS (MANDATORY NEGATIVE CONSTRAINTS):\n"
+            + session_rejections
+            + "\nReturn to the currently uploaded reference advertisements for layout, hierarchy, color, "
+              "background language, and product presentation. Do not reuse a generic dark template."
+        )
     role_items = classify_graphic_uploaded_image_roles(
         uploaded_files, prompt_text, forced_role=forced_upload_role
     )
@@ -18367,16 +18439,17 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         )
     if layered_studio_active:
         image_api_prompt += (
-            "\n\nPROFESSIONAL LAYERED STUDIO CONTRACT (MANDATORY):\n"
-            "Generate ONLY the cinematic automotive background/environment and lighting plate. "
-            "ABSOLUTELY DO NOT DRAW OR INCLUDE ANY PRODUCT DEVICE FROM THE STYLE REFERENCE. "
-            "The style reference product is forbidden content and must not appear even as a silhouette, screen, cluster, radio, dashboard module, reflection, or background prop. "
-            "Do not draw, recreate, imitate, or place the uploaded product either; the application will place its exact pixels later. Do not render headline, CTA, logo, icons, "
-            "feature labels, benefit bars, prices, or any customer-facing text. Reserve clean dark negative space on the "
-            "left 34 percent for typography and a clear hero zone across the center-right for the original product layer. "
-            "Use the verified compatible vehicle exterior/interior context and the reference blueprint's depth, color, "
-            "lighting, and visual grammar. The application will composite the exact original product pixels and render "
-            "all typography separately after this background is generated. Produce a clean, premium, realistic plate with no fake UI, no floating products, no duplicated screens, and no readable text anywhere in the generated background."
+            "\n\nREFERENCE-FAITHFUL COMMERCIAL EDIT CONTRACT (MANDATORY):\n"
+            "Create the COMPLETE final automotive commercial artwork, not a blank background plate and not a generic UI template. "
+            "The FIRST attached image is the real PRODUCT SOURCE and must remain the only hero hardware. Preserve its recognizable "
+            "housing, vertical orientation, screen, bezel, controls, vents, trim, proportions, and product identity. The remaining "
+            "STYLE REFERENCE advertisements control the visual direction only. Match their premium outdoor automotive scenery, bold "
+            "upper headline hierarchy, red compatibility/feature ribbon, large central or center-right hero product scale, clean feature "
+            "icon rows, dark bottom benefit bar, strong contrast, depth, lighting, and AutoTecPro advertising rhythm. Do not copy or "
+            "substitute any gauge cluster, screen, vehicle component, text claim, watermark, or product shown in a STYLE REFERENCE. "
+            "Use only user-supplied or verified wording; where exact copy is unavailable, keep text minimal rather than inventing specs. "
+            "Integrate the PRODUCT SOURCE naturally with realistic contact shadow and scene-matched lighting. The finished artwork must "
+            "visibly resemble the uploaded commercial references, not the rejected generic dark wireframe/template design."
         )
 
     # Keep immutable product references first in the edit input. Image-edit
@@ -18433,17 +18506,28 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
     result = None
     try:
         if layered_studio_active:
-            # v2000 product-first studio: create a clean no-device plate locally.
-            # This avoids provider backgrounds that may hallucinate another radio,
-            # cluster, screen, or dashboard and guarantees a single hero product.
-            local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
-            if not local_fallback_bytes:
-                result = image_client.images.generate(
-                    model=GRAPHIC_IMAGE_MODEL,
-                    prompt=image_api_prompt,
-                    n=GRAPHIC_IMAGE_COUNT,
-                    size=output_size,
-                )
+            # Product + references should use the provider's complete high-fidelity
+            # multi-image edit path. The previous local background-plate shortcut
+            # produced a generic dark template instead of matching the references.
+            if not reference_images:
+                raise RuntimeError("The product/reference edit inputs are unavailable.")
+            for reference in reference_images:
+                reference.seek(0)
+            image_input = reference_images if len(reference_images) > 1 else reference_images[0]
+            edit_kwargs = dict(
+                model=GRAPHIC_IMAGE_MODEL,
+                image=image_input,
+                prompt=image_api_prompt,
+                n=GRAPHIC_IMAGE_COUNT,
+                size=output_size,
+            )
+            try:
+                result = image_client.images.edit(input_fidelity="high", quality="high", **edit_kwargs)
+            except TypeError:
+                try:
+                    result = image_client.images.edit(input_fidelity="high", **edit_kwargs)
+                except TypeError:
+                    result = image_client.images.edit(**edit_kwargs)
         elif reference_images:
             for reference in reference_images:
                 reference.seek(0)
@@ -18502,7 +18586,9 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             continue
 
         layered_metadata = {}
-        if layered_studio_active:
+        if layered_studio_active and local_fallback_bytes:
+            # Provider failure: finish the reference-derived plate by placing the
+            # exact uploaded product pixels. This remains a clearly labelled draft.
             product_item = next((x for x in role_items if x.get("role") == "product_photo"), None)
             try:
                 png_bytes, layered_metadata = compose_graphic_layered_ad(
@@ -18514,12 +18600,21 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     role_items=role_items,
                 )
             except Exception as error:
-                diagnostic_log("graphic_layered_composite_runtime_failed", error_type=type(error).__name__, error=error)
+                diagnostic_log("graphic_layered_fallback_composite_failed", error_type=type(error).__name__, error=error)
                 png_bytes, layered_metadata = _graphic_emergency_exact_product_composite(
                     role_items, output_size, prompt_text, reference_blueprint=reference_blueprint
                 )
             if not png_bytes:
                 continue
+        elif layered_studio_active:
+            # A successful high-fidelity edit is already the complete artwork.
+            # Keep it intact so its composition, typography, scenery, and feature
+            # system remain faithful to the uploaded references.
+            layered_metadata = {
+                "engine": "high-fidelity-reference-edit-v2003",
+                "complete_provider_artwork": True,
+                "reference_faithful_edit": True,
+            }
 
         png_bytes, brand_logo_applied, brand_logo_position = (
             apply_autotecpro_brand_logo(
@@ -18547,7 +18642,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             "provider_error_type": type(provider_error).__name__ if provider_error else "",
             "strict_product_identity_lock": bool(preserve_product and has_product_source),
             "product_identity_method": (
-                "exact_source_pixel_composite" if layered_studio_active
+                "exact_source_pixel_composite" if local_fallback_bytes
                 else "high_fidelity_image_edit"
             ),
             "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION if layered_studio_active else "",
@@ -18556,7 +18651,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
             "prompt": prompt_text,
             "created_at": created_at.isoformat(),
-            "model": ("local-reference-derived-layered-studio" if layered_studio_active and local_fallback_bytes else GRAPHIC_IMAGE_MODEL),
+            "model": ("local-reference-derived-layered-studio" if local_fallback_bytes else GRAPHIC_IMAGE_MODEL),
             "size": output_size,
             "resolution": output_size,
             "mime_type": "image/png",
@@ -18645,24 +18740,43 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         try:
             product_score = int(float(review.get("product_accuracy_score", 100)))
             product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
-            passed = bool(review.get("passed", product_score >= product_threshold)) and product_score >= product_threshold
+            style_score = int(float(review.get("style_adherence_score", 100)))
+            layout_score = int(float(review.get("layout_adherence_score", 100)))
+            reference_threshold = 72 if has_current_style_references else 0
+            passed = (
+                bool(review.get("passed", product_score >= product_threshold))
+                and product_score >= product_threshold
+                and style_score >= reference_threshold
+                and layout_score >= reference_threshold
+            )
         except Exception:
-            product_score, product_threshold, passed = 100, graphic_product_mode_threshold(resolved_product_transform_mode), True
+            product_score = 100
+            style_score = 100
+            layout_score = 100
+            product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
+            reference_threshold = 72 if has_current_style_references else 0
+            passed = True
         correction = str(review.get("correction_prompt") or "").strip()
-        if quality_retry and preserve_product and not layered_studio_active and (not passed or product_score < product_threshold) and correction:
+        needs_retry = (
+            not passed
+            or product_score < product_threshold
+            or style_score < reference_threshold
+            or layout_score < reference_threshold
+        )
+        if quality_retry and preserve_product and needs_retry and correction:
             diagnostic_log("graphic_quality_retry", product_score=product_score)
             retry_prompt = (
                 prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
                 f"\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE under {resolved_product_transform_mode}. Preserve the exact product identity, screen UI, bezel architecture, controls, labels, trim, mounting geometry, openings and proportions. Keep any allowed lighting, perspective, cleanup and scene integration within the selected mode; remove only impermissible redesigns or invented hardware."
             )
-            retried = generate_graphic_marketing_images(
+            retried = _generate_graphic_marketing_images_advanced(
                 retry_prompt, uploaded_files, use_approved_style=use_approved_style,
                 preserve_product=preserve_product, style_strength=style_strength,
                 forced_upload_role=forced_upload_role, quality_retry=False,
                 product_transform_mode=resolved_product_transform_mode,
                 professional_layered_studio=professional_layered_studio,
             )
-            if retried:
+            if retried and not retried[0].get("provider_fallback_used"):
                 retried[0]["auto_corrected_after_review"] = True
                 retried[0]["initial_quality_review"] = review
                 return retried
@@ -18742,12 +18856,12 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
         for item in role_items:
             if item is preferred:
                 item["role"] = "product_photo"
-            elif item.get("role") not in {"logo", "supporting"}:
+            elif item.get("role") not in {"logo", "logo_asset", "supporting", "supporting_image"}:
                 item["role"] = "style_reference"
 
     if len(role_items) >= 2 and not any(item.get("role") == "style_reference" for item in role_items):
         for item in role_items[:-1]:
-            if item.get("role") != "logo":
+            if item.get("role") not in {"logo", "logo_asset", "supporting", "supporting_image"}:
                 item["role"] = "style_reference"
 
     diagnostic_log(
@@ -18879,8 +18993,9 @@ def _graphic_build_guaranteed_result(
         "filename": filename,
         "data_url": data_url,
         "generated": True,
-        "professional_layered_studio": True,
+        "professional_layered_studio": False,
         "provider_fallback_used": True,
+        "output_status": "local_draft_fallback",
         "provider_error_type": type(provider_error).__name__ if provider_error else "AdvancedGraphicEngineFallback",
         "strict_product_identity_lock": True,
         "product_identity_method": "exact_source_pixel_composite",
@@ -18964,7 +19079,10 @@ def generated_image_answer_text(images, regenerated=False):
         return "The image could not be generated."
 
     image = images[0]
-    action = "Generated another version" if regenerated else "Created your image"
+    if image.get("provider_fallback_used"):
+        action = "Created a local draft because the image provider did not complete the reference-faithful artwork"
+    else:
+        action = "Generated another version" if regenerated else "Created your image"
     details = [
         f"{action}.",
         f"Resolution: {image.get('resolution') or image.get('size') or 'Original'}",
@@ -19370,17 +19488,13 @@ def render_generated_image_actions(images, message_index=None):
                     disabled=current_feedback == "rejected",
                 ):
                     try:
-                        with st.spinner("Learning rejected visual style..."):
-                            save_result = save_graphic_style_memory(
-                                image,
-                                feedback="rejected",
-                            )
+                        save_result = reject_graphic_style_fast(image)
                         if save_result.get("already_saved"):
                             st.info("This style is already rejected.")
                         else:
-                            st.success("Rejected style saved as a negative rule.")
+                            st.success("Style rejected. It will not be reused in this Graphic session.")
                     except Exception as error:
-                        st.error(f"Could not save rejected style: {error}")
+                        st.error(f"Could not reject style: {error}")
 
 
 def process_pending_graphic_regeneration():
