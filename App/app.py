@@ -16882,11 +16882,14 @@ def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured
     # Strong direct generation phrases. These can be short contextual commands
     # such as "generate it" after reference discussion.
     direct_generation_patterns = (
-        r"^(?:please )?(?:generate|create|make|design|produce|render) (?:it|this|that|the image|the ad|the advertisement|the graphic|the design)(?: now)?[.!]?$",
-        r"\b(?:generate|create|make|design|produce|render) (?:the|a|an|my|our|this|that) (?:final )?(?:image|photo|picture|graphic|artwork|banner|thumbnail|poster|flyer|ad|advertisement|social media post|product shot|render)\b",
-        r"\b(?:use|take) (?:these|the uploaded|my) (?:images|photos|references|files) (?:and|to) (?:generate|create|make|design|produce|render)\b",
+        r"^(?:please )?(?:generate|create|make|design|produce|render) (?:it|this|that|the image|the photo|the ad|the advertisement|the graphic|the design)(?: now)?[.!]?$",
+        r"^(?:please )?(?:send|show|give) me (?:the |a |an )?(?:new |final |finished |commercial )*(?:image|photo|picture|graphic|artwork|banner|poster|ad|advertisement)(?: now)?[.!]?$",
+        r"^(?:please )?(?:go ahead|proceed|do it|make it|create it|generate it)(?: now)?[.!]?$",
+        r"\b(?:generate|create|make|design|produce|render) (?:the|a|an|my|our|this|that) (?:new |final |finished |commercial )*(?:image|photo|picture|graphic|artwork|banner|thumbnail|poster|flyer|ad|advertisement|social media post|product shot|render)\b",
+        r"\b(?:use|take) (?:this|that|these|the uploaded|my|our) (?:product|image|photo|images|photos|references|files) (?:and|to) (?:generate|create|make|design|produce|render)\b",
+        r"\b(?:use|take) (?:this|that|the uploaded|my|our) product to create (?:a|an|the) (?:similar |new |commercial )*(?:image|photo|ad|advertisement|graphic)\b",
         r"\b(?:go ahead|proceed) (?:and )?(?:generate|create|make|design|produce|render)\b",
-        r"\b(?:ready|looks good)[, ]+(?:generate|create|make|design|produce|render) (?:it|now)\b",
+        r"\b(?:ready|looks good|that works|perfect)[, ]+(?:generate|create|make|design|produce|render|send|show) (?:it|the image|the photo|the ad|the advertisement|now)\b",
         r"\bcreate (?:a )?(?:16:9|1:1|9:16|landscape|square|portrait)\b",
         r"\bturn (?:this|these|the uploaded .+?) into (?:an? )?(?:image|photo|graphic|ad|advertisement|poster|banner)\b",
     )
@@ -16940,8 +16943,8 @@ GRAPHIC CHAT CREATIVE-DIRECTOR GUARDRAIL:
 - Do not ask about Ford SYNC, RAM Uconnect, GM RPO codes, Toyota Entune, CANBUS, wiring, harnesses, climate-control type, factory-radio version, firmware, MCU, or installation during creative planning, upload permission, reference review, or ordinary conversation.
 - Never assume the product is for Ford. Remain vehicle-neutral across all supported brands.
 - When the user asks whether they can send a reference, answer yes and invite them to upload the reference advertisement and product photo. Do not request technical configuration at that stage.
-- For planning intent, keep the reply natural and concise. Explain the next creative step only. Do not generate an image and do not interrogate the user.
-- For analysis intent, analyze layout, composition, lighting, typography, product placement, vehicle presentation, feature hierarchy, CTA, and brand style. Do not generate unless clearly requested.
+- For planning intent, keep the reply natural and concise: normally 1-3 short sentences. Explain only the next creative step. Do not generate an image and do not interrogate the user.
+- For analysis intent, give a concise practical summary rather than a long report unless the user asks for detail. When a reference arrives, confirm what style was learned and ask for the product. When a product arrives after a reference, confirm readiness and invite a short command such as “Create it.” Do not expose an internal generation prompt or a “ready-to-generate prompt” block.
 - First attempt product identification from the uploaded image, filename, Product Library context, and approved Graphic knowledge.
 - Ask a clarification only when a factual detail is genuinely necessary and cannot be inferred safely. Use a neutral marketing-oriented product-choice question, never a protocol-specific question by default.
 - Do not invent compatibility, year range, screen size, specifications, or features.
