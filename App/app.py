@@ -142,6 +142,7 @@ except Exception:
 # focused vehicle validation, zone completeness checks, conversational edit state, and progress status.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v4300 Exact Product Structure Lock: exact uploaded-product hero compositing, critical opening/gap/mounting-geometry analysis, safer product mask padding, and structural-fidelity QA.
+# v7000 Dual-Mode Fast Graphic Engine: exact-product and AI-recreation routing, multi-view product identity, autonomous AutoTecPro campaigns without references, angle-change detection, and fast exact-product production path.
 # v3200 Reference-Locked Campaign Engine: persistent campaign copy/specification memory,
 #   strict vehicle/content separation, provider-first full artwork, deterministic reference-density
 #   hybrid correction using exact product pixels, correct target-vehicle scenery, typography,
@@ -16742,6 +16743,10 @@ def _empty_graphic_project_state():
         "current_canvas_version": 0,
         "edit_history": [],
         "last_edit_directive": {},
+        "product_render_mode": "exact_product",
+        "product_view_sources": [],
+        "product_identity_profile": {},
+        "last_generation_route": "",
         "visual_object_state": {
             "layout_locked": False,
             "style_locked": False,
@@ -16773,6 +16778,10 @@ def get_graphic_project_state():
     state.setdefault("current_canvas_version", 0)
     state.setdefault("edit_history", [])
     state.setdefault("last_edit_directive", {})
+    state.setdefault("product_render_mode", "exact_product")
+    state.setdefault("product_view_sources", [])
+    state.setdefault("product_identity_profile", {})
+    state.setdefault("last_generation_route", "")
     object_state = state.setdefault("visual_object_state", {})
     object_state.setdefault("layout_locked", False)
     object_state.setdefault("style_locked", False)
@@ -20591,6 +20600,137 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 
 
 
+
+
+def _graphic_product_recreation_intent_v7000(prompt_text):
+    """Return a bounded product-view recreation directive.
+
+    Exact-product compositing remains the default. This mode is activated only when
+    the user explicitly asks for a new camera angle, rotation, perspective, 3D view,
+    or AI recreation of the product itself.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = value.casefold()
+    patterns = (
+        r"\bchange (?:the )?(?:product )?angle\b",
+        r"\brotate (?:the )?(?:product|unit|device|screen)\b",
+        r"\b(?:three|3)[ -]?quarter view\b",
+        r"\b(?:left|right|side|rear|back|top|overhead|low)[ -]?(?:angle|view|perspective)\b",
+        r"\bview (?:it|the product|the unit) from\b",
+        r"\bnew camera angle\b",
+        r"\bdifferent angle\b",
+        r"\bai[- ]?(?:recreate|recreation|render|redraw)\b",
+        r"\bconceptual (?:3d )?(?:render|view)\b",
+        r"\bshow (?:the )?(?:product|unit) (?:at|from)\b",
+    )
+    matched = any(re.search(pattern, lower, flags=re.I) for pattern in patterns)
+    exact_override = any(term in lower for term in (
+        "use exact product", "keep exact product", "do not recreate", "do not redraw",
+        "preserve exact pixels", "front view only", "same angle",
+    ))
+    if exact_override:
+        matched = False
+    requested_view = ""
+    view_patterns = (
+        (r"\b(?:three|3)[ -]?quarter\b", "three-quarter"),
+        (r"\bleft[ -]?(?:angle|view|side|perspective)\b", "left three-quarter"),
+        (r"\bright[ -]?(?:angle|view|side|perspective)\b", "right three-quarter"),
+        (r"\b(?:rear|back)[ -]?(?:angle|view|perspective)?\b", "rear"),
+        (r"\b(?:top|overhead)[ -]?(?:angle|view|perspective)?\b", "overhead"),
+        (r"\bside[ -]?(?:angle|view|perspective)?\b", "side"),
+    )
+    for pattern, label in view_patterns:
+        if re.search(pattern, lower, flags=re.I):
+            requested_view = label
+            break
+    return {
+        "enabled": bool(matched),
+        "requested_view": requested_view or "new requested camera angle",
+        "explicit": bool(matched),
+        "source_text": value[:800],
+    }
+
+
+def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
+    """Select one authoritative product rendering mode for the request."""
+    recreation = _graphic_product_recreation_intent_v7000(prompt_text)
+    product_items = [i for i in (role_items or []) if i.get("role") == "product_photo"]
+    style_items = [i for i in (role_items or []) if i.get("role") == "style_reference"]
+    if has_edit_base and not recreation.get("enabled"):
+        mode = "edit_existing"
+    elif recreation.get("enabled") and len(product_items) >= 2:
+        mode = "multi_view_product_reconstruction"
+    elif recreation.get("enabled") and product_items:
+        mode = "ai_product_recreation"
+    elif product_items and style_items:
+        mode = "reference_guided_exact_product"
+    elif product_items:
+        mode = "autotecpro_style_exact_product"
+    else:
+        mode = "fully_generative_concept"
+    return {
+        "mode": mode,
+        "recreation": recreation,
+        "product_count": len(product_items),
+        "style_count": len(style_items),
+        "exact_product": mode in {"reference_guided_exact_product", "autotecpro_style_exact_product"},
+        "recreates_product": mode in {"ai_product_recreation", "multi_view_product_reconstruction"},
+    }
+
+
+def _graphic_multiview_identity_prompt_v7000(role_items, mode_info, structure_profile):
+    """Build strict product-identity instructions for an AI-created new viewpoint."""
+    if not (mode_info or {}).get("recreates_product"):
+        return ""
+    products = [i for i in (role_items or []) if i.get("role") == "product_photo"]
+    names = [str(i.get("name") or "product source") for i in products[:6]]
+    requested_view = str(((mode_info or {}).get("recreation") or {}).get("requested_view") or "new camera angle")
+    profile_text = _graphic_product_structure_text_v4300(structure_profile)
+    return f"""
+AI PRODUCT RECREATION MODE — STRICT IDENTITY LOCK:
+- Create the same physical AutoTecPro product from a {requested_view} viewpoint.
+- Product identity sources, in priority order: {', '.join(names) or 'uploaded product source'}.
+- Treat every supplied product view as the same unit. Reconcile them into one consistent object; do not average them into a generic dashboard.
+- Preserve the exact outer silhouette, screen aspect ratio/UI, bezel thickness, side trim/handles, climate knobs, physical buttons, lower frame, mounting tabs, cavities, openings, and the horizontal gap below the screen.
+- Never fill a real opening, delete a mounting tab, invent a control, simplify the lower frame, or change the screen interface.
+- Infer only surfaces that are genuinely hidden in all source views. Keep such inferred surfaces conservative, OEM-like, and consistent with visible geometry.
+- Do not copy a product from any advertisement reference. Style references control campaign styling only.
+- The result is an AI-recreated product view and must remain recognizably identical to the uploaded unit.
+- Structural identity profile: {profile_text or 'Use the uploaded product views as the complete identity specification.'}
+"""
+
+
+def _graphic_save_mode_state_v7000(mode_info, role_items, structure_profile=None):
+    state = get_graphic_project_state()
+    state["product_render_mode"] = str((mode_info or {}).get("mode") or "exact_product")
+    state["product_view_sources"] = [
+        {"name": str(i.get("name") or ""), "asset_id": str(i.get("asset_id") or "")}
+        for i in (role_items or []) if i.get("role") == "product_photo"
+    ][:8]
+    if isinstance(structure_profile, dict) and structure_profile:
+        state["product_identity_profile"] = structure_profile
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+
+def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
+    """Create an exact-product campaign without first generating a full AI advertisement.
+
+    This is the speed path: one scene/background request followed by deterministic
+    product, logo, typography, feature-grid, and benefit-bar composition.
+    """
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
+    )
+    result["output_status"] = "verified_exact_product_fast_v7000"
+    result["verification_status"] = "verified"
+    result["graphic_engine_version"] = "v7000"
+    result["product_render_mode"] = str((mode_info or {}).get("mode") or "exact_product")
+    result["ai_product_recreated"] = False
+    result["speed_optimized"] = True
+    result["project_editable"] = True
+    return result
+
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
@@ -20611,6 +20751,16 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         has_product = any(i.get("role") == "product_photo" for i in role_items)
         has_style = any(i.get("role") == "style_reference" for i in role_items)
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
+        product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
+        structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
+        _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
+        diagnostic_log(
+            "graphic_v7000_mode",
+            mode=product_mode.get("mode"),
+            product_count=product_mode.get("product_count"),
+            style_count=product_mode.get("style_count"),
+            requested_view=(product_mode.get("recreation") or {}).get("requested_view"),
+        )
         if preserve_product and has_style and not has_product and not has_edit_base:
             raise RuntimeError("The references are saved, but the product source could not be identified. Please upload the product photo once more.")
 
@@ -20637,7 +20787,31 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             vehicle_profile=vehicle_profile,
             rejected_guidance=rejected_guidance,
         ) + "\n\nREFERENCE GEOMETRY (normalized): " + json.dumps(geometry, ensure_ascii=False) + \
-            "\nVERIFIED CAMPAIGN FACTS: " + json.dumps(campaign_spec, ensure_ascii=False, default=str)
+            "\nVERIFIED CAMPAIGN FACTS: " + json.dumps(campaign_spec, ensure_ascii=False, default=str) + \
+            _graphic_multiview_identity_prompt_v7000(role_items, product_mode, structure_profile)
+
+        # v7000 speed path: exact-product jobs skip the expensive full-ad generation,
+        # correction, and repeated QA ladder. AI creates only the scenery/vehicle;
+        # deterministic code applies the exact product and all campaign components.
+        if product_mode.get("exact_product") and not has_edit_base:
+            _graphic_progress_update_v3300(status, "Creating the automotive scene and composing the exact uploaded product…")
+            exact_result = _graphic_fast_exact_campaign_v7000(
+                prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, product_mode
+            )
+            exact_result["reference_geometry"] = geometry
+            exact_result["campaign_spec"] = campaign_spec
+            exact_result["product_identity_profile"] = structure_profile
+            exact_result["output_size"] = output_size
+            _graphic_save_latest_project_result(exact_result)
+            state = get_graphic_project_state()
+            state["stage"] = "generated"
+            state["last_generation_route"] = "fast_exact_composer_v7000"
+            state["last_error"] = ""
+            state["last_failed_stage"] = ""
+            state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            _graphic_progress_update_v3300(status, "Exact-product campaign completed.", "complete")
+            return [exact_result]
 
         _graphic_progress_update_v3300(status, "Creating the complete commercial artwork…")
         raw_images, provider_route = [], ""
@@ -20759,7 +20933,9 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         # real opening or remove a bracket/gap. Therefore reference-driven product
         # jobs are finalized through the controlled exact-pixel compositor. Follow-up
         # edits may keep the provider edit path when the current canvas is being edited.
-        force_exact_product = bool(has_product and has_style and not has_edit_base)
+        force_exact_product = bool(
+            has_product and not has_edit_base and product_mode.get("exact_product")
+        )
         if has_product and has_style and (final_result is None or force_exact_product):
             _graphic_progress_update_v3300(status, "Applying the exact uploaded product structure and preserving every opening, gap, control, and mounting detail…")
             try:
@@ -20818,6 +20994,15 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         final_result["project_editable"] = True
         final_result["provider_first_acceptance"] = True
         final_result["output_size"] = output_size
+        final_result["product_render_mode"] = product_mode.get("mode")
+        final_result["ai_product_recreated"] = bool(product_mode.get("recreates_product"))
+        final_result["product_view_count"] = int(product_mode.get("product_count") or 0)
+        final_result["requested_product_view"] = str((product_mode.get("recreation") or {}).get("requested_view") or "")
+        final_result["product_identity_profile"] = structure_profile
+        if product_mode.get("recreates_product"):
+            final_result["verification_warning"] = (
+                "AI-recreated product view: visible source details are identity-locked, but geometry hidden in all supplied views is inferred."
+            )
         active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
         final_result["edit_mode"] = bool(has_edit_base)
         final_result["edit_directive"] = active_edit if has_edit_base else {}
@@ -20828,7 +21013,8 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             None,
         )
         state = get_graphic_project_state()
-        state["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
+        state["graphic_engine_version"] = "v7000"
+        state["last_generation_route"] = str(final_result.get("provider_route") or final_result.get("generation_route") or product_mode.get("mode") or "")
         state["stage"] = "generated"
         state["last_error"] = ""
         state["last_failed_stage"] = ""
@@ -20869,7 +21055,11 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status in {"verified_controlled_campaign", "completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
+    if status == "verified_exact_product_fast_v7000":
+        action = "Created your exact-product AutoTecPro campaign image"
+    elif image.get("ai_product_recreated"):
+        action = "Created an AI-recreated product view from your supplied product references"
+    elif status in {"verified_controlled_campaign", "completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
         action = "Created your verified, reference-locked campaign image"
     elif status in {"verified_after_correction", "completed_after_correction", "completed_after_correction_v3300"}:
         action = "Created and quality-corrected your image"
