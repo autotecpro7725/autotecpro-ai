@@ -134,6 +134,7 @@ except Exception:
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
 # v3100 Graphic vehicle/content lock: persist explicit vehicle facts across turns, prevent reference-product/content leakage, enforce reference-detail density, and add vehicle-aware QA correction.
 # v3000 ChatGPT-style Graphic engine: one authoritative conversational image pipeline, persistent edit base, reference-faithful multi-image generation, one controlled correction pass, and no generic-template final fallback.
+# v4200 persistent visual editing: object-aware follow-up edits, current-canvas locking, campaign-copy replacement parsing, immutable-layout directives, and versioned canvas history.
 # v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
 # v3300 Complete Graphic Production Engine: provider-first acceptance, fail-closed QA,
 # dynamic reference geometry, Product Library grounding, persistent cutout masks, deterministic copy,
@@ -16721,6 +16722,7 @@ def _normalize_native_chat_submission(value):
     return text, files
 
 
+
 def _empty_graphic_project_state():
     return {
         "stage": "planning",
@@ -16729,12 +16731,25 @@ def _empty_graphic_project_state():
         "generation_history": [],
         "last_intent": "conversation",
         "last_error": "",
-        # v3100: explicit user facts survive short follow-ups such as “create it”.
         "explicit_vehicle": {},
         "project_brief_history": [],
         "campaign_spec": {},
+        # v4200 visual-editing state. The latest generated artwork is the active
+        # canvas until New Case clears the project.
+        "current_canvas_id": "",
+        "current_canvas_version": 0,
+        "edit_history": [],
+        "last_edit_directive": {},
+        "visual_object_state": {
+            "layout_locked": False,
+            "style_locked": False,
+            "vehicle_locked": False,
+            "product_locked": False,
+        },
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
 
 
 def get_graphic_project_state():
@@ -16752,7 +16767,17 @@ def get_graphic_project_state():
     state.setdefault("explicit_vehicle", {})
     state.setdefault("project_brief_history", [])
     state.setdefault("campaign_spec", {})
+    state.setdefault("current_canvas_id", "")
+    state.setdefault("current_canvas_version", 0)
+    state.setdefault("edit_history", [])
+    state.setdefault("last_edit_directive", {})
+    object_state = state.setdefault("visual_object_state", {})
+    object_state.setdefault("layout_locked", False)
+    object_state.setdefault("style_locked", False)
+    object_state.setdefault("vehicle_locked", False)
+    object_state.setdefault("product_locked", False)
     return state
+
 
 
 def clear_graphic_project_state():
@@ -16807,13 +16832,87 @@ def _graphic_extract_explicit_vehicle(text):
 
 
 
-def _graphic_extract_campaign_spec(text, existing=None):
-    """Extract durable commercial copy facts from explicit user directions.
 
-    The style reference controls visual hierarchy only. Copy and compatibility facts
-    are retained from the user's own messages so short commands such as ``create it``
-    cannot fall back to text visible in a Ford reference advertisement.
+def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
+    """Parse short natural-language edits into an object-level change directive.
+
+    The latest generated artwork remains the active canvas.  This parser separates
+    copy-only edits from product, vehicle, background and layout edits so a request
+    such as ``change the vertical dash display to Tesla infotainment system`` changes
+    the headline/campaign wording instead of hallucinating a different screen UI.
     """
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    lower = value.casefold()
+    directive = {
+        "is_edit": _graphic_is_followup_edit_request(value),
+        "raw_instruction": value[:1200],
+        "change_targets": [],
+        "preserve_targets": [],
+        "copy_updates": {},
+        "replacement_from": "",
+        "replacement_to": "",
+        "edit_mode": "object_edit",
+    }
+    if not value:
+        return directive
+
+    # Common replacement grammar.  Keep it deliberately conservative and bounded.
+    replacement_patterns = (
+        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)(?:[.!]|$)",
+        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)(?:[.!]|$)",
+    )
+    replacement = None
+    for pattern in replacement_patterns:
+        replacement = re.search(pattern, value, flags=re.IGNORECASE)
+        if replacement:
+            break
+    if replacement:
+        old = re.sub(r"\s+", " ", replacement.group(1)).strip(" .,:;-\"")
+        new = re.sub(r"\s+", " ", replacement.group(2)).strip(" .,:;-\"")
+        directive["replacement_from"] = old
+        directive["replacement_to"] = new
+        old_lower = old.casefold()
+        # Product/category wording is copy unless the user explicitly says to replace
+        # the physical product, unit, hardware, housing, device or uploaded product.
+        physical_words = ("product photo", "physical product", "hardware", "housing", "unit itself", "device itself")
+        text_words = ("headline", "title", "wording", "text", "display", "dash display", "product name", "category")
+        if any(term in lower for term in physical_words):
+            directive["change_targets"].append("hero_product")
+        elif any(term in old_lower for term in text_words) or any(term in lower for term in ("headline", "title", "wording", "text")):
+            directive["change_targets"].append("headline")
+            directive["copy_updates"]["product_category"] = new.upper()
+            spec = dict(existing_spec or {})
+            size = str(spec.get("screen_size") or "").strip()
+            directive["copy_updates"]["headline"] = f"{size} {new}".strip().upper()
+        else:
+            directive["change_targets"].append("requested_object")
+
+    target_map = {
+        "headline": ("headline", "title", "wording", "text"),
+        "hero_product": ("product", "unit", "screen", "device", "hardware"),
+        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150"),
+        "background": ("background", "mountain", "sky", "scene", "sunset", "lighting"),
+        "logo": ("logo", "branding", "website"),
+        "feature_matrix": ("feature", "icon", "icons"),
+        "bottom_benefit_bar": ("bottom bar", "benefit bar", "bottom strip"),
+        "layout": ("layout", "position", "spacing", "move", "resize", "bigger", "smaller"),
+    }
+    for target, terms in target_map.items():
+        if any(term in lower for term in terms) and target not in directive["change_targets"]:
+            directive["change_targets"].append(target)
+
+    # Default ChatGPT-style behavior: preserve every unmentioned object.
+    all_targets = list(target_map)
+    directive["preserve_targets"] = [x for x in all_targets if x not in directive["change_targets"]]
+    if "keep everything else" in lower or "only" in lower:
+        directive["strict_preservation"] = True
+    else:
+        directive["strict_preservation"] = bool(directive["change_targets"])
+    return directive
+
+
+def _graphic_extract_campaign_spec(text, existing=None):
+    """Extract durable commercial copy facts and object-level follow-up edits."""
     existing = dict(existing or {})
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     if not value:
@@ -16836,48 +16935,52 @@ def _graphic_extract_campaign_spec(text, existing=None):
         "tagline": r"(?i)\btagline\s*[:\-]\s*([^|;]{4,140})",
         "compatibility": r"(?i)\b(?:compatibility|vehicle|fits?)\s*[:\-]\s*([^|;]{3,140})",
         "website": r"(?i)\bwebsite\s*[:\-]\s*([^|;\s]{4,100})",
+        "product_category": r"(?i)\b(?:product category|product name|category)\s*[:\-]\s*([^|;]{3,120})",
     }
     for key, pattern in labelled.items():
         match = re.search(pattern, value)
         if match:
             existing[key] = re.sub(r"\s+", " ", match.group(1)).strip(" .")
 
-    # Preserve quoted commercial copy when the user supplies it.
     quoted = re.findall(r'["“]([^"”]{4,140})["”]', value)
     if quoted and any(term in lower for term in ("headline", "title", "say", "write", "text")):
         existing["headline"] = quoted[0].strip()
 
-    if "silverado" in lower:
-        existing.setdefault("vehicle_label", "CHEVROLET SILVERADO")
-    elif re.search(r"\bf[\s-]?150\b", lower):
-        existing.setdefault("vehicle_label", "FORD F-150")
+    edit = _graphic_parse_followup_edit_v4200(value, existing)
+    for key, val in (edit.get("copy_updates") or {}).items():
+        if str(val).strip():
+            existing[key] = str(val).strip()
 
+    if "silverado" in lower:
+        existing["vehicle_label"] = "CHEVROLET SILVERADO"
+    elif re.search(r"\bf[\s-]?150\b", lower):
+        existing["vehicle_label"] = "FORD F-150"
+
+    # Do not invent universal product facts. Preserve legacy values only when they
+    # already exist; otherwise use neutral wording until the user/Product Library
+    # supplies a verified category and size.
     existing.setdefault("website", "www.AutoTecPro.com")
     existing.setdefault("tagline", "Smarter Drive. More Control. All in Sight.")
-    existing.setdefault("screen_size", "15.1\"")
-    existing.setdefault("product_category", "VERTICAL DASH DISPLAY")
+    existing.setdefault("product_category", "PREMIUM INFOTAINMENT SYSTEM")
     existing.setdefault("feature_labels", [
-        "Large Vertical Screen",
-        "Multiple Display Styles",
-        "Real-Time Vehicle Data",
-        "Integrated Climate Control",
-        "Multimedia Interface",
-        "Vehicle Information",
-        "OEM-Style Integration",
-        "High-Brightness Display",
+        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data",
+        "Integrated Climate Control", "Multimedia Interface", "Vehicle Information",
+        "OEM-Style Integration", "High-Brightness Display",
     ])
     existing.setdefault("bottom_benefits", [
-        "Plug and Play",
-        "Vehicle Information",
-        "Multiple Display Styles",
-        "OEM Fit & Finish",
-        "High-Brightness Screen",
+        "Plug and Play", "Vehicle Information", "Multiple Display Styles",
+        "OEM Fit & Finish", "High-Brightness Screen",
     ])
+    if not existing.get("headline"):
+        size = str(existing.get("screen_size") or "").strip()
+        existing["headline"] = f"{size} {existing['product_category']}".strip().upper()
     return existing
 
 
+
+
 def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
-    """Return the project campaign specification with explicit vehicle facts locked."""
+    """Return project campaign copy with explicit facts and edits locked."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
@@ -16886,33 +16989,50 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
         spec["compatibility"] = explicit_name
         spec["vehicle_label"] = explicit_name.upper()
         spec["vehicle"] = dict(state.get("explicit_vehicle") or {})
-    size = str(spec.get("screen_size") or "15.1\"")
-    category = str(spec.get("product_category") or "VERTICAL DASH DISPLAY")
-    spec.setdefault("headline", f"{size} {category}")
+    if not spec.get("headline"):
+        size = str(spec.get("screen_size") or "").strip()
+        category = str(spec.get("product_category") or "PREMIUM INFOTAINMENT SYSTEM").strip()
+        spec["headline"] = f"{size} {category}".strip().upper()
     state["campaign_spec"] = spec
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return spec
 
+
+
 def _graphic_update_project_brief(prompt_text):
-    """Persist explicit project facts and recent meaningful user directions."""
+    """Persist explicit project facts, canvas edits and recent user directions."""
     state = get_graphic_project_state()
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if value:
         history = [str(item) for item in (state.get("project_brief_history") or []) if str(item).strip()]
-        # Do not let generic execution commands displace useful project facts.
         if value.casefold() not in {"create it", "create", "generate it", "proceed", "do it", "regenerate"}:
             history.append(value[:1200])
-            state["project_brief_history"] = history[-8:]
+            state["project_brief_history"] = history[-12:]
         explicit = _graphic_extract_explicit_vehicle(value)
         if explicit:
             state["explicit_vehicle"] = explicit
-        state["campaign_spec"] = _graphic_extract_campaign_spec(
-            value, state.get("campaign_spec") or {}
-        )
+            state.setdefault("visual_object_state", {})["vehicle_locked"] = True
+        existing_spec = state.get("campaign_spec") or {}
+        edit = _graphic_parse_followup_edit_v4200(value, existing_spec)
+        state["campaign_spec"] = _graphic_extract_campaign_spec(value, existing_spec)
+        if edit.get("is_edit") and state.get("latest_generated"):
+            edit["canvas_id"] = state.get("current_canvas_id") or ""
+            edit["canvas_version"] = int(state.get("current_canvas_version") or 0)
+            edit["created_at"] = datetime.now(timezone.utc).isoformat()
+            state["last_edit_directive"] = edit
+            edits = [x for x in (state.get("edit_history") or []) if isinstance(x, dict)]
+            edits.append(edit)
+            state["edit_history"] = edits[-20:]
+            object_state = state.setdefault("visual_object_state", {})
+            object_state["layout_locked"] = "layout" not in (edit.get("change_targets") or [])
+            object_state["style_locked"] = True
+            object_state["product_locked"] = "hero_product" not in (edit.get("change_targets") or [])
+            state["stage"] = "editing"
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return state
+
 
 
 def _graphic_resolve_vehicle_lock(prompt_text, researched_profile=None):
@@ -18746,10 +18866,22 @@ def _graphic_chatgpt_production_prompt(
     if prohibited_terms:
         lines.append("STRICTLY PROHIBITED vehicle/content terms and visual identities: " + ", ".join(prohibited_terms) + ". Remove them even if they appear in the style reference.")
     if has_edit_base:
+        edit_directive = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+        change_targets = [str(x) for x in (edit_directive.get("change_targets") or [])]
+        preserve_targets = [str(x) for x in (edit_directive.get("preserve_targets") or [])]
         lines.extend([
-            "IMAGE 1 is the CURRENT ARTWORK TO EDIT. Apply the requested change to this artwork.",
-            "Preserve all unaffected composition, product details, branding, and approved text unless the user explicitly changes them.",
+            "IMAGE 1 is the CURRENT ARTWORK TO EDIT. This is an EDIT, not a new design.",
+            "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar and spacing unless the user explicitly names that object for change.",
+            "Do not redesign or reinterpret unaffected areas. Make the smallest possible visual change that satisfies the current command.",
+            "OBJECTS ALLOWED TO CHANGE: " + (", ".join(change_targets) if change_targets else "only the specifically requested wording/object"),
+            "OBJECTS THAT MUST REMAIN UNCHANGED: " + (", ".join(preserve_targets) if preserve_targets else "all other objects"),
         ])
+        if edit_directive.get("replacement_from") or edit_directive.get("replacement_to"):
+            lines.append(
+                "EXACT REPLACEMENT: replace " + repr(str(edit_directive.get("replacement_from") or ""))
+                + " with " + repr(str(edit_directive.get("replacement_to") or ""))
+                + ". When this is campaign wording, change the text only and do not alter the physical product or its screen UI."
+            )
     if has_product:
         lines.extend([
             "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
@@ -18782,7 +18914,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_V4000_ENGINE_VERSION = "v4100-runtime-reliability-engine"
+GRAPHIC_V4000_ENGINE_VERSION = "v4200-persistent-visual-editing-engine"
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
 
@@ -19151,28 +19283,38 @@ def _graphic_build_provider_result_v3000(
     return result
 
 
+
 def _graphic_save_latest_project_result(image):
-    """Persist the latest result for natural-language follow-up editing."""
+    """Persist the latest result as the active editable canvas and version snapshot."""
     if not isinstance(image, dict) or not str(image.get("data_url") or "").startswith("data:image/"):
         return
     state = get_graphic_project_state()
+    raw, _mime = data_url_to_bytes(str(image.get("data_url") or ""))
+    canvas_id = hashlib.sha256(raw or str(image.get("data_url") or "").encode()).hexdigest()[:20]
+    next_version = int(state.get("current_canvas_version") or 0) + 1
     snapshot = {
         key: image.get(key)
         for key in (
             "name", "filename", "data_url", "prompt", "created_at", "resolution",
             "mime_type", "provider_route", "output_status", "quality_review",
             "reference_geometry", "campaign_spec", "vehicle_validation",
-            "zone_completeness", "graphic_engine_version",
+            "zone_completeness", "graphic_engine_version", "verification_status",
+            "verification_warning", "edit_mode", "edit_directive",
         )
     }
+    snapshot["canvas_id"] = canvas_id
+    snapshot["canvas_version"] = next_version
     history = [item for item in (state.get("generation_history") or []) if isinstance(item, dict)]
     history.append(snapshot)
-    state["generation_history"] = history[-5:]
+    state["generation_history"] = history[-10:]
     state["latest_generated"] = snapshot
+    state["current_canvas_id"] = canvas_id
+    state["current_canvas_version"] = next_version
     state["stage"] = "generated"
     state["last_error"] = ""
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
 
 
 
@@ -20419,6 +20561,9 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         final_result["project_editable"] = True
         final_result["provider_first_acceptance"] = True
         final_result["output_size"] = output_size
+        active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+        final_result["edit_mode"] = bool(has_edit_base)
+        final_result["edit_directive"] = active_edit if has_edit_base else {}
         _graphic_save_latest_project_result(final_result)
         _graphic_safe_optional_call(
             "graphic_v4100_intelligence_store_failed_open",
