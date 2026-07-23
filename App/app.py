@@ -122,6 +122,9 @@ except Exception:
 #   campaign and brand memory, Product Library grounding hooks, cleanup/comparison
 #   workflows, continuous generation learning, expanded QA, and admin governance.
 # v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
+# v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
+#   permission requests stay text-only; explicit create/edit/regenerate commands alone
+#   invoke the image API; Advanced Designer submissions remain deterministic generation.
 # v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
 #   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
 #   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
@@ -16512,46 +16515,140 @@ def apply_autotecpro_brand_logo(
 
 
 
-def is_graphic_image_generation_request(prompt_text, uploaded_files=None):
-    """
-    Detect an explicit request to create or edit an image.
+def _recent_graphic_conversation_text(max_messages=10):
+    """Return recent visible Graphic Chat text for contextual intent resolution."""
+    parts = []
+    for message in (st.session_state.get("messages") or [])[-max(1, int(max_messages)):]:
+        if not isinstance(message, dict):
+            continue
+        content = clean_visible_chat_text(message.get("content") or "")
+        content = re.sub(r"\s+", " ", str(content or "")).strip()
+        if content:
+            parts.append(f"{message.get('role', 'user')}: {content[:1200]}")
+    return "\n".join(parts)[-8000:]
 
-    Graphic Marketing can still answer ordinary text questions. Image
-    generation activates only when the prompt clearly asks for visual output.
+
+def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured_request=False):
+    """Classify Graphic Marketing chat intent without spending an extra AI call.
+
+    The router intentionally prefers conversation/analysis when wording is
+    ambiguous. This mirrors ChatGPT image behavior: planning, asking permission
+    to upload, and reference discussion do not create an image. A structured
+    Advanced Designer submission is always an explicit generation request.
     """
-    text = str(prompt_text or "").strip().lower()
+    if structured_request:
+        return "generate"
+
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
-        return False
+        return "conversation"
 
+    image_uploads = [
+        item for item in (uploaded_files or [])
+        if str(getattr(item, "type", "") or "").casefold().startswith("image/")
+    ]
+    has_images = bool(image_uploads)
+
+    # Questions and preparation statements must never launch the image API.
+    defer_patterns = (
+        r"\bcan i (?:send|upload|show|attach|provide)\b",
+        r"\bmay i (?:send|upload|show|attach|provide)\b",
+        r"\bshould i (?:send|upload|show|attach|provide)\b",
+        r"\bcan you (?:first )?(?:look at|review|analy[sz]e|inspect|compare|study)\b",
+        r"\b(?:before|prior to) (?:you )?(?:create|generate|make|design|edit)\b",
+        r"\b(?:reference|product) (?:first|later|afterwards|next)\b",
+        r"\b(?:i want|i would like|i'd like|we want|we would like) to (?:create|make|design|generate)\b.*\b(?:can|may|should|first|before)\b",
+        r"\b(?:i want|i would like|i'd like|we want|we would like|planning|thinking) to (?:create|make|design|generate)\b.*\b(?:later|eventually|afterwards|next|soon)\b",
+        r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
+        r"\bwhat (?:do you|should i|would you) need\b",
+        r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
+        r"\bdo not (?:create|generate|make|edit) (?:it|anything|the image) yet\b",
+        r"\bnot ready to (?:create|generate|make|edit)\b",
+    )
+    if any(re.search(pattern, text) for pattern in defer_patterns):
+        return "planning"
+
+    # Explicit learning stays separate from generation.
+    if any(phrase in text for phrase in (
+        "learn this style", "save this style", "remember this style",
+        "store this style", "add this to graphic memory",
+    )):
+        return "learn"
+
+    analysis_terms = (
+        "analyze", "analyse", "review", "inspect", "compare", "describe",
+        "what do you see", "identify", "study", "evaluate", "give feedback",
+        "tell me about", "break down", "extract the style", "reference analysis",
+    )
+    if any(term in text for term in analysis_terms):
+        return "analyze"
+
+    # Follow-up editing commands are explicit only when an existing/generated
+    # image is referenced by demonstratives or by a concrete visual change.
+    edit_patterns = (
+        r"\b(?:edit|modify|retouch|revise|update) (?:this|that|the|my|last|previous) (?:image|photo|graphic|ad|advertisement|design|version)\b",
+        r"\b(?:change|replace|remove|add|move|resize|reposition|brighten|darken|crop) (?:the|this|that|its)\b",
+        r"\bkeep everything else (?:the same|unchanged)\b",
+        r"\bregenerate (?:it|this|that|the image|the ad|the advertisement|the last version)\b",
+        r"\bmake (?:the|this|that) (?:background|headline|product|logo|truck|vehicle|text|lighting)\b",
+    )
+    if any(re.search(pattern, text) for pattern in edit_patterns):
+        return "edit"
+
+    # Strong direct generation phrases. These can be short contextual commands
+    # such as "generate it" after reference discussion.
+    direct_generation_patterns = (
+        r"^(?:please )?(?:generate|create|make|design|produce|render) (?:it|this|that|the image|the ad|the advertisement|the graphic|the design)(?: now)?[.!]?$",
+        r"\b(?:generate|create|make|design|produce|render) (?:the|a|an|my|our|this|that) (?:final )?(?:image|photo|picture|graphic|artwork|banner|thumbnail|poster|flyer|ad|advertisement|social media post|product shot|render)\b",
+        r"\b(?:use|take) (?:these|the uploaded|my) (?:images|photos|references|files) (?:and|to) (?:generate|create|make|design|produce|render)\b",
+        r"\b(?:go ahead|proceed) (?:and )?(?:generate|create|make|design|produce|render)\b",
+        r"\b(?:ready|looks good)[, ]+(?:generate|create|make|design|produce|render) (?:it|now)\b",
+        r"\bcreate (?:a )?(?:16:9|1:1|9:16|landscape|square|portrait)\b",
+        r"\bturn (?:this|these|the uploaded .+?) into (?:an? )?(?:image|photo|graphic|ad|advertisement|poster|banner)\b",
+    )
+    if any(re.search(pattern, text) for pattern in direct_generation_patterns):
+        return "generate"
+
+    # Commands that mention both a visual deliverable and an unambiguous action
+    # are generation requests, except future/conditional/planning language.
     visual_nouns = (
         "image", "photo", "picture", "graphic", "artwork", "banner",
-        "thumbnail", "poster", "flyer", "ad", "advertisement", "logo",
-        "background", "social media post", "instagram post",
-        "facebook post", "facebook cover", "youtube cover",
-        "product shot", "product photography", "render",
+        "thumbnail", "poster", "flyer", "advertisement", "product shot",
+        "product photography", "social media post", "instagram post",
+        "facebook post", "facebook cover", "youtube cover", "render",
     )
-    action_words = (
-        "create", "generate", "make", "design", "draw", "render",
-        "produce", "edit", "modify", "change", "replace", "remove",
-        "add", "transform", "recreate", "enhance", "retouch",
+    creation_verbs = ("create", "generate", "make", "design", "produce", "render")
+    conditional_terms = (
+        "want to", "would like to", "planning to", "thinking about",
+        "can i", "may i", "should i", "before", "first", "later",
+        "eventually", "when we", "once i", "after i",
     )
+    if (
+        any(noun in text for noun in visual_nouns)
+        and any(verb in text for verb in creation_verbs)
+        and not any(term in text for term in conditional_terms)
+    ):
+        return "generate"
 
-    has_visual_noun = any(term in text for term in visual_nouns)
-    has_action_word = any(term in text for term in action_words)
+    # Uploading images alone is evidence for analysis, not consent to generate.
+    if has_images:
+        return "analyze"
 
-    # Common direct commands that may omit the word "image."
-    direct_phrases = (
-        "turn this into", "use this photo", "use this image",
-        "change the background", "remove the background",
-        "make it look", "make this look", "create a 16:9",
-        "create a 1:1", "create a 9:16",
-    )
+    return "conversation"
 
-    return (
-        (has_visual_noun and has_action_word)
-        or any(phrase in text for phrase in direct_phrases)
-    )
 
+def is_graphic_image_generation_request(
+    prompt_text,
+    uploaded_files=None,
+    *,
+    structured_request=False,
+):
+    """Return True only for explicit Graphic creation or editing intent."""
+    return classify_graphic_chat_intent(
+        prompt_text,
+        uploaded_files,
+        structured_request=structured_request,
+    ) in {"generate", "edit"}
 
 def choose_graphic_image_size(prompt_text):
     """
@@ -34123,12 +34220,23 @@ else:
             ).strip().lower()
             if explicit_format:
                 document_creator_settings["format"] = explicit_format
-        is_graphic_generation = (
+        is_structured_graphic_request = bool(
             assistant == "🎨 Graphic Marketing"
-            and is_graphic_image_generation_request(
-                prompt,
+            and isinstance(active_structured_tool, dict)
+            and isinstance(active_structured_tool.get("graphic_options"), dict)
+        )
+        graphic_chat_intent = (
+            classify_graphic_chat_intent(
+                interaction_prompt,
                 effective_uploaded_files,
+                structured_request=is_structured_graphic_request,
             )
+            if assistant == "🎨 Graphic Marketing"
+            else "conversation"
+        )
+        is_graphic_generation = bool(
+            assistant == "🎨 Graphic Marketing"
+            and graphic_chat_intent in {"generate", "edit"}
         )
         is_graphic_reference_learning = (
             is_graphic_reference_style_learning_request(
@@ -34141,6 +34249,15 @@ else:
         if is_graphic_reference_learning:
             # Learning uploaded references must never be misrouted to Image Edit.
             is_graphic_generation = False
+
+        if assistant == "🎨 Graphic Marketing":
+            diagnostic_log(
+                "graphic_chat_intent",
+                intent=graphic_chat_intent,
+                structured=is_structured_graphic_request,
+                has_uploaded_images=has_uploaded_images,
+                generation=is_graphic_generation,
+            )
 
         # Default for learning and graphic-generation branches. The previous
         # revision assigned this only inside the ordinary AI-response branch,
