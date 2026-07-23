@@ -18782,7 +18782,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_V4000_ENGINE_VERSION = "v4000-complete-graphic-ai-engine"
+GRAPHIC_V4000_ENGINE_VERSION = "v4100-runtime-reliability-engine"
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
 
@@ -18800,19 +18800,57 @@ def _graphic_compact_error_v4000(error):
     return value[:700]
 
 
+
+def _graphic_sdk_capabilities_v4100():
+    """Return safe local SDK capability flags without making a network request."""
+    return {
+        "responses": bool(getattr(client, "responses", None) and hasattr(client.responses, "create")),
+        "images_edit": bool(getattr(client, "images", None) and hasattr(client.images, "edit")),
+        "images_generate": bool(getattr(client, "images", None) and hasattr(client.images, "generate")),
+    }
+
+
+def _graphic_responses_model_candidates_v4100():
+    """Return configured and default orchestration models in stable order."""
+    configured = get_optional_secret("GRAPHIC_RESPONSES_MODEL", "gpt-5.5")
+    candidates = []
+    for value in (configured, "gpt-5.5"):
+        clean = str(value or "").strip()
+        if clean and clean not in candidates:
+            candidates.append(clean)
+    return candidates
+
+
+def _graphic_validation_unavailable_v4100(reason="validation unavailable"):
+    return {"verified": None, "available": False, "score": None, "reason": str(reason)}
+
+
+def _graphic_validation_is_unavailable_v4100(value):
+    value = value or {}
+    return value.get("available") is False or value.get("verified") is None
+
+
+def _graphic_mark_unverified_v4100(result, reason, status="completed_unverified"):
+    result = dict(result or {})
+    result["output_status"] = status
+    result["verification_status"] = "unverified"
+    result["verification_warning"] = str(reason or "Some optional quality checks were unavailable.")[:900]
+    return result
+
+
 def _graphic_responses_model_v4000():
     """Use an optional image-orchestration model override while preserving defaults."""
     configured = get_optional_secret("GRAPHIC_RESPONSES_MODEL", "gpt-5.5")
     return configured or "gpt-5.5"
 
 
-def _graphic_responses_tool_variants_v4000(action, output_size, has_images):
-    """Yield modern-to-conservative tool schemas for SDK/API compatibility.
 
-    OpenAI's current Responses image tool supports action, quality, size,
-    output_format, background, and input_fidelity. Older installed SDK/API
-    combinations may reject one optional field. Retrying only on a rejected
-    request keeps the preferred modern request while avoiding a total failure.
+def _graphic_responses_tool_variants_v4000(action, output_size, has_images):
+    """Return a short, non-streaming compatibility ladder for image generation.
+
+    ``partial_images`` is intentionally excluded because this application uses
+    ``responses.create`` rather than a streaming response. The ladder starts
+    with the preferred high-fidelity schema and removes only optional fields.
     """
     base = {
         "type": "image_generation",
@@ -18821,17 +18859,14 @@ def _graphic_responses_tool_variants_v4000(action, output_size, has_images):
         "size": _graphic_normalize_output_size_v4000(output_size),
         "output_format": "png",
         "background": "opaque",
-        "partial_images": 1,
     }
     if has_images:
         base["input_fidelity"] = "high"
     variants = [dict(base)]
     for remove in (
-        ("partial_images",),
-        ("partial_images", "background"),
-        ("partial_images", "background", "output_format"),
-        ("partial_images", "background", "output_format", "input_fidelity"),
-        ("partial_images", "background", "output_format", "input_fidelity", "action"),
+        ("background",),
+        ("background", "output_format", "input_fidelity"),
+        ("background", "output_format", "input_fidelity", "action"),
     ):
         item = dict(base)
         for key in remove:
@@ -18839,7 +18874,6 @@ def _graphic_responses_tool_variants_v4000(action, output_size, has_images):
         if item not in variants:
             variants.append(item)
     return variants
-
 
 def _graphic_response_image_bytes_v4000(response):
     """Extract image bytes from completed response objects and compatible SDK shapes."""
@@ -18872,8 +18906,9 @@ def _graphic_response_image_bytes_v4000(response):
     return []
 
 
+
 def _graphic_deterministic_hybrid_verification_v4000(hybrid, hard_vehicle, vehicle_validation):
-    """Verify facts guaranteed by deterministic rendering without inventing AI scores."""
+    """Verify deterministic output while distinguishing failure from unavailable QA."""
     metadata = (hybrid or {}).get("layered_metadata") or {}
     data_url = str((hybrid or {}).get("data_url") or "")
     image_bytes, _ = data_url_to_bytes(data_url)
@@ -18883,16 +18918,21 @@ def _graphic_deterministic_hybrid_verification_v4000(hybrid, hard_vehicle, vehic
     zone_set = {str(item).strip().lower() for item in zones}
     required = {"logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix", "hero_product", "bottom_benefit_bar"}
     zones_valid = required.issubset(zone_set) if zone_set else bool(metadata.get("deterministic_typography"))
-    vehicle_valid = bool((vehicle_validation or {}).get("verified", False)) if hard_vehicle else True
+    unavailable = bool(hard_vehicle and _graphic_validation_is_unavailable_v4100(vehicle_validation))
+    vehicle_verified = True if not hard_vehicle else (vehicle_validation or {}).get("verified") is True
+    vehicle_explicitly_failed = bool(hard_vehicle and not unavailable and not vehicle_verified)
+    core_passed = bool(image_valid and exact_product and zones_valid)
     return {
-        "passed": bool(image_valid and exact_product and zones_valid and vehicle_valid),
+        "passed": bool(core_passed and not vehicle_explicitly_failed),
+        "verified": bool(core_passed and vehicle_verified),
+        "unverified": bool(core_passed and unavailable),
         "image_valid": image_valid,
         "exact_product": exact_product,
         "zones_valid": zones_valid,
-        "vehicle_valid": vehicle_valid,
-        "verification_source": "deterministic-renderer-plus-focused-vehicle-audit",
+        "vehicle_valid": vehicle_verified,
+        "vehicle_validation_unavailable": unavailable,
+        "verification_source": "deterministic-renderer-plus-optional-focused-vehicle-audit",
     }
-
 
 def _graphic_project_failure_v4000(stage, errors):
     """Persist a retryable Graphic failure without losing project assets."""
@@ -18904,8 +18944,13 @@ def _graphic_project_failure_v4000(stage, errors):
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
+
 def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
-    """Primary ChatGPT-style route with modern-schema and compatibility retries."""
+    """Primary Responses image route with bounded model/schema compatibility retries."""
+    capabilities = _graphic_sdk_capabilities_v4100()
+    if not capabilities.get("responses"):
+        raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
+
     content = [{"type": "input_text", "text": str(production_prompt or "")[:30000]}]
     label_lookup = {
         "edit_base": "CURRENT ARTWORK TO EDIT",
@@ -18922,83 +18967,101 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
         usable_count += 1
         content.append({"type": "input_text", "text": f"{label_lookup.get(item.get('role'), 'REFERENCE IMAGE')}: {item.get('name') or 'image'}"})
         content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+
     action = "edit" if usable_count else "generate"
     errors = []
     response_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
-    for index, tool in enumerate(_graphic_responses_tool_variants_v4000(action, output_size, bool(usable_count)), start=1):
-        request = {
-            "model": _graphic_responses_model_v4000(),
-            "input": [{"role": "user", "content": content}],
-            "tools": [tool],
-            "max_output_tokens": 1200,
-        }
-        # Some SDK/API versions reject explicit tool_choice for built-in image generation.
-        if index <= 3:
-            request["tool_choice"] = {"type": "image_generation"}
-        try:
-            response = response_client.responses.create(**request)
-            images = _graphic_response_image_bytes_v4000(response)
-            if images:
-                return images, f"responses-image-tool-v4000-{index}"
-            errors.append(f"variant-{index}:no-image")
-        except Exception as error:
-            compact = _graphic_compact_error_v4000(error)
-            errors.append(f"variant-{index}:{type(error).__name__}:{compact}")
-            diagnostic_log(
-                "graphic_v4000_responses_variant_failed",
-                variant=index,
-                error_type=type(error).__name__,
-                error=compact,
-                tool_fields=sorted(tool),
-            )
-    raise RuntimeError("Responses image generation failed across compatible request schemas: " + " | ".join(errors[-3:]))
+    variants = _graphic_responses_tool_variants_v4000(action, output_size, bool(usable_count))[:3]
+    for model_name in _graphic_responses_model_candidates_v4100():
+        for index, tool in enumerate(variants, start=1):
+            request = {
+                "model": model_name,
+                "input": [{"role": "user", "content": content}],
+                "tools": [tool],
+                "max_output_tokens": 1200,
+            }
+            if index == 1:
+                request["tool_choice"] = {"type": "image_generation"}
+            try:
+                diagnostic_log("graphic_v4100_responses_attempt", model=model_name, variant=index, image_count=usable_count, tool_fields=sorted(tool))
+                response = response_client.responses.create(**request)
+                images = _graphic_response_image_bytes_v4000(response)
+                if images:
+                    return images, f"responses-image-tool-v4100-{model_name}-{index}"
+                errors.append(f"{model_name}/variant-{index}:no-image")
+            except Exception as error:
+                compact = _graphic_compact_error_v4000(error)
+                errors.append(f"{model_name}/variant-{index}:{type(error).__name__}:{compact}")
+                diagnostic_log(
+                    "graphic_v4100_responses_attempt_failed",
+                    model=model_name,
+                    variant=index,
+                    error_type=type(error).__name__,
+                    error=compact,
+                    tool_fields=sorted(tool),
+                )
+    raise RuntimeError("Responses image generation failed: " + " | ".join(errors[-4:]))
 
 
 def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size):
-    """Independent Images API route with SDK-compatible argument reduction."""
-    ordered_files = [item.get("file") for item in role_items or [] if item.get("file") is not None]
-    references = prepare_graphic_reference_images(ordered_files)
+    """Images API fallback with bounded multi-image and single-image routes."""
+    capabilities = _graphic_sdk_capabilities_v4100()
     image_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
     size = _graphic_normalize_output_size_v4000(output_size)
     errors = []
-    if references:
-        for reference in references:
-            reference.seek(0)
-        image_input = references if len(references) > 1 else references[0]
-        variants = [
-            {"input_fidelity": "high", "quality": "high", "output_format": "png"},
-            {"input_fidelity": "high", "quality": "high"},
-            {"quality": "high"},
-            {},
-        ]
-        for index, extras in enumerate(variants, start=1):
+
+    product_files = [i.get("file") for i in role_items or [] if i.get("role") == "product_photo" and i.get("file") is not None]
+    style_files = [i.get("file") for i in role_items or [] if i.get("role") == "style_reference" and i.get("file") is not None]
+    edit_files = [i.get("file") for i in role_items or [] if i.get("role") == "edit_base" and i.get("file") is not None]
+    other_files = [i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo", "style_reference", "edit_base"}]
+
+    groups = []
+    for label, files_group in (
+        ("all", edit_files[:1] + product_files[:1] + style_files[:2] + other_files[:1]),
+        ("product-plus-style", product_files[:1] + style_files[:1]),
+        ("product-only", product_files[:1]),
+        ("edit-only", edit_files[:1]),
+    ):
+        clean = [f for f in files_group if f is not None]
+        signature = tuple(id(f) for f in clean)
+        if clean and signature not in {sig for _, _, sig in groups}:
+            groups.append((label, clean, signature))
+
+    if capabilities.get("images_edit"):
+        for label, files_group, _ in groups[:4]:
+            references = prepare_graphic_reference_images(files_group)
+            if not references:
+                continue
+            image_input = references if len(references) > 1 else references[0]
+            for index, extras in enumerate((
+                {"input_fidelity": "high", "quality": "high"},
+                {},
+            ), start=1):
+                try:
+                    for reference in references:
+                        reference.seek(0)
+                    diagnostic_log("graphic_v4100_images_edit_attempt", route=label, variant=index, reference_count=len(references), fields=sorted(extras))
+                    result = image_client.images.edit(
+                        model=GRAPHIC_IMAGE_MODEL,
+                        image=image_input,
+                        prompt=str(production_prompt or "")[:32000],
+                        n=1,
+                        size=size,
+                        **extras,
+                    )
+                    images = _graphic_collect_result_bytes(result)
+                    if images:
+                        return images, f"images-edit-api-v4100-{label}-{index}"
+                    errors.append(f"edit/{label}/{index}:no-image")
+                except Exception as error:
+                    compact = _graphic_compact_error_v4000(error)
+                    errors.append(f"edit/{label}/{index}:{type(error).__name__}:{compact}")
+                    diagnostic_log("graphic_v4100_images_edit_attempt_failed", route=label, variant=index, error_type=type(error).__name__, error=compact)
+
+    if capabilities.get("images_generate") and not groups:
+        for index, extras in enumerate(({"quality": "high"}, {}), start=1):
             try:
-                for reference in references:
-                    reference.seek(0)
-                result = image_client.images.edit(
-                    model=GRAPHIC_IMAGE_MODEL,
-                    image=image_input,
-                    prompt=str(production_prompt or "")[:32000],
-                    n=1,
-                    size=size,
-                    **extras,
-                )
-                images = _graphic_collect_result_bytes(result)
-                if images:
-                    return images, f"images-edit-api-v4000-{index}"
-                errors.append(f"edit-{index}:no-image")
-            except Exception as error:
-                compact = _graphic_compact_error_v4000(error)
-                errors.append(f"edit-{index}:{type(error).__name__}:{compact}")
-                diagnostic_log("graphic_v4000_images_edit_variant_failed", variant=index, error_type=type(error).__name__, error=compact)
-    else:
-        variants = [
-            {"quality": "high", "output_format": "png"},
-            {"quality": "high"},
-            {},
-        ]
-        for index, extras in enumerate(variants, start=1):
-            try:
+                diagnostic_log("graphic_v4100_images_generate_attempt", variant=index, fields=sorted(extras))
                 result = image_client.images.generate(
                     model=GRAPHIC_IMAGE_MODEL,
                     prompt=str(production_prompt or "")[:32000],
@@ -19008,14 +19071,18 @@ def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_siz
                 )
                 images = _graphic_collect_result_bytes(result)
                 if images:
-                    return images, f"images-generate-api-v4000-{index}"
-                errors.append(f"generate-{index}:no-image")
+                    return images, f"images-generate-api-v4100-{index}"
+                errors.append(f"generate/{index}:no-image")
             except Exception as error:
                 compact = _graphic_compact_error_v4000(error)
-                errors.append(f"generate-{index}:{type(error).__name__}:{compact}")
-                diagnostic_log("graphic_v4000_images_generate_variant_failed", variant=index, error_type=type(error).__name__, error=compact)
-    raise RuntimeError("Images API failed across compatible request schemas: " + " | ".join(errors[-3:]))
+                errors.append(f"generate/{index}:{type(error).__name__}:{compact}")
+                diagnostic_log("graphic_v4100_images_generate_attempt_failed", variant=index, error_type=type(error).__name__, error=compact)
 
+    if not capabilities.get("images_edit") and groups:
+        errors.append("installed SDK does not expose images.edit")
+    if not capabilities.get("images_generate") and not groups:
+        errors.append("installed SDK does not expose images.generate")
+    raise RuntimeError("Images API fallback failed: " + " | ".join(errors[-5:]))
 
 def _graphic_build_provider_result_v3000(
     raw_bytes,
@@ -20132,17 +20199,20 @@ def _graphic_correction_result_v3300(initial, prompt_text, role_items, output_si
 _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_advanced_v3200
 
 
+
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """v4000 all-in-one Graphic production pipeline; non-Graphic behavior is untouched."""
+    """v4100 Graphic pipeline: usable output first, explicit verification status second."""
     prompt_text = str(prompt_text or "").strip()
     if not prompt_text:
         raise ValueError("Please enter an image-generation or editing command.")
     status = _graphic_progress_v3300("Preparing Graphic project…")
     provider_errors = []
+    best_unverified = None
     try:
+        diagnostic_log("graphic_v4100_sdk_capabilities", **_graphic_sdk_capabilities_v4100())
         _graphic_progress_update_v3300(status, "Resolving persistent product, vehicle, copy, and reference assets…")
         _graphic_update_project_brief(prompt_text)
         output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
@@ -20155,19 +20225,19 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
 
         _graphic_progress_update_v3300(status, "Reading reference geometry and verified product facts…")
         reference_blueprint = _graphic_safe_optional_call(
-            "graphic_v4000_reference_analysis_failed_open",
+            "graphic_v4100_reference_analysis_failed_open",
             lambda: analyze_graphic_reference_blueprint(role_items, prompt_text=prompt_text, style_strength=style_strength),
             {},
         ) if has_style else {}
         geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
         vehicle_profile = _graphic_safe_optional_call(
-            "graphic_v4000_vehicle_research_failed_open",
+            "graphic_v4100_vehicle_research_failed_open",
             lambda: research_graphic_vehicle_profile(role_items, prompt_text),
             {},
         ) if has_product else {}
         vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
         campaign_spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
-        rejected_guidance = _graphic_safe_optional_call("graphic_v4000_rejection_guidance_failed_open", _graphic_session_rejection_guidance, "")
+        rejected_guidance = _graphic_safe_optional_call("graphic_v4100_rejection_guidance_failed_open", _graphic_session_rejection_guidance, "")
         production_prompt = _graphic_chatgpt_production_prompt(
             prompt_text,
             role_items,
@@ -20178,7 +20248,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         ) + "\n\nREFERENCE GEOMETRY (normalized): " + json.dumps(geometry, ensure_ascii=False) + \
             "\nVERIFIED CAMPAIGN FACTS: " + json.dumps(campaign_spec, ensure_ascii=False, default=str)
 
-        # Provider-first: retain a genuinely excellent complete artwork.
         _graphic_progress_update_v3300(status, "Creating the complete commercial artwork…")
         raw_images, provider_route = [], ""
         try:
@@ -20186,13 +20255,13 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         except Exception as error:
             compact = _graphic_compact_error_v4000(error)
             provider_errors.append("responses:" + compact)
-            diagnostic_log("graphic_v4000_responses_route_failed", error_type=type(error).__name__, error=compact)
+            diagnostic_log("graphic_v4100_responses_route_failed", error_type=type(error).__name__, error=compact)
             try:
                 raw_images, provider_route = _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size)
             except Exception as fallback_error:
                 compact = _graphic_compact_error_v4000(fallback_error)
                 provider_errors.append("images:" + compact)
-                diagnostic_log("graphic_v4000_images_route_failed", error_type=type(fallback_error).__name__, error=compact)
+                diagnostic_log("graphic_v4100_images_route_failed", error_type=type(fallback_error).__name__, error=compact)
 
         candidate = None
         if raw_images:
@@ -20201,7 +20270,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 reference_blueprint, vehicle_profile,
             )
         hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-        focused_vehicle = {"verified": not hard_vehicle, "score": 100, "reason": "not required"}
+        focused_vehicle = {"verified": True, "available": True, "score": 100, "reason": "not required"} if not hard_vehicle else _graphic_validation_unavailable_v4100()
         candidate_review, scores, missing_scores = {}, {}, []
         zone_check = {"passed": not has_style, "missing": []}
         candidate_failed = True
@@ -20209,85 +20278,104 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         if candidate:
             _graphic_progress_update_v3300(status, "Checking product fidelity, target vehicle, text, and reference completeness…")
             candidate_review = _graphic_safe_optional_call(
-                "graphic_v4000_quality_review_failed_closed",
-                lambda: review_graphic_output_accuracy(candidate.get("data_url"), role_items, prompt_text, "v4000 Complete Provider Artwork", reference_blueprint=reference_blueprint),
+                "graphic_v4100_quality_review_unavailable",
+                lambda: review_graphic_output_accuracy(candidate.get("data_url"), role_items, prompt_text, "v4100 Complete Provider Artwork", reference_blueprint=reference_blueprint),
                 {},
             ) or {}
             scores, candidate_failed, missing_scores = _graphic_review_scores_v3300(candidate_review, has_product, has_style, hard_vehicle)
             if hard_vehicle:
                 focused_vehicle = _graphic_safe_optional_call(
-                    "graphic_v4000_vehicle_validation_failed_closed",
+                    "graphic_v4100_vehicle_validation_unavailable",
                     lambda: _graphic_focused_vehicle_validation_v3300(candidate.get("data_url"), role_items, prompt_text, vehicle_profile),
-                    {"verified": False, "score": 0, "reason": "vehicle validation unavailable"},
+                    _graphic_validation_unavailable_v4100(),
                 )
-                candidate_failed = candidate_failed or not focused_vehicle.get("verified")
-            if has_style:
+                if not _graphic_validation_is_unavailable_v4100(focused_vehicle):
+                    candidate_failed = candidate_failed or not focused_vehicle.get("verified")
+            if has_style and candidate_review:
                 zone_check = _graphic_zone_completeness_v3300(candidate_review, campaign_spec)
                 candidate_failed = candidate_failed or not zone_check.get("passed")
+            elif has_style:
+                zone_check = {"passed": False, "missing": ["qa_unavailable"]}
             candidate.update({
                 "quality_review": candidate_review,
                 "vehicle_validation": focused_vehicle,
                 "zone_completeness": zone_check,
                 "qa_missing_scores": missing_scores,
             })
+            if candidate_failed:
+                reason = "The image was created, but one or more optional quality checks did not pass or were unavailable."
+                best_unverified = _graphic_mark_unverified_v4100(candidate, reason)
 
         diagnostic_log(
-            "graphic_v4000_provider_review",
+            "graphic_v4100_provider_review",
             provider_route=provider_route,
             scores=scores,
             missing_scores=missing_scores,
             missing_zones=zone_check.get("missing"),
             vehicle_verified=focused_vehicle.get("verified"),
+            vehicle_validation_available=not _graphic_validation_is_unavailable_v4100(focused_vehicle),
             failed=candidate_failed,
         )
         final_result = candidate if candidate and not candidate_failed else None
+        if final_result:
+            final_result["output_status"] = final_result.get("output_status") or "verified"
+            final_result["verification_status"] = "verified"
 
-        # One targeted correction only; no recursive generation loops.
         if final_result is None and candidate and quality_retry:
             correction_parts = [str(candidate_review.get("correction_prompt") or "").strip()]
             if missing_scores:
                 correction_parts.append("Correct the artwork and make every required QA dimension visually verifiable.")
-            if not focused_vehicle.get("verified"):
+            if not focused_vehicle.get("verified") and not _graphic_validation_is_unavailable_v4100(focused_vehicle):
                 correction_parts.append("Replace the vehicle with the exact locked target and remove every conflicting make/model cue. " + str(focused_vehicle.get("reason") or ""))
-            if zone_check.get("missing"):
+            if zone_check.get("missing") and zone_check.get("missing") != ["qa_unavailable"]:
                 correction_parts.append("Restore these missing reference zones: " + ", ".join(zone_check["missing"]))
             correction = "\n".join(part for part in correction_parts if part).strip()
             if correction:
                 _graphic_progress_update_v3300(status, "Applying one targeted correction pass…")
                 corrected = _graphic_safe_optional_call(
-                    "graphic_v4000_correction_failed",
+                    "graphic_v4100_correction_failed",
                     lambda: _graphic_correction_result_v3300(candidate, prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, rejected_guidance, correction),
                     None,
                 )
                 if corrected:
                     review2 = _graphic_safe_optional_call(
-                        "graphic_v4000_corrected_review_failed_closed",
-                        lambda: review_graphic_output_accuracy(corrected.get("data_url"), role_items, prompt_text, "v4000 Corrected Artwork", reference_blueprint=reference_blueprint),
+                        "graphic_v4100_corrected_review_unavailable",
+                        lambda: review_graphic_output_accuracy(corrected.get("data_url"), role_items, prompt_text, "v4100 Corrected Artwork", reference_blueprint=reference_blueprint),
                         {},
                     ) or {}
                     scores2, failed2, missing2 = _graphic_review_scores_v3300(review2, has_product, has_style, hard_vehicle)
-                    vehicle2 = _graphic_focused_vehicle_validation_v3300(corrected.get("data_url"), role_items, prompt_text, vehicle_profile) if hard_vehicle else focused_vehicle
-                    zones2 = _graphic_zone_completeness_v3300(review2, campaign_spec) if has_style else zone_check
-                    failed2 = failed2 or not vehicle2.get("verified", True) or not zones2.get("passed", True)
+                    vehicle2 = _graphic_safe_optional_call(
+                        "graphic_v4100_corrected_vehicle_validation_unavailable",
+                        lambda: _graphic_focused_vehicle_validation_v3300(corrected.get("data_url"), role_items, prompt_text, vehicle_profile),
+                        _graphic_validation_unavailable_v4100(),
+                    ) if hard_vehicle else focused_vehicle
+                    zones2 = _graphic_zone_completeness_v3300(review2, campaign_spec) if has_style and review2 else ({"passed": not has_style, "missing": []} if not has_style else {"passed": False, "missing": ["qa_unavailable"]})
+                    if not _graphic_validation_is_unavailable_v4100(vehicle2):
+                        failed2 = failed2 or not vehicle2.get("verified", True)
+                    if has_style and review2:
+                        failed2 = failed2 or not zones2.get("passed", True)
                     corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2})
-                    diagnostic_log("graphic_v4000_corrected_review", scores=scores2, missing=missing2, failed=failed2)
+                    diagnostic_log("graphic_v4100_corrected_review", scores=scores2, missing=missing2, vehicle_available=not _graphic_validation_is_unavailable_v4100(vehicle2), failed=failed2)
                     if not failed2:
+                        corrected["output_status"] = "verified_after_correction"
+                        corrected["verification_status"] = "verified"
                         final_result = corrected
+                    else:
+                        best_unverified = _graphic_mark_unverified_v4100(corrected, "The corrected image was created, but complete verification was unavailable or did not fully pass.")
 
-        # Controlled production: AI scenery + exact product pixels + exact Python typography.
         if final_result is None and has_product and has_style:
             _graphic_progress_update_v3300(status, "Building a reference-locked campaign with exact product pixels and typography…")
             try:
                 hybrid = _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile)
                 hv = _graphic_safe_optional_call(
-                    "graphic_v4000_hybrid_vehicle_validation_failed",
+                    "graphic_v4100_hybrid_vehicle_validation_unavailable",
                     lambda: _graphic_focused_vehicle_validation_v3300(hybrid.get("data_url"), role_items, prompt_text, vehicle_profile),
-                    {"verified": False, "score": 0, "reason": "vehicle validation unavailable"},
+                    _graphic_validation_unavailable_v4100(),
                 ) if hard_vehicle else focused_vehicle
                 deterministic = _graphic_deterministic_hybrid_verification_v4000(hybrid, hard_vehicle, hv)
                 hybrid_review = _graphic_safe_optional_call(
-                    "graphic_v4000_hybrid_style_review_failed_open",
-                    lambda: review_graphic_output_accuracy(hybrid.get("data_url"), role_items, prompt_text, "v4000 Controlled Campaign", reference_blueprint=reference_blueprint),
+                    "graphic_v4100_hybrid_style_review_unavailable",
+                    lambda: review_graphic_output_accuracy(hybrid.get("data_url"), role_items, prompt_text, "v4100 Controlled Campaign", reference_blueprint=reference_blueprint),
                     {},
                 ) or {}
                 hybrid.update({
@@ -20297,31 +20385,43 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     "deterministic_verification": deterministic,
                     "qa_missing_scores": [],
                 })
-                if deterministic.get("passed"):
+                if deterministic.get("verified"):
+                    hybrid["output_status"] = "verified_controlled_campaign"
+                    hybrid["verification_status"] = "verified"
                     final_result = hybrid
+                elif deterministic.get("unverified"):
+                    best_unverified = _graphic_mark_unverified_v4100(
+                        hybrid,
+                        "The controlled campaign was completed with exact product pixels and exact typography, but the optional vehicle validator was unavailable.",
+                        status="completed_controlled_unverified",
+                    )
                 else:
                     provider_errors.append("controlled-campaign-verification:" + json.dumps(deterministic, default=str))
-                    diagnostic_log("graphic_v4000_controlled_campaign_rejected", **deterministic)
+                    diagnostic_log("graphic_v4100_controlled_campaign_rejected", **deterministic)
             except Exception as hybrid_error:
                 compact = _graphic_compact_error_v4000(hybrid_error)
                 provider_errors.append("controlled-campaign:" + compact)
-                diagnostic_log("graphic_v4000_controlled_campaign_failed", error_type=type(hybrid_error).__name__, error=compact)
+                diagnostic_log("graphic_v4100_controlled_campaign_failed", error_type=type(hybrid_error).__name__, error=compact)
+
+        if final_result is None and best_unverified is not None:
+            final_result = best_unverified
+            diagnostic_log("graphic_v4100_returning_unverified_result", status=final_result.get("output_status"), warning=final_result.get("verification_warning"))
 
         if final_result is None:
+            failed_stage = "provider_request" if not raw_images else "final_verification"
             _graphic_progress_update_v3300(status, "The project is preserved and ready to retry.", "error")
-            _graphic_project_failure_v4000("final_verification", provider_errors or ["quality_validation_failed"])
-            raise RuntimeError("No professional result passed the required product, vehicle, copy, and reference checks. The complete project is preserved for Retry.")
+            _graphic_project_failure_v4000(failed_stage, provider_errors or ["No image bytes were returned by the available provider routes."])
+            raise RuntimeError(f"Graphic stage '{failed_stage}' did not produce a usable image. The complete project is preserved for Retry.")
 
         final_result["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
         final_result["reference_geometry"] = geometry
         final_result["campaign_spec"] = campaign_spec
         final_result["project_editable"] = True
         final_result["provider_first_acceptance"] = True
-        final_result["fail_closed_qa"] = True
         final_result["output_size"] = output_size
         _graphic_save_latest_project_result(final_result)
         _graphic_safe_optional_call(
-            "graphic_v4000_intelligence_store_failed_open",
+            "graphic_v4100_intelligence_store_failed_open",
             lambda: save_graphic_generation_intelligence(prompt_text, final_result, {}, final_result.get("quality_review") or {}),
             None,
         )
@@ -20329,15 +20429,16 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         state["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
         state["stage"] = "generated"
         state["last_error"] = ""
+        state["last_failed_stage"] = ""
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        _graphic_progress_update_v3300(status, "Graphic artwork completed and project state saved.", "complete")
+        completion = "Graphic artwork completed and verified." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
+        _graphic_progress_update_v3300(status, completion, "complete")
         return [final_result]
     except Exception as error:
         if not (get_graphic_project_state().get("last_error") or ""):
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
-
 
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
@@ -20358,17 +20459,20 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
 
 
 
+
 def generated_image_answer_text(images, regenerated=False):
     """Create concise, truthful text beside generated artwork."""
     if not images:
         return "The image could not be generated."
     image = images[0]
     status = str(image.get("output_status") or "")
-    engine = str(image.get("graphic_engine_version") or "")
-    if status in {"completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
+    verification = str(image.get("verification_status") or "")
+    if status in {"verified_controlled_campaign", "completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
         action = "Created your verified, reference-locked campaign image"
-    elif status in {"completed_after_correction", "completed_after_correction_v3300"}:
+    elif status in {"verified_after_correction", "completed_after_correction", "completed_after_correction_v3300"}:
         action = "Created and quality-corrected your image"
+    elif status in {"completed_unverified", "completed_controlled_unverified"} or verification == "unverified":
+        action = "Created your image, but optional verification is incomplete"
     elif regenerated:
         action = "Generated another version"
     else:
@@ -20378,10 +20482,10 @@ def generated_image_answer_text(images, regenerated=False):
         f"Resolution: {image.get('resolution') or image.get('size') or image.get('output_size') or 'Original'}",
         "Format: PNG",
     ]
-    if engine:
-        details.append(f"Graphic Engine: {engine}")
-    return "\n".join(details)
-
+    warning = str(image.get("verification_warning") or "").strip()
+    if warning:
+        details.append("Verification note: " + warning)
+    return " ".join(details)
 
 def show_generated_image_full_size(image):
     """
