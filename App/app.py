@@ -123,6 +123,7 @@ except Exception:
 #   workflows, continuous generation learning, expanded QA, and admin governance.
 # v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
+# v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
 #   conversational guidance before any image-generation request.
@@ -16521,6 +16522,51 @@ def apply_autotecpro_brand_logo(
 
 
 
+def build_attachment_only_chat_prompt(assistant_name):
+    """Create an internal instruction for a file-only chat turn."""
+    workspace = str(assistant_name or "").strip()
+    if workspace == "🎨 Graphic Marketing":
+        return (
+            "The user uploaded one or more files without accompanying text. "
+            "Treat them as the files requested by the immediately preceding conversation. "
+            "Analyze the newly uploaded assets in context and respond as a professional creative director. "
+            "Do not generate or edit an image unless the prior user message explicitly requested immediate generation after upload. "
+            "Do not search or display Product Library items unless the user explicitly asked to identify or retrieve a saved product. "
+            "If these are reference advertisements, analyze only their layout, composition, lighting, typography, hierarchy, vehicle presentation, and commercial style, then wait for the next instruction."
+        )
+    if workspace == "🔧 Technical Support":
+        return (
+            "The user uploaded one or more files without accompanying text. "
+            "Use the immediately preceding conversation to understand why they were sent. "
+            "Inspect and respond to the attachments directly. Do not invent a new request, and ask one concise clarification only when the prior context is genuinely insufficient."
+        )
+    if workspace in {"📈 Sales", "📣 Marketing"}:
+        return (
+            "The user uploaded one or more files without accompanying text. "
+            "Treat them as the files requested by the immediately preceding conversation and analyze them in the current workspace context. "
+            "Do not run unrelated lookups or create content that was not requested."
+        )
+    return (
+        "The user uploaded one or more files without accompanying text. Analyze them using the immediately preceding conversation as context, and respond without inventing an unrelated request."
+    )
+
+
+def _explicit_product_library_request(prompt_text):
+    """Return True only when the user intentionally requests product retrieval."""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text:
+        return False
+    patterns = (
+        r"\b(?:search|find|look up|lookup|retrieve|show|display|open)\b.*\bproduct library\b",
+        r"\bproduct library\b.*\b(?:search|find|look up|lookup|retrieve|show|display|open)\b",
+        r"\bidentify (?:this|the) product\b",
+        r"\bmatch (?:this|the) (?:photo|image|product)\b.*\b(?:product library|saved product|catalog)\b",
+        r"\bshow (?:me )?(?:the )?(?:approved|saved|matching) product photos?\b",
+        r"\buse (?:the )?(?:saved|approved) product photos?\b",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
 def _recent_graphic_conversation_text(max_messages=10):
     """Return recent visible Graphic Chat text for contextual intent resolution."""
     parts = []
@@ -27145,7 +27191,7 @@ def render_knowledge_submission_workspace():
             storage_key="knowledge_submission_uploads",
             generation_key="knowledge_submission_upload_generation",
             widget_prefix="knowledge_submission_files",
-            accepted_types=["jpg", "jpeg", "png", "pdf", "txt", "docx"],
+            accepted_types=["jpg", "jpeg", "png", "webp", "pdf", "txt", "docx"],
             heading="📎 Supporting Files (Optional)",
         )
 
@@ -34099,11 +34145,22 @@ else:
         generation_key="chat_managed_upload_generation",
         widget_prefix="chat_files",
         accepted_types=[
-            "jpg", "jpeg", "png", "pdf", "txt",
+            "jpg", "jpeg", "png", "webp", "pdf", "txt",
             "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
         ],
         heading="📎 Attach files or photos",
     )
+
+    attachment_only_submit = False
+    if uploaded_files:
+        send_col, spacer_col = st.columns([1, 5])
+        with send_col:
+            attachment_only_submit = st.button(
+                "Send attachments",
+                key=f"send_chat_attachments_{assistant}",
+                type="primary",
+                use_container_width=True,
+            )
 
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
@@ -34147,25 +34204,58 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
+    attachment_only_mode = bool(
+        not prompt
+        and attachment_only_submit
+        and uploaded_files
+        and active_structured_tool is None
+    )
+    if attachment_only_mode:
+        prompt = build_attachment_only_chat_prompt(assistant)
+
     if prompt:
         user_display = (
-            active_structured_tool.get("display_text")
-            if isinstance(active_structured_tool, dict)
-            else clean_visible_chat_text(prompt)
+            ""
+            if attachment_only_mode
+            else (
+                active_structured_tool.get("display_text")
+                if isinstance(active_structured_tool, dict)
+                else clean_visible_chat_text(prompt)
+            )
         )
-        interaction_prompt = str(user_display or prompt).strip()
+        interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
+
+        provisional_graphic_intent = (
+            classify_graphic_chat_intent(
+                interaction_prompt,
+                uploaded_files,
+                structured_request=bool(
+                    assistant == "🎨 Graphic Marketing"
+                    and isinstance(active_structured_tool, dict)
+                    and isinstance(active_structured_tool.get("graphic_options"), dict)
+                ),
+            )
+            if assistant == "🎨 Graphic Marketing"
+            else "conversation"
+        )
 
         product_library_lookup = None
         product_library_images = []
+        allow_product_library_lookup = not attachment_only_mode
+        if assistant == "🎨 Graphic Marketing":
+            allow_product_library_lookup = bool(
+                allow_product_library_lookup
+                and (
+                    provisional_graphic_intent in {"generate", "edit"}
+                    or _explicit_product_library_request(interaction_prompt)
+                )
+            )
         try:
-            # Preserve the existing image-lookup flow exactly. When no visual lookup
-            # applies, add a fact-only Product Library lookup for compatibility,
-            # model/year, specification, and feature questions. Vector-store search
-            # remains enabled as the normal fallback and supporting source.
-            product_library_lookup = _product_library_chat_lookup(interaction_prompt)
-            if product_library_lookup is None:
-                product_library_lookup = _product_library_fact_lookup(interaction_prompt)
-            product_library_images = list((product_library_lookup or {}).get("images") or [])
+            if allow_product_library_lookup:
+                product_library_lookup = _product_library_chat_lookup(interaction_prompt)
+                if product_library_lookup is None:
+                    product_library_lookup = _product_library_fact_lookup(interaction_prompt)
+                product_library_images = list((product_library_lookup or {}).get("images") or [])
         except Exception as error:
             diagnostic_log("product_library_chat_lookup_failed", error=error)
 
@@ -34220,10 +34310,16 @@ else:
 
         if history_is_enabled() and st.session_state.conversation_id is None:
             try:
+                conversation_title_seed = user_display.strip()
+                if not conversation_title_seed and uploaded_files:
+                    conversation_title_seed = "Uploaded " + ", ".join(
+                        str(getattr(file, "name", "attachment"))
+                        for file in uploaded_files[:3]
+                    )
                 st.session_state.conversation_id = create_conversation(
                     st.session_state.username,
                     assistant,
-                    user_display
+                    conversation_title_seed or "New attachment conversation"
                 )
             except Exception as e:
                 st.error(f"Could not create chat history case: {e}")
@@ -34326,6 +34422,8 @@ else:
             if assistant == "🎨 Graphic Marketing"
             else "conversation"
         )
+        if attachment_only_mode and assistant == "🎨 Graphic Marketing":
+            graphic_chat_intent = "analyze"
         is_graphic_generation = bool(
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
@@ -34830,9 +34928,14 @@ else:
                 1 for item in st.session_state.messages
                 if item.get("role") == "user"
             ) == 1:
+                title_prompt = (
+                    "Uploaded attachments for analysis"
+                    if attachment_only_mode
+                    else interaction_prompt
+                )
                 update_conversation_ai_title(
                     st.session_state.conversation_id,
-                    interaction_prompt,
+                    title_prompt,
                     answer,
                     detected_live_request=detected_request,
                 )
