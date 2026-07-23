@@ -132,6 +132,7 @@ except Exception:
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
+# v2004 dual-provider reference engine: use Images Edit first, Responses image tool second, and never substitute the generic local template for reference-driven commercial jobs.
 # v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
@@ -17687,7 +17688,7 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 # v1000 Professional Layered Automotive Ad Studio
 # ============================================================
 
-GRAPHIC_LAYERED_ENGINE_VERSION = "v2002-reference-faithful-resilient-studio"
+GRAPHIC_LAYERED_ENGINE_VERSION = "v2004-dual-provider-reference-studio"
 GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
 
 
@@ -18124,6 +18125,84 @@ def _graphic_open_product_layer(uploaded_file):
         return None, False
 
 
+def _graphic_responses_image_result_bytes(response):
+    """Extract final image bytes from Responses image-generation tool outputs."""
+    collected = []
+    seen = set()
+    outputs = getattr(response, "output", None)
+    if outputs is None and isinstance(response, dict):
+        outputs = response.get("output")
+    for item in outputs or []:
+        item_type = getattr(item, "type", None)
+        if item_type is None and isinstance(item, dict):
+            item_type = item.get("type")
+        if str(item_type or "") != "image_generation_call":
+            continue
+        candidates = []
+        for field in ("result", "b64_json", "image_base64", "output"):
+            value = getattr(item, field, None)
+            if value is None and isinstance(item, dict):
+                value = item.get(field)
+            if value:
+                candidates.append(value)
+        for value in candidates:
+            if isinstance(value, dict):
+                value = value.get("b64_json") or value.get("result") or value.get("data")
+            if not isinstance(value, str):
+                continue
+            try:
+                raw = base64.b64decode(value)
+            except Exception:
+                continue
+            if not raw:
+                continue
+            digest = hashlib.sha256(raw).hexdigest()
+            if digest not in seen:
+                seen.add(digest)
+                collected.append(raw)
+    return collected
+
+
+def _graphic_generate_with_responses_image_tool(role_items, image_api_prompt, output_size):
+    """Second provider route using the Responses image-generation tool.
+
+    This accepts multiple input images as data URLs, which avoids SDK-specific
+    multipart/list incompatibilities in ``images.edit`` while retaining high
+    input fidelity for the real product source and uploaded style references.
+    """
+    content = [{"type": "input_text", "text": str(image_api_prompt or "")[:30000]}]
+    for item in role_items or []:
+        data_url = _graphic_role_data_url(item)
+        if data_url:
+            content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+    if len(content) < 2:
+        raise RuntimeError("No usable Graphic reference images were available to the Responses image tool.")
+    tool = {
+        "type": "image_generation",
+        "model": GRAPHIC_IMAGE_MODEL,
+        "action": "edit",
+        "quality": "high",
+        "size": output_size,
+        "input_fidelity": "high",
+        "output_format": "png",
+        "background": "opaque",
+    }
+    response = client.with_options(
+        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,
+        max_retries=1,
+    ).responses.create(
+        model="gpt-5.5",
+        input=[{"role": "user", "content": content}],
+        tools=[tool],
+        tool_choice={"type": "image_generation"},
+        max_output_tokens=1200,
+    )
+    images = _graphic_responses_image_result_bytes(response)
+    if not images:
+        raise RuntimeError("The Responses image tool returned no completed image data.")
+    return images
+
+
 def _graphic_collect_result_bytes(result):
     """Collect final image bytes across compatible OpenAI SDK response shapes."""
     if result is None:
@@ -18556,26 +18635,65 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
     except Exception as error:
         provider_error = error
         diagnostic_log(
-            "graphic_image_provider_failed",
+            "graphic_images_edit_provider_failed",
             error_type=type(error).__name__, error=error,
             model=GRAPHIC_IMAGE_MODEL, layered=layered_studio_active,
             prompt_chars=len(image_api_prompt),
         )
-        if layered_studio_active:
-            local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
-        if not local_fallback_bytes:
+        # A separate Responses image-tool route is required because some OpenAI
+        # SDK/API combinations reject multipart lists in images.edit even though
+        # multiple image inputs are valid through Responses. This is not a local
+        # template fallback; it is a second full provider generation attempt.
+        if reference_images:
+            try:
+                raw_result_bytes = _graphic_generate_with_responses_image_tool(
+                    role_items, image_api_prompt, output_size
+                )
+                result = None
+                provider_error = None
+                diagnostic_log(
+                    "graphic_responses_image_tool_succeeded",
+                    image_count=len(raw_result_bytes),
+                    size=output_size,
+                )
+            except Exception as responses_error:
+                diagnostic_log(
+                    "graphic_responses_image_tool_failed",
+                    error_type=type(responses_error).__name__,
+                    error=responses_error,
+                    size=output_size,
+                )
+                raise RuntimeError(
+                    "Both professional image-generation routes failed. Your product and reference images are preserved; "
+                    "please select Retry. The app will not replace your requested commercial artwork with a generic local template."
+                ) from responses_error
+        else:
             if type(error).__name__ == "APITimeoutError":
                 raise RuntimeError(
                     "Image generation timed out. Your project assets are preserved; please retry once."
                 ) from error
             raise RuntimeError("The image provider could not complete this request.") from error
+    else:
+        raw_result_bytes = _graphic_collect_result_bytes(result)
 
-    raw_result_bytes = [local_fallback_bytes] if local_fallback_bytes else _graphic_collect_result_bytes(result)
-    if not raw_result_bytes and layered_studio_active:
-        diagnostic_log("graphic_provider_empty_using_local_fallback")
-        local_fallback_bytes = _graphic_reference_background_plate(role_items, output_size)
-        if local_fallback_bytes:
-            raw_result_bytes = [local_fallback_bytes]
+    if not raw_result_bytes and reference_images:
+        try:
+            raw_result_bytes = _graphic_generate_with_responses_image_tool(
+                role_items, image_api_prompt, output_size
+            )
+            diagnostic_log(
+                "graphic_responses_image_tool_recovered_empty_edit",
+                image_count=len(raw_result_bytes),
+                size=output_size,
+            )
+        except Exception as responses_error:
+            diagnostic_log(
+                "graphic_responses_image_tool_empty_recovery_failed",
+                error_type=type(responses_error).__name__, error=responses_error,
+            )
+            raise RuntimeError(
+                "The professional image providers returned no usable artwork. Your project assets are preserved for Retry."
+            ) from responses_error
     if not raw_result_bytes:
         raise RuntimeError("The image provider returned no usable image data.")
 
@@ -18611,9 +18729,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             # Keep it intact so its composition, typography, scenery, and feature
             # system remain faithful to the uploaded references.
             layered_metadata = {
-                "engine": "high-fidelity-reference-edit-v2003",
+                "engine": "high-fidelity-reference-edit-v2004",
                 "complete_provider_artwork": True,
                 "reference_faithful_edit": True,
+                "dual_provider_route": True,
             }
 
         png_bytes, brand_logo_applied, brand_logo_position = (
@@ -19064,6 +19183,20 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "graphic_advanced_engine_fallback",
             error_type=type(error).__name__, error=error,
         )
+        # Reference-driven commercial jobs must never silently become the generic
+        # local wireframe/template shown in prior builds. Preserve the project and
+        # surface a retryable provider error instead. Product-only jobs retain the
+        # exact-product local safety fallback used by existing workflows.
+        try:
+            role_items = classify_graphic_uploaded_image_roles(
+                uploaded_files, prompt_text, forced_role=forced_upload_role
+            )
+            has_product = any(item.get("role") == "product_photo" for item in role_items)
+            has_style = any(item.get("role") == "style_reference" for item in role_items)
+        except Exception:
+            has_product = has_style = False
+        if has_product and has_style:
+            raise RuntimeError(str(error)) from error
         return _graphic_build_guaranteed_result(
             prompt_text,
             uploaded_files,
