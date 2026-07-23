@@ -125,6 +125,7 @@ except Exception:
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
 # v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
+# v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
 #   conversational guidance before any image-generation request.
@@ -4445,6 +4446,72 @@ def render_managed_upload_preview(record, delete_key, on_delete):
         )
 
 
+ATTACHMENT_ONLY_CHAT_SENTINEL = "\u200b"
+
+
+def _sync_native_chat_send_arrow_for_attachments(has_attachments):
+    """Enable the existing native chat send arrow for attachment-only turns.
+
+    Streamlit's native ``st.chat_input`` disables submission when its textarea is
+    completely empty.  A zero-width sentinel makes the native composer consider
+    the turn non-empty without showing any visible text.  The main chat pipeline
+    removes the sentinel and treats the turn as attachment-only.
+    """
+    enabled = "true" if bool(has_attachments) else "false"
+    sentinel_json = json.dumps(ATTACHMENT_ONLY_CHAT_SENTINEL)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const parentWindow = window.parent;
+          const doc = parentWindow.document;
+          const sentinel = {sentinel_json};
+          const hasAttachments = {enabled};
+
+          function setNativeValue(textarea, value) {{
+            const descriptor = Object.getOwnPropertyDescriptor(
+              parentWindow.HTMLTextAreaElement.prototype,
+              'value'
+            );
+            if (descriptor && descriptor.set) {{
+              descriptor.set.call(textarea, value);
+            }} else {{
+              textarea.value = value;
+            }}
+            textarea.dispatchEvent(new parentWindow.Event('input', {{ bubbles: true }}));
+            textarea.dispatchEvent(new parentWindow.Event('change', {{ bubbles: true }}));
+          }}
+
+          function syncComposer() {{
+            const textarea =
+              doc.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
+              doc.querySelector('div[data-testid="stChatInput"] textarea') ||
+              doc.querySelector('textarea[placeholder="Message AutoTecPro AI..."]');
+            if (!textarea) return false;
+
+            const current = textarea.value || '';
+            if (hasAttachments) {{
+              if (current === '') setNativeValue(textarea, sentinel);
+            }} else if (current === sentinel) {{
+              setNativeValue(textarea, '');
+            }}
+            return true;
+          }}
+
+          let attempts = 0;
+          const timer = parentWindow.setInterval(() => {{
+            attempts += 1;
+            if (syncComposer() || attempts > 40) parentWindow.clearInterval(timer);
+          }}, 100);
+          syncComposer();
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def _managed_file_uploader_core(
     *,
     storage_key,
@@ -4525,28 +4592,6 @@ def _managed_file_uploader_core(
                 unsafe_allow_html=True,
             )
 
-            # The uploader is fragment-scoped, so controls rendered outside this
-            # function do not see newly selected files until a full app rerun.
-            # Render the attachment-only send action inside the same fragment and
-            # explicitly promote the click to a full rerun. This mirrors ChatGPT:
-            # an attachment is valid message content even when the composer is empty.
-            if attachment_submit_key:
-                def _submit_managed_attachments():
-                    st.session_state[attachment_submit_key] = True
-                    try:
-                        st.rerun(scope="app")
-                    except TypeError:
-                        st.rerun()
-
-                send_columns = st.columns([1, 1.8, 1], gap="small")
-                with send_columns[1]:
-                    st.button(
-                        "Send attachments",
-                        key=f"{widget_prefix}_attachment_only_send",
-                        type="primary",
-                        use_container_width=True,
-                        on_click=_submit_managed_attachments,
-                    )
 
         incoming_files = st.file_uploader(
             "Upload files",
@@ -4584,6 +4629,12 @@ def _managed_file_uploader_core(
         # This resets the native input without rerunning database, history,
         # Auto Learning, sidebar, or workspace code.
         _rerun_upload_region()
+
+    # Keep the original uploader interface. The normal bottom-right chat send
+    # arrow becomes active whenever one or more managed attachments are present.
+    _sync_native_chat_send_arrow_for_attachments(
+        bool(st.session_state.get(storage_key) or [])
+    )
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
     if size_error:
@@ -34176,14 +34227,6 @@ else:
             "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
         ],
         heading="📎 Attach files or photos",
-        attachment_submit_key="chat_attachment_only_submit_requested",
-    )
-
-    # The submit button lives inside the fragment-scoped uploader. Its callback
-    # sets this flag and performs a full app rerun, so the main chat pipeline sees
-    # the latest managed files immediately. Pop it once to prevent duplicate sends.
-    attachment_only_submit = bool(
-        st.session_state.pop("chat_attachment_only_submit_requested", False)
     )
 
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
@@ -34228,12 +34271,13 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
-    attachment_only_mode = bool(
-        not prompt
-        and attachment_only_submit
+    native_attachment_only_submit = bool(
+        isinstance(prompt, str)
+        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
         and uploaded_files
         and active_structured_tool is None
     )
+    attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
         prompt = build_attachment_only_chat_prompt(assistant)
 
