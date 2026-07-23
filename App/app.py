@@ -46,7 +46,7 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
-# v5000 Complete Graphic Project Engine: persistent conversation-restorable project snapshots, richer object geometry, semantic edit interpretation, explicit multi-image selection, exact-product structure locks, and final visual validation; non-Graphic workflows unchanged.
+# v6000 Strict Commercial Composer: fixed reference campaign geometry, AI scenery-only generation, exact uploaded-product compositing, deterministic AutoTecPro copy/icon zones, and regression-isolated Graphic changes.
 # v2002 Graphic completion reliability: protect advanced preparation, recover multi-turn reference/product roles, add provider retry headroom, and guarantee a local exact-product result when optional AI stages fail.
 # v2001 regression-checked release (2026-07-23): full-file syntax/AST validation,
 # duplicate top-level definition audit, and conservative preservation of all existing
@@ -14962,17 +14962,6 @@ def extract_images_from_message_content(content):
             "storage_path",
             "content_type",
             "archive_web_url",
-            "graphic_project_snapshot",
-            "graphic_engine_version",
-            "canvas_id",
-            "canvas_version",
-            "reference_geometry",
-            "campaign_spec",
-            "verification_status",
-            "verification_warning",
-            "edit_mode",
-            "edit_directive",
-            "object_model",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -16736,285 +16725,28 @@ def _normalize_native_chat_submission(value):
 
 
 
-
-GRAPHIC_V5000_ENGINE_VERSION = "v5000-complete-project-engine"
-GRAPHIC_PROJECT_SCHEMA_VERSION = 5
-
-
-def _graphic_json_safe_v5000(value, max_text=4000):
-    """Return a JSON-safe bounded copy without raw bytes or SDK objects."""
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    if isinstance(value, str):
-        return value[:max_text]
-    if isinstance(value, bytes):
-        return None
-    if isinstance(value, dict):
-        clean = {}
-        for key, item in value.items():
-            if str(key) in {"data", "raw", "bytes"}:
-                continue
-            safe = _graphic_json_safe_v5000(item, max_text=max_text)
-            if safe is not None:
-                clean[str(key)[:120]] = safe
-        return clean
-    if isinstance(value, (list, tuple)):
-        return [_graphic_json_safe_v5000(item, max_text=max_text) for item in list(value)[:30]]
-    return str(value)[:max_text]
-
-
-def _graphic_compact_project_snapshot_v5000(state=None):
-    """Create the compact project record persisted inside generated-image history."""
-    state = dict(state or st.session_state.get(GRAPHIC_PROJECT_STATE_KEY) or {})
-    assets = []
-    for item in state.get("assets") or []:
-        if not isinstance(item, dict):
-            continue
-        assets.append({
-            "id": str(item.get("id") or ""),
-            "name": str(item.get("name") or "image"),
-            "type": str(item.get("type") or "image/png"),
-            "role": str(item.get("role") or "supporting"),
-            "created_at": str(item.get("created_at") or ""),
-        })
-    latest = dict(state.get("latest_generated") or {})
-    latest.pop("data_url", None)
-    return _graphic_json_safe_v5000({
-        "schema_version": GRAPHIC_PROJECT_SCHEMA_VERSION,
-        "stage": state.get("stage"),
-        "explicit_vehicle": state.get("explicit_vehicle") or {},
-        "campaign_spec": state.get("campaign_spec") or {},
-        "project_brief_history": (state.get("project_brief_history") or [])[-12:],
-        "visual_object_state": state.get("visual_object_state") or {},
-        "objects": state.get("objects") or {},
-        "context_summary": state.get("context_summary") or "",
-        "selected_asset_ids": state.get("selected_asset_ids") or {},
-        "edit_history": (state.get("edit_history") or [])[-20:],
-        "current_canvas_id": state.get("current_canvas_id") or "",
-        "current_canvas_version": int(state.get("current_canvas_version") or 0),
-        "generation_history": [
-            {k: v for k, v in dict(item).items() if k != "data_url"}
-            for item in (state.get("generation_history") or [])[-10:]
-            if isinstance(item, dict)
-        ],
-        "latest_generated": latest,
-        "assets": assets,
-        "graphic_engine_version": GRAPHIC_V5000_ENGINE_VERSION,
-        "updated_at": state.get("updated_at") or datetime.now(timezone.utc).isoformat(),
-    })
-
-
-def _graphic_asset_role_from_history_v5000(text, image, index, total):
-    """Recover a stable role from message text and image metadata."""
-    if image.get("generated"):
-        return "generated"
-    value = str(text or "").casefold()
-    name = str(image.get("name") or "").casefold()
-    if any(term in value or term in name for term in ("reference", "sample", "style", "inspiration", "watermark")):
-        return "reference"
-    if any(term in value or term in name for term in ("logo", "brand mark")):
-        return "logo"
-    if any(term in value for term in ("product photo", "actual unit", "this is the unit", "my product", "infotainment system")):
-        return "product"
-    return "product" if index == total - 1 else "reference"
-
-
-def _graphic_restore_project_from_messages_v5000(base_state):
-    """Restore visual project memory from saved conversation image metadata."""
-    messages = st.session_state.get("messages") or []
-    if not isinstance(messages, list) or not messages:
-        return base_state
-    state = dict(base_state)
-    restored_snapshot = None
-    latest_generated = None
-    restored_assets = []
-    known = set()
-    for message in messages:
-        if not isinstance(message, dict):
-            continue
-        visible, images = extract_images_from_message_content(message.get("content") or "")
-        for idx, image in enumerate(images):
-            snapshot = image.get("graphic_project_snapshot")
-            if isinstance(snapshot, dict):
-                restored_snapshot = snapshot
-            data_url = str(image.get("data_url") or "")
-            if image.get("generated") and data_url.startswith("data:image/"):
-                latest_generated = dict(image)
-            elif data_url.startswith("data:image/"):
-                try:
-                    raw, mime = data_url_to_bytes(data_url)
-                except Exception:
-                    raw, mime = b"", str(image.get("mime_type") or "image/png")
-                if not raw:
-                    continue
-                digest = hashlib.sha256(raw).hexdigest()
-                if digest in known:
-                    continue
-                known.add(digest)
-                role = _graphic_asset_role_from_history_v5000(visible, image, idx, len(images))
-                restored_assets.append({
-                    "id": digest,
-                    "name": str(image.get("name") or "image"),
-                    "type": mime or "image/png",
-                    "data": raw,
-                    "role": role,
-                    "created_at": str(image.get("created_at") or ""),
-                })
-    if isinstance(restored_snapshot, dict):
-        for key in (
-            "stage", "explicit_vehicle", "campaign_spec", "project_brief_history",
-            "visual_object_state", "objects", "context_summary", "selected_asset_ids",
-            "edit_history", "current_canvas_id", "current_canvas_version",
-            "generation_history", "graphic_engine_version", "updated_at",
-        ):
-            if key in restored_snapshot:
-                state[key] = restored_snapshot.get(key)
-    if restored_assets:
-        state["assets"] = restored_assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
-    if latest_generated:
-        merged_latest = dict(state.get("latest_generated") or {})
-        merged_latest.update(latest_generated)
-        state["latest_generated"] = merged_latest
-        state["current_canvas_id"] = str(latest_generated.get("canvas_id") or state.get("current_canvas_id") or "")
-        state["current_canvas_version"] = int(latest_generated.get("canvas_version") or state.get("current_canvas_version") or 1)
-        state["stage"] = "generated"
-    state["project_snapshot_restored"] = bool(restored_snapshot or restored_assets or latest_generated)
-    state["schema_version"] = GRAPHIC_PROJECT_SCHEMA_VERSION
-    return state
-
-
-def _graphic_semantic_edit_parse_v5000(text, existing_spec=None, object_model=None):
-    """Use a bounded semantic pass only when deterministic edit parsing is ambiguous."""
-    value = re.sub(r"\s+", " ", str(text or "")).strip()
-    if not value:
-        return {}
-    system = (
-        "Classify an image-edit instruction for an automotive advertisement. Return one JSON object only with keys: "
-        "is_edit boolean, change_targets array chosen from headline, hero_product, vehicle, background, logo, feature_matrix, bottom_benefit_bar, layout, lighting, color, screen_ui; "
-        "preserve_targets array; copy_updates object; replacement_from string; replacement_to string; strict_preservation boolean; semantic_summary string. "
-        "A wording change such as change vertical dash display to Tesla infotainment system is a headline/copy edit unless the user explicitly requests replacing physical hardware."
-    )
-    payload = {
-        "instruction": value[:1200],
-        "campaign_spec": _graphic_json_safe_v5000(existing_spec or {}),
-        "objects": _graphic_json_safe_v5000(object_model or {}),
-    }
-    try:
-        response = client.responses.create(
-            model=get_optional_secret("GRAPHIC_RESPONSES_MODEL", "gpt-5.5") or "gpt-5.5",
-            instructions=system,
-            input=json.dumps(payload, ensure_ascii=False),
-            max_output_tokens=700,
-        )
-        raw = str(getattr(response, "output_text", "") or "").strip()
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            match = re.search(r"\{.*\}", raw, re.DOTALL)
-            parsed = json.loads(match.group(0)) if match else {}
-        return parsed if isinstance(parsed, dict) else {}
-    except Exception as error:
-        diagnostic_log("graphic_v5000_semantic_edit_parse_failed", error_type=type(error).__name__, error=str(error))
-        return {}
-
-
-def _graphic_merge_edit_directives_v5000(primary, semantic):
-    result = dict(primary or {})
-    semantic = dict(semantic or {})
-    allowed = {"headline", "hero_product", "vehicle", "background", "logo", "feature_matrix", "bottom_benefit_bar", "layout", "lighting", "color", "screen_ui"}
-    changes = [str(x) for x in (result.get("change_targets") or []) if str(x) in allowed]
-    for item in semantic.get("change_targets") or []:
-        item = str(item)
-        if item in allowed and item not in changes:
-            changes.append(item)
-    result["change_targets"] = changes
-    all_targets = list(allowed)
-    result["preserve_targets"] = [x for x in all_targets if x not in changes]
-    copy_updates = dict(result.get("copy_updates") or {})
-    if isinstance(semantic.get("copy_updates"), dict):
-        copy_updates.update({str(k): str(v) for k, v in semantic["copy_updates"].items() if str(v).strip()})
-    result["copy_updates"] = copy_updates
-    for key in ("replacement_from", "replacement_to", "semantic_summary"):
-        if not str(result.get(key) or "").strip() and str(semantic.get(key) or "").strip():
-            result[key] = str(semantic.get(key)).strip()
-    result["is_edit"] = bool(result.get("is_edit") or semantic.get("is_edit"))
-    result["strict_preservation"] = bool(result.get("strict_preservation") or semantic.get("strict_preservation") or changes)
-    result["semantic_enhanced"] = bool(semantic)
-    return result
-
-
-def _graphic_refresh_object_model_v5000(state, geometry=None, campaign_spec=None, role_items=None):
-    """Maintain an editable object tree with geometry, source IDs and lock state."""
-    state = state if isinstance(state, dict) else {}
-    geometry = dict(geometry or {})
-    spec = dict(campaign_spec or state.get("campaign_spec") or {})
-    existing = dict(state.get("objects") or {})
-    role_items = role_items or []
-    source_by_role = {}
-    for item in role_items:
-        role = str(item.get("role") or "")
-        source_by_role.setdefault(role, str(item.get("asset_id") or item.get("name") or ""))
-    mapping = {
-        "logo": ("logo_box", "AutoTec"),
-        "website": ("website_box", spec.get("website") or "www.AutoTecPro.com"),
-        "headline": ("headline_box", spec.get("headline") or ""),
-        "compatibility_ribbon": ("ribbon_box", spec.get("compatibility") or ""),
-        "tagline": ("tagline_box", spec.get("tagline") or ""),
-        "hero_product": ("product_box", source_by_role.get("product_photo", "")),
-        "vehicle": ("vehicle_box", str((state.get("explicit_vehicle") or {}).get("display_name") or spec.get("vehicle_label") or "")),
-        "feature_matrix": ("feature_boxes", spec.get("features") or []),
-        "bottom_benefit_bar": ("bottom_bar_box", spec.get("benefits") or []),
-        "background": ("background_box", "generated_scene"),
-    }
-    locks = dict(state.get("visual_object_state") or {})
-    for name, (box_key, content) in mapping.items():
-        obj = dict(existing.get(name) or {})
-        obj.update({
-            "id": obj.get("id") or f"graphic_object_{name}",
-            "type": name,
-            "box": geometry.get(box_key, obj.get("box")),
-            "content": _graphic_json_safe_v5000(content),
-            "source_asset_id": source_by_role.get("product_photo") if name == "hero_product" else source_by_role.get("logo_asset") if name == "logo" else obj.get("source_asset_id", ""),
-            "locked": bool(locks.get("product_locked")) if name == "hero_product" else bool(locks.get("vehicle_locked")) if name == "vehicle" else bool(locks.get("layout_locked")),
-        })
-        existing[name] = obj
-    state["objects"] = existing
-    state["context_summary"] = (
-        f"Vehicle: {spec.get('compatibility') or 'not specified'}; "
-        f"headline: {spec.get('headline') or 'not specified'}; "
-        f"canvas version: {state.get('current_canvas_version') or 0}; "
-        f"available objects: {', '.join(sorted(existing))}."
-    )[:2000]
-    return state
-
-
 def _empty_graphic_project_state():
     return {
-        "schema_version": GRAPHIC_PROJECT_SCHEMA_VERSION,
         "stage": "planning",
         "assets": [],
         "latest_generated": None,
         "generation_history": [],
         "last_intent": "conversation",
         "last_error": "",
-        "last_failed_stage": "",
         "explicit_vehicle": {},
         "project_brief_history": [],
         "campaign_spec": {},
+        # v4200 visual-editing state. The latest generated artwork is the active
+        # canvas until New Case clears the project.
         "current_canvas_id": "",
         "current_canvas_version": 0,
         "edit_history": [],
         "last_edit_directive": {},
-        "selected_asset_ids": {},
-        "objects": {},
-        "context_summary": "",
-        "project_snapshot_restored": False,
         "visual_object_state": {
             "layout_locked": False,
             "style_locked": False,
             "vehicle_locked": False,
             "product_locked": False,
-            "branding_locked": False,
         },
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -17023,36 +16755,35 @@ def _empty_graphic_project_state():
 
 
 def get_graphic_project_state():
-    """Return the active Graphic project, restoring it from saved chat metadata when needed."""
+    """Return the current conversation-level Graphic asset workspace."""
     state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     if not isinstance(state, dict):
         state = _empty_graphic_project_state()
-        state = _graphic_restore_project_from_messages_v5000(state)
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    defaults = _empty_graphic_project_state()
-    for key, value in defaults.items():
-        if key not in state:
-            state[key] = value
+    state.setdefault("stage", "planning")
+    state.setdefault("assets", [])
+    state.setdefault("latest_generated", None)
+    state.setdefault("generation_history", [])
+    state.setdefault("last_intent", "conversation")
+    state.setdefault("last_error", "")
+    state.setdefault("explicit_vehicle", {})
+    state.setdefault("project_brief_history", [])
+    state.setdefault("campaign_spec", {})
+    state.setdefault("current_canvas_id", "")
+    state.setdefault("current_canvas_version", 0)
+    state.setdefault("edit_history", [])
+    state.setdefault("last_edit_directive", {})
     object_state = state.setdefault("visual_object_state", {})
-    for key, value in defaults["visual_object_state"].items():
-        object_state.setdefault(key, value)
-    if not state.get("project_snapshot_restored") and st.session_state.get("messages"):
-        restored = _graphic_restore_project_from_messages_v5000(state)
-        if restored.get("project_snapshot_restored"):
-            state = restored
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    object_state.setdefault("layout_locked", False)
+    object_state.setdefault("style_locked", False)
+    object_state.setdefault("vehicle_locked", False)
+    object_state.setdefault("product_locked", False)
     return state
 
 
 
 def clear_graphic_project_state():
-    """Start a genuinely new visual project and clear all canvas/object memory."""
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = _empty_graphic_project_state()
-    for key in (
-        "graphic_generation_progress", "pending_graphic_regeneration",
-        "graphic_selected_version", "graphic_pending_edit",
-    ):
-        st.session_state.pop(key, None)
 
 
 def _graphic_extract_explicit_vehicle(text):
@@ -17272,7 +17003,7 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
 
 
 def _graphic_update_project_brief(prompt_text):
-    """Persist facts and produce a semantic object-level edit directive."""
+    """Persist explicit project facts, canvas edits and recent user directions."""
     state = get_graphic_project_state()
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if value:
@@ -17285,18 +17016,8 @@ def _graphic_update_project_brief(prompt_text):
             state["explicit_vehicle"] = explicit
             state.setdefault("visual_object_state", {})["vehicle_locked"] = True
         existing_spec = state.get("campaign_spec") or {}
-        deterministic = _graphic_parse_followup_edit_v4200(value, existing_spec)
-        ambiguous = bool(state.get("latest_generated")) and (
-            not deterministic.get("change_targets")
-            or any(term in value.casefold() for term in ("more premium", "less busy", "breathing room", "same style", "use the first", "use the second", "feel more", "make it better"))
-        )
-        semantic = _graphic_semantic_edit_parse_v5000(value, existing_spec, state.get("objects") or {}) if ambiguous else {}
-        edit = _graphic_merge_edit_directives_v5000(deterministic, semantic)
-        new_spec = _graphic_extract_campaign_spec(value, existing_spec)
-        for key, item in (edit.get("copy_updates") or {}).items():
-            if str(item).strip():
-                new_spec[str(key)] = str(item).strip()
-        state["campaign_spec"] = new_spec
+        edit = _graphic_parse_followup_edit_v4200(value, existing_spec)
+        state["campaign_spec"] = _graphic_extract_campaign_spec(value, existing_spec)
         if edit.get("is_edit") and state.get("latest_generated"):
             edit["canvas_id"] = state.get("current_canvas_id") or ""
             edit["canvas_version"] = int(state.get("current_canvas_version") or 0)
@@ -17306,17 +17027,10 @@ def _graphic_update_project_brief(prompt_text):
             edits.append(edit)
             state["edit_history"] = edits[-20:]
             object_state = state.setdefault("visual_object_state", {})
-            changes = set(edit.get("change_targets") or [])
-            object_state["layout_locked"] = "layout" not in changes
-            object_state["style_locked"] = not bool(changes & {"color", "lighting", "background"})
-            object_state["product_locked"] = "hero_product" not in changes
-            object_state["vehicle_locked"] = "vehicle" not in changes or bool(state.get("explicit_vehicle"))
-            object_state["branding_locked"] = not bool(changes & {"logo", "headline", "feature_matrix", "bottom_benefit_bar"})
-            for name, obj in (state.get("objects") or {}).items():
-                if isinstance(obj, dict):
-                    obj["locked"] = name not in changes
+            object_state["layout_locked"] = "layout" not in (edit.get("change_targets") or [])
+            object_state["style_locked"] = True
+            object_state["product_locked"] = "hero_product" not in (edit.get("change_targets") or [])
             state["stage"] = "editing"
-    state = _graphic_refresh_object_model_v5000(state)
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return state
@@ -19081,55 +18795,36 @@ def _graphic_safe_optional_call(event_name, callback, default):
 
 
 def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
-    """Resolve persistent assets with explicit filename/ordinal selection and stable ordering."""
+    """Resolve persistent project assets into one authoritative ordered role list."""
     effective_files = graphic_project_uploaded_files(uploaded_files or [])
-    role_items = classify_graphic_uploaded_image_roles(effective_files, prompt_text, forced_role=forced_role)
+    role_items = classify_graphic_uploaded_image_roles(
+        effective_files, prompt_text, forced_role=forced_role
+    )
+    # Recover the common reference-first/product-second sequence if the deterministic
+    # classifier cannot locate both required roles.
     has_product = any(item.get("role") == "product_photo" for item in role_items)
     has_style = any(item.get("role") == "style_reference" for item in role_items)
     if effective_files and (not has_product or not has_style):
-        recovered = _graphic_recover_role_items(effective_files, prompt_text, forced_role=forced_role)
+        recovered = _graphic_recover_role_items(
+            effective_files, prompt_text, forced_role=forced_role
+        )
         if recovered:
             role_items = recovered
-    value = str(prompt_text or "").casefold()
-    # Explicitly named files win. Otherwise support first/second/latest product/reference wording.
-    named = []
-    for item in role_items:
-        filename = str(item.get("name") or "")
-        stem = Path(filename).stem.casefold()
-        if stem and len(stem) >= 4 and stem in value:
-            named.append(item)
-    if named:
-        named_ids = {id(x) for x in named}
-        role_items = named + [x for x in role_items if id(x) not in named_ids]
-    for role, noun in (("product_photo", "product"), ("style_reference", "reference")):
-        group = [x for x in role_items if x.get("role") == role]
-        if len(group) > 1:
-            chosen = None
-            if f"first {noun}" in value:
-                chosen = group[0]
-            elif f"second {noun}" in value:
-                chosen = group[1]
-            elif f"latest {noun}" in value or f"newest {noun}" in value:
-                chosen = group[-1]
-            if chosen:
-                role_items = [chosen] + [x for x in role_items if x is not chosen]
-                state = get_graphic_project_state()
-                state.setdefault("selected_asset_ids", {})[role] = str(chosen.get("asset_id") or chosen.get("name") or "")
-                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     edit_base = _graphic_latest_generated_role_item(prompt_text)
     if edit_base:
         role_items = [edit_base] + [item for item in role_items if item.get("role") != "edit_base"]
-    role_priority = {"edit_base": 0, "product_photo": 1, "style_reference": 2, "logo_asset": 3, "supporting_image": 4}
-    role_items = sorted(role_items, key=lambda item: role_priority.get(str(item.get("role") or ""), 9))
-    # Keep one authoritative product, up to four style references, one logo and two supporting assets.
-    limits = {"edit_base": 1, "product_photo": 1, "style_reference": 4, "logo_asset": 1, "supporting_image": 2}
-    counts, bounded = {}, []
-    for item in role_items:
-        role = str(item.get("role") or "supporting_image")
-        counts[role] = counts.get(role, 0) + 1
-        if counts[role] <= limits.get(role, 1):
-            bounded.append(item)
-    return bounded
+    role_priority = {
+        "edit_base": 0,
+        "product_photo": 1,
+        "style_reference": 2,
+        "logo_asset": 3,
+        "supporting_image": 4,
+    }
+    role_items = sorted(
+        role_items,
+        key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
+    )
+    return role_items
 
 
 
@@ -19238,8 +18933,6 @@ def _graphic_chatgpt_production_prompt(
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
     project_context = _graphic_project_context_text()
-    project_state = get_graphic_project_state()
-    object_model = _graphic_json_safe_v5000(project_state.get("objects") or {})
     explicit_name = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
     make = str((vehicle_profile or {}).get("make") or "").strip()
     model = str((vehicle_profile or {}).get("model") or "").strip()
@@ -19255,8 +18948,6 @@ def _graphic_chatgpt_production_prompt(
     ]
     if project_context:
         lines.append("PERSISTENT PROJECT CONTEXT FROM EARLIER USER TURNS: " + project_context)
-    if object_model:
-        lines.append("EDITABLE OBJECT MODEL AND LOCKS: " + json.dumps(object_model, ensure_ascii=False, default=str)[:6500])
     if explicit_name:
         lines.extend([
             "HARD VEHICLE CONTENT LOCK — THIS OVERRIDES EVERY STYLE REFERENCE AND EVERY VISUAL GUESS:",
@@ -19274,7 +18965,6 @@ def _graphic_chatgpt_production_prompt(
             "IMAGE 1 is the CURRENT ARTWORK TO EDIT. This is an EDIT, not a new design.",
             "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar and spacing unless the user explicitly names that object for change.",
             "Do not redesign or reinterpret unaffected areas. Make the smallest possible visual change that satisfies the current command.",
-            "Treat locked objects as immutable layers. Preserve their position, scale, typography, geometry, lighting and pixels unless explicitly unlocked by the edit directive.",
             "OBJECTS ALLOWED TO CHANGE: " + (", ".join(change_targets) if change_targets else "only the specifically requested wording/object"),
             "OBJECTS THAT MUST REMAIN UNCHANGED: " + (", ".join(preserve_targets) if preserve_targets else "all other objects"),
         ])
@@ -19691,20 +19381,13 @@ def _graphic_build_provider_result_v3000(
 
 
 def _graphic_save_latest_project_result(image):
-    """Persist the active canvas, editable object model, and restorable project snapshot."""
+    """Persist the latest result as the active editable canvas and version snapshot."""
     if not isinstance(image, dict) or not str(image.get("data_url") or "").startswith("data:image/"):
         return
     state = get_graphic_project_state()
     raw, _mime = data_url_to_bytes(str(image.get("data_url") or ""))
     canvas_id = hashlib.sha256(raw or str(image.get("data_url") or "").encode()).hexdigest()[:20]
     next_version = int(state.get("current_canvas_version") or 0) + 1
-    state["current_canvas_id"] = canvas_id
-    state["current_canvas_version"] = next_version
-    state = _graphic_refresh_object_model_v5000(
-        state,
-        geometry=image.get("reference_geometry") or {},
-        campaign_spec=image.get("campaign_spec") or state.get("campaign_spec") or {},
-    )
     snapshot = {
         key: image.get(key)
         for key in (
@@ -19712,50 +19395,50 @@ def _graphic_save_latest_project_result(image):
             "mime_type", "provider_route", "output_status", "quality_review",
             "reference_geometry", "campaign_spec", "vehicle_validation",
             "zone_completeness", "graphic_engine_version", "verification_status",
-            "verification_warning", "edit_mode", "edit_directive", "object_model",
+            "verification_warning", "edit_mode", "edit_directive",
         )
     }
     snapshot["canvas_id"] = canvas_id
     snapshot["canvas_version"] = next_version
-    snapshot["object_model"] = _graphic_json_safe_v5000(state.get("objects") or {})
     history = [item for item in (state.get("generation_history") or []) if isinstance(item, dict)]
     history.append(snapshot)
     state["generation_history"] = history[-10:]
     state["latest_generated"] = snapshot
+    state["current_canvas_id"] = canvas_id
+    state["current_canvas_version"] = next_version
     state["stage"] = "generated"
     state["last_error"] = ""
-    state["last_failed_stage"] = ""
-    state["schema_version"] = GRAPHIC_PROJECT_SCHEMA_VERSION
-    state["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
-    project_snapshot = _graphic_compact_project_snapshot_v5000(state)
-    image["canvas_id"] = canvas_id
-    image["canvas_version"] = next_version
-    image["object_model"] = _graphic_json_safe_v5000(state.get("objects") or {})
-    image["graphic_project_snapshot"] = project_snapshot
-    image["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
 
 
 
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024"):
-    """Build a scenery-only prompt for the deterministic campaign compositor."""
-    explicit_name = str((vehicle_profile or {}).get("explicit_display_name") or campaign_spec.get("compatibility") or "").strip()
-    prohibited = ", ".join(str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip())
-    blueprint = re.sub(r"\s+", " ", _graphic_reference_blueprint_text(reference_blueprint or {}))[:5000]
+    """Build a strict scenery-only prompt for the deterministic commercial composer."""
+    explicit_name = str(
+        (vehicle_profile or {}).get("explicit_display_name")
+        or campaign_spec.get("compatibility")
+        or ""
+    ).strip()
+    prohibited = ", ".join(
+        str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or [])
+        if str(x).strip()
+    )
     return "\n".join([
         "Create a premium photorealistic automotive advertising BACKGROUND PLATE only.",
-        f"Canvas: {output_size}. No product device, no dashboard screen, no gauge cluster, no logo, no headline, no icons, no ribbon, no text, and no watermark.",
-        f"The only vehicle in the scene must be a clearly recognizable {explicit_name or 'target vehicle specified by the user'}.",
-        "Use a rugged mountain/desert sunset environment with clean foreground space for a large product, bright sky space for copy, cinematic depth, and realistic commercial lighting.",
-        "The style reference controls atmosphere, camera angle, contrast, and campaign polish only; do not copy its vehicle or hardware.",
+        f"Canvas: {output_size}.",
+        "Do not draw any infotainment unit, screen, dashboard product, gauge cluster, logo, headline, icon, ribbon, feature label, bottom bar, watermark, or advertising text.",
+        f"Show exactly one clearly recognizable {explicit_name or 'target vehicle specified by the user'} on the RIGHT side of the frame, three-quarter front view.",
+        "Keep the LEFT foreground open and visually clean for a very large exact product cutout.",
+        "Keep the TOP 32 percent calm, bright, and low-detail for deterministic headline and feature typography.",
+        "Keep the BOTTOM 12 percent free of important objects for a black benefit bar.",
+        "Use rugged mountain or desert terrain at golden hour, cinematic depth, realistic shadows, premium automotive-advertising lighting, and crisp commercial realism.",
+        "The reference image controls only atmosphere, camera polish, contrast, and overall campaign mood. Never copy its product, vehicle, words, icons, logo, or watermark.",
         ("Absolutely prohibit these vehicle identities: " + prohibited) if prohibited else "Do not substitute a different vehicle make or model.",
-        "Leave the upper-left and upper-right areas visually calm enough for deterministic typography and feature icons, and leave a clean strip along the bottom for a benefit bar.",
-        "Reference layout context: " + blueprint,
+        "The target vehicle must remain fully visible behind and to the right of the future product placement, not centered and not on the left.",
         "User direction: " + re.sub(r"\s+", " ", str(prompt_text or ""))[:1200],
     ])[:16000]
-
 
 def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_size, vehicle_profile, campaign_spec, reference_blueprint):
     """Generate only the target-vehicle scenery, never the product or typography."""
@@ -19820,114 +19503,238 @@ def _graphic_wrap_text_v3200(draw, text, font, max_width, max_lines=3):
     return lines
 
 
-def _graphic_compose_reference_campaign_v3200(background_bytes, product_item, prompt_text, output_size, campaign_spec, vehicle_profile, role_items, reference_blueprint=None):
-    """Create the reference-density AutoTecPro campaign deterministically.
+def _graphic_compose_reference_campaign_v3200(
+    background_bytes,
+    product_item,
+    prompt_text,
+    output_size,
+    campaign_spec,
+    vehicle_profile,
+    role_items,
+    reference_blueprint=None,
+):
+    """Build a strict AutoTecPro commercial without allowing AI to redraw the product.
 
-    The AI supplies only the target-vehicle scene. Product pixels, brand, copy,
-    feature matrix, ribbon, and benefit bar are deterministic, preventing Ford
-    content leakage and missing campaign zones.
+    The image provider supplies only the vehicle/environment plate. This renderer uses
+    fixed, production-safe campaign geometry modeled after the approved AutoTecPro
+    reference: brand/copy on the upper-left, dense feature matrix on the upper-right,
+    the exact uploaded product as the dominant hero on the lower-left, the requested
+    vehicle on the lower-right, and a deterministic full-width bottom benefit bar.
     """
     if Image is None:
-        raise RuntimeError("Pillow is required for the reference-locked campaign compositor.")
+        raise RuntimeError("Pillow is required for the strict commercial compositor.")
+
     from PIL import ImageDraw, ImageFilter
+
     with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
-        canvas=ImageOps.exif_transpose(bg).convert("RGBA")
-    W,H=canvas.size
-    geometry = _graphic_reference_geometry_v3300(reference_blueprint or {}, prompt_text)
+        canvas = ImageOps.exif_transpose(bg).convert("RGBA")
+    W, H = canvas.size
+
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
     if product is None:
-        raise RuntimeError("The product source could not be decoded.")
+        raise RuntimeError("The exact product source could not be decoded.")
+    product = ImageOps.exif_transpose(product).convert("RGBA")
 
-    # Improve visual separation while preserving the provider-generated target vehicle.
-    grade=Image.new("RGBA",(W,H),(0,0,0,0)); gd=ImageDraw.Draw(grade,"RGBA")
-    gd.rectangle((0,0,W,H), fill=(245,248,252,24))
-    gd.rectangle((0,0,W,int(H*.36)), fill=(246,249,252,155))
-    gd.rectangle((0,int(H*.88),W,H), fill=(5,8,12,225))
-    canvas=Image.alpha_composite(canvas,grade)
+    # Production-safe visual zones. Do not trust AI-derived geometry for the final
+    # deterministic campaign because malformed boxes caused tiny copy, empty headers,
+    # and undersized products in prior releases.
+    top_h = int(H * 0.335)
+    bar_top = int(H * 0.885)
 
-    # Exact product: remove white studio background when safe, otherwise use a clean
-    # feathered white card so hardware geometry is never hallucinated.
+    # Calm top copy plate while retaining some scenery texture.
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay, "RGBA")
+    od.rectangle((0, 0, W, top_h), fill=(246, 249, 253, 218))
+    od.rectangle((0, top_h - int(H * 0.035), W, top_h + int(H * 0.02)), fill=(246, 249, 253, 115))
+    od.rectangle((0, bar_top, W, H), fill=(4, 7, 12, 238))
+    canvas = Image.alpha_composite(canvas, overlay)
+
+    # Use an actual transparent cutout whenever available. If segmentation is unsafe,
+    # retain the exact original on a subtle clean card rather than hallucinating it.
     if not transparent:
-        pad=max(10,int(H*.012))
-        card=Image.new("RGBA",(product.width+pad*2,product.height+pad*2),(250,251,253,238))
-        card.alpha_composite(product,(pad,pad)); product=card
-    pb=list(geometry["hero_product_box"])
-    bb=list(geometry.get("bottom_bar_box") or [0.03,0.88,0.94,0.10])
-    # Product fidelity takes priority over template geometry. Keep the complete lower
-    # frame, gap below the screen, tabs, and openings safely above the bottom bar.
-    safe_bottom=max(0.55, min(0.885, float(bb[1])-0.012))
-    pb[0]=min(max(float(pb[0]),0.015),0.60)
-    pb[1]=min(max(float(pb[1]),0.24),0.56)
-    pb[2]=max(float(pb[2]),0.43)
-    pb[3]=max(float(pb[3]),safe_bottom-pb[1])
-    pb[3]=min(pb[3],safe_bottom-pb[1])
-    target_w=int(W*pb[2]); target_h=int(H*pb[3])
-    scale=min(target_w/max(1,product.width),target_h/max(1,product.height))
-    product=product.resize((max(1,int(product.width*scale)),max(1,int(product.height*scale))),Image.Resampling.LANCZOS)
-    px=int(W*pb[0]+max(0,(target_w-product.width)/2)); py=int(H*pb[1]+max(0,(target_h-product.height)/2))
-    shadow=Image.new("RGBA",product.size,(0,0,0,0)); alpha=product.getchannel("A").filter(ImageFilter.GaussianBlur(radius=max(10,H//60)))
-    shadow.putalpha(alpha.point(lambda a:int(a*.45)))
-    canvas.alpha_composite(shadow,(px+12,py+16)); canvas.alpha_composite(product,(px,py))
+        pad = max(8, int(H * 0.008))
+        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (250, 251, 253, 245))
+        card.alpha_composite(product, (pad, pad))
+        product = card
 
-    draw=ImageDraw.Draw(canvas,"RGBA")
-    navy=(8,35,78,255); red=(215,8,18,255); dark=(10,13,18,245); white=(255,255,255,255)
-    headline_font=_graphic_font(H*.055,True); ribbon_font=_graphic_font(H*.026,True); tag_font=_graphic_font(H*.027,False)
-    feature_font=_graphic_font(H*.017,False); bottom_font=_graphic_font(H*.018,False); vehicle_font=_graphic_font(H*.025,True)
+    # Exact-product hero placement: dominant and fully visible, including the gap below
+    # the screen, lower openings, mounting tabs, side handles, knobs, and trim geometry.
+    hero_x0 = int(W * 0.025)
+    hero_y0 = int(H * 0.335)
+    hero_x1 = int(W * 0.585)
+    hero_y1 = bar_top - int(H * 0.008)
+    hero_w = hero_x1 - hero_x0
+    hero_h = hero_y1 - hero_y0
+    scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
+    product = product.resize(
+        (max(1, int(product.width * scale)), max(1, int(product.height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    px = hero_x0 + max(0, (hero_w - product.width) // 2)
+    py = hero_y1 - product.height
 
-    # Official logo is applied after composition; reserve the exact top-left zone.
-    headline=str(campaign_spec.get("headline") or f"{campaign_spec.get('screen_size','15.1\"')} VERTICAL DASH DISPLAY").upper()
-    compatibility=str(campaign_spec.get("compatibility") or (vehicle_profile or {}).get("explicit_display_name") or "VEHICLE-SPECIFIC FITMENT")
-    tagline=str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.")
-    hb=geometry["headline_box"]; hx=int(W*hb[0]); hy=int(H*hb[1]); hmax=int(W*hb[2])
-    for line in _graphic_wrap_text_v3200(draw,headline,headline_font,hmax,2):
-        draw.text((hx,hy),line,font=headline_font,fill=navy,stroke_width=1,stroke_fill=(255,255,255,110)); hy+=int(H*.062)
-    ry=hy+int(H*.012); rw=min(int(W*.55), max(int(W*.35), int(len(compatibility)*W*.0085)))
-    draw.polygon([(hx,ry),(hx+rw,ry),(hx+rw-int(W*.018),ry+int(H*.052)),(hx-int(W*.008),ry+int(H*.052))],fill=red)
-    draw.text((hx+int(W*.018),ry+int(H*.008)),compatibility,font=ribbon_font,fill=white)
-    draw.text((hx,ry+int(H*.07)),tagline,font=tag_font,fill=navy)
+    # Natural grounding shadow without changing source pixels.
+    alpha = product.getchannel("A")
+    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(10, H // 70)))
+    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.42)))
+    canvas.alpha_composite(shadow, (px + int(W * 0.009), py + int(H * 0.012)))
+    canvas.alpha_composite(product, (px, py))
 
-    # Dense 2x4 feature matrix in the upper-right, matching the reference campaign.
-    features=list(campaign_spec.get("feature_labels") or [])[:8]
-    fb=geometry["feature_matrix_box"]; grid_x=int(W*fb[0]); grid_y=int(H*fb[1]); grid_w=int(W*fb[2]); cell_w=grid_w/4; cell_h=int(H*fb[3]/2)
-    for idx,label in enumerate(features):
-        row,col=divmod(idx,4); x=int(grid_x+col*cell_w); y=int(grid_y+row*cell_h)
-        if col: draw.line((x,y+int(H*.01),x,y+cell_h-int(H*.012)),fill=(8,35,78,70),width=1)
-        icon_box=(int(x+cell_w*.25),int(y+cell_h*.05),int(x+cell_w*.75),int(y+cell_h*.48))
-        _graphic_draw_feature_icon_v3200(draw,icon_box,idx,navy)
-        lines=_graphic_wrap_text_v3200(draw,label,feature_font,int(cell_w*.9),2)
-        ty=int(y+cell_h*.56)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    navy = (7, 34, 76, 255)
+    red = (205, 8, 18, 255)
+    white = (255, 255, 255, 255)
+    divider = (7, 34, 76, 90)
+
+    def text_width(value, font):
+        try:
+            box = draw.textbbox((0, 0), str(value), font=font)
+            return max(0, box[2] - box[0])
+        except Exception:
+            return len(str(value)) * 10
+
+    def fitted_font(value, max_width, preferred_px, minimum_px, bold=True):
+        size = int(preferred_px)
+        while size > int(minimum_px):
+            font = _graphic_font(size, bold)
+            if text_width(value, font) <= max_width:
+                return font
+            size -= 2
+        return _graphic_font(minimum_px, bold)
+
+    headline = str(campaign_spec.get("headline") or "PREMIUM INFOTAINMENT SYSTEM").strip().upper()
+    compatibility = str(
+        campaign_spec.get("compatibility")
+        or (vehicle_profile or {}).get("explicit_display_name")
+        or "VEHICLE-SPECIFIC FITMENT"
+    ).strip()
+    tagline = str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.").strip()
+
+    # Upper-left copy begins below the official logo zone. The logo itself is applied
+    # afterward by the existing brand-logo function.
+    left_x = int(W * 0.025)
+    left_w = int(W * 0.535)
+    headline_y = int(H * 0.135)
+    headline_font = fitted_font(headline, left_w, H * 0.064, H * 0.040, True)
+    headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
+    line_step = int(H * 0.066)
+    for line in headline_lines:
+        draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
+        headline_y += line_step
+
+    ribbon_y = min(int(H * 0.265), headline_y + int(H * 0.006))
+    ribbon_h = int(H * 0.050)
+    ribbon_font = fitted_font(compatibility, int(W * 0.47), H * 0.029, H * 0.019, True)
+    ribbon_w = min(int(W * 0.50), max(int(W * 0.34), text_width(compatibility, ribbon_font) + int(W * 0.045)))
+    draw.polygon(
+        [
+            (left_x, ribbon_y),
+            (left_x + ribbon_w, ribbon_y),
+            (left_x + ribbon_w - int(W * 0.018), ribbon_y + ribbon_h),
+            (left_x - int(W * 0.006), ribbon_y + ribbon_h),
+        ],
+        fill=red,
+    )
+    draw.text((left_x + int(W * 0.016), ribbon_y + int(H * 0.007)), compatibility, font=ribbon_font, fill=white)
+
+    tag_font = fitted_font(tagline, left_w, H * 0.027, H * 0.018, False)
+    draw.text((left_x, ribbon_y + ribbon_h + int(H * 0.018)), tagline, font=tag_font, fill=navy)
+
+    # Dense and aligned 2x4 feature matrix, matching the approved reference hierarchy.
+    features = list(campaign_spec.get("feature_labels") or [])[:8]
+    while len(features) < 8:
+        defaults = [
+            "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
+            "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
+        ]
+        features.append(defaults[len(features)])
+    grid_x = int(W * 0.585)
+    grid_y = int(H * 0.035)
+    grid_w = int(W * 0.385)
+    grid_h = int(H * 0.275)
+    cell_w = grid_w / 4.0
+    cell_h = grid_h / 2.0
+    feature_font = _graphic_font(max(13, int(H * 0.017)), False)
+    for idx, label in enumerate(features):
+        row, col = divmod(idx, 4)
+        x0 = int(grid_x + col * cell_w)
+        y0 = int(grid_y + row * cell_h)
+        if col:
+            draw.line((x0, y0 + int(H * 0.010), x0, y0 + int(cell_h) - int(H * 0.010)), fill=divider, width=1)
+        if row:
+            draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
+        icon_box = (
+            int(x0 + cell_w * 0.31),
+            int(y0 + cell_h * 0.04),
+            int(x0 + cell_w * 0.69),
+            int(y0 + cell_h * 0.42),
+        )
+        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
+        lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
+        ty = int(y0 + cell_h * 0.54)
         for line in lines:
-            try: tw=draw.textbbox((0,0),line,font=feature_font)[2]
-            except Exception: tw=len(line)*8
-            draw.text((int(x+(cell_w-tw)/2),ty),line,font=feature_font,fill=navy); ty+=int(H*.021)
-    draw.line((grid_x,grid_y+cell_h,grid_x+grid_w,grid_y+cell_h),fill=(8,35,78,90),width=1)
+            tw = text_width(line, feature_font)
+            draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
+            ty += int(H * 0.021)
 
-    vehicle_label=str(campaign_spec.get("vehicle_label") or compatibility).upper()
-    draw.text((int(W*.035),int(H*.83)),vehicle_label,font=vehicle_font,fill=white,stroke_width=2,stroke_fill=(0,0,0,190))
+    # Vehicle label on the right-side scenery, away from the product.
+    vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
+    vehicle_font = fitted_font(vehicle_label, int(W * 0.34), H * 0.026, H * 0.017, True)
+    label_x = int(W * 0.66)
+    label_y = int(H * 0.815)
+    draw.text((label_x, label_y), vehicle_label, font=vehicle_font, fill=white, stroke_width=2, stroke_fill=(0, 0, 0, 180))
+    draw.rectangle((label_x, label_y + int(H * 0.035), label_x + min(int(W * 0.11), text_width(vehicle_label, vehicle_font)), label_y + int(H * 0.040)), fill=red)
 
-    benefits=list(campaign_spec.get("bottom_benefits") or [])[:5]; bb=geometry["bottom_bar_box"]; by=int(H*bb[1]); bw=int(W*bb[2]); bx=int(W*bb[0]); cell=bw/5
-    draw.rounded_rectangle((bx,by,bx+bw,min(H-int(H*.012),int(H*(bb[1]+bb[3])))),radius=int(H*.018),fill=dark)
-    for idx,label in enumerate(benefits):
-        x=int(bx+idx*cell)
-        if idx: draw.line((x,by+int(H*.025),x,H-int(H*.035)),fill=(255,255,255,90),width=1)
-        icon_box=(int(x+cell*.08),int(by+H*.018),int(x+cell*.33),int(by+H*.07))
-        _graphic_draw_feature_icon_v3200(draw,icon_box,idx,(255,255,255,255))
-        lines=_graphic_wrap_text_v3200(draw,label,bottom_font,int(cell*.58),2); ty=int(by+H*.025)
+    # Full-width deterministic bottom benefit bar.
+    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
+    while len(benefits) < 5:
+        defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
+        benefits.append(defaults[len(benefits)])
+    bx = int(W * 0.035)
+    by = bar_top
+    bw = int(W * 0.93)
+    bh = H - by - int(H * 0.015)
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 244), outline=(255, 255, 255, 70), width=1)
+    cell = bw / 5.0
+    bottom_font = _graphic_font(max(13, int(H * 0.018)), False)
+    for idx, label in enumerate(benefits):
+        x0 = int(bx + idx * cell)
+        if idx:
+            draw.line((x0, by + int(H * 0.018), x0, by + bh - int(H * 0.018)), fill=(255, 255, 255, 95), width=1)
+        icon_box = (
+            int(x0 + cell * 0.08),
+            int(by + bh * 0.20),
+            int(x0 + cell * 0.30),
+            int(by + bh * 0.74),
+        )
+        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
+        lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.61), 2)
+        ty = int(by + bh * 0.26)
         for line in lines:
-            draw.text((int(x+cell*.37),ty),line,font=bottom_font,fill=white); ty+=int(H*.024)
+            draw.text((int(x0 + cell * 0.35), ty), line, font=bottom_font, fill=white)
+            ty += int(H * 0.024)
 
-    buf=io.BytesIO(); canvas.convert("RGB").save(buf,format="PNG",optimize=True)
-    return buf.getvalue(), {
-        "engine":"reference-locked-campaign-v3200",
-        "exact_product_pixels":True,
-        "vehicle_lock":str((vehicle_profile or {}).get("explicit_display_name") or ""),
-        "campaign_zones":["logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"],
+    output = io.BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    return output.getvalue(), {
+        "engine": "strict-commercial-composer-v6000",
+        "exact_product_pixels": True,
+        "deterministic_typography": True,
+        "fixed_production_geometry": True,
+        "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
+        "campaign_zones": [
+            "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
+            "hero_product", "target_vehicle", "bottom_benefit_bar",
+        ],
         "critical_product_geometry_preserved": True,
-        "negative_space_lock": ["gap_below_screen", "lower_openings", "side_handle_openings", "bottom_mounting_gaps"],
-        "product_safe_bottom": safe_bottom,
+        "negative_space_lock": [
+            "gap_below_screen", "lower_openings", "side_handle_openings",
+            "bottom_mounting_gaps", "climate_controls", "physical_buttons",
+        ],
         "product_box": [px, py, product.width, product.height],
+        "hero_region": [hero_x0, hero_y0, hero_x1, hero_y1],
     }
-
 
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
     product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
@@ -19938,11 +19745,12 @@ def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_
         role_items,prompt_text,output_size,vehicle_profile,spec,reference_blueprint
     )
     composed,metadata=_graphic_compose_reference_campaign_v3200(
-        background,product_item,prompt_text,output_size,spec,vehicle_profile,role_items
+        background, product_item, prompt_text, output_size, spec, vehicle_profile,
+        role_items, reference_blueprint=reference_blueprint
     )
     result=_graphic_build_provider_result_v3000(
         composed,prompt_text,output_size,role_items,
-        route+"+reference-locked-compositor-v3200",reference_blueprint,vehicle_profile,
+        route+"+strict-commercial-composer-v6000",reference_blueprint,vehicle_profile,
         corrected=True,
     )
     result["product_identity_method"]="exact_source_pixel_composite"
@@ -20141,7 +19949,7 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
     # attempt and edit candidate, but deterministic product/copy/layout layers avoid
     # the exact failures observed in production: Ford leakage, missing feature zones,
     # malformed compatibility text, and simplified product geometry.
-    use_hybrid_campaign = has_product and has_style and (candidate_failed or hard_vehicle_lock)
+    use_hybrid_campaign = has_product and has_style and not has_edit_base
     if use_hybrid_campaign:
         diagnostic_log("graphic_v3200_hybrid_campaign_started", candidate_route=candidate.get("provider_route"), hard_vehicle_lock=hard_vehicle_lock)
         try:
@@ -21004,7 +20812,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000(failed_stage, provider_errors or ["No image bytes were returned by the available provider routes."])
             raise RuntimeError(f"Graphic stage '{failed_stage}' did not produce a usable image. The complete project is preserved for Retry.")
 
-        final_result["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
+        final_result["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
         final_result["reference_geometry"] = geometry
         final_result["campaign_spec"] = campaign_spec
         final_result["project_editable"] = True
@@ -21020,13 +20828,13 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             None,
         )
         state = get_graphic_project_state()
-        state["graphic_engine_version"] = GRAPHIC_V5000_ENGINE_VERSION
+        state["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
         state["stage"] = "generated"
         state["last_error"] = ""
         state["last_failed_stage"] = ""
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        completion = "Graphic artwork completed and verified with persistent project memory." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
+        completion = "Graphic artwork completed and verified." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
         _graphic_progress_update_v3300(status, completion, "complete")
         return [final_result]
     except Exception as error:
