@@ -126,8 +126,7 @@ except Exception:
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
 # v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
-# v1500 ChatGPT-style Graphic Project Engine: native unified composer when supported,
-# persistent cross-turn Graphic assets, explicit project stages, single post-normalization routing, safe errors, and compatibility fallback.
+# v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
@@ -4633,9 +4632,11 @@ def _managed_file_uploader_core(
         # Auto Learning, sidebar, or workspace code.
         _rerun_upload_region()
 
-    # Submission is handled by the unified native chat composer when supported.
-    # The managed uploader remains a compatibility fallback only; it no longer
-    # mutates Streamlit's private chat-input DOM.
+    # Keep the proven managed uploader interface. The normal bottom-right chat
+    # send arrow becomes active whenever one or more managed attachments exist.
+    _sync_native_chat_send_arrow_for_attachments(
+        bool(st.session_state.get(storage_key) or [])
+    )
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
     if size_error:
@@ -34375,18 +34376,15 @@ else:
         "jpg", "jpeg", "png", "webp", "pdf", "txt",
         "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
     ]
-    native_chat_files_supported = _native_chat_file_input_supported()
-    uploaded_files = []
-    if not native_chat_files_supported:
-        uploaded_files = managed_file_uploader(
-            storage_key="chat_managed_uploads",
-            generation_key="chat_managed_upload_generation",
-            widget_prefix="chat_files",
-            accepted_types=chat_accepted_types,
-            heading="📎 Attach files or photos",
-        )
-        st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-        install_global_chat_file_dropzone()
+    uploaded_files = managed_file_uploader(
+        storage_key="chat_managed_uploads",
+        generation_key="chat_managed_upload_generation",
+        widget_prefix="chat_files",
+        accepted_types=chat_accepted_types,
+        heading="📎 Attach files or photos",
+    )
+    st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
+    install_global_chat_file_dropzone()
 
     for message_index, msg in enumerate(st.session_state.messages):
         render_chat_message(
@@ -34406,18 +34404,9 @@ else:
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
-    # One native composer owns both text and attachments on supported Streamlit
-    # releases. This removes the private-DOM zero-width sentinel workaround.
-    if native_chat_files_supported:
-        chat_submission = st.chat_input(
-            "Message AutoTecPro AI...",
-            accept_file="multiple",
-            file_type=chat_accepted_types,
-        )
-        chat_prompt, native_chat_files = _normalize_native_chat_submission(chat_submission)
-        uploaded_files = list(native_chat_files or [])
-    else:
-        chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    # Keep the original stable composer. Attachments remain in the proven managed
+    # uploader above, while the normal bottom-right send arrow submits the turn.
+    chat_prompt = st.chat_input("Message AutoTecPro AI...")
 
     if (
         isinstance(graphic_tool_request, dict)
@@ -34436,14 +34425,11 @@ else:
         active_structured_tool = None
 
     native_attachment_only_submit = bool(
-        not str(prompt or "").strip()
+        isinstance(prompt, str)
+        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
         and uploaded_files
         and active_structured_tool is None
     )
-    # Legacy compatibility only: old deployments may still submit the historical
-    # sentinel once during a rolling upgrade. It is never injected by this version.
-    if isinstance(prompt, str) and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL:
-        native_attachment_only_submit = bool(uploaded_files and active_structured_tool is None)
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
         prompt = build_attachment_only_chat_prompt(assistant)
