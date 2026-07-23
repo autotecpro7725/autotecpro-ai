@@ -140,6 +140,7 @@ except Exception:
 # dynamic reference geometry, Product Library grounding, persistent cutout masks, deterministic copy,
 # focused vehicle validation, zone completeness checks, conversational edit state, and progress status.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
+# v4300 Exact Product Structure Lock: exact uploaded-product hero compositing, critical opening/gap/mounting-geometry analysis, safer product mask padding, and structural-fidelity QA.
 # v3200 Reference-Locked Campaign Engine: persistent campaign copy/specification memory,
 #   strict vehicle/content separation, provider-first full artwork, deterministic reference-density
 #   hybrid correction using exact product pixels, correct target-vehicle scenery, typography,
@@ -17729,6 +17730,7 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             "zone_presence (object with boolean keys logo, headline, compatibility_ribbon, tagline, feature_matrix, hero_product, target_vehicle, bottom_benefit_bar), problems (array), correction_prompt (string). Fail the image if any visible product "
             "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
             "trim geometry, openings, brackets, connectors, proportions, or product identity. "
+            "Pay special attention to negative spaces: the horizontal gap directly below the screen, lower rectangular cavities, side handle openings, bottom mounting gaps/tabs, and all holes must remain visibly open and correctly shaped. Filling or deleting any such gap is an automatic product-fidelity failure. "
             "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
             "Read the persistent project vehicle lock from the requested prompt/context. Immediately fail if the generated truck make/model differs from the explicit user vehicle, or if text from the style-reference vehicle leaks into the result. "
             "Score content_density against the style reference: logo/URL zone, headline, compatibility ribbon, tagline, feature/icon matrix, hero product, target vehicle, and multi-item bottom benefit bar should all be represented when present in the reference. "
@@ -18824,6 +18826,93 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
     return role_items
 
 
+
+
+@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
+def _graphic_product_structure_profile_cached_v4300(raw_bytes, filename=""):
+    """Extract critical hardware geometry that must survive every commercial render.
+
+    The profile is advisory for provider prompts and QA. Exact product compositing is
+    still the authoritative preservation mechanism, so analysis failure never blocks
+    generation.
+    """
+    if not raw_bytes:
+        return {}
+    fallback = {
+        "source_filename": str(filename or ""),
+        "must_preserve": [
+            "complete outer housing silhouette",
+            "screen aspect ratio and visible screen UI",
+            "left and right trim/handle geometry",
+            "all physical knobs and buttons",
+            "lower mounting frame and tabs",
+            "all open negative-space cutouts",
+            "the horizontal gap directly below the screen",
+            "bottom bracket openings and mounting points",
+        ],
+        "critical_negative_spaces": [
+            "gap below screen",
+            "lower rectangular openings",
+            "side handle openings",
+        ],
+        "analysis_available": False,
+    }
+    try:
+        mime = "image/png" if raw_bytes[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+        data_url = f"data:{mime};base64," + base64.b64encode(raw_bytes).decode("ascii")
+        response = client.responses.create(
+            model=_graphic_responses_model_v4000(),
+            instructions=(
+                "Act as a strict automotive hardware geometry inspector. Return JSON only. "
+                "Identify exact silhouette, openings, gaps, tabs, controls, screen borders, and mounting geometry."
+            ),
+            input=[{"role":"user","content":[
+                {"type":"input_text","text":(
+                    "Analyze this exact AutoTecPro product source for immutable structural details. "
+                    "Return one JSON object with keys: outer_silhouette, screen_geometry, side_structures, "
+                    "physical_controls, lower_structure, critical_negative_spaces, mounting_points, "
+                    "must_preserve, common_failure_risks. Explicitly inspect whether there is a visible "
+                    "horizontal gap below the screen, open lower cavities, side handle openings, bottom tabs, "
+                    "and any other empty spaces that an image model may accidentally fill."
+                )},
+                {"type":"input_image","image_url":data_url},
+            ]}],
+            max_output_tokens=1200,
+        )
+        parsed = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if isinstance(parsed, dict) and parsed:
+            parsed["source_filename"] = str(filename or "")
+            parsed["analysis_available"] = True
+            parsed.setdefault("must_preserve", fallback["must_preserve"])
+            parsed.setdefault("critical_negative_spaces", fallback["critical_negative_spaces"])
+            return parsed
+    except Exception as error:
+        diagnostic_log("graphic_v4300_product_structure_analysis_failed", error_type=type(error).__name__, error=str(error))
+    return fallback
+
+
+def _graphic_product_structure_profile_v4300(role_items):
+    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    if not product:
+        return {}
+    raw = _graphic_uploaded_file_bytes(product.get("file"))
+    return _graphic_product_structure_profile_cached_v4300(raw, str(product.get("name") or ""))
+
+
+def _graphic_product_structure_text_v4300(profile):
+    if not isinstance(profile, dict) or not profile:
+        return ""
+    parts = []
+    for key in (
+        "outer_silhouette", "screen_geometry", "side_structures", "physical_controls",
+        "lower_structure", "critical_negative_spaces", "mounting_points", "must_preserve",
+        "common_failure_risks",
+    ):
+        value = profile.get(key)
+        if value not in (None, "", [], {}):
+            parts.append(f"{key.replace('_',' ').title()}: {value}")
+    return " | ".join(parts)[:7000]
+
 def _graphic_chatgpt_production_prompt(
     prompt_text,
     role_items,
@@ -18848,6 +18937,8 @@ def _graphic_chatgpt_production_prompt(
     model = str((vehicle_profile or {}).get("model") or "").strip()
     year = str((vehicle_profile or {}).get("year_range") or "").strip()
     prohibited_terms = [str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip()]
+    product_structure = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
+    product_structure_text = _graphic_product_structure_text_v4300(product_structure)
 
     lines = [
         "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
@@ -18887,7 +18978,11 @@ def _graphic_chatgpt_production_prompt(
             "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
             "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity.",
             "Do not redesign, simplify, crop away, or substitute its physical components. Do not use the gauge cluster or hardware shown in a style reference.",
+            "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
+            "The entire product must remain visible above the bottom benefit bar. Do not crop, cover, or hide the lower frame, gap below the screen, mounting tabs, or bottom openings.",
         ])
+        if product_structure_text:
+            lines.append("IMMUTABLE PRODUCT STRUCTURE MAP: " + product_structure_text)
     if has_style:
         lines.extend([
             "The STYLE REFERENCE advertisements define the VISUAL SYSTEM ONLY. Their vehicle, product, claims, model names, years, watermarks, and compatibility copy are source content that must be replaced.",
@@ -18914,7 +19009,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_V4000_ENGINE_VERSION = "v4200-persistent-visual-editing-engine"
+GRAPHIC_V4000_ENGINE_VERSION = "v4300-exact-product-structure-lock"
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
 
@@ -19412,6 +19507,7 @@ def _graphic_compose_reference_campaign_v3200(background_bytes, product_item, pr
     with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
         canvas=ImageOps.exif_transpose(bg).convert("RGBA")
     W,H=canvas.size
+    geometry = _graphic_reference_geometry_v3300(reference_blueprint or {}, prompt_text)
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
     if product is None:
         raise RuntimeError("The product source could not be decoded.")
@@ -19429,7 +19525,17 @@ def _graphic_compose_reference_campaign_v3200(background_bytes, product_item, pr
         pad=max(10,int(H*.012))
         card=Image.new("RGBA",(product.width+pad*2,product.height+pad*2),(250,251,253,238))
         card.alpha_composite(product,(pad,pad)); product=card
-    pb=geometry["hero_product_box"]; target_w=int(W*pb[2]); target_h=int(H*pb[3])
+    pb=list(geometry["hero_product_box"])
+    bb=list(geometry.get("bottom_bar_box") or [0.03,0.88,0.94,0.10])
+    # Product fidelity takes priority over template geometry. Keep the complete lower
+    # frame, gap below the screen, tabs, and openings safely above the bottom bar.
+    safe_bottom=max(0.55, min(0.885, float(bb[1])-0.012))
+    pb[0]=min(max(float(pb[0]),0.015),0.60)
+    pb[1]=min(max(float(pb[1]),0.24),0.56)
+    pb[2]=max(float(pb[2]),0.43)
+    pb[3]=max(float(pb[3]),safe_bottom-pb[1])
+    pb[3]=min(pb[3],safe_bottom-pb[1])
+    target_w=int(W*pb[2]); target_h=int(H*pb[3])
     scale=min(target_w/max(1,product.width),target_h/max(1,product.height))
     product=product.resize((max(1,int(product.width*scale)),max(1,int(product.height*scale))),Image.Resampling.LANCZOS)
     px=int(W*pb[0]+max(0,(target_w-product.width)/2)); py=int(H*pb[1]+max(0,(target_h-product.height)/2))
@@ -19490,6 +19596,10 @@ def _graphic_compose_reference_campaign_v3200(background_bytes, product_item, pr
         "exact_product_pixels":True,
         "vehicle_lock":str((vehicle_profile or {}).get("explicit_display_name") or ""),
         "campaign_zones":["logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"],
+        "critical_product_geometry_preserved": True,
+        "negative_space_lock": ["gap_below_screen", "lower_openings", "side_handle_openings", "bottom_mounting_gaps"],
+        "product_safe_bottom": safe_bottom,
+        "product_box": [px, py, product.width, product.height],
     }
 
 
@@ -20089,7 +20199,12 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                 else:
                     a = 255
                 ap[x, y] = a
-        alpha = alpha.filter(ImageFilter.MedianFilter(size=3)).filter(ImageFilter.GaussianBlur(radius=0.8))
+        alpha = alpha.filter(ImageFilter.MedianFilter(size=3)).filter(ImageFilter.GaussianBlur(radius=0.65))
+        # Keep true white-background openings transparent, but never erode adjacent dark
+        # frame edges. A small max-filter followed by a min-filter stabilizes thin tabs
+        # and the lower frame while preserving enclosed negative spaces such as the
+        # horizontal gap below the screen.
+        alpha = alpha.filter(ImageFilter.MaxFilter(size=3)).filter(ImageFilter.MinFilter(size=3))
         im.putalpha(alpha)
         out = io.BytesIO(); im.save(out, format="PNG", optimize=True)
         return out.getvalue()
@@ -20505,8 +20620,14 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     else:
                         best_unverified = _graphic_mark_unverified_v4100(corrected, "The corrected image was created, but complete verification was unavailable or did not fully pass.")
 
-        if final_result is None and has_product and has_style:
-            _graphic_progress_update_v3300(status, "Building a reference-locked campaign with exact product pixels and typography…")
+        # For the first commercial creation, exact uploaded-product geometry is the
+        # final authority. Even a provider result that looks good may subtly fill a
+        # real opening or remove a bracket/gap. Therefore reference-driven product
+        # jobs are finalized through the controlled exact-pixel compositor. Follow-up
+        # edits may keep the provider edit path when the current canvas is being edited.
+        force_exact_product = bool(has_product and has_style and not has_edit_base)
+        if has_product and has_style and (final_result is None or force_exact_product):
+            _graphic_progress_update_v3300(status, "Applying the exact uploaded product structure and preserving every opening, gap, control, and mounting detail…")
             try:
                 hybrid = _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile)
                 hv = _graphic_safe_optional_call(
@@ -20528,10 +20649,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     "qa_missing_scores": [],
                 })
                 if deterministic.get("verified"):
-                    hybrid["output_status"] = "verified_controlled_campaign"
+                    hybrid["output_status"] = "verified_exact_product_campaign_v4300"
                     hybrid["verification_status"] = "verified"
+                    hybrid["exact_product_structure_lock"] = True
                     final_result = hybrid
                 elif deterministic.get("unverified"):
+                    hybrid["exact_product_structure_lock"] = True
                     best_unverified = _graphic_mark_unverified_v4100(
                         hybrid,
                         "The controlled campaign was completed with exact product pixels and exact typography, but the optional vehicle validator was unavailable.",
