@@ -132,7 +132,7 @@ except Exception:
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
-# v2004 dual-provider reference engine: use Images Edit first, Responses image tool second, and never substitute the generic local template for reference-driven commercial jobs.
+# v3000 ChatGPT-style Graphic engine: one authoritative conversational image pipeline, persistent edit base, reference-faithful multi-image generation, one controlled correction pass, and no generic-template final fallback.
 # v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
@@ -16717,7 +16717,9 @@ def _empty_graphic_project_state():
         "stage": "planning",
         "assets": [],
         "latest_generated": None,
+        "generation_history": [],
         "last_intent": "conversation",
+        "last_error": "",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -16731,7 +16733,9 @@ def get_graphic_project_state():
     state.setdefault("stage", "planning")
     state.setdefault("assets", [])
     state.setdefault("latest_generated", None)
+    state.setdefault("generation_history", [])
     state.setdefault("last_intent", "conversation")
+    state.setdefault("last_error", "")
     return state
 
 
@@ -17688,7 +17692,7 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 # v1000 Professional Layered Automotive Ad Studio
 # ============================================================
 
-GRAPHIC_LAYERED_ENGINE_VERSION = "v2004-dual-provider-reference-studio"
+GRAPHIC_LAYERED_ENGINE_VERSION = "v3000-chatgpt-style-conversational-studio"
 GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
 
 
@@ -18412,519 +18416,494 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
     output=io.BytesIO(); canvas.convert("RGB").save(output,format="PNG",optimize=True)
     return output.getvalue(), {"engine":GRAPHIC_LAYERED_ENGINE_VERSION,"product_pixels_preserved":True,"product_box":[x,y,product.width,product.height],"layout_plan":plan,"palette":{"accent":list(accent)},"copy":copy,"vehicle_profile":vehicle_profile or {}}
 
+def _graphic_is_followup_edit_request(prompt_text):
+    """Return True when the user is modifying the most recent generated artwork."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    edit_terms = (
+        "edit", "change", "replace", "remove", "add", "move", "make it", "make the",
+        "bigger", "smaller", "brighter", "darker", "left", "right", "top", "bottom",
+        "headline", "text", "background", "logo", "color", "colour", "keep everything else",
+        "same image", "same design", "this image", "current image", "previous image",
+    )
+    creation_terms = (
+        "create it", "generate it", "create the ad", "make the ad", "new image", "new ad",
+        "another version", "regenerate", "try again",
+    )
+    return any(term in value for term in edit_terms) and not any(term == value for term in creation_terms)
+
+
+def _graphic_latest_generated_role_item(prompt_text):
+    """Materialize the current conversation's latest artwork as an edit base."""
+    if not _graphic_is_followup_edit_request(prompt_text):
+        return None
+    latest = (get_graphic_project_state() or {}).get("latest_generated") or {}
+    data_url = str(latest.get("data_url") or "")
+    raw, mime = data_url_to_bytes(data_url)
+    if not raw:
+        return None
+    uploaded = ManagedUploadedFile(
+        raw,
+        str(latest.get("filename") or latest.get("name") or "latest_graphic.png"),
+        mime or "image/png",
+        graphic_role="edit_base",
+        graphic_asset_id=hashlib.sha256(raw).hexdigest(),
+    )
+    return {
+        "file": uploaded,
+        "name": uploaded.name,
+        "role": "edit_base",
+        "reason": "latest generated artwork selected for conversational editing",
+    }
+
+
+def _graphic_safe_optional_call(event_name, callback, default):
+    """Run optional Graphic intelligence without allowing it to block generation."""
+    try:
+        value = callback()
+        return default if value is None else value
+    except Exception as error:
+        diagnostic_log(event_name, error_type=type(error).__name__, error=error)
+        return default
+
+
+def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
+    """Resolve persistent project assets into one authoritative ordered role list."""
+    effective_files = graphic_project_uploaded_files(uploaded_files or [])
+    role_items = classify_graphic_uploaded_image_roles(
+        effective_files, prompt_text, forced_role=forced_role
+    )
+    # Recover the common reference-first/product-second sequence if the deterministic
+    # classifier cannot locate both required roles.
+    has_product = any(item.get("role") == "product_photo" for item in role_items)
+    has_style = any(item.get("role") == "style_reference" for item in role_items)
+    if effective_files and (not has_product or not has_style):
+        recovered = _graphic_recover_role_items(
+            effective_files, prompt_text, forced_role=forced_role
+        )
+        if recovered:
+            role_items = recovered
+    edit_base = _graphic_latest_generated_role_item(prompt_text)
+    if edit_base:
+        role_items = [edit_base] + [item for item in role_items if item.get("role") != "edit_base"]
+    role_priority = {
+        "edit_base": 0,
+        "product_photo": 1,
+        "style_reference": 2,
+        "logo_asset": 3,
+        "supporting_image": 4,
+    }
+    role_items = sorted(
+        role_items,
+        key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
+    )
+    return role_items
+
+
+def _graphic_chatgpt_production_prompt(
+    prompt_text,
+    role_items,
+    output_size,
+    reference_blueprint=None,
+    vehicle_profile=None,
+    rejected_guidance="",
+    correction_prompt="",
+):
+    """Build one concise, provider-facing production instruction."""
+    prompt_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    roles = [str(item.get("role") or "") for item in role_items or []]
+    has_edit_base = "edit_base" in roles
+    has_product = "product_photo" in roles
+    has_style = "style_reference" in roles
+    blueprint_text = _graphic_reference_blueprint_text(reference_blueprint or {})
+    vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
+    lines = [
+        "Create one finished professional AutoTecPro automotive commercial advertisement.",
+        f"Output canvas: {output_size}, landscape PNG, polished production quality.",
+        f"User request: {prompt_text}",
+    ]
+    if has_edit_base:
+        lines.extend([
+            "IMAGE 1 is the CURRENT ARTWORK TO EDIT. Apply the requested change to this artwork.",
+            "Preserve all unaffected composition, product details, branding, and text placement unless the user explicitly changes them.",
+        ])
+    if has_product:
+        lines.extend([
+            "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
+            "Preserve its recognizable housing, screen, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and overall identity.",
+            "Do not replace it with a gauge cluster, dashboard, product, or component shown in any style reference.",
+        ])
+    if has_style:
+        lines.extend([
+            "The STYLE REFERENCE advertisements define the design system, not the product content.",
+            "Closely follow their layout hierarchy, hero-product scale, outdoor automotive scenery, bold headline treatment, red feature/compatibility ribbon, feature-icon organization, bottom information bar, contrast, depth, spacing, lighting, and premium commercial density.",
+            "The finished result must clearly feel like the same advertising campaign family as the references, while using the user's actual product.",
+        ])
+    lines.extend([
+        "Use only user-provided or clearly supported claims. Keep wording minimal when exact specifications are unavailable.",
+        "Render readable professional typography. Do not output placeholder gibberish, internal instructions, wireframes, UI mockups, or a generic dark technology template.",
+        "Integrate the product naturally with scene-matched lighting, realistic contact shadow, clean edge treatment, and strong foreground/background separation.",
+        "Return only the completed advertisement image.",
+    ])
+    if blueprint_text:
+        lines.append("Reference-layout blueprint: " + re.sub(r"\s+", " ", blueprint_text)[:6500])
+    if vehicle_text:
+        lines.append("Vehicle context: " + re.sub(r"\s+", " ", vehicle_text)[:2500])
+    if rejected_guidance:
+        lines.append("Do not repeat these user-rejected directions: " + re.sub(r"\s+", " ", rejected_guidance)[:2500])
+    if correction_prompt:
+        lines.append("Mandatory correction after visual review: " + re.sub(r"\s+", " ", correction_prompt)[:3500])
+    return "\n".join(lines)[:28000]
+
+
+def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
+    """Primary ChatGPT-style provider route through the Responses image tool."""
+    content = [{"type": "input_text", "text": production_prompt}]
+    label_lookup = {
+        "edit_base": "CURRENT ARTWORK TO EDIT",
+        "product_photo": "PRODUCT SOURCE — preserve this product identity",
+        "style_reference": "STYLE REFERENCE — copy visual language only, never its product",
+        "logo_asset": "OFFICIAL LOGO ASSET",
+        "supporting_image": "SUPPORTING VISUAL ASSET",
+    }
+    usable_count = 0
+    for item in role_items or []:
+        data_url = _graphic_role_data_url(item)
+        if not data_url:
+            continue
+        usable_count += 1
+        content.append({
+            "type": "input_text",
+            "text": f"{label_lookup.get(item.get('role'), 'REFERENCE IMAGE')}: {item.get('name') or 'image'}",
+        })
+        content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+    if usable_count == 0:
+        # Text-only generation remains supported.
+        action = "generate"
+    else:
+        action = "edit"
+    tool = {
+        "type": "image_generation",
+        "action": action,
+        "quality": "high",
+        "size": output_size,
+        "output_format": "png",
+        "background": "opaque",
+    }
+    if usable_count:
+        tool["input_fidelity"] = "high"
+    response = client.with_options(
+        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,
+        max_retries=1,
+    ).responses.create(
+        model="gpt-5.5",
+        input=[{"role": "user", "content": content}],
+        tools=[tool],
+        tool_choice={"type": "image_generation"},
+        max_output_tokens=1200,
+    )
+    images = _graphic_responses_image_result_bytes(response)
+    if not images:
+        raise RuntimeError("The Responses image tool returned no completed image data.")
+    return images, "responses-image-tool"
+
+
+def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size):
+    """Independent Images API fallback; never falls back to a local generic template."""
+    ordered_files = [item.get("file") for item in role_items or [] if item.get("file") is not None]
+    references = prepare_graphic_reference_images(ordered_files)
+    image_client = client.with_options(
+        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,
+        max_retries=1,
+    )
+    if references:
+        for reference in references:
+            reference.seek(0)
+        image_input = references if len(references) > 1 else references[0]
+        kwargs = dict(
+            model=GRAPHIC_IMAGE_MODEL,
+            image=image_input,
+            prompt=production_prompt,
+            n=1,
+            size=output_size,
+        )
+        try:
+            result = image_client.images.edit(
+                input_fidelity="high", quality="high", output_format="png", **kwargs
+            )
+        except TypeError:
+            try:
+                result = image_client.images.edit(input_fidelity="high", quality="high", **kwargs)
+            except TypeError:
+                result = image_client.images.edit(**kwargs)
+    else:
+        kwargs = dict(
+            model=GRAPHIC_IMAGE_MODEL,
+            prompt=production_prompt,
+            n=1,
+            size=output_size,
+        )
+        try:
+            result = image_client.images.generate(quality="high", output_format="png", **kwargs)
+        except TypeError:
+            try:
+                result = image_client.images.generate(quality="high", **kwargs)
+            except TypeError:
+                result = image_client.images.generate(**kwargs)
+    images = _graphic_collect_result_bytes(result)
+    if not images:
+        raise RuntimeError("The Images API returned no completed image data.")
+    return images, "images-api"
+
+
+def _graphic_build_provider_result_v3000(
+    raw_bytes,
+    prompt_text,
+    output_size,
+    role_items,
+    provider_route,
+    reference_blueprint,
+    vehicle_profile,
+    quality_review=None,
+    corrected=False,
+):
+    png_bytes = image_bytes_to_png(raw_bytes)
+    if not png_bytes:
+        raise RuntimeError("The image provider returned unreadable image data.")
+    png_bytes, brand_logo_applied, brand_logo_position = apply_autotecpro_brand_logo(
+        png_bytes, prompt_text=prompt_text
+    )
+    created_at = datetime.now(timezone.utc)
+    filename = graphic_image_filename(prompt_text, created_at)
+    data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode("ascii")
+    result = {
+        "name": filename,
+        "filename": filename,
+        "data_url": data_url,
+        "generated": True,
+        "professional_layered_studio": True,
+        "provider_fallback_used": False,
+        "output_status": "completed_after_correction" if corrected else "completed",
+        "provider_route": provider_route,
+        "strict_product_identity_lock": any(item.get("role") == "product_photo" for item in role_items),
+        "product_identity_method": "high_fidelity_conversational_image_edit",
+        "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION,
+        "layered_metadata": {
+            "engine": "chatgpt-style-conversational-image-v3000",
+            "complete_provider_artwork": True,
+            "reference_faithful_edit": any(item.get("role") == "style_reference" for item in role_items),
+            "followup_edit": any(item.get("role") == "edit_base" for item in role_items),
+        },
+        "vehicle_profile": vehicle_profile,
+        "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
+        "prompt": prompt_text,
+        "created_at": created_at.isoformat(),
+        "model": GRAPHIC_IMAGE_MODEL,
+        "size": output_size,
+        "resolution": output_size,
+        "mime_type": "image/png",
+        "official_brand_logo_applied": bool(brand_logo_applied),
+        "official_brand_logo_position": brand_logo_position,
+        "official_brand_logo_file": AUTOTECPRO_BRAND_LOGO_FILE.name if brand_logo_applied else "",
+        "style_memory_status": "not_reviewed",
+        "style_collection": extract_graphic_style_collection_name(prompt_text) or "",
+        "campaign_name": extract_graphic_campaign_name(prompt_text),
+        "special_workflow": detect_graphic_special_workflow(prompt_text),
+        "product_transform_mode": "High Fidelity Conversational Edit",
+        "reference_blueprint": reference_blueprint,
+        "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
+        "upload_roles": [{"name": item.get("name"), "role": item.get("role")} for item in role_items],
+        "quality_review": quality_review or {},
+        "auto_corrected_after_review": bool(corrected),
+        "style_memory_fingerprint": hashlib.sha256((data_url + prompt_text).encode("utf-8")).hexdigest(),
+    }
+    return result
+
+
+def _graphic_save_latest_project_result(image):
+    """Persist the latest result for natural-language follow-up editing."""
+    if not isinstance(image, dict) or not str(image.get("data_url") or "").startswith("data:image/"):
+        return
+    state = get_graphic_project_state()
+    snapshot = {
+        key: image.get(key)
+        for key in (
+            "name", "filename", "data_url", "prompt", "created_at", "resolution",
+            "mime_type", "provider_route", "output_status", "quality_review",
+        )
+    }
+    history = [item for item in (state.get("generation_history") or []) if isinstance(item, dict)]
+    history.append(snapshot)
+    state["generation_history"] = history[-5:]
+    state["latest_generated"] = snapshot
+    state["stage"] = "generated"
+    state["last_error"] = ""
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """
-    Generate or reference-edit Graphic Marketing images through the Image API.
-
-    Image calls use one supported model, no automatic retries, and a bounded
-    timeout so Streamlit cannot remain in a loading state indefinitely.
-    """
+    """Authoritative ChatGPT-style Graphic creation and conversational editing pipeline."""
     prompt_text = str(prompt_text or "").strip()
     if not prompt_text:
-        raise ValueError("Please enter an image-generation command.")
-
+        raise ValueError("Please enter an image-generation or editing command.")
     output_size = choose_graphic_image_size(prompt_text)
-    retrieved_guidance = retrieve_graphic_marketing_guidance(prompt_text)
-    grounded_prompt = prompt_text
-    if retrieved_guidance:
-        grounded_prompt += (
-            "\n\nAPPROVED GRAPHIC MARKETING KNOWLEDGE:\n"
-            + retrieved_guidance
-            + "\n\nApply this approved guidance only where relevant. "
-              "The user's current command controls the requested deliverable."
-        )
-    image_api_prompt = build_graphic_brand_safe_prompt(grounded_prompt)
-    session_rejections = _graphic_session_rejection_guidance()
-    if session_rejections:
-        image_api_prompt += (
-            "\n\nUSER-REJECTED VISUAL DIRECTIONS (MANDATORY NEGATIVE CONSTRAINTS):\n"
-            + session_rejections
-            + "\nReturn to the currently uploaded reference advertisements for layout, hierarchy, color, "
-              "background language, and product presentation. Do not reuse a generic dark template."
-        )
-    role_items = classify_graphic_uploaded_image_roles(
-        uploaded_files, prompt_text, forced_role=forced_upload_role
-    )
-    has_product_source = any(item.get("role") == "product_photo" for item in role_items)
-    has_current_style_references = any(item.get("role") == "style_reference" for item in role_items)
-    diagnostic_log(
-        "graphic_generation_role_resolution",
-        roles=[f"{item.get('role')}:{item.get('name')}" for item in role_items],
-        product_count=sum(1 for item in role_items if item.get("role") == "product_photo"),
-        style_reference_count=sum(1 for item in role_items if item.get("role") == "style_reference"),
-    )
-    if preserve_product and has_current_style_references and not has_product_source:
+    role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+    has_product = any(item.get("role") == "product_photo" for item in role_items)
+    has_style = any(item.get("role") == "style_reference" for item in role_items)
+    has_edit_base = any(item.get("role") == "edit_base" for item in role_items)
+    if preserve_product and has_style and not has_product and not has_edit_base:
         raise RuntimeError(
-            "A product source could not be identified for this Graphic project. "
-            "Please upload or reselect the product photo before generating."
+            "The reference advertisements are saved, but the product source could not be identified. "
+            "Please upload the product photo once more, then select Create."
         )
-    # When both a product source and a style reference exist, exact source-pixel
-    # compositing is the safest production path. The image model creates only the
-    # environment; compose_graphic_layered_ad places the uploaded product itself.
-    # This prevents the style reference's hardware from becoming the hero object.
-    layered_studio_active = bool(
-        preserve_product and has_product_source and has_current_style_references
+    diagnostic_log(
+        "graphic_v3000_role_resolution",
+        roles=[f"{item.get('role')}:{item.get('name')}" for item in role_items],
+        product=has_product,
+        style=has_style,
+        edit_base=has_edit_base,
     )
-    vehicle_profile = research_graphic_vehicle_profile(role_items, prompt_text) if has_product_source else {}
-    vehicle_profile_text = _graphic_vehicle_profile_text(vehicle_profile)
-    reference_blueprint = analyze_graphic_reference_blueprint(
-        role_items, prompt_text=prompt_text, style_strength=style_strength
+    reference_blueprint = _graphic_safe_optional_call(
+        "graphic_v3000_reference_analysis_failed_open",
+        lambda: analyze_graphic_reference_blueprint(
+            role_items, prompt_text=prompt_text, style_strength=style_strength
+        ),
+        {},
+    ) if has_style else {}
+    vehicle_profile = _graphic_safe_optional_call(
+        "graphic_v3000_vehicle_research_failed_open",
+        lambda: research_graphic_vehicle_profile(role_items, prompt_text),
+        {},
+    ) if has_product else {}
+    rejected_guidance = _graphic_safe_optional_call(
+        "graphic_v3000_rejection_guidance_failed_open",
+        _graphic_session_rejection_guidance,
+        "",
     )
-    reference_blueprint_text = _graphic_reference_blueprint_text(reference_blueprint)
-    resolved_product_transform_mode = resolve_graphic_product_transform_mode(
-        prompt_text, product_transform_mode, preserve_product
-    )
-    creative_director_brief = build_graphic_creative_director_brief(
+    production_prompt = _graphic_chatgpt_production_prompt(
         prompt_text,
-        role_items=role_items,
-        style_strength=style_strength,
+        role_items,
+        output_size,
         reference_blueprint=reference_blueprint,
+        vehicle_profile=vehicle_profile,
+        rejected_guidance=rejected_guidance,
     )
-    multi_agent_plan = build_graphic_multi_agent_plan(
-        prompt_text, role_items=role_items, style_strength=style_strength,
-        reference_blueprint=reference_blueprint,
-    )
-    final_agent_prompt = str((multi_agent_plan or {}).get("final_image_prompt") or "").strip()
-    if final_agent_prompt:
-        image_api_prompt += (
-            "\n\nMULTI-AGENT FINAL PRODUCTION DIRECTION:\n"
-            + final_agent_prompt[:12000]
-            + "\nThis direction is mandatory but must not be rendered as internal notes."
-        )
-    if creative_director_brief:
-        image_api_prompt += (
-            "\n\nCREATIVE DIRECTOR PRODUCTION BRIEF:\n"
-            + creative_director_brief
-            + "\nTreat this brief as internal production direction. "
-              "Do not render its headings or internal notes into the artwork."
-        )
-    if reference_blueprint_text:
-        image_api_prompt += (
-            "\n\nCURRENT UPLOADED REFERENCE BLUEPRINT (MANDATORY):\n"
-            + reference_blueprint_text
-            + "\nReproduce the reference advertisements' structural design language: canvas zoning, "
-              "product prominence, headline hierarchy, icon and feature organization, bottom information bar, "
-              "background depth, lighting, spacing, and typography rhythm. Use only the uploaded PRODUCT SOURCE "
-              "as the advertised hardware. Never copy, blend, or substitute a product shown in a STYLE REFERENCE. "
-              "Do not render this blueprint text into the artwork."
-        )
-    if vehicle_profile_text:
-        image_api_prompt += (
-            "\n\nWEB-VERIFIED VEHICLE CONTEXT:\n" + vehicle_profile_text[:7000] +
-            "\nUse only confidence-supported vehicle details. Do not show a conflicting model or generation."
-        )
-    if layered_studio_active:
-        image_api_prompt += (
-            "\n\nREFERENCE-FAITHFUL COMMERCIAL EDIT CONTRACT (MANDATORY):\n"
-            "Create the COMPLETE final automotive commercial artwork, not a blank background plate and not a generic UI template. "
-            "The FIRST attached image is the real PRODUCT SOURCE and must remain the only hero hardware. Preserve its recognizable "
-            "housing, vertical orientation, screen, bezel, controls, vents, trim, proportions, and product identity. The remaining "
-            "STYLE REFERENCE advertisements control the visual direction only. Match their premium outdoor automotive scenery, bold "
-            "upper headline hierarchy, red compatibility/feature ribbon, large central or center-right hero product scale, clean feature "
-            "icon rows, dark bottom benefit bar, strong contrast, depth, lighting, and AutoTecPro advertising rhythm. Do not copy or "
-            "substitute any gauge cluster, screen, vehicle component, text claim, watermark, or product shown in a STYLE REFERENCE. "
-            "Use only user-supplied or verified wording; where exact copy is unavailable, keep text minimal rather than inventing specs. "
-            "Integrate the PRODUCT SOURCE naturally with realistic contact shadow and scene-matched lighting. The finished artwork must "
-            "visibly resemble the uploaded commercial references, not the rejected generic dark wireframe/template design."
-        )
-
-    # Keep immutable product references first in the edit input. Image-edit
-    # models tend to weight early references strongly; placing a saved style
-    # image before the product can cause the style asset to overwrite hardware.
-    product_role_files = [
-        item["file"] for item in role_items if item.get("role") == "product_photo"
-    ]
-    other_role_files = [
-        item["file"] for item in role_items if item.get("role") != "product_photo"
-    ]
-    product_reference_images = prepare_graphic_reference_images(product_role_files)
-    other_reference_images = prepare_graphic_reference_images(other_role_files)
-    image_api_prompt += _graphic_role_instruction(
-        role_items, preserve_product=preserve_product, style_strength=style_strength,
-        product_transform_mode=resolved_product_transform_mode,
-    )
-    explicitly_requested_saved_style = graphic_prompt_requests_approved_reference(prompt_text)
-    saved_references = prepare_saved_graphic_reference(
-        prompt_text,
-        use_approved_style=(use_approved_style and (not has_current_style_references or explicitly_requested_saved_style)),
-    )
-    reference_images = (
-        list(product_reference_images)
-        + list(other_reference_images)
-        + list(saved_references or [])
-    )
-    if saved_references:
-
-        latest_reference = get_latest_approved_graphic_reference(prompt_text) or {}
-        profile = latest_reference.get("profile") or {}
-        profile_text = _graphic_style_profile_text(profile) if profile else ""
-        if profile_text:
-            image_api_prompt += (
-                "\n\nMANDATORY APPROVED REFERENCE STYLE:\n"
-                + profile_text[:9000]
-                + "\nUse the attached approved reference images as the primary visual "
-                  "direction. Match their composition, typography hierarchy, color "
-                  "treatment, spacing, product framing, and overall advertising language. "
-                  "Do not replace them with a generic automotive-ad style."
-            )
-
-    image_api_prompt = _graphic_compact_image_prompt(image_api_prompt)
-
-    # Apply reliability settings only to image requests. The shared client and
-    # every other OpenAI feature in the application remain unchanged.
-    image_client = client.with_options(
-        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,
-        max_retries=GRAPHIC_IMAGE_MAX_RETRIES,
-    )
-
-    local_fallback_bytes = b""
-    provider_error = None
-    result = None
+    provider_errors = []
     try:
-        if layered_studio_active:
-            # Product + references should use the provider's complete high-fidelity
-            # multi-image edit path. The previous local background-plate shortcut
-            # produced a generic dark template instead of matching the references.
-            if not reference_images:
-                raise RuntimeError("The product/reference edit inputs are unavailable.")
-            for reference in reference_images:
-                reference.seek(0)
-            image_input = reference_images if len(reference_images) > 1 else reference_images[0]
-            edit_kwargs = dict(
-                model=GRAPHIC_IMAGE_MODEL,
-                image=image_input,
-                prompt=image_api_prompt,
-                n=GRAPHIC_IMAGE_COUNT,
-                size=output_size,
-            )
-            try:
-                result = image_client.images.edit(input_fidelity="high", quality="high", **edit_kwargs)
-            except TypeError:
-                try:
-                    result = image_client.images.edit(input_fidelity="high", **edit_kwargs)
-                except TypeError:
-                    result = image_client.images.edit(**edit_kwargs)
-        elif reference_images:
-            for reference in reference_images:
-                reference.seek(0)
-            image_input = reference_images if len(reference_images) > 1 else reference_images[0]
-            edit_kwargs = dict(
-                model=GRAPHIC_IMAGE_MODEL,
-                image=image_input,
-                prompt=image_api_prompt,
-                n=GRAPHIC_IMAGE_COUNT,
-                size=output_size,
-            )
-            try:
-                result = image_client.images.edit(input_fidelity="high", quality="high", **edit_kwargs)
-            except TypeError:
-                try:
-                    result = image_client.images.edit(input_fidelity="high", **edit_kwargs)
-                except TypeError:
-                    result = image_client.images.edit(**edit_kwargs)
-        else:
-            result = image_client.images.generate(
-                model=GRAPHIC_IMAGE_MODEL,
-                prompt=image_api_prompt,
-                n=GRAPHIC_IMAGE_COUNT,
-                size=output_size,
-            )
+        raw_images, provider_route = _graphic_responses_generate_v3000(
+            role_items, production_prompt, output_size
+        )
     except Exception as error:
-        provider_error = error
+        provider_errors.append(f"responses:{type(error).__name__}")
         diagnostic_log(
-            "graphic_images_edit_provider_failed",
+            "graphic_v3000_responses_failed",
             error_type=type(error).__name__, error=error,
-            model=GRAPHIC_IMAGE_MODEL, layered=layered_studio_active,
-            prompt_chars=len(image_api_prompt),
         )
-        # A separate Responses image-tool route is required because some OpenAI
-        # SDK/API combinations reject multipart lists in images.edit even though
-        # multiple image inputs are valid through Responses. This is not a local
-        # template fallback; it is a second full provider generation attempt.
-        if reference_images:
-            try:
-                raw_result_bytes = _graphic_generate_with_responses_image_tool(
-                    role_items, image_api_prompt, output_size
-                )
-                result = None
-                provider_error = None
-                diagnostic_log(
-                    "graphic_responses_image_tool_succeeded",
-                    image_count=len(raw_result_bytes),
-                    size=output_size,
-                )
-            except Exception as responses_error:
-                diagnostic_log(
-                    "graphic_responses_image_tool_failed",
-                    error_type=type(responses_error).__name__,
-                    error=responses_error,
-                    size=output_size,
-                )
-                raise RuntimeError(
-                    "Both professional image-generation routes failed. Your product and reference images are preserved; "
-                    "please select Retry. The app will not replace your requested commercial artwork with a generic local template."
-                ) from responses_error
-        else:
-            if type(error).__name__ == "APITimeoutError":
-                raise RuntimeError(
-                    "Image generation timed out. Your project assets are preserved; please retry once."
-                ) from error
-            raise RuntimeError("The image provider could not complete this request.") from error
-    else:
-        raw_result_bytes = _graphic_collect_result_bytes(result)
-
-    if not raw_result_bytes and reference_images:
         try:
-            raw_result_bytes = _graphic_generate_with_responses_image_tool(
-                role_items, image_api_prompt, output_size
+            raw_images, provider_route = _graphic_images_api_fallback_v3000(
+                role_items, production_prompt, output_size
             )
+        except Exception as fallback_error:
+            provider_errors.append(f"images:{type(fallback_error).__name__}")
             diagnostic_log(
-                "graphic_responses_image_tool_recovered_empty_edit",
-                image_count=len(raw_result_bytes),
-                size=output_size,
+                "graphic_v3000_images_api_failed",
+                error_type=type(fallback_error).__name__, error=fallback_error,
             )
-        except Exception as responses_error:
-            diagnostic_log(
-                "graphic_responses_image_tool_empty_recovery_failed",
-                error_type=type(responses_error).__name__, error=responses_error,
-            )
+            state = get_graphic_project_state()
+            state["stage"] = "ready_to_generate"
+            state["last_error"] = ",".join(provider_errors)
+            state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             raise RuntimeError(
-                "The professional image providers returned no usable artwork. Your project assets are preserved for Retry."
-            ) from responses_error
-    if not raw_result_bytes:
-        raise RuntimeError("The image provider returned no usable image data.")
-
-    generated_images = []
-    for raw_bytes in raw_result_bytes:
-        png_bytes = image_bytes_to_png(raw_bytes)
-        if not png_bytes:
-            continue
-
-        layered_metadata = {}
-        if layered_studio_active and local_fallback_bytes:
-            # Provider failure: finish the reference-derived plate by placing the
-            # exact uploaded product pixels. This remains a clearly labelled draft.
-            product_item = next((x for x in role_items if x.get("role") == "product_photo"), None)
-            try:
-                png_bytes, layered_metadata = compose_graphic_layered_ad(
-                    png_bytes,
-                    (product_item or {}).get("file"),
-                    prompt_text,
-                    reference_blueprint=reference_blueprint,
-                    vehicle_profile=vehicle_profile,
-                    role_items=role_items,
-                )
-            except Exception as error:
-                diagnostic_log("graphic_layered_fallback_composite_failed", error_type=type(error).__name__, error=error)
-                png_bytes, layered_metadata = _graphic_emergency_exact_product_composite(
-                    role_items, output_size, prompt_text, reference_blueprint=reference_blueprint
-                )
-            if not png_bytes:
-                continue
-        elif layered_studio_active:
-            # A successful high-fidelity edit is already the complete artwork.
-            # Keep it intact so its composition, typography, scenery, and feature
-            # system remain faithful to the uploaded references.
-            layered_metadata = {
-                "engine": "high-fidelity-reference-edit-v2004",
-                "complete_provider_artwork": True,
-                "reference_faithful_edit": True,
-                "dual_provider_route": True,
-            }
-
-        png_bytes, brand_logo_applied, brand_logo_position = (
-            apply_autotecpro_brand_logo(
-                png_bytes,
-                prompt_text=prompt_text,
-            )
-        )
-        if not png_bytes:
-            continue
-
-        created_at = datetime.now(timezone.utc)
-        filename = graphic_image_filename(prompt_text, created_at)
-        data_url = (
-            "data:image/png;base64,"
-            + base64.b64encode(png_bytes).decode()
-        )
-
-        generated_images.append({
-            "name": filename,
-            "filename": filename,
-            "data_url": data_url,
-            "generated": True,
-            "professional_layered_studio": bool(layered_studio_active),
-            "provider_fallback_used": bool(local_fallback_bytes),
-            "provider_error_type": type(provider_error).__name__ if provider_error else "",
-            "strict_product_identity_lock": bool(preserve_product and has_product_source),
-            "product_identity_method": (
-                "exact_source_pixel_composite" if local_fallback_bytes
-                else "high_fidelity_image_edit"
-            ),
-            "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION if layered_studio_active else "",
-            "layered_metadata": layered_metadata,
-            "vehicle_profile": vehicle_profile,
-            "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
-            "prompt": prompt_text,
-            "created_at": created_at.isoformat(),
-            "model": ("local-reference-derived-layered-studio" if local_fallback_bytes else GRAPHIC_IMAGE_MODEL),
-            "size": output_size,
-            "resolution": output_size,
-            "mime_type": "image/png",
-            "official_brand_logo_applied": bool(brand_logo_applied),
-            "official_brand_logo_position": brand_logo_position,
-            "official_brand_logo_file": (
-                AUTOTECPRO_BRAND_LOGO_FILE.name
-                if brand_logo_applied
-                else ""
-            ),
-            "style_memory_status": "not_reviewed",
-            "style_collection": str(
-                ((get_latest_approved_graphic_reference(prompt_text) or {}).get("profile") or {}).get("title")
-                or extract_graphic_style_collection_name(prompt_text)
-                or ""
-            ),
-            "creative_director_brief": creative_director_brief[:10000],
-            "multi_agent_plan": multi_agent_plan,
-            "multi_agent_version": GRAPHIC_AGENT_VERSION,
-            "campaign_name": extract_graphic_campaign_name(prompt_text),
-            "special_workflow": detect_graphic_special_workflow(prompt_text),
-            "product_transform_mode": resolved_product_transform_mode,
-            "reference_blueprint": reference_blueprint,
-            "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
-            "upload_roles": [
-                {"name": item.get("name"), "role": item.get("role")}
-                for item in role_items
-            ],
-            "style_memory_fingerprint": hashlib.sha256(
-                (data_url + prompt_text).encode("utf-8")
-            ).hexdigest(),
-        })
-
-    if not generated_images and layered_studio_active:
-        diagnostic_log("graphic_composite_failed_using_guaranteed_local_result")
-        fallback_png, fallback_metadata = _graphic_guaranteed_local_composite(
-            role_items, output_size, prompt_text,
-            reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile,
-        )
-        fallback_png = image_bytes_to_png(fallback_png) if fallback_png else b""
-        if fallback_png:
-            fallback_png, brand_logo_applied, brand_logo_position = apply_autotecpro_brand_logo(
-                fallback_png, prompt_text=prompt_text
-            )
-            created_at = datetime.now(timezone.utc)
-            filename = graphic_image_filename(prompt_text, created_at)
-            data_url = "data:image/png;base64," + base64.b64encode(fallback_png).decode()
-            generated_images.append({
-                "name": filename, "filename": filename, "data_url": data_url,
-                "generated": True, "professional_layered_studio": True,
-                "provider_fallback_used": True, "provider_error_type": type(provider_error).__name__ if provider_error else "EmptyImageResult",
-                "strict_product_identity_lock": True, "product_identity_method": "exact_source_pixel_composite",
-                "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION, "layered_metadata": fallback_metadata,
-                "vehicle_profile": vehicle_profile, "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
-                "prompt": prompt_text, "created_at": created_at.isoformat(), "model": "local-layered-fallback",
-                "size": output_size, "resolution": output_size, "mime_type": "image/png",
-                "official_brand_logo_applied": bool(brand_logo_applied), "official_brand_logo_position": brand_logo_position,
-                "official_brand_logo_file": AUTOTECPRO_BRAND_LOGO_FILE.name if brand_logo_applied else "",
-                "style_memory_status": "not_reviewed", "style_collection": extract_graphic_style_collection_name(prompt_text) or "",
-                "creative_director_brief": creative_director_brief[:10000], "multi_agent_plan": multi_agent_plan,
-                "multi_agent_version": GRAPHIC_AGENT_VERSION, "campaign_name": extract_graphic_campaign_name(prompt_text),
-                "special_workflow": detect_graphic_special_workflow(prompt_text),
-                "product_transform_mode": resolved_product_transform_mode, "reference_blueprint": reference_blueprint,
-                "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
-                "upload_roles": [{"name": item.get("name"), "role": item.get("role")} for item in role_items],
-                "style_memory_fingerprint": hashlib.sha256((data_url + prompt_text).encode("utf-8")).hexdigest(),
-            })
-    if not generated_images:
-        raise RuntimeError("Image generation did not return a displayable result.")
-
-    # Product-aware quality gate: inspect once and perform at most one corrective
-    # regeneration. This is shared by Graphic Chat and Advanced Designer.
-    # Layered mode already uses the original product pixels, but the review still
-    # checks placement, occlusion, style adherence, and accidental reference-product
-    # leakage in the generated background.
-    try:
-        review = review_graphic_output_accuracy(
-            generated_images[0].get("data_url"), role_items, prompt_text,
-            resolved_product_transform_mode, reference_blueprint=reference_blueprint,
-        )
-    except Exception as error:
-        diagnostic_log("graphic_quality_review_failed_open", error_type=type(error).__name__, error=error)
-        review = {}
-    if review:
-        generated_images[0]["quality_review"] = review
+                "The professional image service did not return a completed artwork. "
+                "Your product, references, and project state are preserved. Please select Regenerate or type ‘Create it again.’"
+            ) from fallback_error
+    if not raw_images:
+        raise RuntimeError("The image service returned no completed artwork.")
+    initial = _graphic_build_provider_result_v3000(
+        raw_images[0], prompt_text, output_size, role_items, provider_route,
+        reference_blueprint, vehicle_profile,
+    )
+    review = _graphic_safe_optional_call(
+        "graphic_v3000_quality_review_failed_open",
+        lambda: review_graphic_output_accuracy(
+            initial.get("data_url"), role_items, prompt_text,
+            "High Fidelity Conversational Edit", reference_blueprint=reference_blueprint,
+        ),
+        {},
+    )
+    initial["quality_review"] = review or {}
+    corrected_result = None
+    if quality_retry and review:
         try:
             product_score = int(float(review.get("product_accuracy_score", 100)))
-            product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
             style_score = int(float(review.get("style_adherence_score", 100)))
             layout_score = int(float(review.get("layout_adherence_score", 100)))
-            reference_threshold = 72 if has_current_style_references else 0
-            passed = (
-                bool(review.get("passed", product_score >= product_threshold))
-                and product_score >= product_threshold
-                and style_score >= reference_threshold
-                and layout_score >= reference_threshold
-            )
         except Exception:
-            product_score = 100
-            style_score = 100
-            layout_score = 100
-            product_threshold = graphic_product_mode_threshold(resolved_product_transform_mode)
-            reference_threshold = 72 if has_current_style_references else 0
-            passed = True
-        correction = str(review.get("correction_prompt") or "").strip()
-        needs_retry = (
-            not passed
-            or product_score < product_threshold
+            product_score = style_score = layout_score = 100
+        product_threshold = 82 if has_product else 0
+        reference_threshold = 75 if has_style else 0
+        needs_correction = (
+            product_score < product_threshold
             or style_score < reference_threshold
             or layout_score < reference_threshold
+            or not bool(review.get("passed", True))
         )
-        if quality_retry and preserve_product and needs_retry and correction:
-            diagnostic_log("graphic_quality_retry", product_score=product_score)
-            retry_prompt = (
-                prompt_text + "\n\nMANDATORY CORRECTION AFTER QUALITY REVIEW:\n" + correction +
-                f"\nRESTORE FROM THE FIRST UPLOADED PRODUCT SOURCE under {resolved_product_transform_mode}. Preserve the exact product identity, screen UI, bezel architecture, controls, labels, trim, mounting geometry, openings and proportions. Keep any allowed lighting, perspective, cleanup and scene integration within the selected mode; remove only impermissible redesigns or invented hardware."
+        correction = str(review.get("correction_prompt") or "").strip()
+        if needs_correction and correction:
+            current_raw, current_mime = data_url_to_bytes(initial.get("data_url"))
+            correction_items = list(role_items)
+            if current_raw:
+                current_upload = ManagedUploadedFile(
+                    current_raw, "current_generated_artwork.png", current_mime or "image/png",
+                    graphic_role="edit_base", graphic_asset_id=hashlib.sha256(current_raw).hexdigest(),
+                )
+                correction_items = [{
+                    "file": current_upload,
+                    "name": current_upload.name,
+                    "role": "edit_base",
+                    "reason": "current output for one controlled correction pass",
+                }] + [item for item in role_items if item.get("role") != "edit_base"]
+            correction_prompt = _graphic_chatgpt_production_prompt(
+                prompt_text,
+                correction_items,
+                output_size,
+                reference_blueprint=reference_blueprint,
+                vehicle_profile=vehicle_profile,
+                rejected_guidance=rejected_guidance,
+                correction_prompt=correction,
             )
-            retried = _generate_graphic_marketing_images_advanced(
-                retry_prompt, uploaded_files, use_approved_style=use_approved_style,
-                preserve_product=preserve_product, style_strength=style_strength,
-                forced_upload_role=forced_upload_role, quality_retry=False,
-                product_transform_mode=resolved_product_transform_mode,
-                professional_layered_studio=professional_layered_studio,
-            )
-            if retried and not retried[0].get("provider_fallback_used"):
-                retried[0]["auto_corrected_after_review"] = True
-                retried[0]["initial_quality_review"] = review
-                return retried
-
-    # Phase 8/9: persist campaign context and reusable QA intelligence. These
-    # writes fail open and use the existing learned_knowledge schema.
-    try:
-        final_review = generated_images[0].get("quality_review") or review or {}
-        save_graphic_generation_intelligence(
-            prompt_text, generated_images[0], multi_agent_plan, final_review
-        )
-        campaign_name = extract_graphic_campaign_name(prompt_text)
-        if campaign_name:
-            save_graphic_campaign_memory(
-                campaign_name, prompt_text, multi_agent_plan,
-                {
-                    "style_collection": generated_images[0].get("style_collection"),
-                    "size": generated_images[0].get("size"),
-                    "quality_review": final_review,
-                },
-            )
-    except Exception as error:
-        diagnostic_log("graphic_continuous_learning_failed", error=str(error))
-
-    if not generated_images:
-        raise RuntimeError("No displayable image could be produced from this request.")
-
-    return generated_images
-
+            try:
+                corrected_raw, corrected_route = _graphic_responses_generate_v3000(
+                    correction_items, correction_prompt, output_size
+                )
+                if corrected_raw:
+                    corrected_result = _graphic_build_provider_result_v3000(
+                        corrected_raw[0], prompt_text, output_size, correction_items,
+                        corrected_route, reference_blueprint, vehicle_profile,
+                        quality_review=review, corrected=True,
+                    )
+            except Exception as error:
+                diagnostic_log(
+                    "graphic_v3000_correction_failed_open",
+                    error_type=type(error).__name__, error=error,
+                )
+    final_result = corrected_result or initial
+    _graphic_save_latest_project_result(final_result)
+    # Existing learning and campaign-memory writes remain best-effort and never block output.
+    _graphic_safe_optional_call(
+        "graphic_v3000_generation_intelligence_failed_open",
+        lambda: save_graphic_generation_intelligence(
+            prompt_text, final_result, {}, final_result.get("quality_review") or {}
+        ),
+        None,
+    )
+    return [final_result]
 
 
 def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Auto-detect"):
@@ -19162,47 +19141,18 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """Run the full Graphic engine with a guaranteed local completion boundary."""
-    try:
-        images = _generate_graphic_marketing_images_advanced(
-            prompt_text,
-            uploaded_files,
-            use_approved_style=use_approved_style,
-            preserve_product=preserve_product,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-            quality_retry=quality_retry,
-            product_transform_mode=product_transform_mode,
-            professional_layered_studio=professional_layered_studio,
-        )
-        if images:
-            return images
-        raise RuntimeError("The advanced Graphic engine returned no image.")
-    except Exception as error:
-        diagnostic_log(
-            "graphic_advanced_engine_fallback",
-            error_type=type(error).__name__, error=error,
-        )
-        # Reference-driven commercial jobs must never silently become the generic
-        # local wireframe/template shown in prior builds. Preserve the project and
-        # surface a retryable provider error instead. Product-only jobs retain the
-        # exact-product local safety fallback used by existing workflows.
-        try:
-            role_items = classify_graphic_uploaded_image_roles(
-                uploaded_files, prompt_text, forced_role=forced_upload_role
-            )
-            has_product = any(item.get("role") == "product_photo" for item in role_items)
-            has_style = any(item.get("role") == "style_reference" for item in role_items)
-        except Exception:
-            has_product = has_style = False
-        if has_product and has_style:
-            raise RuntimeError(str(error)) from error
-        return _graphic_build_guaranteed_result(
-            prompt_text,
-            uploaded_files,
-            forced_upload_role=forced_upload_role,
-            provider_error=error,
-        )
+    """Public Graphic API backed by the authoritative conversational provider pipeline."""
+    return _generate_graphic_marketing_images_advanced(
+        prompt_text,
+        uploaded_files,
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
 
 
 
@@ -19212,8 +19162,8 @@ def generated_image_answer_text(images, regenerated=False):
         return "The image could not be generated."
 
     image = images[0]
-    if image.get("provider_fallback_used"):
-        action = "Created a local draft because the image provider did not complete the reference-faithful artwork"
+    if image.get("output_status") == "completed_after_correction":
+        action = "Created and quality-corrected your image"
     else:
         action = "Generated another version" if regenerated else "Created your image"
     details = [
@@ -35770,6 +35720,8 @@ else:
                         professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 answer = generated_image_answer_text(generated_images)
+                if generated_images:
+                    _graphic_save_latest_project_result(generated_images[0])
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "generated"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
