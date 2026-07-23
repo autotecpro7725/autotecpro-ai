@@ -143,6 +143,7 @@ except Exception:
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v4300 Exact Product Structure Lock: exact uploaded-product hero compositing, critical opening/gap/mounting-geometry analysis, safer product mask padding, and structural-fidelity QA.
 # v7000 Dual-Mode Fast Graphic Engine: exact-product and AI-recreation routing, multi-view product identity, autonomous AutoTecPro campaigns without references, angle-change detection, and fast exact-product production path.
+# v7100 Graphic Reliability + Local Edit Optimization: lightweight exact-mode validation, reliable multi-view promotion, dedicated recreated-product structure QA, deterministic text-only edits, shared finalization, unified engine metadata, and bounded provider/QA behavior.
 # v3200 Reference-Locked Campaign Engine: persistent campaign copy/specification memory,
 #   strict vehicle/content separation, provider-first full artwork, deterministic reference-density
 #   hybrid correction using exact product pixels, correct target-vehicle scenery, typography,
@@ -19019,7 +19020,8 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_V4000_ENGINE_VERSION = "v4300-exact-product-structure-lock"
+GRAPHIC_ENGINE_VERSION = "v7100-graphic-reliability-local-edit"
+GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
 
@@ -19405,6 +19407,8 @@ def _graphic_save_latest_project_result(image):
             "reference_geometry", "campaign_spec", "vehicle_validation",
             "zone_completeness", "graphic_engine_version", "verification_status",
             "verification_warning", "edit_mode", "edit_directive",
+            "background_data_url", "product_render_mode", "ai_product_recreated",
+            "product_structure_validation", "generation_route", "provider_route",
         )
     }
     snapshot["canvas_id"] = canvas_id
@@ -19763,6 +19767,8 @@ def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_
         corrected=True,
     )
     result["product_identity_method"]="exact_source_pixel_composite"
+    result["background_data_url"] = "data:image/png;base64," + base64.b64encode(background).decode("ascii")
+    result["generation_route"] = route + "+strict-commercial-composer-v7100"
     result["layered_metadata"].update(metadata)
     result["output_status"]="completed_reference_locked_campaign"
     result["campaign_spec"]=spec
@@ -20713,18 +20719,228 @@ def _graphic_save_mode_state_v7000(mode_info, role_items, structure_profile=None
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
 
-def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create an exact-product campaign without first generating a full AI advertisement.
 
-    This is the speed path: one scene/background request followed by deterministic
-    product, logo, typography, feature-grid, and benefit-bar composition.
+
+def _graphic_promote_multiview_sources_v7100(role_items, prompt_text):
+    """Promote likely alternate product views during explicit angle recreation.
+
+    Normal generation keeps the existing role classifier untouched. During an
+    angle-change request only, current supporting images with product-view names
+    are promoted when fewer than two product sources were identified.
     """
+    items = [dict(item) for item in (role_items or []) if isinstance(item, dict)]
+    recreation = _graphic_product_recreation_intent_v7000(prompt_text)
+    if not recreation.get("enabled"):
+        return items
+    product_count = sum(1 for item in items if item.get("role") == "product_photo")
+    if product_count >= 2:
+        return items
+    product_terms = (
+        "product", "unit", "front", "rear", "back", "left", "right", "side",
+        "angle", "view", "three-quarter", "3-quarter", "dashboard", "screen",
+        "infotainment", "cluster", "max", "pro",
+    )
+    protected_roles = {"edit_base", "style_reference", "logo_asset"}
+    for item in items:
+        if product_count >= 6:
+            break
+        role = str(item.get("role") or "")
+        if role in protected_roles or role == "product_photo":
+            continue
+        name = str(item.get("name") or "").casefold()
+        if any(term in name for term in product_terms):
+            item["role"] = "product_photo"
+            item["role_source"] = "v7100-angle-multiview-promotion"
+            product_count += 1
+    return items
+
+
+def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehicle_profile):
+    """Run inexpensive deterministic checks plus one vehicle check when locked."""
+    result = dict(result or {})
+    metadata = result.get("layered_metadata") or {}
+    raw, _mime = data_url_to_bytes(str(result.get("data_url") or ""))
+    required = {
+        "logo", "headline", "compatibility_ribbon", "tagline",
+        "feature_matrix", "hero_product", "bottom_benefit_bar",
+    }
+    zones = {str(x).strip().lower() for x in (metadata.get("campaign_zones") or [])}
+    image_valid = bool(raw)
+    exact_product = bool(metadata.get("exact_product_pixels") or result.get("strict_product_identity_lock"))
+    zones_valid = required.issubset(zones)
+    hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+    vehicle = {"verified": True, "available": True, "score": 100, "reason": "not required"}
+    if hard_vehicle:
+        vehicle = _graphic_safe_optional_call(
+            "graphic_v7100_fast_vehicle_validation_unavailable",
+            lambda: _graphic_focused_vehicle_validation_v3300(
+                result.get("data_url"), role_items, prompt_text, vehicle_profile
+            ),
+            _graphic_validation_unavailable_v4100(),
+        )
+    unavailable = hard_vehicle and _graphic_validation_is_unavailable_v4100(vehicle)
+    explicit_failure = hard_vehicle and not unavailable and vehicle.get("verified") is not True
+    core_passed = bool(image_valid and exact_product and zones_valid)
+    return {
+        "passed": bool(core_passed and not explicit_failure),
+        "verified": bool(core_passed and (not hard_vehicle or vehicle.get("verified") is True)),
+        "unverified": bool(core_passed and unavailable),
+        "image_valid": image_valid,
+        "exact_product": exact_product,
+        "zones_valid": zones_valid,
+        "vehicle_validation": vehicle,
+        "vehicle_validation_unavailable": unavailable,
+    }
+
+
+def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
+    """Perform one focused structural review for AI-created product viewpoints."""
+    product_sources = [item for item in (role_items or []) if item.get("role") == "product_photo"][:4]
+    if not data_url or not product_sources:
+        return {"available": False, "passed": None, "score": None, "reason": "product sources unavailable"}
+    content = [{"type": "input_text", "text": (
+        "Act as a strict automotive hardware product-identity inspector. Compare the recreated product "
+        "in the first image with every supplied source view. Return JSON only with keys: passed (boolean), "
+        "score (0-100), missing_or_changed_details (array), confirmed_details (array), reason (string). "
+        "Fail if the screen-to-housing ratio, bezel, gap below the screen, side openings, climate knobs, "
+        "physical buttons, lower cavities, mounting tabs, trim, silhouette, colors, or visible screen UI "
+        "are changed, removed, filled, invented, or merged. Hidden geometry may be conservative but must "
+        "not contradict visible source geometry. Required score to pass: 90.\n"
+        f"User request: {str(prompt_text or '')[:1200]}\n"
+        f"Structure profile: {_graphic_product_structure_text_v4300(structure_profile)[:3000]}"
+    )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
+    for item in product_sources:
+        source = _graphic_role_data_url(item)
+        if source:
+            content.append({"type": "input_image", "image_url": source, "detail": "high"})
+    try:
+        response = client.responses.create(
+            model=_graphic_responses_model_v4000(),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=900,
+        )
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        score = int(float(payload.get("score", 0))) if isinstance(payload, dict) else 0
+        passed = bool(payload.get("passed")) and score >= 90 if isinstance(payload, dict) else False
+        return {
+            "available": True,
+            "passed": passed,
+            "score": score,
+            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:20],
+            "confirmed_details": (payload.get("confirmed_details") or [])[:20],
+            "reason": str(payload.get("reason") or "")[:900],
+        }
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v7100_structure_validation_unavailable",
+            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
+        )
+        return {"available": False, "passed": None, "score": None, "reason": "structure validation unavailable"}
+
+
+def _graphic_is_local_copy_edit_v7100(edit_directive):
+    """Return True for deterministic campaign-copy edits that need no image model."""
+    edit = edit_directive or {}
+    targets = set(edit.get("change_targets") or [])
+    return bool(targets) and targets.issubset({"headline", "feature_matrix", "bottom_benefit_bar", "logo"})
+
+
+def _graphic_local_copy_edit_v7100(prompt_text, role_items, output_size, vehicle_profile, reference_blueprint):
+    """Re-render deterministic copy on the saved scene without another provider call."""
+    state = get_graphic_project_state()
+    latest = state.get("latest_generated") or {}
+    background_url = str(latest.get("background_data_url") or "")
+    background, _mime = data_url_to_bytes(background_url)
+    product_item = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    if not background or not product_item:
+        return None
+    spec = _graphic_campaign_spec(prompt_text, vehicle_profile)
+    composed, metadata = _graphic_compose_reference_campaign_v3200(
+        background, product_item, prompt_text, output_size, spec, vehicle_profile,
+        role_items, reference_blueprint=reference_blueprint or {},
+    )
+    result = _graphic_build_provider_result_v3000(
+        composed, prompt_text, output_size, role_items,
+        "local-deterministic-copy-edit-v7100", reference_blueprint or {}, vehicle_profile or {},
+        corrected=True,
+    )
+    result["background_data_url"] = background_url
+    result["product_identity_method"] = "exact_source_pixel_composite"
+    result["layered_metadata"].update(metadata)
+    result["output_status"] = "completed_local_copy_edit_v7100"
+    result["verification_status"] = "verified"
+    result["generation_route"] = "local-deterministic-copy-edit-v7100"
+    result["speed_optimized"] = True
+    return result
+
+
+def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, geometry, campaign_spec,
+                                    product_mode, structure_profile, has_edit_base):
+    """Apply one shared finalization path for every Graphic generation route."""
+    final_result = dict(final_result or {})
+    final_result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    final_result["reference_geometry"] = geometry
+    final_result["campaign_spec"] = campaign_spec
+    final_result["project_editable"] = True
+    final_result["output_size"] = output_size
+    final_result["product_render_mode"] = product_mode.get("mode")
+    final_result["ai_product_recreated"] = bool(product_mode.get("recreates_product"))
+    final_result["product_view_count"] = int(product_mode.get("product_count") or 0)
+    final_result["requested_product_view"] = str((product_mode.get("recreation") or {}).get("requested_view") or "")
+    final_result["product_identity_profile"] = structure_profile
+    active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+    final_result["edit_mode"] = bool(has_edit_base)
+    final_result["edit_directive"] = active_edit if has_edit_base else {}
+    if product_mode.get("recreates_product"):
+        existing = str(final_result.get("verification_warning") or "").strip()
+        warning = "AI-recreated product view: verify inferred surfaces before publishing."
+        final_result["verification_warning"] = (existing + " " + warning).strip()
+    _graphic_save_latest_project_result(final_result)
+    _graphic_safe_optional_call(
+        "graphic_v7100_intelligence_store_failed_open",
+        lambda: save_graphic_generation_intelligence(
+            prompt_text, final_result, {}, final_result.get("quality_review") or {}
+        ),
+        None,
+    )
+    state = get_graphic_project_state()
+    state["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    state["last_generation_route"] = str(
+        final_result.get("provider_route") or final_result.get("generation_route")
+        or product_mode.get("mode") or ""
+    )
+    state["stage"] = "generated"
+    state["last_error"] = ""
+    state["last_failed_stage"] = ""
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return final_result
+
+def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
+    """Create and lightly validate one exact-product deterministic campaign."""
     result = _graphic_build_hybrid_campaign_result_v3300(
         prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
     )
-    result["output_status"] = "verified_exact_product_fast_v7000"
-    result["verification_status"] = "verified"
-    result["graphic_engine_version"] = "v7000"
+    validation = _graphic_exact_result_validation_v7100(
+        result, role_items, prompt_text, vehicle_profile or {}
+    )
+    result["deterministic_verification"] = validation
+    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
+    if validation.get("verified"):
+        result["output_status"] = "verified_exact_product_fast_v7100"
+        result["verification_status"] = "verified"
+    elif validation.get("unverified"):
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The exact-product campaign was completed, but the optional vehicle validator was unavailable.",
+            status="completed_exact_product_unverified_v7100",
+        )
+    elif validation.get("passed"):
+        result["output_status"] = "completed_exact_product_v7100"
+        result["verification_status"] = "completed"
+    else:
+        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
+    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
     result["product_render_mode"] = str((mode_info or {}).get("mode") or "exact_product")
     result["ai_product_recreated"] = False
     result["speed_optimized"] = True
@@ -20735,7 +20951,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """v4100 Graphic pipeline: usable output first, explicit verification status second."""
+    """v7100 Graphic pipeline: exact-product speed, local edits, bounded recreation, and explicit verification."""
     prompt_text = str(prompt_text or "").strip()
     if not prompt_text:
         raise ValueError("Please enter an image-generation or editing command.")
@@ -20748,6 +20964,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         _graphic_update_project_brief(prompt_text)
         output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
         role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+        role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
         has_product = any(i.get("role") == "product_photo" for i in role_items)
         has_style = any(i.get("role") == "style_reference" for i in role_items)
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
@@ -20790,27 +21007,37 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             "\nVERIFIED CAMPAIGN FACTS: " + json.dumps(campaign_spec, ensure_ascii=False, default=str) + \
             _graphic_multiview_identity_prompt_v7000(role_items, product_mode, structure_profile)
 
-        # v7000 speed path: exact-product jobs skip the expensive full-ad generation,
-        # correction, and repeated QA ladder. AI creates only the scenery/vehicle;
-        # deterministic code applies the exact product and all campaign components.
+        # v7100 local edit path: copy-only changes reuse the saved scene and exact
+        # product, avoiding a provider call and preventing unrelated visual drift.
+        active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+        if has_edit_base and _graphic_is_local_copy_edit_v7100(active_edit):
+            _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
+            local_result = _graphic_local_copy_edit_v7100(
+                prompt_text, role_items, output_size, vehicle_profile, reference_blueprint
+            )
+            if local_result:
+                local_result = _graphic_finalize_result_v7100(
+                    local_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
+                    campaign_spec=campaign_spec, product_mode=product_mode,
+                    structure_profile=structure_profile, has_edit_base=has_edit_base,
+                )
+                _graphic_progress_update_v3300(status, "Graphic copy edit completed.", "complete")
+                return [local_result]
+
+        # Exact-product jobs use one scenery request followed by deterministic
+        # composition and lightweight verification.
         if product_mode.get("exact_product") and not has_edit_base:
             _graphic_progress_update_v3300(status, "Creating the automotive scene and composing the exact uploaded product…")
             exact_result = _graphic_fast_exact_campaign_v7000(
                 prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, product_mode
             )
-            exact_result["reference_geometry"] = geometry
-            exact_result["campaign_spec"] = campaign_spec
-            exact_result["product_identity_profile"] = structure_profile
-            exact_result["output_size"] = output_size
-            _graphic_save_latest_project_result(exact_result)
-            state = get_graphic_project_state()
-            state["stage"] = "generated"
-            state["last_generation_route"] = "fast_exact_composer_v7000"
-            state["last_error"] = ""
-            state["last_failed_stage"] = ""
-            state["updated_at"] = datetime.now(timezone.utc).isoformat()
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-            _graphic_progress_update_v3300(status, "Exact-product campaign completed.", "complete")
+            exact_result = _graphic_finalize_result_v7100(
+                exact_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
+                campaign_spec=campaign_spec, product_mode=product_mode,
+                structure_profile=structure_profile, has_edit_base=has_edit_base,
+            )
+            completion = "Exact-product campaign completed and verified." if exact_result.get("verification_status") == "verified" else "Exact-product campaign completed; optional verification remains incomplete."
+            _graphic_progress_update_v3300(status, completion, "complete")
             return [exact_result]
 
         _graphic_progress_update_v3300(status, "Creating the complete commercial artwork…")
@@ -20988,41 +21215,27 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000(failed_stage, provider_errors or ["No image bytes were returned by the available provider routes."])
             raise RuntimeError(f"Graphic stage '{failed_stage}' did not produce a usable image. The complete project is preserved for Retry.")
 
-        final_result["graphic_engine_version"] = GRAPHIC_V4000_ENGINE_VERSION
-        final_result["reference_geometry"] = geometry
-        final_result["campaign_spec"] = campaign_spec
-        final_result["project_editable"] = True
-        final_result["provider_first_acceptance"] = True
-        final_result["output_size"] = output_size
-        final_result["product_render_mode"] = product_mode.get("mode")
-        final_result["ai_product_recreated"] = bool(product_mode.get("recreates_product"))
-        final_result["product_view_count"] = int(product_mode.get("product_count") or 0)
-        final_result["requested_product_view"] = str((product_mode.get("recreation") or {}).get("requested_view") or "")
-        final_result["product_identity_profile"] = structure_profile
         if product_mode.get("recreates_product"):
-            final_result["verification_warning"] = (
-                "AI-recreated product view: visible source details are identity-locked, but geometry hidden in all supplied views is inferred."
+            structure_validation = _graphic_recreated_product_structure_validation_v7100(
+                final_result.get("data_url"), role_items, prompt_text, structure_profile
             )
-        active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
-        final_result["edit_mode"] = bool(has_edit_base)
-        final_result["edit_directive"] = active_edit if has_edit_base else {}
-        _graphic_save_latest_project_result(final_result)
-        _graphic_safe_optional_call(
-            "graphic_v4100_intelligence_store_failed_open",
-            lambda: save_graphic_generation_intelligence(prompt_text, final_result, {}, final_result.get("quality_review") or {}),
-            None,
+            final_result["product_structure_validation"] = structure_validation
+            if structure_validation.get("available") and not structure_validation.get("passed"):
+                final_result = _graphic_mark_unverified_v4100(
+                    final_result,
+                    "The new product angle was created, but strict hardware-structure validation did not pass. Review before publishing.",
+                    status="completed_recreated_product_needs_review_v7100",
+                )
+
+        final_result = _graphic_finalize_result_v7100(
+            final_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
+            campaign_spec=campaign_spec, product_mode=product_mode,
+            structure_profile=structure_profile, has_edit_base=has_edit_base,
         )
-        state = get_graphic_project_state()
-        state["graphic_engine_version"] = "v7000"
-        state["last_generation_route"] = str(final_result.get("provider_route") or final_result.get("generation_route") or product_mode.get("mode") or "")
-        state["stage"] = "generated"
-        state["last_error"] = ""
-        state["last_failed_stage"] = ""
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        completion = "Graphic artwork completed and verified." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; optional verification remains incomplete."
+        completion = "Graphic artwork completed and verified." if final_result.get("verification_status") == "verified" else "Graphic artwork completed; review the verification note before publishing."
         _graphic_progress_update_v3300(status, completion, "complete")
         return [final_result]
+
     except Exception as error:
         if not (get_graphic_project_state().get("last_error") or ""):
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
@@ -21055,7 +21268,7 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status == "verified_exact_product_fast_v7000":
+    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100"}:
         action = "Created your exact-product AutoTecPro campaign image"
     elif image.get("ai_product_recreated"):
         action = "Created an AI-recreated product view from your supplied product references"
