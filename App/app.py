@@ -123,6 +123,9 @@ except Exception:
 #   workflows, continuous generation learning, expanded QA, and admin governance.
 # v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
+# v1201 Graphic Chat BadRequest hotfix: use the dedicated Graphic vector store for
+#   conversational Graphic Chat, retry one rejected Responses API request without
+#   file_search, and replace raw traceback leakage with a safe user-facing error.
 #   permission requests stay text-only; explicit create/edit/regenerate commands alone
 #   invoke the image API; Advanced Designer submissions remain deterministic generation.
 # v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
@@ -20090,11 +20093,14 @@ def _build_ai_request(
                 TECHNICAL_VECTOR_STORE_ID,
             )
         elif is_graphic_workspace(assistant):
+            # Graphic Chat now supports ordinary conversational turns. Keep the
+            # Responses API request narrowly scoped to the dedicated Graphic
+            # vector store; broader product facts are already supplied through
+            # Product Library context and the structured generation pipeline.
+            # Sending several stores here can be rejected by some Responses API
+            # deployments and was the cause of the v1200 planning-message 400.
             vector_store_ids = _configured_vector_store_ids(
                 GRAPHIC_VECTOR_STORE_ID,
-                MARKETING_VECTOR_STORE_ID,
-                SALES_VECTOR_STORE_ID,
-                TECHNICAL_VECTOR_STORE_ID,
             )
 
         if vector_store_ids:
@@ -20182,26 +20188,81 @@ class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
 
 
+def _is_openai_bad_request(error):
+    """Return True for a Responses API HTTP 400 without importing SDK internals."""
+    name = type(error).__name__.casefold()
+    status_code = getattr(error, "status_code", None)
+    response = getattr(error, "response", None)
+    response_status = getattr(response, "status_code", None)
+    return (
+        "badrequest" in name
+        or status_code == 400
+        or response_status == 400
+    )
+
+
+def _request_without_file_search(request):
+    """Return a defensive retry request with only file_search removed."""
+    retry_request = dict(request or {})
+    tools = [
+        dict(tool) if isinstance(tool, dict) else tool
+        for tool in (retry_request.get("tools") or [])
+        if not (isinstance(tool, dict) and tool.get("type") == "file_search")
+    ]
+    if tools:
+        retry_request["tools"] = tools
+    else:
+        retry_request.pop("tools", None)
+    return retry_request
+
+
 def _stream_one_ai_response(request):
     """
     Yield text for one Responses API call and return its final response object.
 
     The generator return value is captured with ``yield from`` by ask_ai_stream.
+    A single safe retry is allowed when the API rejects a request containing
+    file_search. This keeps normal Graphic Chat available even when a configured
+    vector store or multi-tool combination is temporarily invalid.
     """
-    try:
-        stream = client.responses.create(
-            **request,
-            stream=True,
-        )
-    except TypeError as error:
-        error_text = str(error or "").lower()
-        if "stream" in error_text and (
-            "unexpected keyword" in error_text
-            or "unexpected argument" in error_text
-            or "not supported" in error_text
-        ):
-            raise _StreamingNotSupportedError(str(error)) from error
-        raise
+    active_request = dict(request or {})
+    retried_without_file_search = False
+
+    while True:
+        try:
+            stream = client.responses.create(
+                **active_request,
+                stream=True,
+            )
+            break
+        except TypeError as error:
+            error_text = str(error or "").lower()
+            if "stream" in error_text and (
+                "unexpected keyword" in error_text
+                or "unexpected argument" in error_text
+                or "not supported" in error_text
+            ):
+                raise _StreamingNotSupportedError(str(error)) from error
+            raise
+        except Exception as error:
+            has_file_search = any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in (active_request.get("tools") or [])
+            )
+            if (
+                _is_openai_bad_request(error)
+                and has_file_search
+                and not retried_without_file_search
+            ):
+                diagnostic_log(
+                    "responses_bad_request_file_search_retry",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                )
+                active_request = _request_without_file_search(active_request)
+                retried_without_file_search = True
+                continue
+            raise
 
     received_text = False
     final_response = None
@@ -34562,48 +34623,62 @@ else:
                         )
 
                     if not partial_answer_body:
-                        stream_placeholder.empty()
-                        raise
-
-                    interruption_note = (
-                        "\n\n---\n\n"
-                        "**Response interrupted:** The AI generated the content "
-                        "above, but the live stream ended before the complete "
-                        "response finished. The partial result has been preserved. "
-                        "Send **continue from where you stopped** to request the "
-                        "remaining content."
-                    )
-                    partial_answer_body += interruption_note
-
-                    answer = partial_answer_body
-                    if order_display_text:
-                        answer = (
-                            order_display_text
-                            + "\n\n---\n\n## "
-                            + analysis_heading
-                            + "\n\n"
-                            + partial_answer_body
+                        safe_error_message = (
+                            "I couldn't complete that request because the AI service rejected "
+                            "one part of the request. Please try again. If it continues, check "
+                            "the Streamlit Cloud logs for the recorded diagnostic."
                         )
-
-                    # Keep the last successful streamed content visible. Try one
-                    # final render, but do not discard the answer if the browser
-                    # renderer itself is what raised the interruption.
-                    try:
                         stream_placeholder.markdown(
-                            _assistant_stream_html(answer),
+                            _assistant_stream_html(safe_error_message),
                             unsafe_allow_html=True,
                         )
-                    except Exception:
-                        pass
+                        answer = safe_error_message
+                        diagnostic_log(
+                            "ai_stream_request_failed",
+                            workspace=str(assistant),
+                            error_type=type(stream_error).__name__,
+                            status_code=getattr(stream_error, "status_code", None),
+                        )
+                    else:
+                        interruption_note = (
+                            "\n\n---\n\n"
+                            "**Response interrupted:** The AI generated the content "
+                            "above, but the live stream ended before the complete "
+                            "response finished. The partial result has been preserved. "
+                            "Send **continue from where you stopped** to request the "
+                            "remaining content."
+                        )
+                        partial_answer_body += interruption_note
 
-                    # Record a safe diagnostic in Streamlit Cloud logs without
-                    # exposing request contents, uploaded-file data, or secrets.
-                    print(
-                        "[AI STREAM INTERRUPTED] "
-                        f"{type(stream_error).__name__}: "
-                        f"{str(stream_error)[:300]}",
-                        flush=True,
-                    )
+                        answer = partial_answer_body
+                        if order_display_text:
+                            answer = (
+                                order_display_text
+                                + "\n\n---\n\n## "
+                                + analysis_heading
+                                + "\n\n"
+                                + partial_answer_body
+                            )
+
+                        # Keep the last successful streamed content visible. Try one
+                        # final render, but do not discard the answer if the browser
+                        # renderer itself is what raised the interruption.
+                        try:
+                            stream_placeholder.markdown(
+                                _assistant_stream_html(answer),
+                                unsafe_allow_html=True,
+                            )
+                        except Exception:
+                            pass
+
+                        # Record a safe diagnostic in Streamlit Cloud logs without
+                        # exposing request contents, uploaded-file data, or secrets.
+                        print(
+                            "[AI STREAM INTERRUPTED] "
+                            f"{type(stream_error).__name__}: "
+                            f"{str(stream_error)[:300]}",
+                            flush=True,
+                        )
                 finally:
                     loading_status_placeholder.empty()
 
