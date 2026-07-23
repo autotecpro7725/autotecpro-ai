@@ -132,6 +132,7 @@ except Exception:
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
 # v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
 # v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
+# v3100 Graphic vehicle/content lock: persist explicit vehicle facts across turns, prevent reference-product/content leakage, enforce reference-detail density, and add vehicle-aware QA correction.
 # v3000 ChatGPT-style Graphic engine: one authoritative conversational image pipeline, persistent edit base, reference-faithful multi-image generation, one controlled correction pass, and no generic-template final fallback.
 # v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
@@ -16720,6 +16721,9 @@ def _empty_graphic_project_state():
         "generation_history": [],
         "last_intent": "conversation",
         "last_error": "",
+        # v3100: explicit user facts survive short follow-ups such as “create it”.
+        "explicit_vehicle": {},
+        "project_brief_history": [],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -16736,11 +16740,106 @@ def get_graphic_project_state():
     state.setdefault("generation_history", [])
     state.setdefault("last_intent", "conversation")
     state.setdefault("last_error", "")
+    state.setdefault("explicit_vehicle", {})
+    state.setdefault("project_brief_history", [])
     return state
 
 
 def clear_graphic_project_state():
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = _empty_graphic_project_state()
+
+
+def _graphic_extract_explicit_vehicle(text):
+    """Extract only vehicle facts explicitly supplied by the user.
+
+    This intentionally prefers a precise user statement over visual guesses from a
+    style reference. It is conservative: no vehicle is returned unless a supported
+    make/model term is actually present in the text.
+    """
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    lower = value.casefold()
+    if not value:
+        return {}
+    year_match = re.search(r"\b(19[89]\d|20[0-2]\d)\b", lower)
+    year = year_match.group(1) if year_match else ""
+    candidates = [
+        (r"\b(?:chevrolet|chevy)\s+silverado\b|\bsilverado\b", "Chevrolet", "Silverado"),
+        (r"\b(?:gmc\s+)?sierra\b", "GMC", "Sierra"),
+        (r"\bford\s+f[\s-]?150\b|\bf[\s-]?150\b", "Ford", "F-150"),
+        (r"\bford\s+f[\s-]?250\b|\bf[\s-]?250\b", "Ford", "F-250"),
+        (r"\bford\s+f[\s-]?350\b|\bf[\s-]?350\b", "Ford", "F-350"),
+        (r"\bford\s+f[\s-]?450\b|\bf[\s-]?450\b", "Ford", "F-450"),
+        (r"\b(?:dodge|ram)\s+(?:ram\s+)?1500\b|\bram\s+1500\b", "RAM", "1500"),
+        (r"\b(?:dodge|ram)\s+(?:ram\s+)?2500\b|\bram\s+2500\b", "RAM", "2500"),
+        (r"\b(?:dodge|ram)\s+(?:ram\s+)?3500\b|\bram\s+3500\b", "RAM", "3500"),
+        (r"\btoyota\s+tundra\b|\btundra\b", "Toyota", "Tundra"),
+        (r"\binfiniti\s+q50\b|\bq50\b", "Infiniti", "Q50"),
+        (r"\binfiniti\s+q60\b|\bq60\b", "Infiniti", "Q60"),
+    ]
+    for pattern, make, model in candidates:
+        if re.search(pattern, lower, flags=re.IGNORECASE):
+            label = " ".join(part for part in (year, make, model) if part)
+            prohibited = []
+            if make != "Ford":
+                prohibited.extend(["Ford", "F-150", "F150", "F-250", "F250", "F-350", "F350", "F-450", "F450"])
+            if model != "Silverado":
+                prohibited.extend(["Silverado", "Chevrolet Silverado"])
+            return {
+                "make": make,
+                "model": model,
+                "year": year,
+                "display_name": label,
+                "source": "explicit_user_statement",
+                "hard_lock": True,
+                "prohibited_reference_vehicle_terms": list(dict.fromkeys(prohibited)),
+            }
+    return {}
+
+
+def _graphic_update_project_brief(prompt_text):
+    """Persist explicit project facts and recent meaningful user directions."""
+    state = get_graphic_project_state()
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if value:
+        history = [str(item) for item in (state.get("project_brief_history") or []) if str(item).strip()]
+        # Do not let generic execution commands displace useful project facts.
+        if value.casefold() not in {"create it", "create", "generate it", "proceed", "do it", "regenerate"}:
+            history.append(value[:1200])
+            state["project_brief_history"] = history[-8:]
+        explicit = _graphic_extract_explicit_vehicle(value)
+        if explicit:
+            state["explicit_vehicle"] = explicit
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return state
+
+
+def _graphic_resolve_vehicle_lock(prompt_text, researched_profile=None):
+    """Return a vehicle profile where explicit user facts always win."""
+    current = _graphic_extract_explicit_vehicle(prompt_text)
+    state = get_graphic_project_state()
+    explicit = current or dict(state.get("explicit_vehicle") or {})
+    researched = dict(researched_profile or {})
+    if explicit:
+        merged = dict(researched)
+        merged.update({
+            "make": explicit.get("make"),
+            "model": explicit.get("model"),
+            "year_range": explicit.get("year") or researched.get("year_range") or "",
+            "explicit_display_name": explicit.get("display_name"),
+            "confidence_score": 100,
+            "source_priority": "explicit_user_statement_overrides_visual_and_reference_content",
+            "hard_vehicle_lock": True,
+            "prohibited_reference_vehicle_terms": explicit.get("prohibited_reference_vehicle_terms") or [],
+        })
+        return merged
+    return researched
+
+
+def _graphic_project_context_text():
+    state = get_graphic_project_state()
+    history = [str(item).strip() for item in (state.get("project_brief_history") or []) if str(item).strip()]
+    return " | ".join(history[-6:])[:5000]
 
 
 def _infer_graphic_asset_role(prompt_text, state):
@@ -16760,8 +16859,8 @@ def _infer_graphic_asset_role(prompt_text, state):
 
 
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist image bytes across Graphic turns until New Case is selected."""
-    state = get_graphic_project_state()
+    """Persist image bytes and explicit project facts across Graphic turns."""
+    state = _graphic_update_project_brief(prompt_text)
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
     added = []
@@ -17405,17 +17504,19 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
         "text": (
             f"Compare the generated marketing image with the original product photo(s) under {mode}. "
             "Return strict JSON only with keys: product_accuracy_score (0-100), "
-            "style_adherence_score (0-100), layout_adherence_score (0-100), text_quality_score (0-100), passed (boolean), "
+            "style_adherence_score (0-100), layout_adherence_score (0-100), text_quality_score (0-100), vehicle_accuracy_score (0-100), content_density_score (0-100), passed (boolean), "
             "problems (array), correction_prompt (string). Fail the image if any visible product "
             "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
             "trim geometry, openings, brackets, connectors, proportions, or product identity. "
             "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
+            "Read the persistent project vehicle lock from the requested prompt/context. Immediately fail if the generated truck make/model differs from the explicit user vehicle, or if text from the style-reference vehicle leaks into the result. "
+            "Score content_density against the style reference: logo/URL zone, headline, compatibility ribbon, tagline, feature/icon matrix, hero product, target vehicle, and multi-item bottom benefit bar should all be represented when present in the reference. "
             "For Creative Product Integration, also allow a modest camera-angle change, but still fail invented or redesigned hardware. "
             "For Exact Product Lock, require near pixel-faithful preservation. Product fidelity has priority over decorative style. "
             "Immediately fail if the generated hero hardware matches, resembles, or substitutes the product shown in a STYLE REFERENCE rather than the ORIGINAL PRODUCT SOURCE. "
             "Immediately fail major silhouette/category mismatches such as vertical-vs-horizontal orientation, different screen aspect ratio, different housing outline, different bracket/vent/control architecture, or a gauge cluster replacing an infotainment unit. "
             f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must explicitly prohibit the reference product and list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
-            "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Requested prompt: " + str(prompt_text or "")[:3000]
+            "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Persistent project context: " + _graphic_project_context_text()[:3000] + " Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
     for url in product_payloads:
@@ -17692,8 +17793,8 @@ def save_graphic_generation_intelligence(prompt_text, generated_image, multi_age
 # v1000 Professional Layered Automotive Ad Studio
 # ============================================================
 
-GRAPHIC_LAYERED_ENGINE_VERSION = "v3000-chatgpt-style-conversational-studio"
-GRAPHIC_VEHICLE_RESEARCH_VERSION = "v1100-web-verified"
+GRAPHIC_LAYERED_ENGINE_VERSION = "v3100-chatgpt-style-vehicle-content-lock"
+GRAPHIC_VEHICLE_RESEARCH_VERSION = "v3100-explicit-user-lock-plus-web-verification"
 
 
 def _graphic_uploaded_file_bytes(uploaded_file):
@@ -18510,51 +18611,73 @@ def _graphic_chatgpt_production_prompt(
     rejected_guidance="",
     correction_prompt="",
 ):
-    """Build one concise, provider-facing production instruction."""
+    """Build one strict provider brief with persistent vehicle/content locks."""
     prompt_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     roles = [str(item.get("role") or "") for item in role_items or []]
     has_edit_base = "edit_base" in roles
     has_product = "product_photo" in roles
     has_style = "style_reference" in roles
     blueprint_text = _graphic_reference_blueprint_text(reference_blueprint or {})
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
+    project_context = _graphic_project_context_text()
+    explicit_name = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
+    make = str((vehicle_profile or {}).get("make") or "").strip()
+    model = str((vehicle_profile or {}).get("model") or "").strip()
+    year = str((vehicle_profile or {}).get("year_range") or "").strip()
+    prohibited_terms = [str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip()]
+
     lines = [
-        "Create one finished professional AutoTecPro automotive commercial advertisement.",
+        "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
         f"Output canvas: {output_size}, landscape PNG, polished production quality.",
-        f"User request: {prompt_text}",
+        f"Current command: {prompt_text}",
     ]
+    if project_context:
+        lines.append("PERSISTENT PROJECT CONTEXT FROM EARLIER USER TURNS: " + project_context)
+    if explicit_name:
+        lines.extend([
+            "HARD VEHICLE CONTENT LOCK — THIS OVERRIDES EVERY STYLE REFERENCE AND EVERY VISUAL GUESS:",
+            f"The target vehicle is exactly: {explicit_name}.",
+            f"Show a visually recognizable {year + ' ' if year else ''}{make} {model} exterior, not the truck shown in the reference advertisement.",
+            f"All visible compatibility wording must identify {explicit_name}. Never write or depict a different make/model.",
+        ])
+    if prohibited_terms:
+        lines.append("STRICTLY PROHIBITED vehicle/content terms and visual identities: " + ", ".join(prohibited_terms) + ". Remove them even if they appear in the style reference.")
     if has_edit_base:
         lines.extend([
             "IMAGE 1 is the CURRENT ARTWORK TO EDIT. Apply the requested change to this artwork.",
-            "Preserve all unaffected composition, product details, branding, and text placement unless the user explicitly changes them.",
+            "Preserve all unaffected composition, product details, branding, and approved text unless the user explicitly changes them.",
         ])
     if has_product:
         lines.extend([
             "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
-            "Preserve its recognizable housing, screen, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and overall identity.",
-            "Do not replace it with a gauge cluster, dashboard, product, or component shown in any style reference.",
+            "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity.",
+            "Do not redesign, simplify, crop away, or substitute its physical components. Do not use the gauge cluster or hardware shown in a style reference.",
         ])
     if has_style:
         lines.extend([
-            "The STYLE REFERENCE advertisements define the design system, not the product content.",
-            "Closely follow their layout hierarchy, hero-product scale, outdoor automotive scenery, bold headline treatment, red feature/compatibility ribbon, feature-icon organization, bottom information bar, contrast, depth, spacing, lighting, and premium commercial density.",
-            "The finished result must clearly feel like the same advertising campaign family as the references, while using the user's actual product.",
+            "The STYLE REFERENCE advertisements define the VISUAL SYSTEM ONLY. Their vehicle, product, claims, model names, years, watermarks, and compatibility copy are source content that must be replaced.",
+            "Reconstruct the same level of detail and campaign-family structure: top-left AutoTecPro logo and website zone; large condensed headline; red compatibility ribbon; italic benefit tagline; dense feature/icon matrix; large hero product; matching target vehicle in a premium outdoor automotive scene; and a full-width dark bottom benefit bar with multiple icon groups.",
+            "Match the reference's information density, hierarchy, spacing, product scale, lighting, scenic depth, icon rhythm, separators, and finished commercial polish. Do not produce a sparse layout or generic technology poster.",
+            "Use the reference as a composition blueprint, not as factual content. Every Ford/F-series element must be replaced when the user specifies a Chevrolet Silverado or another vehicle.",
         ])
     lines.extend([
-        "Use only user-provided or clearly supported claims. Keep wording minimal when exact specifications are unavailable.",
-        "Render readable professional typography. Do not output placeholder gibberish, internal instructions, wireframes, UI mockups, or a generic dark technology template.",
-        "Integrate the product naturally with scene-matched lighting, realistic contact shadow, clean edge treatment, and strong foreground/background separation.",
+        "CONTENT QUALITY RULES:",
+        "Use only user-provided, visible, or verified product facts. When a precise feature claim is unavailable, keep the visual slot but use a short neutral category label or non-verbal icon treatment rather than inventing a specification.",
+        "Use exact readable spelling for AutoTec, AutoTecPro.com, the target vehicle, years, headline, ribbon, and tagline. Avoid gibberish or malformed letters.",
+        "The final layout should contain the same major information zones and approximately the same number of visual detail groups as the strongest style reference.",
+        "Integrate the product naturally with scene-matched highlights, realistic contact shadow, clean edges, and strong foreground/background separation.",
         "Return only the completed advertisement image.",
     ])
     if blueprint_text:
-        lines.append("Reference-layout blueprint: " + re.sub(r"\s+", " ", blueprint_text)[:6500])
+        lines.append("REFERENCE-LAYOUT BLUEPRINT: " + re.sub(r"\s+", " ", blueprint_text)[:8500])
     if vehicle_text:
-        lines.append("Vehicle context: " + re.sub(r"\s+", " ", vehicle_text)[:2500])
+        lines.append("VEHICLE PROFILE (explicit user facts take priority): " + re.sub(r"\s+", " ", vehicle_text)[:3000])
     if rejected_guidance:
-        lines.append("Do not repeat these user-rejected directions: " + re.sub(r"\s+", " ", rejected_guidance)[:2500])
+        lines.append("DO NOT REPEAT USER-REJECTED DIRECTIONS: " + re.sub(r"\s+", " ", rejected_guidance)[:2500])
     if correction_prompt:
-        lines.append("Mandatory correction after visual review: " + re.sub(r"\s+", " ", correction_prompt)[:3500])
-    return "\n".join(lines)[:28000]
+        lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
+    return "\n".join(lines)[:30000]
 
 
 def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
@@ -18694,6 +18817,9 @@ def _graphic_build_provider_result_v3000(
             "complete_provider_artwork": True,
             "reference_faithful_edit": any(item.get("role") == "style_reference" for item in role_items),
             "followup_edit": any(item.get("role") == "edit_base" for item in role_items),
+            "explicit_vehicle_lock": bool((vehicle_profile or {}).get("hard_vehicle_lock")),
+            "target_vehicle": str((vehicle_profile or {}).get("explicit_display_name") or ""),
+            "reference_content_leakage_prohibited": True,
         },
         "vehicle_profile": vehicle_profile,
         "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
@@ -18776,10 +18902,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         {},
     ) if has_style else {}
     vehicle_profile = _graphic_safe_optional_call(
-        "graphic_v3000_vehicle_research_failed_open",
+        "graphic_v3100_vehicle_research_failed_open",
         lambda: research_graphic_vehicle_profile(role_items, prompt_text),
         {},
     ) if has_product else {}
+    # Explicit user statements persisted from earlier turns always override visual guesses.
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     rejected_guidance = _graphic_safe_optional_call(
         "graphic_v3000_rejection_guidance_failed_open",
         _graphic_session_rejection_guidance,
@@ -18844,14 +18972,21 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             product_score = int(float(review.get("product_accuracy_score", 100)))
             style_score = int(float(review.get("style_adherence_score", 100)))
             layout_score = int(float(review.get("layout_adherence_score", 100)))
+            vehicle_score = int(float(review.get("vehicle_accuracy_score", 100)))
+            density_score = int(float(review.get("content_density_score", 100)))
+            text_score = int(float(review.get("text_quality_score", 100)))
         except Exception:
-            product_score = style_score = layout_score = 100
-        product_threshold = 82 if has_product else 0
-        reference_threshold = 75 if has_style else 0
+            product_score = style_score = layout_score = vehicle_score = density_score = text_score = 100
+        product_threshold = 86 if has_product else 0
+        reference_threshold = 82 if has_style else 0
+        vehicle_threshold = 95 if (vehicle_profile or {}).get("hard_vehicle_lock") else 75
         needs_correction = (
             product_score < product_threshold
             or style_score < reference_threshold
             or layout_score < reference_threshold
+            or density_score < reference_threshold
+            or vehicle_score < vehicle_threshold
+            or text_score < 72
             or not bool(review.get("passed", True))
         )
         correction = str(review.get("correction_prompt") or "").strip()
