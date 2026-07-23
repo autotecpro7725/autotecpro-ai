@@ -46,6 +46,7 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
+# v2002 Graphic completion reliability: protect advanced preparation, recover multi-turn reference/product roles, add provider retry headroom, and guarantee a local exact-product result when optional AI stages fail.
 # v2001 regression-checked release (2026-07-23): full-file syntax/AST validation,
 # duplicate top-level definition audit, and conservative preservation of all existing
 # authentication, permissions, history, uploader, WooCommerce, knowledge, and Graphic flows.
@@ -15321,9 +15322,9 @@ def detect_graphic_brand_logo_position(prompt_text):
 # Restoring the established production values prevents NameError failures
 # without changing the existing image-generation behavior.
 GRAPHIC_IMAGE_COUNT = 1
-GRAPHIC_IMAGE_MODEL = "gpt-image-1"
-GRAPHIC_IMAGE_TIMEOUT_SECONDS = 180.0
-GRAPHIC_IMAGE_MAX_RETRIES = 1
+GRAPHIC_IMAGE_MODEL = get_optional_secret("GRAPHIC_IMAGE_MODEL", "gpt-image-1") or "gpt-image-1"
+GRAPHIC_IMAGE_TIMEOUT_SECONDS = 240.0
+GRAPHIC_IMAGE_MAX_RETRIES = 2
 
 # Official AutoTecPro branding is composited after AI generation so the model
 # never has to redraw or imitate the company logo.
@@ -18268,7 +18269,7 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
     output=io.BytesIO(); canvas.convert("RGB").save(output,format="PNG",optimize=True)
     return output.getvalue(), {"engine":GRAPHIC_LAYERED_ENGINE_VERSION,"product_pixels_preserved":True,"product_box":[x,y,product.width,product.height],"layout_plan":plan,"palette":{"accent":list(accent)},"copy":copy,"vehicle_profile":vehicle_profile or {}}
 
-def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
+def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
@@ -18690,6 +18691,270 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         raise RuntimeError("No displayable image could be produced from this request.")
 
     return generated_images
+
+
+
+def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Auto-detect"):
+    """Recover a usable reference/product role map from a multi-turn Graphic project.
+
+    The normal classifier remains authoritative. This recovery layer handles the
+    common conversational workflow where reference advertisements are uploaded
+    first and a clean product photo is uploaded on the next turn. If legacy role
+    metadata is missing, the newest image is treated as the product and earlier
+    images remain style references. This is intentionally used only after the
+    advanced engine fails or cannot identify a product source.
+    """
+    files = [item for item in (uploaded_files or []) if str(getattr(item, "type", "") or "").lower().startswith("image/")]
+    try:
+        role_items = classify_graphic_uploaded_image_roles(
+            files, prompt_text, forced_role=forced_role
+        )
+    except Exception as error:
+        diagnostic_log(
+            "graphic_role_recovery_classifier_failed",
+            error_type=type(error).__name__, error=error,
+        )
+        role_items = []
+
+    if not role_items:
+        role_items = [
+            {
+                "file": item,
+                "name": str(getattr(item, "name", "image")),
+                "role": "style_reference" if index < len(files) - 1 else "product_photo",
+            }
+            for index, item in enumerate(files)
+        ]
+
+    product_items = [item for item in role_items if item.get("role") == "product_photo"]
+    style_items = [item for item in role_items if item.get("role") == "style_reference"]
+
+    if files and not product_items:
+        # Prefer an explicitly saved project role. Otherwise the most recently
+        # uploaded image is the product in the standard reference-then-product flow.
+        preferred = None
+        for item in reversed(role_items):
+            file_obj = item.get("file")
+            if str(getattr(file_obj, "graphic_role", "") or "").strip() == "product":
+                preferred = item
+                break
+        preferred = preferred or role_items[-1]
+        for item in role_items:
+            if item is preferred:
+                item["role"] = "product_photo"
+            elif item.get("role") not in {"logo", "supporting"}:
+                item["role"] = "style_reference"
+
+    if len(role_items) >= 2 and not any(item.get("role") == "style_reference" for item in role_items):
+        for item in role_items[:-1]:
+            if item.get("role") != "logo":
+                item["role"] = "style_reference"
+
+    diagnostic_log(
+        "graphic_role_recovery_result",
+        roles=[f"{item.get('role')}:{item.get('name')}" for item in role_items],
+    )
+    return role_items
+
+
+def _graphic_build_guaranteed_result(
+    prompt_text,
+    uploaded_files,
+    *,
+    forced_upload_role="Auto-detect",
+    provider_error=None,
+):
+    """Produce a displayable PNG without depending on the image provider.
+
+    This is the final reliability boundary for Graphic Marketing. It uses the
+    existing exact-product local compositor and the uploaded reference layout so
+    a valid reference + product project can finish even if planning, retrieval,
+    the Image API, quality review, or an optional storage service fails.
+    """
+    prompt_text = str(prompt_text or "Create a professional AutoTecPro commercial image.").strip()
+    output_size = choose_graphic_image_size(prompt_text)
+    role_items = _graphic_recover_role_items(
+        uploaded_files, prompt_text, forced_role=forced_upload_role
+    )
+    product_item = next(
+        (item for item in role_items if item.get("role") == "product_photo"),
+        None,
+    )
+    if product_item is None:
+        raise RuntimeError(
+            "The Graphic project contains reference images but no usable product photo."
+        )
+
+    try:
+        reference_blueprint = analyze_graphic_reference_blueprint(
+            role_items, prompt_text=prompt_text, style_strength="High"
+        )
+    except Exception as error:
+        diagnostic_log(
+            "graphic_guaranteed_blueprint_failed",
+            error_type=type(error).__name__, error=error,
+        )
+        reference_blueprint = {}
+
+    try:
+        vehicle_profile = research_graphic_vehicle_profile(role_items, prompt_text)
+    except Exception as error:
+        diagnostic_log(
+            "graphic_guaranteed_vehicle_profile_failed",
+            error_type=type(error).__name__, error=error,
+        )
+        vehicle_profile = {}
+
+    fallback_png = b""
+    fallback_metadata = {}
+    try:
+        fallback_png, fallback_metadata = _graphic_guaranteed_local_composite(
+            role_items,
+            output_size,
+            prompt_text,
+            reference_blueprint=reference_blueprint,
+            vehicle_profile=vehicle_profile,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "graphic_guaranteed_composite_failed",
+            error_type=type(error).__name__, error=error,
+        )
+
+    fallback_png = image_bytes_to_png(fallback_png) if fallback_png else b""
+    if not fallback_png:
+        # Last-resort exact product presentation: normalize the source image and
+        # place it on a production-size canvas. This path avoids returning a false
+        # failure after the user supplied a valid product photograph.
+        try:
+            raw = product_item["file"].getvalue()
+            source_png = image_bytes_to_png(raw)
+            if Image is None or not source_png:
+                raise RuntimeError("Pillow is unavailable for the local Graphic fallback.")
+            source = Image.open(io.BytesIO(source_png)).convert("RGBA")
+            width, height = [int(value) for value in output_size.split("x", 1)]
+            canvas = Image.new("RGBA", (width, height), (16, 20, 28, 255))
+            max_w, max_h = int(width * 0.66), int(height * 0.76)
+            scale = min(max_w / max(1, source.width), max_h / max(1, source.height), 1.5)
+            resized = source.resize(
+                (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+                Image.LANCZOS,
+            )
+            x = width - resized.width - int(width * 0.07)
+            y = (height - resized.height) // 2
+            canvas.alpha_composite(resized, (max(0, x), max(0, y)))
+            output = io.BytesIO()
+            canvas.convert("RGB").save(output, format="PNG", optimize=True)
+            fallback_png = output.getvalue()
+            fallback_metadata = {
+                "engine": "graphic-emergency-product-canvas-v1",
+                "product_pixels_preserved": True,
+                "product_box": [x, y, resized.width, resized.height],
+            }
+        except Exception as error:
+            diagnostic_log(
+                "graphic_emergency_product_canvas_failed",
+                error_type=type(error).__name__, error=error,
+            )
+            raise RuntimeError(
+                "The product photo could not be decoded for the Graphic fallback."
+            ) from error
+
+    try:
+        fallback_png, brand_logo_applied, brand_logo_position = apply_autotecpro_brand_logo(
+            fallback_png, prompt_text=prompt_text
+        )
+    except Exception as error:
+        diagnostic_log(
+            "graphic_guaranteed_logo_failed",
+            error_type=type(error).__name__, error=error,
+        )
+        brand_logo_applied, brand_logo_position = False, ""
+
+    created_at = datetime.now(timezone.utc)
+    filename = graphic_image_filename(prompt_text, created_at)
+    data_url = "data:image/png;base64," + base64.b64encode(fallback_png).decode("ascii")
+    result = {
+        "name": filename,
+        "filename": filename,
+        "data_url": data_url,
+        "generated": True,
+        "professional_layered_studio": True,
+        "provider_fallback_used": True,
+        "provider_error_type": type(provider_error).__name__ if provider_error else "AdvancedGraphicEngineFallback",
+        "strict_product_identity_lock": True,
+        "product_identity_method": "exact_source_pixel_composite",
+        "layered_engine_version": GRAPHIC_LAYERED_ENGINE_VERSION,
+        "layered_metadata": fallback_metadata,
+        "vehicle_profile": vehicle_profile,
+        "vehicle_research_version": str((vehicle_profile or {}).get("research_version") or ""),
+        "prompt": prompt_text,
+        "created_at": created_at.isoformat(),
+        "model": "local-guaranteed-graphic-engine",
+        "size": output_size,
+        "resolution": output_size,
+        "mime_type": "image/png",
+        "official_brand_logo_applied": bool(brand_logo_applied),
+        "official_brand_logo_position": brand_logo_position,
+        "official_brand_logo_file": AUTOTECPRO_BRAND_LOGO_FILE.name if brand_logo_applied else "",
+        "style_memory_status": "not_reviewed",
+        "style_collection": extract_graphic_style_collection_name(prompt_text) or "",
+        "creative_director_brief": "",
+        "multi_agent_plan": {},
+        "multi_agent_version": GRAPHIC_AGENT_VERSION,
+        "campaign_name": extract_graphic_campaign_name(prompt_text),
+        "special_workflow": detect_graphic_special_workflow(prompt_text),
+        "product_transform_mode": "Exact Original Product",
+        "reference_blueprint": reference_blueprint,
+        "reference_analysis_version": str((reference_blueprint or {}).get("analysis_version") or ""),
+        "upload_roles": [
+            {"name": item.get("name"), "role": item.get("role")}
+            for item in role_items
+        ],
+        "style_memory_fingerprint": hashlib.sha256(
+            (data_url + prompt_text).encode("utf-8")
+        ).hexdigest(),
+        "reliability_fallback": True,
+    }
+    diagnostic_log(
+        "graphic_guaranteed_result_created",
+        size=output_size,
+        provider_error_type=result["provider_error_type"],
+    )
+    return [result]
+
+
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
+                                      preserve_product=True, style_strength="High",
+                                      forced_upload_role="Auto-detect", quality_retry=True,
+                                      product_transform_mode="Auto", professional_layered_studio=True):
+    """Run the full Graphic engine with a guaranteed local completion boundary."""
+    try:
+        images = _generate_graphic_marketing_images_advanced(
+            prompt_text,
+            uploaded_files,
+            use_approved_style=use_approved_style,
+            preserve_product=preserve_product,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry,
+            product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+        if images:
+            return images
+        raise RuntimeError("The advanced Graphic engine returned no image.")
+    except Exception as error:
+        diagnostic_log(
+            "graphic_advanced_engine_fallback",
+            error_type=type(error).__name__, error=error,
+        )
+        return _graphic_build_guaranteed_result(
+            prompt_text,
+            uploaded_files,
+            forced_upload_role=forced_upload_role,
+            provider_error=error,
+        )
 
 
 
