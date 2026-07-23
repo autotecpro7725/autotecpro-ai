@@ -33,6 +33,7 @@ from html.parser import HTMLParser
 import socket
 import ipaddress
 import csv
+import inspect
 from difflib import SequenceMatcher
 try:
     from openpyxl import load_workbook
@@ -125,6 +126,8 @@ except Exception:
 # v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
 # v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
 # v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
+# v1500 ChatGPT-style Graphic Project Engine: native unified composer when supported,
+# persistent cross-turn Graphic assets, explicit project stages, single post-normalization routing, safe errors, and compatibility fallback.
 # v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
 # v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
 #   clarification policy, no automatic technical/SYNC questions, and intent-specific
@@ -4630,11 +4633,9 @@ def _managed_file_uploader_core(
         # Auto Learning, sidebar, or workspace code.
         _rerun_upload_region()
 
-    # Keep the original uploader interface. The normal bottom-right chat send
-    # arrow becomes active whenever one or more managed attachments are present.
-    _sync_native_chat_send_arrow_for_attachments(
-        bool(st.session_state.get(storage_key) or [])
-    )
+    # Submission is handled by the unified native chat composer when supported.
+    # The managed uploader remains a compatibility fallback only; it no longer
+    # mutates Streamlit's private chat-input DOM.
 
     size_error = st.session_state.pop(f"{storage_key}_size_error", None)
     if size_error:
@@ -13067,6 +13068,7 @@ def _start_new_case_callback():
         "chat_managed_uploads",
         "chat_managed_upload_generation",
     )
+    clear_graphic_project_state()
 
 
 _non_chat_workspaces = {
@@ -16599,6 +16601,157 @@ def apply_autotecpro_brand_logo(
         return raw, False, ""
 
 
+
+
+GRAPHIC_PROJECT_STATE_KEY = "graphic_chat_project"
+GRAPHIC_PROJECT_MAX_ASSETS = 16
+
+
+def _native_chat_file_input_supported():
+    """Return whether this Streamlit release supports files in st.chat_input."""
+    try:
+        return "accept_file" in inspect.signature(st.chat_input).parameters
+    except Exception:
+        return False
+
+
+def _normalize_native_chat_submission(value):
+    """Return (text, files) for legacy strings and modern ChatInputValue objects."""
+    if value is None:
+        return "", []
+    if isinstance(value, str):
+        return value, []
+    if isinstance(value, dict):
+        text = str(value.get("text") or "")
+        files = list(value.get("files") or [])
+        return text, files
+    text = str(getattr(value, "text", "") or "")
+    files = list(getattr(value, "files", None) or [])
+    return text, files
+
+
+def _empty_graphic_project_state():
+    return {
+        "stage": "planning",
+        "assets": [],
+        "latest_generated": None,
+        "last_intent": "conversation",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def get_graphic_project_state():
+    """Return the current conversation-level Graphic asset workspace."""
+    state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
+    if not isinstance(state, dict):
+        state = _empty_graphic_project_state()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    state.setdefault("stage", "planning")
+    state.setdefault("assets", [])
+    state.setdefault("latest_generated", None)
+    state.setdefault("last_intent", "conversation")
+    return state
+
+
+def clear_graphic_project_state():
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = _empty_graphic_project_state()
+
+
+def _infer_graphic_asset_role(prompt_text, state):
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
+        return "reference"
+    if any(term in text for term in ("logo", "brand mark")):
+        return "logo"
+    if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
+        return "product"
+    stage = str((state or {}).get("stage") or "planning")
+    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
+        return "reference"
+    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
+        return "product"
+    return "supporting"
+
+
+def remember_graphic_project_assets(uploaded_files, prompt_text=""):
+    """Persist image bytes across Graphic turns until New Case is selected."""
+    state = get_graphic_project_state()
+    assets = list(state.get("assets") or [])
+    known = {str(item.get("id") or "") for item in assets}
+    added = []
+    for uploaded in uploaded_files or []:
+        mime = str(getattr(uploaded, "type", "") or "").casefold()
+        if not mime.startswith("image/"):
+            continue
+        try:
+            data = uploaded.getvalue()
+        except Exception:
+            continue
+        digest = hashlib.sha256(data).hexdigest()
+        if digest in known:
+            continue
+        role = _infer_graphic_asset_role(prompt_text, state)
+        record = {
+            "id": digest,
+            "name": str(getattr(uploaded, "name", "image")),
+            "type": str(getattr(uploaded, "type", "image/png") or "image/png"),
+            "data": data,
+            "role": role,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        assets.append(record)
+        added.append(record)
+        known.add(digest)
+    if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
+        assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+    state["assets"] = assets
+    if added:
+        roles = {item.get("role") for item in added}
+        if "reference" in roles:
+            state["stage"] = "awaiting_product"
+        elif "product" in roles:
+            state["stage"] = "ready_to_generate"
+        else:
+            state["stage"] = "assets_received"
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return added
+
+
+def graphic_project_uploaded_files(include_current=None):
+    """Materialize persistent Graphic project images, deduplicated with current files."""
+    combined = []
+    seen = set()
+    for item in include_current or []:
+        try:
+            digest = hashlib.sha256(item.getvalue()).hexdigest()
+        except Exception:
+            digest = str(id(item))
+        if digest not in seen:
+            combined.append(item)
+            seen.add(digest)
+    for record in get_graphic_project_state().get("assets") or []:
+        digest = str(record.get("id") or "")
+        if not digest or digest in seen:
+            continue
+        combined.append(ManagedUploadedFile(record.get("data") or b"", record.get("name") or "image", record.get("type") or "image/png"))
+        seen.add(digest)
+    return combined
+
+
+def build_graphic_project_context():
+    state = get_graphic_project_state()
+    role_counts = {}
+    for asset in state.get("assets") or []:
+        role = str(asset.get("role") or "supporting")
+        role_counts[role] = role_counts.get(role, 0) + 1
+    return (
+        "\n\nGRAPHIC PROJECT STATE (conversation-scoped):\n"
+        f"Stage: {state.get('stage', 'planning')}\n"
+        f"Available image assets by role: {json.dumps(role_counts, ensure_ascii=False)}\n"
+        "Use this state to interpret short follow-ups. Do not claim an image is available unless listed. "
+        "Do not generate until the user explicitly asks to create, generate, render, proceed, or edit."
+    )
 
 def build_attachment_only_chat_prompt(assistant_name):
     """Create an internal instruction for a file-only chat turn."""
@@ -34218,19 +34371,22 @@ else:
     elif assistant == "🎨 Graphic Marketing":
         graphic_tool_request = render_advanced_image_designer_panel()
 
-    uploaded_files = managed_file_uploader(
-        storage_key="chat_managed_uploads",
-        generation_key="chat_managed_upload_generation",
-        widget_prefix="chat_files",
-        accepted_types=[
-            "jpg", "jpeg", "png", "webp", "pdf", "txt",
-            "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
-        ],
-        heading="📎 Attach files or photos",
-    )
-
-    st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    install_global_chat_file_dropzone()
+    chat_accepted_types = [
+        "jpg", "jpeg", "png", "webp", "pdf", "txt",
+        "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
+    ]
+    native_chat_files_supported = _native_chat_file_input_supported()
+    uploaded_files = []
+    if not native_chat_files_supported:
+        uploaded_files = managed_file_uploader(
+            storage_key="chat_managed_uploads",
+            generation_key="chat_managed_upload_generation",
+            widget_prefix="chat_files",
+            accepted_types=chat_accepted_types,
+            heading="📎 Attach files or photos",
+        )
+        st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
+        install_global_chat_file_dropzone()
 
     for message_index, msg in enumerate(st.session_state.messages):
         render_chat_message(
@@ -34250,10 +34406,18 @@ else:
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
-    # Unified Graphic workspace: the normal chat composer stays available even
-    # while the Advanced AI Image Designer is visible. A submitted designer form
-    # temporarily takes priority for that rerun, then the composer continues normally.
-    chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    # One native composer owns both text and attachments on supported Streamlit
+    # releases. This removes the private-DOM zero-width sentinel workaround.
+    if native_chat_files_supported:
+        chat_submission = st.chat_input(
+            "Message AutoTecPro AI...",
+            accept_file="multiple",
+            file_type=chat_accepted_types,
+        )
+        chat_prompt, native_chat_files = _normalize_native_chat_submission(chat_submission)
+        uploaded_files = list(native_chat_files or [])
+    else:
+        chat_prompt = st.chat_input("Message AutoTecPro AI...")
 
     if (
         isinstance(graphic_tool_request, dict)
@@ -34272,11 +34436,14 @@ else:
         active_structured_tool = None
 
     native_attachment_only_submit = bool(
-        isinstance(prompt, str)
-        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
+        not str(prompt or "").strip()
         and uploaded_files
         and active_structured_tool is None
     )
+    # Legacy compatibility only: old deployments may still submit the historical
+    # sentinel once during a rolling upgrade. It is never injected by this version.
+    if isinstance(prompt, str) and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL:
+        native_attachment_only_submit = bool(uploaded_files and active_structured_tool is None)
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
         prompt = build_attachment_only_chat_prompt(assistant)
@@ -34293,39 +34460,10 @@ else:
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
 
-        provisional_graphic_intent = (
-            classify_graphic_chat_intent(
-                interaction_prompt,
-                uploaded_files,
-                structured_request=bool(
-                    assistant == "🎨 Graphic Marketing"
-                    and isinstance(active_structured_tool, dict)
-                    and isinstance(active_structured_tool.get("graphic_options"), dict)
-                ),
-            )
-            if assistant == "🎨 Graphic Marketing"
-            else "conversation"
-        )
-
+        # Defer every Product Library side effect until attachments are normalized
+        # and the final Graphic intent has been resolved exactly once.
         product_library_lookup = None
         product_library_images = []
-        allow_product_library_lookup = not attachment_only_mode
-        if assistant == "🎨 Graphic Marketing":
-            allow_product_library_lookup = bool(
-                allow_product_library_lookup
-                and (
-                    provisional_graphic_intent in {"generate", "edit"}
-                    or _explicit_product_library_request(interaction_prompt)
-                )
-            )
-        try:
-            if allow_product_library_lookup:
-                product_library_lookup = _product_library_chat_lookup(interaction_prompt)
-                if product_library_lookup is None:
-                    product_library_lookup = _product_library_fact_lookup(interaction_prompt)
-                product_library_images = list((product_library_lookup or {}).get("images") or [])
-        except Exception as error:
-            diagnostic_log("product_library_chat_lookup_failed", error=error)
 
         # Managed uploads are SHA-256 deduplicated and are cleared
         # immediately after this message is completed. ZIP attachments are safely
@@ -34337,6 +34475,14 @@ else:
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
             st.stop()
+
+        if assistant == "🎨 Graphic Marketing":
+            remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
+        graphic_generation_files = (
+            graphic_project_uploaded_files(effective_uploaded_files)
+            if assistant == "🎨 Graphic Marketing"
+            else effective_uploaded_files
+        )
 
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
@@ -34363,10 +34509,17 @@ else:
         )
 
         if uploaded_files:
-            file_names = ", ".join(
-                [str(getattr(file, "name", "attachment")) for file in uploaded_files]
-            )
-            user_display += f"\n\n📎 Attached: {file_names}"
+            non_image_files = [
+                file for file in uploaded_files
+                if not str(getattr(file, "type", "") or "").casefold().startswith("image/")
+            ]
+            # Image cards already communicate the attachment visually. Keep names
+            # only for documents/archives so image-only turns remain uncluttered.
+            if non_image_files or not attachment_only_mode:
+                file_names = ", ".join(
+                    [str(getattr(file, "name", "attachment")) for file in uploaded_files]
+                )
+                user_display += f"\n\n📎 Attached: {file_names}"
         if archive_summaries:
             user_display += "\n📦 Archive analysis: " + "; ".join(archive_summaries)
 
@@ -34484,7 +34637,7 @@ else:
         graphic_chat_intent = (
             classify_graphic_chat_intent(
                 interaction_prompt,
-                effective_uploaded_files,
+                graphic_generation_files,
                 structured_request=is_structured_graphic_request,
             )
             if assistant == "🎨 Graphic Marketing"
@@ -34509,6 +34662,14 @@ else:
             is_graphic_generation = False
 
         if assistant == "🎨 Graphic Marketing":
+            graphic_project = get_graphic_project_state()
+            graphic_project["last_intent"] = graphic_chat_intent
+            if graphic_chat_intent in {"generate", "edit"}:
+                graphic_project["stage"] = "generating"
+            elif graphic_chat_intent == "planning" and not graphic_project.get("assets"):
+                graphic_project["stage"] = "awaiting_reference"
+            graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
             diagnostic_log(
                 "graphic_chat_intent",
                 intent=graphic_chat_intent,
@@ -34521,6 +34682,26 @@ else:
             # simple ChatGPT-style welcome or upload-permission response.
             if graphic_chat_intent in {"planning", "conversation"}:
                 use_file_search = False
+
+        allow_product_library_lookup = bool(not attachment_only_mode)
+        if assistant == "🎨 Graphic Marketing":
+            allow_product_library_lookup = bool(
+                allow_product_library_lookup
+                and (
+                    graphic_chat_intent in {"generate", "edit"}
+                    or _explicit_product_library_request(interaction_prompt)
+                )
+            )
+        try:
+            if allow_product_library_lookup:
+                product_library_lookup = _product_library_chat_lookup(interaction_prompt)
+                if product_library_lookup is None:
+                    product_library_lookup = _product_library_fact_lookup(interaction_prompt)
+                product_library_images = list((product_library_lookup or {}).get("images") or [])
+                if product_library_images:
+                    generated_images.extend(product_library_images)
+        except Exception as error:
+            diagnostic_log("product_library_chat_lookup_failed", error_type=type(error).__name__, error=error)
 
         # Default for learning and graphic-generation branches. The previous
         # revision assigned this only inside the ordinary AI-response branch,
@@ -34560,8 +34741,20 @@ else:
                         '“Create a new ad using the approved reference style.”'
                     )
             except Exception as error:
-                answer = "The reference style was not saved.\n\n" + str(error)
-                st.error(str(error))
+                diagnostic_id = hashlib.sha256(
+                    f"graphic-style:{time.time_ns()}".encode()
+                ).hexdigest()[:10]
+                diagnostic_log(
+                    "graphic_reference_learning_failed",
+                    diagnostic_id=diagnostic_id,
+                    error_type=type(error).__name__,
+                    error=error,
+                )
+                answer = (
+                    "The reference style could not be saved. Please retry. "
+                    f"Diagnostic ID: {diagnostic_id}"
+                )
+                st.error(answer)
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
             render_chat_message(
@@ -34602,7 +34795,7 @@ else:
                     )
                     generated_images = generate_graphic_marketing_images(
                         prompt,
-                        effective_uploaded_files,
+                        graphic_generation_files,
                         use_approved_style=graphic_options.get("use_approved_style", True),
                         preserve_product=graphic_options.get("preserve_product", True),
                         style_strength=graphic_options.get("style_strength", "High"),
@@ -34612,13 +34805,26 @@ else:
                         professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 answer = generated_image_answer_text(generated_images)
+                graphic_project = get_graphic_project_state()
+                graphic_project["stage"] = "generated"
+                graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
             except Exception as error:
                 generated_images = []
-                answer = (
-                    "Image generation was not completed.\n\n"
-                    + str(error)
+                diagnostic_id = hashlib.sha256(
+                    f"graphic-generation:{time.time_ns()}".encode()
+                ).hexdigest()[:10]
+                diagnostic_log(
+                    "graphic_generation_failed",
+                    diagnostic_id=diagnostic_id,
+                    error_type=type(error).__name__,
+                    error=error,
                 )
-                st.error(str(error))
+                answer = (
+                    "Image generation was not completed. Please retry. "
+                    f"Diagnostic ID: {diagnostic_id}"
+                )
+                st.error(answer)
 
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
@@ -34735,11 +34941,12 @@ else:
                         graphic_chat_intent,
                         has_uploaded_images=has_uploaded_images,
                     )
+                    ai_request_prompt += build_graphic_project_context()
 
                 try:
                     for delta in ask_ai_stream(
                         ai_request_prompt,
-                        effective_uploaded_files,
+                        graphic_generation_files,
                         detected_live_request=detected_request,
                         detected_technical_tool=detected_technical_tool,
                         detected_workspace_tool=detected_workspace_tool,
@@ -35038,9 +35245,8 @@ else:
                 learning_context=learning_context_snapshot,
             )
 
-        # Clear uploaded files after this message is completed.
-        # The image remains saved inside this specific user message/history item,
-        # but it will not be automatically reused in the next conversation turn.
+        # Clear only the transient composer upload selection. Graphic image bytes
+        # remain in the conversation-scoped Graphic Project until New Case is used.
         st.session_state.chat_file_uploader_generation += 1
         clear_managed_uploads(
             "chat_managed_uploads",
