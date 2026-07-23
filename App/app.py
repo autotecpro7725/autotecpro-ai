@@ -46,6 +46,9 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v369
+# v2001 regression-checked release (2026-07-23): full-file syntax/AST validation,
+# duplicate top-level definition audit, and conservative preservation of all existing
+# authentication, permissions, history, uploader, WooCommerce, knowledge, and Graphic flows.
 # v386 document conversion: merges v384 conversation-command support with direct previous-response PDF/Word export; no AI rewriting.
 # v370 UI performance architecture:
 # - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
