@@ -19196,6 +19196,41 @@ def _graphic_engineering_landmarks_from_rgba_v20010(layer, structure_profile=Non
     return report
 
 
+
+def _graphic_restore_master_bezel_v20020(raw_bytes, cutout_layer):
+    """Restore the bezel/display area from the untouched uploaded product master."""
+    if Image is None or not raw_bytes or cutout_layer is None:
+        return cutout_layer, {"applied": False, "reason": "source unavailable"}
+    try:
+        master = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
+        cutout = ImageOps.exif_transpose(cutout_layer).convert("RGBA")
+        if cutout.size != master.size:
+            return cutout, {"applied": False, "reason": "coordinate size mismatch"}
+        geometry = _graphic_engineering_landmarks_from_rgba_v20010(master)
+        box = geometry.get("outer_bezel_box")
+        if not geometry.get("outer_bezel_detected") or not isinstance(box, (list, tuple)) or len(box) != 4:
+            return cutout, {"applied": False, "reason": "master outer bezel not detected", "geometry": geometry}
+        w, h = master.size
+        x = max(0, min(w - 1, int(round(float(box[0]) * w))))
+        y = max(0, min(h - 1, int(round(float(box[1]) * h))))
+        bw = max(1, int(round(float(box[2]) * w))); bh = max(1, int(round(float(box[3]) * h)))
+        x1 = max(x + 1, min(w, x + bw)); y1 = max(y + 1, min(h, y + bh))
+        pad_x = max(2, int((x1 - x) * 0.02)); pad_y = max(2, int((y1 - y) * 0.02))
+        roi = (max(0, x - pad_x), max(0, y - pad_y), min(w, x1 + pad_x), min(h, y1 + pad_y))
+        master_crop = master.crop(roi)
+        master_crop.putalpha(cutout.getchannel("A").crop(roi))
+        cutout.alpha_composite(master_crop, (roi[0], roi[1]))
+        return cutout, {
+            "applied": True, "mode": "untouched_master_bezel_rgb_with_cutout_alpha",
+            "roi": list(roi), "outer_bezel_box": box,
+            "inner_display_box": geometry.get("inner_display_box"),
+            "bezel_profile": geometry.get("bezel_profile"),
+            "screen_ratio": geometry.get("inner_display_aspect_ratio"),
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v20020_master_bezel_restore_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        return cutout_layer, {"applied": False, "reason": type(error).__name__}
+
 def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
     """Return cached deterministic geometry landmarks for the authoritative product source."""
     if Image is None:
@@ -19209,11 +19244,11 @@ def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
     if cached is not None:
         return dict(cached)
     try:
-        layer,transparent=_graphic_open_product_layer_v3300(item.get("file"))
-        if layer is None:
+        # Measure engineering geometry from the untouched upload, not from a cutout.
+        raw=_graphic_uploaded_file_bytes(item.get("file"))
+        if not raw:
             return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
-        layer=ImageOps.exif_transpose(layer).convert("RGBA")
-        layer,_trim=_graphic_trim_visible_product_canvas_v14000(layer,transparent=transparent)
+        layer=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
         report=_graphic_engineering_landmarks_from_rgba_v20010(layer,structure_profile)
         if len(_GRAPHIC_LANDMARK_CACHE_V20010)>=64:
             _GRAPHIC_LANDMARK_CACHE_V20010.pop(next(iter(_GRAPHIC_LANDMARK_CACHE_V20010)),None)
@@ -19268,6 +19303,8 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
     ratio_error=float(metadata.get("product_ratio_relative_error") or 0.0)
     if ratio_error>0.0025: issues.append("whole-unit ratio drift exceeds 0.25%")
     if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
+    if metadata.get("master_bezel_lock") is not True or metadata.get("bezel_pixels_regenerated") is not False:
+        issues.append("untouched master bezel lock not confirmed")
     if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
     if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
     if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
@@ -19540,7 +19577,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20010-autotecpro-graphic-engine-6-engineering-geometry-lock"
+GRAPHIC_ENGINE_VERSION = "v20020-autotecpro-graphic-engine-6-2-master-bezel-lock"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20908,6 +20945,9 @@ def _graphic_compose_reference_campaign_v3200(
         "product_ratio_relative_error": round(product_ratio_relative_error, 10),
         "product_ratio_preserved": product_ratio_relative_error <= 0.0025,
         "premultiplied_alpha_resize": True,
+        "master_bezel_lock": True,
+        "master_bezel_source": "untouched_uploaded_product",
+        "bezel_pixels_regenerated": False,
         "engineering_landmarks": engineering_landmarks,
         "bezel_geometry_lock": dict(engineering_landmarks).get("bezel_profile"),
         "screen_ratio_lock": dict(engineering_landmarks).get("inner_display_aspect_ratio"),
@@ -21280,7 +21320,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20000-border-connected-geometry-safe"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20020-master-bezel-lock-full-canvas"
 
 
 def _graphic_progress_v3300(label):
@@ -21431,9 +21471,8 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                         ap[x, y] = 190
 
         im.putalpha(alpha)
-        bbox = alpha.getbbox()
-        if bbox:
-            im = im.crop(bbox)
+        # v20020: preserve original full-canvas coordinates. Downstream trimming occurs
+        # only after the untouched master bezel pixels are restored.
         out = io.BytesIO()
         im.save(out, format="PNG", optimize=True)
         return out.getvalue()
@@ -21448,7 +21487,8 @@ def _graphic_open_product_layer_v3300(uploaded_file):
     raw=_graphic_uploaded_file_bytes(uploaded_file)
     digest=hashlib.sha256(raw).hexdigest() if raw else ""
     state=get_graphic_project_state(); cache=dict(state.get("product_mask_cache") or {})
-    cached=cache.get(digest) if digest else None
+    cache_key=f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}" if digest else ""
+    cached=cache.get(cache_key) if cache_key else None
     if isinstance(cached,str) and cached.startswith("data:image/"):
         cached_raw,_=data_url_to_bytes(cached)
         if cached_raw and Image is not None:
@@ -21463,9 +21503,15 @@ def _graphic_open_product_layer_v3300(uploaded_file):
             layer=Image.open(io.BytesIO(cutout)).convert("RGBA")
             extrema=layer.getchannel("A").getextrema()
             if extrema and extrema[0]<32 and extrema[1]>220:
-                if digest:
-                    cache[digest]="data:image/png;base64,"+base64.b64encode(cutout).decode("ascii")
-                    state["product_mask_cache"]={k:v for k,v in list(cache.items())[-12:]}; st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+                layer,bezel_report=_graphic_restore_master_bezel_v20020(raw,layer)
+                out=io.BytesIO(); layer.save(out,format="PNG",optimize=True); cutout=out.getvalue()
+                if cache_key:
+                    cache[cache_key]="data:image/png;base64,"+base64.b64encode(cutout).decode("ascii")
+                    state["product_mask_cache"]={k:v for k,v in list(cache.items())[-12:]}
+                    reports=dict(state.get("product_bezel_master_reports") or {})
+                    reports[cache_key]=bezel_report
+                    state["product_bezel_master_reports"]={k:v for k,v in list(reports.items())[-12:]}
+                    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
                 return layer,True
     except Exception: pass
     return product,transparent
