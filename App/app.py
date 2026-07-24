@@ -46,10 +46,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v21000
-# v21000 Full Fingerprint Engine + Engineering DNA 11.0 + Geometry Engine 3.0 + Campaign Cache 4.0.
-# Preserves the v20300 commercial composition while fully measuring, caching, transforming, approving, and QA-verifying the uploaded product as an immutable engineering asset.
-# The image provider creates only the commercial scene; the uploaded product is never regenerated in exact-product mode.
+# AutoTecPro AI performance/stability revision: v21010
+# v21010 is built directly from the proven v20300 commercial exact-product base.
+# Adds the full versioned fingerprint engine, authoritative mask approval, explicit 3x3 rigid geometry, inverse-normalized measured QA, and campaign cache without replacing v20300 commercial composition.
+# Exact-product mode keeps uploaded product pixels authoritative and blocks generative product replacement.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19541,7 +19541,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v21000-full-fingerprint-engineering-dna11-geometry3-cache4"
+GRAPHIC_ENGINE_VERSION = "v21010-v20300-base-full-fingerprint-engine"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20040,24 +20040,7 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
     footer[2] = max(footer[2], 0.90); footer[3] = max(footer[3], 0.102)
     defaults["bottom_bar_box"] = clean_box(footer, defaults["bottom_bar_box"])
 
-    # Publish both the normalized box schema and backward-compatible scalar fields.
-    # Several legacy/background-prompt consumers expect hero_left/hero_right/hero_top,
-    # top_ratio and bar_ratio. Derive them from the authoritative boxes so every route
-    # receives one consistent layout contract and direct dictionary access cannot fail.
-    hero_box = list(defaults["hero_product_box"])
-    headline_box = list(defaults["headline_box"])
-    bottom_box = list(defaults["bottom_bar_box"])
     defaults.update({
-        "hero_left": float(hero_box[0]),
-        "hero_right": float(hero_box[0] + hero_box[2]),
-        "hero_top": float(hero_box[1]),
-        "hero_bottom": float(hero_box[1] + hero_box[3]),
-        "top_ratio": float(max(
-            headline_box[1] + headline_box[3],
-            defaults["tagline_box"][1] + defaults["tagline_box"][3],
-            defaults["feature_matrix_box"][1] + defaults["feature_matrix_box"][3],
-        )),
-        "bar_ratio": float(bottom_box[1]),
         "source": "reference_blueprint" if bp else "approved_reference_fallback",
         "content_policy": "geometry_only_no_reference_content",
         "reference_locked": bool(bp),
@@ -20169,12 +20152,11 @@ def _graphic_expected_product_layer_v10000(product_item, target_width, target_he
 
 
 def _graphic_exact_product_visual_match_v10000(result, role_items):
-    """Compare the rendered product region with the deterministic source composite.
+    """Compare final product-region pixels with the exact uploaded product layer.
 
-    The comparison is an engineering diagnostic, not the sole identity authority.
-    Exact source fingerprint, local-composite metadata, crop bounds and geometric
-    ratios remain the hard identity checks. Small RGB differences introduced by
-    LANCZOS resize, alpha compositing or PNG/JPEG conversion are reviewable.
+    Only high-opacity product pixels are compared, so the generated background and
+    local grounding shadow do not affect the score. This is a deterministic check and
+    does not add a model request or generation latency.
     """
     report = {
         "available": False,
@@ -20182,8 +20164,7 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         "score": 0.0,
         "mean_absolute_error": None,
         "sample_count": 0,
-        "threshold": 0.970,
-        "hard_failure_threshold": 0.940,
+        "threshold": 0.90,
         "reason": "visual comparison unavailable",
     }
     if Image is None:
@@ -20221,6 +20202,7 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         expected_rgb = expected.convert("RGB")
         alpha = expected.getchannel("A")
 
+        # Downsample the comparison to a bounded workload while preserving structure.
         max_side = 420
         scale = min(1.0, max_side / max(width, height))
         if scale < 1.0:
@@ -20234,46 +20216,41 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         mask_pixels = alpha.load()
         sample_count = 0
         absolute_error = 0
+        step = 1
         for yy in range(observed.height):
             for xx in range(observed.width):
-                # Include the stable product body while excluding transparent scene pixels.
-                if mask_pixels[xx, yy] < 192:
+                if mask_pixels[xx, yy] < 235:
                     continue
                 observed_pixel = obs_pixels[xx, yy]
                 expected_pixel = exp_pixels[xx, yy]
-                absolute_error += sum(
-                    abs(int(observed_pixel[channel]) - int(expected_pixel[channel]))
-                    for channel in range(3)
+                absolute_error += (
+                    abs(int(observed_pixel[0]) - int(expected_pixel[0]))
+                    + abs(int(observed_pixel[1]) - int(expected_pixel[1]))
+                    + abs(int(observed_pixel[2]) - int(expected_pixel[2]))
                 )
                 sample_count += 3
         if sample_count < 300:
-            report["reason"] = "insufficient product pixels"
+            report["reason"] = "insufficient opaque product pixels"
             return report
         mean_error = absolute_error / sample_count
         score = max(0.0, min(1.0, 1.0 - mean_error / 255.0))
         report.update({
             "available": True,
             "passed": score >= report["threshold"],
-            "hard_failed": score < report["hard_failure_threshold"],
             "score": round(score, 6),
             "mean_absolute_error": round(mean_error, 4),
             "sample_count": sample_count,
-            "reason": (
-                "source-composite pixels confirmed"
-                if score >= report["threshold"]
-                else "minor rendered-pixel variance detected"
-                if score >= report["hard_failure_threshold"]
-                else "rendered product differs materially from the deterministic source composite"
-            ),
+            "reason": "exact product pixels confirmed" if score >= report["threshold"] else "final product pixels differ from the uploaded source",
         })
     except Exception as error:
         report["reason"] = str(error)[:240]
         diagnostic_log(
-            "graphic_v20410_visual_match_failed",
+            "graphic_v10000_visual_match_failed",
             error_type=type(error).__name__,
             error=str(error),
         )
     return report
+
 
 def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries=0, stages=None):
     """Attach compact production telemetry to each output without exposing secrets."""
@@ -20291,12 +20268,7 @@ def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries
 
 
 def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
-    """Classify exact-product QA into hard identity failures and review warnings.
-
-    Only conditions that can prove product replacement, distortion or cropping stop
-    the output. Optional vehicle checks, campaign-zone completeness, segmentation
-    confidence and small resampling differences remain visible warnings.
-    """
+    """Fail closed on product-source mismatch, structural drift, cropping and role leakage."""
     metadata = dict((result or {}).get("layered_metadata") or {})
     product_item = next(
         (item for item in (role_items or []) if item.get("role") == "product_photo"),
@@ -20305,23 +20277,19 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
     source = _graphic_product_source_signature_v9000(product_item)
     box = list(metadata.get("product_box") or [])
     canvas = list(metadata.get("canvas_size") or [])
-    hard_failures = []
-    warnings = []
-
+    issues = []
     if not metadata.get("exact_product_pixels"):
-        hard_failures.append("exact product pixels not confirmed")
+        issues.append("exact product pixels not confirmed")
     if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
-        hard_failures.append("product source fingerprint mismatch")
-
+        issues.append("product source fingerprint mismatch")
     required = {
         "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
         "hero_product", "target_vehicle", "bottom_benefit_bar",
     }
-    missing_zones = sorted(required.difference({str(item) for item in metadata.get("campaign_zones") or []}))
-    if missing_zones:
-        warnings.append("campaign zones incomplete: " + ", ".join(missing_zones))
-
+    if not required.issubset({str(item) for item in metadata.get("campaign_zones") or []}):
+        issues.append("required campaign zones incomplete")
     if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
+        area = (box[2] * box[3]) / (canvas[0] * canvas[1])
         width_ratio = box[2] / canvas[0]
         height_ratio = box[3] / canvas[1]
         source_ratio = float(source.get("aspect_ratio") or 0.0)
@@ -20329,65 +20297,53 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
         minimum_height = 0.48 if reference_driven else 0.44
         minimum_width = 0.18 if source_ratio < 0.90 else 0.28
         if height_ratio < minimum_height or width_ratio < minimum_width:
-            warnings.append("hero product is smaller than the preferred commercial hierarchy")
+            issues.append("hero product too small for the commercial reference hierarchy")
         if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
-            hard_failures.append("hero product cropped")
+            issues.append("hero product cropped")
         rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
         visible_source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or 0.0)
         authoritative_ratio = visible_source_ratio or source_ratio
         ratio_error = abs(authoritative_ratio - rendered_ratio) / max(authoritative_ratio, 0.001) if authoritative_ratio else 0.0
         if authoritative_ratio and ratio_error > 0.012:
-            hard_failures.append("hero product aspect ratio changed")
+            issues.append("hero product aspect ratio changed")
         if metadata.get("product_ratio_preserved") is False:
-            hard_failures.append("exact product source ratio was not preserved")
+            issues.append("exact product source ratio was not preserved")
     else:
-        hard_failures.append("product geometry metadata unavailable")
+        issues.append("product geometry metadata unavailable")
 
     integrity = _graphic_role_integrity_v8300(role_items)
     if not integrity.get("valid", integrity.get("passed", True)):
-        hard_failures.append("reference/product role integrity failed")
+        issues.append("reference/product role integrity failed")
 
     vehicle = (result or {}).get("vehicle_validation") or {}
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     if hard_vehicle and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True:
-        warnings.append("target vehicle validation requires review")
+        issues.append("target vehicle validation failed")
 
     visual_match = _graphic_exact_product_visual_match_v10000(result, role_items)
     if not visual_match.get("available"):
-        warnings.append("exact product visual comparison unavailable")
-    elif visual_match.get("hard_failed"):
-        hard_failures.append("exact product visual comparison materially failed")
+        issues.append("exact product visual comparison unavailable")
     elif not visual_match.get("passed"):
-        warnings.append("exact product visual comparison found minor interpolation variance")
+        issues.append("exact product visual comparison failed")
 
     segmentation = _graphic_segmentation_diagnostics_v10000(product_item)
     if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"):
-        warnings.append("product segmentation confidence is low; inspect the product edge")
+        issues.append("product segmentation is not safe for exact composition")
 
     engineering_geometry = _graphic_engineering_geometry_gate_v20000(result, role_items)
-    for issue in engineering_geometry.get("issues") or []:
-        issue_text = str(issue)
-        lowered = issue_text.casefold()
-        if any(token in lowered for token in (
-            "whole-unit ratio drift", "product cropped", "aspect ratio changed",
-            "bezel profile drift", "screen ratio drift",
-        )):
-            hard_failures.append("engineering geometry: " + issue_text)
-        else:
-            warnings.append("engineering review: " + issue_text)
+    if not engineering_geometry.get("passed"):
+        issues.extend("engineering geometry: " + str(x) for x in (engineering_geometry.get("issues") or []))
 
     return {
-        "passed": not hard_failures,
-        "hard_failures": hard_failures,
-        "warnings": warnings,
-        "issues": hard_failures + warnings,
+        "passed": not issues,
+        "issues": issues,
         "product_source": source,
         "visual_match": visual_match,
         "segmentation": segmentation,
         "engineering_geometry_gate": engineering_geometry,
-        "hero_dominance": not any("hero product" in issue for issue in warnings),
+        "hero_dominance": not any("hero product" in issue for issue in issues),
         "reference_leakage_blocked": bool(integrity.get("valid", integrity.get("passed", True))),
-        "engine": "v20410-engine9.1-severity-aware-exact-product-gate",
+        "engine": "v20000-engine6-exact-product-quality-gate",
     }
 
 def _graphic_render_mode_v9000(product_mode, has_style=False):
@@ -20396,6 +20352,1086 @@ def _graphic_render_mode_v9000(product_mode, has_style=False):
     if (product_mode or {}).get("exact_product"): return "autotecpro_studio"
     return "fully_generative_concept"
 
+
+
+# ============================================================
+# v21010 Product Preservation Subsystem (direct v20300 base)
+# ============================================================
+ENGINEERING_DNA_VERSION = "engineering-dna-11.0"
+GEOMETRY_ENGINE_VERSION = "geometry-engine-3.0"
+CAMPAIGN_CACHE_VERSION = "campaign-cache-4.0"
+
+
+def _graphic_matrix_identity_v21000():
+    return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+
+
+def _graphic_matrix_multiply_v21000(a, b):
+    return [[sum(a[r][k] * b[k][c] for k in range(3)) for c in range(3)] for r in range(3)]
+
+
+def _graphic_matrix_inverse_v21000(m):
+    a, b, c = m[0]
+    d, e, f = m[1]
+    g, h, i = m[2]
+    det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    if abs(det) < 1e-12:
+        raise RuntimeError("Geometry transform matrix is singular.")
+    return [
+        [(e*i-f*h)/det, (c*h-b*i)/det, (b*f-c*e)/det],
+        [(f*g-d*i)/det, (a*i-c*g)/det, (c*d-a*f)/det],
+        [(d*h-e*g)/det, (b*g-a*h)/det, (a*e-b*d)/det],
+    ]
+
+
+def _graphic_transform_point_v21000(matrix, x, y):
+    denominator = matrix[2][0] * x + matrix[2][1] * y + matrix[2][2]
+    if abs(denominator) < 1e-12:
+        denominator = 1e-12
+    return (
+        (matrix[0][0] * x + matrix[0][1] * y + matrix[0][2]) / denominator,
+        (matrix[1][0] * x + matrix[1][1] * y + matrix[1][2]) / denominator,
+    )
+
+
+def _graphic_solve_linear_v21000(a, b):
+    n = len(b)
+    matrix = [list(map(float, a[row])) + [float(b[row])] for row in range(n)]
+    for col in range(n):
+        pivot = max(range(col, n), key=lambda row: abs(matrix[row][col]))
+        if abs(matrix[pivot][col]) < 1e-12:
+            raise RuntimeError("Could not solve homography.")
+        matrix[col], matrix[pivot] = matrix[pivot], matrix[col]
+        divisor = matrix[col][col]
+        matrix[col] = [value / divisor for value in matrix[col]]
+        for row in range(n):
+            if row == col:
+                continue
+            factor = matrix[row][col]
+            matrix[row] = [matrix[row][j] - factor * matrix[col][j] for j in range(n + 1)]
+    return [matrix[row][-1] for row in range(n)]
+
+
+def _graphic_homography_v21000(source_points, destination_points):
+    equations, values = [], []
+    for (x, y), (u, v) in zip(source_points, destination_points):
+        equations.append([x, y, 1, 0, 0, 0, -u*x, -u*y])
+        values.append(u)
+        equations.append([0, 0, 0, x, y, 1, -v*x, -v*y])
+        values.append(v)
+    h = _graphic_solve_linear_v21000(equations, values)
+    return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1.0]]
+
+
+def _graphic_compose_transform_matrix_v21000(width, height, scale=1.0, rotation_degrees=0.0, translation=(0.0, 0.0), perspective=0.0):
+    cx, cy = width / 2.0, height / 2.0
+    radians = math.radians(rotation_degrees)
+    cos_v, sin_v = math.cos(radians) * scale, math.sin(radians) * scale
+    to_origin = [[1, 0, -cx], [0, 1, -cy], [0, 0, 1]]
+    rotate_scale = [[cos_v, -sin_v, 0], [sin_v, cos_v, 0], [0, 0, 1]]
+    back = [[1, 0, cx + translation[0]], [0, 1, cy + translation[1]], [0, 0, 1]]
+    affine = _graphic_matrix_multiply_v21000(back, _graphic_matrix_multiply_v21000(rotate_scale, to_origin))
+    if abs(perspective) < 1e-9:
+        return affine
+    source = [(0, 0), (width, 0), (width, height), (0, height)]
+    inset = abs(perspective) * width
+    destination = ([(inset, 0), (width, 0), (width - inset, height), (0, height)] if perspective > 0 else [(0, 0), (width - inset, 0), (width, height), (inset, height)])
+    return _graphic_matrix_multiply_v21000(_graphic_homography_v21000(source, destination), affine)
+
+
+def _graphic_warp_rgba_v21000(layer, forward_matrix):
+    if Image is None or layer is None:
+        return layer, {}
+    corners = [
+        _graphic_transform_point_v21000(forward_matrix, 0, 0),
+        _graphic_transform_point_v21000(forward_matrix, layer.width, 0),
+        _graphic_transform_point_v21000(forward_matrix, layer.width, layer.height),
+        _graphic_transform_point_v21000(forward_matrix, 0, layer.height),
+    ]
+    min_x = math.floor(min(x for x, _ in corners)); min_y = math.floor(min(y for _, y in corners))
+    max_x = math.ceil(max(x for x, _ in corners)); max_y = math.ceil(max(y for _, y in corners))
+    shift = [[1, 0, -min_x], [0, 1, -min_y], [0, 0, 1]]
+    shifted_forward = _graphic_matrix_multiply_v21000(shift, forward_matrix)
+    inverse = _graphic_matrix_inverse_v21000(shifted_forward)
+    coeffs = (inverse[0][0], inverse[0][1], inverse[0][2], inverse[1][0], inverse[1][1], inverse[1][2], inverse[2][0], inverse[2][1])
+    result = layer.convert("RGBA").transform((max(1, max_x-min_x), max(1, max_y-min_y)), Image.Transform.PERSPECTIVE, coeffs, resample=Image.Resampling.BICUBIC, fillcolor=(0,0,0,0))
+    bbox = result.getchannel("A").getbbox()
+    if bbox:
+        crop_shift = [[1,0,-bbox[0]],[0,1,-bbox[1]],[0,0,1]]
+        shifted_forward = _graphic_matrix_multiply_v21000(crop_shift, shifted_forward)
+        result = result.crop(bbox)
+    return result, {"forward_matrix": shifted_forward, "inverse_matrix": _graphic_matrix_inverse_v21000(shifted_forward), "canvas_size": list(result.size)}
+
+def _graphic_mask_iou_v21000(mask_a, mask_b, size=(320, 320)):
+    if Image is None or mask_a is None or mask_b is None:
+        return 0.0
+    a = mask_a.convert("L").resize(size, Image.Resampling.NEAREST).point(lambda p: 255 if p >= 128 else 0)
+    b = mask_b.convert("L").resize(size, Image.Resampling.NEAREST).point(lambda p: 255 if p >= 128 else 0)
+    intersection = union = 0
+    for av, bv in zip(a.getdata(), b.getdata()):
+        if av or bv:
+            union += 1
+            if av and bv:
+                intersection += 1
+    return intersection / max(1, union)
+
+
+def _graphic_profile_similarity_v21000(a, b):
+    pairs = [(float(x), float(y)) for x, y in zip(a or [], b or []) if x is not None and y is not None]
+    if not pairs:
+        return None
+    mae = sum(abs(x - y) for x, y in pairs) / len(pairs)
+    return max(0.0, 1.0 - mae * 18.0)
+
+
+def _graphic_landmark_reprojection_score_v21000(source_landmarks, final_landmarks):
+    source = {(item.get("type"), item.get("index")): item for item in source_landmarks or []}
+    final = {(item.get("type"), item.get("index")): item for item in final_landmarks or []}
+    errors = []
+    for key, item in source.items():
+        other = final.get(key)
+        if not other:
+            continue
+        errors.append(math.hypot(float(item.get("x", 0)) - float(other.get("x", 0)), float(item.get("y", 0)) - float(other.get("y", 0))))
+    if not errors:
+        return None
+    return max(0.0, 1.0 - (sum(errors) / len(errors)) * 25.0)
+def _graphic_binary_alpha_mask_v20500(layer, threshold=16):
+    """Return an immutable binary engineering mask from one RGBA product layer."""
+    if Image is None or layer is None:
+        return None
+    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
+    alpha = rgba.getchannel("A")
+    return alpha.point(lambda value: 255 if int(value) >= int(threshold) else 0, mode="1").convert("L")
+
+def _graphic_profile_samples_v20500(mask, axis="row", samples=64):
+    """Sample first/last occupied positions as normalized contour profiles."""
+    if Image is None or mask is None:
+        return []
+    binary = mask.point(lambda p: 255 if p else 0)
+    width, height = binary.size
+    pix = binary.load()
+    result = []
+    count = max(8, int(samples))
+    if axis == "row":
+        for index in range(count):
+            y = min(height - 1, int(round(index * (height - 1) / max(1, count - 1))))
+            occupied = [x for x in range(width) if pix[x, y] > 0]
+            if occupied:
+                result.append([round(y / max(1, height - 1), 6), round(min(occupied) / max(1, width - 1), 6), round(max(occupied) / max(1, width - 1), 6)])
+            else:
+                result.append([round(y / max(1, height - 1), 6), None, None])
+    else:
+        for index in range(count):
+            x = min(width - 1, int(round(index * (width - 1) / max(1, count - 1))))
+            occupied = [y for y in range(height) if pix[x, y] > 0]
+            if occupied:
+                result.append([round(x / max(1, width - 1), 6), round(min(occupied) / max(1, height - 1), 6), round(max(occupied) / max(1, height - 1), 6)])
+            else:
+                result.append([round(x / max(1, width - 1), 6), None, None])
+    return result
+
+def _graphic_detect_screen_box_v20500(layer, product_mask):
+    """Estimate the main display aperture using central rectangular brightness occupancy.
+
+    The result is confidence-scored and is never used to alter pixels. It is used only
+    as Engineering DNA and QA. Low-confidence products remain exact-source composites.
+    """
+    if Image is None or layer is None or product_mask is None:
+        return {"available": False, "confidence": 0.0}
+    rgba = layer.convert("RGBA")
+    rgb = rgba.convert("RGB")
+    width, height = rgb.size
+    if width < 40 or height < 40:
+        return {"available": False, "confidence": 0.0}
+
+    gray = ImageOps.grayscale(rgb)
+    gp = gray.load()
+    mp = product_mask.load()
+    x0, x1 = int(width * 0.18), int(width * 0.82)
+    y0, y1 = int(height * 0.03), int(height * 0.94)
+
+    # Screen UIs are usually a large bright/colourful central rectangle. Build row and
+    # column occupancy and choose the longest contiguous high-occupancy intervals.
+    row_scores = []
+    for y in range(y0, y1):
+        valid = 0
+        bright = 0
+        for x in range(x0, x1):
+            if mp[x, y] > 0:
+                valid += 1
+                if gp[x, y] >= 88:
+                    bright += 1
+        row_scores.append(bright / max(1, valid))
+    col_scores = []
+    for x in range(x0, x1):
+        valid = 0
+        bright = 0
+        for y in range(y0, y1):
+            if mp[x, y] > 0:
+                valid += 1
+                if gp[x, y] >= 88:
+                    bright += 1
+        col_scores.append(bright / max(1, valid))
+
+    def longest_interval(values, threshold, minimum):
+        best = None
+        start = None
+        for idx, value in enumerate(values + [0.0]):
+            if value >= threshold and start is None:
+                start = idx
+            elif value < threshold and start is not None:
+                length = idx - start
+                if length >= minimum and (best is None or length > best[1] - best[0]):
+                    best = (start, idx - 1)
+                start = None
+        return best
+
+    ry = longest_interval(row_scores, 0.48, max(8, int(height * 0.22)))
+    cx = longest_interval(col_scores, 0.52, max(8, int(width * 0.20)))
+    if not ry or not cx:
+        return {"available": False, "confidence": 0.0}
+
+    sx0, sx1 = x0 + cx[0], x0 + cx[1]
+    sy0, sy1 = y0 + ry[0], y0 + ry[1]
+    sw, sh = sx1 - sx0 + 1, sy1 - sy0 + 1
+    if sw <= 0 or sh <= 0:
+        return {"available": False, "confidence": 0.0}
+
+    area_ratio = (sw * sh) / max(1, width * height)
+    centrality = 1.0 - min(1.0, abs(((sx0 + sx1) / 2) / width - 0.5) * 2.0)
+    confidence = max(0.0, min(1.0, 0.45 + area_ratio * 1.4 + centrality * 0.25))
+    return {
+        "available": True,
+        "confidence": round(confidence, 4),
+        "box_px": [sx0, sy0, sw, sh],
+        "box_normalized": [
+            round(sx0 / width, 6), round(sy0 / height, 6),
+            round(sw / width, 6), round(sh / height, 6),
+        ],
+        "center_normalized": [
+            round((sx0 + sw / 2) / width, 6),
+            round((sy0 + sh / 2) / height, 6),
+        ],
+        "aspect_ratio": round(sw / max(1, sh), 8),
+    }
+
+def _graphic_transparent_openings_v20500(mask):
+    """Describe major internal negative spaces without modifying the source cutout."""
+    if Image is None or mask is None:
+        return []
+    width, height = mask.size
+    # Downsample for bounded connected-component work.
+    scale = min(1.0, 512.0 / max(width, height))
+    small = mask.resize((max(1, int(width * scale)), max(1, int(height * scale))), Image.Resampling.NEAREST)
+    sp = small.load()
+    sw, sh = small.size
+    seen = bytearray(sw * sh)
+    components = []
+    from collections import deque
+    for y in range(1, sh - 1):
+        for x in range(1, sw - 1):
+            idx = y * sw + x
+            if seen[idx] or sp[x, y] > 0:
+                continue
+            queue = deque([(x, y)])
+            seen[idx] = 1
+            points = []
+            touches_border = False
+            while queue:
+                px, py = queue.popleft()
+                points.append((px, py))
+                if px in (0, sw - 1) or py in (0, sh - 1):
+                    touches_border = True
+                for nx, ny in ((px-1,py),(px+1,py),(px,py-1),(px,py+1)):
+                    nidx = ny * sw + nx
+                    if 0 <= nx < sw and 0 <= ny < sh and not seen[nidx] and sp[nx, ny] == 0:
+                        seen[nidx] = 1
+                        queue.append((nx, ny))
+            if touches_border or len(points) < max(8, int(sw * sh * 0.00025)):
+                continue
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
+            components.append({
+                "box_normalized": [
+                    round(bx0 / sw, 6), round(by0 / sh, 6),
+                    round((bx1 - bx0 + 1) / sw, 6), round((by1 - by0 + 1) / sh, 6),
+                ],
+                "area_ratio": round(len(points) / max(1, sw * sh), 8),
+            })
+    components.sort(key=lambda item: item["area_ratio"], reverse=True)
+    return components[:24]
+
+def _graphic_mask_bytes_v21000(mask):
+    if Image is None or mask is None:
+        return b""
+    buffer = io.BytesIO()
+    mask.convert("L").save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+def _graphic_mask_data_url_v21000(mask):
+    raw = _graphic_mask_bytes_v21000(mask)
+    return "data:image/png;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
+
+def _graphic_boundary_points_v21000(mask, max_points=2048):
+    """Return normalized boundary points for a hard binary mask."""
+    if Image is None or mask is None:
+        return []
+    binary = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
+    width, height = binary.size
+    pixels = binary.load()
+    points = []
+    for y in range(height):
+        for x in range(width):
+            if pixels[x, y] == 0:
+                continue
+            if (
+                x == 0 or y == 0 or x == width - 1 or y == height - 1
+                or pixels[max(0, x - 1), y] == 0
+                or pixels[min(width - 1, x + 1), y] == 0
+                or pixels[x, max(0, y - 1)] == 0
+                or pixels[x, min(height - 1, y + 1)] == 0
+            ):
+                points.append((x / max(1, width - 1), y / max(1, height - 1)))
+    if len(points) > max_points:
+        step = len(points) / float(max_points)
+        points = [points[min(len(points) - 1, int(i * step))] for i in range(max_points)]
+    return [[round(x, 7), round(y, 7)] for x, y in points]
+
+def _graphic_rect_contour_v21000(box, samples_per_edge=40):
+    if not box or len(box) != 4:
+        return []
+    x, y, w, h = [float(v) for v in box]
+    points = []
+    for i in range(samples_per_edge):
+        t = i / max(1, samples_per_edge - 1)
+        points.append([x + w * t, y])
+    for i in range(1, samples_per_edge):
+        t = i / max(1, samples_per_edge - 1)
+        points.append([x + w, y + h * t])
+    for i in range(1, samples_per_edge):
+        t = i / max(1, samples_per_edge - 1)
+        points.append([x + w * (1 - t), y + h])
+    for i in range(1, samples_per_edge - 1):
+        t = i / max(1, samples_per_edge - 1)
+        points.append([x, y + h * (1 - t)])
+    return [[round(px, 7), round(py, 7)] for px, py in points]
+
+def _graphic_profile_at_x_v21000(mask, x_normalized):
+    if Image is None or mask is None:
+        return None
+    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
+    w, h = m.size
+    x = min(w - 1, max(0, int(round(float(x_normalized) * (w - 1)))))
+    occupied = [y for y in range(h) if m.getpixel((x, y)) > 0]
+    if not occupied:
+        return None
+    return min(occupied) / max(1, h - 1), max(occupied) / max(1, h - 1)
+
+def _graphic_bezel_profiles_v21000(mask, screen_box, samples=64):
+    """Measure full top/bottom/left/right bezel thickness arrays."""
+    if Image is None or mask is None or not screen_box or len(screen_box) != 4:
+        return {"available": False}
+    sx, sy, sw, sh = [float(v) for v in screen_box]
+    top, bottom, left, right = [], [], [], []
+    count = max(16, int(samples))
+    for i in range(count):
+        t = i / max(1, count - 1)
+        x = sx + sw * t
+        bounds = _graphic_profile_at_x_v21000(mask, x)
+        if bounds:
+            housing_top, housing_bottom = bounds
+            top.append(round(max(0.0, sy - housing_top), 7))
+            bottom.append(round(max(0.0, housing_bottom - (sy + sh)), 7))
+        else:
+            top.append(None)
+            bottom.append(None)
+
+    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
+    mw, mh = m.size
+    mp = m.load()
+    for i in range(count):
+        t = i / max(1, count - 1)
+        y_n = sy + sh * t
+        y = min(mh - 1, max(0, int(round(y_n * (mh - 1)))))
+        occupied = [x for x in range(mw) if mp[x, y] > 0]
+        if occupied:
+            housing_left = min(occupied) / max(1, mw - 1)
+            housing_right = max(occupied) / max(1, mw - 1)
+            left.append(round(max(0.0, sx - housing_left), 7))
+            right.append(round(max(0.0, housing_right - (sx + sw)), 7))
+        else:
+            left.append(None)
+            right.append(None)
+    return {
+        "available": True,
+        "top": top,
+        "bottom": bottom,
+        "left": left,
+        "right": right,
+        "bottom_profile": bottom,
+        "sample_count": count,
+    }
+
+def _graphic_estimate_outer_bezel_box_v21000(layer, screen_box):
+    """Estimate the physical bezel boundary by scanning dark material around glass."""
+    if Image is None or layer is None or not screen_box or len(screen_box) != 4:
+        return {"available": False, "confidence": 0.0}
+    rgba = layer.convert("RGBA")
+    gray = ImageOps.grayscale(rgba.convert("RGB"))
+    alpha = rgba.getchannel("A")
+    w, h = rgba.size
+    sx, sy, sw, sh = [float(v) for v in screen_box]
+    x0, y0 = int(sx * w), int(sy * h)
+    x1, y1 = int((sx + sw) * w), int((sy + sh) * h)
+
+    def dark_fraction_vertical(x, ya, yb):
+        values = []
+        for y in range(max(0, ya), min(h, yb)):
+            if alpha.getpixel((x, y)) > 32:
+                values.append(gray.getpixel((x, y)))
+        return sum(1 for value in values if value < 105) / max(1, len(values))
+
+    def dark_fraction_horizontal(y, xa, xb):
+        values = []
+        for x in range(max(0, xa), min(w, xb)):
+            if alpha.getpixel((x, y)) > 32:
+                values.append(gray.getpixel((x, y)))
+        return sum(1 for value in values if value < 105) / max(1, len(values))
+
+    left = x0
+    for x in range(x0 - 1, max(-1, x0 - int(w * 0.14)), -1):
+        if dark_fraction_vertical(x, y0, y1) >= 0.58:
+            left = x
+        else:
+            break
+    right = x1
+    for x in range(x1, min(w, x1 + int(w * 0.14))):
+        if dark_fraction_vertical(x, y0, y1) >= 0.58:
+            right = x
+        else:
+            break
+    top = y0
+    for y in range(y0 - 1, max(-1, y0 - int(h * 0.12)), -1):
+        if dark_fraction_horizontal(y, x0, x1) >= 0.58:
+            top = y
+        else:
+            break
+    bottom = y1
+    for y in range(y1, min(h, y1 + int(h * 0.16))):
+        if dark_fraction_horizontal(y, x0, x1) >= 0.58:
+            bottom = y
+        else:
+            break
+
+    bw, bh = max(1, right - left), max(1, bottom - top)
+    expansion = ((x0 - left) + (right - x1) + (y0 - top) + (bottom - y1)) / max(1.0, 2 * (sw * w + sh * h))
+    confidence = max(0.0, min(1.0, 0.58 + expansion * 3.0))
+    return {
+        "available": True,
+        "confidence": round(confidence, 4),
+        "box_normalized": [
+            round(left / w, 7), round(top / h, 7),
+            round(bw / w, 7), round(bh / h, 7),
+        ],
+    }
+
+def _graphic_corner_radius_estimates_v21000(mask):
+    """Estimate normalized corner radii from silhouette expansion."""
+    if Image is None or mask is None:
+        return {}
+    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
+    w, h = m.size
+    p = m.load()
+
+    def estimate(corner):
+        max_r = max(2, min(w, h) // 5)
+        for r in range(1, max_r):
+            if corner == "top_left":
+                samples = [(r, 0), (0, r), (r, r)]
+            elif corner == "top_right":
+                samples = [(w - 1 - r, 0), (w - 1, r), (w - 1 - r, r)]
+            elif corner == "bottom_left":
+                samples = [(r, h - 1), (0, h - 1 - r), (r, h - 1 - r)]
+            else:
+                samples = [(w - 1 - r, h - 1), (w - 1, h - 1 - r), (w - 1 - r, h - 1 - r)]
+            if sum(1 for x, y in samples if 0 <= x < w and 0 <= y < h and p[x, y] > 0) >= 2:
+                return round(r / max(1, min(w, h)), 7)
+        return None
+
+    return {name: estimate(name) for name in ("top_left", "top_right", "bottom_left", "bottom_right")}
+
+def _graphic_connected_components_v21000(mask, foreground=True, max_components=64):
+    """Connected-component boxes and centroids for holes/openings/control candidates."""
+    if Image is None or mask is None:
+        return []
+    from collections import deque
+    scale = min(1.0, 640.0 / max(mask.size))
+    m = mask.convert("L").resize(
+        (max(1, int(mask.width * scale)), max(1, int(mask.height * scale))),
+        Image.Resampling.NEAREST,
+    )
+    w, h = m.size
+    pix = m.load()
+    seen = bytearray(w * h)
+    result = []
+    target = (lambda value: value > 127) if foreground else (lambda value: value <= 127)
+    for y in range(h):
+        for x in range(w):
+            idx = y * w + x
+            if seen[idx] or not target(pix[x, y]):
+                continue
+            q = deque([(x, y)])
+            seen[idx] = 1
+            pts = []
+            touches = False
+            while q:
+                px, py = q.popleft()
+                pts.append((px, py))
+                if px == 0 or py == 0 or px == w - 1 or py == h - 1:
+                    touches = True
+                for nx, ny in ((px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)):
+                    if 0 <= nx < w and 0 <= ny < h:
+                        ni = ny * w + nx
+                        if not seen[ni] and target(pix[nx, ny]):
+                            seen[ni] = 1
+                            q.append((nx, ny))
+            if len(pts) < max(6, int(w * h * 0.00008)):
+                continue
+            if not foreground and touches:
+                continue
+            xs = [pt[0] for pt in pts]
+            ys = [pt[1] for pt in pts]
+            x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+            result.append({
+                "box_normalized": [
+                    round(x0 / w, 7), round(y0 / h, 7),
+                    round((x1 - x0 + 1) / w, 7), round((y1 - y0 + 1) / h, 7),
+                ],
+                "centroid_normalized": [
+                    round(sum(xs) / len(xs) / w, 7),
+                    round(sum(ys) / len(ys) / h, 7),
+                ],
+                "area_ratio": round(len(pts) / max(1, w * h), 9),
+                "touches_border": touches,
+            })
+    result.sort(key=lambda item: item["area_ratio"], reverse=True)
+    return result[:max_components]
+
+def _graphic_landmark_candidates_v21000(layer, mask, screen):
+    """Build typed engineering landmarks from screen, holes, openings, and dark controls."""
+    landmarks = []
+    if screen.get("available"):
+        x, y, w, h = screen["box_normalized"]
+        for name, px, py in (
+            ("screen_top_left", x, y),
+            ("screen_top_right", x + w, y),
+            ("screen_bottom_right", x + w, y + h),
+            ("screen_bottom_left", x, y + h),
+            ("screen_center", x + w / 2, y + h / 2),
+        ):
+            landmarks.append({"type": name, "x": round(px, 7), "y": round(py, 7), "confidence": screen.get("confidence", 0.0), "source": "automatic"})
+
+    openings = _graphic_connected_components_v21000(mask, foreground=False, max_components=32)
+    for index, opening in enumerate(openings):
+        x, y = opening["centroid_normalized"]
+        landmarks.append({
+            "type": "mounting_or_opening_candidate",
+            "index": index,
+            "x": x, "y": y,
+            "box_normalized": opening["box_normalized"],
+            "confidence": round(min(0.98, 0.62 + opening["area_ratio"] * 15), 4),
+            "source": "automatic",
+        })
+
+    if Image is not None and layer is not None:
+        gray = ImageOps.grayscale(layer.convert("RGB"))
+        alpha = mask.convert("L")
+        dark = Image.new("L", gray.size, 0)
+        gp, ap, dp = gray.load(), alpha.load(), dark.load()
+        for yy in range(gray.height):
+            for xx in range(gray.width):
+                if ap[xx, yy] > 127 and gp[xx, yy] < 72:
+                    dp[xx, yy] = 255
+        candidates = _graphic_connected_components_v21000(dark, foreground=True, max_components=48)
+        for index, comp in enumerate(candidates):
+            bx, by, bw, bh = comp["box_normalized"]
+            if bw < 0.006 or bh < 0.006 or bw > 0.16 or bh > 0.16:
+                continue
+            aspect = bw / max(0.0001, bh)
+            kind = "knob_candidate" if 0.72 <= aspect <= 1.38 and comp["area_ratio"] > 0.00025 else "button_candidate"
+            cx, cy = comp["centroid_normalized"]
+            landmarks.append({
+                "type": kind,
+                "index": index,
+                "x": cx, "y": cy,
+                "box_normalized": comp["box_normalized"],
+                "confidence": round(0.72 if kind == "knob_candidate" else 0.64, 4),
+                "source": "automatic",
+            })
+    return landmarks
+
+def _graphic_segmentation_confidence_v21000(layer, binary_mask, source_has_alpha):
+    if Image is None or layer is None or binary_mask is None:
+        return 0.0
+    occupied = sum(1 for value in binary_mask.getdata() if value > 127)
+    ratio = occupied / max(1, binary_mask.width * binary_mask.height)
+    bbox = binary_mask.getbbox()
+    touches = False
+    if bbox:
+        touches = bbox[0] <= 0 or bbox[1] <= 0 or bbox[2] >= binary_mask.width or bbox[3] >= binary_mask.height
+    confidence = 0.99 if source_has_alpha else 0.84
+    if ratio < 0.08 or ratio > 0.92:
+        confidence -= 0.25
+    if touches:
+        confidence -= 0.12
+    return round(max(0.0, min(1.0, confidence)), 4)
+
+def _graphic_bezel_fingerprint_v20500(product_item, layer=None):
+    """Full v21000 fingerprint engine, cached by source/schema/segmentation versions."""
+    if Image is None or not product_item:
+        return {"available": False, "version": ENGINEERING_DNA_VERSION}
+    raw = _graphic_uploaded_file_bytes(product_item.get("file"))
+    if not raw:
+        return {"available": False, "version": ENGINEERING_DNA_VERSION}
+    source_sha = hashlib.sha256(raw).hexdigest()
+    cache_key = f"{source_sha}:{ENGINEERING_DNA_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:fingerprint-v21000"
+    state = get_graphic_project_state()
+    cache = dict(state.get("engineering_dna_cache_v21000") or {})
+    approval = dict((state.get("engineering_approval_v21000") or {}).get(source_sha) or {})
+    cached = cache.get(cache_key)
+    if isinstance(cached, dict):
+        result = dict(cached)
+        result["cache_hit"] = True
+        result["approval"] = approval or result.get("approval") or {}
+        return result
+
+    if layer is None:
+        layer, _ = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if layer is None:
+        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
+
+    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
+    alpha = rgba.getchannel("A")
+    source_has_alpha = bool(alpha.getextrema()[0] < 250)
+    binary = _graphic_binary_alpha_mask_v20500(rgba, threshold=16)
+    bbox = binary.getbbox() if binary else None
+    if not bbox:
+        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
+    rgba = rgba.crop(bbox)
+    binary = binary.crop(bbox)
+    width, height = rgba.size
+
+    screen = _graphic_detect_screen_box_v20500(rgba, binary)
+    screen_box = screen.get("box_normalized") if screen.get("available") else None
+    outer_bezel = _graphic_estimate_outer_bezel_box_v21000(rgba, screen_box)
+    profiles = _graphic_bezel_profiles_v21000(binary, screen_box, samples=64) if screen_box else {"available": False}
+    openings = _graphic_connected_components_v21000(binary, foreground=False, max_components=32)
+    landmarks = _graphic_landmark_candidates_v21000(rgba, binary, screen)
+    segmentation_confidence = _graphic_segmentation_confidence_v21000(rgba, binary, source_has_alpha)
+    screen_confidence = float(screen.get("confidence") or 0.0)
+    bezel_confidence = float(outer_bezel.get("confidence") or 0.0)
+    requires_approval = min(segmentation_confidence, screen_confidence or 1.0, bezel_confidence or 1.0) < 0.80
+
+    fingerprint = {
+        "available": True,
+        "version": ENGINEERING_DNA_VERSION,
+        "fingerprint_algorithm_version": "fingerprint-v21000",
+        "segmentation_version": GRAPHIC_MASK_CACHE_VERSION,
+        "source_sha256": source_sha,
+        "source_rgb_sha256": hashlib.sha256(rgba.convert("RGB").tobytes()).hexdigest(),
+        "source_name": str(product_item.get("name") or ""),
+        "visible_size": [width, height],
+        "unit_aspect_ratio": round(width / max(1, height), 10),
+        "authoritative_binary_mask_sha256": hashlib.sha256(binary.tobytes()).hexdigest(),
+        "authoritative_binary_mask_data_url": _graphic_mask_data_url_v21000(binary),
+        "outer_housing_contour": _graphic_boundary_points_v21000(binary),
+        "outer_housing_profiles": {
+            "row_profile": _graphic_profile_samples_v20500(binary, "row", 96),
+            "column_profile": _graphic_profile_samples_v20500(binary, "column", 96),
+        },
+        "outer_bezel_region": outer_bezel,
+        "outer_bezel_contour": _graphic_rect_contour_v21000(outer_bezel.get("box_normalized")) if outer_bezel.get("available") else [],
+        "screen_aperture": screen,
+        "inner_screen_aperture_contour": _graphic_rect_contour_v21000(screen_box) if screen_box else [],
+        "screen_center": list(screen.get("center_normalized") or []),
+        "screen_aspect_ratio": screen.get("aspect_ratio"),
+        "bezel_thickness_profiles": profiles,
+        "housing_to_screen_ratios": {
+            "width": screen_box[2] if screen_box else None,
+            "height": screen_box[3] if screen_box else None,
+        },
+        "corner_radii": _graphic_corner_radius_estimates_v21000(binary),
+        "contour_transition_points": {
+            "lower_left": _graphic_profile_samples_v20500(binary, "row", 96)[68],
+            "lower_center": _graphic_profile_samples_v20500(binary, "row", 96)[80],
+            "lower_right": _graphic_profile_samples_v20500(binary, "row", 96)[90],
+        },
+        "button_and_knob_candidates": [item for item in landmarks if item.get("type") in {"button_candidate", "knob_candidate"}],
+        "mounting_holes_openings_tabs": openings,
+        "engineering_landmarks": landmarks,
+        "confidence": {
+            "segmentation": segmentation_confidence,
+            "screen_detection": round(screen_confidence, 4),
+            "bezel_detection": round(bezel_confidence, 4),
+            "overall": round(min(segmentation_confidence, screen_confidence or 1.0, bezel_confidence or 1.0), 4),
+        },
+        "approval": {
+            "detected_automatically": True,
+            "requires_approval": bool(requires_approval),
+            "mask_approved": bool(approval.get("mask_approved")),
+            "fingerprint_approved": bool(approval.get("fingerprint_approved")),
+            "manually_approved": bool(approval.get("manually_approved")),
+            "transparent_replacement_supplied": bool(approval.get("replacement_data_url")),
+            "approved_at": approval.get("approved_at"),
+        },
+        "segmentation": {
+            "source_alpha": source_has_alpha,
+            "binary_contour_separate": True,
+            "rgb_immutable": True,
+            "confidence": segmentation_confidence,
+        },
+        "cache_hit": False,
+        "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    cache[cache_key] = fingerprint
+    state["engineering_dna_cache_v21000"] = {k: v for k, v in list(cache.items())[-32:]}
+    state["active_engineering_dna"] = fingerprint
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return fingerprint
+
+def _graphic_transform_request_v20500(prompt_text, role_items):
+    """Parse only bounded rigid whole-product transforms and reject unseen strong views."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
+    strong = any(term in lower for term in (
+        "rear view", "back view", "90 degree", "ninety degree", "full side view",
+        "from the side", "dramatic side", "show the rear", "show the back",
+    ))
+    product_views = [item for item in role_items or [] if item.get("role") == "product_photo"]
+    if strong and len(product_views) < 2:
+        return {
+            "allowed": False,
+            "reason": "A strong side or rear view requires multiple product photographs.",
+            "rotation_degrees": 0.0,
+            "perspective": 0.0,
+        }
+
+    rotation = 0.0
+    if any(term in lower for term in ("slight clockwise", "rotate clockwise")):
+        rotation = -3.0
+    elif any(term in lower for term in ("slight counterclockwise", "rotate counterclockwise")):
+        rotation = 3.0
+    elif any(term in lower for term in ("slightly angled", "small angle", "moderate angle", "three-quarter illusion")):
+        rotation = -1.5
+
+    perspective = 0.0
+    if any(term in lower for term in ("moderate perspective", "slight perspective", "three-quarter illusion", "slightly angled")):
+        perspective = 0.035
+    return {
+        "allowed": True,
+        "rotation_degrees": max(-6.0, min(6.0, rotation)),
+        "perspective": max(-0.06, min(0.06, perspective)),
+        "translation": [0.0, 0.0],
+        "uniform_scale_only": True,
+        "single_matrix_for_all_landmarks": True,
+    }
+
+def _graphic_rigid_transform_v20500(layer, transform_spec):
+    if Image is None or layer is None:
+        return layer, {"applied": False, "reason": "image unavailable"}
+    spec = dict(transform_spec or {})
+    if spec.get("allowed") is False:
+        raise RuntimeError(str(spec.get("reason") or "Requested product viewpoint is not supported."))
+    rotation = float(spec.get("rotation_degrees") or 0.0)
+    perspective = float(spec.get("perspective") or 0.0)
+    translation = list(spec.get("translation") or [0.0, 0.0])
+    translation_px = (
+        float(translation[0]) * layer.width if abs(float(translation[0])) <= 1 else float(translation[0]),
+        float(translation[1]) * layer.height if abs(float(translation[1])) <= 1 else float(translation[1]),
+    )
+    matrix = _graphic_compose_transform_matrix_v21000(
+        layer.width, layer.height,
+        scale=float(spec.get("scale") or 1.0),
+        rotation_degrees=rotation,
+        translation=translation_px,
+        perspective=perspective,
+    )
+    transformed, matrices = _graphic_warp_rgba_v21000(layer, matrix)
+    return transformed, {
+        "applied": any(abs(value) > 1e-9 for value in (rotation, perspective, translation_px[0], translation_px[1])),
+        "engine": GEOMETRY_ENGINE_VERSION,
+        "rigid_whole_assembly": True,
+        "independent_subpart_transform": False,
+        "rotation_degrees": rotation,
+        "perspective": perspective,
+        "translation_pixels": list(translation_px),
+        **matrices,
+    }
+
+def _graphic_geometry_qa_v20500(source_fingerprint, transformed_layer, transform_metadata):
+    """Actual contour/profile/landmark QA after inverse-normalizing perspective."""
+    source = dict(source_fingerprint or {})
+    if not source.get("available") or Image is None or transformed_layer is None:
+        return {"passed": False, "hard_failures": ["engineering fingerprint unavailable"], "scores": {}}
+
+    final_mask = _graphic_binary_alpha_mask_v20500(transformed_layer)
+    source_mask_url = str(source.get("authoritative_binary_mask_data_url") or "")
+    source_raw, _ = data_url_to_bytes(source_mask_url) if source_mask_url else (b"", "")
+    if not source_raw:
+        return {"passed": False, "hard_failures": ["authoritative source mask unavailable"], "scores": {}}
+    source_mask = Image.open(io.BytesIO(source_raw)).convert("L")
+
+    # Normalize final product RGB and alpha back into source coordinates. PIL's
+    # perspective transform expects an output-to-input mapping; the stored forward
+    # source→final matrix is therefore the correct mapping for source-sized output.
+    inverse = transform_metadata.get("inverse_matrix")
+    if inverse:
+        forward = transform_metadata.get("forward_matrix") or _graphic_matrix_identity_v21000()
+        coeffs = (
+            forward[0][0], forward[0][1], forward[0][2],
+            forward[1][0], forward[1][1], forward[1][2],
+            forward[2][0], forward[2][1],
+        )
+        normalized_rgba = transformed_layer.convert("RGBA").transform(
+            source_mask.size,
+            Image.Transform.PERSPECTIVE,
+            coeffs,
+            resample=Image.Resampling.BICUBIC,
+            fillcolor=(0, 0, 0, 0),
+        )
+        normalized = normalized_rgba.getchannel("A").point(lambda p: 255 if p >= 16 else 0)
+    else:
+        normalized_rgba = transformed_layer.convert("RGBA").resize(
+            source_mask.size,
+            Image.Resampling.LANCZOS,
+        )
+        normalized = normalized_rgba.getchannel("A").point(lambda p: 255 if p >= 16 else 0)
+    final_screen = _graphic_detect_screen_box_v20500(normalized_rgba, normalized)
+    final_profiles = _graphic_bezel_profiles_v21000(
+        normalized,
+        final_screen.get("box_normalized") if final_screen.get("available") else None,
+        samples=64,
+    )
+    final_landmarks = _graphic_landmark_candidates_v21000(normalized_rgba, normalized, final_screen)
+
+    outer_iou = _graphic_mask_iou_v21000(source_mask, normalized)
+    source_screen = source.get("screen_aperture") or {}
+    screen_score = None
+    ratio_score = None
+    if source_screen.get("available") and final_screen.get("available"):
+        sb = source_screen.get("box_normalized")
+        fb = final_screen.get("box_normalized")
+        errors = [abs(float(a) - float(b)) for a, b in zip(sb, fb)]
+        screen_score = max(0.0, 1.0 - sum(errors) / len(errors) * 20.0)
+        ratio_error = abs(float(source_screen.get("aspect_ratio") or 0) - float(final_screen.get("aspect_ratio") or 0)) / max(0.001, float(source_screen.get("aspect_ratio") or 1))
+        ratio_score = max(0.0, 1.0 - ratio_error * 12.0)
+
+    source_profiles = source.get("bezel_thickness_profiles") or {}
+    bottom_score = _graphic_profile_similarity_v21000(source_profiles.get("bottom"), final_profiles.get("bottom"))
+    left_score = _graphic_profile_similarity_v21000(source_profiles.get("left"), final_profiles.get("left"))
+    right_score = _graphic_profile_similarity_v21000(source_profiles.get("right"), final_profiles.get("right"))
+    top_score = _graphic_profile_similarity_v21000(source_profiles.get("top"), final_profiles.get("top"))
+    bezel_values = [value for value in (top_score, bottom_score, left_score, right_score) if value is not None]
+    bezel_score = sum(bezel_values) / len(bezel_values) if bezel_values else None
+
+    landmark_score = _graphic_landmark_reprojection_score_v21000(source.get("engineering_landmarks"), final_landmarks)
+    controls_score = landmark_score
+    openings_score = landmark_score
+
+    scores = {
+        "outer_housing_contour": round(outer_iou, 6),
+        "outer_bezel_contour": round(bezel_score, 6) if bezel_score is not None else None,
+        "inner_screen_aperture": round(screen_score, 6) if screen_score is not None else None,
+        "bottom_bezel_profile": round(bottom_score, 6) if bottom_score is not None else None,
+        "screen_to_housing_ratio": round(ratio_score, 6) if ratio_score is not None else None,
+        "controls_and_knobs": round(controls_score, 6) if controls_score is not None else None,
+        "openings_and_mounting_points": round(openings_score, 6) if openings_score is not None else None,
+    }
+    thresholds = {
+        "outer_housing_contour": 0.98,
+        "outer_bezel_contour": 0.99,
+        "inner_screen_aperture": 0.99,
+        "bottom_bezel_profile": 0.99,
+        "screen_to_housing_ratio": 0.99,
+        "controls_and_knobs": 0.97,
+        "openings_and_mounting_points": 0.97,
+    }
+    hard = []
+    warnings = []
+    for name, threshold in thresholds.items():
+        score = scores.get(name)
+        if score is None:
+            warnings.append(f"{name} unavailable")
+        elif score < threshold:
+            hard.append(f"{name} below threshold ({score:.3f} < {threshold:.3f})")
+    return {
+        "passed": not hard,
+        "hard_failures": hard,
+        "warnings": warnings,
+        "scores": scores,
+        "thresholds": thresholds,
+        "perspective_normalized": bool(transform_metadata.get("applied")),
+        "normalization_method": "inverse-3x3-homography",
+        "forward_matrix": transform_metadata.get("forward_matrix"),
+        "inverse_matrix": transform_metadata.get("inverse_matrix"),
+        "bottom_bezel_hard_gate": True,
+        "engine": GEOMETRY_ENGINE_VERSION,
+    }
+
+def _graphic_apply_transform_with_component_retry_v20500(layer, transform_spec, fingerprint):
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, transform_spec)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    if qa.get("passed"):
+        return transformed, metadata, qa, False
+    safe = dict(transform_spec or {})
+    safe.update({"rotation_degrees": 0.0, "perspective": 0.0, "translation": [0.0, 0.0], "scale": 1.0})
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, safe)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    return transformed, metadata, qa, True
+
+def _graphic_background_exclusion_contract_v20500(prompt_text):
+    return str(prompt_text or "") + (
+        "\n\nV21000 BACKGROUND-ONLY CONTRACT: Generate only the requested target vehicle, "
+        "scenery, sky, atmosphere, terrain, environmental lighting, and background "
+        "composition. Never generate or redraw an infotainment unit, gauge cluster, "
+        "screen, bezel, dashboard unit, side rail, button, knob, mounting tab, opening, "
+        "product silhouette, product placeholder, product-shaped reflection, or "
+        "product-shaped shadow. Keep the measured hero zone clear. The exact uploaded "
+        "product is composited later from immutable source RGB and an approved mask."
+    )
+
+def render_engineering_dna_approval_panel_v21000(uploaded_files):
+    """First-stage mask/fingerprint approval UI for Graphic Marketing."""
+    if Image is None:
+        return
+    images = [
+        file for file in (uploaded_files or [])
+        if str(getattr(file, "type", "") or "").casefold().startswith("image/")
+        or str(getattr(file, "name", "") or "").casefold().endswith((".png", ".jpg", ".jpeg", ".webp"))
+    ]
+    if not images:
+        return
+    selected = st.selectbox(
+        "Engineering product source",
+        options=list(range(len(images))),
+        format_func=lambda index: str(getattr(images[index], "name", f"Image {index + 1}")),
+        key="v21000_engineering_source_selector",
+        help="Select the uploaded product photo used for mask and fingerprint approval.",
+    )
+    file = images[int(selected)]
+    raw = _graphic_uploaded_file_bytes(file)
+    if not raw:
+        return
+    source_sha = hashlib.sha256(raw).hexdigest()
+    state = get_graphic_project_state()
+    approvals = dict(state.get("engineering_approval_v21000") or {})
+    approval = dict(approvals.get(source_sha) or {})
+
+    with st.expander("Engineering DNA & Mask Approval", expanded=False):
+        cols = st.columns(2)
+        try:
+            source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
+            preview = source.copy()
+            preview.thumbnail((640, 480))
+            with cols[0]:
+                st.image(preview, caption="Original product source", use_container_width=True)
+            product_item = {"file": file, "name": getattr(file, "name", "product"), "role": "product_photo"}
+            layer, _ = _graphic_open_product_layer_v3300(file)
+            fingerprint = _graphic_bezel_fingerprint_v20500(product_item, layer=layer)
+            with cols[1]:
+                if layer is not None:
+                    display = layer.copy()
+                    display.thumbnail((640, 480))
+                    st.image(display, caption="Current authoritative cutout", use_container_width=True)
+                st.caption(
+                    f"Segmentation confidence: {float((fingerprint.get('confidence') or {}).get('segmentation') or 0)*100:.1f}%  |  "
+                    f"Screen confidence: {float((fingerprint.get('confidence') or {}).get('screen_detection') or 0)*100:.1f}%  |  "
+                    f"Bezel confidence: {float((fingerprint.get('confidence') or {}).get('bezel_detection') or 0)*100:.1f}%"
+                )
+                st.caption(f"Fingerprint: {str(fingerprint.get('source_sha256') or '')[:16]}…")
+        except Exception as error:
+            st.warning(f"Engineering preview unavailable: {error}")
+            fingerprint = {}
+
+        replacement = st.file_uploader(
+            "Upload transparent replacement PNG",
+            type=["png", "webp"],
+            accept_multiple_files=False,
+            key=f"v21000_transparent_replacement_{source_sha[:12]}",
+            help="Optional: upload a manually prepared transparent product cutout.",
+        )
+        action_cols = st.columns(4)
+        if action_cols[0].button("Approve Mask", key=f"v21000_approve_mask_{source_sha[:12]}", use_container_width=True):
+            approval.update({
+                "mask_approved": True,
+                "fingerprint_approved": True,
+                "manually_approved": True,
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if action_cols[1].button("Reject Mask", key=f"v21000_reject_mask_{source_sha[:12]}", use_container_width=True):
+            approval.update({
+                "mask_approved": False,
+                "fingerprint_approved": False,
+                "manually_approved": False,
+                "rejected_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if action_cols[2].button("Use Studio Photo", key=f"v21000_use_studio_{source_sha[:12]}", use_container_width=True):
+            approval.update({
+                "use_original_studio_photo": True,
+                "mask_approved": True,
+                "fingerprint_approved": False,
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if replacement is not None and action_cols[3].button("Save Replacement", key=f"v21000_save_replacement_{source_sha[:12]}", use_container_width=True):
+            replacement_raw = _graphic_uploaded_file_bytes(replacement)
+            with Image.open(io.BytesIO(replacement_raw)) as replacement_image:
+                replacement_rgba = ImageOps.exif_transpose(replacement_image).convert("RGBA")
+                if replacement_rgba.getchannel("A").getextrema()[0] >= 250:
+                    st.error("The replacement file does not contain transparency.")
+                else:
+                    buffer = io.BytesIO()
+                    replacement_rgba.save(buffer, format="PNG", optimize=True)
+                    approval.update({
+                        "replacement_data_url": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"),
+                        "mask_approved": True,
+                        "fingerprint_approved": True,
+                        "manually_approved": True,
+                        "approved_at": datetime.now(timezone.utc).isoformat(),
+                    })
+
+        approvals[source_sha] = approval
+        state["engineering_approval_v21000"] = approvals
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        if approval.get("mask_approved"):
+            st.success("The authoritative mask is approved for this product.")
+        elif approval.get("use_original_studio_photo"):
+            st.info("The original studio photograph will be used as the product layer.")
+        elif approval:
+            st.warning("The current mask is not approved.")
+
+def _graphic_product_reference_separation_directive_v20400(prompt_text):
+    """Append one stable internal contract separating style and product authority.
+
+    This does not alter user-visible wording. It prevents ambiguous requests such as
+    "use this as a reference" from allowing the advertisement template to contribute
+    product geometry. The style image controls presentation only; the Product Photo is
+    the sole engineering authority.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    contract = (
+        "\n\nINTERNAL PRODUCT/STYLE AUTHORITY CONTRACT (v20400):\n"
+        "- Treat the Style Reference as presentation guidance only: layout, typography, "
+        "lighting, background, icon placement, color palette, vehicle placement and overall advertising style.\n"
+        "- Treat the uploaded Product Photo as the sole and direct product authority.\n"
+        "- Never copy, infer, borrow or reconstruct product geometry from the Style Reference.\n"
+        "- Preserve the Product Photo's housing, outer and inner bezel contours, screen aperture, "
+        "bottom-bezel profile, controls, knobs, openings, mounting tabs, holes, proportions, seams and surface details.\n"
+        "- For exact/front-view jobs, do not redraw or regenerate any product pixels.\n"
+        "- Resizing and placement may change only through one coherent whole-product transform; "
+        "never resize the screen, bezel, controls or housing independently.\n"
+    )
+    return value + contract
 
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
     """Create a target-only scenery prompt with no reference-image content channel."""
@@ -20560,7 +21596,6 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
 
 
-
 def _graphic_draw_feature_icon_v3200(draw, box, index, color):
     """Draw a compact deterministic line icon without external font/icon dependencies."""
     x0, y0, x1, y1 = box
@@ -20647,958 +21682,6 @@ def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
     except Exception as error:
         diagnostic_log("graphic_v14000_product_trim_failed", error_type=type(error).__name__, error=str(error))
         return product, {"trimmed": False, "reason": type(error).__name__}
-
-
-
-# ============================================================
-# v20500 Engineering DNA 10.0 / Geometry Engine 2.0
-# ============================================================
-
-ENGINEERING_DNA_VERSION = "engineering-dna-11.0"
-GEOMETRY_ENGINE_VERSION = "geometry-engine-3.0"
-CAMPAIGN_CACHE_VERSION = "campaign-cache-4.0"
-
-
-def _graphic_binary_alpha_mask_v20500(layer, threshold=16):
-    """Return an immutable binary engineering mask from one RGBA product layer."""
-    if Image is None or layer is None:
-        return None
-    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
-    alpha = rgba.getchannel("A")
-    return alpha.point(lambda value: 255 if int(value) >= int(threshold) else 0, mode="1").convert("L")
-
-
-def _graphic_profile_samples_v20500(mask, axis="row", samples=64):
-    """Sample first/last occupied positions as normalized contour profiles."""
-    if Image is None or mask is None:
-        return []
-    binary = mask.point(lambda p: 255 if p else 0)
-    width, height = binary.size
-    pix = binary.load()
-    result = []
-    count = max(8, int(samples))
-    if axis == "row":
-        for index in range(count):
-            y = min(height - 1, int(round(index * (height - 1) / max(1, count - 1))))
-            occupied = [x for x in range(width) if pix[x, y] > 0]
-            if occupied:
-                result.append([round(y / max(1, height - 1), 6), round(min(occupied) / max(1, width - 1), 6), round(max(occupied) / max(1, width - 1), 6)])
-            else:
-                result.append([round(y / max(1, height - 1), 6), None, None])
-    else:
-        for index in range(count):
-            x = min(width - 1, int(round(index * (width - 1) / max(1, count - 1))))
-            occupied = [y for y in range(height) if pix[x, y] > 0]
-            if occupied:
-                result.append([round(x / max(1, width - 1), 6), round(min(occupied) / max(1, height - 1), 6), round(max(occupied) / max(1, height - 1), 6)])
-            else:
-                result.append([round(x / max(1, width - 1), 6), None, None])
-    return result
-
-
-def _graphic_detect_screen_box_v20500(layer, product_mask):
-    """Estimate the main display aperture using central rectangular brightness occupancy.
-
-    The result is confidence-scored and is never used to alter pixels. It is used only
-    as Engineering DNA and QA. Low-confidence products remain exact-source composites.
-    """
-    if Image is None or layer is None or product_mask is None:
-        return {"available": False, "confidence": 0.0}
-    rgba = layer.convert("RGBA")
-    rgb = rgba.convert("RGB")
-    width, height = rgb.size
-    if width < 40 or height < 40:
-        return {"available": False, "confidence": 0.0}
-
-    gray = ImageOps.grayscale(rgb)
-    gp = gray.load()
-    mp = product_mask.load()
-    x0, x1 = int(width * 0.18), int(width * 0.82)
-    y0, y1 = int(height * 0.03), int(height * 0.94)
-
-    # Screen UIs are usually a large bright/colourful central rectangle. Build row and
-    # column occupancy and choose the longest contiguous high-occupancy intervals.
-    row_scores = []
-    for y in range(y0, y1):
-        valid = 0
-        bright = 0
-        for x in range(x0, x1):
-            if mp[x, y] > 0:
-                valid += 1
-                if gp[x, y] >= 88:
-                    bright += 1
-        row_scores.append(bright / max(1, valid))
-    col_scores = []
-    for x in range(x0, x1):
-        valid = 0
-        bright = 0
-        for y in range(y0, y1):
-            if mp[x, y] > 0:
-                valid += 1
-                if gp[x, y] >= 88:
-                    bright += 1
-        col_scores.append(bright / max(1, valid))
-
-    def longest_interval(values, threshold, minimum):
-        best = None
-        start = None
-        for idx, value in enumerate(values + [0.0]):
-            if value >= threshold and start is None:
-                start = idx
-            elif value < threshold and start is not None:
-                length = idx - start
-                if length >= minimum and (best is None or length > best[1] - best[0]):
-                    best = (start, idx - 1)
-                start = None
-        return best
-
-    ry = longest_interval(row_scores, 0.48, max(8, int(height * 0.22)))
-    cx = longest_interval(col_scores, 0.52, max(8, int(width * 0.20)))
-    if not ry or not cx:
-        return {"available": False, "confidence": 0.0}
-
-    sx0, sx1 = x0 + cx[0], x0 + cx[1]
-    sy0, sy1 = y0 + ry[0], y0 + ry[1]
-    sw, sh = sx1 - sx0 + 1, sy1 - sy0 + 1
-    if sw <= 0 or sh <= 0:
-        return {"available": False, "confidence": 0.0}
-
-    area_ratio = (sw * sh) / max(1, width * height)
-    centrality = 1.0 - min(1.0, abs(((sx0 + sx1) / 2) / width - 0.5) * 2.0)
-    confidence = max(0.0, min(1.0, 0.45 + area_ratio * 1.4 + centrality * 0.25))
-    return {
-        "available": True,
-        "confidence": round(confidence, 4),
-        "box_px": [sx0, sy0, sw, sh],
-        "box_normalized": [
-            round(sx0 / width, 6), round(sy0 / height, 6),
-            round(sw / width, 6), round(sh / height, 6),
-        ],
-        "center_normalized": [
-            round((sx0 + sw / 2) / width, 6),
-            round((sy0 + sh / 2) / height, 6),
-        ],
-        "aspect_ratio": round(sw / max(1, sh), 8),
-    }
-
-
-def _graphic_transparent_openings_v20500(mask):
-    """Describe major internal negative spaces without modifying the source cutout."""
-    if Image is None or mask is None:
-        return []
-    width, height = mask.size
-    # Downsample for bounded connected-component work.
-    scale = min(1.0, 512.0 / max(width, height))
-    small = mask.resize((max(1, int(width * scale)), max(1, int(height * scale))), Image.Resampling.NEAREST)
-    sp = small.load()
-    sw, sh = small.size
-    seen = bytearray(sw * sh)
-    components = []
-    from collections import deque
-    for y in range(1, sh - 1):
-        for x in range(1, sw - 1):
-            idx = y * sw + x
-            if seen[idx] or sp[x, y] > 0:
-                continue
-            queue = deque([(x, y)])
-            seen[idx] = 1
-            points = []
-            touches_border = False
-            while queue:
-                px, py = queue.popleft()
-                points.append((px, py))
-                if px in (0, sw - 1) or py in (0, sh - 1):
-                    touches_border = True
-                for nx, ny in ((px-1,py),(px+1,py),(px,py-1),(px,py+1)):
-                    nidx = ny * sw + nx
-                    if 0 <= nx < sw and 0 <= ny < sh and not seen[nidx] and sp[nx, ny] == 0:
-                        seen[nidx] = 1
-                        queue.append((nx, ny))
-            if touches_border or len(points) < max(8, int(sw * sh * 0.00025)):
-                continue
-            xs = [p[0] for p in points]
-            ys = [p[1] for p in points]
-            bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
-            components.append({
-                "box_normalized": [
-                    round(bx0 / sw, 6), round(by0 / sh, 6),
-                    round((bx1 - bx0 + 1) / sw, 6), round((by1 - by0 + 1) / sh, 6),
-                ],
-                "area_ratio": round(len(points) / max(1, sw * sh), 8),
-            })
-    components.sort(key=lambda item: item["area_ratio"], reverse=True)
-    return components[:24]
-
-
-
-def _graphic_mask_bytes_v21000(mask):
-    if Image is None or mask is None:
-        return b""
-    buffer = io.BytesIO()
-    mask.convert("L").save(buffer, format="PNG", optimize=True)
-    return buffer.getvalue()
-
-
-def _graphic_mask_data_url_v21000(mask):
-    raw = _graphic_mask_bytes_v21000(mask)
-    return "data:image/png;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
-
-
-def _graphic_boundary_points_v21000(mask, max_points=2048):
-    """Return normalized boundary points for a hard binary mask."""
-    if Image is None or mask is None:
-        return []
-    binary = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
-    width, height = binary.size
-    pixels = binary.load()
-    points = []
-    for y in range(height):
-        for x in range(width):
-            if pixels[x, y] == 0:
-                continue
-            if (
-                x == 0 or y == 0 or x == width - 1 or y == height - 1
-                or pixels[max(0, x - 1), y] == 0
-                or pixels[min(width - 1, x + 1), y] == 0
-                or pixels[x, max(0, y - 1)] == 0
-                or pixels[x, min(height - 1, y + 1)] == 0
-            ):
-                points.append((x / max(1, width - 1), y / max(1, height - 1)))
-    if len(points) > max_points:
-        step = len(points) / float(max_points)
-        points = [points[min(len(points) - 1, int(i * step))] for i in range(max_points)]
-    return [[round(x, 7), round(y, 7)] for x, y in points]
-
-
-def _graphic_rect_contour_v21000(box, samples_per_edge=40):
-    if not box or len(box) != 4:
-        return []
-    x, y, w, h = [float(v) for v in box]
-    points = []
-    for i in range(samples_per_edge):
-        t = i / max(1, samples_per_edge - 1)
-        points.append([x + w * t, y])
-    for i in range(1, samples_per_edge):
-        t = i / max(1, samples_per_edge - 1)
-        points.append([x + w, y + h * t])
-    for i in range(1, samples_per_edge):
-        t = i / max(1, samples_per_edge - 1)
-        points.append([x + w * (1 - t), y + h])
-    for i in range(1, samples_per_edge - 1):
-        t = i / max(1, samples_per_edge - 1)
-        points.append([x, y + h * (1 - t)])
-    return [[round(px, 7), round(py, 7)] for px, py in points]
-
-
-def _graphic_profile_at_x_v21000(mask, x_normalized):
-    if Image is None or mask is None:
-        return None
-    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
-    w, h = m.size
-    x = min(w - 1, max(0, int(round(float(x_normalized) * (w - 1)))))
-    occupied = [y for y in range(h) if m.getpixel((x, y)) > 0]
-    if not occupied:
-        return None
-    return min(occupied) / max(1, h - 1), max(occupied) / max(1, h - 1)
-
-
-def _graphic_bezel_profiles_v21000(mask, screen_box, samples=64):
-    """Measure full top/bottom/left/right bezel thickness arrays."""
-    if Image is None or mask is None or not screen_box or len(screen_box) != 4:
-        return {"available": False}
-    sx, sy, sw, sh = [float(v) for v in screen_box]
-    top, bottom, left, right = [], [], [], []
-    count = max(16, int(samples))
-    for i in range(count):
-        t = i / max(1, count - 1)
-        x = sx + sw * t
-        bounds = _graphic_profile_at_x_v21000(mask, x)
-        if bounds:
-            housing_top, housing_bottom = bounds
-            top.append(round(max(0.0, sy - housing_top), 7))
-            bottom.append(round(max(0.0, housing_bottom - (sy + sh)), 7))
-        else:
-            top.append(None)
-            bottom.append(None)
-
-    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
-    mw, mh = m.size
-    mp = m.load()
-    for i in range(count):
-        t = i / max(1, count - 1)
-        y_n = sy + sh * t
-        y = min(mh - 1, max(0, int(round(y_n * (mh - 1)))))
-        occupied = [x for x in range(mw) if mp[x, y] > 0]
-        if occupied:
-            housing_left = min(occupied) / max(1, mw - 1)
-            housing_right = max(occupied) / max(1, mw - 1)
-            left.append(round(max(0.0, sx - housing_left), 7))
-            right.append(round(max(0.0, housing_right - (sx + sw)), 7))
-        else:
-            left.append(None)
-            right.append(None)
-    return {
-        "available": True,
-        "top": top,
-        "bottom": bottom,
-        "left": left,
-        "right": right,
-        "bottom_profile": bottom,
-        "sample_count": count,
-    }
-
-
-def _graphic_estimate_outer_bezel_box_v21000(layer, screen_box):
-    """Estimate the physical bezel boundary by scanning dark material around glass."""
-    if Image is None or layer is None or not screen_box or len(screen_box) != 4:
-        return {"available": False, "confidence": 0.0}
-    rgba = layer.convert("RGBA")
-    gray = ImageOps.grayscale(rgba.convert("RGB"))
-    alpha = rgba.getchannel("A")
-    w, h = rgba.size
-    sx, sy, sw, sh = [float(v) for v in screen_box]
-    x0, y0 = int(sx * w), int(sy * h)
-    x1, y1 = int((sx + sw) * w), int((sy + sh) * h)
-
-    def dark_fraction_vertical(x, ya, yb):
-        values = []
-        for y in range(max(0, ya), min(h, yb)):
-            if alpha.getpixel((x, y)) > 32:
-                values.append(gray.getpixel((x, y)))
-        return sum(1 for value in values if value < 105) / max(1, len(values))
-
-    def dark_fraction_horizontal(y, xa, xb):
-        values = []
-        for x in range(max(0, xa), min(w, xb)):
-            if alpha.getpixel((x, y)) > 32:
-                values.append(gray.getpixel((x, y)))
-        return sum(1 for value in values if value < 105) / max(1, len(values))
-
-    left = x0
-    for x in range(x0 - 1, max(-1, x0 - int(w * 0.14)), -1):
-        if dark_fraction_vertical(x, y0, y1) >= 0.58:
-            left = x
-        else:
-            break
-    right = x1
-    for x in range(x1, min(w, x1 + int(w * 0.14))):
-        if dark_fraction_vertical(x, y0, y1) >= 0.58:
-            right = x
-        else:
-            break
-    top = y0
-    for y in range(y0 - 1, max(-1, y0 - int(h * 0.12)), -1):
-        if dark_fraction_horizontal(y, x0, x1) >= 0.58:
-            top = y
-        else:
-            break
-    bottom = y1
-    for y in range(y1, min(h, y1 + int(h * 0.16))):
-        if dark_fraction_horizontal(y, x0, x1) >= 0.58:
-            bottom = y
-        else:
-            break
-
-    bw, bh = max(1, right - left), max(1, bottom - top)
-    expansion = ((x0 - left) + (right - x1) + (y0 - top) + (bottom - y1)) / max(1.0, 2 * (sw * w + sh * h))
-    confidence = max(0.0, min(1.0, 0.58 + expansion * 3.0))
-    return {
-        "available": True,
-        "confidence": round(confidence, 4),
-        "box_normalized": [
-            round(left / w, 7), round(top / h, 7),
-            round(bw / w, 7), round(bh / h, 7),
-        ],
-    }
-
-
-def _graphic_corner_radius_estimates_v21000(mask):
-    """Estimate normalized corner radii from silhouette expansion."""
-    if Image is None or mask is None:
-        return {}
-    m = mask.convert("L").point(lambda p: 255 if p >= 128 else 0)
-    w, h = m.size
-    p = m.load()
-
-    def estimate(corner):
-        max_r = max(2, min(w, h) // 5)
-        for r in range(1, max_r):
-            if corner == "top_left":
-                samples = [(r, 0), (0, r), (r, r)]
-            elif corner == "top_right":
-                samples = [(w - 1 - r, 0), (w - 1, r), (w - 1 - r, r)]
-            elif corner == "bottom_left":
-                samples = [(r, h - 1), (0, h - 1 - r), (r, h - 1 - r)]
-            else:
-                samples = [(w - 1 - r, h - 1), (w - 1, h - 1 - r), (w - 1 - r, h - 1 - r)]
-            if sum(1 for x, y in samples if 0 <= x < w and 0 <= y < h and p[x, y] > 0) >= 2:
-                return round(r / max(1, min(w, h)), 7)
-        return None
-
-    return {name: estimate(name) for name in ("top_left", "top_right", "bottom_left", "bottom_right")}
-
-
-def _graphic_connected_components_v21000(mask, foreground=True, max_components=64):
-    """Connected-component boxes and centroids for holes/openings/control candidates."""
-    if Image is None or mask is None:
-        return []
-    from collections import deque
-    scale = min(1.0, 640.0 / max(mask.size))
-    m = mask.convert("L").resize(
-        (max(1, int(mask.width * scale)), max(1, int(mask.height * scale))),
-        Image.Resampling.NEAREST,
-    )
-    w, h = m.size
-    pix = m.load()
-    seen = bytearray(w * h)
-    result = []
-    target = (lambda value: value > 127) if foreground else (lambda value: value <= 127)
-    for y in range(h):
-        for x in range(w):
-            idx = y * w + x
-            if seen[idx] or not target(pix[x, y]):
-                continue
-            q = deque([(x, y)])
-            seen[idx] = 1
-            pts = []
-            touches = False
-            while q:
-                px, py = q.popleft()
-                pts.append((px, py))
-                if px == 0 or py == 0 or px == w - 1 or py == h - 1:
-                    touches = True
-                for nx, ny in ((px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)):
-                    if 0 <= nx < w and 0 <= ny < h:
-                        ni = ny * w + nx
-                        if not seen[ni] and target(pix[nx, ny]):
-                            seen[ni] = 1
-                            q.append((nx, ny))
-            if len(pts) < max(6, int(w * h * 0.00008)):
-                continue
-            if not foreground and touches:
-                continue
-            xs = [pt[0] for pt in pts]
-            ys = [pt[1] for pt in pts]
-            x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-            result.append({
-                "box_normalized": [
-                    round(x0 / w, 7), round(y0 / h, 7),
-                    round((x1 - x0 + 1) / w, 7), round((y1 - y0 + 1) / h, 7),
-                ],
-                "centroid_normalized": [
-                    round(sum(xs) / len(xs) / w, 7),
-                    round(sum(ys) / len(ys) / h, 7),
-                ],
-                "area_ratio": round(len(pts) / max(1, w * h), 9),
-                "touches_border": touches,
-            })
-    result.sort(key=lambda item: item["area_ratio"], reverse=True)
-    return result[:max_components]
-
-
-def _graphic_landmark_candidates_v21000(layer, mask, screen):
-    """Build typed engineering landmarks from screen, holes, openings, and dark controls."""
-    landmarks = []
-    if screen.get("available"):
-        x, y, w, h = screen["box_normalized"]
-        for name, px, py in (
-            ("screen_top_left", x, y),
-            ("screen_top_right", x + w, y),
-            ("screen_bottom_right", x + w, y + h),
-            ("screen_bottom_left", x, y + h),
-            ("screen_center", x + w / 2, y + h / 2),
-        ):
-            landmarks.append({"type": name, "x": round(px, 7), "y": round(py, 7), "confidence": screen.get("confidence", 0.0), "source": "automatic"})
-
-    openings = _graphic_connected_components_v21000(mask, foreground=False, max_components=32)
-    for index, opening in enumerate(openings):
-        x, y = opening["centroid_normalized"]
-        landmarks.append({
-            "type": "mounting_or_opening_candidate",
-            "index": index,
-            "x": x, "y": y,
-            "box_normalized": opening["box_normalized"],
-            "confidence": round(min(0.98, 0.62 + opening["area_ratio"] * 15), 4),
-            "source": "automatic",
-        })
-
-    if Image is not None and layer is not None:
-        gray = ImageOps.grayscale(layer.convert("RGB"))
-        alpha = mask.convert("L")
-        dark = Image.new("L", gray.size, 0)
-        gp, ap, dp = gray.load(), alpha.load(), dark.load()
-        for yy in range(gray.height):
-            for xx in range(gray.width):
-                if ap[xx, yy] > 127 and gp[xx, yy] < 72:
-                    dp[xx, yy] = 255
-        candidates = _graphic_connected_components_v21000(dark, foreground=True, max_components=48)
-        for index, comp in enumerate(candidates):
-            bx, by, bw, bh = comp["box_normalized"]
-            if bw < 0.006 or bh < 0.006 or bw > 0.16 or bh > 0.16:
-                continue
-            aspect = bw / max(0.0001, bh)
-            kind = "knob_candidate" if 0.72 <= aspect <= 1.38 and comp["area_ratio"] > 0.00025 else "button_candidate"
-            cx, cy = comp["centroid_normalized"]
-            landmarks.append({
-                "type": kind,
-                "index": index,
-                "x": cx, "y": cy,
-                "box_normalized": comp["box_normalized"],
-                "confidence": round(0.72 if kind == "knob_candidate" else 0.64, 4),
-                "source": "automatic",
-            })
-    return landmarks
-
-
-def _graphic_segmentation_confidence_v21000(layer, binary_mask, source_has_alpha):
-    if Image is None or layer is None or binary_mask is None:
-        return 0.0
-    occupied = sum(1 for value in binary_mask.getdata() if value > 127)
-    ratio = occupied / max(1, binary_mask.width * binary_mask.height)
-    bbox = binary_mask.getbbox()
-    touches = False
-    if bbox:
-        touches = bbox[0] <= 0 or bbox[1] <= 0 or bbox[2] >= binary_mask.width or bbox[3] >= binary_mask.height
-    confidence = 0.99 if source_has_alpha else 0.84
-    if ratio < 0.08 or ratio > 0.92:
-        confidence -= 0.25
-    if touches:
-        confidence -= 0.12
-    return round(max(0.0, min(1.0, confidence)), 4)
-
-
-def _graphic_bezel_fingerprint_v20500(product_item, layer=None):
-    """Full v21000 fingerprint engine, cached by source/schema/segmentation versions."""
-    if Image is None or not product_item:
-        return {"available": False, "version": ENGINEERING_DNA_VERSION}
-    raw = _graphic_uploaded_file_bytes(product_item.get("file"))
-    if not raw:
-        return {"available": False, "version": ENGINEERING_DNA_VERSION}
-    source_sha = hashlib.sha256(raw).hexdigest()
-    cache_key = f"{source_sha}:{ENGINEERING_DNA_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:fingerprint-v21000"
-    state = get_graphic_project_state()
-    cache = dict(state.get("engineering_dna_cache_v21000") or {})
-    approval = dict((state.get("engineering_approval_v21000") or {}).get(source_sha) or {})
-    cached = cache.get(cache_key)
-    if isinstance(cached, dict):
-        result = dict(cached)
-        result["cache_hit"] = True
-        result["approval"] = approval or result.get("approval") or {}
-        return result
-
-    if layer is None:
-        layer, _ = _graphic_open_product_layer_v3300(product_item.get("file"))
-    if layer is None:
-        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
-
-    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
-    alpha = rgba.getchannel("A")
-    source_has_alpha = bool(alpha.getextrema()[0] < 250)
-    binary = _graphic_binary_alpha_mask_v20500(rgba, threshold=16)
-    bbox = binary.getbbox() if binary else None
-    if not bbox:
-        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
-    rgba = rgba.crop(bbox)
-    binary = binary.crop(bbox)
-    width, height = rgba.size
-
-    screen = _graphic_detect_screen_box_v20500(rgba, binary)
-    screen_box = screen.get("box_normalized") if screen.get("available") else None
-    outer_bezel = _graphic_estimate_outer_bezel_box_v21000(rgba, screen_box)
-    profiles = _graphic_bezel_profiles_v21000(binary, screen_box, samples=64) if screen_box else {"available": False}
-    openings = _graphic_connected_components_v21000(binary, foreground=False, max_components=32)
-    landmarks = _graphic_landmark_candidates_v21000(rgba, binary, screen)
-    segmentation_confidence = _graphic_segmentation_confidence_v21000(rgba, binary, source_has_alpha)
-    screen_confidence = float(screen.get("confidence") or 0.0)
-    bezel_confidence = float(outer_bezel.get("confidence") or 0.0)
-    requires_approval = min(segmentation_confidence, screen_confidence or 1.0, bezel_confidence or 1.0) < 0.80
-
-    fingerprint = {
-        "available": True,
-        "version": ENGINEERING_DNA_VERSION,
-        "fingerprint_algorithm_version": "fingerprint-v21000",
-        "segmentation_version": GRAPHIC_MASK_CACHE_VERSION,
-        "source_sha256": source_sha,
-        "source_rgb_sha256": hashlib.sha256(rgba.convert("RGB").tobytes()).hexdigest(),
-        "source_name": str(product_item.get("name") or ""),
-        "visible_size": [width, height],
-        "unit_aspect_ratio": round(width / max(1, height), 10),
-        "authoritative_binary_mask_sha256": hashlib.sha256(binary.tobytes()).hexdigest(),
-        "authoritative_binary_mask_data_url": _graphic_mask_data_url_v21000(binary),
-        "outer_housing_contour": _graphic_boundary_points_v21000(binary),
-        "outer_housing_profiles": {
-            "row_profile": _graphic_profile_samples_v20500(binary, "row", 96),
-            "column_profile": _graphic_profile_samples_v20500(binary, "column", 96),
-        },
-        "outer_bezel_region": outer_bezel,
-        "outer_bezel_contour": _graphic_rect_contour_v21000(outer_bezel.get("box_normalized")) if outer_bezel.get("available") else [],
-        "screen_aperture": screen,
-        "inner_screen_aperture_contour": _graphic_rect_contour_v21000(screen_box) if screen_box else [],
-        "screen_center": list(screen.get("center_normalized") or []),
-        "screen_aspect_ratio": screen.get("aspect_ratio"),
-        "bezel_thickness_profiles": profiles,
-        "housing_to_screen_ratios": {
-            "width": screen_box[2] if screen_box else None,
-            "height": screen_box[3] if screen_box else None,
-        },
-        "corner_radii": _graphic_corner_radius_estimates_v21000(binary),
-        "contour_transition_points": {
-            "lower_left": _graphic_profile_samples_v20500(binary, "row", 96)[68],
-            "lower_center": _graphic_profile_samples_v20500(binary, "row", 96)[80],
-            "lower_right": _graphic_profile_samples_v20500(binary, "row", 96)[90],
-        },
-        "button_and_knob_candidates": [item for item in landmarks if item.get("type") in {"button_candidate", "knob_candidate"}],
-        "mounting_holes_openings_tabs": openings,
-        "engineering_landmarks": landmarks,
-        "confidence": {
-            "segmentation": segmentation_confidence,
-            "screen_detection": round(screen_confidence, 4),
-            "bezel_detection": round(bezel_confidence, 4),
-            "overall": round(min(segmentation_confidence, screen_confidence or 1.0, bezel_confidence or 1.0), 4),
-        },
-        "approval": {
-            "detected_automatically": True,
-            "requires_approval": bool(requires_approval),
-            "mask_approved": bool(approval.get("mask_approved")),
-            "fingerprint_approved": bool(approval.get("fingerprint_approved")),
-            "manually_approved": bool(approval.get("manually_approved")),
-            "transparent_replacement_supplied": bool(approval.get("replacement_data_url")),
-            "approved_at": approval.get("approved_at"),
-        },
-        "segmentation": {
-            "source_alpha": source_has_alpha,
-            "binary_contour_separate": True,
-            "rgb_immutable": True,
-            "confidence": segmentation_confidence,
-        },
-        "cache_hit": False,
-        "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    cache[cache_key] = fingerprint
-    state["engineering_dna_cache_v21000"] = {k: v for k, v in list(cache.items())[-32:]}
-    state["active_engineering_dna"] = fingerprint
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    return fingerprint
-
-
-
-def _graphic_transform_request_v20500(prompt_text, role_items):
-    """Parse only bounded rigid whole-product transforms and reject unseen strong views."""
-    lower = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
-    strong = any(term in lower for term in (
-        "rear view", "back view", "90 degree", "ninety degree", "full side view",
-        "from the side", "dramatic side", "show the rear", "show the back",
-    ))
-    product_views = [item for item in role_items or [] if item.get("role") == "product_photo"]
-    if strong and len(product_views) < 2:
-        return {
-            "allowed": False,
-            "reason": "A strong side or rear view requires multiple product photographs.",
-            "rotation_degrees": 0.0,
-            "perspective": 0.0,
-        }
-
-    rotation = 0.0
-    if any(term in lower for term in ("slight clockwise", "rotate clockwise")):
-        rotation = -3.0
-    elif any(term in lower for term in ("slight counterclockwise", "rotate counterclockwise")):
-        rotation = 3.0
-    elif any(term in lower for term in ("slightly angled", "small angle", "moderate angle", "three-quarter illusion")):
-        rotation = -1.5
-
-    perspective = 0.0
-    if any(term in lower for term in ("moderate perspective", "slight perspective", "three-quarter illusion", "slightly angled")):
-        perspective = 0.035
-    return {
-        "allowed": True,
-        "rotation_degrees": max(-6.0, min(6.0, rotation)),
-        "perspective": max(-0.06, min(0.06, perspective)),
-        "translation": [0.0, 0.0],
-        "uniform_scale_only": True,
-        "single_matrix_for_all_landmarks": True,
-    }
-
-
-def _graphic_rigid_transform_v20500(layer, transform_spec):
-    if Image is None or layer is None:
-        return layer, {"applied": False, "reason": "image unavailable"}
-    spec = dict(transform_spec or {})
-    if spec.get("allowed") is False:
-        raise RuntimeError(str(spec.get("reason") or "Requested product viewpoint is not supported."))
-    rotation = float(spec.get("rotation_degrees") or 0.0)
-    perspective = float(spec.get("perspective") or 0.0)
-    translation = list(spec.get("translation") or [0.0, 0.0])
-    translation_px = (
-        float(translation[0]) * layer.width if abs(float(translation[0])) <= 1 else float(translation[0]),
-        float(translation[1]) * layer.height if abs(float(translation[1])) <= 1 else float(translation[1]),
-    )
-    matrix = _graphic_compose_transform_matrix_v21000(
-        layer.width, layer.height,
-        scale=float(spec.get("scale") or 1.0),
-        rotation_degrees=rotation,
-        translation=translation_px,
-        perspective=perspective,
-    )
-    transformed, matrices = _graphic_warp_rgba_v21000(layer, matrix)
-    return transformed, {
-        "applied": any(abs(value) > 1e-9 for value in (rotation, perspective, translation_px[0], translation_px[1])),
-        "engine": GEOMETRY_ENGINE_VERSION,
-        "rigid_whole_assembly": True,
-        "independent_subpart_transform": False,
-        "rotation_degrees": rotation,
-        "perspective": perspective,
-        "translation_pixels": list(translation_px),
-        **matrices,
-    }
-
-
-
-def _graphic_geometry_qa_v20500(source_fingerprint, transformed_layer, transform_metadata):
-    """Actual contour/profile/landmark QA after inverse-normalizing perspective."""
-    source = dict(source_fingerprint or {})
-    if not source.get("available") or Image is None or transformed_layer is None:
-        return {"passed": False, "hard_failures": ["engineering fingerprint unavailable"], "scores": {}}
-
-    final_mask = _graphic_binary_alpha_mask_v20500(transformed_layer)
-    source_mask_url = str(source.get("authoritative_binary_mask_data_url") or "")
-    source_raw, _ = data_url_to_bytes(source_mask_url) if source_mask_url else (b"", "")
-    if not source_raw:
-        return {"passed": False, "hard_failures": ["authoritative source mask unavailable"], "scores": {}}
-    source_mask = Image.open(io.BytesIO(source_raw)).convert("L")
-
-    # Normalize final product RGB and alpha back into source coordinates. PIL's
-    # perspective transform expects an output-to-input mapping; the stored forward
-    # source→final matrix is therefore the correct mapping for source-sized output.
-    inverse = transform_metadata.get("inverse_matrix")
-    if inverse:
-        forward = transform_metadata.get("forward_matrix") or _graphic_matrix_identity_v21000()
-        coeffs = (
-            forward[0][0], forward[0][1], forward[0][2],
-            forward[1][0], forward[1][1], forward[1][2],
-            forward[2][0], forward[2][1],
-        )
-        normalized_rgba = transformed_layer.convert("RGBA").transform(
-            source_mask.size,
-            Image.Transform.PERSPECTIVE,
-            coeffs,
-            resample=Image.Resampling.BICUBIC,
-            fillcolor=(0, 0, 0, 0),
-        )
-        normalized = normalized_rgba.getchannel("A").point(lambda p: 255 if p >= 16 else 0)
-    else:
-        normalized_rgba = transformed_layer.convert("RGBA").resize(
-            source_mask.size,
-            Image.Resampling.LANCZOS,
-        )
-        normalized = normalized_rgba.getchannel("A").point(lambda p: 255 if p >= 16 else 0)
-    final_screen = _graphic_detect_screen_box_v20500(normalized_rgba, normalized)
-    final_profiles = _graphic_bezel_profiles_v21000(
-        normalized,
-        final_screen.get("box_normalized") if final_screen.get("available") else None,
-        samples=64,
-    )
-    final_landmarks = _graphic_landmark_candidates_v21000(normalized_rgba, normalized, final_screen)
-
-    outer_iou = _graphic_mask_iou_v21000(source_mask, normalized)
-    source_screen = source.get("screen_aperture") or {}
-    screen_score = None
-    ratio_score = None
-    if source_screen.get("available") and final_screen.get("available"):
-        sb = source_screen.get("box_normalized")
-        fb = final_screen.get("box_normalized")
-        errors = [abs(float(a) - float(b)) for a, b in zip(sb, fb)]
-        screen_score = max(0.0, 1.0 - sum(errors) / len(errors) * 20.0)
-        ratio_error = abs(float(source_screen.get("aspect_ratio") or 0) - float(final_screen.get("aspect_ratio") or 0)) / max(0.001, float(source_screen.get("aspect_ratio") or 1))
-        ratio_score = max(0.0, 1.0 - ratio_error * 12.0)
-
-    source_profiles = source.get("bezel_thickness_profiles") or {}
-    bottom_score = _graphic_profile_similarity_v21000(source_profiles.get("bottom"), final_profiles.get("bottom"))
-    left_score = _graphic_profile_similarity_v21000(source_profiles.get("left"), final_profiles.get("left"))
-    right_score = _graphic_profile_similarity_v21000(source_profiles.get("right"), final_profiles.get("right"))
-    top_score = _graphic_profile_similarity_v21000(source_profiles.get("top"), final_profiles.get("top"))
-    bezel_values = [value for value in (top_score, bottom_score, left_score, right_score) if value is not None]
-    bezel_score = sum(bezel_values) / len(bezel_values) if bezel_values else None
-
-    landmark_score = _graphic_landmark_reprojection_score_v21000(source.get("engineering_landmarks"), final_landmarks)
-    controls_score = landmark_score
-    openings_score = landmark_score
-
-    scores = {
-        "outer_housing_contour": round(outer_iou, 6),
-        "outer_bezel_contour": round(bezel_score, 6) if bezel_score is not None else None,
-        "inner_screen_aperture": round(screen_score, 6) if screen_score is not None else None,
-        "bottom_bezel_profile": round(bottom_score, 6) if bottom_score is not None else None,
-        "screen_to_housing_ratio": round(ratio_score, 6) if ratio_score is not None else None,
-        "controls_and_knobs": round(controls_score, 6) if controls_score is not None else None,
-        "openings_and_mounting_points": round(openings_score, 6) if openings_score is not None else None,
-    }
-    thresholds = {
-        "outer_housing_contour": 0.98,
-        "outer_bezel_contour": 0.99,
-        "inner_screen_aperture": 0.99,
-        "bottom_bezel_profile": 0.99,
-        "screen_to_housing_ratio": 0.99,
-        "controls_and_knobs": 0.97,
-        "openings_and_mounting_points": 0.97,
-    }
-    hard = []
-    warnings = []
-    for name, threshold in thresholds.items():
-        score = scores.get(name)
-        if score is None:
-            warnings.append(f"{name} unavailable")
-        elif score < threshold:
-            hard.append(f"{name} below threshold ({score:.3f} < {threshold:.3f})")
-    return {
-        "passed": not hard,
-        "hard_failures": hard,
-        "warnings": warnings,
-        "scores": scores,
-        "thresholds": thresholds,
-        "perspective_normalized": bool(transform_metadata.get("applied")),
-        "normalization_method": "inverse-3x3-homography",
-        "forward_matrix": transform_metadata.get("forward_matrix"),
-        "inverse_matrix": transform_metadata.get("inverse_matrix"),
-        "bottom_bezel_hard_gate": True,
-        "engine": GEOMETRY_ENGINE_VERSION,
-    }
-
-
-
-def _graphic_apply_transform_with_component_retry_v20500(layer, transform_spec, fingerprint):
-    transformed, metadata = _graphic_rigid_transform_v20500(layer, transform_spec)
-    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
-    if qa.get("passed"):
-        return transformed, metadata, qa, False
-    safe = dict(transform_spec or {})
-    safe.update({"rotation_degrees": 0.0, "perspective": 0.0, "translation": [0.0, 0.0], "scale": 1.0})
-    transformed, metadata = _graphic_rigid_transform_v20500(layer, safe)
-    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
-    return transformed, metadata, qa, True
-
-
-
-def _graphic_background_exclusion_contract_v20500(prompt_text):
-    return str(prompt_text or "") + (
-        "\n\nV21000 BACKGROUND-ONLY CONTRACT: Generate only the requested target vehicle, "
-        "scenery, sky, atmosphere, terrain, environmental lighting, and background "
-        "composition. Never generate or redraw an infotainment unit, gauge cluster, "
-        "screen, bezel, dashboard unit, side rail, button, knob, mounting tab, opening, "
-        "product silhouette, product placeholder, product-shaped reflection, or "
-        "product-shaped shadow. Keep the measured hero zone clear. The exact uploaded "
-        "product is composited later from immutable source RGB and an approved mask."
-    )
-
-
-
-def render_engineering_dna_approval_panel_v21000(uploaded_files):
-    """First-stage mask/fingerprint approval UI for Graphic Marketing."""
-    if Image is None:
-        return
-    images = [
-        file for file in (uploaded_files or [])
-        if str(getattr(file, "type", "") or "").casefold().startswith("image/")
-        or str(getattr(file, "name", "") or "").casefold().endswith((".png", ".jpg", ".jpeg", ".webp"))
-    ]
-    if not images:
-        return
-    selected = st.selectbox(
-        "Engineering product source",
-        options=list(range(len(images))),
-        format_func=lambda index: str(getattr(images[index], "name", f"Image {index + 1}")),
-        key="v21000_engineering_source_selector",
-        help="Select the uploaded product photo used for mask and fingerprint approval.",
-    )
-    file = images[int(selected)]
-    raw = _graphic_uploaded_file_bytes(file)
-    if not raw:
-        return
-    source_sha = hashlib.sha256(raw).hexdigest()
-    state = get_graphic_project_state()
-    approvals = dict(state.get("engineering_approval_v21000") or {})
-    approval = dict(approvals.get(source_sha) or {})
-
-    with st.expander("Engineering DNA & Mask Approval", expanded=False):
-        cols = st.columns(2)
-        try:
-            source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
-            preview = source.copy()
-            preview.thumbnail((640, 480))
-            with cols[0]:
-                st.image(preview, caption="Original product source", use_container_width=True)
-            product_item = {"file": file, "name": getattr(file, "name", "product"), "role": "product_photo"}
-            layer, _ = _graphic_open_product_layer_v3300(file)
-            fingerprint = _graphic_bezel_fingerprint_v20500(product_item, layer=layer)
-            with cols[1]:
-                if layer is not None:
-                    display = layer.copy()
-                    display.thumbnail((640, 480))
-                    st.image(display, caption="Current authoritative cutout", use_container_width=True)
-                st.caption(
-                    f"Segmentation confidence: {float((fingerprint.get('confidence') or {}).get('segmentation') or 0)*100:.1f}%  |  "
-                    f"Screen confidence: {float((fingerprint.get('confidence') or {}).get('screen_detection') or 0)*100:.1f}%  |  "
-                    f"Bezel confidence: {float((fingerprint.get('confidence') or {}).get('bezel_detection') or 0)*100:.1f}%"
-                )
-                st.caption(f"Fingerprint: {str(fingerprint.get('source_sha256') or '')[:16]}…")
-        except Exception as error:
-            st.warning(f"Engineering preview unavailable: {error}")
-            fingerprint = {}
-
-        replacement = st.file_uploader(
-            "Upload transparent replacement PNG",
-            type=["png", "webp"],
-            accept_multiple_files=False,
-            key=f"v21000_transparent_replacement_{source_sha[:12]}",
-            help="Optional: upload a manually prepared transparent product cutout.",
-        )
-        action_cols = st.columns(4)
-        if action_cols[0].button("Approve Mask", key=f"v21000_approve_mask_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "mask_approved": True,
-                "fingerprint_approved": True,
-                "manually_approved": True,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-            })
-        if action_cols[1].button("Reject Mask", key=f"v21000_reject_mask_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "mask_approved": False,
-                "fingerprint_approved": False,
-                "manually_approved": False,
-                "rejected_at": datetime.now(timezone.utc).isoformat(),
-            })
-        if action_cols[2].button("Use Studio Photo", key=f"v21000_use_studio_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "use_original_studio_photo": True,
-                "mask_approved": True,
-                "fingerprint_approved": False,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-            })
-        if replacement is not None and action_cols[3].button("Save Replacement", key=f"v21000_save_replacement_{source_sha[:12]}", use_container_width=True):
-            replacement_raw = _graphic_uploaded_file_bytes(replacement)
-            with Image.open(io.BytesIO(replacement_raw)) as replacement_image:
-                replacement_rgba = ImageOps.exif_transpose(replacement_image).convert("RGBA")
-                if replacement_rgba.getchannel("A").getextrema()[0] >= 250:
-                    st.error("The replacement file does not contain transparency.")
-                else:
-                    buffer = io.BytesIO()
-                    replacement_rgba.save(buffer, format="PNG", optimize=True)
-                    approval.update({
-                        "replacement_data_url": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"),
-                        "mask_approved": True,
-                        "fingerprint_approved": True,
-                        "manually_approved": True,
-                        "approved_at": datetime.now(timezone.utc).isoformat(),
-                    })
-
-        approvals[source_sha] = approval
-        state["engineering_approval_v21000"] = approvals
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        if approval.get("mask_approved"):
-            st.success("The authoritative mask is approved for this product.")
-        elif approval.get("use_original_studio_photo"):
-            st.info("The original studio photograph will be used as the product layer.")
-        elif approval:
-            st.warning("The current mask is not approved.")
 
 
 def _graphic_compose_reference_campaign_v3200(
@@ -21996,7 +22079,6 @@ def _graphic_compose_reference_campaign_v3200(
 
 
 
-
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
     product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
     if not product_item:
@@ -22219,19 +22301,11 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
     # malformed compatibility text, and simplified product geometry.
     use_hybrid_campaign = has_product and has_style and not has_edit_base
     if use_hybrid_campaign:
-        diagnostic_log(
-            "graphic_v3200_hybrid_campaign_started",
-            candidate_route=(candidate or {}).get("provider_route"),
-            hard_vehicle_lock=hard_vehicle_lock,
-        )
-        hybrid_result = None
+        diagnostic_log("graphic_v3200_hybrid_campaign_started", candidate_route=candidate.get("provider_route"), hard_vehicle_lock=hard_vehicle_lock)
         try:
             hybrid_result = _graphic_build_hybrid_campaign_result_v3200(
                 prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
             )
-            if not isinstance(hybrid_result, dict) or not str(hybrid_result.get("data_url") or "").startswith("data:image/"):
-                raise RuntimeError("The reference-locked hybrid compositor returned no image data.")
-
             hybrid_review = _graphic_safe_optional_call(
                 "graphic_v3200_hybrid_review_failed_open",
                 lambda: review_graphic_output_accuracy(
@@ -22244,51 +22318,27 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
             _, hybrid_failed = _graphic_review_scores_v3200(
                 hybrid_review, True, True, bool((vehicle_profile or {}).get("hard_vehicle_lock"))
             )
-
-            # The hybrid route locally composites the uploaded product. Vehicle and
-            # reference-fidelity review is important, but it is not evidence that the
-            # product identity was altered. Return the completed exact hybrid with a
-            # review warning rather than discarding it and forcing a total failure.
-            final_result = hybrid_result
-            if hybrid_failed and hybrid_review:
-                hybrid_result["verification_status"] = "completed_with_review"
-                hybrid_result["output_status"] = "completed_exact_hybrid_with_review_v20430"
-                hybrid_result["verification_warning"] = (
-                    "The exact uploaded product was composited successfully. "
-                    "The target vehicle or reference-layout fidelity requires visual review."
-                )
-                hybrid_result["vehicle_reference_review_required"] = True
-                diagnostic_log(
-                    "graphic_v20430_hybrid_returned_with_review",
-                    review=hybrid_review,
-                )
-            else:
-                hybrid_result["verification_status"] = hybrid_result.get("verification_status") or "verified"
-                hybrid_result["output_status"] = hybrid_result.get("output_status") or "verified_exact_hybrid_v20430"
-        except Exception as hybrid_error:
-            diagnostic_log(
-                "graphic_v20430_hybrid_failed",
-                error_type=type(hybrid_error).__name__,
-                error=hybrid_error,
-            )
-            # If the exact hybrid was already created, preserve it even when a later
-            # optional reviewer failed. Only fall back to the provider candidate when
-            # no hybrid image exists and that candidate itself passed its checks.
-            if isinstance(hybrid_result, dict) and str(hybrid_result.get("data_url") or "").startswith("data:image/"):
-                hybrid_result["verification_status"] = "completed_with_review"
-                hybrid_result["output_status"] = "completed_exact_hybrid_after_review_error_v20430"
-                hybrid_result["verification_warning"] = (
-                    "The exact uploaded product was composited successfully, but an optional "
-                    "vehicle/reference reviewer was unavailable."
-                )
-                hybrid_result["review_error"] = _graphic_compact_error_v4000(hybrid_error)
+            if not hybrid_failed or not hybrid_review:
                 final_result = hybrid_result
-            elif candidate is not None and not candidate_failed:
+            elif not candidate_failed:
+                # Keep the provider artwork only when it already passed strict QA.
+                diagnostic_log("graphic_v3200_hybrid_rejected_using_passed_provider", review=hybrid_review)
                 final_result = candidate
             else:
+                diagnostic_log("graphic_v3200_hybrid_rejected_by_qa", review=hybrid_review)
+                raise RuntimeError("The reference-locked campaign did not pass strict vehicle/content review.")
+        except Exception as hybrid_error:
+            diagnostic_log("graphic_v3200_hybrid_failed", error_type=type(hybrid_error).__name__, error=hybrid_error)
+            # Do not knowingly show a wrong-vehicle result. Preserve the project and
+            # return a retryable error instead of presenting the rejected candidate.
+            if bool((vehicle_profile or {}).get("hard_vehicle_lock")):
+                state = get_graphic_project_state()
+                state["stage"] = "ready_to_generate"
+                state["last_error"] = "strict_vehicle_or_reference_fidelity_failed"
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
                 raise RuntimeError(
-                    "The exact-product hybrid compositor could not complete: "
-                    + _graphic_compact_error_v4000(hybrid_error)
+                    "The image did not pass the strict vehicle and reference-fidelity check. "
+                    "Your product, Silverado lock, and references are preserved. Select Regenerate to try again."
                 ) from hybrid_error
     _graphic_save_latest_project_result(final_result)
     # Existing learning and campaign-memory writes remain best-effort and never block output.
@@ -22379,7 +22429,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v21000-authoritative-alpha-binary-contour"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v21010-v20300-visible-bounds-authoritative-approval"
 
 
 def _graphic_progress_v3300(label):
@@ -22451,9 +22501,7 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """v20500 commercial edge extraction restored from the proven v20300 pipeline.
-
-    Remove only neutral light background connected to the source-image border.
+    """Remove only neutral light background connected to the source-image border.
 
     v19400 deliberately does not classify every white pixel as background. Enclosed
     white UI cards, labels, screen regions and light product trim remain opaque. The
@@ -22644,7 +22692,6 @@ def _graphic_open_product_layer_v3300(uploaded_file):
         if bbox:
             product = product.crop(bbox)
     return product, bool(transparent)
-
 
 
 
@@ -22918,7 +22965,6 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
 
 
 
-
 def _graphic_correction_result_v3300(initial, prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, rejected_guidance, correction):
     current_raw, current_mime = data_url_to_bytes(initial.get("data_url"))
     correction_items = list(role_items)
@@ -22952,30 +22998,6 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 
 
 
-
-
-def _graphic_product_reference_separation_directive_v20400(prompt_text):
-    """Append one stable internal contract separating style and product authority.
-
-    This does not alter user-visible wording. It prevents ambiguous requests such as
-    "use this as a reference" from allowing the advertisement template to contribute
-    product geometry. The style image controls presentation only; the Product Photo is
-    the sole engineering authority.
-    """
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    contract = (
-        "\n\nINTERNAL PRODUCT/STYLE AUTHORITY CONTRACT (v20400):\n"
-        "- Treat the Style Reference as presentation guidance only: layout, typography, "
-        "lighting, background, icon placement, color palette, vehicle placement and overall advertising style.\n"
-        "- Treat the uploaded Product Photo as the sole and direct product authority.\n"
-        "- Never copy, infer, borrow or reconstruct product geometry from the Style Reference.\n"
-        "- Preserve the Product Photo's housing, outer and inner bezel contours, screen aperture, "
-        "bottom-bezel profile, controls, knobs, openings, mounting tabs, holes, proportions, seams and surface details.\n"
-        "- For exact/front-view jobs, do not redraw or regenerate any product pixels.\n"
-        "- Resizing and placement may change only through one coherent whole-product transform; "
-        "never resize the screen, bezel, controls or housing independently.\n"
-    )
-    return value + contract
 
 
 def _graphic_product_recreation_intent_v7000(prompt_text):
@@ -23691,180 +23713,44 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     return final_result
 
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create one exact-source campaign and never discard a completed exact composite for optional QA errors."""
-    state = get_graphic_project_state()
-    state["last_graphic_stage"] = "exact_product_composition"
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-
-    result = _graphic_build_hybrid_campaign_result_v3300(
-        prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
-    )
-    if not isinstance(result, dict) or not str(result.get("data_url") or "").startswith("data:image/"):
-        raise RuntimeError("The exact-product compositor did not return image data.")
-
-    metadata = dict(result.get("layered_metadata") or {})
-    product_item = next(
-        (item for item in (role_items or []) if item.get("role") == "product_photo"),
-        None,
-    )
-    source = _graphic_product_source_signature_v9000(product_item)
-
-    core_hard_failures = []
-    if not metadata.get("exact_product_pixels"):
-        core_hard_failures.append("exact product pixels not confirmed")
-    if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
-        core_hard_failures.append("product source fingerprint mismatch")
-
-    box = list(metadata.get("product_box") or [])
-    canvas = list(metadata.get("canvas_size") or [])
-    if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
-        if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
-            core_hard_failures.append("hero product cropped")
-        rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
-        source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or source.get("aspect_ratio") or 0.0)
-        if source_ratio:
-            ratio_error = abs(source_ratio - rendered_ratio) / max(source_ratio, 0.001)
-            if ratio_error > 0.018:
-                core_hard_failures.append("hero product aspect ratio changed")
-    else:
-        core_hard_failures.append("product geometry metadata unavailable")
-
-    if core_hard_failures:
-        raise RuntimeError(
-            "The exact-product campaign failed a proven product-identity check: "
-            + "; ".join(core_hard_failures)
-        )
-
-    warnings = []
-    validation = {
-        "image_valid": True,
-        "exact_product": True,
-        "zones_valid": False,
-        "verified": False,
-        "vehicle_validation": {},
-        "vehicle_validation_unavailable": False,
-    }
-
-    state = get_graphic_project_state()
-    state["last_graphic_stage"] = "exact_product_validation"
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    try:
-        validation = _graphic_exact_result_validation_v7100(
-            result, role_items, prompt_text, vehicle_profile or {}
-        )
-    except Exception as error:
-        warnings.append("deterministic validation unavailable")
-        diagnostic_log(
-            "graphic_v20420_exact_validation_nonfatal",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
-
-    result["deterministic_verification"] = validation
-    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
-
-    try:
-        source_gate = _graphic_exact_product_quality_gate_v9000(
-            result, role_items, vehicle_profile or {}
-        )
-    except Exception as error:
-        source_gate = {
-            "passed": True,
-            "hard_failures": [],
-            "warnings": ["quality-gate diagnostics unavailable"],
-            "issues": ["quality-gate diagnostics unavailable"],
-            "engine": "v20420-nonfatal-diagnostic-wrapper",
-        }
-        diagnostic_log(
-            "graphic_v20420_quality_gate_nonfatal",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
-
-    result["source_fidelity_gate"] = source_gate
-    for item in source_gate.get("hard_failures") or []:
-        value = str(item)
-        lowered = value.casefold()
-        if any(token in lowered for token in (
-            "source fingerprint mismatch",
-            "exact product pixels not confirmed",
-            "hero product cropped",
-            "aspect ratio changed",
-            "source ratio was not preserved",
-        )):
-            raise RuntimeError(
-                "The exact-product campaign failed a proven product-identity check: " + value
-            )
-        warnings.append("engineering review: " + value)
-    warnings.extend(str(item) for item in (source_gate.get("warnings") or []))
-
-    try:
-        layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
-    except Exception as error:
-        layout_gate = {"required": False, "passed": None, "issues": ["layout diagnostics unavailable"]}
-        diagnostic_log(
-            "graphic_v20420_layout_gate_nonfatal",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
-    result["reference_layout_fidelity_gate"] = layout_gate
-    if layout_gate.get("required") and layout_gate.get("passed") is False:
+    """Create a deterministic exact-product campaign and fail closed on product/reference integrity."""
+    result=_graphic_build_hybrid_campaign_result_v3300(prompt_text,role_items,output_size,reference_blueprint or {},vehicle_profile or {})
+    validation=_graphic_exact_result_validation_v7100(result,role_items,prompt_text,vehicle_profile or {})
+    result["deterministic_verification"]=validation; result["vehicle_validation"]=validation.get("vehicle_validation") or {}
+    source_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile or {})
+    result["source_fidelity_gate"]=source_gate
+    if not source_gate.get("passed"):
+        raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
+    layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
+    result["reference_layout_fidelity_gate"]=layout_gate
+    if layout_gate.get("required") and not layout_gate.get("passed"):
+        # Preserve the successful professional composite. Layout is reviewable and
+        # may be corrected locally; it must not force the request into a crude or
+        # generative product fallback when the uploaded product is already exact.
         result["layout_review_required"] = True
         result["layout_review_issues"] = list(layout_gate.get("issues") or [])
-        warnings.extend("layout review: " + str(item) for item in (layout_gate.get("issues") or []))
-
-    if not validation.get("zones_valid", False):
-        warnings.append("one or more campaign metadata zones require review")
-    vehicle = validation.get("vehicle_validation") or {}
-    if validation.get("vehicle_validation_unavailable"):
-        warnings.append("optional vehicle verification was unavailable")
-    elif vehicle and vehicle.get("verified") is False:
-        warnings.append("target vehicle requires visual review")
-
-    if validation.get("verified") and not warnings:
-        result["output_status"] = "verified_exact_product_v20420"
-        result["verification_status"] = "verified"
-    else:
-        result["output_status"] = "completed_exact_product_with_review_v20420"
-        result["verification_status"] = "completed_with_review"
-
-    unique_warnings = []
-    for warning in warnings:
-        clean = re.sub(r"\s+", " ", str(warning or "")).strip()
-        if clean and clean not in unique_warnings:
-            unique_warnings.append(clean)
-    if unique_warnings:
-        result["verification_warnings"] = unique_warnings[:20]
         result["verification_warning"] = (
-            "The uploaded product was composited from the authoritative source. "
-            "Review notes: " + "; ".join(unique_warnings[:8])
-        )
-
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
-    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"] = str(next(
-        (i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""
-    ))
-    result["style_reference_sources"] = [
-        str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
-    ][:4]
-    result["reference_content_leakage_prohibited"] = True
-    result["engineering_dna_active"] = bool((result.get("layered_metadata") or {}).get("engineering_dna", {}).get("available"))
-    result["engineering_dna_mode"] = "full_measurement_and_enforcement"
-    result["geometry_engine_active"] = True
-    result["full_fingerprint_engine_active"] = True
-    result["campaign_cache_version"] = CAMPAIGN_CACHE_VERSION
-    result["product_render_mode"] = _graphic_render_mode_v9000(
-        mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
-    )
-    result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
-    result["ai_product_recreated"] = False
-    result["speed_optimized"] = True
-
-    state = get_graphic_project_state()
-    state["last_graphic_stage"] = "exact_product_completed"
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            str(result.get("verification_warning") or "").strip() +
+            " Reference-layout review recommended; the uploaded product remains preserved."
+        ).strip()
+    if validation.get("verified"):
+        result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
+    elif validation.get("unverified"):
+        result=_graphic_mark_unverified_v4100(result,"The exact product is preserved, but optional vehicle verification was unavailable.",status="completed_exact_product_unverified_v9000")
+    elif validation.get("passed"):
+        result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
+    else:
+        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
+    result["graphic_engine_version"]="v20300-commercial-exact-product"
+    result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
+    result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
+    result["reference_content_leakage_prohibited"]=True
+    result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
+    result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
+    result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
     return result
+
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
@@ -23963,7 +23849,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             campaign_spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
-        production_prompt=_graphic_chatgpt_production_prompt(_graphic_product_reference_separation_directive_v20400(prompt_text),role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
+        production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
         diagnostic_log("graphic_v8000_route", mode=product_mode.get("mode"), edit_kind=edit_kind, template=brand_template)
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
@@ -24364,7 +24250,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
-    project["last_graphic_stage"] = "advanced_pipeline"
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
         return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
@@ -24382,9 +24267,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
 
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
     # as a compatibility recovery route for deployed Streamlit environments.
-    project = get_graphic_project_state()
-    project["last_graphic_stage"] = "v3200_compatibility_pipeline"
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
             prompt_text, uploaded_files, **arguments
@@ -24412,7 +24294,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     try:
         recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         has_product = any(item.get("role") == "product_photo" for item in recovery_roles or [])
-        recreation_requested = bool((_graphic_product_recreation_intent_v7000(prompt_text) or {}).get("enabled"))
+        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text))
         exact_front_job = bool(preserve_product and has_product and not recreation_requested)
     except Exception:
         exact_front_job = False
@@ -40621,8 +40503,6 @@ else:
     )
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
-    if assistant == "🎨 Graphic Marketing":
-        render_engineering_dna_approval_panel_v21000(uploaded_files)
 
     for message_index, msg in enumerate(st.session_state.messages):
         render_chat_message(
@@ -41073,18 +40953,8 @@ else:
                     error_type=type(error).__name__,
                     error=error,
                 )
-                failed_state = get_graphic_project_state()
-                failed_stage = str(
-                    failed_state.get("last_graphic_stage")
-                    or failed_state.get("last_failed_stage")
-                    or "unknown"
-                )
-                compact_error = _graphic_compact_error_v4000(error)
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. "
-                    f"Failed stage: {failed_stage}. "
-                    f"Error: {type(error).__name__}: {compact_error[:220]}. "
-                    "Please select Retry or type ‘Create it again.’ "
+                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
                     f"Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
