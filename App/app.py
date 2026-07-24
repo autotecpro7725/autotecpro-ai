@@ -167,6 +167,7 @@ except Exception:
 #   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
 
 # v10000 AutoTecPro Graphic Production Edition: source-pixel visual verification, segmentation diagnostics, exact-product quality gating, bounded QA reuse, and production audit metadata; no intentional non-Graphic changes.
+# v11000 Commercial Composer Engine: reference-faithful fixed advertising grid, full-scene header treatment, dominant exact-product placement, official logo layer, edge decontamination, grounded shadow, and stricter hero-scale verification; no intentional non-Graphic changes.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -18785,7 +18786,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v10000-autotecpro-graphic-production-edition"
+GRAPHIC_ENGINE_VERSION = "v11000-autotecpro-commercial-composer-engine"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -19471,11 +19472,14 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
         area = (box[2] * box[3]) / (canvas[0] * canvas[1])
         width_ratio = box[2] / canvas[0]
         height_ratio = box[3] / canvas[1]
-        if area < 0.12 and not (width_ratio >= 0.18 and height_ratio >= 0.48):
-            issues.append("hero product too small")
+        source_ratio = float(source.get("aspect_ratio") or 0.0)
+        reference_driven = any(item.get("role") == "style_reference" for item in (role_items or []))
+        minimum_height = 0.48 if reference_driven else 0.44
+        minimum_width = 0.18 if source_ratio < 0.90 else 0.28
+        if height_ratio < minimum_height or width_ratio < minimum_width:
+            issues.append("hero product too small for the commercial reference hierarchy")
         if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
             issues.append("hero product cropped")
-        source_ratio = float(source.get("aspect_ratio") or 0.0)
         rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
         if source_ratio and abs(source_ratio - rendered_ratio) / max(source_ratio, 0.001) > 0.14:
             issues.append("hero product aspect ratio changed")
@@ -19622,16 +19626,17 @@ def _graphic_compose_reference_campaign_v3200(
     edit_directive=None,
     product_dna=None,
 ):
-    """Build a strict AutoTecPro commercial without allowing AI to redraw the product.
+    """Compose a reference-faithful AutoTecPro advertisement from deterministic layers.
 
-    The image provider supplies only the vehicle/environment plate. This renderer uses
-    fixed, production-safe campaign geometry modeled after the approved AutoTecPro
-    reference: brand/copy on the upper-left, dense feature matrix on the upper-right,
-    the exact uploaded product as the dominant hero on the lower-left, the requested
-    vehicle on the lower-right, and a deterministic full-width bottom benefit bar.
+    v11000 never asks the image model to lay out the advertisement or redraw the
+    uploaded product. The provider supplies only scenery and the target vehicle.
+    This renderer applies a fixed AutoTecPro commercial grid modeled on the approved
+    reference: logo and strong copy upper-left, compact 4x2 feature matrix upper-right,
+    exact uploaded product as the dominant foreground hero, secondary vehicle behind it,
+    and a full-width benefit bar along the bottom.
     """
     if Image is None:
-        raise RuntimeError("Pillow is required for the strict commercial compositor.")
+        raise RuntimeError("Pillow is required for the commercial composer.")
 
     from PIL import ImageDraw, ImageFilter
 
@@ -19647,37 +19652,75 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
 
-    # Production-safe visual zones. Do not trust AI-derived geometry for the final
-    # deterministic campaign because malformed boxes caused tiny copy, empty headers,
-    # and undersized products in prior releases.
-    top_h = int(H * float(layout_bp.get("top_ratio", template_cfg.get("top_ratio", 0.335))))
-    bar_top = int(H * float(layout_bp.get("bar_ratio", template_cfg.get("bar_ratio", 0.885))))
-
-    # Calm top copy plate while retaining some scenery texture.
+    # Reference-faithful production grid. The approved artwork uses the scenery as the
+    # entire background; the top is merely calmed for copy, never replaced by a large
+    # opaque white panel. This prevents the empty presentation-slide look seen before.
+    header_h = int(H * 0.345)
+    bar_top = int(H * 0.885)
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay, "RGBA")
-    od.rectangle((0, 0, W, top_h), fill=(246, 249, 253, 218))
-    od.rectangle((0, top_h - int(H * 0.035), W, top_h + int(H * 0.02)), fill=(246, 249, 253, 115))
-    od.rectangle((0, bar_top, W, H), fill=(4, 7, 12, 238))
+    od.rectangle((0, 0, W, header_h), fill=(244, 248, 253, 150))
+    # Gentle vertical transition into the scene.
+    fade_h = max(1, int(H * 0.075))
+    for step in range(fade_h):
+        alpha = int(150 * (1.0 - step / fade_h))
+        y = header_h + step
+        od.line((0, y, W, y), fill=(244, 248, 253, alpha))
     canvas = Image.alpha_composite(canvas, overlay)
 
-    # Use an actual transparent cutout whenever available. If segmentation is unsafe,
-    # retain the exact original on a subtle clean card rather than hallucinating it.
+    # Keep exact source pixels. When cutout confidence is low, use a tightly cropped
+    # neutral card rather than corrupting physical geometry.
     if not transparent:
-        pad = max(8, int(H * 0.008))
-        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (250, 251, 253, 245))
+        pad = max(6, int(H * 0.006))
+        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (250, 251, 253, 242))
         card.alpha_composite(product, (pad, pad))
         product = card
+    else:
+        # Remove the thin white fringe common around glossy black catalogue products.
+        # RGB pixels remain untouched; only the outermost alpha edge is contracted.
+        try:
+            alpha = product.getchannel("A")
+            if alpha.getextrema()[0] < 245:
+                clean_alpha = alpha.filter(ImageFilter.MinFilter(3))
+                product.putalpha(clean_alpha)
+                bbox = clean_alpha.getbbox()
+                if bbox:
+                    product = product.crop(bbox)
+        except Exception:
+            pass
 
-    # Exact-product hero placement: dominant and fully visible, including the gap below
-    # the screen, lower openings, mounting tabs, side handles, knobs, and trim geometry.
-    hero_x0 = int(W * (float(layout_bp.get("hero_left", template_cfg.get("hero_left", 0.025))) + float(transforms.get("product_dx", 0.0))))
-    hero_y0 = int(H * (float(layout_bp.get("hero_top", template_cfg.get("hero_top", 0.335))) + float(transforms.get("product_dy", 0.0))))
-    hero_x1 = int(W * (float(layout_bp.get("hero_right", template_cfg.get("hero_right", 0.625))) + float(transforms.get("product_dx", 0.0))))
-    hero_y1 = bar_top - int(H * 0.008)
-    hero_w = hero_x1 - hero_x0
-    hero_h = hero_y1 - hero_y0
-    scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height)) * max(1.04, float(template_cfg.get("product_scale", 1.0))) * float(transforms.get("product_scale", 1.0))
+    # Dynamic hero geometry: portrait head units must still occupy roughly half the
+    # canvas height, while wide clusters use the larger left foreground zone.
+    source_aspect = product.width / max(1, product.height)
+    product_dx = float(transforms.get("product_dx", 0.0))
+    product_dy = float(transforms.get("product_dy", 0.0))
+    if source_aspect < 0.82:  # tall vertical infotainment unit
+        hero_left, hero_right = 0.045, 0.47
+        hero_top = 0.335
+        target_height_ratio = 0.545
+    elif source_aspect < 1.25:
+        hero_left, hero_right = 0.035, 0.55
+        hero_top = 0.345
+        target_height_ratio = 0.535
+    else:  # wide gauge cluster / horizontal unit
+        hero_left, hero_right = 0.025, 0.655
+        hero_top = 0.355
+        target_height_ratio = 0.515
+
+    hero_x0 = int(W * (hero_left + product_dx))
+    hero_x1 = int(W * (hero_right + product_dx))
+    hero_y0 = int(H * (hero_top + product_dy))
+    hero_y1 = bar_top - int(H * 0.006)
+    hero_w = max(1, hero_x1 - hero_x0)
+    hero_h = max(1, hero_y1 - hero_y0)
+
+    base_scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
+    desired_h = int(H * target_height_ratio)
+    desired_scale = desired_h / max(1, product.height)
+    scale = min(base_scale, max(base_scale * 0.92, desired_scale))
+    scale *= max(1.0, float(template_cfg.get("product_scale", 1.0)))
+    scale *= float(transforms.get("product_scale", 1.0))
+    # Never crop the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
     product = product.resize(
         (max(1, int(product.width * scale)), max(1, int(product.height * scale))),
@@ -19686,12 +19729,12 @@ def _graphic_compose_reference_campaign_v3200(
     px = hero_x0 + max(0, (hero_w - product.width) // 2)
     py = hero_y1 - product.height
 
-    # Natural grounding shadow without changing source pixels.
+    # Grounded contact shadow: downward and subtle, not a bright all-around halo.
     alpha = product.getchannel("A")
-    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(10, H // 70)))
+    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
     shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.42)))
-    canvas.alpha_composite(shadow, (px + int(W * 0.009), py + int(H * 0.012)))
+    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
+    canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
     canvas.alpha_composite(product, (px, py))
 
     draw = ImageDraw.Draw(canvas, "RGBA")
@@ -19714,7 +19757,21 @@ def _graphic_compose_reference_campaign_v3200(
             if text_width(value, font) <= max_width:
                 return font
             size -= 2
-        return _graphic_font(minimum_px, bold)
+        return _graphic_font(int(minimum_px), bold)
+
+    # Official logo is a deterministic layer and is always applied in commercial mode.
+    logo_applied = False
+    logo = get_official_brand_logo_image()
+    if logo is not None:
+        try:
+            target_w = int(W * 0.205)
+            target_h = max(1, int(logo.height * target_w / max(1, logo.width)))
+            logo = logo.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(logo, (int(W * 0.025), int(H * 0.025)))
+            logo_applied = True
+            draw = ImageDraw.Draw(canvas, "RGBA")
+        except Exception:
+            logo_applied = False
 
     headline = str(campaign_spec.get("headline") or "PREMIUM INFOTAINMENT SYSTEM").strip().upper()
     compatibility = str(
@@ -19724,51 +19781,46 @@ def _graphic_compose_reference_campaign_v3200(
     ).strip()
     tagline = str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.").strip()
 
-    # Upper-left copy begins below the official logo zone. The logo itself is applied
-    # afterward by the existing brand-logo function.
     left_x = int(W * 0.025)
     left_w = int(W * 0.535)
-    headline_y = int(H * 0.135)
-    headline_font = fitted_font(headline, left_w, H * 0.064, H * 0.040, True)
+    headline_y = int(H * 0.145)
+    headline_font = fitted_font(headline, left_w, H * 0.069, H * 0.043, True)
     headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
-    line_step = int(H * 0.066)
+    line_step = int(H * 0.068)
     for line in headline_lines:
         draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
         headline_y += line_step
 
-    ribbon_y = min(int(H * 0.265), headline_y + int(H * 0.006))
-    ribbon_h = int(H * 0.050)
-    ribbon_font = fitted_font(compatibility, int(W * 0.47), H * 0.029, H * 0.019, True)
-    ribbon_w = min(int(W * 0.50), max(int(W * 0.34), text_width(compatibility, ribbon_font) + int(W * 0.045)))
+    ribbon_y = min(int(H * 0.272), headline_y + int(H * 0.004))
+    ribbon_h = int(H * 0.052)
+    ribbon_font = fitted_font(compatibility, int(W * 0.49), H * 0.030, H * 0.019, True)
+    ribbon_w = min(int(W * 0.515), max(int(W * 0.33), text_width(compatibility, ribbon_font) + int(W * 0.046)))
     draw.polygon(
         [
             (left_x, ribbon_y),
             (left_x + ribbon_w, ribbon_y),
             (left_x + ribbon_w - int(W * 0.018), ribbon_y + ribbon_h),
-            (left_x - int(W * 0.006), ribbon_y + ribbon_h),
+            (left_x - int(W * 0.005), ribbon_y + ribbon_h),
         ],
         fill=red,
     )
-    draw.text((left_x + int(W * 0.016), ribbon_y + int(H * 0.007)), compatibility, font=ribbon_font, fill=white)
-
+    draw.text((left_x + int(W * 0.015), ribbon_y + int(H * 0.007)), compatibility, font=ribbon_font, fill=white)
     tag_font = fitted_font(tagline, left_w, H * 0.027, H * 0.018, False)
-    draw.text((left_x, ribbon_y + ribbon_h + int(H * 0.018)), tagline, font=tag_font, fill=navy)
+    draw.text((left_x, ribbon_y + ribbon_h + int(H * 0.017)), tagline, font=tag_font, fill=navy)
 
-    # Dense and aligned 2x4 feature matrix, matching the approved reference hierarchy.
+    # Compact, reference-faithful 4x2 feature matrix.
     features = list(campaign_spec.get("feature_labels") or [])[:8]
+    defaults = [
+        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
+        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
+    ]
     while len(features) < 8:
-        defaults = [
-            "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
-            "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
-        ]
         features.append(defaults[len(features)])
-    grid_x = int(W * float(layout_bp.get("feature_left", 0.585)))
-    grid_y = int(H * float(layout_bp.get("feature_top", 0.035)))
-    grid_w = int(W * float(layout_bp.get("feature_width", 0.385)))
-    grid_h = int(H * float(layout_bp.get("feature_height", 0.275))) * float(transforms.get("feature_scale", 1.0))
-    cell_w = grid_w / 4.0
-    cell_h = grid_h / 2.0
-    feature_font = _graphic_font(max(13, int(H * 0.017)), False)
+    grid_x, grid_y = int(W * 0.575), int(H * 0.035)
+    grid_w, grid_h = int(W * 0.395), int(H * 0.270)
+    grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
+    cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
+    feature_font = _graphic_font(max(13, int(H * 0.0175)), False)
     for idx, label in enumerate(features):
         row, col = divmod(idx, 4)
         x0 = int(grid_x + col * cell_w)
@@ -19778,10 +19830,8 @@ def _graphic_compose_reference_campaign_v3200(
         if row:
             draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
         icon_box = (
-            int(x0 + cell_w * 0.31),
-            int(y0 + cell_h * 0.04),
-            int(x0 + cell_w * 0.69),
-            int(y0 + cell_h * 0.42),
+            int(x0 + cell_w * 0.31), int(y0 + cell_h * 0.035),
+            int(x0 + cell_w * 0.69), int(y0 + cell_h * 0.42),
         )
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
@@ -19791,36 +19841,27 @@ def _graphic_compose_reference_campaign_v3200(
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
             ty += int(H * 0.021)
 
-    # Vehicle label on the right-side scenery, away from the product.
     vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
-    vehicle_font = fitted_font(vehicle_label, int(W * 0.34), H * 0.026, H * 0.017, True)
-    label_x = int(W * 0.66)
-    label_y = int(H * 0.815)
+    vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
+    label_x, label_y = int(W * 0.67), int(H * 0.815)
     draw.text((label_x, label_y), vehicle_label, font=vehicle_font, fill=white, stroke_width=2, stroke_fill=(0, 0, 0, 180))
-    draw.rectangle((label_x, label_y + int(H * 0.035), label_x + min(int(W * 0.11), text_width(vehicle_label, vehicle_font)), label_y + int(H * 0.040)), fill=red)
+    underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
+    draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
 
-    # Full-width deterministic bottom benefit bar.
     benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
+    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
     while len(benefits) < 5:
-        defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
-        benefits.append(defaults[len(benefits)])
-    bx = int(W * 0.035)
-    by = bar_top
-    bw = int(W * 0.93)
-    bh = H - by - int(H * 0.015)
-    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 244), outline=(255, 255, 255, 70), width=1)
+        benefits.append(bottom_defaults[len(benefits)])
+    bx, by, bw = int(W * 0.035), bar_top, int(W * 0.93)
+    bh = H - by - int(H * 0.014)
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 245), outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
     bottom_font = _graphic_font(max(13, int(H * 0.018)), False)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
             draw.line((x0, by + int(H * 0.018), x0, by + bh - int(H * 0.018)), fill=(255, 255, 255, 95), width=1)
-        icon_box = (
-            int(x0 + cell * 0.08),
-            int(by + bh * 0.20),
-            int(x0 + cell * 0.30),
-            int(by + bh * 0.74),
-        )
+        icon_box = (int(x0 + cell * 0.08), int(by + bh * 0.20), int(x0 + cell * 0.30), int(by + bh * 0.74))
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
         lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.61), 2)
         ty = int(by + bh * 0.26)
@@ -19830,11 +19871,13 @@ def _graphic_compose_reference_campaign_v3200(
 
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    product_box = [px, py, product.width, product.height]
     return output.getvalue(), {
-        "engine": "strict-commercial-composer-v6000",
+        "engine": "autotecpro-commercial-composer-v11000",
         "exact_product_pixels": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
+        "official_brand_logo_applied": logo_applied,
         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
         "campaign_zones": [
             "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
@@ -19845,7 +19888,10 @@ def _graphic_compose_reference_campaign_v3200(
             "gap_below_screen", "lower_openings", "side_handle_openings",
             "bottom_mounting_gaps", "climate_controls", "physical_buttons",
         ],
-        "product_box": [px, py, product.width, product.height],
+        "product_box": product_box,
+        "product_width_ratio": round(product.width / max(1, W), 4),
+        "product_height_ratio": round(product.height / max(1, H), 4),
+        "product_area_ratio": round((product.width * product.height) / max(1, W * H), 4),
         "brand_template": template_key,
         "product_dna_active": bool(product_dna),
         "layout_transforms": transforms,
@@ -19855,9 +19901,11 @@ def _graphic_compose_reference_campaign_v3200(
         "reference_content_policy": "geometry_only_no_reference_pixels",
         "product_source_sha256": _graphic_product_source_signature_v9000(product_item).get("sha256"),
         "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
-        "render_mode": "commercial_recreation" if any(i.get("role")=="style_reference" for i in role_items or []) else "autotecpro_studio",
+        "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
+        "reference_style_grid": "approved-autotecpro-hero-left-v11000",
     }
+
 
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
     product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
