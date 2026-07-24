@@ -170,6 +170,7 @@ except Exception:
 # v11000 Commercial Composer Engine: reference-faithful fixed advertising grid, full-scene header treatment, dominant exact-product placement, official logo layer, edge decontamination, grounded shadow, and stricter hero-scale verification; no intentional non-Graphic changes.
 # v15000 Graphic Recovery + First-Command Generation: launches generation on the first contextual create command, repairs two-asset project roles, and adds a layered fail-open provider recovery route so strict QA failures cannot block all image creation.
 # v16000 Graphic Stability + Style DNA + Typography: robust same-turn creation, active-asset locks, project style DNA, validated fallback blueprint, larger deterministic copy, provider retry, recovery post-processing, truthful QA, and stage diagnostics.
+# v17000 Graphic Engine 2.0 (verified v16000 baseline): preserves the production exact-product path by default; adds flexible Product DNA recreation for explicit angle/perspective requests; includes v16200 layout precision for larger hero-product scale, farther-right/deeper vehicle staging, improved feature-grid spacing, and rebalanced bottom benefit bar; no intentional non-Graphic changes.
 # v14000 Visible-Product Reference Reconstruction: trims non-product canvas margins without altering product pixels, locks dominant hero scale/position, strengthens commercial hierarchy, and rejects sparse reference recreations.
 # v12000 Final Vehicle & Accuracy Consolidation: reference-pixel-isolated background generation, target-only vehicle prompting, body-type-aware validation, one bounded vehicle retry, validated-background caching only, fail-closed hard-vehicle QA, and stricter exact-product verification; no intentional non-Graphic changes.
 # v13000 Reference-Locked Commercial Reconstruction: normalized reference-zone extraction, blueprint-driven deterministic geometry, dominant hero scaling, title/feature/footer proportion locking, quantitative layout-fidelity QA, and fail-closed reference recreation verification; no intentional non-Graphic changes.
@@ -19386,10 +19387,10 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
         "headline_box": [0.022, 0.145, 0.535, 0.090],
         "compatibility_box": [0.020, 0.235, 0.435, 0.055],
         "tagline_box": [0.022, 0.300, 0.535, 0.045],
-        "feature_matrix_box": [0.570, 0.028, 0.400, 0.305],
-        "hero_product_box": [0.025, 0.335, 0.655, 0.545],
-        "vehicle_box": [0.650, 0.390, 0.320, 0.405],
-        "bottom_bar_box": [0.035, 0.885, 0.930, 0.100],
+        "feature_matrix_box": [0.565, 0.025, 0.410, 0.315],
+        "hero_product_box": [0.018, 0.305, 0.682, 0.575],
+        "vehicle_box": [0.695, 0.435, 0.275, 0.335],
+        "bottom_bar_box": [0.035, 0.875, 0.930, 0.110],
     }
     aliases = {
         "product_box": "hero_product_box", "hero_box": "hero_product_box",
@@ -19447,18 +19448,18 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
     # Commercial guardrails: the reference product must remain dominant and the
     # information zones must stay substantial. These limits prevent sparse slide-like output.
     hero = list(defaults["hero_product_box"])
-    hero[2] = max(hero[2], 0.58)
-    hero[3] = max(hero[3], 0.52)
-    hero[0] = min(hero[0], 0.065)
-    hero[1] = min(max(hero[1], 0.30), 0.42)
+    hero[2] = max(hero[2], 0.64)
+    hero[3] = max(hero[3], 0.56)
+    hero[0] = min(hero[0], 0.045)
+    hero[1] = min(max(hero[1], 0.285), 0.37)
     defaults["hero_product_box"] = clean_box(hero, defaults["hero_product_box"])
 
     features = list(defaults["feature_matrix_box"])
-    features[2] = max(features[2], 0.32); features[3] = max(features[3], 0.245)
+    features[2] = max(features[2], 0.385); features[3] = max(features[3], 0.285)
     defaults["feature_matrix_box"] = clean_box(features, defaults["feature_matrix_box"])
 
     footer = list(defaults["bottom_bar_box"])
-    footer[2] = max(footer[2], 0.86); footer[3] = max(footer[3], 0.085)
+    footer[2] = max(footer[2], 0.90); footer[3] = max(footer[3], 0.102)
     defaults["bottom_bar_box"] = clean_box(footer, defaults["bottom_bar_box"])
 
     defaults.update({
@@ -19804,11 +19805,11 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         "Forbidden content: infotainment product, dashboard screen, gauge cluster, product frame, logo, headline, text, icons, ribbon, benefit bar, watermark, screenshot, poster, advertisement panel, collage, or floating UI.",
         f"TARGET VEHICLE IDENTITY LOCK: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'}.",
         f"BODY-TYPE LOCK: it must visibly be a {body_type}; do not substitute a different body class.",
-        "Place the target vehicle on the RIGHT, behind the future product zone, with its grille, lamps, body proportions, cab/roofline, and wheelbase cues visible enough for identity verification.",
+        "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
         f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
         f"Reserve the left foreground from {int(layout['hero_left']*100)}% to {int(layout['hero_right']*100)}% width and from {int(layout['hero_top']*100)}% height downward for a dominant exact product cutout.",
         f"Keep the top {int(layout['top_ratio']*100)}% calm for deterministic typography and the bottom {int((1-layout['bar_ratio'])*100)}% clear for a deterministic benefit bar.",
-        "The vehicle is secondary; the empty left product zone must remain the strongest foreground area.",
+        "The vehicle is strictly secondary and farther from camera; the empty left product zone must remain the strongest foreground area by a clear visual margin. Do not place the vehicle near center and do not enlarge it into a co-hero.",
         "Use realistic tonal separation and contact lighting behind the future product, but do not draw a product or product shadow.",
         ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
         ("Additional scene direction, after removing conflicting reference-vehicle terms: " + clean_direction) if clean_direction else "Use a clean premium automotive environment.",
@@ -20119,7 +20120,7 @@ def _graphic_compose_reference_campaign_v3200(
         desired_scale = hero_h / max(1, product.height)
     else:
         desired_scale = hero_w / max(1, product.width)
-    scale = min(base_scale, max(base_scale * 0.985, desired_scale))
+    scale = min(base_scale, max(base_scale * 0.998, desired_scale))
     scale *= max(1.0, float(layout_bp.get("template_product_scale", template_cfg.get("product_scale", 1.0))))
     scale *= float(transforms.get("product_scale", 1.0))
     # Never crop the exact product.
@@ -20129,7 +20130,7 @@ def _graphic_compose_reference_campaign_v3200(
         Image.Resampling.LANCZOS,
     )
     if source_aspect < 0.90:
-        px = hero_x0 + max(0, int((hero_w - product.width) * 0.18))
+        px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     py = hero_y1 - product.height
@@ -20230,7 +20231,7 @@ def _graphic_compose_reference_campaign_v3200(
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
     grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
     cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
-    feature_font = _graphic_font(max(17, int(H * 0.0215)), False)
+    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
     for idx, label in enumerate(features):
         row, col = divmod(idx, 4)
         x0 = int(grid_x + col * cell_w)
@@ -20240,16 +20241,16 @@ def _graphic_compose_reference_campaign_v3200(
         if row:
             draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
         icon_box = (
-            int(x0 + cell_w * 0.31), int(y0 + cell_h * 0.035),
-            int(x0 + cell_w * 0.69), int(y0 + cell_h * 0.42),
+            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
+            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
         )
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
-        ty = int(y0 + cell_h * 0.54)
+        ty = int(y0 + cell_h * 0.57)
         for line in lines:
             tw = text_width(line, feature_font)
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
-            ty += int(H * 0.021)
+            ty += int(H * 0.0225)
 
     vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
     vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
@@ -20267,24 +20268,24 @@ def _graphic_compose_reference_campaign_v3200(
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 245), outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
-    bottom_font = _graphic_font(max(17, int(H * 0.021)), False)
+    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
-            draw.line((x0, by + int(H * 0.018), x0, by + bh - int(H * 0.018)), fill=(255, 255, 255, 95), width=1)
-        icon_box = (int(x0 + cell * 0.08), int(by + bh * 0.20), int(x0 + cell * 0.30), int(by + bh * 0.74))
+            draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
+        icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
-        lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.61), 2)
-        ty = int(by + bh * 0.26)
+        lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
+        ty = int(by + bh * 0.25)
         for line in lines:
-            draw.text((int(x0 + cell * 0.35), ty), line, font=bottom_font, fill=white)
+            draw.text((int(x0 + cell * 0.34), ty), line, font=bottom_font, fill=white)
             ty += int(H * 0.024)
 
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
     product_box = [px, py, product.width, product.height]
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v13000",
+        "engine": "autotecpro-commercial-composer-v16200",
         "exact_product_pixels": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
@@ -20325,7 +20326,7 @@ def _graphic_compose_reference_campaign_v3200(
         "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
-        "reference_style_grid": "reference-locked-commercial-grid-v13000",
+        "reference_style_grid": "reference-locked-commercial-grid-v16200",
     }
 
 
@@ -21159,24 +21160,32 @@ def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
 
 
 def _graphic_multiview_identity_prompt_v7000(role_items, mode_info, structure_profile):
-    """Build strict product-identity instructions for an AI-created new viewpoint."""
+    """Build Product DNA guidance for an AI-created new viewpoint.
+
+    The camera, scale, perspective, lighting and crop may change. The engineering
+    identity, screen/unit proportions, interface and characteristic hardware may not.
+    """
     if not (mode_info or {}).get("recreates_product"):
         return ""
     products = [i for i in (role_items or []) if i.get("role") == "product_photo"]
     names = [str(i.get("name") or "product source") for i in products[:6]]
-    requested_view = str(((mode_info or {}).get("recreation") or {}).get("requested_view") or "new camera angle")
+    requested_view = str(((mode_info or {}).get("recreation") or {}).get("requested_view") or "new requested camera angle")
     profile_text = _graphic_product_structure_text_v4300(structure_profile)
     return f"""
-AI PRODUCT RECREATION MODE — STRICT IDENTITY LOCK:
-- Create the same physical AutoTecPro product from a {requested_view} viewpoint.
-- Product identity sources, in priority order: {', '.join(names) or 'uploaded product source'}.
-- Treat every supplied product view as the same unit. Reconcile them into one consistent object; do not average them into a generic dashboard.
-- Preserve the exact outer silhouette, screen aspect ratio/UI, bezel thickness, side trim/handles, climate knobs, physical buttons, lower frame, mounting tabs, cavities, openings, and the horizontal gap below the screen.
-- Never fill a real opening, delete a mounting tab, invent a control, simplify the lower frame, or change the screen interface.
-- Infer only surfaces that are genuinely hidden in all source views. Keep such inferred surfaces conservative, OEM-like, and consistent with visible geometry.
-- Do not copy a product from any advertisement reference. Style references control campaign styling only.
-- The result is an AI-recreated product view and must remain recognizably identical to the uploaded unit.
-- Structural identity profile: {profile_text or 'Use the uploaded product views as the complete identity specification.'}
+GRAPHIC ENGINE 2.0 — PRODUCT DNA RECREATION MODE:
+- Reproduce the same physical AutoTecPro unit from a {requested_view} viewpoint.
+- Identity sources, in priority order: {', '.join(names) or 'uploaded product source'}.
+- Camera angle, perspective, rotation, lighting, reflections, apparent size and composition MAY change naturally.
+- Do not treat the source as a flat sticker; reconstruct a plausible three-dimensional view of the same engineered object.
+- Preserve the whole-unit width/height relationship under perspective, and preserve the screen's intrinsic aspect ratio and its position within the housing.
+- Preserve the interface design and recognizable screen content hierarchy; do not replace it with an unrelated generic dashboard UI.
+- Preserve outer silhouette, bezel relationships, lower control panel, button/knob count and spacing, side structures, brackets, mounting tabs, cavities, openings, gaps and trim.
+- Perspective foreshortening is allowed, but stretching, widening, narrowing, melting, simplifying or redesigning the unit is forbidden.
+- Never fill a real opening, delete a mounting tab, invent a control, merge separate controls, simplify the lower frame, or change the screen-to-housing proportion.
+- Treat all uploaded product views as the same unit. Reconcile them into one coherent object rather than averaging them into a generic product.
+- Infer only surfaces hidden in every supplied view; keep inferred geometry conservative and consistent with visible evidence.
+- Advertisement references control layout/style only and must never supply product geometry.
+- Structural Product DNA: {profile_text or 'Use all uploaded product views as the complete engineering identity specification.'}
 """
 
 
@@ -21365,21 +21374,41 @@ def _graphic_select_brand_template_v8000(prompt_text, has_style=False):
 
 
 def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
+    """Build flexible Product DNA: preserve identity, not one fixed camera view."""
     products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
+    signatures = [_graphic_product_source_signature_v9000(item) for item in products[:8]]
+    source_ratios = [float(sig.get("aspect_ratio") or 0.0) for sig in signatures if float(sig.get("aspect_ratio") or 0.0) > 0]
     dna = {
+        "engine": "v17000-product-dna",
         "product_view_count": len(products),
         "source_names": [str(item.get("name") or "") for item in products[:8]],
         "source_ids": [str(item.get("asset_id") or item.get("id") or "") for item in products[:8]],
-        "identity_lock": True,
+        "identity_policy": "preserve_engineering_identity_allow_camera_scale_perspective",
+        "exact_pixel_default": True,
+        "angle_recreation_allowed_when_explicit": True,
+        "allowed_transformations": [
+            "uniform size change", "camera-angle change", "perspective change",
+            "rotation", "scene relighting", "realistic reflections", "partial artistic crop",
+        ],
+        "invariants": [
+            "recognizable outer silhouette", "whole-unit width-to-height proportion",
+            "visible screen width-to-height proportion", "screen position inside housing",
+            "bezel thickness relationships", "button/knob count and placement",
+            "side brackets and mounting tabs", "open cavities and negative spaces",
+            "lower control-panel geometry", "trim and material identity",
+            "visible screen interface and UI hierarchy",
+        ],
         "critical_features": [
             "outer silhouette", "screen aspect ratio and visible UI", "bezel thickness",
             "gap below screen", "side openings", "climate knobs", "physical buttons",
             "lower cavities", "mounting tabs", "trim geometry",
         ],
+        "source_aspect_ratios": source_ratios,
+        "primary_source_aspect_ratio": source_ratios[0] if source_ratios else 0.0,
         "structure_profile": dict(structure_profile or {}),
         "multi_view": len(products) >= 2,
         "segmentation_diagnostics": _graphic_segmentation_diagnostics_v10000(products[0]) if products else {},
-        "source_signatures": [_graphic_product_source_signature_v9000(item) for item in products[:8]],
+        "source_signatures": signatures,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     state = get_graphic_project_state()
@@ -21395,7 +21424,7 @@ def _graphic_layer_stack_v8000(result=None, *, geometry=None, campaign_spec=None
     layers = {
         "background": {"editable": True, "source": "ai_scene", "asset": result.get("background_data_url") or ""},
         "vehicle": {"editable": True, "source": "ai_scene", "locked": False},
-        "product": {"editable": True, "source": "exact_or_recreated_product", "locked": True},
+        "product": {"editable": True, "source": "exact_or_recreated_product", "identity_locked": True, "pixel_locked": bool((result or {}).get("exact_product_structure_lock"))},
         "logo": {"editable": True, "source": "brand_asset", "locked": True},
         "headline": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("headline") or ""},
         "ribbon": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("compatibility") or ""},
@@ -21513,25 +21542,37 @@ def _graphic_reference_layout_fidelity_gate_v13000(result, role_items):
 
 
 def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile):
-    """Consolidated v9000 quality gate with source fingerprint and hero-dominance checks."""
+    """Route-aware quality gate for exact compositing and Product DNA recreation."""
     checks={"image_valid":False,"product_valid":True,"vehicle_valid":True,"branding_valid":True,"layout_valid":True,"text_valid":True,"reference_integrity":True,"hero_dominance":True,"reference_layout_fidelity":True}
     raw,_=data_url_to_bytes(str((result or {}).get("data_url") or "")); checks["image_valid"]=bool(raw)
     metadata=dict((result or {}).get("layered_metadata") or {})
-    exact_gate={"passed":True,"issues":[]}
+    exact_gate={"passed":True,"issues":[],"required":False}
+    dna_gate={"available":False,"passed":None,"score":None,"reason":"not required"}
     if product_mode.get("exact_product"):
         exact_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile)
+        exact_gate["required"]=True
         checks["product_valid"]=exact_gate.get("passed",False)
         checks["reference_integrity"]=exact_gate.get("reference_leakage_blocked",False)
         checks["hero_dominance"]=exact_gate.get("hero_dominance",False)
+    elif product_mode.get("recreates_product"):
+        dna_gate=dict((result or {}).get("product_structure_validation") or {})
+        if not dna_gate:
+            dna_gate=_graphic_recreated_product_structure_validation_v7100(
+                (result or {}).get("data_url"), role_items, prompt_text, structure_profile
+            )
+        checks["product_valid"] = bool(dna_gate.get("available") and dna_gate.get("passed") is True)
+        checks["reference_integrity"] = True
+        hero_box=list(metadata.get("product_box") or [])
+        canvas=list(metadata.get("canvas_size") or [])
+        if len(hero_box)==4 and len(canvas)==2 and canvas[0] and canvas[1]:
+            hero_area=(float(hero_box[2])*float(hero_box[3]))/(float(canvas[0])*float(canvas[1]))
+            checks["hero_dominance"]=hero_area >= 0.13
     hard=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     vehicle=(result or {}).get("vehicle_validation") or {}
     if hard and not vehicle:
         vehicle=_graphic_safe_optional_call("graphic_v9000_vehicle_qa_unavailable",lambda:_graphic_focused_vehicle_validation_v3300((result or {}).get("data_url"),role_items,prompt_text,vehicle_profile),_graphic_validation_unavailable_v4100())
     if hard:
-        checks["vehicle_valid"] = bool(
-            not _graphic_validation_is_unavailable_v4100(vehicle)
-            and vehicle.get("verified") is True
-        )
+        checks["vehicle_valid"] = bool(not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is True)
     zones={str(x) for x in metadata.get("campaign_zones") or []}
     required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
     layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
@@ -21540,7 +21581,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
     passed=all(checks.values())
-    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"vehicle_validation":vehicle,"layout_fidelity_gate":layout_gate,"engine":"v13000-production-quality-gate"}
+    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"product_dna_gate":dna_gate,"vehicle_validation":vehicle,"layout_fidelity_gate":layout_gate,"engine":"v17000-route-aware-production-quality-gate"}
 
 
 
@@ -21618,20 +21659,24 @@ def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehi
 
 
 def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
-    """Perform one focused structural review for AI-created product viewpoints."""
+    """Validate Product DNA for AI-created angles without demanding pixel identity."""
     product_sources = [item for item in (role_items or []) if item.get("role") == "product_photo"][:4]
     if not data_url or not product_sources:
         return {"available": False, "passed": None, "score": None, "reason": "product sources unavailable"}
     content = [{"type": "input_text", "text": (
-        "Act as a strict automotive hardware product-identity inspector. Compare the recreated product "
-        "in the first image with every supplied source view. Return JSON only with keys: passed (boolean), "
-        "score (0-100), missing_or_changed_details (array), confirmed_details (array), reason (string). "
-        "Fail if the screen-to-housing ratio, bezel, gap below the screen, side openings, climate knobs, "
-        "physical buttons, lower cavities, mounting tabs, trim, silhouette, colors, or visible screen UI "
-        "are changed, removed, filled, invented, or merged. Hidden geometry may be conservative but must "
-        "not contradict visible source geometry. Required score to pass: 90.\n"
+        "Act as a strict industrial-design Product DNA inspector. The first image may show a different "
+        "camera angle, perspective, scale, crop, lighting or reflections from the source photos; those changes "
+        "are allowed. Compare identity rather than exact pixels. Return JSON only with keys: passed (boolean), "
+        "score (0-100), geometry_score (0-100), screen_ratio_score (0-100), interface_score (0-100), "
+        "hardware_detail_score (0-100), missing_or_changed_details (array), confirmed_details (array), "
+        "reason (string). Fail if perspective does not plausibly explain a changed whole-unit proportion; if "
+        "the intrinsic screen ratio, screen position, bezel relationship, lower controls, buttons, knobs, side "
+        "openings, cavities, brackets, tabs, trim, silhouette or visible interface identity are redesigned, "
+        "removed, filled, invented, merged, stretched or simplified. Do not fail merely because the angle, "
+        "apparent size, lighting, shadows or reflections changed. Required overall score: 92, and each of "
+        "geometry, screen ratio, interface and hardware detail must score at least 88.\n"
         f"User request: {str(prompt_text or '')[:1200]}\n"
-        f"Structure profile: {_graphic_product_structure_text_v4300(structure_profile)[:3000]}"
+        f"Structure profile: {_graphic_product_structure_text_v4300(structure_profile)[:3500]}"
     )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
     for item in product_sources:
         source = _graphic_role_data_url(item)
@@ -21641,25 +21686,39 @@ def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, 
         response = client.responses.create(
             model=_graphic_responses_model_v4000(),
             input=[{"role": "user", "content": content}],
-            max_output_tokens=900,
+            max_output_tokens=1100,
         )
         payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        score = int(float(payload.get("score", 0))) if isinstance(payload, dict) else 0
-        passed = bool(payload.get("passed")) and score >= 90 if isinstance(payload, dict) else False
+        if not isinstance(payload, dict):
+            payload = {}
+        def score_value(key):
+            try: return max(0, min(100, int(float(payload.get(key, 0)))))
+            except Exception: return 0
+        score = score_value("score")
+        geometry = score_value("geometry_score")
+        screen = score_value("screen_ratio_score")
+        interface = score_value("interface_score")
+        hardware = score_value("hardware_detail_score")
+        passed = bool(payload.get("passed")) and score >= 92 and min(geometry, screen, interface, hardware) >= 88
         return {
             "available": True,
             "passed": passed,
             "score": score,
-            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:20],
-            "confirmed_details": (payload.get("confirmed_details") or [])[:20],
-            "reason": str(payload.get("reason") or "")[:900],
+            "geometry_score": geometry,
+            "screen_ratio_score": screen,
+            "interface_score": interface,
+            "hardware_detail_score": hardware,
+            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:24],
+            "confirmed_details": (payload.get("confirmed_details") or [])[:24],
+            "reason": str(payload.get("reason") or "")[:1200],
+            "policy": "product_dna_identity_not_pixel_lock",
         }
     except Exception as error:
         diagnostic_log(
-            "graphic_v7100_structure_validation_unavailable",
+            "graphic_v17000_product_dna_validation_unavailable",
             error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
         )
-        return {"available": False, "passed": None, "score": None, "reason": "structure validation unavailable"}
+        return {"available": False, "passed": None, "score": None, "reason": "Product DNA validation unavailable"}
 
 
 
