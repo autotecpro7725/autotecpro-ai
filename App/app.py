@@ -166,6 +166,7 @@ except Exception:
 #   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
 #   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
 
+# v10000 AutoTecPro Graphic Production Edition: source-pixel visual verification, segmentation diagnostics, exact-product quality gating, bounded QA reuse, and production audit metadata; no intentional non-Graphic changes.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -18784,7 +18785,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v9000-autotecpro-graphic-accuracy-engine"
+GRAPHIC_ENGINE_VERSION = "v10000-autotecpro-graphic-production-edition"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -19241,32 +19242,273 @@ def _graphic_product_source_signature_v9000(product_item):
     return result
 
 
-def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
-    """Fail closed on source-role leakage, missing zones, tiny/cropped hero and bad vehicle lock."""
-    metadata=dict((result or {}).get("layered_metadata") or {})
-    product_item=next((i for i in (role_items or []) if i.get("role")=="product_photo"),None)
-    source=_graphic_product_source_signature_v9000(product_item)
-    box=list(metadata.get("product_box") or [])
-    canvas=list(metadata.get("canvas_size") or [])
-    issues=[]
-    if not metadata.get("exact_product_pixels"): issues.append("exact product pixels not confirmed")
-    if source.get("sha256") and metadata.get("product_source_sha256")!=source.get("sha256"): issues.append("product source fingerprint mismatch")
-    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
-    if not required.issubset({str(x) for x in metadata.get("campaign_zones") or []}): issues.append("required campaign zones incomplete")
-    if len(box)==4 and len(canvas)==2 and canvas[0] and canvas[1]:
-        area=(box[2]*box[3])/(canvas[0]*canvas[1])
-        width_ratio=box[2]/canvas[0]
-        height_ratio=box[3]/canvas[1]
-        if area<.12 and not (width_ratio>=.18 and height_ratio>=.48): issues.append("hero product too small")
-        if box[0]<0 or box[1]<0 or box[0]+box[2]>canvas[0] or box[1]+box[3]>canvas[1]: issues.append("hero product cropped")
-    else: issues.append("product geometry metadata unavailable")
-    integrity=_graphic_role_integrity_v8300(role_items)
-    if not integrity.get("valid",integrity.get("passed",True)): issues.append("reference/product role integrity failed")
-    vehicle=(result or {}).get("vehicle_validation") or {}
-    hard=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-    if hard and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True: issues.append("target vehicle validation failed")
-    return {"passed":not issues,"issues":issues,"product_source":source,"hero_dominance":not any("hero product" in x for x in issues),"reference_leakage_blocked":True}
 
+def _graphic_segmentation_diagnostics_v10000(product_item):
+    """Return deterministic cutout diagnostics without altering source pixels.
+
+    The diagnostic is intentionally local and bounded. It helps distinguish a clean
+    transparent cutout from the safe presentation-card fallback used when neutral
+    background removal is not reliable.
+    """
+    info = {
+        "available": False,
+        "transparent_cutout": False,
+        "alpha_coverage_ratio": 0.0,
+        "opaque_coverage_ratio": 0.0,
+        "edge_pixel_ratio": 0.0,
+        "source_aspect_ratio": 0.0,
+        "cutout_aspect_ratio": 0.0,
+        "aspect_ratio_delta": 0.0,
+        "safe_for_exact_composite": False,
+    }
+    if Image is None or not product_item:
+        return info
+    try:
+        source = _graphic_product_source_signature_v9000(product_item)
+        layer, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+        if layer is None:
+            return info
+        layer = ImageOps.exif_transpose(layer).convert("RGBA")
+        alpha = layer.getchannel("A")
+        hist = alpha.histogram()
+        total = max(1, layer.width * layer.height)
+        transparent_count = sum(hist[:16])
+        opaque_count = sum(hist[240:])
+        edge_count = sum(hist[16:240])
+        source_ratio = float(source.get("aspect_ratio") or 0.0)
+        cutout_ratio = layer.width / max(1, layer.height)
+        info.update({
+            "available": True,
+            "transparent_cutout": bool(transparent),
+            "alpha_coverage_ratio": round(1.0 - transparent_count / total, 6),
+            "opaque_coverage_ratio": round(opaque_count / total, 6),
+            "edge_pixel_ratio": round(edge_count / total, 6),
+            "source_aspect_ratio": round(source_ratio, 6),
+            "cutout_aspect_ratio": round(cutout_ratio, 6),
+            "aspect_ratio_delta": round(abs(source_ratio - cutout_ratio), 6) if source_ratio else 0.0,
+            "safe_for_exact_composite": bool(
+                layer.width > 8 and layer.height > 8 and opaque_count > total * 0.04
+            ),
+        })
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v10000_segmentation_diagnostics_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+    return info
+
+
+def _graphic_expected_product_layer_v10000(product_item, target_width, target_height, canvas_height=0):
+    """Rebuild the exact product layer exactly as the deterministic compositor does."""
+    if Image is None or not product_item or target_width <= 0 or target_height <= 0:
+        return None
+    try:
+        product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+        if product is None:
+            return None
+        product = ImageOps.exif_transpose(product).convert("RGBA")
+        if not transparent:
+            pad = max(8, int((canvas_height or target_height) * 0.008))
+            card = Image.new(
+                "RGBA",
+                (product.width + pad * 2, product.height + pad * 2),
+                (250, 251, 253, 245),
+            )
+            card.alpha_composite(product, (pad, pad))
+            product = card
+        return product.resize(
+            (int(target_width), int(target_height)),
+            Image.Resampling.LANCZOS,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v10000_expected_product_layer_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return None
+
+
+def _graphic_exact_product_visual_match_v10000(result, role_items):
+    """Compare final product-region pixels with the exact uploaded product layer.
+
+    Only high-opacity product pixels are compared, so the generated background and
+    local grounding shadow do not affect the score. This is a deterministic check and
+    does not add a model request or generation latency.
+    """
+    report = {
+        "available": False,
+        "passed": False,
+        "score": 0.0,
+        "mean_absolute_error": None,
+        "sample_count": 0,
+        "threshold": 0.90,
+        "reason": "visual comparison unavailable",
+    }
+    if Image is None:
+        return report
+    try:
+        metadata = dict((result or {}).get("layered_metadata") or {})
+        box = list(metadata.get("product_box") or [])
+        if len(box) != 4:
+            report["reason"] = "product box unavailable"
+            return report
+        x, y, width, height = [int(round(float(value))) for value in box]
+        if width <= 0 or height <= 0:
+            report["reason"] = "invalid product box"
+            return report
+        product_item = next(
+            (item for item in (role_items or []) if item.get("role") == "product_photo"),
+            None,
+        )
+        canvas = list(metadata.get("canvas_size") or [])
+        canvas_height = int(canvas[1]) if len(canvas) == 2 and canvas[1] else 0
+        expected = _graphic_expected_product_layer_v10000(product_item, width, height, canvas_height)
+        if expected is None:
+            report["reason"] = "expected product layer unavailable"
+            return report
+        final_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
+        if not final_raw:
+            report["reason"] = "final image bytes unavailable"
+            return report
+        with Image.open(io.BytesIO(final_raw)) as final_image:
+            final_image = ImageOps.exif_transpose(final_image).convert("RGB")
+            if x < 0 or y < 0 or x + width > final_image.width or y + height > final_image.height:
+                report["reason"] = "product region is cropped"
+                return report
+            observed = final_image.crop((x, y, x + width, y + height))
+        expected_rgb = expected.convert("RGB")
+        alpha = expected.getchannel("A")
+
+        # Downsample the comparison to a bounded workload while preserving structure.
+        max_side = 420
+        scale = min(1.0, max_side / max(width, height))
+        if scale < 1.0:
+            size = (max(1, int(width * scale)), max(1, int(height * scale)))
+            observed = observed.resize(size, Image.Resampling.BILINEAR)
+            expected_rgb = expected_rgb.resize(size, Image.Resampling.BILINEAR)
+            alpha = alpha.resize(size, Image.Resampling.BILINEAR)
+
+        obs_pixels = observed.load()
+        exp_pixels = expected_rgb.load()
+        mask_pixels = alpha.load()
+        sample_count = 0
+        absolute_error = 0
+        step = 1
+        for yy in range(observed.height):
+            for xx in range(observed.width):
+                if mask_pixels[xx, yy] < 235:
+                    continue
+                observed_pixel = obs_pixels[xx, yy]
+                expected_pixel = exp_pixels[xx, yy]
+                absolute_error += (
+                    abs(int(observed_pixel[0]) - int(expected_pixel[0]))
+                    + abs(int(observed_pixel[1]) - int(expected_pixel[1]))
+                    + abs(int(observed_pixel[2]) - int(expected_pixel[2]))
+                )
+                sample_count += 3
+        if sample_count < 300:
+            report["reason"] = "insufficient opaque product pixels"
+            return report
+        mean_error = absolute_error / sample_count
+        score = max(0.0, min(1.0, 1.0 - mean_error / 255.0))
+        report.update({
+            "available": True,
+            "passed": score >= report["threshold"],
+            "score": round(score, 6),
+            "mean_absolute_error": round(mean_error, 4),
+            "sample_count": sample_count,
+            "reason": "exact product pixels confirmed" if score >= report["threshold"] else "final product pixels differ from the uploaded source",
+        })
+    except Exception as error:
+        report["reason"] = str(error)[:240]
+        diagnostic_log(
+            "graphic_v10000_visual_match_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+    return report
+
+
+def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries=0, stages=None):
+    """Attach compact production telemetry to each output without exposing secrets."""
+    stages = {str(key): round(float(value or 0.0), 3) for key, value in (stages or {}).items()}
+    return {
+        "engine": GRAPHIC_ENGINE_VERSION,
+        "route": str(route or ""),
+        "provider_calls": int(provider_calls or 0),
+        "retries": int(retries or 0),
+        "stage_seconds": stages,
+        "verification_status": str((result or {}).get("verification_status") or ""),
+        "output_status": str((result or {}).get("output_status") or ""),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
+    """Fail closed on product-source mismatch, structural drift, cropping and role leakage."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    product_item = next(
+        (item for item in (role_items or []) if item.get("role") == "product_photo"),
+        None,
+    )
+    source = _graphic_product_source_signature_v9000(product_item)
+    box = list(metadata.get("product_box") or [])
+    canvas = list(metadata.get("canvas_size") or [])
+    issues = []
+    if not metadata.get("exact_product_pixels"):
+        issues.append("exact product pixels not confirmed")
+    if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
+        issues.append("product source fingerprint mismatch")
+    required = {
+        "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
+        "hero_product", "target_vehicle", "bottom_benefit_bar",
+    }
+    if not required.issubset({str(item) for item in metadata.get("campaign_zones") or []}):
+        issues.append("required campaign zones incomplete")
+    if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
+        area = (box[2] * box[3]) / (canvas[0] * canvas[1])
+        width_ratio = box[2] / canvas[0]
+        height_ratio = box[3] / canvas[1]
+        if area < 0.12 and not (width_ratio >= 0.18 and height_ratio >= 0.48):
+            issues.append("hero product too small")
+        if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
+            issues.append("hero product cropped")
+        source_ratio = float(source.get("aspect_ratio") or 0.0)
+        rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
+        if source_ratio and abs(source_ratio - rendered_ratio) / max(source_ratio, 0.001) > 0.14:
+            issues.append("hero product aspect ratio changed")
+    else:
+        issues.append("product geometry metadata unavailable")
+
+    integrity = _graphic_role_integrity_v8300(role_items)
+    if not integrity.get("valid", integrity.get("passed", True)):
+        issues.append("reference/product role integrity failed")
+
+    vehicle = (result or {}).get("vehicle_validation") or {}
+    hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+    if hard_vehicle and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True:
+        issues.append("target vehicle validation failed")
+
+    visual_match = _graphic_exact_product_visual_match_v10000(result, role_items)
+    if visual_match.get("available") and not visual_match.get("passed"):
+        issues.append("exact product visual comparison failed")
+
+    segmentation = _graphic_segmentation_diagnostics_v10000(product_item)
+    if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"):
+        issues.append("product segmentation is not safe for exact composition")
+
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "product_source": source,
+        "visual_match": visual_match,
+        "segmentation": segmentation,
+        "hero_dominance": not any("hero product" in issue for issue in issues),
+        "reference_leakage_blocked": bool(integrity.get("valid", integrity.get("passed", True))),
+        "engine": "v10000-exact-product-quality-gate",
+    }
 
 def _graphic_render_mode_v9000(product_mode, has_style=False):
     if (product_mode or {}).get("recreates_product"): return "ai_product_recreation"
@@ -20629,6 +20871,8 @@ def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
         ],
         "structure_profile": dict(structure_profile or {}),
         "multi_view": len(products) >= 2,
+        "segmentation_diagnostics": _graphic_segmentation_diagnostics_v10000(products[0]) if products else {},
+        "source_signatures": [_graphic_product_source_signature_v9000(item) for item in products[:8]],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     state = get_graphic_project_state()
@@ -20716,7 +20960,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
     passed=all(checks.values())
-    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"vehicle_validation":vehicle,"engine":"v9000-quality-gate"}
+    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"vehicle_validation":vehicle,"engine":"v10000-production-quality-gate"}
 
 
 
@@ -21041,6 +21285,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 )
                 local_result["layer_stack"] = _graphic_layer_stack_v8000(local_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
                 local_result["professional_qa"] = _graphic_professional_qa_v8000(local_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
+                local_result["runtime_audit"] = _graphic_runtime_audit_v10000(local_result, route=edit_kind, provider_calls=0, retries=0, stages=stage_times)
                 state = get_graphic_project_state(); state["layer_stack"] = local_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
                 _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, local_edit=True, route=edit_kind, stages=stage_times)
                 _graphic_progress_update_v3300(status, "Graphic local edit completed.", "complete")
@@ -21061,6 +21306,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result["layer_stack"] = _graphic_layer_stack_v8000(exact_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
             exact_result["product_dna"] = product_dna
             exact_result["professional_qa"] = _graphic_professional_qa_v8000(exact_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
+            exact_result["runtime_audit"] = _graphic_runtime_audit_v10000(exact_result, route=product_mode.get("mode"), provider_calls=1, retries=0, stages=stage_times)
             state = get_graphic_project_state(); state["layer_stack"] = exact_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, route=product_mode.get("mode"), stages=stage_times)
             completion = "Exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
@@ -21268,6 +21514,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         final_result["layer_stack"] = _graphic_layer_stack_v8000(final_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
         final_result["product_dna"] = product_dna
         final_result["professional_qa"] = _graphic_professional_qa_v8000(final_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
+        final_result["runtime_audit"] = _graphic_runtime_audit_v10000(final_result, route=product_mode.get("mode"), provider_calls=provider_call_count, retries=retry_count, stages=stage_times)
         state = get_graphic_project_state(); state["layer_stack"] = final_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=provider_call_count, retries=retry_count, route=product_mode.get("mode"), stages=stage_times)
         completion = "Graphic artwork completed and verified." if final_result.get("professional_qa", {}).get("passed") else "Graphic artwork completed; review the QA note before publishing."
