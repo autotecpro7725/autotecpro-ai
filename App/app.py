@@ -19577,7 +19577,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20100-autotecpro-graphic-engine-8-0-exact-product-asset"
+GRAPHIC_ENGINE_VERSION = "v20200-autotecpro-graphic-engine-8-1-exact-product-fail-safe"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21332,7 +21332,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20100-exact-master-rgb-border-alpha-only"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20200-exact-master-rgb-border-alpha-only"
 
 
 def _graphic_progress_v3300(label):
@@ -22584,10 +22584,16 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
     result["reference_layout_fidelity_gate"]=layout_gate
     if layout_gate.get("required") and not layout_gate.get("passed"):
-        raise RuntimeError(
-            "The exact-product campaign failed the reference-layout fidelity gate: "
-            + "; ".join(layout_gate.get("issues") or ["layout score below threshold"])
+        # Product fidelity is authoritative. A layout mismatch must never send an exact
+        # product job into a provider route that redraws the unit. Return the protected
+        # composite with a review note instead.
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The exact uploaded product is preserved, but the reference-layout fidelity check did not fully pass. Review layout only; the product asset was not regenerated.",
+            status="completed_exact_product_layout_review_v20200",
         )
+        result["layout_review_required"] = True
+        result["layout_review_issues"] = list(layout_gate.get("issues") or [])[:20]
     if validation.get("verified"):
         result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
     elif validation.get("unverified"):
@@ -22993,6 +22999,102 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
 
+
+def _graphic_exact_product_recovery_v20200(
+    prompt_text,
+    uploaded_files=None,
+    *,
+    style_strength="High",
+    forced_upload_role="Auto-detect",
+    failures=None,
+):
+    """Recover an exact-product job without ever regenerating the uploaded unit.
+
+    The background/vehicle plate may be generated, but the complete product is always
+    composited from the protected master-RGB asset. This route intentionally tolerates
+    optional layout/vehicle QA failures so they cannot trigger the legacy emergency
+    provider, which can redesign bezel, lower housing, openings or mounting details.
+    """
+    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
+    role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+    role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
+    product_item = next((item for item in role_items if item.get("role") == "product_photo"), None)
+    if not product_item:
+        raise RuntimeError("Exact-product recovery requires an uploaded Product Photo.")
+
+    integrity = _graphic_role_integrity_v8300(role_items)
+    if not integrity.get("passed"):
+        raise RuntimeError(
+            "Exact-product recovery could not safely separate Product Photo and Style Reference: "
+            + str(integrity.get("reason") or "role integrity failed")
+        )
+
+    has_style = any(item.get("role") == "style_reference" for item in role_items)
+    reference_blueprint = {}
+    if has_style:
+        reference_blueprint = _graphic_safe_optional_call(
+            "graphic_v20200_exact_recovery_reference_analysis_unavailable",
+            lambda: analyze_graphic_reference_blueprint(
+                role_items, prompt_text=prompt_text, style_strength=style_strength
+            ),
+            {},
+        )
+        reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+
+    vehicle_profile = _graphic_resolve_vehicle_lock(
+        prompt_text,
+        _graphic_safe_optional_call(
+            "graphic_v20200_exact_recovery_vehicle_profile_unavailable",
+            lambda: research_graphic_vehicle_profile(role_items, prompt_text),
+            {},
+        ),
+    )
+    state = get_graphic_project_state()
+    state["brand_template"] = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
+    )
+    metadata = dict(result.get("layered_metadata") or {})
+    metadata.update({
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "product_ai_reconstruction_prohibited": True,
+        "complete_unit_asset_protected": True,
+        "protected_regions": [
+            "display_assembly", "outer_bezel", "inner_bezel", "screen_aperture",
+            "housing_silhouette", "side_controls", "knobs", "lower_housing",
+            "bottom_openings", "mounting_tabs", "mounting_holes", "negative_spaces",
+        ],
+        "recovery_policy": "exact_product_composite_only_no_generative_product_fallback_v20200",
+    })
+    result["layered_metadata"] = metadata
+    result["product_identity_method"] = "engine8_1_complete_protected_product_asset_composite"
+    result["ai_product_recreated"] = False
+    result["recovery_route"] = True
+    result["recovery_route_name"] = "v20200-exact-product-composite"
+    result["recovery_failures"] = list(failures or [])[-4:]
+
+    # Run gates for diagnostics, but never replace this exact asset with a generated unit.
+    source_gate = _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile)
+    result["source_fidelity_gate"] = source_gate
+    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    result["reference_layout_fidelity_gate"] = layout_gate
+    if source_gate.get("passed"):
+        result["verification_status"] = "verified" if (not layout_gate.get("required") or layout_gate.get("passed")) else "product_verified_layout_review"
+        result["output_status"] = "completed_exact_product_recovery_v20200"
+    else:
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The complete uploaded product asset was preserved without AI reconstruction. Some optional verification checks did not pass; review the composition, but do not use a generative product recovery.",
+            status="completed_exact_product_preserved_review_v20200",
+        )
+    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    _graphic_save_latest_project_result(result)
+    return [result]
+
 def _graphic_emergency_provider_result_v15000(
     prompt_text,
     uploaded_files=None,
@@ -23012,6 +23114,13 @@ def _graphic_emergency_provider_result_v15000(
     )
     if not role_items:
         raise RuntimeError("No saved Graphic project images were available for recovery.")
+    has_product = any(item.get("role") == "product_photo" for item in role_items)
+    recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text).get("requested"))
+    if has_product and not recreation_requested:
+        raise RuntimeError(
+            "Generative emergency recovery is disabled for exact-product jobs. "
+            "Use the protected exact-product compositor so the complete unit cannot be redesigned."
+        )
 
     has_style = any(item.get("role") == "style_reference" for item in role_items)
     reference_blueprint = _graphic_safe_optional_call(
@@ -23119,6 +23228,48 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
         )
+
+    # Engine 8.1 fail-safe: an exact-product request may recover only through the
+    # deterministic protected-asset compositor. It must never reach v3200 or the
+    # emergency provider because those routes can redraw lower housing, bezel,
+    # openings, tabs and other physical details.
+    try:
+        recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+        has_recovery_product = any(item.get("role") == "product_photo" for item in recovery_roles)
+        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text).get("requested"))
+    except Exception:
+        has_recovery_product = False
+        recreation_requested = False
+    if preserve_product and has_recovery_product and not recreation_requested:
+        try:
+            return _graphic_finalize_recovery_v16000(
+                _graphic_exact_product_recovery_v20200(
+                    prompt_text,
+                    uploaded_files,
+                    style_strength=style_strength,
+                    forced_upload_role=forced_upload_role,
+                    failures=failures,
+                ),
+                "v20200-exact-product-composite",
+                failures,
+            )
+        except Exception as error:
+            failures.append(
+                f"exact-product-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+            diagnostic_log(
+                "graphic_v20200_exact_product_recovery_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+            state = get_graphic_project_state()
+            state["stage"] = "ready_to_generate"
+            state["last_error"] = " | ".join(failures[-4:])[:1800]
+            state["last_failed_stage"] = "exact_product_composite_recovery"
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            raise RuntimeError(
+                "The exact uploaded product could not be composited safely. The app stopped instead of generating a redesigned product. Please retry or re-upload the Product Photo."
+            ) from error
 
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
     # as a compatibility recovery route for deployed Streamlit environments.
