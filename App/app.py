@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20010
-# v20010 Graphic Engine 6.1 Production Hardening: built directly from the verified v20000 baseline.
-# Adds cached dual-strategy geometry detection, final-output bezel comparison, 95%+ engineering thresholds,
-# one bounded engineering-correction retry, accurate provider-call telemetry, and fail-closed geometry diagnostics.
+# AutoTecPro AI performance/stability revision: v20100
+# v20100 Graphic Engine 8.0 Exact Product Asset Architecture: built directly from the current v20020/v20010 production baseline.
+# Front and near-front product campaigns now preserve the untouched uploaded product RGB as a protected asset;
+# only border-connected background alpha may change. AI product recreation is reserved for explicit new-angle requests.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19577,7 +19577,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20020-autotecpro-graphic-engine-6-2-master-bezel-lock"
+GRAPHIC_ENGINE_VERSION = "v20100-autotecpro-graphic-engine-8-0-exact-product-asset"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20316,6 +20316,14 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
     issues = []
     if not metadata.get("exact_product_pixels"):
         issues.append("exact product pixels not confirmed")
+    if metadata.get("exact_product_asset_mode") is not True:
+        issues.append("Graphic Engine 8 exact-product asset mode not confirmed")
+    if metadata.get("product_master_rgb_preserved") is not True:
+        issues.append("untouched product master RGB preservation not confirmed")
+    if metadata.get("product_pixels_provider_generated") is not False:
+        issues.append("provider-generated product pixels are prohibited in exact-product mode")
+    if metadata.get("product_ai_reconstruction_prohibited") is not True:
+        issues.append("exact-product reconstruction prohibition not confirmed")
     if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
         issues.append("product source fingerprint mismatch")
     required = {
@@ -20914,6 +20922,10 @@ def _graphic_compose_reference_campaign_v3200(
     return output.getvalue(), {
         "engine": "autotecpro-commercial-composer-v20010-engine6.1",
         "exact_product_pixels": True,
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "product_ai_reconstruction_prohibited": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
         "official_brand_logo_applied": logo_applied,
@@ -21320,7 +21332,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20020-master-bezel-lock-full-canvas"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20100-exact-master-rgb-border-alpha-only"
 
 
 def _graphic_progress_v3300(label):
@@ -21483,38 +21495,100 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
 
 def _graphic_open_product_layer_v3300(uploaded_file):
-    """Open exact product pixels with a persistent fingerprinted cutout cache."""
-    raw=_graphic_uploaded_file_bytes(uploaded_file)
-    digest=hashlib.sha256(raw).hexdigest() if raw else ""
-    state=get_graphic_project_state(); cache=dict(state.get("product_mask_cache") or {})
-    cache_key=f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}" if digest else ""
-    cached=cache.get(cache_key) if cache_key else None
-    if isinstance(cached,str) and cached.startswith("data:image/"):
-        cached_raw,_=data_url_to_bytes(cached)
-        if cached_raw and Image is not None:
-            try: return Image.open(io.BytesIO(cached_raw)).convert("RGBA"),True
-            except Exception: pass
-    product,transparent=_graphic_open_product_layer(uploaded_file)
-    if product is None or transparent:
-        return product,transparent
+    """Open a protected exact-product asset for deterministic composition.
+
+    Graphic Engine 8.0 never uses the legacy soft-distance cutout as the authority
+    for opaque studio product photos. The untouched upload supplies every RGB pixel.
+    Only an alpha mask derived from border-connected neutral background is applied.
+    This prevents bezel, screen, housing, buttons, knobs and UI pixels from being
+    softened, recolored, reconstructed or replaced before composition.
+    """
+    raw = _graphic_uploaded_file_bytes(uploaded_file)
+    if not raw or Image is None:
+        return None, False
+    digest = hashlib.sha256(raw).hexdigest()
+    state = get_graphic_project_state()
+    cache = dict(state.get("product_mask_cache") or {})
+    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
+    cached = cache.get(cache_key)
+    if isinstance(cached, str) and cached.startswith("data:image/"):
+        cached_raw, _ = data_url_to_bytes(cached)
+        if cached_raw:
+            try:
+                with Image.open(io.BytesIO(cached_raw)) as cached_image:
+                    return ImageOps.exif_transpose(cached_image).convert("RGBA"), True
+            except Exception:
+                pass
+
     try:
-        cutout=_graphic_white_background_mask_v3300(raw)
-        if cutout:
-            layer=Image.open(io.BytesIO(cutout)).convert("RGBA")
-            extrema=layer.getchannel("A").getextrema()
-            if extrema and extrema[0]<32 and extrema[1]>220:
-                layer,bezel_report=_graphic_restore_master_bezel_v20020(raw,layer)
-                out=io.BytesIO(); layer.save(out,format="PNG",optimize=True); cutout=out.getvalue()
-                if cache_key:
-                    cache[cache_key]="data:image/png;base64,"+base64.b64encode(cutout).decode("ascii")
-                    state["product_mask_cache"]={k:v for k,v in list(cache.items())[-12:]}
-                    reports=dict(state.get("product_bezel_master_reports") or {})
-                    reports[cache_key]=bezel_report
-                    state["product_bezel_master_reports"]={k:v for k,v in list(reports.items())[-12:]}
-                    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
-                return layer,True
-    except Exception: pass
-    return product,transparent
+        with Image.open(io.BytesIO(raw)) as source_image:
+            master = ImageOps.exif_transpose(source_image).convert("RGBA")
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v20100_master_product_open_failed",
+            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
+        )
+        return None, False
+
+    # A genuine source alpha channel is already authoritative. Preserve it exactly.
+    source_alpha = master.getchannel("A")
+    alpha_extrema = source_alpha.getextrema()
+    if alpha_extrema and alpha_extrema[0] < 250:
+        layer = master.copy()
+        transparent = True
+        mask_method = "authoritative_source_alpha"
+    else:
+        # For opaque studio photos, calculate transparency separately, then restore
+        # the untouched master RGB across the complete canvas. No RGB decontamination,
+        # blur, erosion, dilation or legacy distance-matte result is permitted.
+        strict_cutout_bytes = _graphic_white_background_mask_v3300(raw)
+        if strict_cutout_bytes:
+            try:
+                with Image.open(io.BytesIO(strict_cutout_bytes)) as masked_image:
+                    masked = ImageOps.exif_transpose(masked_image).convert("RGBA")
+                if masked.size != master.size:
+                    raise ValueError("strict mask coordinate mismatch")
+                alpha = masked.getchannel("A")
+                layer = master.copy()
+                layer.putalpha(alpha)
+                extrema = alpha.getextrema()
+                transparent = bool(extrema and extrema[0] < 32 and extrema[1] > 220)
+                mask_method = "border_connected_alpha_with_untouched_master_rgb"
+            except Exception as error:
+                diagnostic_log(
+                    "graphic_v20100_strict_mask_apply_failed",
+                    error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
+                )
+                layer, transparent = master.copy(), False
+                mask_method = "untouched_master_card_fallback"
+        else:
+            layer, transparent = master.copy(), False
+            mask_method = "untouched_master_card_fallback"
+
+    # Cache only the protected master-RGB asset, never a legacy soft cutout.
+    if transparent:
+        try:
+            buffer = io.BytesIO()
+            layer.save(buffer, format="PNG", optimize=True)
+            cache[cache_key] = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+            state["product_mask_cache"] = {k: v for k, v in list(cache.items())[-12:]}
+            reports = dict(state.get("product_bezel_master_reports") or {})
+            reports[cache_key] = {
+                "applied": True,
+                "mode": "exact_product_asset_v20100",
+                "mask_method": mask_method,
+                "master_rgb_sha256": digest,
+                "rgb_pixels_regenerated": False,
+                "product_pixels_provider_generated": False,
+            }
+            state["product_bezel_master_reports"] = {k: v for k, v in list(reports.items())[-12:]}
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v20100_exact_asset_cache_failed",
+                error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
+            )
+    return layer, transparent
 
 
 
@@ -21742,7 +21816,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "cached_exact_source_pixel_composite"
+    result["product_identity_method"] = "engine8_protected_exact_product_asset_composite"
     result["layered_metadata"].update(metadata)
     result["output_status"] = "completed_controlled_campaign_v3300"
     result["campaign_spec"] = spec
@@ -21809,6 +21883,8 @@ def _graphic_product_recreation_intent_v7000(prompt_text):
     exact_override = any(term in lower for term in (
         "use exact product", "keep exact product", "do not recreate", "do not redraw",
         "preserve exact pixels", "front view only", "same angle",
+        "use uploaded product", "use the uploaded product", "actual product image",
+        "same product", "exact same product", "do not change the product",
     ))
     if exact_override:
         matched = False
@@ -22520,7 +22596,7 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
     else:
         raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"]="v9000-autotecpro-graphic-accuracy-engine"
+    result["graphic_engine_version"]=GRAPHIC_ENGINE_VERSION
     result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
     result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
     result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
