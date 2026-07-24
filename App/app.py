@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v18000
-# v18000 Graphic Engine 4.0 Production: preserves v17000 exact-product stability; adds Product Identity,
-# Engineering Detail Preservation, Commercial Layout Planner, Reference Decomposition, Vehicle DNA 3.0,
-# Style DNA 3.0, layout/hierarchy/product-detail scoring, and contamination-safe multi-reference guidance.
+# AutoTecPro AI performance/stability revision: v19000
+# v19000 Graphic Engine 5.0 Production: preserves the proven v18000 exact-product path while adding
+# Product Engineering DNA, Geometry/Material/Reflection DNA, region confidence mapping, Brand/Campaign DNA,
+# failure-aware planning, and stricter reconstruction-only engineering validation.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -18891,35 +18891,202 @@ def _graphic_commercial_hierarchy_score_v18000(result):
 
 def _graphic_product_detail_score_v18000(product_mode, exact_gate=None, dna_gate=None):
     """Normalize exact-product and recreated-product verification to one scorecard."""
+    region_confidence = _graphic_product_region_confidence_v19000(
+        product_mode, exact_gate=exact_gate, dna_gate=dna_gate
+    )
     if (product_mode or {}).get("exact_product"):
         gate = dict(exact_gate or {})
         passed = bool(gate.get("passed"))
-        score = 100 if passed else max(0, 100 - 12 * len(gate.get("issues") or []))
+        score = int(region_confidence.get("overall") or 0)
         return {
             "score": score,
             "passed": passed,
-            "housing": score,
-            "screen": score,
-            "buttons": score,
-            "knobs": score,
-            "materials": 96 if passed else max(0, score - 4),
+            "housing": region_confidence["housing"],
+            "screen": region_confidence["screen"],
+            "buttons": min(region_confidence["left_controls"], region_confidence["right_controls"]),
+            "knobs": region_confidence["knobs"],
+            "mounting": region_confidence["mounting"],
+            "openings": region_confidence["openings"],
+            "materials": region_confidence["materials"],
             "engineering_identity": score,
+            "region_confidence": region_confidence,
             "mode": "exact_source_composite",
         }
     gate = dict(dna_gate or {})
-    score = int(gate.get("score") or 0)
+    score = int(region_confidence.get("overall") or 0)
+    critical = [
+        region_confidence["housing"], region_confidence["screen"],
+        region_confidence["left_controls"], region_confidence["right_controls"],
+        region_confidence["knobs"], region_confidence["mounting"], region_confidence["openings"],
+    ]
+    passed = bool(
+        gate.get("available")
+        and gate.get("passed") is True
+        and score >= 93
+        and min(critical or [0]) >= 88
+    )
     return {
         "score": score,
-        "passed": bool(gate.get("available") and gate.get("passed") is True and score >= 92),
-        "housing": int(gate.get("geometry_score") or 0),
-        "screen": int(gate.get("screen_ratio_score") or 0),
-        "buttons": int(gate.get("hardware_detail_score") or 0),
-        "knobs": int(gate.get("hardware_detail_score") or 0),
-        "materials": max(0, min(100, score - 2 if score else 0)),
+        "passed": passed,
+        "housing": region_confidence["housing"],
+        "screen": region_confidence["screen"],
+        "buttons": min(region_confidence["left_controls"], region_confidence["right_controls"]),
+        "knobs": region_confidence["knobs"],
+        "mounting": region_confidence["mounting"],
+        "openings": region_confidence["openings"],
+        "materials": region_confidence["materials"],
         "engineering_identity": score,
+        "region_confidence": region_confidence,
         "mode": "product_dna_reconstruction",
     }
 
+
+def _graphic_product_engineering_dna_v19000(role_items, product_identity=None, structure_profile=None):
+    """Build a conservative engineering hierarchy without changing the exact-product path."""
+    identity = dict(product_identity or {})
+    structure = dict(structure_profile or {})
+    products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
+    source_names = [str(item.get("name") or "product source") for item in products[:6]]
+    return {
+        "schema": "autotecpro-product-engineering-dna-5",
+        "source_priority": source_names,
+        "identity": identity,
+        "engineering_regions": {
+            "housing": ["outer silhouette", "upper bridge", "side rails", "lower bridge", "molded transitions"],
+            "screen": ["intrinsic aspect ratio", "screen position", "bezel thickness", "visible UI hierarchy"],
+            "left_controls": ["button count", "button order", "spacing", "legends", "left knob geometry"],
+            "right_controls": ["button count", "button order", "spacing", "legends", "right knob geometry"],
+            "mounting": ["mounting ears", "tabs", "bottom bracket", "fastener openings"],
+            "negative_space": ["side handle openings", "lower cavities", "horizontal gaps", "bottom openings"],
+        },
+        "geometry_dna": {
+            "whole_unit_ratio": identity.get("whole_unit_aspect_ratio"),
+            "screen_ratio": identity.get("screen_aspect_ratio"),
+            "screen_to_housing": identity.get("screen_to_housing_ratio"),
+            "silhouette": identity.get("outer_silhouette") or structure.get("outer_silhouette"),
+            "critical_rule": "perspective may change apparent ratios; intrinsic geometry may not be redesigned",
+        },
+        "material_dna": {
+            "housing": "preserve glossy/satin/matte plastic distinctions visible in source",
+            "screen": "preserve glass-like reflection separately from the housing",
+            "trim": "preserve metallic or chrome trim as a separate material",
+            "controls": "preserve knob ring, button bevel, recess and legend contrast",
+        },
+        "reflection_dna": {
+            "rule": "adapt reflections to the new scene without smoothing away seams, bevels, cutouts or control depth",
+            "forbidden": ["painted-over openings", "melted edges", "uniform plastic gloss", "lost knob rings"],
+        },
+        "structure_profile": structure,
+    }
+
+
+def _graphic_brand_dna_v19000():
+    """Return stable AutoTecPro campaign rules used across references."""
+    return {
+        "schema": "autotecpro-brand-dna-5",
+        "logo": "official AutoTec logo and AutoTecPro.com treatment only",
+        "hierarchy": ["logo", "headline", "compatibility ribbon", "tagline", "hero product", "vehicle", "features", "footer"],
+        "visual_character": ["premium", "OEM-style", "automotive", "information-rich", "clean technical confidence"],
+        "typography": "large condensed headline, readable ribbon, restrained italic tagline, clear feature labels",
+        "color_language": ["dark navy", "white", "AutoTec red", "scene-appropriate warm or neutral accents"],
+        "prohibited": ["generic technology poster", "tiny unreadable copy", "reference watermark", "wrong vehicle facts"],
+    }
+
+
+def _graphic_campaign_dna_v19000(prompt_text, generation_plan=None, style_dna=None):
+    """Describe the current campaign without inventing product facts."""
+    plan = dict(generation_plan or {})
+    style = dict(style_dna or {})
+    return {
+        "schema": "autotecpro-campaign-dna-5",
+        "command": re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:1200],
+        "route": plan.get("route"),
+        "style_primary": style.get("primary"),
+        "style_secondary": style.get("secondary") or [],
+        "goal": "product-led commercial advertisement with the target vehicle as supporting context",
+        "fact_policy": "use only user-provided or verified compatibility and feature facts",
+    }
+
+
+def _graphic_product_region_confidence_v19000(product_mode, exact_gate=None, dna_gate=None):
+    """Normalize product confidence by engineering region for diagnostics and correction."""
+    if (product_mode or {}).get("exact_product"):
+        gate = dict(exact_gate or {})
+        base = 100 if gate.get("passed") else max(0, 100 - 12 * len(gate.get("issues") or []))
+        return {
+            "housing": base, "screen": base, "left_controls": base, "right_controls": base,
+            "knobs": base, "mounting": base, "openings": base,
+            "materials": 98 if gate.get("passed") else max(0, base - 5),
+            "overall": base, "mode": "exact_source_composite",
+        }
+    gate = dict(dna_gate or {})
+    def score(name, fallback=0):
+        try:
+            return max(0, min(100, int(float(gate.get(name, fallback) or fallback))))
+        except Exception:
+            return 0
+    hardware = score("hardware_detail_score")
+    return {
+        "housing": score("geometry_score"),
+        "screen": score("screen_ratio_score"),
+        "left_controls": score("left_controls_score", hardware),
+        "right_controls": score("right_controls_score", hardware),
+        "knobs": score("knob_score", hardware),
+        "mounting": score("mounting_score", hardware),
+        "openings": score("openings_score", hardware),
+        "materials": score("material_score", max(0, score("score") - 2)),
+        "overall": score("score"),
+        "mode": "product_dna_reconstruction",
+    }
+
+
+def _graphic_failure_memory_v19000(product_mode=None, dna_gate=None, exact_gate=None):
+    """Build bounded, non-learning failure guidance from the current verified result only."""
+    issues = []
+    if (product_mode or {}).get("exact_product"):
+        issues.extend(str(x) for x in (dict(exact_gate or {}).get("issues") or [])[:12])
+    else:
+        gate = dict(dna_gate or {})
+        issues.extend(str(x) for x in (gate.get("missing_or_changed_details") or [])[:16])
+        reason = str(gate.get("reason") or "").strip()
+        if reason:
+            issues.append(reason[:500])
+    return {
+        "schema": "autotecpro-failure-memory-5",
+        "scope": "current project and current product only",
+        "issues": issues[:20],
+        "rule": "use these as corrective guidance only; never overwrite trusted product or reference DNA",
+    }
+
+
+def _graphic_engine5_dna_hierarchy_v19000(
+    prompt_text,
+    role_items,
+    product_identity=None,
+    structure_profile=None,
+    vehicle_dna=None,
+    reference_decomposition=None,
+    style_dna=None,
+    generation_plan=None,
+):
+    """Assemble the final DNA hierarchy in explicit priority order."""
+    return {
+        "schema": "autotecpro-visual-dna-hierarchy-5",
+        "priority_order": [
+            "product_identity", "brand", "active_reference", "vehicle",
+            "composition", "render", "quality",
+        ],
+        "brand_dna": _graphic_brand_dna_v19000(),
+        "campaign_dna": _graphic_campaign_dna_v19000(prompt_text, generation_plan, style_dna),
+        "reference_dna": dict(reference_decomposition or {}),
+        "product_engineering_dna": _graphic_product_engineering_dna_v19000(
+            role_items, product_identity, structure_profile
+        ),
+        "vehicle_dna": dict(vehicle_dna or {}),
+        "style_dna": dict(style_dna or {}),
+        "generation_plan": dict(generation_plan or {}),
+        "multi_reference_rule": "newest active reference controls; no blending unless explicitly requested",
+    }
 
 def _graphic_chatgpt_production_prompt(
     prompt_text,
@@ -18952,6 +19119,16 @@ def _graphic_chatgpt_production_prompt(
     reference_decomposition = _graphic_reference_decomposition_v18000(reference_blueprint) if has_style else {}
     style_dna = _graphic_style_dna_v18000(reference_blueprint, prompt_text) if has_style else {}
     generation_plan = _graphic_generation_plan_v18000(prompt_text, role_items, has_edit_base=has_edit_base)
+    dna_hierarchy = _graphic_engine5_dna_hierarchy_v19000(
+        prompt_text,
+        role_items,
+        product_identity=product_identity,
+        structure_profile=product_structure,
+        vehicle_dna=vehicle_dna,
+        reference_decomposition=reference_decomposition,
+        style_dna=style_dna,
+        generation_plan=generation_plan,
+    )
 
     lines = [
         "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
@@ -19004,13 +19181,14 @@ def _graphic_chatgpt_production_prompt(
             "Use the reference as a composition blueprint, not as factual content. Every Ford/F-series element must be replaced when the user specifies a Chevrolet Silverado or another vehicle.",
         ])
     lines.extend([
-        "GRAPHIC ENGINE 4.0 PRODUCTION PLAN: " + json.dumps(generation_plan, ensure_ascii=False, default=str),
+        "GRAPHIC ENGINE 5.0 PRODUCTION PLAN: " + json.dumps(generation_plan, ensure_ascii=False, default=str),
+        "VISUAL DNA HIERARCHY 5.0: " + json.dumps(dna_hierarchy, ensure_ascii=False, default=str)[:12000],
         "PRODUCT IDENTITY CONTRACT: " + json.dumps(product_identity, ensure_ascii=False, default=str)[:6500],
         "VEHICLE DNA 3.0: " + json.dumps(vehicle_dna, ensure_ascii=False, default=str)[:3500],
         "REFERENCE DECOMPOSITION: " + json.dumps(reference_decomposition, ensure_ascii=False, default=str)[:6500],
         "STYLE DNA 3.0: " + json.dumps(style_dna, ensure_ascii=False, default=str)[:2500],
         "MULTI-REFERENCE POLICY: Keep every reference separate. The newest active reference controls the current layout. Do not blend older references unless the user explicitly asks to combine them. Never import a reference vehicle, product, claim, model year, logo placement error, or watermark into the current campaign.",
-        "ENGINEERING DETAIL PRESERVATION: preserve bezel thickness, button count and spacing, knob diameter and ring geometry, housing proportions, screen ratio, screen-to-housing position, openings, mounting tabs, cavities, seams, trim, and visible interface hierarchy. Rotation, uniform scaling, perspective, lighting, reflections and scene integration may change only when requested.",
+        "ENGINEERING DETAIL PRESERVATION: preserve housing transitions, bezel thickness, independent left/right button columns, button count/order/spacing/bevel/recess, knob diameter/center cap/ring/chamfer, mounting tabs, fastener holes, lower bracket, side openings, cavities, seams, trim, screen ratio, screen-to-housing position, material boundaries and visible interface hierarchy. Rotation, uniform scaling, perspective, lighting, reflections and scene integration may change only when requested.",
         "CONTENT QUALITY RULES:",
         "Use only user-provided, visible, or verified product facts. When a precise feature claim is unavailable, keep the visual slot but use a short neutral category label or non-verbal icon treatment rather than inventing a specification.",
         "Use exact readable spelling for AutoTec, AutoTecPro.com, the target vehicle, years, headline, ribbon, and tagline. Avoid gibberish or malformed letters.",
@@ -21226,32 +21404,29 @@ def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
 
 
 def _graphic_multiview_identity_prompt_v7000(role_items, mode_info, structure_profile):
-    """Build Product DNA guidance for an AI-created new viewpoint.
-
-    The camera, scale, perspective, lighting and crop may change. The engineering
-    identity, screen/unit proportions, interface and characteristic hardware may not.
-    """
+    """Build Engine 5 Product Engineering DNA guidance for a recreated viewpoint."""
     if not (mode_info or {}).get("recreates_product"):
         return ""
     products = [i for i in (role_items or []) if i.get("role") == "product_photo"]
     names = [str(i.get("name") or "product source") for i in products[:6]]
     requested_view = str(((mode_info or {}).get("recreation") or {}).get("requested_view") or "new requested camera angle")
-    profile_text = _graphic_product_structure_text_v4300(structure_profile)
+    identity = _graphic_product_identity_v18000(role_items, structure_profile)
+    engineering = _graphic_product_engineering_dna_v19000(role_items, identity, structure_profile)
     return f"""
-GRAPHIC ENGINE 2.0 — PRODUCT DNA RECREATION MODE:
+GRAPHIC ENGINE 5.0 — PRODUCT ENGINEERING DNA RECONSTRUCTION MODE:
 - Reproduce the same physical AutoTecPro unit from a {requested_view} viewpoint.
 - Identity sources, in priority order: {', '.join(names) or 'uploaded product source'}.
 - Camera angle, perspective, rotation, lighting, reflections, apparent size and composition MAY change naturally.
-- Do not treat the source as a flat sticker; reconstruct a plausible three-dimensional view of the same engineered object.
-- Preserve the whole-unit width/height relationship under perspective, and preserve the screen's intrinsic aspect ratio and its position within the housing.
-- Preserve the interface design and recognizable screen content hierarchy; do not replace it with an unrelated generic dashboard UI.
-- Preserve outer silhouette, bezel relationships, lower control panel, button/knob count and spacing, side structures, brackets, mounting tabs, cavities, openings, gaps and trim.
-- Perspective foreshortening is allowed, but stretching, widening, narrowing, melting, simplifying or redesigning the unit is forbidden.
-- Never fill a real opening, delete a mounting tab, invent a control, merge separate controls, simplify the lower frame, or change the screen-to-housing proportion.
-- Treat all uploaded product views as the same unit. Reconcile them into one coherent object rather than averaging them into a generic product.
-- Infer only surfaces hidden in every supplied view; keep inferred geometry conservative and consistent with visible evidence.
+- Reconstruct one coherent engineered object, not a generic radio and not a flattened sticker.
+- Preserve the intrinsic whole-unit geometry, screen aspect ratio, screen position, bezel relationship and every visible structural transition.
+- Preserve left and right control columns independently: button count, order, spacing, bevels, recesses, legends and shadows.
+- Preserve each knob independently: diameter, center cap, outer ring, chamfer, depth and location.
+- Preserve mounting ears, tabs, lower bracket, fastener holes, lower opening, side handle openings, cavities and every real negative space.
+- Preserve material separation between screen glass, glossy/satin/matte plastic, metallic trim and control surfaces.
+- Adapt reflections to the scene without smoothing away seams, bevels, cutouts, legends, knob rings or control depth.
+- Perspective foreshortening is allowed; stretching, widening, narrowing, melting, averaging, simplifying or redesigning is forbidden.
 - Advertisement references control layout/style only and must never supply product geometry.
-- Structural Product DNA: {profile_text or 'Use all uploaded product views as the complete engineering identity specification.'}
+- ENGINEERING DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:9000]}
 """
 
 
@@ -21490,7 +21665,7 @@ def _graphic_layer_stack_v8000(result=None, *, geometry=None, campaign_spec=None
     layers = {
         "background": {"editable": True, "source": "ai_scene", "asset": result.get("background_data_url") or ""},
         "vehicle": {"editable": True, "source": "ai_scene", "locked": False},
-        "product": {"editable": True, "source": "exact_or_recreated_product", "identity_locked": True, "pixel_locked": bool((result or {}).get("exact_product_structure_lock"))},
+        "product": {"editable": True, "source": "exact_or_engine5_recreated_product", "identity_locked": True, "engineering_dna": True, "pixel_locked": bool((result or {}).get("exact_product_structure_lock"))},
         "logo": {"editable": True, "source": "brand_asset", "locked": True},
         "headline": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("headline") or ""},
         "ribbon": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("compatibility") or ""},
@@ -21648,6 +21823,8 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
     hierarchy_gate = _graphic_commercial_hierarchy_score_v18000(result)
     product_detail = _graphic_product_detail_score_v18000(product_mode, exact_gate, dna_gate)
+    region_confidence = _graphic_product_region_confidence_v19000(product_mode, exact_gate, dna_gate)
+    failure_memory = _graphic_failure_memory_v19000(product_mode, dna_gate, exact_gate)
     checks["commercial_hierarchy"] = bool(hierarchy_gate.get("passed"))
     # Preserve v17000 exact-product stability: the new score is informative for exact
     # composites and hard-gating only for AI-recreated viewpoints.
@@ -21662,10 +21839,12 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         "exact_product_gate":exact_gate,
         "product_dna_gate":dna_gate,
         "product_detail_score":product_detail,
+        "product_region_confidence":region_confidence,
+        "failure_memory":failure_memory,
         "vehicle_validation":vehicle,
         "layout_fidelity_gate":layout_gate,
         "commercial_hierarchy_gate":hierarchy_gate,
-        "engine":"v18000-route-aware-production-quality-gate",
+        "engine":"v19000-engine5-route-aware-production-quality-gate",
     }
 
 
@@ -21744,24 +21923,28 @@ def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehi
 
 
 def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
-    """Validate Product DNA for AI-created angles without demanding pixel identity."""
+    """Validate Engine 5 Product Engineering DNA without demanding pixel identity."""
     product_sources = [item for item in (role_items or []) if item.get("role") == "product_photo"][:4]
     if not data_url or not product_sources:
         return {"available": False, "passed": None, "score": None, "reason": "product sources unavailable"}
+    identity = _graphic_product_identity_v18000(role_items, structure_profile)
+    engineering = _graphic_product_engineering_dna_v19000(role_items, identity, structure_profile)
     content = [{"type": "input_text", "text": (
-        "Act as a strict industrial-design Product DNA inspector. The first image may show a different "
-        "camera angle, perspective, scale, crop, lighting or reflections from the source photos; those changes "
-        "are allowed. Compare identity rather than exact pixels. Return JSON only with keys: passed (boolean), "
-        "score (0-100), geometry_score (0-100), screen_ratio_score (0-100), interface_score (0-100), "
-        "hardware_detail_score (0-100), missing_or_changed_details (array), confirmed_details (array), "
-        "reason (string). Fail if perspective does not plausibly explain a changed whole-unit proportion; if "
-        "the intrinsic screen ratio, screen position, bezel relationship, lower controls, buttons, knobs, side "
-        "openings, cavities, brackets, tabs, trim, silhouette or visible interface identity are redesigned, "
-        "removed, filled, invented, merged, stretched or simplified. Do not fail merely because the angle, "
-        "apparent size, lighting, shadows or reflections changed. Required overall score: 92, and each of "
-        "geometry, screen ratio, interface and hardware detail must score at least 88.\n"
+        "Act as a strict automotive industrial-design Product Engineering DNA inspector. The first image is "
+        "the generated result and later images are authoritative product sources. Different camera angle, "
+        "perspective, uniform scale, crop, lighting and reflections are allowed. Compare the same engineering "
+        "object, not exact pixels. Return JSON only with keys: passed, score, geometry_score, "
+        "screen_ratio_score, interface_score, hardware_detail_score, left_controls_score, "
+        "right_controls_score, knob_score, mounting_score, openings_score, material_score, "
+        "missing_or_changed_details, confirmed_details, reason. Fail if perspective cannot explain a changed "
+        "whole-unit proportion; if housing transitions, bezel, screen position, UI hierarchy, button columns, "
+        "knob geometry, mounting tabs, fastener holes, lower bracket, side openings, cavities, trim, seams or "
+        "material boundaries are redesigned, removed, filled, invented, merged, softened or simplified. "
+        "Do not fail merely because angle, apparent size, lighting, shadows or reflections changed. Required "
+        "overall score is 93. Geometry, screen ratio, interface and hardware must each be at least 89; left "
+        "controls, right controls, knobs, mounting and openings must each be at least 88.\n"
         f"User request: {str(prompt_text or '')[:1200]}\n"
-        f"Structure profile: {_graphic_product_structure_text_v4300(structure_profile)[:3500]}"
+        f"Engineering DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:8500]}"
     )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
     for item in product_sources:
         source = _graphic_role_data_url(item)
@@ -21771,20 +21954,30 @@ def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, 
         response = client.responses.create(
             model=_graphic_responses_model_v4000(),
             input=[{"role": "user", "content": content}],
-            max_output_tokens=1100,
+            max_output_tokens=1500,
         )
         payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
         if not isinstance(payload, dict):
             payload = {}
-        def score_value(key):
-            try: return max(0, min(100, int(float(payload.get(key, 0)))))
-            except Exception: return 0
+        def score_value(key, fallback=0):
+            try:
+                return max(0, min(100, int(float(payload.get(key, fallback) or fallback))))
+            except Exception:
+                return 0
         score = score_value("score")
         geometry = score_value("geometry_score")
         screen = score_value("screen_ratio_score")
         interface = score_value("interface_score")
         hardware = score_value("hardware_detail_score")
-        passed = bool(payload.get("passed")) and score >= 92 and min(geometry, screen, interface, hardware) >= 88
+        left_controls = score_value("left_controls_score", hardware)
+        right_controls = score_value("right_controls_score", hardware)
+        knobs = score_value("knob_score", hardware)
+        mounting = score_value("mounting_score", hardware)
+        openings = score_value("openings_score", hardware)
+        materials = score_value("material_score", max(0, score - 2))
+        passed = bool(payload.get("passed")) and score >= 93 and min(
+            geometry, screen, interface, hardware
+        ) >= 89 and min(left_controls, right_controls, knobs, mounting, openings) >= 88
         return {
             "available": True,
             "passed": passed,
@@ -21793,17 +21986,23 @@ def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, 
             "screen_ratio_score": screen,
             "interface_score": interface,
             "hardware_detail_score": hardware,
-            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:24],
-            "confirmed_details": (payload.get("confirmed_details") or [])[:24],
-            "reason": str(payload.get("reason") or "")[:1200],
-            "policy": "product_dna_identity_not_pixel_lock",
+            "left_controls_score": left_controls,
+            "right_controls_score": right_controls,
+            "knob_score": knobs,
+            "mounting_score": mounting,
+            "openings_score": openings,
+            "material_score": materials,
+            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:30],
+            "confirmed_details": (payload.get("confirmed_details") or [])[:30],
+            "reason": str(payload.get("reason") or "")[:1500],
+            "policy": "engine5_product_engineering_dna_not_pixel_lock",
         }
     except Exception as error:
         diagnostic_log(
-            "graphic_v17000_product_dna_validation_unavailable",
+            "graphic_v19000_product_engineering_validation_unavailable",
             error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
         )
-        return {"available": False, "passed": None, "score": None, "reason": "Product DNA validation unavailable"}
+        return {"available": False, "passed": None, "score": None, "reason": "Product Engineering DNA validation unavailable"}
 
 
 
