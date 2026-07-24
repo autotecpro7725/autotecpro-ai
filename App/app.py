@@ -18784,7 +18784,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v8300-reference-product-role-lock"
+GRAPHIC_ENGINE_VERSION = "v9000-autotecpro-graphic-accuracy-engine"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -19192,28 +19192,111 @@ def _graphic_save_latest_project_result(image):
 
 
 
+
+def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template_key=""):
+    """Normalize reference analysis into safe deterministic layout geometry.
+
+    Reference content controls geometry and visual hierarchy only. Product, vehicle,
+    wording, logo, icons and watermark from the reference are never reusable assets.
+    """
+    bp=dict(reference_blueprint or {})
+    cfg=_graphic_template_config_v8200(template_key)
+    def number(keys, default, low, high):
+        value=None
+        for key in keys:
+            candidate=bp.get(key)
+            if candidate not in (None, "", []):
+                value=candidate; break
+        try:
+            value=float(value)
+            if value>1.5: value/=100.0
+        except Exception:
+            value=float(default)
+        return max(low,min(high,value))
+    layout={
+        "top_ratio": number(("top_ratio","header_height_ratio","header_ratio"),cfg.get("top_ratio",.32),.22,.40),
+        "bar_ratio": number(("bar_ratio","bottom_bar_top_ratio"),cfg.get("bar_ratio",.885),.82,.93),
+        "hero_left": number(("hero_left","product_left_ratio"),cfg.get("hero_left",.02),0,.14),
+        "hero_right": number(("hero_right","product_right_ratio"),cfg.get("hero_right",.60),.48,.70),
+        "hero_top": number(("hero_top","product_top_ratio"),cfg.get("hero_top",.325),.25,.44),
+        "feature_left": number(("feature_left","feature_grid_left_ratio"),.585,.52,.72),
+        "feature_top": number(("feature_top","feature_grid_top_ratio"),.035,.01,.12),
+        "feature_width": number(("feature_width","feature_grid_width_ratio"),.385,.25,.46),
+        "feature_height": number(("feature_height","feature_grid_height_ratio"),.275,.18,.34),
+        "source":"reference_blueprint" if bp else "brand_template",
+        "content_policy":"geometry_only_no_reference_content",
+    }
+    return layout
+
+
+def _graphic_product_source_signature_v9000(product_item):
+    raw=_graphic_uploaded_file_bytes((product_item or {}).get("file"))
+    result={"sha256":hashlib.sha256(raw).hexdigest() if raw else "","width":0,"height":0,"aspect_ratio":0.0}
+    if raw and Image is not None:
+        try:
+            with Image.open(io.BytesIO(raw)) as im:
+                im=ImageOps.exif_transpose(im)
+                result.update({"width":im.width,"height":im.height,"aspect_ratio":round(im.width/max(1,im.height),6)})
+        except Exception: pass
+    return result
+
+
+def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
+    """Fail closed on source-role leakage, missing zones, tiny/cropped hero and bad vehicle lock."""
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    product_item=next((i for i in (role_items or []) if i.get("role")=="product_photo"),None)
+    source=_graphic_product_source_signature_v9000(product_item)
+    box=list(metadata.get("product_box") or [])
+    canvas=list(metadata.get("canvas_size") or [])
+    issues=[]
+    if not metadata.get("exact_product_pixels"): issues.append("exact product pixels not confirmed")
+    if source.get("sha256") and metadata.get("product_source_sha256")!=source.get("sha256"): issues.append("product source fingerprint mismatch")
+    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
+    if not required.issubset({str(x) for x in metadata.get("campaign_zones") or []}): issues.append("required campaign zones incomplete")
+    if len(box)==4 and len(canvas)==2 and canvas[0] and canvas[1]:
+        area=(box[2]*box[3])/(canvas[0]*canvas[1])
+        width_ratio=box[2]/canvas[0]
+        height_ratio=box[3]/canvas[1]
+        if area<.12 and not (width_ratio>=.18 and height_ratio>=.48): issues.append("hero product too small")
+        if box[0]<0 or box[1]<0 or box[0]+box[2]>canvas[0] or box[1]+box[3]>canvas[1]: issues.append("hero product cropped")
+    else: issues.append("product geometry metadata unavailable")
+    integrity=_graphic_role_integrity_v8300(role_items)
+    if not integrity.get("valid",integrity.get("passed",True)): issues.append("reference/product role integrity failed")
+    vehicle=(result or {}).get("vehicle_validation") or {}
+    hard=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+    if hard and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True: issues.append("target vehicle validation failed")
+    return {"passed":not issues,"issues":issues,"product_source":source,"hero_dominance":not any("hero product" in x for x in issues),"reference_leakage_blocked":True}
+
+
+def _graphic_render_mode_v9000(product_mode, has_style=False):
+    if (product_mode or {}).get("recreates_product"): return "ai_product_recreation"
+    if (product_mode or {}).get("exact_product") and has_style: return "commercial_recreation"
+    if (product_mode or {}).get("exact_product"): return "autotecpro_studio"
+    return "fully_generative_concept"
+
+
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
-    """Build a scenery-only prompt with an operational AutoTecPro brand template."""
+    """Create only scenery plus the locked target vehicle; all commercial layers are local."""
     explicit_name=str((vehicle_profile or {}).get("explicit_display_name") or campaign_spec.get("compatibility") or "").strip()
     prohibited=", ".join(str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip())
     cfg=_graphic_template_config_v8200(template_key)
+    layout=_graphic_reference_layout_blueprint_v9000(reference_blueprint,template_key)
     return "\n".join([
-        "Create a premium photorealistic automotive advertising BACKGROUND PLATE only.",
+        "Create a premium photorealistic automotive BACKGROUND PLATE ONLY.",
         f"Canvas: {output_size}.",
-        "Do not draw any infotainment unit, screen, dashboard product, gauge cluster, logo, headline, icon, ribbon, feature label, bottom bar, watermark, or advertising text.",
-        f"AutoTecPro template: {cfg.get('label')}. Visual direction: {cfg.get('background')}.",
-        f"Show exactly one clearly recognizable {explicit_name or 'target vehicle specified by the user'} on the RIGHT side of the frame, three-quarter front view.",
-        f"Keep the LEFT foreground open through approximately {int(float(cfg.get('hero_right',0.585))*100)}% of canvas width for a very large exact product cutout.",
-        f"Keep the TOP {int(float(cfg.get('top_ratio',0.335))*100)} percent calm and low-detail for deterministic typography.",
-        f"Keep the BOTTOM {int((1-float(cfg.get('bar_ratio',0.885)))*100)} percent free of important objects for a benefit bar.",
-        "Use realistic shadows, premium automotive-advertising lighting, crisp commercial realism, and sufficient tonal separation behind the future product.",
-        "The reference is a LAYOUT/MOOD GUIDE ONLY. Never reproduce, paste, frame, thumbnail, collage, or embed any portion of the reference artwork.",
-        "Never copy the reference product, reference vehicle, words, feature icons, logo, watermark, screenshot, border, or advertisement panel.",
-        "The generated plate must contain scenery and the requested target vehicle only; the exact uploaded product will be added later as the dominant hero.",
-        ("Absolutely prohibit these vehicle identities: "+prohibited) if prohibited else "Do not substitute a different vehicle make or model.",
-        "The target vehicle must remain fully visible behind and to the right of the future product placement.",
+        "Content allowed: environment, realistic ground, lighting, and exactly one requested target vehicle.",
+        "Content forbidden: infotainment product, dashboard screen, gauge cluster, product frame, logo, headline, text, icons, ribbon, benefit bar, watermark, screenshot, poster, advertisement panel, or collage.",
+        f"Target vehicle: exactly one clearly recognizable {explicit_name or 'vehicle explicitly specified by the user'}, placed on the RIGHT and behind the future hero product.",
+        f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
+        f"Reserve left foreground from {int(layout['hero_left']*100)}% to {int(layout['hero_right']*100)}% width and from {int(layout['hero_top']*100)}% height downward for a dominant exact product cutout.",
+        f"Keep top {int(layout['top_ratio']*100)}% calm for deterministic typography and bottom {int((1-layout['bar_ratio'])*100)}% clear for a deterministic benefit bar.",
+        "The reference image is geometry, mood, lighting and visual-density guidance only. Never reproduce any reference product, vehicle, words, logo, icons, watermark, panel, border, or pixels.",
+        "The target vehicle must be secondary. Leave the future product as the unmistakable primary hero.",
+        "Use realistic contact lighting and tonal separation behind the future product, but do not invent a product shadow; it will be added locally.",
+        ("Absolutely prohibit these vehicle identities: "+prohibited) if prohibited else "Never substitute a different make or model.",
         "User direction: "+re.sub(r"\s+"," ",str(prompt_text or ""))[:1200],
     ])[:16000]
+
 
 
 
@@ -19314,6 +19397,7 @@ def _graphic_compose_reference_campaign_v3200(
         canvas = ImageOps.exif_transpose(bg).convert("RGBA")
     W, H = canvas.size
     template_cfg = _graphic_template_config_v8200(template_key)
+    layout_bp = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
 
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
@@ -19324,8 +19408,8 @@ def _graphic_compose_reference_campaign_v3200(
     # Production-safe visual zones. Do not trust AI-derived geometry for the final
     # deterministic campaign because malformed boxes caused tiny copy, empty headers,
     # and undersized products in prior releases.
-    top_h = int(H * float(template_cfg.get("top_ratio", 0.335)))
-    bar_top = int(H * float(template_cfg.get("bar_ratio", 0.885)))
+    top_h = int(H * float(layout_bp.get("top_ratio", template_cfg.get("top_ratio", 0.335))))
+    bar_top = int(H * float(layout_bp.get("bar_ratio", template_cfg.get("bar_ratio", 0.885))))
 
     # Calm top copy plate while retaining some scenery texture.
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -19345,13 +19429,13 @@ def _graphic_compose_reference_campaign_v3200(
 
     # Exact-product hero placement: dominant and fully visible, including the gap below
     # the screen, lower openings, mounting tabs, side handles, knobs, and trim geometry.
-    hero_x0 = int(W * (float(template_cfg.get("hero_left", 0.025)) + float(transforms.get("product_dx", 0.0))))
-    hero_y0 = int(H * (float(template_cfg.get("hero_top", 0.335)) + float(transforms.get("product_dy", 0.0))))
-    hero_x1 = int(W * (float(template_cfg.get("hero_right", 0.585)) + float(transforms.get("product_dx", 0.0))))
+    hero_x0 = int(W * (float(layout_bp.get("hero_left", template_cfg.get("hero_left", 0.025))) + float(transforms.get("product_dx", 0.0))))
+    hero_y0 = int(H * (float(layout_bp.get("hero_top", template_cfg.get("hero_top", 0.335))) + float(transforms.get("product_dy", 0.0))))
+    hero_x1 = int(W * (float(layout_bp.get("hero_right", template_cfg.get("hero_right", 0.625))) + float(transforms.get("product_dx", 0.0))))
     hero_y1 = bar_top - int(H * 0.008)
     hero_w = hero_x1 - hero_x0
     hero_h = hero_y1 - hero_y0
-    scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height)) * float(template_cfg.get("product_scale", 1.0)) * float(transforms.get("product_scale", 1.0))
+    scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height)) * max(1.04, float(template_cfg.get("product_scale", 1.0))) * float(transforms.get("product_scale", 1.0))
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
     product = product.resize(
         (max(1, int(product.width * scale)), max(1, int(product.height * scale))),
@@ -19436,10 +19520,10 @@ def _graphic_compose_reference_campaign_v3200(
             "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
         ]
         features.append(defaults[len(features)])
-    grid_x = int(W * 0.585)
-    grid_y = int(H * 0.035)
-    grid_w = int(W * 0.385)
-    grid_h = int(H * 0.275)
+    grid_x = int(W * float(layout_bp.get("feature_left", 0.585)))
+    grid_y = int(H * float(layout_bp.get("feature_top", 0.035)))
+    grid_w = int(W * float(layout_bp.get("feature_width", 0.385)))
+    grid_h = int(H * float(layout_bp.get("feature_height", 0.275))) * float(transforms.get("feature_scale", 1.0))
     cell_w = grid_w / 4.0
     cell_h = grid_h / 2.0
     feature_font = _graphic_font(max(13, int(H * 0.017)), False)
@@ -19524,6 +19608,13 @@ def _graphic_compose_reference_campaign_v3200(
         "product_dna_active": bool(product_dna),
         "layout_transforms": transforms,
         "hero_region": [hero_x0, hero_y0, hero_x1, hero_y1],
+        "canvas_size": [W, H],
+        "reference_layout_blueprint": layout_bp,
+        "reference_content_policy": "geometry_only_no_reference_pixels",
+        "product_source_sha256": _graphic_product_source_signature_v9000(product_item).get("sha256"),
+        "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
+        "render_mode": "commercial_recreation" if any(i.get("role")=="style_reference" for i in role_items or []) else "autotecpro_studio",
+        "hero_product_priority": "primary",
     }
 
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
@@ -20425,23 +20516,34 @@ def _graphic_template_config_v8200(template_key):
 
 
 def _graphic_layout_overrides_v8200(prompt_text, edit_directive=None):
-    """Parse bounded deterministic object transforms for fast local layout edits."""
-    lower=str(prompt_text or "").casefold()
-    edit_directive=dict(edit_directive or {})
-    result={"product_dx":0.0,"product_dy":0.0,"product_scale":1.0,"headline_scale":1.0}
-    amount=0.035
-    if any(x in lower for x in ("slightly","a little","a bit")): amount=0.02
-    if "product" in lower or "unit" in lower or "screen" in lower:
+    """Parse bounded local object transforms without regenerating unrelated layers."""
+    lower=str(prompt_text or "").casefold(); edit_directive=dict(edit_directive or {})
+    result={"product_dx":0.0,"product_dy":0.0,"product_scale":1.0,"headline_scale":1.0,"feature_scale":1.0,"logo_dx":0.0,"logo_dy":0.0,"bar_scale":1.0}
+    amount=.035
+    if any(x in lower for x in ("slightly","a little","a bit")): amount=.02
+    if any(x in lower for x in ("product","unit","screen")):
         if "move" in lower and "right" in lower: result["product_dx"]+=amount
         if "move" in lower and "left" in lower: result["product_dx"]-=amount
-        if "move" in lower and ("up" in lower or "higher" in lower): result["product_dy"]-=amount
-        if "move" in lower and ("down" in lower or "lower" in lower): result["product_dy"]+=amount
-        if any(x in lower for x in ("bigger","larger","increase product")): result["product_scale"]=1.10
-        if any(x in lower for x in ("smaller","reduce product")): result["product_scale"]=0.90
-    if "headline" in lower or "title" in lower:
-        if any(x in lower for x in ("bigger","larger")): result["headline_scale"]=1.12
-        if "smaller" in lower: result["headline_scale"]=0.90
+        if "move" in lower and any(x in lower for x in ("up","higher")): result["product_dy"]-=amount
+        if "move" in lower and any(x in lower for x in ("down","lower")): result["product_dy"]+=amount
+        if any(x in lower for x in ("bigger","larger","increase product")): result["product_scale"]=1.15
+        if any(x in lower for x in ("smaller","reduce product")): result["product_scale"]=.88
+    if any(x in lower for x in ("headline","title")):
+        if any(x in lower for x in ("bigger","larger")): result["headline_scale"]=1.14
+        if "smaller" in lower: result["headline_scale"]=.88
+    if "feature" in lower or "icon" in lower:
+        if any(x in lower for x in ("bigger","larger","more spacing")): result["feature_scale"]=1.10
+        if any(x in lower for x in ("smaller","tighter","less spacing")): result["feature_scale"]=.90
+    if "logo" in lower and "move" in lower:
+        if "right" in lower: result["logo_dx"]+=amount
+        if "left" in lower: result["logo_dx"]-=amount
+        if "down" in lower: result["logo_dy"]+=amount
+        if "up" in lower: result["logo_dy"]-=amount
+    if "bottom bar" in lower or "benefit bar" in lower:
+        if any(x in lower for x in ("bigger","taller")): result["bar_scale"]=1.10
+        if any(x in lower for x in ("smaller","shorter")): result["bar_scale"]=.90
     return result
+
 
 
 GRAPHIC_V8000_TEMPLATES = {
@@ -20593,30 +20695,29 @@ def _graphic_update_metrics_v8000(*, elapsed=0.0, provider_calls=0, retries=0, l
 
 
 def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile):
-    """One consolidated QA pass that reuses existing validation whenever available."""
-    checks={"image_valid":False,"product_valid":True,"vehicle_valid":True,"branding_valid":True,"layout_valid":True,"text_valid":True}
+    """Consolidated v9000 quality gate with source fingerprint and hero-dominance checks."""
+    checks={"image_valid":False,"product_valid":True,"vehicle_valid":True,"branding_valid":True,"layout_valid":True,"text_valid":True,"reference_integrity":True,"hero_dominance":True}
     raw,_=data_url_to_bytes(str((result or {}).get("data_url") or "")); checks["image_valid"]=bool(raw)
-    metadata=(result or {}).get("layered_metadata") or {}
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    exact_gate={"passed":True,"issues":[]}
     if product_mode.get("exact_product"):
-        checks["product_valid"]=bool(metadata.get("exact_product_pixels") or (result or {}).get("strict_product_identity_lock") or metadata.get("critical_product_geometry_preserved"))
-    existing_vehicle=(result or {}).get("vehicle_validation") or {}
-    if (vehicle_profile or {}).get("hard_vehicle_lock"):
-        if existing_vehicle and not _graphic_validation_is_unavailable_v4100(existing_vehicle):
-            vehicle=existing_vehicle
-        else:
-            vehicle=_graphic_safe_optional_call("graphic_v8200_vehicle_qa_unavailable",lambda:_graphic_focused_vehicle_validation_v3300((result or {}).get("data_url"),role_items,prompt_text,vehicle_profile),_graphic_validation_unavailable_v4100())
-        if not _graphic_validation_is_unavailable_v4100(vehicle): checks["vehicle_valid"]=vehicle.get("verified") is True
-        checks["vehicle_validation"]=vehicle
-    zones=set(str(x) for x in (metadata.get("campaign_zones") or []))
-    required={"logo","headline","hero_product","bottom_benefit_bar"}
-    if metadata.get("deterministic_typography") or metadata.get("fixed_production_geometry"):
-        checks["branding_valid"]="logo" in zones; checks["layout_valid"]=required.issubset(zones); checks["text_valid"]=bool((result or {}).get("campaign_spec") or metadata.get("deterministic_typography"))
-    if product_mode.get("recreates_product"):
-        struct=(result or {}).get("product_structure_validation") or {}
-        if struct.get("available"): checks["product_valid"]=struct.get("passed") is True
-    checks["passed"]=all(bool(checks.get(k)) for k in ("image_valid","product_valid","vehicle_valid","branding_valid","layout_valid","text_valid"))
-    checks["failed_checks"]=[k for k in ("image_valid","product_valid","vehicle_valid","branding_valid","layout_valid","text_valid") if not checks.get(k)]
-    return checks
+        exact_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile)
+        checks["product_valid"]=exact_gate.get("passed",False)
+        checks["reference_integrity"]=exact_gate.get("reference_leakage_blocked",False)
+        checks["hero_dominance"]=exact_gate.get("hero_dominance",False)
+    hard=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+    vehicle=(result or {}).get("vehicle_validation") or {}
+    if hard and not vehicle:
+        vehicle=_graphic_safe_optional_call("graphic_v9000_vehicle_qa_unavailable",lambda:_graphic_focused_vehicle_validation_v3300((result or {}).get("data_url"),role_items,prompt_text,vehicle_profile),_graphic_validation_unavailable_v4100())
+    if hard and not _graphic_validation_is_unavailable_v4100(vehicle): checks["vehicle_valid"]=vehicle.get("verified") is True
+    zones={str(x) for x in metadata.get("campaign_zones") or []}
+    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
+    checks["layout_valid"]=required.issubset(zones)
+    checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
+    checks["text_valid"]=bool(metadata.get("deterministic_typography"))
+    passed=all(checks.values())
+    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"vehicle_validation":vehicle,"engine":"v9000-quality-gate"}
+
 
 
 
@@ -20768,7 +20869,7 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     final_result["campaign_spec"] = campaign_spec
     final_result["project_editable"] = True
     final_result["output_size"] = output_size
-    final_result["product_render_mode"] = product_mode.get("mode")
+    final_result["product_render_mode"] = product_mode.get("render_mode") or product_mode.get("mode")
     final_result["ai_product_recreated"] = bool(product_mode.get("recreates_product"))
     final_result["product_view_count"] = int(product_mode.get("product_count") or 0)
     final_result["requested_product_view"] = str((product_mode.get("recreation") or {}).get("requested_view") or "")
@@ -20802,40 +20903,32 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     return final_result
 
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create and lightly validate one exact-product deterministic campaign."""
-    result = _graphic_build_hybrid_campaign_result_v3300(
-        prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
-    )
-    validation = _graphic_exact_result_validation_v7100(
-        result, role_items, prompt_text, vehicle_profile or {}
-    )
-    result["deterministic_verification"] = validation
-    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
+    """Create a deterministic exact-product campaign and fail closed on product/reference integrity."""
+    result=_graphic_build_hybrid_campaign_result_v3300(prompt_text,role_items,output_size,reference_blueprint or {},vehicle_profile or {})
+    validation=_graphic_exact_result_validation_v7100(result,role_items,prompt_text,vehicle_profile or {})
+    result["deterministic_verification"]=validation; result["vehicle_validation"]=validation.get("vehicle_validation") or {}
+    source_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile or {})
+    result["source_fidelity_gate"]=source_gate
+    if not source_gate.get("passed"):
+        raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
     if validation.get("verified"):
-        result["output_status"] = "verified_exact_product_fast_v7100"
-        result["verification_status"] = "verified"
+        result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
     elif validation.get("unverified"):
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The exact-product campaign was completed, but the optional vehicle validator was unavailable.",
-            status="completed_exact_product_unverified_v7100",
-        )
+        result=_graphic_mark_unverified_v4100(result,"The exact product is preserved, but optional vehicle verification was unavailable.",status="completed_exact_product_unverified_v9000")
     elif validation.get("passed"):
-        result["output_status"] = "completed_exact_product_v7100"
-        result["verification_status"] = "completed"
+        result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
     else:
         raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"] = "v8300-reference-product-role-lock"
-    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"] = str(next((item.get("name") for item in (role_items or []) if item.get("role") == "product_photo"), ""))
-    result["style_reference_sources"] = [str(item.get("name") or "") for item in (role_items or []) if item.get("role") == "style_reference"][:4]
-    result["reference_content_leakage_prohibited"] = True
-    result["product_render_mode"] = str((mode_info or {}).get("mode") or "exact_product")
-    result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
-    result["ai_product_recreated"] = False
-    result["speed_optimized"] = True
-    result["project_editable"] = True
+    result["graphic_engine_version"]="v9000-autotecpro-graphic-accuracy-engine"
+    result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
+    result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
+    result["reference_content_leakage_prohibited"]=True
+    result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
+    result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
+    result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
     return result
+
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
@@ -20872,6 +20965,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         has_style = any(i.get("role") == "style_reference" for i in role_items)
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
         product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
+        product_mode["render_mode"] = _graphic_render_mode_v9000(product_mode, has_style)
         structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
         brand_template = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
