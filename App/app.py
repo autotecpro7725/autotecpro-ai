@@ -19088,6 +19088,280 @@ def _graphic_engine5_dna_hierarchy_v19000(
         "multi_reference_rule": "newest active reference controls; no blending unless explicitly requested",
     }
 
+
+
+@st.cache_data(max_entries=128, show_spinner=False)
+def _graphic_cached_contract_v19100(kind, payload_json):
+    """Cache deterministic Graphic contracts without caching files or provider output."""
+    try:
+        payload = json.loads(payload_json) if payload_json else {}
+    except Exception:
+        payload = {}
+    kind = str(kind or "").strip().lower()
+    if kind == "product":
+        identity = dict(payload.get("identity") or {})
+        engineering = dict(payload.get("engineering") or {})
+        return {
+            "housing_geometry": identity.get("outer_silhouette") or (engineering.get("geometry_dna") or {}).get("silhouette") or "",
+            "screen_ratio": identity.get("screen_aspect_ratio") or (engineering.get("geometry_dna") or {}).get("screen_ratio"),
+            "screen_to_frame": identity.get("screen_to_housing_ratio") or (engineering.get("geometry_dna") or {}).get("screen_to_housing"),
+            "button_placement": "preserve independent left/right control columns, count, order, spacing and recess depth",
+            "knob_size": "preserve each knob diameter, ring, center cap, chamfer, depth and location",
+            "bezel_thickness": "preserve visible bezel thickness and screen position relative to the housing",
+            "mounting_tabs": "preserve every visible tab, ear, fastener opening, lower bracket and negative space",
+            "ui_fidelity": "preserve visible screen layout, widget proportions, icon hierarchy and interface density",
+            "acceptance_policy": "perspective may change apparent dimensions; intrinsic engineering relationships may not drift",
+        }
+    if kind == "vehicle":
+        dna = dict(payload.get("vehicle") or {})
+        return {
+            "identity": dna.get("display_name") or "",
+            "grille": dna.get("grille") or "match exact generation-specific grille and badge region",
+            "headlights": dna.get("headlights") or "match exact generation-specific headlight signature",
+            "body_proportions": dna.get("body_proportions") or "preserve hood, cabin, wheelbase and cargo-body proportions",
+            "cab_configuration": dna.get("cab_type") or "preserve requested cab configuration",
+            "bed_length": dna.get("bed_length") or "preserve requested pickup-bed proportion",
+            "ride_height": dna.get("ride_height") or "preserve realistic factory or requested stance",
+            "wheelbase": dna.get("wheel_spacing") or "preserve axle spacing and wheelbase cues",
+            "acceptance_policy": "reject conflicting make/model/generation or body configuration cues",
+        }
+    if kind == "layout":
+        layout = dict(payload.get("layout") or {})
+        boxes = dict(layout.get("boxes") or {})
+        return {
+            "hero_product": boxes.get("hero_product") or layout.get("hero_product") or {},
+            "vehicle": boxes.get("vehicle") or layout.get("vehicle") or {},
+            "logo": boxes.get("logo") or layout.get("logo") or {},
+            "headline": boxes.get("headline") or layout.get("headline") or {},
+            "feature_grid": boxes.get("feature_grid") or layout.get("feature_grid") or {},
+            "footer": boxes.get("bottom_benefit_bar") or boxes.get("footer") or layout.get("bottom_benefit_bar") or {},
+            "rules": [
+                "product remains the dominant foreground object",
+                "vehicle remains secondary and staged farther right/deeper",
+                "title and ribbon preserve measured spacing",
+                "feature grid preserves measured density and breathing room",
+                "footer preserves measured height and divider rhythm",
+            ],
+        }
+    return payload
+
+
+def _graphic_reference_fingerprint_v19100(reference_blueprint=None, role_items=None):
+    """Create a reusable template fingerprint while keeping references isolated."""
+    bp = dict(reference_blueprint or {})
+    layout = _graphic_reference_layout_blueprint_v9000(bp)
+    style = _graphic_style_dna_v18000(bp, "")
+    palette = bp.get("palette") or bp.get("color_palette") or []
+    typography = bp.get("typography") or bp.get("typography_style") or ""
+    icon_style = bp.get("icon_style") or bp.get("feature_icon_style") or bp.get("feature_grid") or ""
+    summary = {
+        "schema": "autotecpro-reference-fingerprint-19100",
+        "source_fingerprint": _graphic_role_fingerprint_v8200(role_items or [], {"style_reference"}),
+        "layout_fingerprint": layout,
+        "typography_fingerprint": typography,
+        "icon_style": icon_style,
+        "color_palette": palette,
+        "visual_hierarchy": ["logo", "headline", "compatibility_ribbon", "hero_product", "vehicle", "feature_grid", "footer"],
+        "style_weights": style.get("scores") or {},
+        "isolation_policy": "one active reference fingerprint; no automatic cross-template blending",
+    }
+    compact = json.dumps(summary, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    summary["fingerprint_id"] = hashlib.sha256(compact.encode("utf-8")).hexdigest()[:24]
+    return summary
+
+
+def _graphic_product_fidelity_contract_v19100(role_items, product_identity=None, structure_profile=None):
+    engineering = _graphic_product_engineering_dna_v19000(role_items, product_identity, structure_profile)
+    payload = json.dumps({"identity": product_identity or {}, "engineering": engineering}, ensure_ascii=False, sort_keys=True, default=str)
+    return _graphic_cached_contract_v19100("product", payload)
+
+
+def _graphic_vehicle_acceptance_contract_v19100(vehicle_profile=None):
+    vehicle = _graphic_vehicle_dna_v18000(vehicle_profile)
+    payload = json.dumps({"vehicle": vehicle}, ensure_ascii=False, sort_keys=True, default=str)
+    return _graphic_cached_contract_v19100("vehicle", payload)
+
+
+def _graphic_layout_targets_v19100(reference_blueprint=None):
+    layout = _graphic_reference_layout_blueprint_v9000(reference_blueprint or {})
+    payload = json.dumps({"layout": layout}, ensure_ascii=False, sort_keys=True, default=str)
+    return _graphic_cached_contract_v19100("layout", payload)
+
+
+def _graphic_layout_optimization_gate_v19100(result):
+    """Measure campaign geometry without an additional model call."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    canvas = list(metadata.get("canvas_size") or [])
+    product = list(metadata.get("product_box") or [])
+    vehicle = list(metadata.get("vehicle_box") or [])
+    zones = {str(x) for x in metadata.get("campaign_zones") or []}
+    score = 100
+    issues = []
+    product_ratio = vehicle_ratio = 0.0
+    if len(canvas) == 2 and canvas[0] and canvas[1]:
+        area = float(canvas[0]) * float(canvas[1])
+        if len(product) == 4:
+            product_ratio = float(product[2]) * float(product[3]) / area
+        if len(vehicle) == 4:
+            vehicle_ratio = float(vehicle[2]) * float(vehicle[3]) / area
+    if product_ratio and product_ratio < 0.18:
+        score -= 18; issues.append("hero product is below the preferred dominant area")
+    if product_ratio and vehicle_ratio and product_ratio <= vehicle_ratio * 1.25:
+        score -= 18; issues.append("vehicle competes too strongly with the hero product")
+    if len(vehicle) == 4 and len(canvas) == 2 and canvas[0]:
+        vehicle_center = (float(vehicle[0]) + float(vehicle[2]) / 2.0) / float(canvas[0])
+        if vehicle_center < 0.68:
+            score -= 10; issues.append("vehicle should be staged farther right")
+    required = {"logo", "headline", "feature_matrix", "bottom_benefit_bar", "hero_product"}
+    missing = sorted(required - zones)
+    if missing:
+        score -= min(30, len(missing) * 7); issues.append("missing zones: " + ", ".join(missing))
+    return {
+        "score": max(0, int(score)),
+        "passed": score >= 82,
+        "product_area_ratio": round(product_ratio, 4),
+        "vehicle_area_ratio": round(vehicle_ratio, 4),
+        "issues": issues,
+        "engine": "v19100-layout-optimization",
+    }
+
+
+def _graphic_route_signature_v19100(prompt_text, role_items, generation_plan=None):
+    """Provide deterministic routing diagnostics and deduplication context."""
+    payload = {
+        "command": re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()[:1200],
+        "assets": _graphic_role_fingerprint_v8200(role_items or []),
+        "route": str((generation_plan or {}).get("route") or ""),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _graphic_ui_structure_dna_v19200(role_items, product_identity=None):
+    """Describe the visible screen hierarchy without requiring frozen screen pixels."""
+    identity = dict(product_identity or {})
+    return {
+        "schema": "ui_structure_dna_5_0",
+        "authority": "uploaded product screen is the only UI source of truth",
+        "preserve": {
+            "screen_orientation": identity.get("screen_orientation") or "match source",
+            "screen_aspect_ratio": identity.get("screen_aspect_ratio") or "match source",
+            "status_bar": "preserve height, placement, icon density and visual hierarchy",
+            "primary_navigation": "preserve row count, item order, spacing and relative scale",
+            "map_region": "preserve approximate location, dimensions and relationship to surrounding panels",
+            "media_region": "preserve approximate location, dimensions and internal hierarchy",
+            "vehicle_or_climate_region": "preserve approximate location, dimensions and control hierarchy",
+            "bottom_controls": "preserve row count, icon rhythm, climate/control grouping and margins",
+            "widget_grid": "preserve major panel boundaries, column ratios and vertical rhythm",
+        },
+        "allowed_changes": [
+            "perspective projection caused by a requested camera angle",
+            "scene-matched reflections and brightness",
+            "uniform scale",
+            "minor unreadable microtext simplification only when unavoidable",
+        ],
+        "prohibited_changes": [
+            "generic replacement Android interface",
+            "moving or merging major widgets",
+            "changing the number of major UI rows or columns",
+            "changing map, media, status-bar or climate-control hierarchy",
+            "stretching the UI independently from the physical screen",
+        ],
+    }
+
+
+def _graphic_product_constraint_solver_v19200(role_items, product_identity=None, structure_profile=None):
+    """Build geometry relationships that must survive viewpoint and scale changes."""
+    identity = dict(product_identity or {})
+    engineering = _graphic_product_engineering_dna_v19000(
+        role_items, identity, structure_profile
+    )
+    return {
+        "schema": "product_constraint_solver_5_0",
+        "mode": "relative_geometry_constraints_not_pixel_lock",
+        "hard_constraints": {
+            "whole_unit_ratio": identity.get("whole_unit_ratio") or identity.get("source_aspect_ratio") or "derive from source",
+            "screen_to_housing_ratio": identity.get("screen_to_housing_ratio") or "derive from source",
+            "screen_aspect_ratio": identity.get("screen_aspect_ratio") or "derive from source",
+            "left_side_panel_width": "preserve relative to screen width",
+            "right_side_panel_width": "preserve relative to screen width",
+            "bezel_thickness": "preserve each visible side relative to screen dimensions",
+            "button_vertical_positions": "preserve normalized order and spacing independently on left and right",
+            "knob_centers": "preserve normalized x/y location relative to housing",
+            "knob_diameters": "preserve relative to screen width and side-panel width",
+            "mounting_features": "preserve count, shape and normalized placement",
+            "openings_and_negative_space": "preserve count, dimensions and normalized placement",
+        },
+        "engineering_regions": engineering.get("regions") or engineering.get("component_map") or engineering,
+        "solver_rules": [
+            "Apply one coherent perspective transform to the complete engineered object.",
+            "Never resize the screen, controls, knobs or side panels independently.",
+            "Perspective may foreshorten visible dimensions but cannot change intrinsic relationships.",
+            "Reject geometry that requires adding, deleting, merging or relocating a physical component.",
+        ],
+    }
+
+
+def _graphic_engineering_qa_contract_v19200(product_mode=None):
+    """Define route-aware acceptance thresholds while protecting exact-product stability."""
+    mode = dict(product_mode or {})
+    reconstruction = bool(mode.get("recreates_product"))
+    return {
+        "schema": "engineering_qa_5_0",
+        "hard_gate": reconstruction,
+        "exact_product_policy": "retain proven exact-product gate; new scores are diagnostic only",
+        "reconstruction_thresholds": {
+            "overall": 95,
+            "silhouette": 93,
+            "housing_geometry": 93,
+            "screen_ratio": 94,
+            "bezel_consistency": 92,
+            "button_alignment": 91,
+            "knob_geometry": 91,
+            "mounting_geometry": 90,
+            "openings_geometry": 90,
+            "ui_structure": 92,
+            "engineering_identity": 94,
+        },
+        "retry_policy": "one bounded corrective retry using only failed regions",
+    }
+
+
+def _graphic_engineering_qa_summary_v19200(product_mode, exact_gate, dna_gate):
+    """Normalize exact and reconstructed product evidence into one engineering report."""
+    mode = dict(product_mode or {})
+    if mode.get("exact_product"):
+        passed = bool((exact_gate or {}).get("passed"))
+        return {
+            "available": True,
+            "passed": passed,
+            "hard_gate": False,
+            "route": "exact_product",
+            "overall_score": 100 if passed else 0,
+            "reason": "Exact uploaded product remains authoritative; v19200 adds no stricter rejection.",
+        }
+    gate = dict(dna_gate or {})
+    return {
+        "available": bool(gate.get("available")),
+        "passed": bool(gate.get("passed")),
+        "hard_gate": True,
+        "route": "product_reconstruction",
+        "overall_score": gate.get("score"),
+        "silhouette_score": gate.get("silhouette_score"),
+        "housing_geometry_score": gate.get("housing_geometry_score") or gate.get("geometry_score"),
+        "screen_ratio_score": gate.get("screen_ratio_score"),
+        "bezel_consistency_score": gate.get("bezel_consistency_score"),
+        "button_alignment_score": gate.get("button_alignment_score"),
+        "knob_geometry_score": gate.get("knob_geometry_score") or gate.get("knob_score"),
+        "mounting_geometry_score": gate.get("mounting_geometry_score") or gate.get("mounting_score"),
+        "openings_geometry_score": gate.get("openings_geometry_score") or gate.get("openings_score"),
+        "ui_structure_score": gate.get("ui_structure_score") or gate.get("interface_score"),
+        "engineering_identity_score": gate.get("engineering_identity_score"),
+        "failed_regions": gate.get("missing_or_changed_details") or [],
+        "reason": gate.get("reason") or "",
+    }
+
+
 def _graphic_chatgpt_production_prompt(
     prompt_text,
     role_items,
@@ -19129,6 +19403,14 @@ def _graphic_chatgpt_production_prompt(
         style_dna=style_dna,
         generation_plan=generation_plan,
     )
+    product_fidelity = _graphic_product_fidelity_contract_v19100(role_items, product_identity, product_structure) if has_product else {}
+    ui_structure_dna = _graphic_ui_structure_dna_v19200(role_items, product_identity) if has_product else {}
+    product_constraints = _graphic_product_constraint_solver_v19200(role_items, product_identity, product_structure) if has_product else {}
+    engineering_qa_contract = _graphic_engineering_qa_contract_v19200(generation_plan)
+    vehicle_acceptance = _graphic_vehicle_acceptance_contract_v19100(vehicle_profile)
+    layout_targets = _graphic_layout_targets_v19100(reference_blueprint) if has_style else {}
+    reference_fingerprint = _graphic_reference_fingerprint_v19100(reference_blueprint, role_items) if has_style else {}
+    route_signature = _graphic_route_signature_v19100(prompt_text, role_items, generation_plan)
 
     lines = [
         "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
@@ -19182,6 +19464,14 @@ def _graphic_chatgpt_production_prompt(
         ])
     lines.extend([
         "GRAPHIC ENGINE 5.0 PRODUCTION PLAN: " + json.dumps(generation_plan, ensure_ascii=False, default=str),
+        "V19200 DETERMINISTIC ROUTE SIGNATURE: " + route_signature,
+        "PRODUCT FIDELITY OPTIMIZATION CONTRACT: " + json.dumps(product_fidelity, ensure_ascii=False, default=str)[:5000],
+        "ENGINEERING DNA 5.0 PRODUCT CONSTRAINT SOLVER: " + json.dumps(product_constraints, ensure_ascii=False, default=str)[:7000],
+        "UI STRUCTURE DNA 5.0: " + json.dumps(ui_structure_dna, ensure_ascii=False, default=str)[:4500],
+        "ENGINEERING QA 5.0 ACCEPTANCE CONTRACT: " + json.dumps(engineering_qa_contract, ensure_ascii=False, default=str)[:2500],
+        "MEASURED LAYOUT OPTIMIZATION TARGETS: " + json.dumps(layout_targets, ensure_ascii=False, default=str)[:5000],
+        "VEHICLE ACCEPTANCE CONTRACT: " + json.dumps(vehicle_acceptance, ensure_ascii=False, default=str)[:3500],
+        "ACTIVE REFERENCE FINGERPRINT: " + json.dumps(reference_fingerprint, ensure_ascii=False, default=str)[:6500],
         "VISUAL DNA HIERARCHY 5.0: " + json.dumps(dna_hierarchy, ensure_ascii=False, default=str)[:12000],
         "PRODUCT IDENTITY CONTRACT: " + json.dumps(product_identity, ensure_ascii=False, default=str)[:6500],
         "VEHICLE DNA 3.0: " + json.dumps(vehicle_dna, ensure_ascii=False, default=str)[:3500],
@@ -19207,7 +19497,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v18000-autotecpro-graphic-engine-4-production"
+GRAPHIC_ENGINE_VERSION = "v19200-autotecpro-graphic-engine-5-engineering-fidelity"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21472,14 +21762,23 @@ def _graphic_cached_reference_blueprint_v8200(role_items, prompt_text, style_str
     cache=dict(state.get("reference_analysis_cache") or {})
     key=hashlib.sha256((GRAPHIC_ENGINE_VERSION+"|"+str(style_strength)+"|"+_graphic_role_fingerprint_v8200(role_items,{"style_reference"})).encode()).hexdigest()
     if key in cache and isinstance(cache[key],dict):
+        diagnostic_log("graphic_v19100_reference_cache_hit", cache_key=key[:16])
         return dict(cache[key]), True
     value=_graphic_safe_optional_call(
         "graphic_v8200_reference_analysis_failed_open",
         lambda: analyze_graphic_reference_blueprint(role_items,prompt_text=prompt_text,style_strength=style_strength),
         {},
     ) or {}
+    value = dict(value)
+    value["reference_fingerprint_v19100"] = _graphic_reference_fingerprint_v19100(value, role_items)
     cache[key]=dict(value)
-    state["reference_analysis_cache"]={k:v for k,v in list(cache.items())[-12:]}
+    state["reference_analysis_cache"]={k:v for k,v in list(cache.items())[-16:]}
+    library = dict(state.get("reference_fingerprint_library") or {})
+    fp = dict(value.get("reference_fingerprint_v19100") or {})
+    if fp.get("fingerprint_id"):
+        library[str(fp["fingerprint_id"])] = fp
+    state["reference_fingerprint_library"] = {k:v for k,v in list(library.items())[-40:]}
+    diagnostic_log("graphic_v19100_reference_cache_store", cache_key=key[:16], fingerprint=fp.get("fingerprint_id"), library_size=len(state["reference_fingerprint_library"]))
     st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
     return value, False
 
@@ -21492,6 +21791,7 @@ def _graphic_cached_vehicle_profile_v8200(role_items, prompt_text):
     identity=str((explicit or state.get("explicit_vehicle") or {}).get("display_name") or "").casefold()
     key=hashlib.sha256((GRAPHIC_ENGINE_VERSION+"|"+identity+"|"+_graphic_role_fingerprint_v8200(role_items,{"product_photo","installation_photo"})).encode()).hexdigest()
     if key in cache and isinstance(cache[key],dict):
+        diagnostic_log("graphic_v19100_vehicle_cache_hit", cache_key=key[:16], identity=identity[:120])
         return _graphic_resolve_vehicle_lock(prompt_text,dict(cache[key])), True
     researched=_graphic_safe_optional_call(
         "graphic_v8200_vehicle_research_failed_open",
@@ -21499,7 +21799,8 @@ def _graphic_cached_vehicle_profile_v8200(role_items, prompt_text):
         {},
     ) or {}
     cache[key]=dict(researched)
-    state["vehicle_profile_cache"]={k:v for k,v in list(cache.items())[-20:]}
+    state["vehicle_profile_cache"]={k:v for k,v in list(cache.items())[-24:]}
+    diagnostic_log("graphic_v19100_vehicle_cache_store", cache_key=key[:16], identity=identity[:120], cache_size=len(state["vehicle_profile_cache"]))
     st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
     return _graphic_resolve_vehicle_lock(prompt_text, researched), False
 
@@ -21822,10 +22123,13 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
     hierarchy_gate = _graphic_commercial_hierarchy_score_v18000(result)
+    layout_optimization = _graphic_layout_optimization_gate_v19100(result)
     product_detail = _graphic_product_detail_score_v18000(product_mode, exact_gate, dna_gate)
     region_confidence = _graphic_product_region_confidence_v19000(product_mode, exact_gate, dna_gate)
     failure_memory = _graphic_failure_memory_v19000(product_mode, dna_gate, exact_gate)
+    engineering_qa = _graphic_engineering_qa_summary_v19200(product_mode, exact_gate, dna_gate)
     checks["commercial_hierarchy"] = bool(hierarchy_gate.get("passed"))
+    checks["layout_optimization"] = bool(layout_optimization.get("passed"))
     # Preserve v17000 exact-product stability: the new score is informative for exact
     # composites and hard-gating only for AI-recreated viewpoints.
     if product_mode.get("recreates_product"):
@@ -21841,10 +22145,13 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         "product_detail_score":product_detail,
         "product_region_confidence":region_confidence,
         "failure_memory":failure_memory,
+        "engineering_qa_v19200":engineering_qa,
         "vehicle_validation":vehicle,
         "layout_fidelity_gate":layout_gate,
         "commercial_hierarchy_gate":hierarchy_gate,
-        "engine":"v19000-engine5-route-aware-production-quality-gate",
+        "layout_optimization_gate":layout_optimization,
+        "correction_guidance_v19200":"; ".join(layout_optimization.get("issues") or [])[:1200],
+        "engine":"v19200-engine5-engineering-fidelity-quality-gate",
     }
 
 
@@ -21923,28 +22230,36 @@ def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehi
 
 
 def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
-    """Validate Engine 5 Product Engineering DNA without demanding pixel identity."""
+    """Validate reconstructed viewpoints with Engineering DNA, UI DNA and one shared QA call."""
     product_sources = [item for item in (role_items or []) if item.get("role") == "product_photo"][:4]
     if not data_url or not product_sources:
         return {"available": False, "passed": None, "score": None, "reason": "product sources unavailable"}
     identity = _graphic_product_identity_v18000(role_items, structure_profile)
     engineering = _graphic_product_engineering_dna_v19000(role_items, identity, structure_profile)
+    constraints = _graphic_product_constraint_solver_v19200(role_items, identity, structure_profile)
+    ui_dna = _graphic_ui_structure_dna_v19200(role_items, identity)
     content = [{"type": "input_text", "text": (
-        "Act as a strict automotive industrial-design Product Engineering DNA inspector. The first image is "
-        "the generated result and later images are authoritative product sources. Different camera angle, "
-        "perspective, uniform scale, crop, lighting and reflections are allowed. Compare the same engineering "
-        "object, not exact pixels. Return JSON only with keys: passed, score, geometry_score, "
-        "screen_ratio_score, interface_score, hardware_detail_score, left_controls_score, "
-        "right_controls_score, knob_score, mounting_score, openings_score, material_score, "
-        "missing_or_changed_details, confirmed_details, reason. Fail if perspective cannot explain a changed "
-        "whole-unit proportion; if housing transitions, bezel, screen position, UI hierarchy, button columns, "
-        "knob geometry, mounting tabs, fastener holes, lower bracket, side openings, cavities, trim, seams or "
-        "material boundaries are redesigned, removed, filled, invented, merged, softened or simplified. "
-        "Do not fail merely because angle, apparent size, lighting, shadows or reflections changed. Required "
-        "overall score is 93. Geometry, screen ratio, interface and hardware must each be at least 89; left "
-        "controls, right controls, knobs, mounting and openings must each be at least 88.\n"
+        "Act as a strict automotive industrial-design Engineering QA inspector. The first image is the "
+        "generated result and later images are authoritative product sources. Different camera angle, "
+        "perspective, coherent uniform scale, crop, lighting and reflections are allowed. Compare the same "
+        "engineered object, not exact pixels. Return JSON only with keys: passed, score, silhouette_score, "
+        "housing_geometry_score, geometry_score, screen_ratio_score, bezel_consistency_score, "
+        "interface_score, ui_structure_score, hardware_detail_score, button_alignment_score, "
+        "left_controls_score, right_controls_score, knob_score, knob_geometry_score, mounting_score, "
+        "mounting_geometry_score, openings_score, openings_geometry_score, material_score, "
+        "engineering_identity_score, missing_or_changed_details, confirmed_details, reason. "
+        "Fail when perspective cannot explain changed intrinsic proportions; changed outer contour; altered "
+        "side-panel widths; screen or bezel distortion; moved, merged or reordered controls; changed knob "
+        "diameter or center; missing mounting tabs, holes or lower openings; filled negative space; simplified "
+        "housing curvature; generic replacement UI; moved or merged major screen widgets; or a changed status, "
+        "navigation, map, media or climate-control hierarchy. Do not fail merely because angle, apparent size, "
+        "lighting, shadows or reflections changed coherently. Required overall score is 95. Silhouette and "
+        "housing geometry must each be at least 93; screen ratio 94; bezel and UI structure 92; button and knob "
+        "geometry 91; mounting and openings 90; engineering identity 94.\n"
         f"User request: {str(prompt_text or '')[:1200]}\n"
-        f"Engineering DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:8500]}"
+        f"Engineering DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:6500]}\n"
+        f"Constraint Solver: {json.dumps(constraints, ensure_ascii=False, default=str)[:6500]}\n"
+        f"UI Structure DNA: {json.dumps(ui_dna, ensure_ascii=False, default=str)[:3500]}"
     )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
     for item in product_sources:
         source = _graphic_role_data_url(item)
@@ -21954,7 +22269,7 @@ def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, 
         response = client.responses.create(
             model=_graphic_responses_model_v4000(),
             input=[{"role": "user", "content": content}],
-            max_output_tokens=1500,
+            max_output_tokens=1700,
         )
         payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
         if not isinstance(payload, dict):
@@ -21965,44 +22280,65 @@ def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, 
             except Exception:
                 return 0
         score = score_value("score")
-        geometry = score_value("geometry_score")
+        silhouette = score_value("silhouette_score", score)
+        housing = score_value("housing_geometry_score", payload.get("geometry_score", 0))
+        geometry = score_value("geometry_score", housing)
         screen = score_value("screen_ratio_score")
+        bezel = score_value("bezel_consistency_score", screen)
         interface = score_value("interface_score")
+        ui_structure = score_value("ui_structure_score", interface)
         hardware = score_value("hardware_detail_score")
-        left_controls = score_value("left_controls_score", hardware)
-        right_controls = score_value("right_controls_score", hardware)
+        button_alignment = score_value("button_alignment_score", hardware)
+        left_controls = score_value("left_controls_score", button_alignment)
+        right_controls = score_value("right_controls_score", button_alignment)
         knobs = score_value("knob_score", hardware)
+        knob_geometry = score_value("knob_geometry_score", knobs)
         mounting = score_value("mounting_score", hardware)
+        mounting_geometry = score_value("mounting_geometry_score", mounting)
         openings = score_value("openings_score", hardware)
+        openings_geometry = score_value("openings_geometry_score", openings)
         materials = score_value("material_score", max(0, score - 2))
-        passed = bool(payload.get("passed")) and score >= 93 and min(
-            geometry, screen, interface, hardware
-        ) >= 89 and min(left_controls, right_controls, knobs, mounting, openings) >= 88
+        engineering_identity = score_value("engineering_identity_score", score)
+        passed = bool(payload.get("passed")) and (
+            score >= 95 and silhouette >= 93 and housing >= 93 and screen >= 94
+            and bezel >= 92 and ui_structure >= 92 and button_alignment >= 91
+            and knob_geometry >= 91 and mounting_geometry >= 90
+            and openings_geometry >= 90 and engineering_identity >= 94
+        )
         return {
             "available": True,
             "passed": passed,
             "score": score,
+            "silhouette_score": silhouette,
+            "housing_geometry_score": housing,
             "geometry_score": geometry,
             "screen_ratio_score": screen,
+            "bezel_consistency_score": bezel,
             "interface_score": interface,
+            "ui_structure_score": ui_structure,
             "hardware_detail_score": hardware,
+            "button_alignment_score": button_alignment,
             "left_controls_score": left_controls,
             "right_controls_score": right_controls,
             "knob_score": knobs,
+            "knob_geometry_score": knob_geometry,
             "mounting_score": mounting,
+            "mounting_geometry_score": mounting_geometry,
             "openings_score": openings,
+            "openings_geometry_score": openings_geometry,
             "material_score": materials,
+            "engineering_identity_score": engineering_identity,
             "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:30],
             "confirmed_details": (payload.get("confirmed_details") or [])[:30],
             "reason": str(payload.get("reason") or "")[:1500],
-            "policy": "engine5_product_engineering_dna_not_pixel_lock",
+            "policy": "v19200_engineering_dna_ui_structure_constraint_solver",
         }
     except Exception as error:
         diagnostic_log(
-            "graphic_v19000_product_engineering_validation_unavailable",
+            "graphic_v19200_engineering_validation_unavailable",
             error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
         )
-        return {"available": False, "passed": None, "score": None, "reason": "Product Engineering DNA validation unavailable"}
+        return {"available": False, "passed": None, "score": None, "reason": "Engineering QA validation unavailable"}
 
 
 
@@ -22129,6 +22465,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
         role_integrity = _graphic_role_integrity_v8300(role_items)
+        diagnostic_log(
+            "graphic_v19100_request_plan",
+            asset_fingerprint=_graphic_role_fingerprint_v8200(role_items)[:20],
+            role_counts={role: sum(1 for item in role_items if item.get("role") == role) for role in {str(item.get("role") or "") for item in role_items}},
+            output_size=output_size,
+        )
         if not role_integrity.get("passed"):
             raise RuntimeError(
                 "The product and reference images could not be separated safely. "
