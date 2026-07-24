@@ -46,9 +46,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v21010
-# v21010 is built directly from the proven v20300 commercial exact-product base.
-# Adds the full versioned fingerprint engine, authoritative mask approval, explicit 3x3 rigid geometry, inverse-normalized measured QA, and campaign cache without replacing v20300 commercial composition.
+# AutoTecPro AI performance/stability revision: v22000
+# v22000 consolidated production update built directly from the current v21010 working base.
+# Adds lazy Engineering DNA preparation, instant upload-state recovery, strict target-vehicle body-class locks,
+# reference-pixel isolation, validated vehicle-plate caching, bounded vehicle-only retry, and regression-isolated Graphic changes.
 # Exact-product mode keeps uploaded product pixels authoritative and blocks generative product replacement.
 # ============================================================
 # App Paths / API
@@ -21301,8 +21302,36 @@ def _graphic_background_exclusion_contract_v20500(prompt_text):
         "product is composited later from immutable source RGB and an approved mask."
     )
 
+def _graphic_lightweight_upload_identity_v22000(file):
+    """Return cheap upload metadata without running segmentation or Engineering DNA."""
+    raw = _graphic_uploaded_file_bytes(file)
+    if not raw:
+        return {"available": False}
+    result = {
+        "available": True,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "name": str(getattr(file, "name", "product")),
+        "mime_type": str(getattr(file, "type", "") or ""),
+        "size_bytes": len(raw),
+    }
+    if Image is not None:
+        try:
+            with Image.open(io.BytesIO(raw)) as image:
+                result["width"], result["height"] = image.size
+                result["mode"] = str(image.mode)
+        except Exception:
+            pass
+    return result
+
+
 def render_engineering_dna_approval_panel_v21000(uploaded_files):
-    """First-stage mask/fingerprint approval UI for Graphic Marketing."""
+    """Lazy Engineering DNA UI that never blocks the normal upload interaction.
+
+    Streamlit executes code inside collapsed expanders, so the previous implementation
+    still performed segmentation and the full fingerprint pass immediately after upload.
+    v22000 shows lightweight metadata first and runs the expensive work only after the
+    user explicitly requests it, or later when image generation actually needs it.
+    """
     if Image is None:
         return
     images = [
@@ -21312,30 +21341,51 @@ def render_engineering_dna_approval_panel_v21000(uploaded_files):
     ]
     if not images:
         return
+
     selected = st.selectbox(
         "Engineering product source",
         options=list(range(len(images))),
         format_func=lambda index: str(getattr(images[index], "name", f"Image {index + 1}")),
         key="v21000_engineering_source_selector",
-        help="Select the uploaded product photo used for mask and fingerprint approval.",
+        help="Select the uploaded product photo used for optional mask and fingerprint review.",
     )
     file = images[int(selected)]
-    raw = _graphic_uploaded_file_bytes(file)
-    if not raw:
+    identity = _graphic_lightweight_upload_identity_v22000(file)
+    if not identity.get("available"):
         return
-    source_sha = hashlib.sha256(raw).hexdigest()
+    source_sha = str(identity.get("sha256") or "")
     state = get_graphic_project_state()
     approvals = dict(state.get("engineering_approval_v21000") or {})
     approval = dict(approvals.get(source_sha) or {})
+    cache = dict(state.get("engineering_dna_cache_v21000") or {})
+    cache_prefix = f"{source_sha}:{ENGINEERING_DNA_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:fingerprint-v21000"
+    cached_fingerprint = cache.get(cache_prefix)
 
     with st.expander("Engineering DNA & Mask Approval", expanded=False):
+        dims = ""
+        if identity.get("width") and identity.get("height"):
+            dims = f" • {identity['width']}×{identity['height']}"
+        st.caption(
+            f"Product received: {identity.get('name')} • {identity.get('size_bytes', 0) / (1024*1024):.1f} MB{dims}. "
+            "Detailed Engineering DNA is deferred so the upload remains responsive."
+        )
+
+        prepare_key = f"v22000_prepare_engineering_{source_sha[:12]}"
+        prepared = bool(cached_fingerprint)
+        if not prepared:
+            if not st.button("Prepare Engineering DNA", key=prepare_key, use_container_width=True):
+                st.info("Engineering DNA and mask analysis will run automatically when you create the image, or you can prepare it here.")
+                return
+
         cols = st.columns(2)
         try:
+            raw = _graphic_uploaded_file_bytes(file)
             source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
             preview = source.copy()
             preview.thumbnail((640, 480))
             with cols[0]:
                 st.image(preview, caption="Original product source", use_container_width=True)
+
             product_item = {"file": file, "name": getattr(file, "name", "product"), "role": "product_photo"}
             layer, _ = _graphic_open_product_layer_v3300(file)
             fingerprint = _graphic_bezel_fingerprint_v20500(product_item, layer=layer)
@@ -21363,26 +21413,11 @@ def render_engineering_dna_approval_panel_v21000(uploaded_files):
         )
         action_cols = st.columns(4)
         if action_cols[0].button("Approve Mask", key=f"v21000_approve_mask_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "mask_approved": True,
-                "fingerprint_approved": True,
-                "manually_approved": True,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-            })
+            approval.update({"mask_approved": True, "fingerprint_approved": True, "manually_approved": True, "approved_at": datetime.now(timezone.utc).isoformat()})
         if action_cols[1].button("Reject Mask", key=f"v21000_reject_mask_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "mask_approved": False,
-                "fingerprint_approved": False,
-                "manually_approved": False,
-                "rejected_at": datetime.now(timezone.utc).isoformat(),
-            })
+            approval.update({"mask_approved": False, "fingerprint_approved": False, "manually_approved": False, "rejected_at": datetime.now(timezone.utc).isoformat()})
         if action_cols[2].button("Use Studio Photo", key=f"v21000_use_studio_{source_sha[:12]}", use_container_width=True):
-            approval.update({
-                "use_original_studio_photo": True,
-                "mask_approved": True,
-                "fingerprint_approved": False,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-            })
+            approval.update({"use_original_studio_photo": True, "mask_approved": True, "fingerprint_approved": False, "approved_at": datetime.now(timezone.utc).isoformat()})
         if replacement is not None and action_cols[3].button("Save Replacement", key=f"v21000_save_replacement_{source_sha[:12]}", use_container_width=True):
             replacement_raw = _graphic_uploaded_file_bytes(replacement)
             with Image.open(io.BytesIO(replacement_raw)) as replacement_image:
@@ -21392,13 +21427,7 @@ def render_engineering_dna_approval_panel_v21000(uploaded_files):
                 else:
                     buffer = io.BytesIO()
                     replacement_rgba.save(buffer, format="PNG", optimize=True)
-                    approval.update({
-                        "replacement_data_url": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"),
-                        "mask_approved": True,
-                        "fingerprint_approved": True,
-                        "manually_approved": True,
-                        "approved_at": datetime.now(timezone.utc).isoformat(),
-                    })
+                    approval.update({"replacement_data_url": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"), "mask_approved": True, "fingerprint_approved": True, "manually_approved": True, "approved_at": datetime.now(timezone.utc).isoformat()})
 
         approvals[source_sha] = approval
         state["engineering_approval_v21000"] = approvals
@@ -21453,8 +21482,12 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
     lowered = explicit_name.casefold()
     if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
         body_type = "full-size pickup truck"
-    elif any(term in lowered for term in ("tahoe", "suburban", "yukon", "escalade", "suv")):
-        body_type = "full-size SUV"
+    elif any(term in lowered for term in (
+        "tahoe", "suburban", "yukon", "escalade", "cherokee", "grand cherokee",
+        "compass", "renegade", "wrangler", "bronco sport", "explorer", "expedition",
+        "durango", "suv", "crossover"
+    )):
+        body_type = "factory-correct SUV or crossover"
     elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
         body_type = "passenger car"
     else:
@@ -21480,6 +21513,7 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         f"Reserve the left foreground from {int(float(layout.get('hero_left', layout.get('hero_product_box', [0.018])[0]))*100)}% to {int(float(layout.get('hero_right', (layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[0] + layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[2])))*100)}% width and from {int(float(layout.get('hero_top', layout.get('hero_product_box', [0.018, 0.305])[1]))*100)}% height downward for a dominant exact product cutout.",
         f"Keep the top {int(float(layout.get('top_ratio', 0.34))*100)}% calm for deterministic typography and the bottom {int((1-float(layout.get('bar_ratio', 0.875)))*100)}% clear for a deterministic benefit bar.",
         "The vehicle is strictly secondary and farther from camera; the empty left product zone must remain the strongest foreground area by a clear visual margin. Do not place the vehicle near center and do not enlarge it into a co-hero.",
+        "IDENTITY HARD GATE: the target vehicle must have the correct factory body silhouette. If the target is an SUV/crossover, show a closed rear cargo body and absolutely no pickup bed. If the target is a pickup, show the correct cab and bed. Never copy the reference advertisement vehicle.",
         "Use realistic tonal separation and contact lighting behind the future product, but do not draw a product or product shadow.",
         ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
         ("Additional scene direction, after removing conflicting reference-vehicle terms: " + clean_direction) if clean_direction else "Use a clean premium automotive environment.",
@@ -21521,7 +21555,7 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
         if attempt:
             attempt_prompt += (
                 "\nRETRY CORRECTION: The previous plate failed vehicle identity validation. "
-                "Render the exact locked target vehicle and body type only. Remove every conflicting vehicle cue."
+                "Render the exact locked target vehicle and factory-correct body type only. Remove every conflicting vehicle cue. If the target is an SUV/crossover, absolutely no pickup bed or truck cab is allowed; use a closed rear cargo body."
             )
         try:
             raw_images, route = _graphic_responses_generate_v3000(provider_items, attempt_prompt, output_size)
@@ -21585,6 +21619,8 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
                 "reason": str(last_validation.get("reason") or "")[:500],
             },
             "reference_pixels_used": False,
+            "vehicle_body_type_gate": str(last_validation.get("required_body_type") or ""),
+            "vehicle_identity_gate_passed": True,
         }
         state["background_plate_cache"] = {key: value for key, value in list(cache.items())[-8:]}
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
@@ -22835,9 +22871,13 @@ def _graphic_focused_vehicle_validation_v3300(data_url, role_items, prompt_text,
     if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
         required_body = "pickup truck"
         forbidden_body = "SUV, crossover, sedan, coupe, van"
-    elif any(term in lowered for term in ("tahoe", "suburban", "yukon", "escalade", "suv")):
-        required_body = "SUV"
-        forbidden_body = "pickup truck, sedan, coupe, van"
+    elif any(term in lowered for term in (
+        "tahoe", "suburban", "yukon", "escalade", "cherokee", "grand cherokee",
+        "compass", "renegade", "wrangler", "bronco sport", "explorer", "expedition",
+        "durango", "suv", "crossover"
+    )):
+        required_body = "SUV or crossover with no open pickup bed"
+        forbidden_body = "pickup truck, open-bed truck, sedan, coupe, or van"
     elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
         required_body = "passenger car"
         forbidden_body = "pickup truck, SUV, van"
