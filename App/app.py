@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v19400
-# v19400 Graphic Engine 5.1 Engineering Fidelity Edition: built directly from the proven v19000 baseline.
-# Preserves the v19000 exact-product route while adding border-connected background removal, source-ratio
-# preservation, adaptive reconstruction ratio contracts, UI-structure guidance, and stricter engineering QA.
+# AutoTecPro AI performance/stability revision: v20010
+# v20010 Graphic Engine 6.1 Production Hardening: built directly from the verified v20000 baseline.
+# Adds cached dual-strategy geometry detection, final-output bezel comparison, 95%+ engineering thresholds,
+# one bounded engineering-correction retry, accurate provider-call telemetry, and fail-closed geometry diagnostics.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19026,6 +19026,286 @@ def _graphic_ui_structure_dna_v19400(role_items, structure_profile=None):
     }
 
 
+
+def _graphic_premultiplied_resize_v20000(image, size, resample=None):
+    """Resize RGBA in Pillow's premultiplied-alpha mode to preserve dark edges.
+
+    Straight-alpha resizing can mix transparent white background into dark bezel
+    pixels and create a visible light fringe or apparent edge expansion. Pillow's
+    RGBa mode premultiplies channels natively, keeping this path fast and dependency
+    free while preserving the uploaded contour.
+    """
+    if Image is None or image is None:
+        return image
+    target = (max(1, int(size[0])), max(1, int(size[1])))
+    resample = resample or Image.Resampling.LANCZOS
+    rgba = ImageOps.exif_transpose(image).convert("RGBA")
+    if rgba.size == target:
+        return rgba.copy()
+    try:
+        return rgba.convert("RGBa").resize(target, resample).convert("RGBA")
+    except Exception as error:
+        diagnostic_log("graphic_v20000_premultiplied_resize_fallback", error_type=type(error).__name__, error=str(error))
+        return rgba.resize(target, resample)
+
+_GRAPHIC_LANDMARK_CACHE_V20010 = {}
+
+def _graphic_engineering_landmarks_from_rgba_v20010(layer, structure_profile=None):
+    """Measure housing, bezel and display geometry with dark-frame and edge fallbacks."""
+    report = {
+        "schema": "autotecpro-engineering-landmarks-6.1",
+        "available": False,
+        "source_available": False,
+        "housing_detected": False,
+        "outer_bezel_detected": False,
+        "inner_display_detected": False,
+        "geometry_complete": False,
+        "detection_method": "none",
+        "source_size": [0, 0],
+        "product_bounds": None,
+        "unit_aspect_ratio": None,
+        "outer_bezel_box": None,
+        "inner_display_box": None,
+        "outer_bezel_aspect_ratio": None,
+        "inner_display_aspect_ratio": None,
+        "screen_to_unit_width": None,
+        "screen_to_unit_height": None,
+        "bezel_profile": None,
+        "anchors": {},
+    }
+    if Image is None or layer is None:
+        return report
+    try:
+        from PIL import ImageFilter
+        from collections import deque
+        layer = ImageOps.exif_transpose(layer).convert("RGBA")
+        w, h = layer.size
+        if w < 8 or h < 8:
+            return report
+        alpha = layer.getchannel("A")
+        bbox = alpha.point(lambda v: 255 if v >= 16 else 0).getbbox() or (0, 0, w, h)
+        bx0, by0, bx1, by1 = bbox
+        bw, bh = max(1, bx1-bx0), max(1, by1-by0)
+        rgb = layer.convert("RGB")
+        gray = rgb.convert("L")
+        cx0, cx1 = max(bx0, int(w*0.12)), min(bx1, int(w*0.88))
+        cy0, cy1 = max(by0, int(h*0.02)), min(by1, int(h*0.98))
+
+        def components_from_mask(mask, min_pixels):
+            pixels=mask.load(); seen=set(); components=[]
+            for y in range(cy0, cy1, 2):
+                for x in range(cx0, cx1, 2):
+                    if pixels[x,y] < 128 or (x,y) in seen:
+                        continue
+                    q=deque([(x,y)]); seen.add((x,y)); xs=[]; ys=[]
+                    while q:
+                        px,py=q.popleft(); xs.append(px); ys.append(py)
+                        for nx,ny in ((px-1,py),(px+1,py),(px,py-1),(px,py+1)):
+                            if cx0<=nx<cx1 and cy0<=ny<cy1 and pixels[nx,ny]>=128 and (nx,ny) not in seen:
+                                seen.add((nx,ny)); q.append((nx,ny))
+                    if len(xs) >= min_pixels:
+                        components.append((len(xs),(min(xs),min(ys),max(xs)+1,max(ys)+1)))
+            components.sort(reverse=True)
+            return components
+
+        # Strategy A: dominant dark frame.
+        dark = Image.new("L", (w,h), 0); dp=dark.load(); gp=gray.load(); ap=alpha.load()
+        for y in range(cy0,cy1):
+            for x in range(cx0,cx1):
+                if ap[x,y] >= 220 and gp[x,y] <= 82:
+                    dp[x,y]=255
+        dark=dark.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.MinFilter(5))
+        comps=components_from_mask(dark,max(20,(w*h)//12000))
+        outer=None; method="dark_frame"
+        for _count,comp in comps:
+            x0,y0,x1,y1=comp; cw=x1-x0; ch=y1-y0
+            if cw>=bw*0.18 and ch>=bh*0.20 and x0<bx0+bw*0.67 and x1>bx0+bw*0.33:
+                outer=comp; break
+
+        # Strategy B: color-independent edge rectangle fallback.
+        if outer is None:
+            edges=gray.filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(5))
+            ep=edges.load(); edge_mask=Image.new("L",(w,h),0); em=edge_mask.load()
+            for y in range(cy0,cy1):
+                for x in range(cx0,cx1):
+                    if ap[x,y]>=200 and ep[x,y]>=58:
+                        em[x,y]=255
+            edge_mask=edge_mask.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.MinFilter(3))
+            comps=components_from_mask(edge_mask,max(16,(w*h)//18000))
+            method="edge_rectangle"
+            best=None
+            for count,comp in comps[:30]:
+                x0,y0,x1,y1=comp; cw=x1-x0; ch=y1-y0
+                if cw>=bw*0.20 and ch>=bh*0.20 and cw<=bw*0.92 and ch<=bh*0.96:
+                    center_penalty=abs(((x0+x1)/2)-(bx0+bw/2))/max(1,bw)
+                    score=(cw*ch)*(1.0-min(0.8,center_penalty))
+                    if best is None or score>best[0]: best=(score,comp)
+            outer=best[1] if best else None
+
+        inner=None
+        if outer:
+            ox0,oy0,ox1,oy1=outer
+            ix0=ox0+max(1,int((ox1-ox0)*0.01)); ix1=ox1-max(1,int((ox1-ox0)*0.01))
+            iy0=oy0+max(1,int((oy1-oy0)*0.01)); iy1=oy1-max(1,int((oy1-oy0)*0.01))
+            def active_col(x):
+                vals=[gp[x,y] for y in range(iy0,iy1,max(1,(iy1-iy0)//120)) if ap[x,y]>=200]
+                return bool(vals) and (sum(v>88 for v in vals)/len(vals)>0.48 or (max(vals)-min(vals)>38))
+            def active_row(y):
+                vals=[gp[x,y] for x in range(ix0,ix1,max(1,(ix1-ix0)//120)) if ap[x,y]>=200]
+                return bool(vals) and (sum(v>88 for v in vals)/len(vals)>0.48 or (max(vals)-min(vals)>38))
+            while ix0<ix1-4 and not active_col(ix0): ix0+=1
+            while ix1>ix0+4 and not active_col(ix1-1): ix1-=1
+            while iy0<iy1-4 and not active_row(iy0): iy0+=1
+            while iy1>iy0+4 and not active_row(iy1-1): iy1-=1
+            if ix1-ix0 >= (ox1-ox0)*0.48 and iy1-iy0 >= (oy1-oy0)*0.48:
+                inner=(ix0,iy0,ix1,iy1)
+
+        def norm_box(box):
+            if not box: return None
+            x0,y0,x1,y1=box
+            return [round(x0/w,8),round(y0/h,8),round((x1-x0)/w,8),round((y1-y0)/h,8)]
+        bezel_profile=None
+        if outer and inner:
+            ox0,oy0,ox1,oy1=outer; ix0,iy0,ix1,iy1=inner
+            bezel_profile={
+                "left":round((ix0-ox0)/max(1,ox1-ox0),8),
+                "right":round((ox1-ix1)/max(1,ox1-ox0),8),
+                "top":round((iy0-oy0)/max(1,oy1-oy0),8),
+                "bottom":round((oy1-iy1)/max(1,oy1-oy0),8),
+            }
+        report.update({
+            "available":True,"source_available":True,"housing_detected":True,
+            "outer_bezel_detected":bool(outer),"inner_display_detected":bool(inner),
+            "geometry_complete":bool(outer and inner and bezel_profile),"detection_method":method if outer else "housing_only",
+            "source_size":[w,h],"product_bounds":norm_box(bbox),"unit_aspect_ratio":round(bw/max(1,bh),8),
+            "outer_bezel_box":norm_box(outer),"inner_display_box":norm_box(inner),
+            "outer_bezel_aspect_ratio":round((outer[2]-outer[0])/max(1,outer[3]-outer[1]),8) if outer else None,
+            "inner_display_aspect_ratio":round((inner[2]-inner[0])/max(1,inner[3]-inner[1]),8) if inner else None,
+            "screen_to_unit_width":round((inner[2]-inner[0])/bw,8) if inner else None,
+            "screen_to_unit_height":round((inner[3]-inner[1])/bh,8) if inner else None,
+            "bezel_profile":bezel_profile,
+            "anchors":{
+                "screen_corners":[[inner[0]/w,inner[1]/h],[inner[2]/w,inner[1]/h],[inner[2]/w,inner[3]/h],[inner[0]/w,inner[3]/h]] if inner else [],
+                "housing_edges":[[bx0/w,by0/h],[bx1/w,by0/h],[bx1/w,by1/h],[bx0/w,by1/h]],
+            },
+            "structure_profile":dict(structure_profile or {}),
+        })
+    except Exception as error:
+        report["reason"]=type(error).__name__
+        diagnostic_log("graphic_v20010_landmark_detection_failed",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+    return report
+
+
+def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
+    """Return cached deterministic geometry landmarks for the authoritative product source."""
+    if Image is None:
+        return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
+    item=next((x for x in (role_items or []) if x.get("role")=="product_photo"),None)
+    if not item:
+        return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
+    signature=_graphic_product_source_signature_v9000(item)
+    key=f"v20010:{signature.get('sha256') or ''}:{json.dumps(structure_profile or {},sort_keys=True,default=str)[:1000]}"
+    cached=_GRAPHIC_LANDMARK_CACHE_V20010.get(key)
+    if cached is not None:
+        return dict(cached)
+    try:
+        layer,transparent=_graphic_open_product_layer_v3300(item.get("file"))
+        if layer is None:
+            return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
+        layer=ImageOps.exif_transpose(layer).convert("RGBA")
+        layer,_trim=_graphic_trim_visible_product_canvas_v14000(layer,transparent=transparent)
+        report=_graphic_engineering_landmarks_from_rgba_v20010(layer,structure_profile)
+        if len(_GRAPHIC_LANDMARK_CACHE_V20010)>=64:
+            _GRAPHIC_LANDMARK_CACHE_V20010.pop(next(iter(_GRAPHIC_LANDMARK_CACHE_V20010)),None)
+        _GRAPHIC_LANDMARK_CACHE_V20010[key]=dict(report)
+        return report
+    except Exception as error:
+        diagnostic_log("graphic_v20010_landmark_source_failed",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+        return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
+
+
+
+def _graphic_geometry_lock_v20000(role_items, product_identity=None, structure_profile=None):
+    """Measurement-driven Graphic Engine 6 geometry contract."""
+    identity = dict(product_identity or _graphic_product_identity_v18000(role_items, structure_profile) or {})
+    landmarks = _graphic_engineering_landmarks_v20000(role_items, structure_profile)
+    return {
+        "schema": "autotecpro-graphic-engine-6-geometry-lock",
+        "priority": "uploaded product is the engineering master; style references never alter geometry",
+        "unit_ratio": landmarks.get("unit_aspect_ratio") or identity.get("unit_aspect_ratio"),
+        "outer_bezel_box": landmarks.get("outer_bezel_box"),
+        "inner_display_box": landmarks.get("inner_display_box"),
+        "bezel_profile": landmarks.get("bezel_profile"),
+        "screen_ratio": landmarks.get("inner_display_aspect_ratio") or identity.get("screen_aspect_ratio"),
+        "screen_to_unit_width": landmarks.get("screen_to_unit_width"),
+        "screen_to_unit_height": landmarks.get("screen_to_unit_height"),
+        "landmarks": landmarks.get("anchors") or {},
+        "landmark_report": landmarks,
+        "tolerances": {
+            "exact_composite_ratio_relative": 0.0025,
+            "reconstruction_unit_ratio_relative": 0.015,
+            "reconstruction_screen_ratio_relative": 0.010,
+            "reconstruction_bezel_profile_absolute": 0.012,
+            "landmark_position_normalized": 0.015,
+        },
+        "locked": [
+            "outer and inner bezel profiles", "visible display aspect ratio",
+            "display-to-frame relationship", "whole housing width-to-height ratio",
+            "screen corners", "knob centers", "button-column alignment",
+            "mounting holes and tabs", "housing outer edges and negative spaces",
+        ],
+        "allowed": ["uniform scale", "coherent perspective", "rotation", "lighting", "reflection", "scene color cast"],
+        "forbidden": ["independent screen scaling", "bezel thickening", "bezel thinning", "housing stretch", "landmark movement", "generic product substitution"],
+    }
+
+
+def _graphic_engineering_geometry_gate_v20000(result, role_items):
+    """Verify exact-composite geometry against both source and final rendered product."""
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    visual=_graphic_exact_product_visual_match_v10000(result,role_items)
+    source=_graphic_engineering_landmarks_v20000(role_items)
+    issues=[]; comparisons={}
+    ratio_error=float(metadata.get("product_ratio_relative_error") or 0.0)
+    if ratio_error>0.0025: issues.append("whole-unit ratio drift exceeds 0.25%")
+    if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
+    if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
+    if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
+    if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
+        issues.append("source bezel found but complete inner-display geometry was not resolved")
+
+    # Independently re-detect the bezel in the final rendered product crop.
+    final_landmarks={"available":False}
+    try:
+        raw,_mime=data_url_to_bytes((result or {}).get("data_url"))
+        box=list(metadata.get("product_box") or [])
+        if raw and len(box)==4 and Image is not None:
+            with Image.open(io.BytesIO(raw)) as im:
+                rendered=ImageOps.exif_transpose(im).convert("RGBA")
+                x,y,w,h=[int(round(float(v))) for v in box]
+                x=max(0,x); y=max(0,y); w=max(1,w); h=max(1,h)
+                crop=rendered.crop((x,y,min(rendered.width,x+w),min(rendered.height,y+h)))
+                final_landmarks=_graphic_engineering_landmarks_from_rgba_v20010(crop)
+    except Exception as error:
+        diagnostic_log("graphic_v20010_final_geometry_detection_failed",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+
+    if source.get("geometry_complete"):
+        if not final_landmarks.get("geometry_complete"):
+            issues.append("final-output bezel/display geometry could not be verified")
+        else:
+            sr=float(source.get("inner_display_aspect_ratio") or 0); fr=float(final_landmarks.get("inner_display_aspect_ratio") or 0)
+            screen_err=abs(fr-sr)/max(abs(sr),0.001); comparisons["screen_ratio_relative_error"]=screen_err
+            if screen_err>0.012: issues.append("final screen ratio drift exceeds 1.2%")
+            sb=source.get("bezel_profile") or {}; fb=final_landmarks.get("bezel_profile") or {}
+            deltas={k:abs(float(fb.get(k,0))-float(sb.get(k,0))) for k in ("left","right","top","bottom")}
+            comparisons["bezel_profile_absolute_deltas"]=deltas
+            if deltas and max(deltas.values())>0.018: issues.append("final bezel profile drift exceeds tolerance")
+    return {
+        "available":True,"passed":not issues,"issues":issues,"comparisons":comparisons,
+        "source_landmarks":source,"final_landmarks":final_landmarks,
+        "visual_match_score":visual.get("score"),"policy":"engine6.1_final_output_geometry_comparison",
+    }
+
+
 def _graphic_brand_dna_v19000():
     """Return stable AutoTecPro campaign rules used across references."""
     return {
@@ -19115,13 +19395,16 @@ def _graphic_engine5_dna_hierarchy_v19000(
     style_dna=None,
     generation_plan=None,
 ):
-    """Assemble the final DNA hierarchy in explicit priority order."""
+    """Assemble Graphic Engine 6 DNA in strict engineering-first priority order."""
+    geometry_lock = _graphic_geometry_lock_v20000(role_items, product_identity, structure_profile)
     return {
-        "schema": "autotecpro-visual-dna-hierarchy-5",
+        "schema": "autotecpro-visual-dna-hierarchy-6.1",
         "priority_order": [
-            "product_identity", "brand", "active_reference", "vehicle",
-            "composition", "render", "quality",
+            "engineering_geometry_lock", "product_identity", "ui_structure",
+            "brand", "active_reference", "vehicle", "composition", "render", "quality",
         ],
+        "engineering_geometry_lock": geometry_lock,
+        "engineering_landmarks": geometry_lock.get("landmark_report") or _graphic_engineering_landmarks_v20000(role_items, structure_profile),
         "brand_dna": _graphic_brand_dna_v19000(),
         "campaign_dna": _graphic_campaign_dna_v19000(prompt_text, generation_plan, style_dna),
         "reference_dna": dict(reference_decomposition or {}),
@@ -19257,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v18000-autotecpro-graphic-engine-4-production"
+GRAPHIC_ENGINE_VERSION = "v20010-autotecpro-graphic-engine-6-engineering-geometry-lock"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -19843,6 +20126,7 @@ def _graphic_expected_product_layer_v10000(product_item, target_width, target_he
         if product is None:
             return None
         product = ImageOps.exif_transpose(product).convert("RGBA")
+        product, _trim = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
         if not transparent:
             pad = max(8, int((canvas_height or target_height) * 0.008))
             card = Image.new(
@@ -19852,9 +20136,10 @@ def _graphic_expected_product_layer_v10000(product_item, target_width, target_he
             )
             card.alpha_composite(product, (pad, pad))
             product = card
-        return product.resize(
-            (int(target_width), int(target_height)),
-            Image.Resampling.LANCZOS,
+        elif product.getchannel("A").getbbox():
+            product = product.crop(product.getchannel("A").getbbox())
+        return _graphic_premultiplied_resize_v20000(
+            product, (int(target_width), int(target_height)), Image.Resampling.LANCZOS
         )
     except Exception as error:
         diagnostic_log(
@@ -20044,15 +20329,20 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
     if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"):
         issues.append("product segmentation is not safe for exact composition")
 
+    engineering_geometry = _graphic_engineering_geometry_gate_v20000(result, role_items)
+    if not engineering_geometry.get("passed"):
+        issues.extend("engineering geometry: " + str(x) for x in (engineering_geometry.get("issues") or []))
+
     return {
         "passed": not issues,
         "issues": issues,
         "product_source": source,
         "visual_match": visual_match,
         "segmentation": segmentation,
+        "engineering_geometry_gate": engineering_geometry,
         "hero_dominance": not any("hero product" in issue for issue in issues),
         "reference_leakage_blocked": bool(integrity.get("valid", integrity.get("passed", True))),
-        "engine": "v10000-exact-product-quality-gate",
+        "engine": "v20000-engine6-exact-product-quality-gate",
     }
 
 def _graphic_render_mode_v9000(product_mode, has_style=False):
@@ -20421,8 +20711,9 @@ def _graphic_compose_reference_campaign_v3200(
     scale *= float(transforms.get("product_scale", 1.0))
     # Never crop the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
-    product = product.resize(
-        (max(1, int(product.width * scale)), max(1, int(product.height * scale))),
+    product = _graphic_premultiplied_resize_v20000(
+        product,
+        (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
         Image.Resampling.LANCZOS,
     )
     if source_aspect < 0.90:
@@ -20580,8 +20871,11 @@ def _graphic_compose_reference_campaign_v3200(
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
     product_box = [px, py, product.width, product.height]
+    rendered_aspect = product.width / max(1, product.height)
+    product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
+    engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v19400",
+        "engine": "autotecpro-commercial-composer-v20010-engine6.1",
         "exact_product_pixels": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
@@ -20610,8 +20904,14 @@ def _graphic_compose_reference_campaign_v3200(
         },
         "product_source_visible_size": source_visible_size,
         "product_source_visible_aspect_ratio": round(source_visible_aspect, 8),
-        "product_rendered_aspect_ratio": round(product.width / max(1, product.height), 8),
-        "product_ratio_preserved": abs((product.width / max(1, product.height)) - source_visible_aspect) / max(source_visible_aspect, 0.001) <= 0.005,
+        "product_rendered_aspect_ratio": round(rendered_aspect, 8),
+        "product_ratio_relative_error": round(product_ratio_relative_error, 10),
+        "product_ratio_preserved": product_ratio_relative_error <= 0.0025,
+        "premultiplied_alpha_resize": True,
+        "engineering_landmarks": engineering_landmarks,
+        "bezel_geometry_lock": dict(engineering_landmarks).get("bezel_profile"),
+        "screen_ratio_lock": dict(engineering_landmarks).get("inner_display_aspect_ratio"),
+        "housing_ratio_lock": dict(engineering_landmarks).get("unit_aspect_ratio"),
         "product_width_ratio": round(product.width / max(1, W), 4),
         "product_height_ratio": round(product.height / max(1, H), 4),
         "product_area_ratio": round((product.width * product.height) / max(1, W * H), 4),
@@ -20980,7 +21280,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v3300"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20000-border-connected-geometry-safe"
 
 
 def _graphic_progress_v3300(label):
@@ -21515,7 +21815,7 @@ def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
 
 
 def _graphic_multiview_identity_prompt_v7000(role_items, mode_info, structure_profile):
-    """Build Engine 5 Product Engineering DNA guidance for a recreated viewpoint."""
+    """Build Graphic Engine 6 measurement-driven guidance for a recreated viewpoint."""
     if not (mode_info or {}).get("recreates_product"):
         return ""
     products = [i for i in (role_items or []) if i.get("role") == "product_photo"]
@@ -21525,8 +21825,9 @@ def _graphic_multiview_identity_prompt_v7000(role_items, mode_info, structure_pr
     engineering = _graphic_product_engineering_dna_v19000(role_items, identity, structure_profile)
     ratio_contract = _graphic_product_ratio_contract_v19400(role_items, identity, structure_profile)
     ui_contract = _graphic_ui_structure_dna_v19400(role_items, structure_profile)
+    geometry_lock = _graphic_geometry_lock_v20000(role_items, identity, structure_profile)
     return f"""
-GRAPHIC ENGINE 5.0 — PRODUCT ENGINEERING DNA RECONSTRUCTION MODE:
+GRAPHIC ENGINE 6.0 — MEASUREMENT-DRIVEN ENGINEERING RECONSTRUCTION MODE:
 - Reproduce the same physical AutoTecPro unit from a {requested_view} viewpoint.
 - Identity sources, in priority order: {', '.join(names) or 'uploaded product source'}.
 - Camera angle, perspective, rotation, lighting, reflections, apparent size and composition MAY change naturally.
@@ -21540,6 +21841,7 @@ GRAPHIC ENGINE 5.0 — PRODUCT ENGINEERING DNA RECONSTRUCTION MODE:
 - Perspective foreshortening is allowed; stretching, widening, narrowing, melting, averaging, simplifying or redesigning is forbidden.
 - Advertisement references control layout/style only and must never supply product geometry.
 - Apply one coherent perspective transform to the complete unit. Never resize the screen, side rails, controls, knobs, openings or mounting features independently.
+- ENGINEERING GEOMETRY LOCK: {json.dumps(geometry_lock, ensure_ascii=False, default=str)[:7000]}
 - ADAPTIVE PRODUCT RATIO LOCK: {json.dumps(ratio_contract, ensure_ascii=False, default=str)[:6000]}
 - UI STRUCTURE DNA: {json.dumps(ui_contract, ensure_ascii=False, default=str)[:4500]}
 - ENGINEERING DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:9000]}
@@ -21960,7 +22262,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         "vehicle_validation":vehicle,
         "layout_fidelity_gate":layout_gate,
         "commercial_hierarchy_gate":hierarchy_gate,
-        "engine":"v19400-engine5.1-fidelity-safe-quality-gate",
+        "engine":"v20010-engine6.1-production-hardening-quality-gate",
     }
 
 
@@ -22039,94 +22341,49 @@ def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehi
 
 
 def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
-    """Validate Engine 5 Product Engineering DNA without demanding pixel identity."""
-    product_sources = [item for item in (role_items or []) if item.get("role") == "product_photo"][:4]
+    """Validate Engine 6.1 reconstructed geometry with 95%+ category thresholds."""
+    product_sources=[item for item in (role_items or []) if item.get("role")=="product_photo"][:4]
     if not data_url or not product_sources:
-        return {"available": False, "passed": None, "score": None, "reason": "product sources unavailable"}
-    identity = _graphic_product_identity_v18000(role_items, structure_profile)
-    engineering = _graphic_product_engineering_dna_v19000(role_items, identity, structure_profile)
-    ratio_contract = _graphic_product_ratio_contract_v19400(role_items, identity, structure_profile)
-    ui_contract = _graphic_ui_structure_dna_v19400(role_items, structure_profile)
-    content = [{"type": "input_text", "text": (
-        "Act as a strict automotive industrial-design Product Engineering DNA inspector. The first image is "
-        "the generated result and later images are authoritative product sources. Different camera angle, "
-        "perspective, uniform scale, crop, lighting and reflections are allowed. Compare the same engineering "
-        "object, not exact pixels. Return JSON only with keys: passed, score, geometry_score, "
-        "screen_ratio_score, housing_ratio_score, bezel_score, side_rail_score, interface_score, hardware_detail_score, left_controls_score, "
-        "right_controls_score, knob_score, mounting_score, openings_score, material_score, "
-        "missing_or_changed_details, confirmed_details, reason. Fail if perspective cannot explain a changed "
-        "whole-unit proportion; if housing transitions, bezel, screen position, UI hierarchy, button columns, "
-        "knob geometry, mounting tabs, fastener holes, lower bracket, side openings, cavities, trim, seams or "
-        "material boundaries are redesigned, removed, filled, invented, merged, softened or simplified. "
-        "Do not fail merely because angle, apparent size, lighting, shadows or reflections changed. Required "
-        "overall score is 93. Geometry, screen ratio, interface and hardware must each be at least 89; left "
-        "controls, right controls, knobs, mounting and openings must each be at least 88.\n"
-        f"User request: {str(prompt_text or '')[:1200]}\n"
-        f"Engineering DNA: {json.dumps(engineering, ensure_ascii=False, default=str)[:8500]}"
-    )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
+        return {"available":False,"passed":None,"score":None,"reason":"product sources unavailable","provider_calls":0}
+    identity=_graphic_product_identity_v18000(role_items,structure_profile)
+    engineering=_graphic_product_engineering_dna_v19000(role_items,identity,structure_profile)
+    geometry_lock=_graphic_geometry_lock_v20000(role_items,identity,structure_profile)
+    thresholds={"overall":97,"geometry":97,"screen":98,"housing":98,"bezel":98,"landmark":97,"side_rails":96,"interface":96,"hardware":96,"left_controls":95,"right_controls":95,"knobs":96,"mounting":97,"openings":97,"materials":95}
+    content=[{"type":"input_text","text":(
+        "Act as a strict automotive industrial-design Graphic Engine 6.1 inspector. The first image is the generated result and later images are authoritative product sources. "
+        "Different coherent perspective, uniform scale, crop, lighting and reflections are allowed; redesign is forbidden. Return JSON only with keys: passed, score, geometry_score, screen_ratio_score, housing_ratio_score, bezel_score, landmark_score, side_rail_score, interface_score, hardware_detail_score, left_controls_score, right_controls_score, knob_score, mounting_score, openings_score, material_score, missing_or_changed_details, confirmed_details, reason. "
+        "Fail if housing, inner/outer bezel, display ratio or position, controls, knobs, mounting tabs/holes, openings, UI hierarchy, seams or material boundaries are changed, invented, merged, softened or simplified. "
+        f"Required thresholds: {json.dumps(thresholds,sort_keys=True)}.\nUser request: {str(prompt_text or '')[:1200]}\nEngineering Geometry Lock: {json.dumps(geometry_lock,ensure_ascii=False,default=str)[:8500]}\nEngineering DNA: {json.dumps(engineering,ensure_ascii=False,default=str)[:7000]}"
+    )},{"type":"input_image","image_url":data_url,"detail":"high"}]
     for item in product_sources:
-        source = _graphic_role_data_url(item)
-        if source:
-            content.append({"type": "input_image", "image_url": source, "detail": "high"})
+        source=_graphic_role_data_url(item)
+        if source: content.append({"type":"input_image","image_url":source,"detail":"high"})
     try:
-        response = client.responses.create(
-            model=_graphic_responses_model_v4000(),
-            input=[{"role": "user", "content": content}],
-            max_output_tokens=1500,
-        )
-        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        if not isinstance(payload, dict):
-            payload = {}
-        def score_value(key, fallback=0):
-            try:
-                return max(0, min(100, int(float(payload.get(key, fallback) or fallback))))
-            except Exception:
-                return 0
-        score = score_value("score")
-        geometry = score_value("geometry_score")
-        screen = score_value("screen_ratio_score")
-        housing_ratio = score_value("housing_ratio_score", geometry)
-        bezel = score_value("bezel_score", geometry)
-        side_rails = score_value("side_rail_score", geometry)
-        interface = score_value("interface_score")
-        hardware = score_value("hardware_detail_score")
-        left_controls = score_value("left_controls_score", hardware)
-        right_controls = score_value("right_controls_score", hardware)
-        knobs = score_value("knob_score", hardware)
-        mounting = score_value("mounting_score", hardware)
-        openings = score_value("openings_score", hardware)
-        materials = score_value("material_score", max(0, score - 2))
-        passed = bool(payload.get("passed")) and score >= 95 and min(
-            geometry, screen, housing_ratio, bezel, side_rails, interface, hardware
-        ) >= 92 and min(left_controls, right_controls, knobs, mounting, openings) >= 90
-        return {
-            "available": True,
-            "passed": passed,
-            "score": score,
-            "geometry_score": geometry,
-            "screen_ratio_score": screen,
-            "housing_ratio_score": housing_ratio,
-            "bezel_score": bezel,
-            "side_rail_score": side_rails,
-            "interface_score": interface,
-            "hardware_detail_score": hardware,
-            "left_controls_score": left_controls,
-            "right_controls_score": right_controls,
-            "knob_score": knobs,
-            "mounting_score": mounting,
-            "openings_score": openings,
-            "material_score": materials,
-            "missing_or_changed_details": (payload.get("missing_or_changed_details") or [])[:30],
-            "confirmed_details": (payload.get("confirmed_details") or [])[:30],
-            "reason": str(payload.get("reason") or "")[:1500],
-            "policy": "engine5_product_engineering_dna_not_pixel_lock",
+        response=client.responses.create(model=_graphic_responses_model_v4000(),input=[{"role":"user","content":content}],max_output_tokens=1500)
+        payload=extract_json_object(str(getattr(response,"output_text","") or "")); payload=payload if isinstance(payload,dict) else {}
+        def sv(key,fallback=0):
+            try:return max(0,min(100,int(float(payload.get(key,fallback) or fallback))))
+            except Exception:return 0
+        scores={
+            "overall":sv("score"),"geometry":sv("geometry_score"),"screen":sv("screen_ratio_score"),
+            "housing":sv("housing_ratio_score",sv("geometry_score")),"bezel":sv("bezel_score",sv("geometry_score")),
+            "landmark":sv("landmark_score",sv("geometry_score")),"side_rails":sv("side_rail_score",sv("geometry_score")),
+            "interface":sv("interface_score"),"hardware":sv("hardware_detail_score"),
+            "left_controls":sv("left_controls_score",sv("hardware_detail_score")),"right_controls":sv("right_controls_score",sv("hardware_detail_score")),
+            "knobs":sv("knob_score",sv("hardware_detail_score")),"mounting":sv("mounting_score",sv("hardware_detail_score")),
+            "openings":sv("openings_score",sv("hardware_detail_score")),"materials":sv("material_score",max(0,sv("score")-2)),
         }
+        failed_categories=[k for k,v in scores.items() if v<thresholds[k]]
+        passed=bool(payload.get("passed")) and not failed_categories
+        result={"available":True,"passed":passed,"score":scores["overall"],"thresholds":thresholds,"failed_categories":failed_categories,"provider_calls":1,
+            "missing_or_changed_details":(payload.get("missing_or_changed_details") or [])[:30],"confirmed_details":(payload.get("confirmed_details") or [])[:30],"reason":str(payload.get("reason") or "")[:1500],"policy":"engine6.1_measurement_driven_geometry_and_landmark_lock"}
+        mapping={"geometry":"geometry_score","screen":"screen_ratio_score","housing":"housing_ratio_score","bezel":"bezel_score","landmark":"landmark_score","side_rails":"side_rail_score","interface":"interface_score","hardware":"hardware_detail_score","left_controls":"left_controls_score","right_controls":"right_controls_score","knobs":"knob_score","mounting":"mounting_score","openings":"openings_score","materials":"material_score"}
+        for k,outk in mapping.items(): result[outk]=scores[k]
+        return result
     except Exception as error:
-        diagnostic_log(
-            "graphic_v19000_product_engineering_validation_unavailable",
-            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-        )
-        return {"available": False, "passed": None, "score": None, "reason": "Product Engineering DNA validation unavailable"}
+        diagnostic_log("graphic_v20010_product_engineering_validation_unavailable",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+        return {"available":False,"passed":None,"score":None,"reason":"Product Engineering DNA validation unavailable","provider_calls":1}
+
 
 
 
@@ -22240,8 +22497,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
     started_at = time.perf_counter()
     stage_started = started_at
     stage_times = {}
-    provider_budget = 2
+    provider_budget = 3
     provider_call_count = 0
+    engineering_qa_call_count = 0
+    correction_call_count = 0
     retry_count = 0
     provider_errors = []
     best_unverified = None
@@ -22552,13 +22811,44 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             structure_validation = _graphic_recreated_product_structure_validation_v7100(
                 final_result.get("data_url"), role_items, prompt_text, structure_profile
             )
+            engineering_qa_call_count += int(structure_validation.get("provider_calls") or 0)
             final_result["product_structure_validation"] = structure_validation
             if structure_validation.get("available") and not structure_validation.get("passed"):
-                final_result = _graphic_mark_unverified_v4100(
-                    final_result,
-                    "The new product angle was created, but strict hardware-structure validation did not pass. Review before publishing.",
-                    status="completed_recreated_product_needs_review_v7100",
-                )
+                # One bounded correction retry, driven only by failed engineering categories.
+                if quality_retry and provider_call_count < provider_budget:
+                    failed = structure_validation.get("failed_categories") or []
+                    details = structure_validation.get("missing_or_changed_details") or []
+                    correction = (
+                        "ENGINEERING CORRECTION ONLY. Preserve the approved scene and commercial layout. "
+                        "Rebuild only the product region so it matches the authoritative uploaded product. "
+                        "Failed categories: " + ", ".join(map(str, failed)) + ". "
+                        "Observed changes: " + "; ".join(map(str, details[:12])) + ". "
+                        "Do not widen or narrow the bezel, change the screen-to-frame ratio, stretch the housing, "
+                        "move controls/knobs, or redesign mounting holes, tabs, openings, seams or UI hierarchy."
+                    )
+                    retry_count += 1; correction_call_count += 1; provider_call_count += 1
+                    corrected = _graphic_safe_optional_call(
+                        "graphic_v20010_engineering_correction_failed",
+                        lambda: _graphic_correction_result_v3300(final_result, prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, rejected_guidance, correction),
+                        None,
+                    )
+                    if corrected:
+                        corrected_validation = _graphic_recreated_product_structure_validation_v7100(
+                            corrected.get("data_url"), role_items, prompt_text, structure_profile
+                        )
+                        engineering_qa_call_count += int(corrected_validation.get("provider_calls") or 0)
+                        corrected["product_structure_validation"] = corrected_validation
+                        old_score = int(structure_validation.get("score") or 0)
+                        new_score = int(corrected_validation.get("score") or 0)
+                        if corrected_validation.get("passed") or new_score > old_score:
+                            final_result = corrected
+                            structure_validation = corrected_validation
+                if not structure_validation.get("passed"):
+                    final_result = _graphic_mark_unverified_v4100(
+                        final_result,
+                        "The reconstructed product did not pass Engine 6.1 engineering fidelity thresholds after the bounded correction pass. Review before publishing.",
+                        status="completed_recreated_product_needs_review_v20010",
+                    )
 
         final_result = _graphic_finalize_result_v7100(
             final_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
@@ -22568,9 +22858,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         final_result["layer_stack"] = _graphic_layer_stack_v8000(final_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
         final_result["product_dna"] = product_dna
         final_result["professional_qa"] = _graphic_professional_qa_v8000(final_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
-        final_result["runtime_audit"] = _graphic_runtime_audit_v10000(final_result, route=product_mode.get("mode"), provider_calls=provider_call_count, retries=retry_count, stages=stage_times)
+        final_result["runtime_audit"] = _graphic_runtime_audit_v10000(final_result, route=product_mode.get("mode"), provider_calls=provider_call_count + engineering_qa_call_count, retries=retry_count, stages=stage_times)
+        final_result["runtime_audit"]["provider_call_breakdown"] = {"image_generation_calls": provider_call_count - correction_call_count, "engineering_correction_calls": correction_call_count, "engineering_qa_calls": engineering_qa_call_count, "total_provider_calls": provider_call_count + engineering_qa_call_count}
         state = get_graphic_project_state(); state["layer_stack"] = final_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=provider_call_count, retries=retry_count, route=product_mode.get("mode"), stages=stage_times)
+        _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=provider_call_count + engineering_qa_call_count, retries=retry_count, route=product_mode.get("mode"), stages=stage_times)
         completion = "Graphic artwork completed and verified." if final_result.get("professional_qa", {}).get("passed") else "Graphic artwork completed; review the QA note before publishing."
         _graphic_progress_update_v3300(status, completion, "complete")
         return [final_result]
