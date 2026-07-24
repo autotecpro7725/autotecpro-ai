@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20300
-# v20300 Graphic Engine 6.2 Commercial Exact Product: restored from the proven v20010 commercial pipeline.
-# Keeps reference-faithful professional scene generation while using strict visible-bounds master-RGB product compositing.
-# Layout/vehicle review warnings no longer discard a product-faithful commercial image; generative product fallback is blocked for front-view exact jobs.
+# AutoTecPro AI performance/stability revision: v20310
+# v20310 Graphic Engine 6.3 Bottom Bezel Exact Lock: built directly from the stable v20300 commercial pipeline.
+# Preserves the uploaded product as an immutable master-RGB layer and removes silhouette-shadow/ghost-product effects that can visually thicken the lower bezel.
+# Reference-faithful scene generation remains unchanged; normal front-view exact-product jobs never use generative product reconstruction.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -20413,6 +20413,17 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     background_prompt = _graphic_campaign_background_prompt_v3200(
         prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
     )
+    # The provider creates scenery and the target vehicle only. A product-like ghost
+    # behind the exact local composite can merge with the lower frame and make the
+    # bottom bezel appear thicker even when the protected product pixels are correct.
+    background_prompt += (
+        "\nSCENE-ONLY PLATE REQUIREMENT: Do not render any dashboard screen, head unit, "
+        "infotainment product, gauge cluster, bezel, frame, control panel, mounting "
+        "bracket, product silhouette, product shadow, placeholder product, typography, "
+        "logo, icon grid, ribbon, or footer. Leave the measured hero-product zone clear "
+        "for deterministic local compositing. Render only the environment and the exact "
+        "target vehicle requested for the lifestyle scene."
+    )
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
@@ -20722,12 +20733,26 @@ def _graphic_compose_reference_campaign_v3200(
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     py = hero_y1 - product.height
 
-    # Grounded contact shadow: downward and subtle, not a bright all-around halo.
-    alpha = product.getchannel("A")
-    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
-    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
-    canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
+    # Exact-product bezel lock. Do not derive a blurred silhouette shadow from the
+    # product alpha. On dark housings that shadow visually joins the lower frame and
+    # makes the bottom bezel look thicker than the uploaded master. Use a separated,
+    # low-opacity contact ellipse below the physical unit instead; it never overlaps
+    # the protected product pixels or changes the perceived screen-to-frame ratio.
+    contact_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    contact_draw = ImageDraw.Draw(contact_overlay, "RGBA")
+    contact_y = min(bar_top - 2, py + product.height + max(3, int(H * 0.004)))
+    contact_half_w = max(8, int(product.width * 0.36))
+    contact_h = max(3, int(H * 0.010))
+    contact_cx = px + product.width // 2
+    if contact_y + contact_h < bar_top:
+        contact_draw.ellipse(
+            (contact_cx - contact_half_w, contact_y, contact_cx + contact_half_w, contact_y + contact_h),
+            fill=(0, 0, 0, 42),
+        )
+        contact_overlay = contact_overlay.filter(ImageFilter.GaussianBlur(radius=max(2, H // 260)))
+        canvas = Image.alpha_composite(canvas, contact_overlay)
+    # The product itself is composited once, after every scene layer, with no
+    # enhancement, recoloring, perspective warp, edge dilation, or shadow overlap.
     canvas.alpha_composite(product, (px, py))
 
     draw = ImageDraw.Draw(canvas, "RGBA")
@@ -21283,7 +21308,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20300-master-rgb-visible-bounds"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20310-bottom-bezel-exact-lock"
 
 
 def _graphic_progress_v3300(label):
