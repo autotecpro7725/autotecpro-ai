@@ -168,6 +168,8 @@ except Exception:
 
 # v10000 AutoTecPro Graphic Production Edition: source-pixel visual verification, segmentation diagnostics, exact-product quality gating, bounded QA reuse, and production audit metadata; no intentional non-Graphic changes.
 # v11000 Commercial Composer Engine: reference-faithful fixed advertising grid, full-scene header treatment, dominant exact-product placement, official logo layer, edge decontamination, grounded shadow, and stricter hero-scale verification; no intentional non-Graphic changes.
+# v15000 Graphic Recovery + First-Command Generation: launches generation on the first contextual create command, repairs two-asset project roles, and adds a layered fail-open provider recovery route so strict QA failures cannot block all image creation.
+# v16000 Graphic Stability + Style DNA + Typography: robust same-turn creation, active-asset locks, project style DNA, validated fallback blueprint, larger deterministic copy, provider retry, recovery post-processing, truthful QA, and stage diagnostics.
 # v14000 Visible-Product Reference Reconstruction: trims non-product canvas margins without altering product pixels, locks dominant hero scale/position, strengthens commercial hierarchy, and rejects sparse reference recreations.
 # v12000 Final Vehicle & Accuracy Consolidation: reference-pixel-isolated background generation, target-only vehicle prompting, body-type-aware validation, one bounded vehicle retry, validated-background caching only, fail-closed hard-vehicle QA, and stricter exact-product verification; no intentional non-Graphic changes.
 # v13000 Reference-Locked Commercial Reconstruction: normalized reference-zone extraction, blueprint-driven deterministic geometry, dominant hero scaling, title/feature/footer proportion locking, quantitative layout-fidelity QA, and fail-closed reference recreation verification; no intentional non-Graphic changes.
@@ -15973,17 +15975,17 @@ def analyze_graphic_reference_blueprint(role_items, prompt_text="", style_streng
             result["analysis_version"] = "v800-reference-blueprint"
             result["product_filenames"] = [str(x.get("name") or "") for x in product_items]
             result["style_reference_filenames"] = [str(x.get("name") or "") for x in style_items]
-            return result
+            return _graphic_safe_reference_blueprint_v16000(result)
     except Exception as error:
         diagnostic_log("graphic_reference_blueprint_failed", error_type=type(error).__name__, error=str(error), style_reference_count=len(style_items))
-    return {
-        "analysis_version": "v800-reference-blueprint-fallback",
+    return _graphic_safe_reference_blueprint_v16000({
+        "analysis_version": "v16000-reference-blueprint-fallback",
         "reference_summary": "Use current advertisements as layout and visual-language references only.",
         "product_integration_instructions": "Place the uploaded product prominently while preserving identity and geometry.",
         "forbidden_transfers": ["products in style references", "reference claims", "reference watermarks"],
-        "final_generation_blueprint": "Recreate the references' hierarchy, product scale, icon organization, background depth, typography rhythm, and bottom feature bar while advertising only the uploaded product source.",
+        "final_generation_blueprint": "Recreate the reference hierarchy with a dominant exact product, large readable typography, a substantial feature grid, the requested vehicle, and a full-width bottom benefit bar.",
         "confidence_score": 55,
-    }
+    })
 
 
 def _graphic_reference_blueprint_text(blueprint):
@@ -16935,6 +16937,7 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             state["stage"] = "assets_received"
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    _graphic_active_project_assets_v16000(state)
     return added
 
 
@@ -17193,10 +17196,163 @@ def _graphic_project_is_ready(state=None):
     return bool({"reference", "style_reference"} & roles) and bool({"product", "product_photo"} & roles)
 
 
+def _graphic_repair_project_asset_roles_v15000(state=None):
+    """Repair the common two-upload reference/product sequence without losing bytes."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
+    image_assets = [item for item in assets if bytes(item.get("data") or b"")]
+    roles = _graphic_project_role_set(project)
+    changed = False
+
+    # In the guided workflow the first image is the reference advertisement and
+    # the second image is the product source. Earlier conversational analysis could
+    # leave the second item marked supporting, causing the first create command to
+    # be consumed as another planning turn. Repair only this unambiguous sequence.
+    if len(image_assets) >= 2:
+        if not ({"reference", "style_reference"} & roles):
+            image_assets[0]["role"] = "reference"
+            changed = True
+        if not ({"product", "product_photo"} & roles):
+            for item in image_assets[1:]:
+                if str(item.get("role") or "").casefold() not in {"reference", "style_reference"}:
+                    item["role"] = "product"
+                    changed = True
+                    break
+            else:
+                image_assets[-1]["role"] = "product"
+                changed = True
+
+    if changed:
+        project["assets"] = assets
+        project["stage"] = "ready_to_generate"
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+        diagnostic_log(
+            "graphic_v15000_asset_roles_repaired",
+            roles=[str(item.get("role") or "") for item in image_assets],
+        )
+    return project
+
+
+
+def _graphic_generation_command_v16000(prompt_text):
+    """Recognize natural create commands anywhere in a contextual sentence."""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text:
+        return False
+    blocked = (
+        "do not create", "don't create", "do not generate", "don't generate",
+        "not ready", "hold on", "before you create", "before creating",
+        "can you create", "could you create", "would you create",
+    )
+    if any(term in text for term in blocked):
+        return False
+    patterns = (
+        r"\b(?:create|generate|make|render|produce|design|build)\s+(?:it|this|that|the\s+(?:image|photo|ad|advertisement|commercial|campaign|artwork))\b",
+        r"\b(?:go ahead|proceed|do it|create it|generate it|make it|render it|retry|try again)\b",
+        r"\b(?:create|generate|make|render|produce)\s+(?:the\s+)?(?:commercial|campaign|advertisement|ad|image|artwork)\b",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _graphic_active_project_assets_v16000(state=None):
+    """Keep the newest reference and product authoritative while retaining history."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
+    newest = {}
+    for item in assets:
+        role = str(item.get("role") or "").casefold()
+        canonical = "reference" if role in {"reference", "style_reference"} else "product" if role in {"product", "product_photo"} else role
+        if canonical in {"reference", "product"} and bytes(item.get("data") or b""):
+            newest[canonical] = item
+    active_ids = {str(item.get("id") or "") for item in newest.values()}
+    for item in assets:
+        role = str(item.get("role") or "").casefold()
+        if role in {"reference", "style_reference", "product", "product_photo"}:
+            item["active_for_generation"] = str(item.get("id") or "") in active_ids
+    project["assets"] = assets
+    project["active_reference_id"] = str((newest.get("reference") or {}).get("id") or "")
+    project["active_product_id"] = str((newest.get("product") or {}).get("id") or "")
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+    return project
+
+
+def _graphic_project_style_dna_v16000(reference_blueprint, state=None):
+    """Persist reusable project-level style DNA without silently approving global memory."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    bp = dict(reference_blueprint or {})
+    keys = (
+        "layout_archetype", "normalized_boxes", "canvas_zones", "background_scene",
+        "lighting_direction", "color_palette", "typography_system", "feature_icon_system",
+        "bottom_feature_bar", "spacing_and_margins", "depth_and_layering",
+        "must_copy_visual_patterns", "acceptable_variations", "negative_constraints",
+    )
+    dna = {key: bp.get(key) for key in keys if bp.get(key) not in (None, "", [], {})}
+    dna["source"] = "current_project_reference"
+    dna["updated_at"] = datetime.now(timezone.utc).isoformat()
+    project["project_style_dna"] = dna
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+    return dna
+
+
+def _graphic_safe_reference_blueprint_v16000(blueprint=None):
+    """Guarantee usable commercial geometry when visual analysis is partial."""
+    bp = dict(blueprint or {})
+    defaults = {
+        "logo_box": [0.025, 0.025, 0.205, 0.095],
+        "headline_box": [0.025, 0.135, 0.52, 0.105],
+        "compatibility_box": [0.025, 0.245, 0.43, 0.055],
+        "tagline_box": [0.025, 0.305, 0.50, 0.045],
+        "feature_matrix_box": [0.57, 0.035, 0.395, 0.285],
+        "hero_product_box": [0.035, 0.355, 0.625, 0.515],
+        "vehicle_box": [0.64, 0.39, 0.325, 0.34],
+        "bottom_bar_box": [0.035, 0.885, 0.93, 0.095],
+    }
+    boxes = dict(bp.get("normalized_boxes") or {})
+    for key, default in defaults.items():
+        value = boxes.get(key)
+        valid = isinstance(value, (list, tuple)) and len(value) == 4
+        if valid:
+            try:
+                value = [max(0.0, min(1.0, float(x))) for x in value]
+                valid = value[2] > 0.02 and value[3] > 0.02 and value[0] + value[2] <= 1.03 and value[1] + value[3] <= 1.03
+            except Exception:
+                valid = False
+        boxes[key] = value if valid else list(default)
+    # Enforce the commercial hierarchy that failed in earlier releases.
+    boxes["hero_product_box"][2] = max(float(boxes["hero_product_box"][2]), 0.52)
+    boxes["hero_product_box"][3] = max(float(boxes["hero_product_box"][3]), 0.46)
+    boxes["feature_matrix_box"][2] = max(float(boxes["feature_matrix_box"][2]), 0.34)
+    boxes["feature_matrix_box"][3] = max(float(boxes["feature_matrix_box"][3]), 0.24)
+    boxes["bottom_bar_box"][2] = max(float(boxes["bottom_bar_box"][2]), 0.88)
+    boxes["bottom_bar_box"][3] = max(float(boxes["bottom_bar_box"][3]), 0.085)
+    bp["normalized_boxes"] = boxes
+    bp["layout_repaired_v16000"] = True
+    return bp
+
+
+def _graphic_finalize_recovery_v16000(images, route_name, failures=None):
+    """Normalize recovery results and preserve honest, actionable metadata."""
+    normalized = []
+    for image in images or []:
+        if not isinstance(image, dict) or not image.get("data_url"):
+            continue
+        image = dict(image)
+        image["graphic_engine_version"] = "v16000-graphic-stability"
+        image["generation_route_v16000"] = route_name
+        image["recovery_failures"] = list(failures or [])[-4:]
+        image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
+        normalized.append(image)
+    if not normalized:
+        raise RuntimeError(f"{route_name} returned no usable image result.")
+    return normalized
+
+
 def _graphic_project_direct_action(prompt_text, state=None):
-    """Give project-ready create/edit commands priority over copy drafting."""
-    if not _graphic_project_is_ready(state):
-        return ""
+    """Give contextual create/edit commands priority over planning responses."""
+    project = _graphic_repair_project_asset_roles_v15000(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return ""
@@ -17204,6 +17360,20 @@ def _graphic_project_direct_action(prompt_text, state=None):
         "do not create", "don't create", "do not generate", "don't generate",
         "not ready", "hold on", "before you create", "before creating",
     )):
+        return ""
+
+    ready = _graphic_project_is_ready(project)
+    image_count = sum(
+        1 for item in (project.get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    )
+    contextual_create = _graphic_generation_command_v16000(text)
+
+    # A contextual create command can include vehicle facts in the same sentence,
+    # e.g. "this is 2020 Nissan Titan, create it". Do not require a second turn.
+    if contextual_create and (ready or image_count >= 2):
+        return "generate"
+    if not ready:
         return ""
     if re.search(r"\b(?:edit|modify|revise|update|change|replace|remove|add|move|resize|reposition|regenerate)\b", text):
         return "edit"
@@ -19873,6 +20043,7 @@ def _graphic_compose_reference_campaign_v3200(
         canvas = ImageOps.exif_transpose(bg).convert("RGBA")
     W, H = canvas.size
     template_cfg = _graphic_template_config_v8200(template_key)
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
     layout_bp = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
 
@@ -20022,7 +20193,7 @@ def _graphic_compose_reference_campaign_v3200(
     left_x = int(W * headline_box[0])
     left_w = int(W * headline_box[2])
     headline_y = int(H * headline_box[1])
-    headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.046, True)
+    headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.054, True)
     headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
     line_step = int(H * 0.068)
     for line in headline_lines:
@@ -20059,7 +20230,7 @@ def _graphic_compose_reference_campaign_v3200(
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
     grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
     cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
-    feature_font = _graphic_font(max(13, int(H * 0.0175)), False)
+    feature_font = _graphic_font(max(17, int(H * 0.0215)), False)
     for idx, label in enumerate(features):
         row, col = divmod(idx, 4)
         x0 = int(grid_x + col * cell_w)
@@ -20096,7 +20267,7 @@ def _graphic_compose_reference_campaign_v3200(
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 245), outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
-    bottom_font = _graphic_font(max(13, int(H * 0.018)), False)
+    bottom_font = _graphic_font(max(17, int(H * 0.021)), False)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
@@ -20239,6 +20410,9 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
         ),
         {},
     ) if has_style else {}
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint) if has_style else {}
+    if has_style:
+        _graphic_project_style_dna_v16000(reference_blueprint)
     vehicle_profile = _graphic_safe_optional_call(
         "graphic_v3100_vehicle_research_failed_open",
         lambda: research_graphic_vehicle_profile(role_items, prompt_text),
@@ -21939,14 +22113,104 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
 
+def _graphic_emergency_provider_result_v15000(
+    prompt_text,
+    uploaded_files=None,
+    *,
+    style_strength="High",
+    forced_upload_role="Auto-detect",
+):
+    """Return a usable image when both professional pipelines fail.
+
+    This route intentionally skips optional QA/memory stages but still preserves
+    project roles, explicit vehicle facts, reference guidance, and the uploaded
+    product inputs. It is a last-resort creation path, not a verified result.
+    """
+    output_size = choose_graphic_image_size(prompt_text)
+    role_items = _graphic_project_role_items(
+        uploaded_files, prompt_text, forced_upload_role
+    )
+    if not role_items:
+        raise RuntimeError("No saved Graphic project images were available for recovery.")
+
+    has_style = any(item.get("role") == "style_reference" for item in role_items)
+    reference_blueprint = _graphic_safe_optional_call(
+        "graphic_v15000_emergency_reference_analysis_unavailable",
+        lambda: analyze_graphic_reference_blueprint(
+            role_items,
+            prompt_text=prompt_text,
+            style_strength=style_strength,
+        ),
+        {},
+    ) if has_style else {}
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint) if has_style else {}
+    if has_style:
+        _graphic_project_style_dna_v16000(reference_blueprint)
+    vehicle_profile = _graphic_resolve_vehicle_lock(
+        prompt_text,
+        _graphic_safe_optional_call(
+            "graphic_v15000_emergency_vehicle_profile_unavailable",
+            lambda: research_graphic_vehicle_profile(role_items, prompt_text),
+            {},
+        ),
+    )
+    production_prompt = _graphic_chatgpt_production_prompt(
+        prompt_text,
+        role_items,
+        output_size,
+        reference_blueprint=reference_blueprint,
+        vehicle_profile=vehicle_profile,
+        rejected_guidance="",
+    )
+
+    route_errors = []
+    raw_images = []
+    provider_route = ""
+    for attempt in range(2):
+        try:
+            raw_images, provider_route = _graphic_responses_generate_v3000(
+                role_items, production_prompt, output_size
+            )
+            if raw_images:
+                break
+        except Exception as error:
+            route_errors.append(
+                f"responses-{attempt + 1}:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+    if not raw_images:
+        raw_images, provider_route = _graphic_images_api_fallback_v3000(
+            role_items, production_prompt, output_size
+        )
+
+    if not raw_images:
+        raise RuntimeError("Emergency image provider returned no image bytes.")
+    result = _graphic_build_provider_result_v3000(
+        raw_images[0],
+        prompt_text,
+        output_size,
+        role_items,
+        provider_route,
+        reference_blueprint,
+        vehicle_profile,
+    )
+    result = _graphic_mark_unverified_v4100(
+        result,
+        "The image was created through the recovery route because the strict professional pipeline failed. Review product and vehicle accuracy before publishing.",
+        status="completed_recovery_route_v15000",
+    )
+    result["graphic_engine_version"] = "v15000-graphic-recovery"
+    result["recovery_route"] = True
+    result["recovery_errors"] = route_errors[-3:]
+    _graphic_save_latest_project_result(result)
+    return [result]
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """Public Graphic API backed by the authoritative conversational provider pipeline."""
-    return _generate_graphic_marketing_images_advanced(
-        prompt_text,
-        uploaded_files,
+    """Public Graphic API with bounded professional and emergency recovery routes."""
+    arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
         style_strength=style_strength,
@@ -21955,6 +22219,78 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
+    failures = []
+    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    project = _graphic_active_project_assets_v16000(project)
+    project["stage"] = "generating"
+    project["last_error"] = ""
+    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+    try:
+        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
+            prompt_text, uploaded_files, **arguments
+        ), "advanced", failures)
+    except Exception as error:
+        failures.append(
+            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_advanced_pipeline_recovery",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+
+    # The earlier v3200 path has fewer governance/QA dependencies and is retained
+    # as a compatibility recovery route for deployed Streamlit environments.
+    try:
+        result = _generate_graphic_marketing_images_advanced_v3200(
+            prompt_text, uploaded_files, **arguments
+        )
+        for image in result or []:
+            if isinstance(image, dict):
+                image["recovered_from_v15000"] = True
+                image["recovery_failures"] = failures[-2:]
+        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+    except Exception as error:
+        failures.append(
+            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_v3200_pipeline_recovery",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+
+    try:
+        result = _graphic_emergency_provider_result_v15000(
+            prompt_text,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+        )
+        for image in result or []:
+            if isinstance(image, dict):
+                image["recovery_failures"] = failures[-3:]
+        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+    except Exception as error:
+        failures.append(
+            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_all_routes_failed",
+            failures=failures[-4:],
+        )
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-4:])[:1800]
+        state["last_failed_stage"] = "all_generation_routes"
+        state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
+            + " | ".join(failures[-3:])
+        ) from error
 
 
 
