@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20220
-# v20220 Graphic Engine 8.3 Stable Exact Product Recovery: built directly from the current v20100 production baseline.
-# Preserves the untouched uploaded product asset, prevents generative product fallback, adds bounded transient retries,
-# relaxes optional vehicle/layout verification from fatal to review-only, and records actionable failure-stage diagnostics.
+# AutoTecPro AI performance/stability revision: v20300
+# v20300 Graphic Engine 6.2 Commercial Exact Product: restored from the proven v20010 commercial pipeline.
+# Keeps reference-faithful professional scene generation while using strict visible-bounds master-RGB product compositing.
+# Layout/vehicle review warnings no longer discard a product-faithful commercial image; generative product fallback is blocked for front-view exact jobs.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19196,41 +19196,6 @@ def _graphic_engineering_landmarks_from_rgba_v20010(layer, structure_profile=Non
     return report
 
 
-
-def _graphic_restore_master_bezel_v20020(raw_bytes, cutout_layer):
-    """Restore the bezel/display area from the untouched uploaded product master."""
-    if Image is None or not raw_bytes or cutout_layer is None:
-        return cutout_layer, {"applied": False, "reason": "source unavailable"}
-    try:
-        master = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
-        cutout = ImageOps.exif_transpose(cutout_layer).convert("RGBA")
-        if cutout.size != master.size:
-            return cutout, {"applied": False, "reason": "coordinate size mismatch"}
-        geometry = _graphic_engineering_landmarks_from_rgba_v20010(master)
-        box = geometry.get("outer_bezel_box")
-        if not geometry.get("outer_bezel_detected") or not isinstance(box, (list, tuple)) or len(box) != 4:
-            return cutout, {"applied": False, "reason": "master outer bezel not detected", "geometry": geometry}
-        w, h = master.size
-        x = max(0, min(w - 1, int(round(float(box[0]) * w))))
-        y = max(0, min(h - 1, int(round(float(box[1]) * h))))
-        bw = max(1, int(round(float(box[2]) * w))); bh = max(1, int(round(float(box[3]) * h)))
-        x1 = max(x + 1, min(w, x + bw)); y1 = max(y + 1, min(h, y + bh))
-        pad_x = max(2, int((x1 - x) * 0.02)); pad_y = max(2, int((y1 - y) * 0.02))
-        roi = (max(0, x - pad_x), max(0, y - pad_y), min(w, x1 + pad_x), min(h, y1 + pad_y))
-        master_crop = master.crop(roi)
-        master_crop.putalpha(cutout.getchannel("A").crop(roi))
-        cutout.alpha_composite(master_crop, (roi[0], roi[1]))
-        return cutout, {
-            "applied": True, "mode": "untouched_master_bezel_rgb_with_cutout_alpha",
-            "roi": list(roi), "outer_bezel_box": box,
-            "inner_display_box": geometry.get("inner_display_box"),
-            "bezel_profile": geometry.get("bezel_profile"),
-            "screen_ratio": geometry.get("inner_display_aspect_ratio"),
-        }
-    except Exception as error:
-        diagnostic_log("graphic_v20020_master_bezel_restore_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
-        return cutout_layer, {"applied": False, "reason": type(error).__name__}
-
 def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
     """Return cached deterministic geometry landmarks for the authoritative product source."""
     if Image is None:
@@ -19244,11 +19209,11 @@ def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
     if cached is not None:
         return dict(cached)
     try:
-        # Measure engineering geometry from the untouched upload, not from a cutout.
-        raw=_graphic_uploaded_file_bytes(item.get("file"))
-        if not raw:
+        layer,transparent=_graphic_open_product_layer_v3300(item.get("file"))
+        if layer is None:
             return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
-        layer=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
+        layer=ImageOps.exif_transpose(layer).convert("RGBA")
+        layer,_trim=_graphic_trim_visible_product_canvas_v14000(layer,transparent=transparent)
         report=_graphic_engineering_landmarks_from_rgba_v20010(layer,structure_profile)
         if len(_GRAPHIC_LANDMARK_CACHE_V20010)>=64:
             _GRAPHIC_LANDMARK_CACHE_V20010.pop(next(iter(_GRAPHIC_LANDMARK_CACHE_V20010)),None)
@@ -19303,8 +19268,6 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
     ratio_error=float(metadata.get("product_ratio_relative_error") or 0.0)
     if ratio_error>0.0025: issues.append("whole-unit ratio drift exceeds 0.25%")
     if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
-    if metadata.get("master_bezel_lock") is not True or metadata.get("bezel_pixels_regenerated") is not False:
-        issues.append("untouched master bezel lock not confirmed")
     if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
     if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
     if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
@@ -19577,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20200-autotecpro-graphic-engine-8-1-exact-product-fail-safe"
+GRAPHIC_ENGINE_VERSION = "v20010-autotecpro-graphic-engine-6-engineering-geometry-lock"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20316,14 +20279,6 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
     issues = []
     if not metadata.get("exact_product_pixels"):
         issues.append("exact product pixels not confirmed")
-    if metadata.get("exact_product_asset_mode") is not True:
-        issues.append("Graphic Engine 8 exact-product asset mode not confirmed")
-    if metadata.get("product_master_rgb_preserved") is not True:
-        issues.append("untouched product master RGB preservation not confirmed")
-    if metadata.get("product_pixels_provider_generated") is not False:
-        issues.append("provider-generated product pixels are prohibited in exact-product mode")
-    if metadata.get("product_ai_reconstruction_prohibited") is not True:
-        issues.append("exact-product reconstruction prohibition not confirmed")
     if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
         issues.append("product source fingerprint mismatch")
     required = {
@@ -20529,21 +20484,10 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
     verified = last_validation.get("verified") is True
     if hard_vehicle and not verified and not _graphic_validation_is_unavailable_v4100(last_validation):
-        # v20220: vehicle identity QA is important, but it must not destroy an
-        # otherwise valid exact-product campaign. Keep the best plate and mark it
-        # review-only. The uploaded product remains pixel-exact and protected.
-        diagnostic_log(
-            "graphic_v20220_vehicle_validation_review_only",
-            score=last_validation.get("score"),
-            reason=str(last_validation.get("reason") or "vehicle identity mismatch")[:500],
+        raise RuntimeError(
+            "The background vehicle did not match the locked target after one bounded retry: "
+            + str(last_validation.get("reason") or "vehicle identity mismatch")[:500]
         )
-        state = get_graphic_project_state()
-        state["last_vehicle_validation_warning"] = {
-            "score": last_validation.get("score"),
-            "reason": str(last_validation.get("reason") or "vehicle identity mismatch")[:500],
-            "at": datetime.now(timezone.utc).isoformat(),
-        }
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
     # Validation-unavailable plates may still be composed and returned as unverified,
     # but they are never cached. This prevents an uncertain plate from contaminating
@@ -20931,11 +20875,10 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v20010-engine6.1",
+        "engine": "autotecpro-commercial-composer-v20300-engine6.2",
         "exact_product_pixels": True,
-        "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
-        "product_pixels_provider_generated": False,
+        "visible_bounds_normalized": True,
         "product_ai_reconstruction_prohibited": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
@@ -20968,9 +20911,6 @@ def _graphic_compose_reference_campaign_v3200(
         "product_ratio_relative_error": round(product_ratio_relative_error, 10),
         "product_ratio_preserved": product_ratio_relative_error <= 0.0025,
         "premultiplied_alpha_resize": True,
-        "master_bezel_lock": True,
-        "master_bezel_source": "untouched_uploaded_product",
-        "bezel_pixels_regenerated": False,
         "engineering_landmarks": engineering_landmarks,
         "bezel_geometry_lock": dict(engineering_landmarks).get("bezel_profile"),
         "screen_ratio_lock": dict(engineering_landmarks).get("inner_display_aspect_ratio"),
@@ -21343,7 +21283,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20200-exact-master-rgb-border-alpha-only"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20300-master-rgb-visible-bounds"
 
 
 def _graphic_progress_v3300(label):
@@ -21494,8 +21434,9 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                         ap[x, y] = 190
 
         im.putalpha(alpha)
-        # v20020: preserve original full-canvas coordinates. Downstream trimming occurs
-        # only after the untouched master bezel pixels are restored.
+        bbox = alpha.getbbox()
+        if bbox:
+            im = im.crop(bbox)
         out = io.BytesIO()
         im.save(out, format="PNG", optimize=True)
         return out.getvalue()
@@ -21506,100 +21447,83 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
 
 def _graphic_open_product_layer_v3300(uploaded_file):
-    """Open a protected exact-product asset for deterministic composition.
+    """Return a tightly cropped protected product layer for the v20010 composer.
 
-    Graphic Engine 8.0 never uses the legacy soft-distance cutout as the authority
-    for opaque studio product photos. The untouched upload supplies every RGB pixel.
-    Only an alpha mask derived from border-connected neutral background is applied.
-    This prevents bezel, screen, housing, buttons, knobs and UI pixels from being
-    softened, recolored, reconstructed or replaced before composition.
+    v20300 keeps the commercial pipeline that produced the preferred artwork, but
+    reverses the old precedence: the strict border-connected mask is attempted
+    before any legacy soft cutout. The alpha mask may change; RGB pixels inside
+    the visible product always come from the untouched upload. The returned layer
+    is cropped to visible alpha bounds so downstream hero sizing uses the physical
+    product, not the surrounding white studio canvas.
     """
     raw = _graphic_uploaded_file_bytes(uploaded_file)
     if not raw or Image is None:
         return None, False
+
     digest = hashlib.sha256(raw).hexdigest()
+    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
     state = get_graphic_project_state()
     cache = dict(state.get("product_mask_cache") or {})
-    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
     cached = cache.get(cache_key)
     if isinstance(cached, str) and cached.startswith("data:image/"):
         cached_raw, _ = data_url_to_bytes(cached)
         if cached_raw:
             try:
-                with Image.open(io.BytesIO(cached_raw)) as cached_image:
-                    return ImageOps.exif_transpose(cached_image).convert("RGBA"), True
+                layer = Image.open(io.BytesIO(cached_raw)).convert("RGBA")
+                bbox = layer.getchannel("A").getbbox()
+                if bbox:
+                    layer = layer.crop(bbox)
+                return layer, True
             except Exception:
                 pass
 
+    # For genuine transparent PNG/WebP uploads, preserve source RGB and alpha.
     try:
-        with Image.open(io.BytesIO(raw)) as source_image:
-            master = ImageOps.exif_transpose(source_image).convert("RGBA")
+        with Image.open(io.BytesIO(raw)) as source:
+            source = ImageOps.exif_transpose(source)
+            has_alpha = "A" in source.getbands()
+            rgba = source.convert("RGBA")
+            extrema = rgba.getchannel("A").getextrema()
+            if has_alpha and extrema and extrema[0] < 250:
+                bbox = rgba.getchannel("A").getbbox()
+                if bbox:
+                    rgba = rgba.crop(bbox)
+                out = io.BytesIO(); rgba.save(out, format="PNG", optimize=True)
+                cache[cache_key] = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode("ascii")
+                state["product_mask_cache"] = dict(list(cache.items())[-16:])
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+                return rgba, True
     except Exception as error:
-        diagnostic_log(
-            "graphic_v20100_master_product_open_failed",
-            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-        )
+        diagnostic_log("graphic_v20300_source_alpha_open_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+
+    # Opaque studio photo: strict mask first. This function retains original RGB.
+    try:
+        cutout = _graphic_white_background_mask_v3300(raw, cache_version=GRAPHIC_MASK_CACHE_VERSION)
+        if cutout:
+            layer = Image.open(io.BytesIO(cutout)).convert("RGBA")
+            extrema = layer.getchannel("A").getextrema()
+            bbox = layer.getchannel("A").getbbox()
+            if extrema and extrema[0] < 32 and extrema[1] > 220 and bbox:
+                layer = layer.crop(bbox)
+                out = io.BytesIO(); layer.save(out, format="PNG", optimize=True)
+                cache[cache_key] = "data:image/png;base64," + base64.b64encode(out.getvalue()).decode("ascii")
+                state["product_mask_cache"] = dict(list(cache.items())[-16:])
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+                return layer, True
+    except Exception as error:
+        diagnostic_log("graphic_v20300_strict_product_mask_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+
+    # Compatibility fallback: keep the original v20010 behavior only when strict
+    # extraction is unavailable. Never treat a full white canvas as transparent.
+    product, transparent = _graphic_open_product_layer(uploaded_file)
+    if product is None:
         return None, False
-
-    # A genuine source alpha channel is already authoritative. Preserve it exactly.
-    source_alpha = master.getchannel("A")
-    alpha_extrema = source_alpha.getextrema()
-    if alpha_extrema and alpha_extrema[0] < 250:
-        layer = master.copy()
-        transparent = True
-        mask_method = "authoritative_source_alpha"
-    else:
-        # For opaque studio photos, calculate transparency separately, then restore
-        # the untouched master RGB across the complete canvas. No RGB decontamination,
-        # blur, erosion, dilation or legacy distance-matte result is permitted.
-        strict_cutout_bytes = _graphic_white_background_mask_v3300(raw)
-        if strict_cutout_bytes:
-            try:
-                with Image.open(io.BytesIO(strict_cutout_bytes)) as masked_image:
-                    masked = ImageOps.exif_transpose(masked_image).convert("RGBA")
-                if masked.size != master.size:
-                    raise ValueError("strict mask coordinate mismatch")
-                alpha = masked.getchannel("A")
-                layer = master.copy()
-                layer.putalpha(alpha)
-                extrema = alpha.getextrema()
-                transparent = bool(extrema and extrema[0] < 32 and extrema[1] > 220)
-                mask_method = "border_connected_alpha_with_untouched_master_rgb"
-            except Exception as error:
-                diagnostic_log(
-                    "graphic_v20100_strict_mask_apply_failed",
-                    error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-                )
-                layer, transparent = master.copy(), False
-                mask_method = "untouched_master_card_fallback"
-        else:
-            layer, transparent = master.copy(), False
-            mask_method = "untouched_master_card_fallback"
-
-    # Cache only the protected master-RGB asset, never a legacy soft cutout.
+    product = ImageOps.exif_transpose(product).convert("RGBA")
     if transparent:
-        try:
-            buffer = io.BytesIO()
-            layer.save(buffer, format="PNG", optimize=True)
-            cache[cache_key] = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
-            state["product_mask_cache"] = {k: v for k, v in list(cache.items())[-12:]}
-            reports = dict(state.get("product_bezel_master_reports") or {})
-            reports[cache_key] = {
-                "applied": True,
-                "mode": "exact_product_asset_v20100",
-                "mask_method": mask_method,
-                "master_rgb_sha256": digest,
-                "rgb_pixels_regenerated": False,
-                "product_pixels_provider_generated": False,
-            }
-            state["product_bezel_master_reports"] = {k: v for k, v in list(reports.items())[-12:]}
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        except Exception as error:
-            diagnostic_log(
-                "graphic_v20100_exact_asset_cache_failed",
-                error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-            )
-    return layer, transparent
+        bbox = product.getchannel("A").getbbox()
+        if bbox:
+            product = product.crop(bbox)
+    return product, bool(transparent)
 
 
 
@@ -21827,7 +21751,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "engine8_protected_exact_product_asset_composite"
+    result["product_identity_method"] = "cached_exact_source_pixel_composite"
     result["layered_metadata"].update(metadata)
     result["output_status"] = "completed_controlled_campaign_v3300"
     result["campaign_spec"] = spec
@@ -21894,8 +21818,6 @@ def _graphic_product_recreation_intent_v7000(prompt_text):
     exact_override = any(term in lower for term in (
         "use exact product", "keep exact product", "do not recreate", "do not redraw",
         "preserve exact pixels", "front view only", "same angle",
-        "use uploaded product", "use the uploaded product", "actual product image",
-        "same product", "exact same product", "do not change the product",
     ))
     if exact_override:
         matched = False
@@ -22545,7 +22467,7 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
                                     product_mode, structure_profile, has_edit_base):
     """Apply one shared finalization path for every Graphic generation route."""
     final_result = dict(final_result or {})
-    final_result["graphic_engine_version"] = "v20230-graphic-engine8.4-independent-local-recovery"
+    final_result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
     final_result["reference_geometry"] = geometry
     final_result["campaign_spec"] = campaign_spec
     final_result["project_editable"] = True
@@ -22595,16 +22517,15 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
     result["reference_layout_fidelity_gate"]=layout_gate
     if layout_gate.get("required") and not layout_gate.get("passed"):
-        # Product fidelity is authoritative. A layout mismatch must never send an exact
-        # product job into a provider route that redraws the unit. Return the protected
-        # composite with a review note instead.
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The exact uploaded product is preserved, but the reference-layout fidelity check did not fully pass. Review layout only; the product asset was not regenerated.",
-            status="completed_exact_product_layout_review_v20200",
-        )
+        # Preserve the successful professional composite. Layout is reviewable and
+        # may be corrected locally; it must not force the request into a crude or
+        # generative product fallback when the uploaded product is already exact.
         result["layout_review_required"] = True
-        result["layout_review_issues"] = list(layout_gate.get("issues") or [])[:20]
+        result["layout_review_issues"] = list(layout_gate.get("issues") or [])
+        result["verification_warning"] = (
+            str(result.get("verification_warning") or "").strip() +
+            " Reference-layout review recommended; the uploaded product remains preserved."
+        ).strip()
     if validation.get("verified"):
         result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
     elif validation.get("unverified"):
@@ -22613,7 +22534,7 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
     else:
         raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"]=GRAPHIC_ENGINE_VERSION
+    result["graphic_engine_version"]="v20300-commercial-exact-product"
     result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
     result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
     result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
@@ -23010,391 +22931,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
 
-
-
-def _graphic_independent_local_exact_recovery_v20230(
-    prompt_text,
-    role_items,
-    output_size,
-    reference_blueprint=None,
-    vehicle_profile=None,
-):
-    """Build a publishable exact-product campaign without the shared hybrid compositor.
-
-    This is a genuinely independent, Pillow-only fallback. It performs no provider
-    request and never redraws the uploaded product. The style reference may guide the
-    local background plate, but the complete product layer comes from the protected
-    master-RGB exact-product asset.
-    """
-    if Image is None:
-        raise RuntimeError("Pillow is unavailable for independent exact-product recovery.")
-    try:
-        from PIL import ImageDraw, ImageFilter
-    except Exception as error:
-        raise RuntimeError("Pillow drawing support is unavailable.") from error
-
-    try:
-        width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
-    except Exception:
-        width, height = 1536, 1024
-    width = max(640, min(width, 4096))
-    height = max(480, min(height, 4096))
-
-    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)
-    if not product_item:
-        raise RuntimeError("Independent exact recovery requires a Product Photo.")
-
-    product_layer, product_transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
-    if product_layer is None:
-        raise RuntimeError("The protected product asset could not be opened.")
-    product_layer = ImageOps.exif_transpose(product_layer).convert("RGBA")
-
-    # Use the existing local reference-derived plate only as a non-generative style
-    # source. If it is unavailable, create a clean neutral automotive plate locally.
-    plate_bytes = _graphic_reference_background_plate(role_items, output_size)
-    canvas = None
-    if plate_bytes:
-        try:
-            with Image.open(io.BytesIO(plate_bytes)) as plate:
-                canvas = ImageOps.fit(
-                    ImageOps.exif_transpose(plate).convert("RGBA"),
-                    (width, height),
-                    method=Image.Resampling.LANCZOS,
-                )
-        except Exception:
-            canvas = None
-    if canvas is None:
-        canvas = Image.new("RGBA", (width, height), (13, 20, 31, 255))
-        draw = ImageDraw.Draw(canvas, "RGBA")
-        for y in range(height):
-            t = y / max(1, height - 1)
-            draw.line(
-                (0, y, width, y),
-                fill=(
-                    int(26 - 16 * t),
-                    int(38 - 24 * t),
-                    int(56 - 32 * t),
-                    255,
-                ),
-            )
-        draw.ellipse(
-            (int(width * .48), -int(height * .25), int(width * 1.08), int(height * .58)),
-            fill=(238, 165, 90, 54),
-        )
-        draw.polygon(
-            [(0, int(height*.66)), (int(width*.25), int(height*.53)),
-             (int(width*.47), int(height*.68)), (int(width*.72), int(height*.49)),
-             (width, int(height*.62)), (width, height), (0, height)],
-            fill=(8, 14, 23, 245),
-        )
-
-    # Product geometry is never recreated. Trim only fully transparent outside pixels.
-    alpha = product_layer.getchannel("A")
-    bbox = alpha.getbbox()
-    if bbox:
-        product_layer = product_layer.crop(bbox)
-    source_w, source_h = product_layer.size
-    if source_w < 2 or source_h < 2:
-        raise RuntimeError("The protected product layer is empty after background masking.")
-
-    max_product_w = int(width * 0.58)
-    max_product_h = int(height * 0.62)
-    scale = min(max_product_w / source_w, max_product_h / source_h)
-    scale = max(0.05, min(scale, 6.0))
-    target_size = (max(1, int(round(source_w * scale))), max(1, int(round(source_h * scale))))
-    resized_product = _graphic_premultiplied_resize_v20000(product_layer, target_size)
-
-    product_x = int(width * 0.055)
-    product_y = int(height * 0.315 + (max_product_h - target_size[1]) * 0.52)
-    product_x = max(0, min(width - target_size[0], product_x))
-    product_y = max(0, min(height - target_size[1], product_y))
-
-    # Soft shadow sits behind the protected asset and never modifies its RGB pixels.
-    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    shadow_alpha = resized_product.getchannel("A").filter(
-        ImageFilter.GaussianBlur(radius=max(8, int(min(width, height) * .012)))
-    )
-    shadow_patch = Image.new("RGBA", target_size, (0, 0, 0, 0))
-    shadow_patch.putalpha(shadow_alpha.point(lambda a: int(a * .48)))
-    shadow.alpha_composite(shadow_patch, (product_x + max(5, width // 180), product_y + max(8, height // 120)))
-    canvas = Image.alpha_composite(canvas, shadow)
-    canvas.alpha_composite(resized_product, (product_x, product_y))
-
-    spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile or {})
-    palette = _graphic_reference_palette(role_items)
-    accent = tuple(palette.get("accent") or (221, 32, 28))
-    navy = (8, 28, 60, 255)
-    white = (248, 250, 252, 255)
-    draw = ImageDraw.Draw(canvas, "RGBA")
-
-    headline = re.sub(r"\s+", " ", str(spec.get("headline") or "PREMIUM VEHICLE DISPLAY")).strip().upper()
-    compatibility = re.sub(r"\s+", " ", str(spec.get("compatibility") or "VEHICLE-SPECIFIC FITMENT")).strip()
-    tagline = re.sub(r"\s+", " ", str(spec.get("tagline") or "Smarter Drive. More Control. OEM-Style Fit.")).strip()
-    feature_labels = [str(x).strip() for x in (spec.get("feature_labels") or []) if str(x).strip()][:8]
-    bottom_benefits = [str(x).strip() for x in (spec.get("bottom_benefits") or []) if str(x).strip()][:5]
-
-    headline_font = _graphic_font(max(30, int(height * .062)), bold=True)
-    ribbon_font = _graphic_font(max(20, int(height * .030)), bold=True)
-    tagline_font = _graphic_font(max(16, int(height * .024)), bold=False)
-    feature_font = _graphic_font(max(12, int(height * .018)), bold=False)
-    benefit_font = _graphic_font(max(14, int(height * .021)), bold=False)
-
-    copy_left = int(width * .025)
-    copy_top = int(height * .105)
-    max_copy_width = int(width * .51)
-    headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, max_copy_width, max_lines=2)
-    y = copy_top
-    for line in headline_lines:
-        draw.text((copy_left, y), line, font=headline_font, fill=navy)
-        box = draw.textbbox((copy_left, y), line, font=headline_font)
-        y = box[3] + max(3, height // 280)
-
-    ribbon_h = max(38, int(height * .052))
-    ribbon_w = min(max_copy_width, max(int(width * .30), int(draw.textlength(compatibility, font=ribbon_font) + width * .045)))
-    draw.polygon(
-        [(copy_left, y), (copy_left + ribbon_w, y),
-         (copy_left + ribbon_w - int(ribbon_h * .35), y + ribbon_h),
-         (copy_left, y + ribbon_h)],
-        fill=accent + (242,),
-    )
-    draw.text((copy_left + int(width * .015), y + int(ribbon_h * .13)), compatibility, font=ribbon_font, fill=white)
-    y += ribbon_h + max(8, height // 100)
-    draw.text((copy_left, y), tagline, font=tagline_font, fill=navy)
-
-    # Deterministic feature grid. It is intentionally simple and never requires a
-    # model call, so provider or validator outages cannot prevent output creation.
-    grid_left = int(width * .60)
-    grid_top = int(height * .055)
-    grid_right = int(width * .97)
-    cols, rows = 4, 2
-    cell_w = (grid_right - grid_left) // cols
-    cell_h = int(height * .125)
-    for index, label in enumerate(feature_labels[: cols * rows]):
-        col, row = index % cols, index // cols
-        x0 = grid_left + col * cell_w
-        y0 = grid_top + row * cell_h
-        if col:
-            draw.line((x0, y0 + 4, x0, y0 + cell_h - 8), fill=(8, 28, 60, 75), width=max(1, width // 1000))
-        if row:
-            draw.line((x0 + 4, y0, x0 + cell_w - 8, y0), fill=(8, 28, 60, 75), width=max(1, width // 1000))
-        radius = max(13, int(height * .020))
-        cx = x0 + cell_w // 2
-        cy = y0 + int(cell_h * .30)
-        draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius), outline=navy, width=max(2, width // 650))
-        short = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * .88), max_lines=2)
-        ty = y0 + int(cell_h * .56)
-        for line in short:
-            tw = draw.textlength(line, font=feature_font)
-            draw.text((cx - tw/2, ty), line, font=feature_font, fill=navy)
-            ty += max(15, int(height * .020))
-
-    bar_y = int(height * .89)
-    draw.rounded_rectangle(
-        (int(width*.03), bar_y, int(width*.97), int(height*.982)),
-        radius=max(14, int(height*.018)),
-        fill=(5, 10, 17, 236),
-        outline=(255, 255, 255, 82),
-        width=max(1, width // 900),
-    )
-    if not bottom_benefits:
-        bottom_benefits = ["Plug and Play", "OEM Fit & Finish", "Smart Connectivity", "High Brightness"]
-    cell = int(width * .94 / max(1, len(bottom_benefits)))
-    for i, benefit in enumerate(bottom_benefits):
-        x0 = int(width*.03) + i * cell
-        if i:
-            draw.line((x0, bar_y + int(height*.014), x0, int(height*.965)), fill=(255,255,255,110), width=1)
-        wrapped = _graphic_wrap_text_v3200(draw, benefit, benefit_font, int(cell*.78), max_lines=2)
-        ty = bar_y + int(height*.020)
-        for line in wrapped:
-            tw = draw.textlength(line, font=benefit_font)
-            draw.text((x0 + cell/2 - tw/2, ty), line, font=benefit_font, fill=white)
-            ty += max(16, int(height*.021))
-
-    raw_out = io.BytesIO()
-    canvas.convert("RGB").save(raw_out, format="PNG", optimize=True)
-    result = _graphic_build_provider_result_v3000(
-        raw_out.getvalue(),
-        prompt_text,
-        output_size,
-        role_items,
-        "pillow-independent-local-exact-recovery-v20230",
-        reference_blueprint or {},
-        vehicle_profile or {},
-        corrected=True,
-    )
-    result["product_identity_method"] = "engine8_4_independent_protected_product_asset_composite"
-    result["provider_fallback_used"] = True
-    result["generation_route"] = "independent_local_exact_recovery_v20230"
-    result["output_status"] = "completed_independent_exact_recovery_v20230"
-    result["layered_metadata"].update({
-        "independent_local_recovery": True,
-        "shared_hybrid_compositor_used": False,
-        "provider_calls_for_recovery": 0,
-        "exact_product_asset_mode": True,
-        "product_master_rgb_preserved": True,
-        "product_pixels_provider_generated": False,
-        "product_ai_reconstruction_prohibited": True,
-        "complete_unit_asset_protected": True,
-        "product_transparent_source": bool(product_transparent),
-        "product_source_size": [source_w, source_h],
-        "product_rendered_size": list(target_size),
-        "product_rendered_position": [product_x, product_y],
-        "product_uniform_scale": float(scale),
-    })
-    return result
-
-
-def _graphic_exact_product_recovery_v20200(
-    prompt_text,
-    uploaded_files=None,
-    *,
-    style_strength="High",
-    forced_upload_role="Auto-detect",
-    failures=None,
-):
-    """Recover an exact-product job without ever regenerating the uploaded unit.
-
-    The background/vehicle plate may be generated, but the complete product is always
-    composited from the protected master-RGB asset. This route intentionally tolerates
-    optional layout/vehicle QA failures so they cannot trigger the legacy emergency
-    provider, which can redesign bezel, lower housing, openings or mounting details.
-    """
-    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
-    role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
-    role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
-    product_item = next((item for item in role_items if item.get("role") == "product_photo"), None)
-    if not product_item:
-        raise RuntimeError("Exact-product recovery requires an uploaded Product Photo.")
-
-    integrity = _graphic_role_integrity_v8300(role_items)
-    if not integrity.get("passed"):
-        raise RuntimeError(
-            "Exact-product recovery could not safely separate Product Photo and Style Reference: "
-            + str(integrity.get("reason") or "role integrity failed")
-        )
-
-    has_style = any(item.get("role") == "style_reference" for item in role_items)
-    reference_blueprint = {}
-    if has_style:
-        reference_blueprint = _graphic_safe_optional_call(
-            "graphic_v20200_exact_recovery_reference_analysis_unavailable",
-            lambda: analyze_graphic_reference_blueprint(
-                role_items, prompt_text=prompt_text, style_strength=style_strength
-            ),
-            {},
-        )
-        reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
-
-    vehicle_profile = _graphic_resolve_vehicle_lock(
-        prompt_text,
-        _graphic_safe_optional_call(
-            "graphic_v20200_exact_recovery_vehicle_profile_unavailable",
-            lambda: research_graphic_vehicle_profile(role_items, prompt_text),
-            {},
-        ),
-    )
-    state = get_graphic_project_state()
-    state["brand_template"] = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-
-    # v20220 bounded exact-product recovery. Optional reference or vehicle
-    # analysis must never make the whole job fail. Attempt the fully guided
-    # composite first, then retry once with a minimal deterministic brief while
-    # preserving the exact same protected product pixels.
-    result = None
-    recovery_errors = []
-    recovery_attempts = [
-        (reference_blueprint, vehicle_profile, "guided"),
-        ({}, dict(vehicle_profile or {}, hard_vehicle_lock=False), "minimal"),
-    ]
-    for attempt_blueprint, attempt_vehicle, attempt_name in recovery_attempts:
-        try:
-            result = _graphic_build_hybrid_campaign_result_v3300(
-                prompt_text, role_items, output_size, attempt_blueprint, attempt_vehicle
-            )
-            if result:
-                result["exact_recovery_attempt"] = attempt_name
-                break
-        except Exception as recovery_error:
-            compact = _graphic_compact_error_v4000(recovery_error)
-            recovery_errors.append(f"{attempt_name}:{type(recovery_error).__name__}:{compact}")
-            diagnostic_log(
-                "graphic_v20230_shared_exact_recovery_attempt_failed",
-                attempt=attempt_name,
-                error_type=type(recovery_error).__name__,
-                error=compact,
-            )
-
-    # v20230: the final recovery is genuinely independent. It does not call the
-    # shared v3300 hybrid compositor and makes no provider request. Therefore a
-    # deterministic failure inside the shared compositor cannot make both retry
-    # attempts fail in the same way.
-    if not result:
-        try:
-            result = _graphic_independent_local_exact_recovery_v20230(
-                prompt_text,
-                role_items,
-                output_size,
-                reference_blueprint=reference_blueprint,
-                vehicle_profile=vehicle_profile,
-            )
-            result["exact_recovery_attempt"] = "independent-local"
-        except Exception as recovery_error:
-            compact = _graphic_compact_error_v4000(recovery_error)
-            recovery_errors.append(f"independent-local:{type(recovery_error).__name__}:{compact}")
-            diagnostic_log(
-                "graphic_v20230_independent_local_recovery_failed",
-                error_type=type(recovery_error).__name__,
-                error=compact,
-            )
-    if not result:
-        raise RuntimeError(
-            "Exact-product composition failed after guided, minimal and independent local attempts. "
-            + " | ".join(recovery_errors[-3:])
-        )
-    metadata = dict(result.get("layered_metadata") or {})
-    metadata.update({
-        "exact_product_asset_mode": True,
-        "product_master_rgb_preserved": True,
-        "product_pixels_provider_generated": False,
-        "product_ai_reconstruction_prohibited": True,
-        "complete_unit_asset_protected": True,
-        "protected_regions": [
-            "display_assembly", "outer_bezel", "inner_bezel", "screen_aperture",
-            "housing_silhouette", "side_controls", "knobs", "lower_housing",
-            "bottom_openings", "mounting_tabs", "mounting_holes", "negative_spaces",
-        ],
-        "recovery_policy": "exact_product_composite_only_no_generative_product_fallback_v20200",
-    })
-    result["layered_metadata"] = metadata
-    result["product_identity_method"] = "engine8_1_complete_protected_product_asset_composite"
-    result["ai_product_recreated"] = False
-    result["recovery_route"] = True
-    result["recovery_route_name"] = "v20200-exact-product-composite"
-    result["recovery_failures"] = list(failures or [])[-4:]
-    result["recovery_attempt_errors"] = recovery_errors[-2:]
-    vehicle_warning = (get_graphic_project_state() or {}).get("last_vehicle_validation_warning")
-    if vehicle_warning:
-        result["vehicle_review_warning"] = vehicle_warning
-
-    # Run gates for diagnostics, but never replace this exact asset with a generated unit.
-    source_gate = _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile)
-    result["source_fidelity_gate"] = source_gate
-    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
-    result["reference_layout_fidelity_gate"] = layout_gate
-    if source_gate.get("passed"):
-        result["verification_status"] = "verified" if (not layout_gate.get("required") or layout_gate.get("passed")) else "product_verified_layout_review"
-        result["output_status"] = "completed_exact_product_recovery_v20200"
-    else:
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The complete uploaded product asset was preserved without AI reconstruction. Some optional verification checks did not pass; review the composition, but do not use a generative product recovery.",
-            status="completed_exact_product_preserved_review_v20200",
-        )
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
-    _graphic_save_latest_project_result(result)
-    return [result]
-
 def _graphic_emergency_provider_result_v15000(
     prompt_text,
     uploaded_files=None,
@@ -23414,13 +22950,6 @@ def _graphic_emergency_provider_result_v15000(
     )
     if not role_items:
         raise RuntimeError("No saved Graphic project images were available for recovery.")
-    has_product = any(item.get("role") == "product_photo" for item in role_items)
-    recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text).get("requested"))
-    if has_product and not recreation_requested:
-        raise RuntimeError(
-            "Generative emergency recovery is disabled for exact-product jobs. "
-            "Use the protected exact-product compositor so the complete unit cannot be redesigned."
-        )
 
     has_style = any(item.get("role") == "style_reference" for item in role_items)
     reference_blueprint = _graphic_safe_optional_call(
@@ -23529,50 +23058,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             error=_graphic_compact_error_v4000(error),
         )
 
-    # Engine 8.1 fail-safe: an exact-product request may recover only through the
-    # deterministic protected-asset compositor. It must never reach v3200 or the
-    # emergency provider because those routes can redraw lower housing, bezel,
-    # openings, tabs and other physical details.
-    try:
-        recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
-        has_recovery_product = any(item.get("role") == "product_photo" for item in recovery_roles)
-        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text).get("requested"))
-    except Exception:
-        has_recovery_product = False
-        recreation_requested = False
-    if preserve_product and has_recovery_product and not recreation_requested:
-        try:
-            return _graphic_finalize_recovery_v16000(
-                _graphic_exact_product_recovery_v20200(
-                    prompt_text,
-                    uploaded_files,
-                    style_strength=style_strength,
-                    forced_upload_role=forced_upload_role,
-                    failures=failures,
-                ),
-                "v20200-exact-product-composite",
-                failures,
-            )
-        except Exception as error:
-            failures.append(
-                f"exact-product-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v20200_exact_product_recovery_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
-            )
-            state = get_graphic_project_state()
-            state["stage"] = "ready_to_generate"
-            state["last_error"] = " | ".join(failures[-4:])[:1800]
-            state["last_failed_stage"] = "exact_product_composite_recovery"
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-            raise RuntimeError(
-                "The protected exact-product pipeline could not complete after guided, minimal and independent local recovery attempts. "
-                "The app stopped instead of redesigning the uploaded unit. "
-                "Check Streamlit logs for graphic_v20230_independent_local_recovery_failed."
-            ) from error
-
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
     # as a compatibility recovery route for deployed Streamlit environments.
     try:
@@ -23592,6 +23077,31 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "graphic_v15000_v3200_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
+        )
+
+    # A provider-generated whole-product fallback can recreate bezel, lower housing,
+    # openings and mounting geometry. Keep it available only for explicit product
+    # recreation/new-angle requests. Front-view exact campaigns fail clearly rather
+    # than silently returning a redesigned unit.
+    exact_front_job = False
+    try:
+        recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+        has_product = any(item.get("role") == "product_photo" for item in recovery_roles or [])
+        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text))
+        exact_front_job = bool(preserve_product and has_product and not recreation_requested)
+    except Exception:
+        exact_front_job = False
+
+    if exact_front_job:
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-3:])[:1800]
+        state["last_failed_stage"] = "professional_exact_routes"
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "The professional exact-product routes could not complete. The uploaded unit was not regenerated. "
+            + " | ".join(failures[-2:])
         )
 
     try:
@@ -23635,8 +23145,8 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100", "completed_exact_product_recovery_v20200", "completed_exact_product_preserved_review_v20200"}:
-        action = "Created your exact-product AutoTecPro campaign image with the uploaded unit preserved"
+    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100"}:
+        action = "Created your exact-product AutoTecPro campaign image"
     elif image.get("ai_product_recreated"):
         action = "Created an AI-recreated product view from your supplied product references"
     elif status in {"verified_controlled_campaign", "completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
@@ -40236,13 +39746,9 @@ else:
                     error_type=type(error).__name__,
                     error=error,
                 )
-                failed_state = get_graphic_project_state()
-                failed_stage = str(failed_state.get("last_failed_stage") or "graphic pipeline")
                 answer = (
-                    "The protected image pipeline could not complete after its bounded retries. "
-                    "Your reference and product photos are still saved, and the app did not substitute or redesign the uploaded unit. "
-                    "Please select Retry once. "
-                    f"Failed stage: {failed_stage}. Diagnostic ID: {diagnostic_id}"
+                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
+                    f"Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "ready_to_generate"
