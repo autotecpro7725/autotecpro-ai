@@ -144,6 +144,8 @@ except Exception:
 # v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
 # v4300 Exact Product Structure Lock: exact uploaded-product hero compositing, critical opening/gap/mounting-geometry analysis, safer product mask padding, and structural-fidelity QA.
 # v8000 AutoTecPro Creative Production Engine: layered project metadata, Product DNA, multi-view identity, brand templates, local object edits, professional QA, smart routing, approval learning hooks, and production metrics.
+# v8300 Reference/Product Role Lock: deterministic local asset-role verification, reference-ad/product-source separation, exact hero-product enforcement, reference-content leakage prevention, and fail-closed campaign integrity checks; no intentional non-Graphic changes.
+# v8400 Project-Ready Direct Generation: project-aware create/edit priority, deterministic ready acknowledgements, frozen visual project assets, and suppression of campaign-copy detours once reference + product are ready.
 # v7000 Dual-Mode Fast Graphic Engine: exact-product and AI-recreation routing, multi-view product identity, autonomous AutoTecPro campaigns without references, angle-change detection, and fast exact-product production path.
 # v7100 Graphic Reliability + Local Edit Optimization: lightweight exact-mode validation, reliable multi-view promotion, dedicated recreated-product structure QA, deterministic text-only edits, shared finalization, unified engine metadata, and bounded provider/QA behavior.
 # v3200 Reference-Locked Campaign Engine: persistent campaign copy/specification memory,
@@ -17167,6 +17169,57 @@ def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured
     return "conversation"
 
 
+def _graphic_project_role_set(state=None):
+    """Return normalized persistent Graphic asset roles for routing decisions."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    return {
+        str(item.get("role") or "").strip().casefold()
+        for item in (project.get("assets") or [])
+        if isinstance(item, dict)
+    }
+
+
+def _graphic_project_is_ready(state=None):
+    """Return True once one reference and one authoritative product are saved."""
+    roles = _graphic_project_role_set(state)
+    return bool({"reference", "style_reference"} & roles) and bool({"product", "product_photo"} & roles)
+
+
+def _graphic_project_direct_action(prompt_text, state=None):
+    """Give project-ready create/edit commands priority over copy drafting."""
+    if not _graphic_project_is_ready(state):
+        return ""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text:
+        return ""
+    if any(term in text for term in (
+        "do not create", "don't create", "do not generate", "don't generate",
+        "not ready", "hold on", "before you create", "before creating",
+    )):
+        return ""
+    if re.search(r"\b(?:edit|modify|revise|update|change|replace|remove|add|move|resize|reposition|regenerate)\b", text):
+        return "edit"
+    if (
+        re.search(r"\b(?:please\s+)?(?:create|generate|make|produce|render|design|build)\s+(?:it|this|the\s+(?:image|photo|ad|advertisement|commercial|campaign))\b", text)
+        or re.search(r"\b(?:create|generate|make|produce|render|design|build)\b", text)
+        or text in {"go ahead", "proceed", "do it", "retry", "try again"}
+    ):
+        return "generate"
+    return ""
+
+
+def _graphic_project_ready_message(state=None):
+    """Return a concise deterministic acknowledgement instead of campaign copy."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    products = [str(i.get("name") or "product image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"product", "product_photo"}]
+    references = [str(i.get("name") or "reference image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"reference", "style_reference"}]
+    return (
+        f"Product received: {products[-1] if products else 'the product photo'}. "
+        f"Reference locked: {references[-1] if references else 'the reference style'}. "
+        "The project is ready. Type ‘Create it’ to generate the commercial image."
+    )
+
+
 def build_graphic_conversation_guardrail(intent, has_uploaded_images=False):
     """Return strict intent-specific guidance for ordinary Graphic Chat replies."""
     clean_intent = str(intent or "conversation").strip().lower()
@@ -17182,6 +17235,8 @@ GRAPHIC CHAT CREATIVE-DIRECTOR GUARDRAIL:
 - Current Graphic Chat intent: {clean_intent}.
 - {upload_state}
 - Act only as a professional automotive creative director and graphic-marketing assistant.
+- Once reference and product assets are ready, never draft unsolicited headline, feature, CTA, or bottom-bar copy in response to a create/generate command; the app routes it directly to image generation.
+- Do not repeat “I will build”, “Suggested ad text”, or campaign-planning blocks after the project is ready unless the user explicitly asks for copywriting.
 - Do not act as Technical Support, compatibility support, or an installer unless the user explicitly asks a technical question.
 - Do not ask about Ford SYNC, RAM Uconnect, GM RPO codes, Toyota Entune, CANBUS, wiring, harnesses, climate-control type, factory-radio version, firmware, MCU, or installation during creative planning, upload permission, reference review, or ordinary conversation.
 - Never assume the product is for Ford. Remain vehicle-neutral across all supported brands.
@@ -18338,6 +18393,173 @@ def _graphic_safe_optional_call(event_name, callback, default):
         return default
 
 
+
+def _graphic_asset_visual_profile_v8300(item):
+    """Return cheap local visual signals used only to prevent reference/product swaps."""
+    profile = {
+        "white_fraction": 0.0,
+        "near_white_fraction": 0.0,
+        "dark_fraction": 0.0,
+        "colorfulness": 0.0,
+        "width": 0,
+        "height": 0,
+        "studio_product_likelihood": 0.0,
+        "advertisement_likelihood": 0.0,
+    }
+    if Image is None or not isinstance(item, dict):
+        return profile
+    try:
+        raw = _graphic_uploaded_file_bytes(item.get("file"))
+        if not raw:
+            return profile
+        with Image.open(io.BytesIO(raw)) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            im.thumbnail((320, 240), Image.Resampling.BILINEAR)
+            profile["width"], profile["height"] = im.size
+            pixels = list(im.getdata())
+        if not pixels:
+            return profile
+        count = float(len(pixels))
+        white = near_white = dark = 0
+        colorfulness_total = 0.0
+        for r, g, b in pixels:
+            hi, lo = max(r, g, b), min(r, g, b)
+            brightness = (r + g + b) / 3.0
+            if r >= 242 and g >= 242 and b >= 242:
+                white += 1
+            if r >= 224 and g >= 224 and b >= 224:
+                near_white += 1
+            if brightness <= 55:
+                dark += 1
+            colorfulness_total += float(hi - lo)
+        wf = white / count
+        nwf = near_white / count
+        df = dark / count
+        cf = colorfulness_total / count
+        profile.update({
+            "white_fraction": round(wf, 4),
+            "near_white_fraction": round(nwf, 4),
+            "dark_fraction": round(df, 4),
+            "colorfulness": round(cf, 2),
+        })
+        # Clean catalogue product photos normally have a dominant white/neutral field.
+        studio = min(1.0, max(0.0, (nwf - 0.36) / 0.45))
+        # Finished advertisements normally use dense scenery/colors with little empty white field.
+        advert = min(1.0, max(0.0, ((0.40 - nwf) / 0.40) * 0.72 + min(cf / 85.0, 1.0) * 0.28))
+        profile["studio_product_likelihood"] = round(studio, 4)
+        profile["advertisement_likelihood"] = round(advert, 4)
+    except Exception as error:
+        diagnostic_log("graphic_v8300_asset_profile_failed", error_type=type(error).__name__, error=error)
+    return profile
+
+
+def _graphic_enforce_reference_product_roles_v8300(role_items, prompt_text=""):
+    """Prevent a finished reference advertisement from becoming the hero product.
+
+    This guard is local and deterministic. It never changes a forced logo/background role.
+    It prefers a clean white/neutral catalogue source as the authoritative product and a
+    dense colorful finished artwork as the style reference. In the common reference-first,
+    product-second conversation, the newest plausible catalogue source wins.
+    """
+    items = [dict(item) for item in (role_items or []) if isinstance(item, dict)]
+    image_items = [item for item in items if item.get("role") not in {"edit_base", "logo_asset", "background"}]
+    if len(image_items) < 2:
+        return items
+
+    prompt_lower = str(prompt_text or "").lower()
+    for index, item in enumerate(items):
+        item["_v8300_index"] = index
+        item["_v8300_profile"] = _graphic_asset_visual_profile_v8300(item)
+
+    candidates = [item for item in items if item.get("role") not in {"edit_base", "logo_asset", "background"}]
+    product_candidates = sorted(
+        candidates,
+        key=lambda item: (
+            float((item.get("_v8300_profile") or {}).get("studio_product_likelihood") or 0.0),
+            float((item.get("_v8300_profile") or {}).get("near_white_fraction") or 0.0),
+            int(item.get("_v8300_index") or 0),
+        ),
+        reverse=True,
+    )
+    style_candidates = sorted(
+        candidates,
+        key=lambda item: (
+            float((item.get("_v8300_profile") or {}).get("advertisement_likelihood") or 0.0),
+            -float((item.get("_v8300_profile") or {}).get("near_white_fraction") or 0.0),
+            -int(item.get("_v8300_index") or 0),
+        ),
+        reverse=True,
+    )
+
+    primary_product = product_candidates[0] if product_candidates else None
+    primary_style = next((item for item in style_candidates if item is not primary_product), None)
+
+    # Require meaningful evidence before overriding persistent metadata. The observed
+    # failure case is very strong: reference ad ~11% near-white, product source ~82%.
+    product_score = float(((primary_product or {}).get("_v8300_profile") or {}).get("studio_product_likelihood") or 0.0)
+    style_score = float(((primary_style or {}).get("_v8300_profile") or {}).get("advertisement_likelihood") or 0.0)
+    strong_split = bool(primary_product and primary_style and product_score >= 0.45 and style_score >= 0.45)
+
+    explicit_product_language = any(token in prompt_lower for token in (
+        "this product", "product unit", "actual product", "original unit", "product photo",
+        "this unit", "this is 2020", "this is a 2020", "jeep cherokee",
+    ))
+    explicit_safe_split = bool(explicit_product_language and product_score >= 0.20 and style_score >= 0.45)
+    if strong_split or explicit_safe_split:
+        # Keep multi-view product photos only when they also look like catalogue sources.
+        for item in candidates:
+            profile = item.get("_v8300_profile") or {}
+            if item is primary_product:
+                item["role"] = "product_photo"
+                item["role_locked_by"] = "v8300_visual_product_guard"
+            elif item is primary_style:
+                item["role"] = "style_reference"
+                item["role_locked_by"] = "v8300_visual_reference_guard"
+            elif float(profile.get("studio_product_likelihood") or 0.0) >= 0.58:
+                item["role"] = "product_photo"
+                item["role_locked_by"] = "v8300_multiview_product_guard"
+            elif float(profile.get("advertisement_likelihood") or 0.0) >= 0.42:
+                item["role"] = "style_reference"
+                item["role_locked_by"] = "v8300_visual_reference_guard"
+
+    for item in items:
+        item.pop("_v8300_index", None)
+        item.pop("_v8300_profile", None)
+    diagnostic_log(
+        "graphic_v8300_role_guard",
+        roles=[f"{item.get('role')}:{item.get('name')}:{item.get('role_locked_by','existing')}" for item in items],
+        strong_split=strong_split,
+        product_score=round(product_score, 3),
+        style_score=round(style_score, 3),
+    )
+    return items
+
+
+def _graphic_role_integrity_v8300(role_items):
+    """Fail closed when product/reference separation is still implausible."""
+    products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
+    styles = [item for item in (role_items or []) if item.get("role") == "style_reference"]
+    if not products:
+        return {"passed": False, "reason": "No authoritative product source was resolved."}
+    product_profile = _graphic_asset_visual_profile_v8300(products[0])
+    style_profiles = [_graphic_asset_visual_profile_v8300(item) for item in styles[:3]]
+    suspicious_product = (
+        bool(styles)
+        and float(product_profile.get("advertisement_likelihood") or 0.0) >= 0.72
+        and float(product_profile.get("studio_product_likelihood") or 0.0) < 0.25
+    )
+    duplicate_source = any(
+        str(item.get("name") or "") == str(products[0].get("name") or "")
+        for item in styles
+    )
+    return {
+        "passed": not suspicious_product and not duplicate_source,
+        "reason": "Reference advertisement was incorrectly resolved as the product source." if suspicious_product or duplicate_source else "ok",
+        "product_profile": product_profile,
+        "style_profiles": style_profiles,
+    }
+
+
 def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
     """Resolve persistent project assets into one authoritative ordered role list."""
     effective_files = graphic_project_uploaded_files(uploaded_files or [])
@@ -18364,6 +18586,14 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         "logo_asset": 3,
         "supporting_image": 4,
     }
+    role_items = _graphic_enforce_reference_product_roles_v8300(role_items, prompt_text)
+    # Recovery can change the earlier product to a reference while leaving the newest
+    # image as supporting. Re-run a strict final guarantee so one product always exists.
+    if effective_files and not any(item.get("role") == "product_photo" for item in role_items):
+        newest = next((item for item in reversed(role_items) if item.get("role") not in {"edit_base", "logo_asset", "background"}), None)
+        if newest is not None:
+            newest["role"] = "product_photo"
+            newest["role_locked_by"] = "v8300_newest_product_fallback"
     role_items = sorted(
         role_items,
         key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
@@ -18554,7 +18784,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v8000-autotecpro-creative-production"
+GRAPHIC_ENGINE_VERSION = "v8300-reference-product-role-lock"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -18977,7 +19207,9 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         f"Keep the TOP {int(float(cfg.get('top_ratio',0.335))*100)} percent calm and low-detail for deterministic typography.",
         f"Keep the BOTTOM {int((1-float(cfg.get('bar_ratio',0.885)))*100)} percent free of important objects for a benefit bar.",
         "Use realistic shadows, premium automotive-advertising lighting, crisp commercial realism, and sufficient tonal separation behind the future product.",
-        "The reference controls atmosphere, camera polish, contrast, palette, and mood only. Never copy its product, vehicle, words, icons, logo, or watermark.",
+        "The reference is a LAYOUT/MOOD GUIDE ONLY. Never reproduce, paste, frame, thumbnail, collage, or embed any portion of the reference artwork.",
+        "Never copy the reference product, reference vehicle, words, feature icons, logo, watermark, screenshot, border, or advertisement panel.",
+        "The generated plate must contain scenery and the requested target vehicle only; the exact uploaded product will be added later as the dominant hero.",
         ("Absolutely prohibit these vehicle identities: "+prohibited) if prohibited else "Do not substitute a different vehicle make or model.",
         "The target vehicle must remain fully visible behind and to the right of the future product placement.",
         "User direction: "+re.sub(r"\s+"," ",str(prompt_text or ""))[:1200],
@@ -19619,7 +19851,16 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
         for item in role_items[:-1]:
             if item.get("role") not in {"logo", "logo_asset", "supporting", "supporting_image"}:
                 item["role"] = "style_reference"
+    # The earlier block may have converted the only product into a reference while the
+    # newest item remained supporting. Guarantee the standard reference-first/product-second flow.
+    if files and not any(item.get("role") == "product_photo" for item in role_items):
+        newest = role_items[-1]
+        newest["role"] = "product_photo"
+        for item in role_items[:-1]:
+            if item.get("role") not in {"logo", "logo_asset", "background"}:
+                item["role"] = "style_reference"
 
+    role_items = _graphic_enforce_reference_product_roles_v8300(role_items, prompt_text)
     diagnostic_log(
         "graphic_role_recovery_result",
         roles=[f"{item.get('role')}:{item.get('name')}" for item in role_items],
@@ -20584,7 +20825,11 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         result["verification_status"] = "completed"
     else:
         raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    result["graphic_engine_version"] = "v8300-reference-product-role-lock"
+    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"] = str(next((item.get("name") for item in (role_items or []) if item.get("role") == "product_photo"), ""))
+    result["style_reference_sources"] = [str(item.get("name") or "") for item in (role_items or []) if item.get("role") == "style_reference"][:4]
+    result["reference_content_leakage_prohibited"] = True
     result["product_render_mode"] = str((mode_info or {}).get("mode") or "exact_product")
     result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
     result["ai_product_recreated"] = False
@@ -20596,7 +20841,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """v8200 AutoTecPro quality-and-speed pipeline with operational layers, caches, bounded QA and local edits."""
+    """v8300 AutoTecPro pipeline with strict reference/product separation and exact hero-product enforcement."""
     prompt_text = str(prompt_text or "").strip()
     if not prompt_text:
         raise ValueError("Please enter an image-generation or editing command.")
@@ -20616,6 +20861,13 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
         role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
+        role_integrity = _graphic_role_integrity_v8300(role_items)
+        if not role_integrity.get("passed"):
+            raise RuntimeError(
+                "The product and reference images could not be separated safely. "
+                "Please keep the reference advertisement assigned as Style Reference and the clean unit photo assigned as Product Photo. "
+                + str(role_integrity.get("reason") or "")
+            )
         has_product = any(i.get("role") == "product_photo" for i in role_items)
         has_style = any(i.get("role") == "style_reference" for i in role_items)
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
@@ -20623,8 +20875,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
         brand_template = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
-        product_dna = _graphic_build_product_dna_v8000(role_items, structure_profile) if has_product else {}
-        state_now=get_graphic_project_state(); state_now["active_product_dna"]=product_dna; st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state_now
+        state_now = get_graphic_project_state()
+        locked_dna = dict(state_now.get("active_product_dna") or {})
+        product_dna = locked_dna if (locked_dna and state_now.get("product_dna_locked")) else (_graphic_build_product_dna_v8000(role_items, structure_profile) if has_product else {})
+        state_now["active_product_dna"] = product_dna
+        state_now["product_dna_locked"] = bool(product_dna)
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_now
         product_mode["brand_template"] = brand_template
         diagnostic_log(
             "graphic_v7000_mode",
@@ -20646,16 +20902,33 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             campaign_spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
             diagnostic_log("graphic_v8200_early_local_route", edit_kind=edit_kind)
         else:
-            _graphic_progress_update_v3300(status, "Reading cached reference geometry and verified product facts…")
-            t=time.perf_counter()
-            reference_blueprint, reference_cached = _graphic_cached_reference_blueprint_v8200(role_items,prompt_text,style_strength) if has_style else ({},True)
-            stage_times["reference_analysis_seconds"]=time.perf_counter()-t
+            _graphic_progress_update_v3300(status, "Reading locked reference geometry and verified product facts…")
+            locked_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
+            if saved_state.get("reference_blueprint_locked") and locked_blueprint:
+                reference_blueprint, reference_cached = locked_blueprint, True
+                stage_times["reference_analysis_seconds"] = 0.0
+            else:
+                t=time.perf_counter()
+                reference_blueprint, reference_cached = _graphic_cached_reference_blueprint_v8200(role_items,prompt_text,style_strength) if has_style else ({},True)
+                stage_times["reference_analysis_seconds"]=time.perf_counter()-t
+                if reference_blueprint:
+                    saved_state["last_reference_blueprint"] = reference_blueprint
+                    saved_state["reference_blueprint_locked"] = True
             geometry=_graphic_reference_geometry_v3300(reference_blueprint,prompt_text)
-            t=time.perf_counter()
-            vehicle_profile, vehicle_cached = _graphic_cached_vehicle_profile_v8200(role_items,prompt_text) if has_product else ({},True)
-            stage_times["vehicle_resolution_seconds"]=time.perf_counter()-t
+            explicit_vehicle = _graphic_extract_explicit_vehicle(prompt_text)
+            locked_vehicle = dict(saved_state.get("last_vehicle_profile") or {})
+            if saved_state.get("vehicle_profile_locked") and locked_vehicle and not explicit_vehicle:
+                vehicle_profile, vehicle_cached = locked_vehicle, True
+                stage_times["vehicle_resolution_seconds"] = 0.0
+            else:
+                t=time.perf_counter()
+                vehicle_profile, vehicle_cached = _graphic_cached_vehicle_profile_v8200(role_items,prompt_text) if has_product else ({},True)
+                vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
+                stage_times["vehicle_resolution_seconds"]=time.perf_counter()-t
+                if vehicle_profile:
+                    saved_state["last_vehicle_profile"] = vehicle_profile
+                    saved_state["vehicle_profile_locked"] = bool(vehicle_profile.get("hard_vehicle_lock"))
             campaign_spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
-            saved_state["last_reference_blueprint"]=reference_blueprint; saved_state["last_vehicle_profile"]=vehicle_profile
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
         production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
@@ -37338,20 +37611,21 @@ else:
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
             graphic_chat_intent = "analyze"
         if assistant == "🎨 Graphic Marketing" and not attachment_only_mode:
-            # Project-aware explicit consent: once both reference and product are
-            # present, short ChatGPT-style commands must enter generation directly.
-            project_assets = list((get_graphic_project_state() or {}).get("assets") or [])
-            project_roles = {str(item.get("role") or "").strip().casefold() for item in project_assets if isinstance(item, dict)}
-            short_command = re.sub(r"[^a-z0-9]+", " ", str(interaction_prompt or "").casefold()).strip()
-            if ({"reference", "product"} <= project_roles or {"style_reference", "product_photo"} <= project_roles) and short_command in {
-                "create it", "generate it", "make it", "do it", "proceed", "go ahead",
-                "create the image", "create the image now", "generate the image",
-                "generate the image now", "create the ad", "make the ad", "retry", "try again"
-            }:
-                graphic_chat_intent = "generate"
+            # v8400: contextual create/edit consent outranks ordinary conversation
+            # and campaign-copy drafting once reference + product are ready.
+            direct_project_action = _graphic_project_direct_action(
+                interaction_prompt, get_graphic_project_state()
+            )
+            if direct_project_action:
+                graphic_chat_intent = direct_project_action
         is_graphic_generation = bool(
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
+        )
+        is_graphic_project_ready_ack = bool(
+            assistant == "🎨 Graphic Marketing"
+            and attachment_only_mode
+            and _graphic_project_is_ready(get_graphic_project_state())
         )
         is_graphic_reference_learning = (
             is_graphic_reference_style_learning_request(
@@ -37466,6 +37740,19 @@ else:
                 answer,
                 message_index=len(st.session_state.messages),
             )
+        elif is_graphic_project_ready_ack:
+            response_start_time = time.time()
+            graphic_project = get_graphic_project_state()
+            graphic_project["stage"] = "ready_to_generate"
+            graphic_project["reference_blueprint_locked"] = bool(graphic_project.get("last_reference_blueprint"))
+            graphic_project["product_dna_locked"] = bool(graphic_project.get("active_product_dna"))
+            graphic_project["vehicle_profile_locked"] = bool((graphic_project.get("last_vehicle_profile") or {}).get("hard_vehicle_lock"))
+            graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
+            answer = _graphic_project_ready_message(graphic_project)
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message("assistant", answer, message_index=len(st.session_state.messages))
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
