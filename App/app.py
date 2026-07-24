@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20100
-# v20100 Graphic Engine 8.0 Exact Product Asset Architecture: built directly from the current v20020/v20010 production baseline.
-# Front and near-front product campaigns now preserve the untouched uploaded product RGB as a protected asset;
-# only border-connected background alpha may change. AI product recreation is reserved for explicit new-angle requests.
+# AutoTecPro AI performance/stability revision: v20220
+# v20220 Graphic Engine 8.3 Stable Exact Product Recovery: built directly from the current v20100 production baseline.
+# Preserves the untouched uploaded product asset, prevents generative product fallback, adds bounded transient retries,
+# relaxes optional vehicle/layout verification from fatal to review-only, and records actionable failure-stage diagnostics.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -20529,10 +20529,21 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
     verified = last_validation.get("verified") is True
     if hard_vehicle and not verified and not _graphic_validation_is_unavailable_v4100(last_validation):
-        raise RuntimeError(
-            "The background vehicle did not match the locked target after one bounded retry: "
-            + str(last_validation.get("reason") or "vehicle identity mismatch")[:500]
+        # v20220: vehicle identity QA is important, but it must not destroy an
+        # otherwise valid exact-product campaign. Keep the best plate and mark it
+        # review-only. The uploaded product remains pixel-exact and protected.
+        diagnostic_log(
+            "graphic_v20220_vehicle_validation_review_only",
+            score=last_validation.get("score"),
+            reason=str(last_validation.get("reason") or "vehicle identity mismatch")[:500],
         )
+        state = get_graphic_project_state()
+        state["last_vehicle_validation_warning"] = {
+            "score": last_validation.get("score"),
+            "reason": str(last_validation.get("reason") or "vehicle identity mismatch")[:500],
+            "at": datetime.now(timezone.utc).isoformat(),
+        }
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
     # Validation-unavailable plates may still be composed and returned as unverified,
     # but they are never cached. This prevents an uncertain plate from contaminating
@@ -23053,9 +23064,38 @@ def _graphic_exact_product_recovery_v20200(
     state["brand_template"] = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
-    result = _graphic_build_hybrid_campaign_result_v3300(
-        prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
-    )
+    # v20220 bounded exact-product recovery. Optional reference or vehicle
+    # analysis must never make the whole job fail. Attempt the fully guided
+    # composite first, then retry once with a minimal deterministic brief while
+    # preserving the exact same protected product pixels.
+    result = None
+    recovery_errors = []
+    recovery_attempts = [
+        (reference_blueprint, vehicle_profile, "guided"),
+        ({}, dict(vehicle_profile or {}, hard_vehicle_lock=False), "minimal"),
+    ]
+    for attempt_blueprint, attempt_vehicle, attempt_name in recovery_attempts:
+        try:
+            result = _graphic_build_hybrid_campaign_result_v3300(
+                prompt_text, role_items, output_size, attempt_blueprint, attempt_vehicle
+            )
+            if result:
+                result["exact_recovery_attempt"] = attempt_name
+                break
+        except Exception as recovery_error:
+            compact = _graphic_compact_error_v4000(recovery_error)
+            recovery_errors.append(f"{attempt_name}:{type(recovery_error).__name__}:{compact}")
+            diagnostic_log(
+                "graphic_v20220_exact_recovery_attempt_failed",
+                attempt=attempt_name,
+                error_type=type(recovery_error).__name__,
+                error=compact,
+            )
+    if not result:
+        raise RuntimeError(
+            "Exact-product composition failed after bounded guided and minimal attempts. "
+            + " | ".join(recovery_errors[-2:])
+        )
     metadata = dict(result.get("layered_metadata") or {})
     metadata.update({
         "exact_product_asset_mode": True,
@@ -23076,6 +23116,10 @@ def _graphic_exact_product_recovery_v20200(
     result["recovery_route"] = True
     result["recovery_route_name"] = "v20200-exact-product-composite"
     result["recovery_failures"] = list(failures or [])[-4:]
+    result["recovery_attempt_errors"] = recovery_errors[-2:]
+    vehicle_warning = (get_graphic_project_state() or {}).get("last_vehicle_validation_warning")
+    if vehicle_warning:
+        result["vehicle_review_warning"] = vehicle_warning
 
     # Run gates for diagnostics, but never replace this exact asset with a generated unit.
     source_gate = _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile)
@@ -23268,7 +23312,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             state["last_failed_stage"] = "exact_product_composite_recovery"
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             raise RuntimeError(
-                "The exact uploaded product could not be composited safely. The app stopped instead of generating a redesigned product. Please retry or re-upload the Product Photo."
+                "The protected exact-product compositor could not complete after two bounded attempts. "
+                "The app stopped instead of redesigning the uploaded unit. "
+                "Please retry once; if it repeats, check the Streamlit log entry graphic_v20220_exact_recovery_attempt_failed."
             ) from error
 
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
@@ -23333,8 +23379,8 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100"}:
-        action = "Created your exact-product AutoTecPro campaign image"
+    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100", "completed_exact_product_recovery_v20200", "completed_exact_product_preserved_review_v20200"}:
+        action = "Created your exact-product AutoTecPro campaign image with the uploaded unit preserved"
     elif image.get("ai_product_recreated"):
         action = "Created an AI-recreated product view from your supplied product references"
     elif status in {"verified_controlled_campaign", "completed_reference_locked_campaign", "completed_controlled_campaign_v3300"}:
@@ -39934,9 +39980,13 @@ else:
                     error_type=type(error).__name__,
                     error=error,
                 )
+                failed_state = get_graphic_project_state()
+                failed_stage = str(failed_state.get("last_failed_stage") or "graphic pipeline")
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
-                    f"Diagnostic ID: {diagnostic_id}"
+                    "The protected image pipeline could not complete after its bounded retries. "
+                    "Your reference and product photos are still saved, and the app did not substitute or redesign the uploaded unit. "
+                    "Please select Retry once. "
+                    f"Failed stage: {failed_stage}. Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "ready_to_generate"
