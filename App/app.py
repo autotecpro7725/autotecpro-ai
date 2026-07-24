@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20400
-# v20400 Graphic Engine 9.0 / Engineering DNA 9.0 foundation: Product Identity Preservation.
-# Fixes an exact-front recovery routing bug, hardens reference/product role separation, and replaces edge-softening background removal with a hard engineering contour mask.
-# Normal front-view product campaigns preserve the uploaded unit as the authoritative product layer and never fall through to whole-product generative recovery.
+# AutoTecPro AI performance/stability revision: v20410
+# v20410 Graphic Engine 9.1 Stable Exact Product: built directly from v20400.
+# Separates hard product-identity failures from review warnings so a valid exact-source composite is not discarded by optional QA, layout, vehicle, or interpolation checks.
+# Normal front-view campaigns still block whole-product generative fallback and preserve the uploaded product as the authoritative engineering source.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19540,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20010-autotecpro-graphic-engine-6-engineering-geometry-lock"
+GRAPHIC_ENGINE_VERSION = "v20410-graphic-engine-9.1-stable-exact-product"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20151,11 +20151,12 @@ def _graphic_expected_product_layer_v10000(product_item, target_width, target_he
 
 
 def _graphic_exact_product_visual_match_v10000(result, role_items):
-    """Compare final product-region pixels with the exact uploaded product layer.
+    """Compare the rendered product region with the deterministic source composite.
 
-    Only high-opacity product pixels are compared, so the generated background and
-    local grounding shadow do not affect the score. This is a deterministic check and
-    does not add a model request or generation latency.
+    The comparison is an engineering diagnostic, not the sole identity authority.
+    Exact source fingerprint, local-composite metadata, crop bounds and geometric
+    ratios remain the hard identity checks. Small RGB differences introduced by
+    LANCZOS resize, alpha compositing or PNG/JPEG conversion are reviewable.
     """
     report = {
         "available": False,
@@ -20163,7 +20164,8 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         "score": 0.0,
         "mean_absolute_error": None,
         "sample_count": 0,
-        "threshold": 0.985,
+        "threshold": 0.970,
+        "hard_failure_threshold": 0.940,
         "reason": "visual comparison unavailable",
     }
     if Image is None:
@@ -20201,7 +20203,6 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         expected_rgb = expected.convert("RGB")
         alpha = expected.getchannel("A")
 
-        # Downsample the comparison to a bounded workload while preserving structure.
         max_side = 420
         scale = min(1.0, max_side / max(width, height))
         if scale < 1.0:
@@ -20215,41 +20216,46 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         mask_pixels = alpha.load()
         sample_count = 0
         absolute_error = 0
-        step = 1
         for yy in range(observed.height):
             for xx in range(observed.width):
-                if mask_pixels[xx, yy] < 224:
+                # Include the stable product body while excluding transparent scene pixels.
+                if mask_pixels[xx, yy] < 192:
                     continue
                 observed_pixel = obs_pixels[xx, yy]
                 expected_pixel = exp_pixels[xx, yy]
-                absolute_error += (
-                    abs(int(observed_pixel[0]) - int(expected_pixel[0]))
-                    + abs(int(observed_pixel[1]) - int(expected_pixel[1]))
-                    + abs(int(observed_pixel[2]) - int(expected_pixel[2]))
+                absolute_error += sum(
+                    abs(int(observed_pixel[channel]) - int(expected_pixel[channel]))
+                    for channel in range(3)
                 )
                 sample_count += 3
         if sample_count < 300:
-            report["reason"] = "insufficient opaque product pixels"
+            report["reason"] = "insufficient product pixels"
             return report
         mean_error = absolute_error / sample_count
         score = max(0.0, min(1.0, 1.0 - mean_error / 255.0))
         report.update({
             "available": True,
             "passed": score >= report["threshold"],
+            "hard_failed": score < report["hard_failure_threshold"],
             "score": round(score, 6),
             "mean_absolute_error": round(mean_error, 4),
             "sample_count": sample_count,
-            "reason": "exact product pixels confirmed" if score >= report["threshold"] else "final product pixels differ from the uploaded source",
+            "reason": (
+                "source-composite pixels confirmed"
+                if score >= report["threshold"]
+                else "minor rendered-pixel variance detected"
+                if score >= report["hard_failure_threshold"]
+                else "rendered product differs materially from the deterministic source composite"
+            ),
         })
     except Exception as error:
         report["reason"] = str(error)[:240]
         diagnostic_log(
-            "graphic_v10000_visual_match_failed",
+            "graphic_v20410_visual_match_failed",
             error_type=type(error).__name__,
             error=str(error),
         )
     return report
-
 
 def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries=0, stages=None):
     """Attach compact production telemetry to each output without exposing secrets."""
@@ -20267,7 +20273,12 @@ def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries
 
 
 def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
-    """Fail closed on product-source mismatch, structural drift, cropping and role leakage."""
+    """Classify exact-product QA into hard identity failures and review warnings.
+
+    Only conditions that can prove product replacement, distortion or cropping stop
+    the output. Optional vehicle checks, campaign-zone completeness, segmentation
+    confidence and small resampling differences remain visible warnings.
+    """
     metadata = dict((result or {}).get("layered_metadata") or {})
     product_item = next(
         (item for item in (role_items or []) if item.get("role") == "product_photo"),
@@ -20276,19 +20287,23 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
     source = _graphic_product_source_signature_v9000(product_item)
     box = list(metadata.get("product_box") or [])
     canvas = list(metadata.get("canvas_size") or [])
-    issues = []
+    hard_failures = []
+    warnings = []
+
     if not metadata.get("exact_product_pixels"):
-        issues.append("exact product pixels not confirmed")
+        hard_failures.append("exact product pixels not confirmed")
     if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
-        issues.append("product source fingerprint mismatch")
+        hard_failures.append("product source fingerprint mismatch")
+
     required = {
         "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
         "hero_product", "target_vehicle", "bottom_benefit_bar",
     }
-    if not required.issubset({str(item) for item in metadata.get("campaign_zones") or []}):
-        issues.append("required campaign zones incomplete")
+    missing_zones = sorted(required.difference({str(item) for item in metadata.get("campaign_zones") or []}))
+    if missing_zones:
+        warnings.append("campaign zones incomplete: " + ", ".join(missing_zones))
+
     if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
-        area = (box[2] * box[3]) / (canvas[0] * canvas[1])
         width_ratio = box[2] / canvas[0]
         height_ratio = box[3] / canvas[1]
         source_ratio = float(source.get("aspect_ratio") or 0.0)
@@ -20296,53 +20311,65 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
         minimum_height = 0.48 if reference_driven else 0.44
         minimum_width = 0.18 if source_ratio < 0.90 else 0.28
         if height_ratio < minimum_height or width_ratio < minimum_width:
-            issues.append("hero product too small for the commercial reference hierarchy")
+            warnings.append("hero product is smaller than the preferred commercial hierarchy")
         if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
-            issues.append("hero product cropped")
+            hard_failures.append("hero product cropped")
         rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
         visible_source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or 0.0)
         authoritative_ratio = visible_source_ratio or source_ratio
         ratio_error = abs(authoritative_ratio - rendered_ratio) / max(authoritative_ratio, 0.001) if authoritative_ratio else 0.0
         if authoritative_ratio and ratio_error > 0.012:
-            issues.append("hero product aspect ratio changed")
+            hard_failures.append("hero product aspect ratio changed")
         if metadata.get("product_ratio_preserved") is False:
-            issues.append("exact product source ratio was not preserved")
+            hard_failures.append("exact product source ratio was not preserved")
     else:
-        issues.append("product geometry metadata unavailable")
+        hard_failures.append("product geometry metadata unavailable")
 
     integrity = _graphic_role_integrity_v8300(role_items)
     if not integrity.get("valid", integrity.get("passed", True)):
-        issues.append("reference/product role integrity failed")
+        hard_failures.append("reference/product role integrity failed")
 
     vehicle = (result or {}).get("vehicle_validation") or {}
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     if hard_vehicle and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True:
-        issues.append("target vehicle validation failed")
+        warnings.append("target vehicle validation requires review")
 
     visual_match = _graphic_exact_product_visual_match_v10000(result, role_items)
     if not visual_match.get("available"):
-        issues.append("exact product visual comparison unavailable")
+        warnings.append("exact product visual comparison unavailable")
+    elif visual_match.get("hard_failed"):
+        hard_failures.append("exact product visual comparison materially failed")
     elif not visual_match.get("passed"):
-        issues.append("exact product visual comparison failed")
+        warnings.append("exact product visual comparison found minor interpolation variance")
 
     segmentation = _graphic_segmentation_diagnostics_v10000(product_item)
     if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"):
-        issues.append("product segmentation is not safe for exact composition")
+        warnings.append("product segmentation confidence is low; inspect the product edge")
 
     engineering_geometry = _graphic_engineering_geometry_gate_v20000(result, role_items)
-    if not engineering_geometry.get("passed"):
-        issues.extend("engineering geometry: " + str(x) for x in (engineering_geometry.get("issues") or []))
+    for issue in engineering_geometry.get("issues") or []:
+        issue_text = str(issue)
+        lowered = issue_text.casefold()
+        if any(token in lowered for token in (
+            "whole-unit ratio drift", "product cropped", "aspect ratio changed",
+            "bezel profile drift", "screen ratio drift",
+        )):
+            hard_failures.append("engineering geometry: " + issue_text)
+        else:
+            warnings.append("engineering review: " + issue_text)
 
     return {
-        "passed": not issues,
-        "issues": issues,
+        "passed": not hard_failures,
+        "hard_failures": hard_failures,
+        "warnings": warnings,
+        "issues": hard_failures + warnings,
         "product_source": source,
         "visual_match": visual_match,
         "segmentation": segmentation,
         "engineering_geometry_gate": engineering_geometry,
-        "hero_dominance": not any("hero product" in issue for issue in issues),
+        "hero_dominance": not any("hero product" in issue for issue in warnings),
         "reference_leakage_blocked": bool(integrity.get("valid", integrity.get("passed", True))),
-        "engine": "v20000-engine6-exact-product-quality-gate",
+        "engine": "v20410-engine9.1-severity-aware-exact-product-gate",
     }
 
 def _graphic_render_mode_v9000(product_mode, has_style=False):
@@ -21308,7 +21335,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20400-product-identity-hard-contour"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20410-product-identity-hard-contour"
 
 
 def _graphic_progress_v3300(label):
@@ -22572,44 +22599,83 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     return final_result
 
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create a deterministic exact-product campaign and fail closed on product/reference integrity."""
-    result=_graphic_build_hybrid_campaign_result_v3300(prompt_text,role_items,output_size,reference_blueprint or {},vehicle_profile or {})
-    validation=_graphic_exact_result_validation_v7100(result,role_items,prompt_text,vehicle_profile or {})
-    result["deterministic_verification"]=validation; result["vehicle_validation"]=validation.get("vehicle_validation") or {}
-    source_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile or {})
-    result["source_fidelity_gate"]=source_gate
-    if not source_gate.get("passed"):
-        raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
-    layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
-    result["reference_layout_fidelity_gate"]=layout_gate
+    """Create one exact-source campaign and fail only on proven identity loss."""
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
+    )
+    validation = _graphic_exact_result_validation_v7100(
+        result, role_items, prompt_text, vehicle_profile or {}
+    )
+    result["deterministic_verification"] = validation
+    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
+    source_gate = _graphic_exact_product_quality_gate_v9000(
+        result, role_items, vehicle_profile or {}
+    )
+    result["source_fidelity_gate"] = source_gate
+    hard_failures = list(source_gate.get("hard_failures") or [])
+    warnings = list(source_gate.get("warnings") or [])
+    if hard_failures:
+        raise RuntimeError(
+            "The exact-product campaign failed a hard product-identity check: "
+            + "; ".join(hard_failures)
+        )
+
+    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    result["reference_layout_fidelity_gate"] = layout_gate
     if layout_gate.get("required") and not layout_gate.get("passed"):
-        # Preserve the successful professional composite. Layout is reviewable and
-        # may be corrected locally; it must not force the request into a crude or
-        # generative product fallback when the uploaded product is already exact.
         result["layout_review_required"] = True
         result["layout_review_issues"] = list(layout_gate.get("issues") or [])
-        result["verification_warning"] = (
-            str(result.get("verification_warning") or "").strip() +
-            " Reference-layout review recommended; the uploaded product remains preserved."
-        ).strip()
-    if validation.get("verified"):
-        result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
-    elif validation.get("unverified"):
-        result=_graphic_mark_unverified_v4100(result,"The exact product is preserved, but optional vehicle verification was unavailable.",status="completed_exact_product_unverified_v9000")
-    elif validation.get("passed"):
-        result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
-    else:
-        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"]="v20300-commercial-exact-product"
-    result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
-    result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
-    result["reference_content_leakage_prohibited"]=True
-    result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
-    result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
-    result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
-    return result
+        warnings.extend("layout review: " + str(item) for item in (layout_gate.get("issues") or []))
 
+    # A valid exact-source composite must remain available even when optional vehicle,
+    # layout or metadata checks are unavailable. Surface those conditions as review notes.
+    core_exact = bool(validation.get("image_valid") and validation.get("exact_product"))
+    if not core_exact:
+        raise RuntimeError("The exact-product compositor did not return a valid exact-source image.")
+
+    if validation.get("verified") and not warnings:
+        result["output_status"] = "verified_exact_product_v20410"
+        result["verification_status"] = "verified"
+    else:
+        if not validation.get("zones_valid"):
+            warnings.append("one or more campaign metadata zones require review")
+        vehicle = validation.get("vehicle_validation") or {}
+        if validation.get("vehicle_validation_unavailable"):
+            warnings.append("optional vehicle verification was unavailable")
+        elif vehicle and vehicle.get("verified") is False:
+            warnings.append("target vehicle requires visual review")
+        result["output_status"] = "completed_exact_product_with_review_v20410"
+        result["verification_status"] = "completed_with_review"
+
+    if warnings:
+        unique_warnings = []
+        for warning in warnings:
+            clean = re.sub(r"\s+", " ", str(warning or "")).strip()
+            if clean and clean not in unique_warnings:
+                unique_warnings.append(clean)
+        result["verification_warnings"] = unique_warnings[:20]
+        result["verification_warning"] = (
+            "The uploaded product was composited from the authoritative source. "
+            "Review notes: " + "; ".join(unique_warnings[:8])
+        )
+
+    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"] = str(next(
+        (i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""
+    ))
+    result["style_reference_sources"] = [
+        str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
+    ][:4]
+    result["reference_content_leakage_prohibited"] = True
+    result["product_render_mode"] = _graphic_render_mode_v9000(
+        mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
+    )
+    result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
+    result["ai_product_recreated"] = False
+    result["speed_optimized"] = True
+    result["project_editable"] = True
+    return result
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
