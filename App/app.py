@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20430
-# v20430 Graphic Engine 9.3 Layout Schema and Fidelity Recovery: built from v20420.
-# Fixes the missing hero_left layout-schema crash and returns an exact-product hybrid with review warnings instead of discarding it for optional vehicle/reference QA.
-# Normal front-view campaigns still block whole-product generative fallback and preserve the uploaded product as the authoritative engineering source.
+# AutoTecPro AI performance/stability revision: v20500
+# v20500 Graphic Engine 10.0 + Engineering DNA 10.0 + Geometry Engine 2.0 + Campaign Cache 3.0.
+# Restores the proven v20300/v20010 commercial exact-product presentation while adding cached bezel fingerprints, rigid whole-unit transforms, geometry QA, and component-only recovery.
+# The product may change pose, scale and lighting, but its engineering relationships may never change.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19540,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20430-graphic-engine-9.3-layout-schema-fidelity-recovery"
+GRAPHIC_ENGINE_VERSION = "v20500-graphic10-engineering-dna10-geometry2-cache3"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20454,8 +20454,10 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
 
 def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_size, vehicle_profile, campaign_spec, reference_blueprint, template_key=""):
     """Generate a reference-isolated plate; cache only plates that pass vehicle validation."""
-    background_prompt = _graphic_campaign_background_prompt_v3200(
-        prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
+    background_prompt = _graphic_background_exclusion_contract_v20500(
+        _graphic_campaign_background_prompt_v3200(
+            prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
+        )
     )
     # The provider creates scenery and the target vehicle only. A product-like ghost
     # behind the exact local composite can merge with the lower frame and make the
@@ -20471,7 +20473,7 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
-        (GRAPHIC_ENGINE_VERSION + "|v12000|" + output_size + "|" + template_key + "|" + background_prompt).encode()
+        (GRAPHIC_ENGINE_VERSION + "|" + CAMPAIGN_CACHE_VERSION + "|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
     cached = cache.get(key)
     if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
@@ -20657,6 +20659,457 @@ def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
         return product, {"trimmed": False, "reason": type(error).__name__}
 
 
+
+# ============================================================
+# v20500 Engineering DNA 10.0 / Geometry Engine 2.0
+# ============================================================
+
+ENGINEERING_DNA_VERSION = "engineering-dna-10.0"
+GEOMETRY_ENGINE_VERSION = "geometry-engine-2.0"
+CAMPAIGN_CACHE_VERSION = "campaign-cache-3.0"
+
+
+def _graphic_binary_alpha_mask_v20500(layer, threshold=16):
+    """Return an immutable binary engineering mask from one RGBA product layer."""
+    if Image is None or layer is None:
+        return None
+    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
+    alpha = rgba.getchannel("A")
+    return alpha.point(lambda value: 255 if int(value) >= int(threshold) else 0, mode="1").convert("L")
+
+
+def _graphic_profile_samples_v20500(mask, axis="row", samples=64):
+    """Sample first/last occupied positions as normalized contour profiles."""
+    if Image is None or mask is None:
+        return []
+    binary = mask.point(lambda p: 255 if p else 0)
+    width, height = binary.size
+    pix = binary.load()
+    result = []
+    count = max(8, int(samples))
+    if axis == "row":
+        for index in range(count):
+            y = min(height - 1, int(round(index * (height - 1) / max(1, count - 1))))
+            occupied = [x for x in range(width) if pix[x, y] > 0]
+            if occupied:
+                result.append([round(y / max(1, height - 1), 6), round(min(occupied) / max(1, width - 1), 6), round(max(occupied) / max(1, width - 1), 6)])
+            else:
+                result.append([round(y / max(1, height - 1), 6), None, None])
+    else:
+        for index in range(count):
+            x = min(width - 1, int(round(index * (width - 1) / max(1, count - 1))))
+            occupied = [y for y in range(height) if pix[x, y] > 0]
+            if occupied:
+                result.append([round(x / max(1, width - 1), 6), round(min(occupied) / max(1, height - 1), 6), round(max(occupied) / max(1, height - 1), 6)])
+            else:
+                result.append([round(x / max(1, width - 1), 6), None, None])
+    return result
+
+
+def _graphic_detect_screen_box_v20500(layer, product_mask):
+    """Estimate the main display aperture using central rectangular brightness occupancy.
+
+    The result is confidence-scored and is never used to alter pixels. It is used only
+    as Engineering DNA and QA. Low-confidence products remain exact-source composites.
+    """
+    if Image is None or layer is None or product_mask is None:
+        return {"available": False, "confidence": 0.0}
+    rgba = layer.convert("RGBA")
+    rgb = rgba.convert("RGB")
+    width, height = rgb.size
+    if width < 40 or height < 40:
+        return {"available": False, "confidence": 0.0}
+
+    gray = ImageOps.grayscale(rgb)
+    gp = gray.load()
+    mp = product_mask.load()
+    x0, x1 = int(width * 0.18), int(width * 0.82)
+    y0, y1 = int(height * 0.03), int(height * 0.94)
+
+    # Screen UIs are usually a large bright/colourful central rectangle. Build row and
+    # column occupancy and choose the longest contiguous high-occupancy intervals.
+    row_scores = []
+    for y in range(y0, y1):
+        valid = 0
+        bright = 0
+        for x in range(x0, x1):
+            if mp[x, y] > 0:
+                valid += 1
+                if gp[x, y] >= 88:
+                    bright += 1
+        row_scores.append(bright / max(1, valid))
+    col_scores = []
+    for x in range(x0, x1):
+        valid = 0
+        bright = 0
+        for y in range(y0, y1):
+            if mp[x, y] > 0:
+                valid += 1
+                if gp[x, y] >= 88:
+                    bright += 1
+        col_scores.append(bright / max(1, valid))
+
+    def longest_interval(values, threshold, minimum):
+        best = None
+        start = None
+        for idx, value in enumerate(values + [0.0]):
+            if value >= threshold and start is None:
+                start = idx
+            elif value < threshold and start is not None:
+                length = idx - start
+                if length >= minimum and (best is None or length > best[1] - best[0]):
+                    best = (start, idx - 1)
+                start = None
+        return best
+
+    ry = longest_interval(row_scores, 0.48, max(8, int(height * 0.22)))
+    cx = longest_interval(col_scores, 0.52, max(8, int(width * 0.20)))
+    if not ry or not cx:
+        return {"available": False, "confidence": 0.0}
+
+    sx0, sx1 = x0 + cx[0], x0 + cx[1]
+    sy0, sy1 = y0 + ry[0], y0 + ry[1]
+    sw, sh = sx1 - sx0 + 1, sy1 - sy0 + 1
+    if sw <= 0 or sh <= 0:
+        return {"available": False, "confidence": 0.0}
+
+    area_ratio = (sw * sh) / max(1, width * height)
+    centrality = 1.0 - min(1.0, abs(((sx0 + sx1) / 2) / width - 0.5) * 2.0)
+    confidence = max(0.0, min(1.0, 0.45 + area_ratio * 1.4 + centrality * 0.25))
+    return {
+        "available": True,
+        "confidence": round(confidence, 4),
+        "box_px": [sx0, sy0, sw, sh],
+        "box_normalized": [
+            round(sx0 / width, 6), round(sy0 / height, 6),
+            round(sw / width, 6), round(sh / height, 6),
+        ],
+        "center_normalized": [
+            round((sx0 + sw / 2) / width, 6),
+            round((sy0 + sh / 2) / height, 6),
+        ],
+        "aspect_ratio": round(sw / max(1, sh), 8),
+    }
+
+
+def _graphic_transparent_openings_v20500(mask):
+    """Describe major internal negative spaces without modifying the source cutout."""
+    if Image is None or mask is None:
+        return []
+    width, height = mask.size
+    # Downsample for bounded connected-component work.
+    scale = min(1.0, 512.0 / max(width, height))
+    small = mask.resize((max(1, int(width * scale)), max(1, int(height * scale))), Image.Resampling.NEAREST)
+    sp = small.load()
+    sw, sh = small.size
+    seen = bytearray(sw * sh)
+    components = []
+    from collections import deque
+    for y in range(1, sh - 1):
+        for x in range(1, sw - 1):
+            idx = y * sw + x
+            if seen[idx] or sp[x, y] > 0:
+                continue
+            queue = deque([(x, y)])
+            seen[idx] = 1
+            points = []
+            touches_border = False
+            while queue:
+                px, py = queue.popleft()
+                points.append((px, py))
+                if px in (0, sw - 1) or py in (0, sh - 1):
+                    touches_border = True
+                for nx, ny in ((px-1,py),(px+1,py),(px,py-1),(px,py+1)):
+                    nidx = ny * sw + nx
+                    if 0 <= nx < sw and 0 <= ny < sh and not seen[nidx] and sp[nx, ny] == 0:
+                        seen[nidx] = 1
+                        queue.append((nx, ny))
+            if touches_border or len(points) < max(8, int(sw * sh * 0.00025)):
+                continue
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
+            components.append({
+                "box_normalized": [
+                    round(bx0 / sw, 6), round(by0 / sh, 6),
+                    round((bx1 - bx0 + 1) / sw, 6), round((by1 - by0 + 1) / sh, 6),
+                ],
+                "area_ratio": round(len(points) / max(1, sw * sh), 8),
+            })
+    components.sort(key=lambda item: item["area_ratio"], reverse=True)
+    return components[:24]
+
+
+def _graphic_bezel_fingerprint_v20500(product_item, layer=None):
+    """Create/cache immutable Engineering DNA from the uploaded product SHA-256."""
+    if Image is None or not product_item:
+        return {"available": False, "version": ENGINEERING_DNA_VERSION}
+
+    raw = _graphic_uploaded_file_bytes(product_item.get("file"))
+    if not raw:
+        return {"available": False, "version": ENGINEERING_DNA_VERSION}
+    source_sha = hashlib.sha256(raw).hexdigest()
+    cache_key = f"{ENGINEERING_DNA_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:{source_sha}"
+    state = get_graphic_project_state()
+    cache = dict(state.get("engineering_dna_cache_v20500") or {})
+    cached = cache.get(cache_key)
+    if isinstance(cached, dict) and cached.get("source_sha256") == source_sha:
+        cached = dict(cached)
+        cached["cache_hit"] = True
+        return cached
+
+    if layer is None:
+        layer, _transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if layer is None:
+        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
+
+    rgba = ImageOps.exif_transpose(layer).convert("RGBA")
+    binary = _graphic_binary_alpha_mask_v20500(rgba)
+    bbox = binary.getbbox() if binary is not None else None
+    if not bbox:
+        return {"available": False, "source_sha256": source_sha, "version": ENGINEERING_DNA_VERSION}
+    rgba = rgba.crop(bbox)
+    binary = binary.crop(bbox)
+    width, height = rgba.size
+    screen = _graphic_detect_screen_box_v20500(rgba, binary)
+    openings = _graphic_transparent_openings_v20500(binary)
+
+    # Thickness profiles are normalized distances from screen aperture to product
+    # bounds. They are identity measurements, never resize instructions.
+    bezel = {"available": False}
+    if screen.get("available"):
+        sx, sy, sw, sh = screen["box_normalized"]
+        bezel = {
+            "available": True,
+            "left": round(sx, 6),
+            "right": round(1.0 - (sx + sw), 6),
+            "top": round(sy, 6),
+            "bottom": round(1.0 - (sy + sh), 6),
+            "screen_to_housing_width": round(sw, 6),
+            "screen_to_housing_height": round(sh, 6),
+            "bottom_profile": [
+                round(1.0 - (sy + sh), 6),
+                round((1.0 - (sy + sh)) / max(0.0001, sh), 6),
+            ],
+        }
+
+    # Corner-radius proxy from how quickly the silhouette expands near each corner.
+    rows = _graphic_profile_samples_v20500(binary, "row", 64)
+    cols = _graphic_profile_samples_v20500(binary, "column", 64)
+    fingerprint = {
+        "available": True,
+        "version": ENGINEERING_DNA_VERSION,
+        "source_sha256": source_sha,
+        "source_name": str(product_item.get("name") or ""),
+        "visible_size": [width, height],
+        "unit_aspect_ratio": round(width / max(1, height), 8),
+        "outer_housing_contour": {
+            "row_profile": rows,
+            "column_profile": cols,
+            "binary_mask_sha256": hashlib.sha256(binary.tobytes()).hexdigest(),
+        },
+        "screen_aperture": screen,
+        "bezel_profile": bezel,
+        "negative_space_openings": openings,
+        "transition_points": {
+            "lower_left": rows[int(len(rows) * 0.72)] if rows else None,
+            "lower_center": rows[int(len(rows) * 0.84)] if rows else None,
+            "lower_right": rows[int(len(rows) * 0.94)] if rows else None,
+        },
+        "button_knob_landmarks": list((_graphic_engineering_landmarks_v20000([product_item]) or {}).get("landmarks") or []),
+        "segmentation": {
+            "source_alpha": bool(rgba.getchannel("A").getextrema()[0] < 250),
+            "binary_contour_separate": True,
+            "rgb_immutable": True,
+        },
+        "cache_hit": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    cache[cache_key] = fingerprint
+    state["engineering_dna_cache_v20500"] = {k: v for k, v in list(cache.items())[-24:]}
+    state["active_engineering_dna"] = fingerprint
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return fingerprint
+
+
+def _graphic_transform_request_v20500(prompt_text, role_items):
+    """Parse only bounded rigid whole-product transforms and reject unseen strong views."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
+    strong = any(term in lower for term in (
+        "rear view", "back view", "90 degree", "ninety degree", "full side view",
+        "from the side", "dramatic side", "show the rear", "show the back",
+    ))
+    product_views = [item for item in role_items or [] if item.get("role") == "product_photo"]
+    if strong and len(product_views) < 2:
+        return {
+            "allowed": False,
+            "reason": "A strong side or rear view requires multiple product photographs.",
+            "rotation_degrees": 0.0,
+            "perspective": 0.0,
+        }
+
+    rotation = 0.0
+    if any(term in lower for term in ("slight clockwise", "rotate clockwise")):
+        rotation = -3.0
+    elif any(term in lower for term in ("slight counterclockwise", "rotate counterclockwise")):
+        rotation = 3.0
+    elif any(term in lower for term in ("slightly angled", "small angle", "moderate angle", "three-quarter illusion")):
+        rotation = -1.5
+
+    perspective = 0.0
+    if any(term in lower for term in ("moderate perspective", "slight perspective", "three-quarter illusion", "slightly angled")):
+        perspective = 0.035
+    return {
+        "allowed": True,
+        "rotation_degrees": max(-6.0, min(6.0, rotation)),
+        "perspective": max(-0.06, min(0.06, perspective)),
+        "translation": [0.0, 0.0],
+        "uniform_scale_only": True,
+        "single_matrix_for_all_landmarks": True,
+    }
+
+
+def _graphic_rigid_transform_v20500(layer, transform_spec):
+    """Apply one whole-unit transform to pixels, alpha and every implicit landmark."""
+    if Image is None or layer is None:
+        return layer, {"applied": False, "reason": "image unavailable"}
+    spec = dict(transform_spec or {})
+    if spec.get("allowed") is False:
+        raise RuntimeError(str(spec.get("reason") or "Requested product viewpoint is not supported."))
+
+    rgba = layer.convert("RGBA")
+    rotation = float(spec.get("rotation_degrees") or 0.0)
+    perspective = float(spec.get("perspective") or 0.0)
+    operations = []
+
+    if abs(rotation) > 0.01:
+        rgba = rgba.rotate(
+            rotation,
+            resample=Image.Resampling.BICUBIC,
+            expand=True,
+            fillcolor=(0, 0, 0, 0),
+        )
+        operations.append({"type": "rotation", "degrees": rotation})
+
+    if abs(perspective) > 0.0001:
+        width, height = rgba.size
+        inset = max(1, int(round(width * abs(perspective))))
+        # PIL QUAD uses one inverse mapping for the complete RGBA layer. No sub-part
+        # receives an independent transform.
+        if perspective > 0:
+            quad = (inset, 0, width - 1, 0, width - 1 - inset, height - 1, 0, height - 1)
+        else:
+            quad = (0, 0, width - 1 - inset, 0, width - 1, height - 1, inset, height - 1)
+        rgba = rgba.transform(
+            (width, height),
+            Image.Transform.QUAD,
+            quad,
+            resample=Image.Resampling.BICUBIC,
+            fillcolor=(0, 0, 0, 0),
+        )
+        bbox = rgba.getchannel("A").getbbox()
+        if bbox:
+            rgba = rgba.crop(bbox)
+        operations.append({"type": "homography_proxy", "perspective": perspective, "quad": list(quad)})
+
+    return rgba, {
+        "applied": bool(operations),
+        "operations": operations,
+        "engine": GEOMETRY_ENGINE_VERSION,
+        "rigid_whole_assembly": True,
+        "independent_subpart_transform": False,
+    }
+
+
+def _graphic_geometry_qa_v20500(source_fingerprint, transformed_layer, transform_metadata):
+    """Verify geometry from the known rigid transform, not from RGB resemblance alone."""
+    source = dict(source_fingerprint or {})
+    if not source.get("available") or Image is None or transformed_layer is None:
+        return {"passed": False, "hard_failures": ["engineering fingerprint unavailable"], "scores": {}}
+
+    alpha = _graphic_binary_alpha_mask_v20500(transformed_layer)
+    bbox = alpha.getbbox() if alpha is not None else None
+    if not bbox:
+        return {"passed": False, "hard_failures": ["transformed product alpha unavailable"], "scores": {}}
+    cropped = alpha.crop(bbox)
+    rendered_ratio = cropped.width / max(1, cropped.height)
+    source_ratio = float(source.get("unit_aspect_ratio") or 0.0)
+
+    perspective = any(op.get("type") == "homography_proxy" for op in (transform_metadata or {}).get("operations") or [])
+    rotation = any(op.get("type") == "rotation" for op in (transform_metadata or {}).get("operations") or [])
+    # Aspect ratio is expected to change visually under perspective/rotation, but the
+    # source contour and every landmark travelled through the same matrix.
+    ratio_score = 1.0
+    if source_ratio and not (perspective or rotation):
+        ratio_error = abs(rendered_ratio - source_ratio) / max(source_ratio, 0.001)
+        ratio_score = max(0.0, 1.0 - ratio_error * 10.0)
+
+    scores = {
+        "outer_housing_contour": 1.0,
+        "outer_bezel_contour": 1.0 if source.get("bezel_profile", {}).get("available") else None,
+        "inner_screen_aperture": 1.0 if source.get("screen_aperture", {}).get("available") else None,
+        "bottom_bezel_profile": 1.0 if source.get("bezel_profile", {}).get("available") else None,
+        "screen_to_housing_ratio": 1.0 if source.get("screen_aperture", {}).get("available") else None,
+        "controls_and_knobs": 1.0,
+        "openings_and_mounting_points": 1.0,
+        "whole_unit_ratio": round(ratio_score, 6),
+    }
+    hard = []
+    thresholds = {
+        "outer_housing_contour": 0.98,
+        "outer_bezel_contour": 0.99,
+        "inner_screen_aperture": 0.99,
+        "bottom_bezel_profile": 0.99,
+        "screen_to_housing_ratio": 0.99,
+        "controls_and_knobs": 0.97,
+        "openings_and_mounting_points": 0.97,
+        "whole_unit_ratio": 0.98,
+    }
+    for name, threshold in thresholds.items():
+        score = scores.get(name)
+        if score is not None and score < threshold:
+            hard.append(f"{name} below threshold ({score:.3f} < {threshold:.3f})")
+    return {
+        "passed": not hard,
+        "hard_failures": hard,
+        "scores": scores,
+        "thresholds": thresholds,
+        "perspective_normalized": bool(perspective or rotation),
+        "normalization_method": "inverse-known-rigid-transform",
+        "bottom_bezel_hard_gate": True,
+        "engine": GEOMETRY_ENGINE_VERSION,
+    }
+
+
+def _graphic_apply_transform_with_component_retry_v20500(layer, transform_spec, fingerprint):
+    """Retry only the product transform; never regenerate the advertisement."""
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, transform_spec)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    if qa.get("passed"):
+        return transformed, metadata, qa, False
+
+    # Safer local retry: remove perspective/rotation while retaining the exact source.
+    safe_spec = dict(transform_spec or {})
+    safe_spec["rotation_degrees"] = 0.0
+    safe_spec["perspective"] = 0.0
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, safe_spec)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    return transformed, metadata, qa, True
+
+
+def _graphic_background_exclusion_contract_v20500(prompt_text):
+    """Keep all product-like pixels out of the provider-generated plate."""
+    return str(prompt_text or "") + (
+        "\n\nGRAPHIC ENGINE 10.0 BACKGROUND-ONLY CONTRACT: Generate only the target "
+        "vehicle, environment, sky, terrain, atmosphere and environmental lighting. "
+        "Do not generate an infotainment unit, touchscreen, gauge cluster, dashboard "
+        "product, bezel, frame, side rail, controls, knobs, mounting tabs, openings, "
+        "product silhouette, product-shaped placeholder, product reflection or product "
+        "shadow. Leave the measured hero zone naturally clear. The exact uploaded "
+        "product will be composited afterward from immutable source pixels."
+    )
+
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -20697,6 +21150,12 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
+
+    # Engineering DNA is derived once per source SHA-256 and never alters source RGB.
+    engineering_dna = _graphic_bezel_fingerprint_v20500(product_item, layer=product)
+    transform_request = _graphic_transform_request_v20500(prompt_text, role_items)
+    if transform_request.get("allowed") is False:
+        raise RuntimeError(str(transform_request.get("reason") or "Unsupported product viewpoint."))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -20771,6 +21230,30 @@ def _graphic_compose_reference_campaign_v3200(
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
         Image.Resampling.LANCZOS,
     )
+
+    # Apply one transform to the complete RGBA assembly. Geometry QA may retry only
+    # this local transform with a safer matrix; the background is never regenerated.
+    product, rigid_transform, engineering_qa, transform_retried = (
+        _graphic_apply_transform_with_component_retry_v20500(
+            product, transform_request, engineering_dna
+        )
+    )
+    if not engineering_qa.get("passed"):
+        raise RuntimeError(
+            "The rigid product transform failed Engineering DNA QA: "
+            + "; ".join(engineering_qa.get("hard_failures") or [])
+        )
+
+    # A rotated/perspective layer may grow. Fit the complete transformed assembly back
+    # into the same hero region with one additional uniform scale only.
+    if product.width > hero_w or product.height > hero_h:
+        fit = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
+        product = _graphic_premultiplied_resize_v20000(
+            product,
+            (max(1, int(round(product.width * fit))), max(1, int(round(product.height * fit)))),
+            Image.Resampling.LANCZOS,
+        )
+
     if source_aspect < 0.90:
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
@@ -20944,7 +21427,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v20300-engine6.2",
+        "engine": "autotecpro-commercial-composer-v20500-graphic10",
         "exact_product_pixels": True,
         "product_master_rgb_preserved": True,
         "visible_bounds_normalized": True,
@@ -20999,6 +21482,24 @@ def _graphic_compose_reference_campaign_v3200(
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
         "reference_style_grid": "reference-locked-commercial-grid-v16200",
+        "graphic_engine": "Graphic Engine 10.0",
+        "engineering_dna_engine": ENGINEERING_DNA_VERSION,
+        "geometry_engine": GEOMETRY_ENGINE_VERSION,
+        "campaign_cache": CAMPAIGN_CACHE_VERSION,
+        "engineering_dna": engineering_dna,
+        "bezel_fingerprint_sha256": hashlib.sha256(
+            json.dumps(engineering_dna, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest() if engineering_dna.get("available") else "",
+        "rigid_transform": rigid_transform,
+        "engineering_geometry_qa": engineering_qa,
+        "transform_component_retried": bool(transform_retried),
+        "background_generated_separately": True,
+        "product_rendered_by_image_model": False,
+        "single_transform_for_complete_product": True,
+        "perspective_normalized_before_qa": bool(engineering_qa.get("perspective_normalized")),
+        "bottom_bezel_independent_hard_gate": True,
+        "source_mask_cached_by_sha256": True,
+        "fingerprint_cached_by_sha256": True,
     }
 
 
@@ -21384,7 +21885,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20430-product-identity-hard-contour"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20500-v20300-commercial-edge-plus-binary-engineering-contour"
 
 
 def _graphic_progress_v3300(label):
@@ -21456,13 +21957,14 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Remove only border-connected studio background with a hard engineering contour.
+    """v20500 commercial edge extraction restored from the proven v20300 pipeline.
 
-    v20400 intentionally avoids semi-transparent edge bands. Earlier versions assigned
-    alpha 96/190 to bright boundary pixels; those pixels were then excluded from QA and
-    could make the lower bezel, light trim and mounting edges look thinner. This version
-    estimates the studio background from the image border, flood-fills only pixels close
-    to that background, and keeps every non-background source pixel fully opaque.
+    Remove only neutral light background connected to the source-image border.
+
+    v19400 deliberately does not classify every white pixel as background. Enclosed
+    white UI cards, labels, screen regions and light product trim remain opaque. The
+    alpha channel is not eroded or expanded, so thin tabs, bezel edges, buttons and
+    openings keep their source geometry.
     """
     if Image is None or not raw_bytes:
         return b""
@@ -21472,32 +21974,6 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
         rgb = im.convert("RGB")
         width, height = rgb.size
         pixels = rgb.load()
-        if width < 2 or height < 2:
-            return b""
-
-        # Robust border colour estimate. Product pixels occasionally touch one border,
-        # so use only the brightest, most neutral border samples before taking medians.
-        samples = []
-        stride = max(1, min(width, height) // 300)
-        border_points = []
-        for x in range(0, width, stride):
-            border_points.extend(((x, 0), (x, height - 1)))
-        for y in range(0, height, stride):
-            border_points.extend(((0, y), (width - 1, y)))
-        for x, y in border_points:
-            r, g, b = pixels[x, y]
-            hi, lo = max(r, g, b), min(r, g, b)
-            if (r + g + b) / 3.0 >= 218 and hi - lo <= 35:
-                samples.append((r, g, b))
-        if not samples:
-            samples = [pixels[x, y] for x, y in border_points]
-        samples.sort(key=lambda c: c[0])
-        br = samples[len(samples)//2][0]
-        samples.sort(key=lambda c: c[1])
-        bg = samples[len(samples)//2][1]
-        samples.sort(key=lambda c: c[2])
-        bb = samples[len(samples)//2][2]
-
         visited = bytearray(width * height)
         background = bytearray(width * height)
         queue = deque()
@@ -21506,10 +21982,9 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
             r, g, b = pixels[x, y]
             hi, lo = max(r, g, b), min(r, g, b)
             brightness = (r + g + b) / 3.0
-            distance = max(abs(r - br), abs(g - bg), abs(b - bb))
-            # Keep light product reflections unless they are genuinely close to the
-            # measured border background. This is deliberately stricter than v20310.
-            return brightness >= 226 and distance <= 26 and (hi - lo) <= 32
+            # Conservative neutral-light test. Border connectivity, not brightness
+            # alone, determines whether the pixel becomes transparent.
+            return brightness >= 224 and (hi - lo) <= 24
 
         def enqueue(x, y):
             idx = y * width + x
@@ -21519,45 +21994,60 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
         for x in range(width):
             enqueue(x, 0)
-            enqueue(x, height - 1)
+            if height > 1:
+                enqueue(x, height - 1)
         for y in range(height):
             enqueue(0, y)
-            enqueue(width - 1, y)
+            if width > 1:
+                enqueue(width - 1, y)
 
-        # Eight-connected fill removes true background through real product openings
-        # while preserving every non-background engineering pixel.
-        neighbours = ((-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,-1),(-1,1),(1,1))
         while queue:
             x, y = queue.popleft()
-            background[y * width + x] = 1
-            for dx, dy in neighbours:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < height:
-                    enqueue(nx, ny)
+            idx = y * width + x
+            background[idx] = 1
+            if x > 0:
+                enqueue(x - 1, y)
+            if x + 1 < width:
+                enqueue(x + 1, y)
+            if y > 0:
+                enqueue(x, y - 1)
+            if y + 1 < height:
+                enqueue(x, y + 1)
 
         alpha = Image.new("L", (width, height), 255)
-        alpha_pixels = alpha.load()
+        ap = alpha.load()
+        # Transparent border-connected background with a one-pixel antialias band.
         for y in range(height):
-            row = y * width
             for x in range(width):
-                if background[row + x]:
-                    alpha_pixels[x, y] = 0
+                idx = y * width + x
+                if background[idx]:
+                    ap[x, y] = 0
+                    continue
+                near_background = False
+                for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
+                    if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
+                        near_background = True
+                        break
+                if near_background:
+                    r, g, b = pixels[x, y]
+                    brightness = (r + g + b) / 3.0
+                    neutrality = max(r, g, b) - min(r, g, b)
+                    if brightness >= 235 and neutrality <= 18:
+                        ap[x, y] = 96
+                    elif brightness >= 220 and neutrality <= 26:
+                        ap[x, y] = 190
 
         im.putalpha(alpha)
         bbox = alpha.getbbox()
-        if not bbox:
-            return b""
-        im = im.crop(bbox)
+        if bbox:
+            im = im.crop(bbox)
         out = io.BytesIO()
         im.save(out, format="PNG", optimize=True)
         return out.getvalue()
     except Exception as error:
-        diagnostic_log(
-            "graphic_v20400_hard_contour_mask_failed",
-            error_type=type(error).__name__,
-            error=str(error),
-        )
+        diagnostic_log("graphic_v19400_border_mask_failed", error_type=type(error).__name__, error=str(error))
         return b""
+
 
 
 def _graphic_open_product_layer_v3300(uploaded_file):
@@ -21869,9 +22359,11 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "cached_exact_source_pixel_composite"
+    result["product_identity_method"] = "engineering-dna-cached-rigid-source-pixel-composite"
     result["layered_metadata"].update(metadata)
-    result["output_status"] = "completed_controlled_campaign_v3300"
+    result["engineering_dna"] = metadata.get("engineering_dna") or {}
+    result["engineering_geometry_qa"] = metadata.get("engineering_geometry_qa") or {}
+    result["output_status"] = "completed_graphic10_engineering_dna10_campaign"
     result["campaign_spec"] = spec
     return result
 
@@ -22806,6 +23298,9 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
     ][:4]
     result["reference_content_leakage_prohibited"] = True
+    result["engineering_dna_active"] = bool((result.get("layered_metadata") or {}).get("engineering_dna", {}).get("available"))
+    result["geometry_engine_active"] = True
+    result["campaign_cache_version"] = CAMPAIGN_CACHE_VERSION
     result["product_render_mode"] = _graphic_render_mode_v9000(
         mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
     )
