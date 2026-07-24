@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20310
-# v20310 Graphic Engine 6.3 Bottom Bezel Exact Lock: built directly from the stable v20300 commercial pipeline.
-# Preserves the uploaded product as an immutable master-RGB layer and removes silhouette-shadow/ghost-product effects that can visually thicken the lower bezel.
-# Reference-faithful scene generation remains unchanged; normal front-view exact-product jobs never use generative product reconstruction.
+# AutoTecPro AI performance/stability revision: v20400
+# v20400 Graphic Engine 9.0 / Engineering DNA 9.0 foundation: Product Identity Preservation.
+# Fixes an exact-front recovery routing bug, hardens reference/product role separation, and replaces edge-softening background removal with a hard engineering contour mask.
+# Normal front-view product campaigns preserve the uploaded unit as the authoritative product layer and never fall through to whole-product generative recovery.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -20163,7 +20163,7 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         "score": 0.0,
         "mean_absolute_error": None,
         "sample_count": 0,
-        "threshold": 0.90,
+        "threshold": 0.985,
         "reason": "visual comparison unavailable",
     }
     if Image is None:
@@ -20218,7 +20218,7 @@ def _graphic_exact_product_visual_match_v10000(result, role_items):
         step = 1
         for yy in range(observed.height):
             for xx in range(observed.width):
-                if mask_pixels[xx, yy] < 235:
+                if mask_pixels[xx, yy] < 224:
                     continue
                 observed_pixel = obs_pixels[xx, yy]
                 expected_pixel = exp_pixels[xx, yy]
@@ -21308,7 +21308,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20310-bottom-bezel-exact-lock"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20400-product-identity-hard-contour"
 
 
 def _graphic_progress_v3300(label):
@@ -21380,12 +21380,13 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Remove only neutral light background connected to the source-image border.
+    """Remove only border-connected studio background with a hard engineering contour.
 
-    v19400 deliberately does not classify every white pixel as background. Enclosed
-    white UI cards, labels, screen regions and light product trim remain opaque. The
-    alpha channel is not eroded or expanded, so thin tabs, bezel edges, buttons and
-    openings keep their source geometry.
+    v20400 intentionally avoids semi-transparent edge bands. Earlier versions assigned
+    alpha 96/190 to bright boundary pixels; those pixels were then excluded from QA and
+    could make the lower bezel, light trim and mounting edges look thinner. This version
+    estimates the studio background from the image border, flood-fills only pixels close
+    to that background, and keeps every non-background source pixel fully opaque.
     """
     if Image is None or not raw_bytes:
         return b""
@@ -21395,6 +21396,32 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
         rgb = im.convert("RGB")
         width, height = rgb.size
         pixels = rgb.load()
+        if width < 2 or height < 2:
+            return b""
+
+        # Robust border colour estimate. Product pixels occasionally touch one border,
+        # so use only the brightest, most neutral border samples before taking medians.
+        samples = []
+        stride = max(1, min(width, height) // 300)
+        border_points = []
+        for x in range(0, width, stride):
+            border_points.extend(((x, 0), (x, height - 1)))
+        for y in range(0, height, stride):
+            border_points.extend(((0, y), (width - 1, y)))
+        for x, y in border_points:
+            r, g, b = pixels[x, y]
+            hi, lo = max(r, g, b), min(r, g, b)
+            if (r + g + b) / 3.0 >= 218 and hi - lo <= 35:
+                samples.append((r, g, b))
+        if not samples:
+            samples = [pixels[x, y] for x, y in border_points]
+        samples.sort(key=lambda c: c[0])
+        br = samples[len(samples)//2][0]
+        samples.sort(key=lambda c: c[1])
+        bg = samples[len(samples)//2][1]
+        samples.sort(key=lambda c: c[2])
+        bb = samples[len(samples)//2][2]
+
         visited = bytearray(width * height)
         background = bytearray(width * height)
         queue = deque()
@@ -21403,9 +21430,10 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
             r, g, b = pixels[x, y]
             hi, lo = max(r, g, b), min(r, g, b)
             brightness = (r + g + b) / 3.0
-            # Conservative neutral-light test. Border connectivity, not brightness
-            # alone, determines whether the pixel becomes transparent.
-            return brightness >= 224 and (hi - lo) <= 24
+            distance = max(abs(r - br), abs(g - bg), abs(b - bb))
+            # Keep light product reflections unless they are genuinely close to the
+            # measured border background. This is deliberately stricter than v20310.
+            return brightness >= 226 and distance <= 26 and (hi - lo) <= 32
 
         def enqueue(x, y):
             idx = y * width + x
@@ -21415,60 +21443,45 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
         for x in range(width):
             enqueue(x, 0)
-            if height > 1:
-                enqueue(x, height - 1)
+            enqueue(x, height - 1)
         for y in range(height):
             enqueue(0, y)
-            if width > 1:
-                enqueue(width - 1, y)
+            enqueue(width - 1, y)
 
+        # Eight-connected fill removes true background through real product openings
+        # while preserving every non-background engineering pixel.
+        neighbours = ((-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,-1),(-1,1),(1,1))
         while queue:
             x, y = queue.popleft()
-            idx = y * width + x
-            background[idx] = 1
-            if x > 0:
-                enqueue(x - 1, y)
-            if x + 1 < width:
-                enqueue(x + 1, y)
-            if y > 0:
-                enqueue(x, y - 1)
-            if y + 1 < height:
-                enqueue(x, y + 1)
+            background[y * width + x] = 1
+            for dx, dy in neighbours:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    enqueue(nx, ny)
 
         alpha = Image.new("L", (width, height), 255)
-        ap = alpha.load()
-        # Transparent border-connected background with a one-pixel antialias band.
+        alpha_pixels = alpha.load()
         for y in range(height):
+            row = y * width
             for x in range(width):
-                idx = y * width + x
-                if background[idx]:
-                    ap[x, y] = 0
-                    continue
-                near_background = False
-                for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
-                    if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
-                        near_background = True
-                        break
-                if near_background:
-                    r, g, b = pixels[x, y]
-                    brightness = (r + g + b) / 3.0
-                    neutrality = max(r, g, b) - min(r, g, b)
-                    if brightness >= 235 and neutrality <= 18:
-                        ap[x, y] = 96
-                    elif brightness >= 220 and neutrality <= 26:
-                        ap[x, y] = 190
+                if background[row + x]:
+                    alpha_pixels[x, y] = 0
 
         im.putalpha(alpha)
         bbox = alpha.getbbox()
-        if bbox:
-            im = im.crop(bbox)
+        if not bbox:
+            return b""
+        im = im.crop(bbox)
         out = io.BytesIO()
         im.save(out, format="PNG", optimize=True)
         return out.getvalue()
     except Exception as error:
-        diagnostic_log("graphic_v19400_border_mask_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log(
+            "graphic_v20400_hard_contour_mask_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
         return b""
-
 
 
 def _graphic_open_product_layer_v3300(uploaded_file):
@@ -21538,17 +21551,21 @@ def _graphic_open_product_layer_v3300(uploaded_file):
     except Exception as error:
         diagnostic_log("graphic_v20300_strict_product_mask_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
 
-    # Compatibility fallback: keep the original v20010 behavior only when strict
-    # extraction is unavailable. Never treat a full white canvas as transparent.
-    product, transparent = _graphic_open_product_layer(uploaded_file)
-    if product is None:
+    # Exact-product fail-safe: do not silently switch to the legacy soft cutout,
+    # because that route can produce a different contour for the same source. Keep
+    # the untouched source image on a neutral card instead. This preserves engineering
+    # geometry and makes extraction uncertainty visible rather than redesigning it.
+    try:
+        with Image.open(io.BytesIO(raw)) as source:
+            product = ImageOps.exif_transpose(source).convert("RGBA")
+        return product, False
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v20400_product_source_failsafe_failed",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
         return None, False
-    product = ImageOps.exif_transpose(product).convert("RGBA")
-    if transparent:
-        bbox = product.getchannel("A").getbbox()
-        if bbox:
-            product = product.crop(bbox)
-    return product, bool(transparent)
 
 
 
@@ -21816,6 +21833,30 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 
 
 
+
+
+def _graphic_product_reference_separation_directive_v20400(prompt_text):
+    """Append one stable internal contract separating style and product authority.
+
+    This does not alter user-visible wording. It prevents ambiguous requests such as
+    "use this as a reference" from allowing the advertisement template to contribute
+    product geometry. The style image controls presentation only; the Product Photo is
+    the sole engineering authority.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    contract = (
+        "\n\nINTERNAL PRODUCT/STYLE AUTHORITY CONTRACT (v20400):\n"
+        "- Treat the Style Reference as presentation guidance only: layout, typography, "
+        "lighting, background, icon placement, color palette, vehicle placement and overall advertising style.\n"
+        "- Treat the uploaded Product Photo as the sole and direct product authority.\n"
+        "- Never copy, infer, borrow or reconstruct product geometry from the Style Reference.\n"
+        "- Preserve the Product Photo's housing, outer and inner bezel contours, screen aperture, "
+        "bottom-bezel profile, controls, knobs, openings, mounting tabs, holes, proportions, seams and surface details.\n"
+        "- For exact/front-view jobs, do not redraw or regenerate any product pixels.\n"
+        "- Resizing and placement may change only through one coherent whole-product transform; "
+        "never resize the screen, bezel, controls or housing independently.\n"
+    )
+    return value + contract
 
 
 def _graphic_product_recreation_intent_v7000(prompt_text):
@@ -22667,7 +22708,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             campaign_spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
-        production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
+        production_prompt=_graphic_chatgpt_production_prompt(_graphic_product_reference_separation_directive_v20400(prompt_text),role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
         diagnostic_log("graphic_v8000_route", mode=product_mode.get("mode"), edit_kind=edit_kind, template=brand_template)
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
@@ -23112,7 +23153,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     try:
         recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         has_product = any(item.get("role") == "product_photo" for item in recovery_roles or [])
-        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text))
+        recreation_requested = bool((_graphic_product_recreation_intent_v7000(prompt_text) or {}).get("enabled"))
         exact_front_job = bool(preserve_product and has_product and not recreation_requested)
     except Exception:
         exact_front_job = False
