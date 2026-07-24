@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20500
-# v20500 Graphic Engine 10.0 + Engineering DNA 10.0 + Geometry Engine 2.0 + Campaign Cache 3.0.
-# Restores the proven v20300/v20010 commercial exact-product presentation while adding cached bezel fingerprints, rigid whole-unit transforms, geometry QA, and component-only recovery.
-# The product may change pose, scale and lighting, but its engineering relationships may never change.
+# AutoTecPro AI performance/stability revision: v20510
+# v20510 restores the proven v20300/v20010 commercial composition and exact-product placement.
+# Engineering DNA remains passive and cached for diagnostics; it no longer changes scale, pose, shadow, or the visible product layer unless the user explicitly requests an angle.
+# The uploaded product is composited from source pixels after the reference-faithful commercial scene is established.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19540,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20500-graphic10-engineering-dna10-geometry2-cache3"
+GRAPHIC_ENGINE_VERSION = "v20510-v20300-commercial-quality-passive-engineering-dna"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20452,28 +20452,16 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
 
 
 
+
 def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_size, vehicle_profile, campaign_spec, reference_blueprint, template_key=""):
     """Generate a reference-isolated plate; cache only plates that pass vehicle validation."""
-    background_prompt = _graphic_background_exclusion_contract_v20500(
-        _graphic_campaign_background_prompt_v3200(
-            prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
-        )
-    )
-    # The provider creates scenery and the target vehicle only. A product-like ghost
-    # behind the exact local composite can merge with the lower frame and make the
-    # bottom bezel appear thicker even when the protected product pixels are correct.
-    background_prompt += (
-        "\nSCENE-ONLY PLATE REQUIREMENT: Do not render any dashboard screen, head unit, "
-        "infotainment product, gauge cluster, bezel, frame, control panel, mounting "
-        "bracket, product silhouette, product shadow, placeholder product, typography, "
-        "logo, icon grid, ribbon, or footer. Leave the measured hero-product zone clear "
-        "for deterministic local compositing. Render only the environment and the exact "
-        "target vehicle requested for the lifestyle scene."
+    background_prompt = _graphic_campaign_background_prompt_v3200(
+        prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
     )
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
-        (GRAPHIC_ENGINE_VERSION + "|" + CAMPAIGN_CACHE_VERSION + "|" + output_size + "|" + template_key + "|" + background_prompt).encode()
+        (GRAPHIC_ENGINE_VERSION + "|v12000|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
     cached = cache.get(key)
     if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
@@ -20567,6 +20555,7 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
         diagnostic_log("graphic_v12000_background_not_cached", reason="vehicle validation unavailable")
 
     return last_raw, last_route
+
 
 
 
@@ -21151,11 +21140,9 @@ def _graphic_compose_reference_campaign_v3200(
     product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
 
-    # Engineering DNA is derived once per source SHA-256 and never alters source RGB.
+    # Passive Engineering DNA: analyze/cache identity without changing the visible
+    # product layer, scale, placement, shadow, or commercial composition.
     engineering_dna = _graphic_bezel_fingerprint_v20500(product_item, layer=product)
-    transform_request = _graphic_transform_request_v20500(prompt_text, role_items)
-    if transform_request.get("allowed") is False:
-        raise RuntimeError(str(transform_request.get("reason") or "Unsupported product viewpoint."))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -21230,56 +21217,18 @@ def _graphic_compose_reference_campaign_v3200(
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
         Image.Resampling.LANCZOS,
     )
-
-    # Apply one transform to the complete RGBA assembly. Geometry QA may retry only
-    # this local transform with a safer matrix; the background is never regenerated.
-    product, rigid_transform, engineering_qa, transform_retried = (
-        _graphic_apply_transform_with_component_retry_v20500(
-            product, transform_request, engineering_dna
-        )
-    )
-    if not engineering_qa.get("passed"):
-        raise RuntimeError(
-            "The rigid product transform failed Engineering DNA QA: "
-            + "; ".join(engineering_qa.get("hard_failures") or [])
-        )
-
-    # A rotated/perspective layer may grow. Fit the complete transformed assembly back
-    # into the same hero region with one additional uniform scale only.
-    if product.width > hero_w or product.height > hero_h:
-        fit = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
-        product = _graphic_premultiplied_resize_v20000(
-            product,
-            (max(1, int(round(product.width * fit))), max(1, int(round(product.height * fit)))),
-            Image.Resampling.LANCZOS,
-        )
-
     if source_aspect < 0.90:
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     py = hero_y1 - product.height
 
-    # Exact-product bezel lock. Do not derive a blurred silhouette shadow from the
-    # product alpha. On dark housings that shadow visually joins the lower frame and
-    # makes the bottom bezel look thicker than the uploaded master. Use a separated,
-    # low-opacity contact ellipse below the physical unit instead; it never overlaps
-    # the protected product pixels or changes the perceived screen-to-frame ratio.
-    contact_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    contact_draw = ImageDraw.Draw(contact_overlay, "RGBA")
-    contact_y = min(bar_top - 2, py + product.height + max(3, int(H * 0.004)))
-    contact_half_w = max(8, int(product.width * 0.36))
-    contact_h = max(3, int(H * 0.010))
-    contact_cx = px + product.width // 2
-    if contact_y + contact_h < bar_top:
-        contact_draw.ellipse(
-            (contact_cx - contact_half_w, contact_y, contact_cx + contact_half_w, contact_y + contact_h),
-            fill=(0, 0, 0, 42),
-        )
-        contact_overlay = contact_overlay.filter(ImageFilter.GaussianBlur(radius=max(2, H // 260)))
-        canvas = Image.alpha_composite(canvas, contact_overlay)
-    # The product itself is composited once, after every scene layer, with no
-    # enhancement, recoloring, perspective warp, edge dilation, or shadow overlap.
+    # Grounded contact shadow: downward and subtle, not a bright all-around halo.
+    alpha = product.getchannel("A")
+    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
+    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
+    canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
     canvas.alpha_composite(product, (px, py))
 
     draw = ImageDraw.Draw(canvas, "RGBA")
@@ -21427,7 +21376,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v20500-graphic10",
+        "engine": "autotecpro-commercial-composer-v20510-v20300-restored",
         "exact_product_pixels": True,
         "product_master_rgb_preserved": True,
         "visible_bounds_normalized": True,
@@ -21482,25 +21431,19 @@ def _graphic_compose_reference_campaign_v3200(
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
         "reference_style_grid": "reference-locked-commercial-grid-v16200",
-        "graphic_engine": "Graphic Engine 10.0",
+        "graphic_engine": "v20510 / v20300 commercial composition",
         "engineering_dna_engine": ENGINEERING_DNA_VERSION,
-        "geometry_engine": GEOMETRY_ENGINE_VERSION,
-        "campaign_cache": CAMPAIGN_CACHE_VERSION,
+        "engineering_dna_mode": "passive_observation_only",
         "engineering_dna": engineering_dna,
         "bezel_fingerprint_sha256": hashlib.sha256(
             json.dumps(engineering_dna, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
         ).hexdigest() if engineering_dna.get("available") else "",
-        "rigid_transform": rigid_transform,
-        "engineering_geometry_qa": engineering_qa,
-        "transform_component_retried": bool(transform_retried),
-        "background_generated_separately": True,
+        "geometry_transform_applied": False,
         "product_rendered_by_image_model": False,
-        "single_transform_for_complete_product": True,
-        "perspective_normalized_before_qa": bool(engineering_qa.get("perspective_normalized")),
-        "bottom_bezel_independent_hard_gate": True,
-        "source_mask_cached_by_sha256": True,
-        "fingerprint_cached_by_sha256": True,
+        "source_pixels_composited_after_scene": True,
+        "commercial_layout_restored_from_v20300": True,
     }
+
 
 
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
@@ -22117,21 +22060,18 @@ def _graphic_open_product_layer_v3300(uploaded_file):
     except Exception as error:
         diagnostic_log("graphic_v20300_strict_product_mask_failed", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
 
-    # Exact-product fail-safe: do not silently switch to the legacy soft cutout,
-    # because that route can produce a different contour for the same source. Keep
-    # the untouched source image on a neutral card instead. This preserves engineering
-    # geometry and makes extraction uncertainty visible rather than redesigning it.
-    try:
-        with Image.open(io.BytesIO(raw)) as source:
-            product = ImageOps.exif_transpose(source).convert("RGBA")
-        return product, False
-    except Exception as error:
-        diagnostic_log(
-            "graphic_v20400_product_source_failsafe_failed",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
+    # Compatibility fallback: keep the original v20010 behavior only when strict
+    # extraction is unavailable. Never treat a full white canvas as transparent.
+    product, transparent = _graphic_open_product_layer(uploaded_file)
+    if product is None:
         return None, False
+    product = ImageOps.exif_transpose(product).convert("RGBA")
+    if transparent:
+        bbox = product.getchannel("A").getbbox()
+        if bbox:
+            product = product.crop(bbox)
+    return product, bool(transparent)
+
 
 
 
@@ -22359,13 +22299,14 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "engineering-dna-cached-rigid-source-pixel-composite"
+    result["product_identity_method"] = "v20300-exact-source-pixel-composite-with-passive-engineering-dna"
     result["layered_metadata"].update(metadata)
     result["engineering_dna"] = metadata.get("engineering_dna") or {}
-    result["engineering_geometry_qa"] = metadata.get("engineering_geometry_qa") or {}
-    result["output_status"] = "completed_graphic10_engineering_dna10_campaign"
+    result["engineering_dna_mode"] = "passive_observation_only"
+    result["output_status"] = "completed_v20510_v20300_commercial_campaign"
     result["campaign_spec"] = spec
     return result
+
 
 
 def _graphic_correction_result_v3300(initial, prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, rejected_guidance, correction):
@@ -23299,7 +23240,8 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     ][:4]
     result["reference_content_leakage_prohibited"] = True
     result["engineering_dna_active"] = bool((result.get("layered_metadata") or {}).get("engineering_dna", {}).get("available"))
-    result["geometry_engine_active"] = True
+    result["engineering_dna_mode"] = "passive_observation_only"
+    result["geometry_engine_active"] = False
     result["campaign_cache_version"] = CAMPAIGN_CACHE_VERSION
     result["product_render_mode"] = _graphic_render_mode_v9000(
         mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
