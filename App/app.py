@@ -45,135 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v369
-# v8100 Graphic Stability Cleanup: removed only provably unreferenced Graphic helpers; preserved all active public APIs and non-Graphic behavior.
-# v6000 Strict Commercial Composer: fixed reference campaign geometry, AI scenery-only generation, exact uploaded-product compositing, deterministic AutoTecPro copy/icon zones, and regression-isolated Graphic changes.
-# v2002 Graphic completion reliability: protect advanced preparation, recover multi-turn reference/product roles, add provider retry headroom, and guarantee a local exact-product result when optional AI stages fail.
-# v2001 regression-checked release (2026-07-23): full-file syntax/AST validation,
-# duplicate top-level definition audit, and conservative preservation of all existing
-# authentication, permissions, history, uploader, WooCommerce, knowledge, and Graphic flows.
-# v386 document conversion: merges v384 conversation-command support with direct previous-response PDF/Word export; no AI rewriting.
-# v370 UI performance architecture:
-# - v371 audit: fragment-scoped Product Library, learned records, history, knowledge upload,
-#   knowledge submission, generated-image actions, and Admin user management
-# - lightweight cached uploader thumbnails and short-lived WooCommerce payload reuse
-# v373 production optimization acceptance coverage:
-#   * Product Library dashboard/manage interactions are fragment-scoped; reads cached.
-#   * History search/pin/rename/load-more and inactive-row mutations are fragment-local.
-#   * Learned-record search/filter/sort/page reads are cached and fragment-scoped.
-#   * WooCommerce read-only lookups and sanitized payloads use bounded TTL caches.
-#   * Knowledge Submission/Admin Upload metadata, validation and file removal are fragments.
-#   * Generated image open/download controls are local; regeneration stays full-flow by design.
-#   * Admin user search/filter/pagination/edit UI is fragment-scoped; writes invalidate caches.
-#   * Main chat, login/logout, workspace switching, AI streaming, Auto Learning, and writes
-#     that change shared application state intentionally remain in the primary execution flow.
-# - full fragment/cache audit across management UIs; AI request/response flow unchanged
-# v383 consolidated optimization: permission memoization, indexed history lookup,
-#   indexed Product Library legacy matching, cached timezone resource, and bounded cache invalidation.
-#   AI prompts, streaming, Auto Learning, auth transitions, and business rules unchanged.
-# v390 knowledge integrity: one-way Sales/Marketing technical retrieval, strict department
-#   learning isolation, verified vector sync state, transactional rollback, and safe merge fallback.
-# v391 intelligent Excel learning: row/column relationship preservation, inherited-cell
-#   fill-down, multi-level header mapping, explicit compatibility normalization, source-row
-#   traceability, and workspace-aware financial-field isolation for Admin knowledge uploads.
-# v394 upload correction: align Streamlit Cloud and application limits at 20 MB,
-#   remove obsolete per-widget upload-size introspection, retain stable native upload
-#   behavior, and allow ZIP attachments in the main chat uploader.
-# v396 intelligent archive analysis: safe recursive ZIP extraction, hidden-file filtering,
-#   folder manifests, supported-file routing, encryption/path-traversal/ZIP-bomb protection,
-#   and dedicated ZIP preview artwork without changing the stable uploader lifecycle.
-# v398 production cleanup: remove 11 verified unreferenced legacy helpers and 3
-#   unused constants; retain active diagnostics, upload lifecycle, archive analyzer,
-#   authentication, history, AI, database, and business workflows unchanged.
-#   ZIP preview artwork is 30% larger than other document icons.
-# v399 vector-store configuration: load Technical, Sales, Marketing, and Graphic
-#   Marketing vector-store IDs from Streamlit Secrets; add Graphic retrieval,
-#   Admin upload routing, and explicit Graphic knowledge learning.
-# v400 full compatibility audit: preserve all v398/v399 workflows; complete
-#   Graphic-specific learning-command detection and structured learning profile;
-#   add deterministic vector-store configuration diagnostics without exposing IDs.
-# v404 complete Graphic Memory Engine (combined v401-v403 roadmap):
-#   approved/rejected style feedback, visual-style extraction, persistent style
-#   records, optional Supabase image-library storage, ranked style retrieval,
-#   and approved-reference reuse for future image generation.
-# v405 production review: harden optional Supabase Storage fallbacks, normalize
-#   SDK response shapes and upload signatures, prevent duplicate approval writes,
-#   and preserve image-generation operation when memory services are unavailable.
-# v407 unified Graphic workspace: combine free-form Graphic Chat and Advanced AI
-#   Image Designer on one page, keep the normal chat composer always available,
-#   and route both creation paths through the same approved reference-style memory.
-# v406.1 production hotfix: restore all Graphic image-generation and branding
-#   constants omitted during prior cleanup; no login, transition, memory, UI, or
-#   business-flow behavior changed.
-# v406 reference-style learning: allow staff to upload one or more reference
-#   images in Graphic Marketing, analyze their shared visual language, save one
-#   reusable style-set record, retain optional source images, and reuse the newest
-#   approved reference immediately without accidentally generating a new image.
-# v408 smart product-preserving Graphic engine: restore the Graphic Chat / Advanced
-#   Designer selector while keeping one shared memory pipeline; automatically reuse
-#   approved styles in both modes; classify uploaded image roles, preserve product
-#   identity, and run a bounded post-generation visual accuracy review with one retry.
-# v500 Graphic Intelligence Engine: add named style collections, prompt-aware style
-#   routing, Creative Director production briefs, campaign metadata, shared style
-#   selection in Graphic Chat and Advanced Designer, and richer generation provenance.
-# v600 Graphic Intelligence Center: administrative style browsing, rename, tags,
-#   default governance, archive/delete, comparison, merge, and version snapshots.
-# v720 product-preservation and style-fidelity hardening:
-# v800 Visual Reference Analysis Engine: analyze uploaded advertisement references
-#   before generation, extract a structured composition/style blueprint, prioritize
-#   current references over stale saved styles, and inject the blueprint into the
-#   Creative Director, multi-agent planner, image prompt, output metadata, and QA.
-# - immutable product/source ordering, exact screen-UI lock, stricter QA threshold,
-#   and correction prompts that restore altered details from the source image.
-# v700 consolidated Graphic Platform (Phases 1-15): multi-agent production planning,
-#   campaign and brand memory, Product Library grounding hooks, cleanup/comparison
-#   workflows, continuous generation learning, expanded QA, and admin governance.
-# v1100 Professional Automotive Creative Studio: adaptive reference-layout reconstruction, improved immutable product extraction, palette-aware deterministic compositing, typography safe-zones, and production metadata.
-# v1200 ChatGPT-style Graphic Conversation Router: conversational planning and upload
-# v1400 ChatGPT-style attachment-only chat: allow file/photo-only submission in Technical, Sales, Marketing, and Graphic; add zero-side-effect Graphic planning; suppress unsolicited Product Library galleries.
-# v1401 true attachment-only send: move the attachment submit control into the fragment-scoped uploader so it appears immediately after upload, trigger a full app rerun on click, and let every chat workspace send files without composer text.
-# v1501 uploader restoration: restore the proven managed upload icon, previews, drag/drop, paste support, and stable normal send-arrow flow while retaining the v1500 Graphic Project Engine.
-# v1800 Professional ChatGPT-style Graphic Engine: resilient image generation with API/local layered fallback, compact production prompts, URL/base64 result support, single error rendering, and cleaner attachment cards.
-# v3100 Graphic vehicle/content lock: persist explicit vehicle facts across turns, prevent reference-product/content leakage, enforce reference-detail density, and add vehicle-aware QA correction.
-# v3000 ChatGPT-style Graphic engine: one authoritative conversational image pipeline, persistent edit base, reference-faithful multi-image generation, one controlled correction pass, and no generic-template final fallback.
-# v4200 persistent visual editing: object-aware follow-up edits, current-canvas locking, campaign-copy replacement parsing, immutable-layout directives, and versioned canvas history.
-# v2003 reference-fidelity + instant rejection: complete high-fidelity multi-image edits, style/layout QA, honest fallback labeling, and zero-analysis Reject Style.
-# v3300 Complete Graphic Production Engine: provider-first acceptance, fail-closed QA,
-# dynamic reference geometry, Product Library grounding, persistent cutout masks, deterministic copy,
-# focused vehicle validation, zone completeness checks, conversational edit state, and progress status.
-# v2000 ChatGPT-style Professional Graphic Studio: explicit project-aware generation consent, clean reference-derived no-device background plates, exact product-pixel compositing, improved white-background cutout, and deterministic product-first layout.
-# v4300 Exact Product Structure Lock: exact uploaded-product hero compositing, critical opening/gap/mounting-geometry analysis, safer product mask padding, and structural-fidelity QA.
-# v8000 AutoTecPro Creative Production Engine: layered project metadata, Product DNA, multi-view identity, brand templates, local object edits, professional QA, smart routing, approval learning hooks, and production metrics.
-# v8300 Reference/Product Role Lock: deterministic local asset-role verification, reference-ad/product-source separation, exact hero-product enforcement, reference-content leakage prevention, and fail-closed campaign integrity checks; no intentional non-Graphic changes.
-# v8400 Project-Ready Direct Generation: project-aware create/edit priority, deterministic ready acknowledgements, frozen visual project assets, and suppression of campaign-copy detours once reference + product are ready.
-# v7000 Dual-Mode Fast Graphic Engine: exact-product and AI-recreation routing, multi-view product identity, autonomous AutoTecPro campaigns without references, angle-change detection, and fast exact-product production path.
-# v7100 Graphic Reliability + Local Edit Optimization: lightweight exact-mode validation, reliable multi-view promotion, dedicated recreated-product structure QA, deterministic text-only edits, shared finalization, unified engine metadata, and bounded provider/QA behavior.
-# v3200 Reference-Locked Campaign Engine: persistent campaign copy/specification memory,
-#   strict vehicle/content separation, provider-first full artwork, deterministic reference-density
-#   hybrid correction using exact product pixels, correct target-vehicle scenery, typography,
-#   feature matrix, compatibility ribbon, and bottom benefit bar; non-Graphic workflows unchanged.
-# v1402 unified send-arrow attachment submission: remove the separate Send attachments button, keep the original uploader interface, and enable the normal bottom-right chat send arrow for attachment-only turns in Technical, Sales, Marketing, and Graphic Marketing.
-# v1300 Creative Director Graphic Chat: strict marketing persona isolation, vehicle-neutral
-#   clarification policy, no automatic technical/SYNC questions, and intent-specific
-#   conversational guidance before any image-generation request.
-# v1201 Graphic Chat BadRequest hotfix: use the dedicated Graphic vector store for
-#   conversational Graphic Chat, retry one rejected Responses API request without
-#   file_search, and replace raw traceback leakage with a safe user-facing error.
-#   permission requests stay text-only; explicit create/edit/regenerate commands alone
-#   invoke the image API; Advanced Designer submissions remain deterministic generation.
-# v600 Complete Graphic Intelligence Center: shared phase 1-15 architecture, Admin
-# v4000 complete Graphic AI engine: provider compatibility cascade, persistent project/fact locks, provider-first acceptance, fail-closed QA, dynamic reference geometry, Product Library grounding, cached exact-product masking, deterministic typography, focused vehicle validation, reference-zone checks, one correction pass, conversational version state, fast style feedback preservation, staged progress, retry-safe diagnostics, multi-size output, and regression-isolated Graphic changes.
-#   Style Manager, collection lifecycle/versioning/defaults, campaign and brand metadata,
-#   reference previews, compare/merge/archive/delete actions, and reusable quality analytics.
-
-# v10000 AutoTecPro Graphic Production Edition: source-pixel visual verification, segmentation diagnostics, exact-product quality gating, bounded QA reuse, and production audit metadata; no intentional non-Graphic changes.
-# v11000 Commercial Composer Engine: reference-faithful fixed advertising grid, full-scene header treatment, dominant exact-product placement, official logo layer, edge decontamination, grounded shadow, and stricter hero-scale verification; no intentional non-Graphic changes.
-# v15000 Graphic Recovery + First-Command Generation: launches generation on the first contextual create command, repairs two-asset project roles, and adds a layered fail-open provider recovery route so strict QA failures cannot block all image creation.
-# v16000 Graphic Stability + Style DNA + Typography: robust same-turn creation, active-asset locks, project style DNA, validated fallback blueprint, larger deterministic copy, provider retry, recovery post-processing, truthful QA, and stage diagnostics.
-# v17000 Graphic Engine 2.0 (verified v16000 baseline): preserves the production exact-product path by default; adds flexible Product DNA recreation for explicit angle/perspective requests; includes v16200 layout precision for larger hero-product scale, farther-right/deeper vehicle staging, improved feature-grid spacing, and rebalanced bottom benefit bar; no intentional non-Graphic changes.
-# v14000 Visible-Product Reference Reconstruction: trims non-product canvas margins without altering product pixels, locks dominant hero scale/position, strengthens commercial hierarchy, and rejects sparse reference recreations.
-# v12000 Final Vehicle & Accuracy Consolidation: reference-pixel-isolated background generation, target-only vehicle prompting, body-type-aware validation, one bounded vehicle retry, validated-background caching only, fail-closed hard-vehicle QA, and stricter exact-product verification; no intentional non-Graphic changes.
-# v13000 Reference-Locked Commercial Reconstruction: normalized reference-zone extraction, blueprint-driven deterministic geometry, dominant hero scaling, title/feature/footer proportion locking, quantitative layout-fidelity QA, and fail-closed reference recreation verification; no intentional non-Graphic changes.
+# AutoTecPro AI performance/stability revision: v18000
+# v18000 Graphic Engine 4.0 Production: preserves v17000 exact-product stability; adds Product Identity,
+# Engineering Detail Preservation, Commercial Layout Planner, Reference Decomposition, Vehicle DNA 3.0,
+# Style DNA 3.0, layout/hierarchy/product-detail scoring, and contamination-safe multi-reference guidance.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -18867,6 +18742,185 @@ def _graphic_product_structure_text_v4300(profile):
             parts.append(f"{key.replace('_',' ').title()}: {value}")
     return " | ".join(parts)[:7000]
 
+
+
+def _graphic_product_identity_v18000(role_items, structure_profile=None):
+    """Build a compact engineering-identity contract from uploaded product sources."""
+    products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
+    structure = dict(structure_profile or _graphic_product_structure_profile_v4300(role_items) or {})
+    signature = _graphic_product_source_signature_v9000(products[0]) if products else {}
+    return {
+        "source_count": len(products),
+        "source_names": [str(item.get("name") or "") for item in products[:6]],
+        "unit_aspect_ratio": float(signature.get("aspect_ratio") or 0.0),
+        "source_width": int(signature.get("width") or 0),
+        "source_height": int(signature.get("height") or 0),
+        "outer_silhouette": structure.get("outer_silhouette") or "",
+        "screen_geometry": structure.get("screen_geometry") or "",
+        "side_structures": structure.get("side_structures") or "",
+        "physical_controls": structure.get("physical_controls") or "",
+        "lower_structure": structure.get("lower_structure") or "",
+        "critical_negative_spaces": structure.get("critical_negative_spaces") or "",
+        "mounting_points": structure.get("mounting_points") or "",
+        "must_preserve": structure.get("must_preserve") or [],
+        "common_failure_risks": structure.get("common_failure_risks") or [],
+        "policy": "preserve_engineering_identity_allow_viewpoint_scale_lighting_change",
+    }
+
+
+def _graphic_vehicle_dna_v18000(vehicle_profile=None):
+    """Normalize the visible vehicle identity cues used by prompting and QA."""
+    profile = dict(vehicle_profile or {})
+    return {
+        "display_name": str(profile.get("explicit_display_name") or profile.get("display_name") or "").strip(),
+        "make": str(profile.get("make") or "").strip(),
+        "model": str(profile.get("model") or "").strip(),
+        "year_range": str(profile.get("year_range") or "").strip(),
+        "body_type": str(profile.get("body_type") or profile.get("vehicle_type") or "").strip(),
+        "grille": str(profile.get("grille") or profile.get("grille_characteristics") or "").strip(),
+        "headlights": str(profile.get("headlights") or profile.get("headlight_signature") or "").strip(),
+        "cab_type": str(profile.get("cab_type") or profile.get("cab") or "").strip(),
+        "bed_length": str(profile.get("bed_length") or profile.get("bed") or "").strip(),
+        "body_proportions": str(profile.get("body_proportions") or "").strip(),
+        "ride_height": str(profile.get("ride_height") or profile.get("stance") or "").strip(),
+        "wheel_spacing": str(profile.get("wheel_spacing") or profile.get("wheelbase") or "").strip(),
+        "hard_vehicle_lock": bool(profile.get("hard_vehicle_lock")),
+    }
+
+
+def _graphic_reference_decomposition_v18000(reference_blueprint=None):
+    """Return independent reference components without copying reference content."""
+    bp = dict(reference_blueprint or {})
+    layout = _graphic_reference_layout_blueprint_v9000(bp)
+    return {
+        "layout": layout,
+        "lighting": bp.get("lighting") or bp.get("lighting_style") or "",
+        "typography": bp.get("typography") or bp.get("typography_style") or "",
+        "background": bp.get("background") or bp.get("background_style") or "",
+        "feature_grid": bp.get("feature_grid") or bp.get("feature_matrix") or "",
+        "footer": bp.get("footer") or bp.get("bottom_bar") or "",
+        "logo_treatment": bp.get("logo_treatment") or "",
+        "product_treatment": bp.get("product_treatment") or "",
+        "vehicle_treatment": bp.get("vehicle_treatment") or "",
+        "palette": bp.get("palette") or bp.get("color_palette") or [],
+        "content_policy": "style_and_geometry_only_no_reference_facts",
+    }
+
+
+def _graphic_style_dna_v18000(reference_blueprint=None, prompt_text=""):
+    """Classify reference style with deterministic weighted labels."""
+    bp = dict(reference_blueprint or {})
+    corpus = " ".join([
+        str(prompt_text or ""),
+        str(bp.get("summary") or ""),
+        str(bp.get("style") or ""),
+        str(bp.get("mood") or ""),
+        str(bp.get("background_style") or ""),
+        str(bp.get("lighting_style") or ""),
+        str(bp.get("typography_style") or ""),
+    ]).casefold()
+    terms = {
+        "oem": ("oem", "factory", "integrated", "factory-style", "clean"),
+        "rugged": ("rugged", "rock", "mountain", "off-road", "desert", "terrain"),
+        "premium": ("premium", "polished", "high-end", "commercial", "cinematic"),
+        "luxury": ("luxury", "elegant", "refined", "gold", "executive"),
+        "adventure": ("adventure", "outdoor", "trail", "mountain", "sunset"),
+        "studio": ("studio", "white background", "seamless", "ecommerce", "minimal"),
+        "brochure": ("brochure", "technical", "specification", "feature grid", "catalog"),
+    }
+    scores = {}
+    for label, keywords in terms.items():
+        hits = sum(1 for term in keywords if term in corpus)
+        scores[label] = round(min(1.0, 0.18 + hits * 0.22) if hits else 0.08, 3)
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return {"scores": scores, "primary": ranked[0], "secondary": ranked[1:3], "engine": "v18000-style-dna-3"}
+
+
+def _graphic_generation_plan_v18000(prompt_text, role_items, has_edit_base=False):
+    """Select the least-destructive production route for the requested task."""
+    recreation = _graphic_product_recreation_intent_v7000(prompt_text)
+    has_product = any(item.get("role") == "product_photo" for item in (role_items or []))
+    has_style = any(item.get("role") == "style_reference" for item in (role_items or []))
+    if has_edit_base and not recreation.get("enabled"):
+        route = "local_or_minimal_edit"
+    elif recreation.get("enabled"):
+        route = "product_dna_reconstruction"
+    elif has_product:
+        route = "exact_product_composite"
+    else:
+        route = "fully_generative_concept"
+    return {
+        "route": route,
+        "exact_product_preferred": route == "exact_product_composite",
+        "reconstruction_required": route == "product_dna_reconstruction",
+        "reference_guided": has_style,
+        "reason": "Explicit angle/perspective request" if recreation.get("enabled") else "Preserve proven exact-product path",
+    }
+
+
+def _graphic_commercial_hierarchy_score_v18000(result):
+    """Score deterministic commercial reading order from layered metadata."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    zones = {str(x) for x in metadata.get("campaign_zones") or []}
+    required = ["logo", "headline", "hero_product", "target_vehicle", "feature_matrix", "bottom_benefit_bar"]
+    present = sum(1 for key in required if key in zones)
+    score = present / len(required)
+    product_box = list(metadata.get("product_box") or [])
+    vehicle_box = list(metadata.get("vehicle_box") or [])
+    canvas = list(metadata.get("canvas_size") or [])
+    product_area = vehicle_area = 0.0
+    if len(canvas) == 2 and canvas[0] and canvas[1]:
+        denom = float(canvas[0]) * float(canvas[1])
+        if len(product_box) == 4:
+            product_area = float(product_box[2]) * float(product_box[3]) / denom
+        if len(vehicle_box) == 4:
+            vehicle_area = float(vehicle_box[2]) * float(vehicle_box[3]) / denom
+    if product_area and vehicle_area and product_area <= vehicle_area:
+        score -= 0.18
+    if metadata.get("deterministic_typography"):
+        score += 0.08
+    return {
+        "score": round(max(0.0, min(1.0, score)), 4),
+        "passed": score >= 0.78,
+        "product_area_ratio": round(product_area, 4),
+        "vehicle_area_ratio": round(vehicle_area, 4),
+        "reading_order": required,
+        "engine": "v18000-commercial-hierarchy",
+    }
+
+
+def _graphic_product_detail_score_v18000(product_mode, exact_gate=None, dna_gate=None):
+    """Normalize exact-product and recreated-product verification to one scorecard."""
+    if (product_mode or {}).get("exact_product"):
+        gate = dict(exact_gate or {})
+        passed = bool(gate.get("passed"))
+        score = 100 if passed else max(0, 100 - 12 * len(gate.get("issues") or []))
+        return {
+            "score": score,
+            "passed": passed,
+            "housing": score,
+            "screen": score,
+            "buttons": score,
+            "knobs": score,
+            "materials": 96 if passed else max(0, score - 4),
+            "engineering_identity": score,
+            "mode": "exact_source_composite",
+        }
+    gate = dict(dna_gate or {})
+    score = int(gate.get("score") or 0)
+    return {
+        "score": score,
+        "passed": bool(gate.get("available") and gate.get("passed") is True and score >= 92),
+        "housing": int(gate.get("geometry_score") or 0),
+        "screen": int(gate.get("screen_ratio_score") or 0),
+        "buttons": int(gate.get("hardware_detail_score") or 0),
+        "knobs": int(gate.get("hardware_detail_score") or 0),
+        "materials": max(0, min(100, score - 2 if score else 0)),
+        "engineering_identity": score,
+        "mode": "product_dna_reconstruction",
+    }
+
+
 def _graphic_chatgpt_production_prompt(
     prompt_text,
     role_items,
@@ -18893,6 +18947,11 @@ def _graphic_chatgpt_production_prompt(
     prohibited_terms = [str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip()]
     product_structure = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
     product_structure_text = _graphic_product_structure_text_v4300(product_structure)
+    product_identity = _graphic_product_identity_v18000(role_items, product_structure) if has_product else {}
+    vehicle_dna = _graphic_vehicle_dna_v18000(vehicle_profile)
+    reference_decomposition = _graphic_reference_decomposition_v18000(reference_blueprint) if has_style else {}
+    style_dna = _graphic_style_dna_v18000(reference_blueprint, prompt_text) if has_style else {}
+    generation_plan = _graphic_generation_plan_v18000(prompt_text, role_items, has_edit_base=has_edit_base)
 
     lines = [
         "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
@@ -18945,6 +19004,13 @@ def _graphic_chatgpt_production_prompt(
             "Use the reference as a composition blueprint, not as factual content. Every Ford/F-series element must be replaced when the user specifies a Chevrolet Silverado or another vehicle.",
         ])
     lines.extend([
+        "GRAPHIC ENGINE 4.0 PRODUCTION PLAN: " + json.dumps(generation_plan, ensure_ascii=False, default=str),
+        "PRODUCT IDENTITY CONTRACT: " + json.dumps(product_identity, ensure_ascii=False, default=str)[:6500],
+        "VEHICLE DNA 3.0: " + json.dumps(vehicle_dna, ensure_ascii=False, default=str)[:3500],
+        "REFERENCE DECOMPOSITION: " + json.dumps(reference_decomposition, ensure_ascii=False, default=str)[:6500],
+        "STYLE DNA 3.0: " + json.dumps(style_dna, ensure_ascii=False, default=str)[:2500],
+        "MULTI-REFERENCE POLICY: Keep every reference separate. The newest active reference controls the current layout. Do not blend older references unless the user explicitly asks to combine them. Never import a reference vehicle, product, claim, model year, logo placement error, or watermark into the current campaign.",
+        "ENGINEERING DETAIL PRESERVATION: preserve bezel thickness, button count and spacing, knob diameter and ring geometry, housing proportions, screen ratio, screen-to-housing position, openings, mounting tabs, cavities, seams, trim, and visible interface hierarchy. Rotation, uniform scaling, perspective, lighting, reflections and scene integration may change only when requested.",
         "CONTENT QUALITY RULES:",
         "Use only user-provided, visible, or verified product facts. When a precise feature claim is unavailable, keep the visual slot but use a short neutral category label or non-verbal icon treatment rather than inventing a specification.",
         "Use exact readable spelling for AutoTec, AutoTecPro.com, the target vehicle, years, headline, ribbon, and tagline. Avoid gibberish or malformed letters.",
@@ -18963,7 +19029,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v11000-autotecpro-commercial-composer-engine"
+GRAPHIC_ENGINE_VERSION = "v18000-autotecpro-graphic-engine-4-production"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21580,8 +21646,27 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     checks["layout_valid"] = bool(required.issubset(zones) and layout_gate.get("passed"))
     checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
+    hierarchy_gate = _graphic_commercial_hierarchy_score_v18000(result)
+    product_detail = _graphic_product_detail_score_v18000(product_mode, exact_gate, dna_gate)
+    checks["commercial_hierarchy"] = bool(hierarchy_gate.get("passed"))
+    # Preserve v17000 exact-product stability: the new score is informative for exact
+    # composites and hard-gating only for AI-recreated viewpoints.
+    if product_mode.get("recreates_product"):
+        checks["product_detail"] = bool(product_detail.get("passed"))
+    else:
+        checks["product_detail"] = bool(checks.get("product_valid"))
     passed=all(checks.values())
-    return {"passed":passed,"checks":checks,"exact_product_gate":exact_gate,"product_dna_gate":dna_gate,"vehicle_validation":vehicle,"layout_fidelity_gate":layout_gate,"engine":"v17000-route-aware-production-quality-gate"}
+    return {
+        "passed":passed,
+        "checks":checks,
+        "exact_product_gate":exact_gate,
+        "product_dna_gate":dna_gate,
+        "product_detail_score":product_detail,
+        "vehicle_validation":vehicle,
+        "layout_fidelity_gate":layout_gate,
+        "commercial_hierarchy_gate":hierarchy_gate,
+        "engine":"v18000-route-aware-production-quality-gate",
+    }
 
 
 
