@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20410
-# v20410 Graphic Engine 9.1 Stable Exact Product: built directly from v20400.
-# Separates hard product-identity failures from review warnings so a valid exact-source composite is not discarded by optional QA, layout, vehicle, or interpolation checks.
-# Normal front-view campaigns still block whole-product generative fallback and preserve the uploaded product as the authoritative engineering source.
+# AutoTecPro AI performance/stability revision: v20420
+# v20420 Graphic Engine 9.2 Resilient Exact Product: built directly from v20410.
+# Returns a completed exact-source composite even when optional QA/diagnostic checks raise, while preserving hard source, crop, and ratio protections.
+# Adds stage-level diagnostics and keeps whole-product generative fallback blocked for normal front-view campaigns.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19540,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20410-graphic-engine-9.1-stable-exact-product"
+GRAPHIC_ENGINE_VERSION = "v20420-graphic-engine-9.2-resilient-exact-product"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21335,7 +21335,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20410-product-identity-hard-contour"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20420-product-identity-hard-contour"
 
 
 def _graphic_progress_v3300(label):
@@ -22599,60 +22599,149 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     return final_result
 
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create one exact-source campaign and fail only on proven identity loss."""
+    """Create one exact-source campaign and never discard a completed exact composite for optional QA errors."""
+    state = get_graphic_project_state()
+    state["last_graphic_stage"] = "exact_product_composition"
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
     result = _graphic_build_hybrid_campaign_result_v3300(
         prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
     )
-    validation = _graphic_exact_result_validation_v7100(
-        result, role_items, prompt_text, vehicle_profile or {}
+    if not isinstance(result, dict) or not str(result.get("data_url") or "").startswith("data:image/"):
+        raise RuntimeError("The exact-product compositor did not return image data.")
+
+    metadata = dict(result.get("layered_metadata") or {})
+    product_item = next(
+        (item for item in (role_items or []) if item.get("role") == "product_photo"),
+        None,
     )
-    result["deterministic_verification"] = validation
-    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
-    source_gate = _graphic_exact_product_quality_gate_v9000(
-        result, role_items, vehicle_profile or {}
-    )
-    result["source_fidelity_gate"] = source_gate
-    hard_failures = list(source_gate.get("hard_failures") or [])
-    warnings = list(source_gate.get("warnings") or [])
-    if hard_failures:
+    source = _graphic_product_source_signature_v9000(product_item)
+
+    core_hard_failures = []
+    if not metadata.get("exact_product_pixels"):
+        core_hard_failures.append("exact product pixels not confirmed")
+    if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
+        core_hard_failures.append("product source fingerprint mismatch")
+
+    box = list(metadata.get("product_box") or [])
+    canvas = list(metadata.get("canvas_size") or [])
+    if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
+        if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
+            core_hard_failures.append("hero product cropped")
+        rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
+        source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or source.get("aspect_ratio") or 0.0)
+        if source_ratio:
+            ratio_error = abs(source_ratio - rendered_ratio) / max(source_ratio, 0.001)
+            if ratio_error > 0.018:
+                core_hard_failures.append("hero product aspect ratio changed")
+    else:
+        core_hard_failures.append("product geometry metadata unavailable")
+
+    if core_hard_failures:
         raise RuntimeError(
-            "The exact-product campaign failed a hard product-identity check: "
-            + "; ".join(hard_failures)
+            "The exact-product campaign failed a proven product-identity check: "
+            + "; ".join(core_hard_failures)
         )
 
-    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    warnings = []
+    validation = {
+        "image_valid": True,
+        "exact_product": True,
+        "zones_valid": False,
+        "verified": False,
+        "vehicle_validation": {},
+        "vehicle_validation_unavailable": False,
+    }
+
+    state = get_graphic_project_state()
+    state["last_graphic_stage"] = "exact_product_validation"
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    try:
+        validation = _graphic_exact_result_validation_v7100(
+            result, role_items, prompt_text, vehicle_profile or {}
+        )
+    except Exception as error:
+        warnings.append("deterministic validation unavailable")
+        diagnostic_log(
+            "graphic_v20420_exact_validation_nonfatal",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+
+    result["deterministic_verification"] = validation
+    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
+
+    try:
+        source_gate = _graphic_exact_product_quality_gate_v9000(
+            result, role_items, vehicle_profile or {}
+        )
+    except Exception as error:
+        source_gate = {
+            "passed": True,
+            "hard_failures": [],
+            "warnings": ["quality-gate diagnostics unavailable"],
+            "issues": ["quality-gate diagnostics unavailable"],
+            "engine": "v20420-nonfatal-diagnostic-wrapper",
+        }
+        diagnostic_log(
+            "graphic_v20420_quality_gate_nonfatal",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+
+    result["source_fidelity_gate"] = source_gate
+    for item in source_gate.get("hard_failures") or []:
+        value = str(item)
+        lowered = value.casefold()
+        if any(token in lowered for token in (
+            "source fingerprint mismatch",
+            "exact product pixels not confirmed",
+            "hero product cropped",
+            "aspect ratio changed",
+            "source ratio was not preserved",
+        )):
+            raise RuntimeError(
+                "The exact-product campaign failed a proven product-identity check: " + value
+            )
+        warnings.append("engineering review: " + value)
+    warnings.extend(str(item) for item in (source_gate.get("warnings") or []))
+
+    try:
+        layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    except Exception as error:
+        layout_gate = {"required": False, "passed": None, "issues": ["layout diagnostics unavailable"]}
+        diagnostic_log(
+            "graphic_v20420_layout_gate_nonfatal",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
     result["reference_layout_fidelity_gate"] = layout_gate
-    if layout_gate.get("required") and not layout_gate.get("passed"):
+    if layout_gate.get("required") and layout_gate.get("passed") is False:
         result["layout_review_required"] = True
         result["layout_review_issues"] = list(layout_gate.get("issues") or [])
         warnings.extend("layout review: " + str(item) for item in (layout_gate.get("issues") or []))
 
-    # A valid exact-source composite must remain available even when optional vehicle,
-    # layout or metadata checks are unavailable. Surface those conditions as review notes.
-    core_exact = bool(validation.get("image_valid") and validation.get("exact_product"))
-    if not core_exact:
-        raise RuntimeError("The exact-product compositor did not return a valid exact-source image.")
+    if not validation.get("zones_valid", False):
+        warnings.append("one or more campaign metadata zones require review")
+    vehicle = validation.get("vehicle_validation") or {}
+    if validation.get("vehicle_validation_unavailable"):
+        warnings.append("optional vehicle verification was unavailable")
+    elif vehicle and vehicle.get("verified") is False:
+        warnings.append("target vehicle requires visual review")
 
     if validation.get("verified") and not warnings:
-        result["output_status"] = "verified_exact_product_v20410"
+        result["output_status"] = "verified_exact_product_v20420"
         result["verification_status"] = "verified"
     else:
-        if not validation.get("zones_valid"):
-            warnings.append("one or more campaign metadata zones require review")
-        vehicle = validation.get("vehicle_validation") or {}
-        if validation.get("vehicle_validation_unavailable"):
-            warnings.append("optional vehicle verification was unavailable")
-        elif vehicle and vehicle.get("verified") is False:
-            warnings.append("target vehicle requires visual review")
-        result["output_status"] = "completed_exact_product_with_review_v20410"
+        result["output_status"] = "completed_exact_product_with_review_v20420"
         result["verification_status"] = "completed_with_review"
 
-    if warnings:
-        unique_warnings = []
-        for warning in warnings:
-            clean = re.sub(r"\s+", " ", str(warning or "")).strip()
-            if clean and clean not in unique_warnings:
-                unique_warnings.append(clean)
+    unique_warnings = []
+    for warning in warnings:
+        clean = re.sub(r"\s+", " ", str(warning or "")).strip()
+        if clean and clean not in unique_warnings:
+            unique_warnings.append(clean)
+    if unique_warnings:
         result["verification_warnings"] = unique_warnings[:20]
         result["verification_warning"] = (
             "The uploaded product was composited from the authoritative source. "
@@ -22674,7 +22763,10 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
     result["ai_product_recreated"] = False
     result["speed_optimized"] = True
-    result["project_editable"] = True
+
+    state = get_graphic_project_state()
+    state["last_graphic_stage"] = "exact_product_completed"
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return result
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
@@ -23175,6 +23267,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    project["last_graphic_stage"] = "advanced_pipeline"
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
         return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
@@ -23192,6 +23285,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
 
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
     # as a compatibility recovery route for deployed Streamlit environments.
+    project = get_graphic_project_state()
+    project["last_graphic_stage"] = "v3200_compatibility_pipeline"
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
             prompt_text, uploaded_files, **arguments
@@ -39878,8 +39974,18 @@ else:
                     error_type=type(error).__name__,
                     error=error,
                 )
+                failed_state = get_graphic_project_state()
+                failed_stage = str(
+                    failed_state.get("last_graphic_stage")
+                    or failed_state.get("last_failed_stage")
+                    or "unknown"
+                )
+                compact_error = _graphic_compact_error_v4000(error)
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
+                    "I couldn't finish the image this time, but your reference and product photos are still saved. "
+                    f"Failed stage: {failed_stage}. "
+                    f"Error: {type(error).__name__}: {compact_error[:220]}. "
+                    "Please select Retry or type ‘Create it again.’ "
                     f"Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
