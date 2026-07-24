@@ -22545,7 +22545,7 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
                                     product_mode, structure_profile, has_edit_base):
     """Apply one shared finalization path for every Graphic generation route."""
     final_result = dict(final_result or {})
-    final_result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+    final_result["graphic_engine_version"] = "v20230-graphic-engine8.4-independent-local-recovery"
     final_result["reference_geometry"] = geometry
     final_result["campaign_spec"] = campaign_spec
     final_result["project_editable"] = True
@@ -23011,6 +23011,239 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         raise
 
 
+
+def _graphic_independent_local_exact_recovery_v20230(
+    prompt_text,
+    role_items,
+    output_size,
+    reference_blueprint=None,
+    vehicle_profile=None,
+):
+    """Build a publishable exact-product campaign without the shared hybrid compositor.
+
+    This is a genuinely independent, Pillow-only fallback. It performs no provider
+    request and never redraws the uploaded product. The style reference may guide the
+    local background plate, but the complete product layer comes from the protected
+    master-RGB exact-product asset.
+    """
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable for independent exact-product recovery.")
+    try:
+        from PIL import ImageDraw, ImageFilter
+    except Exception as error:
+        raise RuntimeError("Pillow drawing support is unavailable.") from error
+
+    try:
+        width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
+    except Exception:
+        width, height = 1536, 1024
+    width = max(640, min(width, 4096))
+    height = max(480, min(height, 4096))
+
+    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)
+    if not product_item:
+        raise RuntimeError("Independent exact recovery requires a Product Photo.")
+
+    product_layer, product_transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if product_layer is None:
+        raise RuntimeError("The protected product asset could not be opened.")
+    product_layer = ImageOps.exif_transpose(product_layer).convert("RGBA")
+
+    # Use the existing local reference-derived plate only as a non-generative style
+    # source. If it is unavailable, create a clean neutral automotive plate locally.
+    plate_bytes = _graphic_reference_background_plate(role_items, output_size)
+    canvas = None
+    if plate_bytes:
+        try:
+            with Image.open(io.BytesIO(plate_bytes)) as plate:
+                canvas = ImageOps.fit(
+                    ImageOps.exif_transpose(plate).convert("RGBA"),
+                    (width, height),
+                    method=Image.Resampling.LANCZOS,
+                )
+        except Exception:
+            canvas = None
+    if canvas is None:
+        canvas = Image.new("RGBA", (width, height), (13, 20, 31, 255))
+        draw = ImageDraw.Draw(canvas, "RGBA")
+        for y in range(height):
+            t = y / max(1, height - 1)
+            draw.line(
+                (0, y, width, y),
+                fill=(
+                    int(26 - 16 * t),
+                    int(38 - 24 * t),
+                    int(56 - 32 * t),
+                    255,
+                ),
+            )
+        draw.ellipse(
+            (int(width * .48), -int(height * .25), int(width * 1.08), int(height * .58)),
+            fill=(238, 165, 90, 54),
+        )
+        draw.polygon(
+            [(0, int(height*.66)), (int(width*.25), int(height*.53)),
+             (int(width*.47), int(height*.68)), (int(width*.72), int(height*.49)),
+             (width, int(height*.62)), (width, height), (0, height)],
+            fill=(8, 14, 23, 245),
+        )
+
+    # Product geometry is never recreated. Trim only fully transparent outside pixels.
+    alpha = product_layer.getchannel("A")
+    bbox = alpha.getbbox()
+    if bbox:
+        product_layer = product_layer.crop(bbox)
+    source_w, source_h = product_layer.size
+    if source_w < 2 or source_h < 2:
+        raise RuntimeError("The protected product layer is empty after background masking.")
+
+    max_product_w = int(width * 0.58)
+    max_product_h = int(height * 0.62)
+    scale = min(max_product_w / source_w, max_product_h / source_h)
+    scale = max(0.05, min(scale, 6.0))
+    target_size = (max(1, int(round(source_w * scale))), max(1, int(round(source_h * scale))))
+    resized_product = _graphic_premultiplied_resize_v20000(product_layer, target_size)
+
+    product_x = int(width * 0.055)
+    product_y = int(height * 0.315 + (max_product_h - target_size[1]) * 0.52)
+    product_x = max(0, min(width - target_size[0], product_x))
+    product_y = max(0, min(height - target_size[1], product_y))
+
+    # Soft shadow sits behind the protected asset and never modifies its RGB pixels.
+    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    shadow_alpha = resized_product.getchannel("A").filter(
+        ImageFilter.GaussianBlur(radius=max(8, int(min(width, height) * .012)))
+    )
+    shadow_patch = Image.new("RGBA", target_size, (0, 0, 0, 0))
+    shadow_patch.putalpha(shadow_alpha.point(lambda a: int(a * .48)))
+    shadow.alpha_composite(shadow_patch, (product_x + max(5, width // 180), product_y + max(8, height // 120)))
+    canvas = Image.alpha_composite(canvas, shadow)
+    canvas.alpha_composite(resized_product, (product_x, product_y))
+
+    spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile or {})
+    palette = _graphic_reference_palette(role_items)
+    accent = tuple(palette.get("accent") or (221, 32, 28))
+    navy = (8, 28, 60, 255)
+    white = (248, 250, 252, 255)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    headline = re.sub(r"\s+", " ", str(spec.get("headline") or "PREMIUM VEHICLE DISPLAY")).strip().upper()
+    compatibility = re.sub(r"\s+", " ", str(spec.get("compatibility") or "VEHICLE-SPECIFIC FITMENT")).strip()
+    tagline = re.sub(r"\s+", " ", str(spec.get("tagline") or "Smarter Drive. More Control. OEM-Style Fit.")).strip()
+    feature_labels = [str(x).strip() for x in (spec.get("feature_labels") or []) if str(x).strip()][:8]
+    bottom_benefits = [str(x).strip() for x in (spec.get("bottom_benefits") or []) if str(x).strip()][:5]
+
+    headline_font = _graphic_font(max(30, int(height * .062)), bold=True)
+    ribbon_font = _graphic_font(max(20, int(height * .030)), bold=True)
+    tagline_font = _graphic_font(max(16, int(height * .024)), bold=False)
+    feature_font = _graphic_font(max(12, int(height * .018)), bold=False)
+    benefit_font = _graphic_font(max(14, int(height * .021)), bold=False)
+
+    copy_left = int(width * .025)
+    copy_top = int(height * .105)
+    max_copy_width = int(width * .51)
+    headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, max_copy_width, max_lines=2)
+    y = copy_top
+    for line in headline_lines:
+        draw.text((copy_left, y), line, font=headline_font, fill=navy)
+        box = draw.textbbox((copy_left, y), line, font=headline_font)
+        y = box[3] + max(3, height // 280)
+
+    ribbon_h = max(38, int(height * .052))
+    ribbon_w = min(max_copy_width, max(int(width * .30), int(draw.textlength(compatibility, font=ribbon_font) + width * .045)))
+    draw.polygon(
+        [(copy_left, y), (copy_left + ribbon_w, y),
+         (copy_left + ribbon_w - int(ribbon_h * .35), y + ribbon_h),
+         (copy_left, y + ribbon_h)],
+        fill=accent + (242,),
+    )
+    draw.text((copy_left + int(width * .015), y + int(ribbon_h * .13)), compatibility, font=ribbon_font, fill=white)
+    y += ribbon_h + max(8, height // 100)
+    draw.text((copy_left, y), tagline, font=tagline_font, fill=navy)
+
+    # Deterministic feature grid. It is intentionally simple and never requires a
+    # model call, so provider or validator outages cannot prevent output creation.
+    grid_left = int(width * .60)
+    grid_top = int(height * .055)
+    grid_right = int(width * .97)
+    cols, rows = 4, 2
+    cell_w = (grid_right - grid_left) // cols
+    cell_h = int(height * .125)
+    for index, label in enumerate(feature_labels[: cols * rows]):
+        col, row = index % cols, index // cols
+        x0 = grid_left + col * cell_w
+        y0 = grid_top + row * cell_h
+        if col:
+            draw.line((x0, y0 + 4, x0, y0 + cell_h - 8), fill=(8, 28, 60, 75), width=max(1, width // 1000))
+        if row:
+            draw.line((x0 + 4, y0, x0 + cell_w - 8, y0), fill=(8, 28, 60, 75), width=max(1, width // 1000))
+        radius = max(13, int(height * .020))
+        cx = x0 + cell_w // 2
+        cy = y0 + int(cell_h * .30)
+        draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius), outline=navy, width=max(2, width // 650))
+        short = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * .88), max_lines=2)
+        ty = y0 + int(cell_h * .56)
+        for line in short:
+            tw = draw.textlength(line, font=feature_font)
+            draw.text((cx - tw/2, ty), line, font=feature_font, fill=navy)
+            ty += max(15, int(height * .020))
+
+    bar_y = int(height * .89)
+    draw.rounded_rectangle(
+        (int(width*.03), bar_y, int(width*.97), int(height*.982)),
+        radius=max(14, int(height*.018)),
+        fill=(5, 10, 17, 236),
+        outline=(255, 255, 255, 82),
+        width=max(1, width // 900),
+    )
+    if not bottom_benefits:
+        bottom_benefits = ["Plug and Play", "OEM Fit & Finish", "Smart Connectivity", "High Brightness"]
+    cell = int(width * .94 / max(1, len(bottom_benefits)))
+    for i, benefit in enumerate(bottom_benefits):
+        x0 = int(width*.03) + i * cell
+        if i:
+            draw.line((x0, bar_y + int(height*.014), x0, int(height*.965)), fill=(255,255,255,110), width=1)
+        wrapped = _graphic_wrap_text_v3200(draw, benefit, benefit_font, int(cell*.78), max_lines=2)
+        ty = bar_y + int(height*.020)
+        for line in wrapped:
+            tw = draw.textlength(line, font=benefit_font)
+            draw.text((x0 + cell/2 - tw/2, ty), line, font=benefit_font, fill=white)
+            ty += max(16, int(height*.021))
+
+    raw_out = io.BytesIO()
+    canvas.convert("RGB").save(raw_out, format="PNG", optimize=True)
+    result = _graphic_build_provider_result_v3000(
+        raw_out.getvalue(),
+        prompt_text,
+        output_size,
+        role_items,
+        "pillow-independent-local-exact-recovery-v20230",
+        reference_blueprint or {},
+        vehicle_profile or {},
+        corrected=True,
+    )
+    result["product_identity_method"] = "engine8_4_independent_protected_product_asset_composite"
+    result["provider_fallback_used"] = True
+    result["generation_route"] = "independent_local_exact_recovery_v20230"
+    result["output_status"] = "completed_independent_exact_recovery_v20230"
+    result["layered_metadata"].update({
+        "independent_local_recovery": True,
+        "shared_hybrid_compositor_used": False,
+        "provider_calls_for_recovery": 0,
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "product_ai_reconstruction_prohibited": True,
+        "complete_unit_asset_protected": True,
+        "product_transparent_source": bool(product_transparent),
+        "product_source_size": [source_w, source_h],
+        "product_rendered_size": list(target_size),
+        "product_rendered_position": [product_x, product_y],
+        "product_uniform_scale": float(scale),
+    })
+    return result
+
+
 def _graphic_exact_product_recovery_v20200(
     prompt_text,
     uploaded_files=None,
@@ -23086,15 +23319,38 @@ def _graphic_exact_product_recovery_v20200(
             compact = _graphic_compact_error_v4000(recovery_error)
             recovery_errors.append(f"{attempt_name}:{type(recovery_error).__name__}:{compact}")
             diagnostic_log(
-                "graphic_v20220_exact_recovery_attempt_failed",
+                "graphic_v20230_shared_exact_recovery_attempt_failed",
                 attempt=attempt_name,
+                error_type=type(recovery_error).__name__,
+                error=compact,
+            )
+
+    # v20230: the final recovery is genuinely independent. It does not call the
+    # shared v3300 hybrid compositor and makes no provider request. Therefore a
+    # deterministic failure inside the shared compositor cannot make both retry
+    # attempts fail in the same way.
+    if not result:
+        try:
+            result = _graphic_independent_local_exact_recovery_v20230(
+                prompt_text,
+                role_items,
+                output_size,
+                reference_blueprint=reference_blueprint,
+                vehicle_profile=vehicle_profile,
+            )
+            result["exact_recovery_attempt"] = "independent-local"
+        except Exception as recovery_error:
+            compact = _graphic_compact_error_v4000(recovery_error)
+            recovery_errors.append(f"independent-local:{type(recovery_error).__name__}:{compact}")
+            diagnostic_log(
+                "graphic_v20230_independent_local_recovery_failed",
                 error_type=type(recovery_error).__name__,
                 error=compact,
             )
     if not result:
         raise RuntimeError(
-            "Exact-product composition failed after bounded guided and minimal attempts. "
-            + " | ".join(recovery_errors[-2:])
+            "Exact-product composition failed after guided, minimal and independent local attempts. "
+            + " | ".join(recovery_errors[-3:])
         )
     metadata = dict(result.get("layered_metadata") or {})
     metadata.update({
@@ -23312,9 +23568,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             state["last_failed_stage"] = "exact_product_composite_recovery"
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             raise RuntimeError(
-                "The protected exact-product compositor could not complete after two bounded attempts. "
+                "The protected exact-product pipeline could not complete after guided, minimal and independent local recovery attempts. "
                 "The app stopped instead of redesigning the uploaded unit. "
-                "Please retry once; if it repeats, check the Streamlit log entry graphic_v20220_exact_recovery_attempt_failed."
+                "Check Streamlit logs for graphic_v20230_independent_local_recovery_failed."
             ) from error
 
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
