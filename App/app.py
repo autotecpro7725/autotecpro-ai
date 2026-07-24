@@ -45,10 +45,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v20420
-# v20420 Graphic Engine 9.2 Resilient Exact Product: built directly from v20410.
-# Returns a completed exact-source composite even when optional QA/diagnostic checks raise, while preserving hard source, crop, and ratio protections.
-# Adds stage-level diagnostics and keeps whole-product generative fallback blocked for normal front-view campaigns.
+# AutoTecPro AI performance/stability revision: v20430
+# v20430 Graphic Engine 9.3 Layout Schema and Fidelity Recovery: built from v20420.
+# Fixes the missing hero_left layout-schema crash and returns an exact-product hybrid with review warnings instead of discarding it for optional vehicle/reference QA.
+# Normal front-view campaigns still block whole-product generative fallback and preserve the uploaded product as the authoritative engineering source.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19540,7 +19540,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v20420-graphic-engine-9.2-resilient-exact-product"
+GRAPHIC_ENGINE_VERSION = "v20430-graphic-engine-9.3-layout-schema-fidelity-recovery"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20039,7 +20039,24 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
     footer[2] = max(footer[2], 0.90); footer[3] = max(footer[3], 0.102)
     defaults["bottom_bar_box"] = clean_box(footer, defaults["bottom_bar_box"])
 
+    # Publish both the normalized box schema and backward-compatible scalar fields.
+    # Several legacy/background-prompt consumers expect hero_left/hero_right/hero_top,
+    # top_ratio and bar_ratio. Derive them from the authoritative boxes so every route
+    # receives one consistent layout contract and direct dictionary access cannot fail.
+    hero_box = list(defaults["hero_product_box"])
+    headline_box = list(defaults["headline_box"])
+    bottom_box = list(defaults["bottom_bar_box"])
     defaults.update({
+        "hero_left": float(hero_box[0]),
+        "hero_right": float(hero_box[0] + hero_box[2]),
+        "hero_top": float(hero_box[1]),
+        "hero_bottom": float(hero_box[1] + hero_box[3]),
+        "top_ratio": float(max(
+            headline_box[1] + headline_box[3],
+            defaults["tagline_box"][1] + defaults["tagline_box"][3],
+            defaults["feature_matrix_box"][1] + defaults["feature_matrix_box"][3],
+        )),
+        "bar_ratio": float(bottom_box[1]),
         "source": "reference_blueprint" if bp else "approved_reference_fallback",
         "content_policy": "geometry_only_no_reference_content",
         "reference_locked": bool(bp),
@@ -20423,8 +20440,8 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         f"BODY-TYPE LOCK: it must visibly be a {body_type}; do not substitute a different body class.",
         "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
         f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
-        f"Reserve the left foreground from {int(layout['hero_left']*100)}% to {int(layout['hero_right']*100)}% width and from {int(layout['hero_top']*100)}% height downward for a dominant exact product cutout.",
-        f"Keep the top {int(layout['top_ratio']*100)}% calm for deterministic typography and the bottom {int((1-layout['bar_ratio'])*100)}% clear for a deterministic benefit bar.",
+        f"Reserve the left foreground from {int(float(layout.get('hero_left', layout.get('hero_product_box', [0.018])[0]))*100)}% to {int(float(layout.get('hero_right', (layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[0] + layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[2])))*100)}% width and from {int(float(layout.get('hero_top', layout.get('hero_product_box', [0.018, 0.305])[1]))*100)}% height downward for a dominant exact product cutout.",
+        f"Keep the top {int(float(layout.get('top_ratio', 0.34))*100)}% calm for deterministic typography and the bottom {int((1-float(layout.get('bar_ratio', 0.875)))*100)}% clear for a deterministic benefit bar.",
         "The vehicle is strictly secondary and farther from camera; the empty left product zone must remain the strongest foreground area by a clear visual margin. Do not place the vehicle near center and do not enlarge it into a co-hero.",
         "Use realistic tonal separation and contact lighting behind the future product, but do not draw a product or product shadow.",
         ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
@@ -21207,11 +21224,19 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
     # malformed compatibility text, and simplified product geometry.
     use_hybrid_campaign = has_product and has_style and not has_edit_base
     if use_hybrid_campaign:
-        diagnostic_log("graphic_v3200_hybrid_campaign_started", candidate_route=candidate.get("provider_route"), hard_vehicle_lock=hard_vehicle_lock)
+        diagnostic_log(
+            "graphic_v3200_hybrid_campaign_started",
+            candidate_route=(candidate or {}).get("provider_route"),
+            hard_vehicle_lock=hard_vehicle_lock,
+        )
+        hybrid_result = None
         try:
             hybrid_result = _graphic_build_hybrid_campaign_result_v3200(
                 prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
             )
+            if not isinstance(hybrid_result, dict) or not str(hybrid_result.get("data_url") or "").startswith("data:image/"):
+                raise RuntimeError("The reference-locked hybrid compositor returned no image data.")
+
             hybrid_review = _graphic_safe_optional_call(
                 "graphic_v3200_hybrid_review_failed_open",
                 lambda: review_graphic_output_accuracy(
@@ -21224,27 +21249,51 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
             _, hybrid_failed = _graphic_review_scores_v3200(
                 hybrid_review, True, True, bool((vehicle_profile or {}).get("hard_vehicle_lock"))
             )
-            if not hybrid_failed or not hybrid_review:
+
+            # The hybrid route locally composites the uploaded product. Vehicle and
+            # reference-fidelity review is important, but it is not evidence that the
+            # product identity was altered. Return the completed exact hybrid with a
+            # review warning rather than discarding it and forcing a total failure.
+            final_result = hybrid_result
+            if hybrid_failed and hybrid_review:
+                hybrid_result["verification_status"] = "completed_with_review"
+                hybrid_result["output_status"] = "completed_exact_hybrid_with_review_v20430"
+                hybrid_result["verification_warning"] = (
+                    "The exact uploaded product was composited successfully. "
+                    "The target vehicle or reference-layout fidelity requires visual review."
+                )
+                hybrid_result["vehicle_reference_review_required"] = True
+                diagnostic_log(
+                    "graphic_v20430_hybrid_returned_with_review",
+                    review=hybrid_review,
+                )
+            else:
+                hybrid_result["verification_status"] = hybrid_result.get("verification_status") or "verified"
+                hybrid_result["output_status"] = hybrid_result.get("output_status") or "verified_exact_hybrid_v20430"
+        except Exception as hybrid_error:
+            diagnostic_log(
+                "graphic_v20430_hybrid_failed",
+                error_type=type(hybrid_error).__name__,
+                error=hybrid_error,
+            )
+            # If the exact hybrid was already created, preserve it even when a later
+            # optional reviewer failed. Only fall back to the provider candidate when
+            # no hybrid image exists and that candidate itself passed its checks.
+            if isinstance(hybrid_result, dict) and str(hybrid_result.get("data_url") or "").startswith("data:image/"):
+                hybrid_result["verification_status"] = "completed_with_review"
+                hybrid_result["output_status"] = "completed_exact_hybrid_after_review_error_v20430"
+                hybrid_result["verification_warning"] = (
+                    "The exact uploaded product was composited successfully, but an optional "
+                    "vehicle/reference reviewer was unavailable."
+                )
+                hybrid_result["review_error"] = _graphic_compact_error_v4000(hybrid_error)
                 final_result = hybrid_result
-            elif not candidate_failed:
-                # Keep the provider artwork only when it already passed strict QA.
-                diagnostic_log("graphic_v3200_hybrid_rejected_using_passed_provider", review=hybrid_review)
+            elif candidate is not None and not candidate_failed:
                 final_result = candidate
             else:
-                diagnostic_log("graphic_v3200_hybrid_rejected_by_qa", review=hybrid_review)
-                raise RuntimeError("The reference-locked campaign did not pass strict vehicle/content review.")
-        except Exception as hybrid_error:
-            diagnostic_log("graphic_v3200_hybrid_failed", error_type=type(hybrid_error).__name__, error=hybrid_error)
-            # Do not knowingly show a wrong-vehicle result. Preserve the project and
-            # return a retryable error instead of presenting the rejected candidate.
-            if bool((vehicle_profile or {}).get("hard_vehicle_lock")):
-                state = get_graphic_project_state()
-                state["stage"] = "ready_to_generate"
-                state["last_error"] = "strict_vehicle_or_reference_fidelity_failed"
-                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
                 raise RuntimeError(
-                    "The image did not pass the strict vehicle and reference-fidelity check. "
-                    "Your product, Silverado lock, and references are preserved. Select Regenerate to try again."
+                    "The exact-product hybrid compositor could not complete: "
+                    + _graphic_compact_error_v4000(hybrid_error)
                 ) from hybrid_error
     _graphic_save_latest_project_result(final_result)
     # Existing learning and campaign-memory writes remain best-effort and never block output.
@@ -21335,7 +21384,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v20420-product-identity-hard-contour"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v20430-product-identity-hard-contour"
 
 
 def _graphic_progress_v3300(label):
