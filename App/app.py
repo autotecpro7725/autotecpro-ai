@@ -46,9 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v44000
+# AutoTecPro AI performance/stability revision: v45000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v44000 Adaptive Automotive Graphic Engine built directly from the working v43000 five-stage baseline.
+# v45000 Vehicle Installation Engine built directly from the working v44000 adaptive baseline.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
@@ -24847,7 +24847,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v44000-adaptive-automotive-studio"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v45000-adaptive-automotive-studio"
 
 
 def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=False):
@@ -24923,48 +24923,164 @@ def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=
 
 
 def _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile=None):
-    """Use live web search to research the correct OEM interior/dashboard.
+    """Research and compile an OEM interior contract for Installed View Mode.
 
-    The result is a text/JSON research contract only. Web images are never copied
-    directly into the output; they provide factual dashboard geometry guidance.
+    v45000 strengthens the earlier one-shot lookup by requiring generation/trim,
+    center-stack geometry, camera evidence, fitment constraints, and source records.
+    The cache is keyed by the normalized requested vehicle and research schema.
     """
     explicit = _graphic_extract_explicit_vehicle(prompt_text) or {}
-    identity = str(explicit.get("display_name") or (vehicle_profile or {}).get("explicit_display_name") or (vehicle_profile or {}).get("model") or "").strip()
+    identity = str(
+        explicit.get("display_name")
+        or (vehicle_profile or {}).get("explicit_display_name")
+        or (vehicle_profile or {}).get("model")
+        or ""
+    ).strip()
     if not identity:
-        return {"available": False, "reason": "No explicit vehicle identity was available."}
-    cache = st.session_state.setdefault("graphic_installed_interior_research_v44000", {})
-    key = hashlib.sha256((GRAPHIC_ADAPTIVE_ENGINE_VERSION + "|" + identity.casefold()).encode("utf-8")).hexdigest()
-    if isinstance(cache.get(key), dict):
-        return dict(cache[key])
+        return {"available": False, "reason": "No explicit vehicle identity was available.", "research_version": GRAPHIC_ADAPTIVE_ENGINE_VERSION}
+
+    prompt_clean = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    trim_match = re.search(r"\b(XL|XLT|Lariat|King Ranch|Platinum|Limited|Raptor|Tremor|WT|LT|RST|LTZ|High Country|SLE|SLT|AT4|Denali|Tradesman|Big Horn|Laramie|Rebel|Longhorn)\b", prompt_clean, flags=re.I)
+    requested_trim = trim_match.group(1) if trim_match else ""
+    schema = "v45000-oem-installed-interior-contract-1"
+    cache = st.session_state.setdefault("graphic_installed_interior_research_v45000", {})
+    cache_key_text = "|".join((schema, identity.casefold(), requested_trim.casefold()))
+    key = hashlib.sha256(cache_key_text.encode("utf-8")).hexdigest()
+    cached = cache.get(key)
+    if isinstance(cached, dict) and cached.get("available"):
+        return dict(cached)
+
+    queries = [
+        f"{identity} OEM interior dashboard center stack factory screen vents climate controls",
+        f"{identity} interior dashboard official media gallery center display",
+        f"{identity} radio removal dash kit center stack trim factory screen",
+    ]
+    if requested_trim:
+        queries.append(f"{identity} {requested_trim} interior dashboard center stack")
+
     request = (
-        "Research the factory/OEM interior dashboard for this exact vehicle and generation: " + identity + ". "
-        "Use live web search and reputable OEM, manufacturer, established automotive, and parts-catalog sources. "
-        "Return JSON only with: vehicle_identity, model_year_range, generation, dashboard_center_stack_description, "
-        "factory_screen_location, vents, climate_controls, physical_buttons, trim_shape, installation_opening, "
-        "camera_view_recommendation, prohibited_mismatches, source_summary, confidence_score. "
-        "The goal is a photorealistic after-installation visualization of an AutoTecPro screen while preserving the supplied unit identity."
+        "Build a generation-specific OEM dashboard installation contract for a photorealistic aftermarket screen visualization. "
+        f"Requested vehicle: {identity}. Requested trim if stated: {requested_trim or 'not specified'}. "
+        "Run multiple live web searches using the supplied search intents. Prefer manufacturer/OEM media, owner manuals, reputable automotive reviews with clear cabin photos, "
+        "and established dash-kit or parts-catalog references. Cross-check at least two independent sources whenever possible. "
+        "Return JSON only with keys: available, vehicle_identity, make, model, requested_model_year, model_year_range, generation, trim_or_dashboard_family, "
+        "dashboard_center_stack_description, factory_screen_size_and_orientation, factory_screen_location, installation_target_region, installation_opening_shape, "
+        "left_vent, right_vent, vent_relationship_to_screen, climate_controls, physical_buttons, hazard_button_location, surrounding_trim_shape, dashboard_materials, "
+        "steering_wheel_and_cluster_cues, center_console_cues, cabin_color_guidance, camera_view_primary, camera_view_alternatives, perspective_and_scale_rules, "
+        "occlusion_rules, lighting_rules, product_integration_rules, ui_visibility_rules, prohibited_mismatches, source_records, confidence_score, conflict_notes. "
+        "source_records must be an array of objects containing title, domain, url when available, source_type, and supported_facts. "
+        "Do not invent trim-specific details when the trim is unknown; describe common dashboard families and explicitly identify uncertainty. "
+        "The installation_target_region must explain exactly what factory components are replaced, retained, or surrounded by the AutoTecPro unit. "
+        "Search intents: " + json.dumps(queries, ensure_ascii=False)
     )
     try:
         response = client.responses.create(
             model="gpt-5.5",
             tools=[{"type": "web_search"}],
-            instructions="Act as a cautious OEM automotive interior researcher. Verify generation-specific dashboard facts. Return JSON only.",
+            instructions=(
+                "Act as a cautious OEM automotive interior researcher and installation-visualization engineer. "
+                "Verify generation-specific facts, distinguish trim differences, cite source records in JSON, and never guess silently. Return JSON only."
+            ),
             input=request,
-            max_output_tokens=2200,
+            max_output_tokens=4200,
         )
         result = extract_json_object(str(getattr(response, "output_text", "") or ""))
         if not isinstance(result, dict):
             result = {}
     except Exception as error:
-        diagnostic_log("graphic_v44000_interior_research_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log("graphic_v45000_interior_research_failed", error_type=type(error).__name__, error=str(error))
         result = {}
+
     result = dict(result or {})
-    result["available"] = bool(result)
+    try:
+        confidence = int(float(result.get("confidence_score") or 0))
+    except Exception:
+        confidence = 0
+    source_records = result.get("source_records") if isinstance(result.get("source_records"), list) else []
+    result["confidence_score"] = max(0, min(100, confidence))
+    result["source_records"] = source_records[:12]
+    result["available"] = bool(result.get("vehicle_identity") and result.get("dashboard_center_stack_description"))
     result["research_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
+    result["research_schema"] = schema
     result["requested_vehicle"] = identity
+    result["requested_trim"] = requested_trim
+    result["search_intents"] = queries
+    result["research_verified_enough_for_generation"] = bool(result["available"] and result["confidence_score"] >= 70 and len(source_records) >= 1)
+    if not result["research_verified_enough_for_generation"]:
+        result["research_warning"] = "OEM interior research is incomplete or low-confidence; Installed View output requires review."
     cache[key] = result
     return result
 
+
+def _graphic_installed_view_validation_v45000(data_url, role_items, prompt_text, vehicle_profile, interior_profile):
+    """Validate OEM cabin identity and installation realism independently."""
+    if not data_url:
+        return {"available": False, "passed": None, "score": None, "reason": "generated image unavailable", "provider_calls": 0}
+    required_vehicle = str((interior_profile or {}).get("vehicle_identity") or (vehicle_profile or {}).get("explicit_display_name") or "").strip()
+    if not required_vehicle:
+        return {"available": False, "passed": None, "score": None, "reason": "vehicle identity unavailable", "provider_calls": 0}
+    product_sources = [x for x in (role_items or []) if x.get("role") == "product_photo"][:3]
+    contract = {
+        k: (interior_profile or {}).get(k)
+        for k in (
+            "vehicle_identity", "model_year_range", "generation", "trim_or_dashboard_family",
+            "dashboard_center_stack_description", "factory_screen_location", "installation_target_region",
+            "installation_opening_shape", "vent_relationship_to_screen", "climate_controls", "physical_buttons",
+            "hazard_button_location", "surrounding_trim_shape", "steering_wheel_and_cluster_cues",
+            "camera_view_primary", "perspective_and_scale_rules", "occlusion_rules", "lighting_rules",
+            "product_integration_rules", "ui_visibility_rules", "prohibited_mismatches"
+        )
+    }
+    content = [{"type": "input_text", "text": (
+        "Act as a strict automotive OEM interior and aftermarket-installation visualization inspector. "
+        "The first image is the generated after-installation result; later images are authoritative product sources. "
+        "Return JSON only with keys: passed, score, vehicle_interior_identity_score, dashboard_generation_score, center_stack_geometry_score, "
+        "vent_and_control_layout_score, installation_fit_score, product_identity_score, product_scale_perspective_score, lighting_integration_score, "
+        "ui_visibility_score, photorealism_score, wrong_or_invented_details, confirmed_details, correction_prompt, reason. "
+        "Fail the result if it uses an exterior vehicle scene, generic dashboard, wrong generation, wrong vent arrangement, impossible installation opening, floating screen, "
+        "incorrect product proportions, visibly generic substitute product, mismatched perspective, implausible trim seams, or inconsistent cabin lighting. "
+        "Allow bounded product perspective reconstruction needed for installation, but preserve recognizable screen ratio, housing identity, controls, bezel relationship, and supplied UI. "
+        "Required minimums: overall 92; vehicle interior identity 95; dashboard generation 95; center stack 94; vents/controls 93; installation fit 94; product identity 92; perspective 92; lighting 88; UI 90; photorealism 90.\n"
+        f"Requested vehicle: {required_vehicle}\nOEM interior contract: {json.dumps(contract, ensure_ascii=False, default=str)[:14000]}\nUser request: {str(prompt_text or '')[:1400]}"
+    )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
+    for item in product_sources:
+        source = _graphic_role_data_url(item)
+        if source:
+            content.append({"type": "input_image", "image_url": source, "detail": "high"})
+    try:
+        response = client.responses.create(model=_graphic_responses_model_v4000(), input=[{"role": "user", "content": content}], max_output_tokens=1800)
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        payload = payload if isinstance(payload, dict) else {}
+        keys = [
+            "score", "vehicle_interior_identity_score", "dashboard_generation_score", "center_stack_geometry_score",
+            "vent_and_control_layout_score", "installation_fit_score", "product_identity_score",
+            "product_scale_perspective_score", "lighting_integration_score", "ui_visibility_score", "photorealism_score"
+        ]
+        scores = {}
+        for key_name in keys:
+            try:
+                scores[key_name] = max(0, min(100, int(float(payload.get(key_name) or 0))))
+            except Exception:
+                scores[key_name] = 0
+        thresholds = {
+            "score": 92, "vehicle_interior_identity_score": 95, "dashboard_generation_score": 95,
+            "center_stack_geometry_score": 94, "vent_and_control_layout_score": 93, "installation_fit_score": 94,
+            "product_identity_score": 92, "product_scale_perspective_score": 92, "lighting_integration_score": 88,
+            "ui_visibility_score": 90, "photorealism_score": 90,
+        }
+        failed = [k for k, minimum in thresholds.items() if scores.get(k, 0) < minimum]
+        passed = bool(payload.get("passed")) and not failed
+        return {
+            "available": True, "passed": passed, "score": scores["score"], "scores": scores, "thresholds": thresholds,
+            "failed_categories": failed, "wrong_or_invented_details": (payload.get("wrong_or_invented_details") or [])[:30],
+            "confirmed_details": (payload.get("confirmed_details") or [])[:30],
+            "correction_prompt": str(payload.get("correction_prompt") or "")[:2500],
+            "reason": str(payload.get("reason") or "")[:1800], "provider_calls": 1,
+            "required_vehicle": required_vehicle, "policy": "v45000_oem_installed_view_validation"
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v45000_installed_validation_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        return {"available": False, "passed": None, "score": None, "reason": "Installed View validation unavailable", "provider_calls": 1}
 
 def _graphic_ui_source_item_v44000(role_items):
     """Choose the most likely uploaded UI screenshot without confusing the product."""
@@ -25044,10 +25160,10 @@ def _graphic_ui_replacement_local_v44000(prompt_text, role_items, output_size, v
         "resolution": f"{product.width}x{product.height}",
         "output_size": f"{product.width}x{product.height}",
         "prompt": prompt_text,
-        "graphic_engine_version": "v44000",
+        "graphic_engine_version": "v45000",
         "adaptive_mode": "ui_replacement",
-        "provider_route": "local-ui-replacement-v44000",
-        "output_status": "verified_local_ui_replacement_v44000",
+        "provider_route": "local-ui-replacement-v45000",
+        "output_status": "verified_local_ui_replacement_v45000",
         "verification_status": "verified",
         "exact_product_pixels": True,
         "housing_pixels_immutable": True,
@@ -25061,9 +25177,11 @@ def _graphic_ui_replacement_local_v44000(prompt_text, role_items, output_size, v
 
 def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_profile=None, interior_profile=None):
     """Build a strict provider directive for modes that intentionally recreate pixels."""
-    mode = str((mode_info or {}).get("mode") or "commercial_lock")
+    internal_mode = str((mode_info or {}).get("mode") or "commercial_lock")
+    adaptive_mode = str((mode_info or {}).get("adaptive_mode") or ((mode_info or {}).get("adaptive_intent") or {}).get("mode") or internal_mode)
+    mode = adaptive_mode
     product_dna = _graphic_build_product_dna_v8000(role_items, _graphic_product_structure_profile_v4300(role_items)) if any(i.get("role") == "product_photo" for i in (role_items or [])) else {}
-    base = "\n\nADAPTIVE GRAPHIC ENGINE MODE: " + mode.upper() + "\n"
+    base = "\n\nADAPTIVE GRAPHIC ENGINE MODE: " + mode.upper() + "\nINTERNAL ROUTE: " + internal_mode + "\n"
     if mode == "product_recreation":
         return base + (
             "Recreate the supplied physical product from the explicitly requested new viewpoint. Camera angle, perspective, shadows and scene lighting may change. "
@@ -25075,31 +25193,37 @@ def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_p
             "Create only the requested color/material/trim variant. Preserve all geometry, dimensions, screen aperture, controls, openings, mounting tabs and product identity. "
             "Do not change camera angle unless explicitly requested.\nPRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:12000]
         )
-    if mode == "installed_view":
+    if mode == "installed_view" or internal_mode == "installed_product_view":
+        research = dict(interior_profile or {})
         return base + (
-            "Create a photorealistic AFTER-INSTALLATION view inside the correct OEM vehicle interior. The researched dashboard generation is authoritative. "
-            "Integrate the supplied AutoTecPro unit into the real factory center-stack location with correct vents, climate controls, trim, perspective, reflections and cabin lighting. "
-            "The product may be perspective-transformed/recreated only as required for installation, but its Product DNA and visible UI identity must remain recognizable and mechanically plausible. "
-            "Never use an exterior truck-only scene for this mode.\n"
-            "LIVE OEM INTERIOR RESEARCH: " + json.dumps(interior_profile or {}, ensure_ascii=False, default=str)[:12000] + "\n"
-            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:12000]
+            "VEHICLE INSTALLATION ENGINE v45000 — AFTER-INSTALLATION MODE.\n"
+            "Create a photorealistic interior photograph from inside the exact requested vehicle generation. The OEM cabin and dashboard—not an exterior vehicle scene—must fill the image. "
+            "Use the researched center-stack geometry as an authoritative installation blueprint. Reconstruct the supplied AutoTecPro unit only as much as required by the installed perspective. "
+            "Preserve recognizable Product DNA: visible screen aspect ratio, housing/bezel relationship, control layout, trim architecture, supplied UI identity, and major structural landmarks. "
+            "Place the unit into the real factory replacement region; it must share the dashboard plane, depth, perspective, occlusion, trim seams, reflections, exposure, color temperature, and contact shadows. "
+            "Retain all factory components identified as retained in the research contract. Do not invent vents, climate controls, buttons, trim seams, steering wheels, clusters, or center consoles from another generation. "
+            "Do not show a floating tablet, generic double-DIN radio, exterior vehicle, concept cabin, mirrored dashboard, impossible screen opening, or oversized/undersized unit. "
+            "Use a natural driver-seat or front-passenger three-quarter camera view unless the user explicitly requests another interior angle. Keep the installed screen clearly visible and commercially attractive. "
+            "Any uncertainty in trim-specific details must default to the most widely documented dashboard family for the requested generation and must not contradict the contract.\n"
+            "LIVE OEM INTERIOR RESEARCH CONTRACT: " + json.dumps(research, ensure_ascii=False, default=str)[:18000] + "\n"
+            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:14000]
         )
     return base
-
 
 def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_blueprint=None, product_dna=None, interior_profile=None):
     """Expose the fourteen connected subsystems for diagnostics and learning."""
     return {
         "version": GRAPHIC_ADAPTIVE_ENGINE_VERSION,
-        "active_mode": str((mode_info or {}).get("mode") or "commercial_lock"),
+        "active_mode": str((mode_info or {}).get("adaptive_mode") or ((mode_info or {}).get("adaptive_intent") or {}).get("mode") or (mode_info or {}).get("mode") or "commercial_lock"),
+        "internal_route": str((mode_info or {}).get("mode") or ""),
         "subsystems": {
             "1_intent_intelligence": True,
             "2_product_dna": bool(product_dna),
             "3_product_fingerprint": bool(any(i.get("role") == "product_photo" for i in (role_items or []))),
             "4_reference_intelligence": bool(reference_blueprint),
-            "5_product_lock": str((mode_info or {}).get("mode")) in {"commercial_lock", "ui_replacement"},
-            "6_product_recreation": str((mode_info or {}).get("mode")) == "product_recreation",
-            "7_ui_replacement": str((mode_info or {}).get("mode")) == "ui_replacement",
+            "5_product_lock": str((mode_info or {}).get("adaptive_mode") or ((mode_info or {}).get("adaptive_intent") or {}).get("mode")) in {"commercial_lock", "ui_replacement"},
+            "6_product_recreation": str((mode_info or {}).get("adaptive_mode") or ((mode_info or {}).get("adaptive_intent") or {}).get("mode")) == "product_recreation",
+            "7_ui_replacement": str((mode_info or {}).get("adaptive_mode") or ((mode_info or {}).get("adaptive_intent") or {}).get("mode")) == "ui_replacement",
             "8_scene_generation": True,
             "9_typography": True,
             "10_commercial_layout": True,
@@ -25109,6 +25233,8 @@ def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_bl
             "14_learning_engine": True,
         },
         "interior_research_available": bool((interior_profile or {}).get("available")),
+        "interior_research_verified": bool((interior_profile or {}).get("research_verified_enough_for_generation")),
+        "vehicle_installation_engine": "v45000",
     }
 
 
@@ -26115,6 +26241,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         focused_vehicle = {"verified": True, "available": True, "score": 100, "reason": "not required"} if not hard_vehicle else _graphic_validation_unavailable_v4100()
         candidate_review, scores, missing_scores = {}, {}, []
         zone_check = {"passed": not has_style, "missing": []}
+        installed_validation = {"available": False, "passed": None, "score": None, "reason": "not required", "provider_calls": 0}
         candidate_failed = True
 
         if candidate:
@@ -26145,11 +26272,23 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 candidate_failed = candidate_failed or not zone_check.get("passed")
             elif has_style:
                 zone_check = {"passed": False, "missing": ["qa_unavailable"]}
+            if product_mode.get("installed_view"):
+                installed_validation = _graphic_safe_optional_call(
+                    "graphic_v45000_installed_validation_unavailable",
+                    lambda: _graphic_installed_view_validation_v45000(
+                        candidate.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile
+                    ),
+                    {"available": False, "passed": None, "score": None, "reason": "Installed View validation unavailable", "provider_calls": 0},
+                )
+                engineering_qa_call_count += int(installed_validation.get("provider_calls") or 0)
+                if installed_validation.get("available"):
+                    candidate_failed = candidate_failed or installed_validation.get("passed") is not True
             candidate.update({
                 "quality_review": candidate_review,
                 "vehicle_validation": focused_vehicle,
                 "zone_completeness": zone_check,
                 "qa_missing_scores": missing_scores,
+                "installed_view_validation": installed_validation,
             })
             if candidate_failed:
                 reason = "The image was created, but one or more optional quality checks did not pass or were unavailable."
@@ -26178,6 +26317,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 correction_parts.append("Replace the vehicle with the exact locked target and remove every conflicting make/model cue. " + str(focused_vehicle.get("reason") or ""))
             if zone_check.get("missing") and zone_check.get("missing") != ["qa_unavailable"]:
                 correction_parts.append("Restore these missing reference zones: " + ", ".join(zone_check["missing"]))
+            if product_mode.get("installed_view") and installed_validation.get("available") and installed_validation.get("passed") is not True:
+                correction_parts.append(
+                    "VEHICLE INSTALLATION CORRECTION. Preserve strong parts of the current cabin image, but repair the OEM dashboard generation and installation integration. "
+                    + str(installed_validation.get("correction_prompt") or installed_validation.get("reason") or "")
+                    + " Failed categories: " + ", ".join(map(str, installed_validation.get("failed_categories") or []))
+                )
             correction = "\n".join(part for part in correction_parts if part).strip()
             if correction:
                 _graphic_progress_update_v3300(status, "Applying one targeted correction pass…")
@@ -26204,7 +26349,19 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                         failed2 = failed2 or not vehicle2.get("verified", True)
                     if has_style and review2:
                         failed2 = failed2 or not zones2.get("passed", True)
-                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2})
+                    installed2 = installed_validation
+                    if product_mode.get("installed_view"):
+                        installed2 = _graphic_safe_optional_call(
+                            "graphic_v45000_corrected_installed_validation_unavailable",
+                            lambda: _graphic_installed_view_validation_v45000(
+                                corrected.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile
+                            ),
+                            {"available": False, "passed": None, "score": None, "reason": "Installed View validation unavailable", "provider_calls": 0},
+                        )
+                        engineering_qa_call_count += int(installed2.get("provider_calls") or 0)
+                        if installed2.get("available"):
+                            failed2 = failed2 or installed2.get("passed") is not True
+                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2, "installed_view_validation": installed2})
                     diagnostic_log("graphic_v4100_corrected_review", scores=scores2, missing=missing2, vehicle_available=not _graphic_validation_is_unavailable_v4100(vehicle2), failed=failed2)
                     if not failed2:
                         corrected["output_status"] = "verified_after_correction"
@@ -26315,6 +26472,26 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                         "The reconstructed product did not pass Engine 6.1 engineering fidelity thresholds after the bounded correction pass. Review before publishing.",
                         status="completed_recreated_product_needs_review_v20010",
                     )
+
+        if product_mode.get("installed_view"):
+            final_installed = final_result.get("installed_view_validation") or _graphic_safe_optional_call(
+                "graphic_v45000_final_installed_validation_unavailable",
+                lambda: _graphic_installed_view_validation_v45000(
+                    final_result.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile
+                ),
+                {"available": False, "passed": None, "score": None, "reason": "Installed View validation unavailable", "provider_calls": 0},
+            )
+            if not final_result.get("installed_view_validation"):
+                engineering_qa_call_count += int(final_installed.get("provider_calls") or 0)
+            final_result["installed_view_validation"] = final_installed
+            final_result["installed_interior_profile"] = interior_profile
+            final_result["vehicle_installation_engine_version"] = "v45000"
+            if final_installed.get("available") and final_installed.get("passed") is not True:
+                final_result = _graphic_mark_unverified_v4100(
+                    final_result,
+                    "The Installed View image was created, but OEM interior or installation-integration verification did not fully pass. Review before publishing.",
+                    status="completed_installed_view_needs_review_v45000",
+                )
 
         final_result = _graphic_finalize_result_v7100(
             final_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
