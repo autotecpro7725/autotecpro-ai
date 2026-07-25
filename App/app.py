@@ -21690,19 +21690,56 @@ def _graphic_wrap_text_v3200(draw, text, font, max_width, max_lines=3):
 
 
 def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
-    """Crop only empty outer canvas so scale is based on the visible product."""
+    """Trim empty exterior canvas without letting isolated matte specks control scale.
+
+    v32000 measures sustained foreground occupancy instead of a raw alpha getbbox().
+    This prevents one low-alpha pixel at a source edge from retaining the entire studio
+    canvas and shrinking the visible product. The crop never cuts product RGB; it only
+    removes rows/columns that contain no meaningful foreground structure.
+    """
     if Image is None or product is None:
         return product, {"trimmed": False, "reason": "image unavailable"}
     try:
+        import numpy as np
         from PIL import ImageChops, ImageFilter
         image = ImageOps.exif_transpose(product).convert("RGBA")
         original_size = image.size
         bbox = None
         method = "none"
         if transparent:
-            alpha = image.getchannel("A")
-            bbox = alpha.point(lambda value: 255 if value >= 10 else 0).getbbox()
-            method = "alpha"
+            alpha = np.asarray(image.getchannel("A"), dtype=np.uint8)
+            foreground = alpha >= 24
+            h, w = foreground.shape
+            # Require sustained occupancy so isolated halo/speck pixels cannot keep
+            # an otherwise empty row or column. Thresholds stay low enough to retain
+            # thin mounting tabs and narrow bezel protrusions.
+            min_col_pixels = max(4, int(round(h * 0.0080)))
+            min_row_pixels = max(4, int(round(w * 0.0080)))
+
+            def largest_run(indices):
+                if indices.size == 0:
+                    return None
+                best = (int(indices[0]), int(indices[0]))
+                start = previous = int(indices[0])
+                for value in indices[1:]:
+                    value = int(value)
+                    if value > previous + 1:
+                        if previous - start > best[1] - best[0]:
+                            best = (start, previous)
+                        start = value
+                    previous = value
+                if previous - start > best[1] - best[0]:
+                    best = (start, previous)
+                return best
+
+            col_run = largest_run(np.flatnonzero(foreground.sum(axis=0) >= min_col_pixels))
+            row_run = largest_run(np.flatnonzero(foreground.sum(axis=1) >= min_row_pixels))
+            if col_run and row_run:
+                bbox = (
+                    int(col_run[0]), int(row_run[0]),
+                    int(col_run[1]) + 1, int(row_run[1]) + 1,
+                )
+                method = "alpha_sustained_largest_run"
         else:
             rgb = image.convert("RGB")
             w, h = rgb.size
@@ -21720,15 +21757,17 @@ def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
         if not bbox:
             return image, {"trimmed": False, "reason": "no visible-object bbox", "original_size": list(original_size)}
         left, top, right, bottom = bbox
-        pad = max(2, int(min(original_size) * 0.012))
+        # Small transparent safety pad retains antialiasing and the complete lower
+        # silhouette without restoring the large studio canvas.
+        pad = max(2, int(min(original_size) * 0.006))
         left=max(0,left-pad); top=max(0,top-pad); right=min(original_size[0],right+pad); bottom=min(original_size[1],bottom+pad)
         retained=((right-left)*(bottom-top))/max(1,original_size[0]*original_size[1])
-        if retained < 0.08 or retained > 0.94:
+        if retained < 0.06 or retained > 0.96:
             return image, {"trimmed": False, "reason": "unsafe or insignificant bbox", "retained_ratio": round(retained,4), "original_size": list(original_size)}
         cropped=image.crop((left,top,right,bottom))
         return cropped, {"trimmed": True, "method": method, "original_size": list(original_size), "cropped_size": list(cropped.size), "crop_box": [left,top,right,bottom], "retained_ratio": round(retained,4)}
     except Exception as error:
-        diagnostic_log("graphic_v14000_product_trim_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log("graphic_v32000_product_trim_failed", error_type=type(error).__name__, error=str(error))
         return product, {"trimmed": False, "reason": type(error).__name__}
 
 
@@ -21801,13 +21840,10 @@ def _graphic_compose_reference_campaign_v3200(
         card.alpha_composite(product, (pad, pad))
         product = card
     else:
-        # v19400 preserves the exact alpha contour produced by the source cutout.
-        # Do not erode or dilate it: those operations alter bezel thickness, side
-        # rails, mounting tabs, button edges and opening geometry.
-        alpha = product.getchannel("A")
-        bbox = alpha.getbbox()
-        if bbox:
-            product = product.crop(bbox)
+        # v32000 already performed one robust, speck-resistant exterior-canvas trim.
+        # Do not run a second raw alpha getbbox(), which can either retain stray edge
+        # pixels or re-crop delicate mounting details. Product geometry is now locked.
+        pass
 
     # Reference-locked hero geometry. The analyzed product zone is authoritative;
     # aspect ratio is preserved and the exact product is never cropped or distorted.
@@ -22419,7 +22455,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v29000-v20100-bottom-bezel-preservation"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v32000-contour-safe-border-connected-rgb-lock"
 
 
 def _graphic_progress_v3300(label):
@@ -22491,182 +22527,120 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
+@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Build a v20100-compatible alpha mask with bottom-bezel preservation.
+    """Return a contour-safe alpha matte while preserving the uploaded RGB exactly.
 
-    The uploaded RGB and full source coordinate system remain authoritative. Only
-    neutral studio background connected to the outside border may become transparent.
-    v29000 adds a conservative lower-housing protection pass so glossy/silver bottom
-    bezel edges, mounting tabs, lower corners and antialiased highlights cannot be
-    mistaken for the white studio background. It never repaints, reshapes, crops,
-    resizes, erodes or dilates the product itself.
+    v32000 treats the product photo as an immutable engineering asset. The function
+    classifies only neutral studio background, connects it to an artificial outside
+    border, and removes only the region reachable from that border. Dark bezel,
+    metallic trim, controls, screen pixels, mounting tabs and reflections are never
+    repainted or geometrically modified. Internal openings remain transparent when
+    their studio background is physically connected to the outside scene.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
-        from collections import deque
+        import numpy as np
+        from PIL import ImageDraw, ImageFilter
 
-        im = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
-        rgb = im.convert("RGB")
-        width, height = rgb.size
-        if width < 2 or height < 2:
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
+        rgb_image = source.convert("RGB")
+        rgb = np.asarray(rgb_image, dtype=np.int16)
+        height, width = rgb.shape[:2]
+        if width < 3 or height < 3:
             return b""
-        pixels = rgb.load()
 
-        # Model the real studio backdrop from border samples. This is intentionally
-        # neutral-only so silver trim and glossy white reflections remain foreground.
-        sample_points = []
-        edge_step_x = max(1, width // 48)
-        edge_step_y = max(1, height // 48)
-        edge_band = max(1, min(width, height) // 80)
-        for x in range(0, width, edge_step_x):
-            for y in (0, min(edge_band, height - 1), max(0, height - 1 - edge_band), height - 1):
-                sample_points.append((x, y))
-        for y in range(0, height, edge_step_y):
-            for x in (0, min(edge_band, width - 1), max(0, width - 1 - edge_band), width - 1):
-                sample_points.append((x, y))
+        # Robustly estimate the studio backdrop from a thin border ring. Prefer
+        # bright, low-chroma samples, but gracefully fall back to all border pixels.
+        band = max(2, min(width, height) // 80)
+        border = np.concatenate([
+            rgb[:band, :, :].reshape(-1, 3),
+            rgb[-band:, :, :].reshape(-1, 3),
+            rgb[:, :band, :].reshape(-1, 3),
+            rgb[:, -band:, :].reshape(-1, 3),
+        ], axis=0)
+        border_brightness = border.mean(axis=1)
+        border_chroma = border.max(axis=1) - border.min(axis=1)
+        neutral = border[(border_brightness >= 190) & (border_chroma <= 46)]
+        samples = neutral if len(neutral) >= 32 else border
+        bg = np.median(samples, axis=0).astype(np.float32)
 
-        neutral_samples = []
-        for x, y in sample_points:
-            r, g, b = pixels[x, y]
-            hi, lo = max(r, g, b), min(r, g, b)
-            brightness = (r + g + b) / 3.0
-            if brightness >= 205 and (hi - lo) <= 34:
-                neutral_samples.append((r, g, b))
+        rgbf = rgb.astype(np.float32)
+        brightness = rgbf.mean(axis=2)
+        chroma = rgbf.max(axis=2) - rgbf.min(axis=2)
+        distance = np.sqrt(((rgbf - bg.reshape(1, 1, 3)) ** 2).sum(axis=2))
 
-        if neutral_samples:
-            neutral_samples.sort(key=lambda c: c[0] + c[1] + c[2])
-            central = neutral_samples[len(neutral_samples) // 5:] or neutral_samples
-            bg_r = sum(c[0] for c in central) / len(central)
-            bg_g = sum(c[1] for c in central) / len(central)
-            bg_b = sum(c[2] for c in central) / len(central)
-        else:
-            bg_r = bg_g = bg_b = 255.0
+        # Adaptive studio-background candidate. It intentionally tolerates mild
+        # illumination gradients and JPEG noise while excluding coloured UI pixels,
+        # dark bezel plastic and strongly differentiated metallic structure.
+        candidate = (
+            (brightness >= 186)
+            & (chroma <= 52)
+            & (
+                ((brightness >= 244) & (distance <= 82))
+                | ((brightness >= 226) & (distance <= 58))
+                | ((brightness >= 208) & (distance <= 38))
+                | ((brightness >= 186) & (distance <= 23))
+            )
+        )
 
-        def metrics(x, y):
-            r, g, b = pixels[x, y]
-            hi, lo = max(r, g, b), min(r, g, b)
-            brightness = (r + g + b) / 3.0
-            chroma = hi - lo
-            distance = ((r - bg_r) ** 2 + (g - bg_g) ** 2 + (b - bg_b) ** 2) ** 0.5
-            return r, g, b, brightness, chroma, distance
+        # Unquestionable product pixels seed a one-pixel protection band. This
+        # protects antialiased glossy/silver edges without the broad multi-pixel
+        # expansion that previously retained white studio background around holes.
+        hard_foreground = (
+            (brightness <= 202)
+            | (chroma >= 50)
+            | (distance >= 78)
+        )
+        hard_img = Image.fromarray((hard_foreground.astype(np.uint8) * 255), mode="L")
+        protected = np.asarray(hard_img.filter(ImageFilter.MaxFilter(3))) > 0
+        candidate &= ~protected
 
-        visited = bytearray(width * height)
-        background = bytearray(width * height)
-        queue = deque()
+        # Add an artificial outside frame so every legitimate border-connected
+        # background region is joined, then flood once from the outer corner.
+        padded = Image.new("L", (width + 2, height + 2), 255)
+        candidate_img = Image.fromarray((candidate.astype(np.uint8) * 255), mode="L")
+        padded.paste(candidate_img, (1, 1))
+        ImageDraw.floodfill(padded, (0, 0), 128, thresh=0)
+        flood = np.asarray(padded, dtype=np.uint8)[1:-1, 1:-1]
+        background = flood == 128
 
-        def candidate(x, y):
-            _, _, _, brightness, chroma, distance = metrics(x, y)
-            # Strong foreground guards. Dark bezel, silver housing and colored screen
-            # pixels can never join the outside-background flood.
-            if brightness < 218 or chroma > 30:
-                return False
-            if brightness >= 244:
-                return distance <= 42
-            if brightness >= 234:
-                return distance <= 28
-            return distance <= 16
+        # Build alpha without modifying source RGB. Fully connected background is
+        # transparent. Only a one-pixel neutral fringe receives partial alpha to
+        # suppress white halos; real product structure remains fully opaque.
+        alpha = np.full((height, width), 255, dtype=np.uint8)
+        alpha[background] = 0
 
-        def enqueue(x, y):
-            idx = y * width + x
-            if not visited[idx] and candidate(x, y):
-                visited[idx] = 1
-                queue.append((x, y))
+        bg_img = Image.fromarray((background.astype(np.uint8) * 255), mode="L")
+        adjacent = (np.asarray(bg_img.filter(ImageFilter.MaxFilter(3))) > 0) & ~background
+        neutral_edge = adjacent & ~protected & (chroma <= 38) & (brightness >= 205)
+        # More background-like pixels get lower alpha. The range never reaches zero
+        # outside the confirmed border-connected background, preserving contour mass.
+        edge_strength = np.clip((distance - 8.0) / 42.0, 0.0, 1.0)
+        edge_alpha = (56 + edge_strength * 199).astype(np.uint8)
+        alpha[neutral_edge] = np.minimum(alpha[neutral_edge], edge_alpha[neutral_edge])
 
-        for x in range(width):
-            enqueue(x, 0); enqueue(x, height - 1)
-        for y in range(height):
-            enqueue(0, y); enqueue(width - 1, y)
+        # Safety checks: reject a matte that removes too much or too little. A failed
+        # mask falls back to the untouched studio card instead of altering geometry.
+        foreground_ratio = float(np.count_nonzero(alpha >= 16)) / float(width * height)
+        transparent_ratio = float(np.count_nonzero(alpha == 0)) / float(width * height)
+        if foreground_ratio < 0.08 or transparent_ratio < 0.05 or transparent_ratio > 0.94:
+            diagnostic_log(
+                "graphic_v32000_mask_rejected",
+                foreground_ratio=round(foreground_ratio, 4),
+                transparent_ratio=round(transparent_ratio, 4),
+            )
+            return b""
 
-        while queue:
-            x, y = queue.popleft()
-            idx = y * width + x
-            background[idx] = 1
-            if x > 0: enqueue(x - 1, y)
-            if x + 1 < width: enqueue(x + 1, y)
-            if y > 0: enqueue(x, y - 1)
-            if y + 1 < height: enqueue(x, y + 1)
-
-        # v29000 lower-housing protection. Build a seed map from unquestionable
-        # product pixels in the lower 48% of the source, then protect only nearby
-        # edge pixels that differ measurably from the sampled backdrop. Pure white
-        # openings remain transparent because they have near-zero background distance.
-        lower_start = int(height * 0.52)
-        hard_fg = bytearray(width * height)
-        for y in range(lower_start, height):
-            for x in range(width):
-                _, _, _, brightness, chroma, distance = metrics(x, y)
-                if brightness <= 224 or chroma >= 28 or distance >= 30:
-                    hard_fg[y * width + x] = 1
-
-        protected = bytearray(width * height)
-        frontier = deque()
-        for y in range(lower_start, height):
-            for x in range(width):
-                idx = y * width + x
-                if hard_fg[idx]:
-                    protected[idx] = 1
-                    frontier.append((x, y, 0))
-
-        max_guard_radius = 3
-        while frontier:
-            x, y, depth = frontier.popleft()
-            if depth >= max_guard_radius:
-                continue
-            for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1),(x-1,y-1),(x+1,y-1),(x-1,y+1),(x+1,y+1)):
-                if not (0 <= nx < width and lower_start <= ny < height):
-                    continue
-                nidx = ny * width + nx
-                if protected[nidx]:
-                    continue
-                _, _, _, brightness, chroma, distance = metrics(nx, ny)
-                # Preserve only genuine antialias/highlight pixels near the lower
-                # product silhouette. Do not fill neutral holes or white background.
-                if brightness <= 248 and (distance >= 10 or chroma >= 10):
-                    protected[nidx] = 1
-                    frontier.append((nx, ny, depth + 1))
-
-        for idx, keep in enumerate(protected):
-            if keep:
-                background[idx] = 0
-
-        alpha = Image.new("L", (width, height), 255)
-        ap = alpha.load()
-        for y in range(height):
-            for x in range(width):
-                idx = y * width + x
-                if background[idx]:
-                    ap[x, y] = 0
-                    continue
-                if protected[idx]:
-                    ap[x, y] = 255
-                    continue
-
-                adjacent_bg = False
-                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
-                        adjacent_bg = True
-                        break
-                if not adjacent_bg:
-                    continue
-
-                _, _, _, brightness, chroma, distance = metrics(x, y)
-                # One-pixel fringe cleanup only. Lower product geometry is excluded
-                # by the protected map above.
-                if brightness >= 246 and chroma <= 18 and distance <= 34:
-                    ap[x, y] = 72
-                elif brightness >= 238 and chroma <= 22 and distance <= 24:
-                    ap[x, y] = 150
-                elif brightness >= 230 and chroma <= 24 and distance <= 16:
-                    ap[x, y] = 218
-
-        im.putalpha(alpha)
-        out_buffer = io.BytesIO()
-        im.save(out_buffer, format="PNG", optimize=True)
-        return out_buffer.getvalue()
+        result = source.copy()
+        result.putalpha(Image.fromarray(alpha, mode="L"))
+        buffer = io.BytesIO()
+        result.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
     except Exception as error:
         diagnostic_log(
-            "graphic_v29000_bottom_bezel_mask_failed",
+            "graphic_v32000_contour_safe_mask_failed",
             error_type=type(error).__name__,
             error=str(error),
         )
@@ -22756,7 +22730,7 @@ def _graphic_open_product_layer_v3300(uploaded_file):
             reports = dict(state.get("product_bezel_master_reports") or {})
             reports[cache_key] = {
                 "applied": True,
-                "mode": "exact_product_asset_v20100",
+                "mode": "exact_product_asset_v32000_rgb_locked",
                 "mask_method": mask_method,
                 "master_rgb_sha256": digest,
                 "rgb_pixels_regenerated": False,
