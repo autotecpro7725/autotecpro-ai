@@ -46,14 +46,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v24000
-# v25000 Graphic Engine 12 True Layered Pipeline: standard commercial mode never sends product pixels to the image provider;
-# background/vehicle generation, immutable source-product compositing, deterministic typography/icons, layer manifests,
-# selective retries, and fail-closed product-fidelity verification are separated into explicit production stages.
+# AutoTecPro AI performance/stability revision: v26000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v24000 Graphic Engine 11 + Engineering DNA 2.0: immutable product-master pipeline, structured JSON DNA,
-# curated reference-library normalization, enriched vehicle lock, deterministic layout/typography/icon metadata,
-# selective background-only retries, unified QC, render trace, and cache-safe performance hardening.
+# v26000 surgical production update: keeps the v20100 composition/layout path and v22000 lazy-upload/vehicle safeguards.
+# Only the exact-product mask is upgraded: adaptive border-background modeling, bezel-safe alpha, no crop/normalize, untouched RGB.
 # Adds lazy Engineering DNA preparation, instant upload-state recovery, strict target-vehicle body-class locks,
 # reference-pixel isolation, validated vehicle-plate caching, bounded vehicle-only retry, and regression-isolated Graphic changes.
 # Exact-product mode keeps uploaded product pixels authoritative and blocks generative product replacement.
@@ -22422,7 +22418,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v21010-v20300-visible-bounds-authoritative-approval"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v26000-v20100-bezel-safe-adaptive-border"
 
 
 def _graphic_progress_v3300(label):
@@ -22495,21 +22491,59 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Remove only neutral light background connected to the source-image border.
+    """Build a bezel-safe alpha mask while preserving the v20100 product canvas.
 
-    v19400 deliberately does not classify every white pixel as background. Enclosed
-    white UI cards, labels, screen regions and light product trim remain opaque. The
-    alpha channel is not eroded or expanded, so thin tabs, bezel edges, buttons and
-    openings keep their source geometry.
+    v26000 keeps the proven v20100 composition contract: the source RGB and full
+    source canvas are immutable. Only neutral background pixels connected to the
+    outer border can become transparent. The adaptive border model is deliberately
+    stricter than the earlier fixed threshold so glossy black bezel edges, silver
+    trim, highlights, buttons, tabs and corners are not eaten by the mask.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
         from collections import deque
+
         im = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
         rgb = im.convert("RGB")
         width, height = rgb.size
+        if width < 2 or height < 2:
+            return b""
         pixels = rgb.load()
+
+        # Estimate the actual studio background from corner/edge samples instead of
+        # assuming every bright neutral pixel is background. This keeps warm silver
+        # trim and specular bezel highlights opaque.
+        sample_points = []
+        edge_step_x = max(1, width // 48)
+        edge_step_y = max(1, height // 48)
+        edge_band = max(1, min(width, height) // 80)
+        for x in range(0, width, edge_step_x):
+            for y in (0, min(edge_band, height - 1), max(0, height - 1 - edge_band), height - 1):
+                sample_points.append((x, y))
+        for y in range(0, height, edge_step_y):
+            for x in (0, min(edge_band, width - 1), max(0, width - 1 - edge_band), width - 1):
+                sample_points.append((x, y))
+
+        neutral_samples = []
+        for x, y in sample_points:
+            r, g, b = pixels[x, y]
+            hi, lo = max(r, g, b), min(r, g, b)
+            brightness = (r + g + b) / 3.0
+            if brightness >= 205 and (hi - lo) <= 34:
+                neutral_samples.append((r, g, b))
+
+        if neutral_samples:
+            neutral_samples.sort(key=lambda c: c[0] + c[1] + c[2])
+            central = neutral_samples[len(neutral_samples) // 5:]
+            if not central:
+                central = neutral_samples
+            bg_r = sum(c[0] for c in central) / len(central)
+            bg_g = sum(c[1] for c in central) / len(central)
+            bg_b = sum(c[2] for c in central) / len(central)
+        else:
+            bg_r = bg_g = bg_b = 255.0
+
         visited = bytearray(width * height)
         background = bytearray(width * height)
         queue = deque()
@@ -22518,9 +22552,23 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
             r, g, b = pixels[x, y]
             hi, lo = max(r, g, b), min(r, g, b)
             brightness = (r + g + b) / 3.0
-            # Conservative neutral-light test. Border connectivity, not brightness
-            # alone, determines whether the pixel becomes transparent.
-            return brightness >= 224 and (hi - lo) <= 24
+            chroma = hi - lo
+            distance = ((r - bg_r) ** 2 + (g - bg_g) ** 2 + (b - bg_b) ** 2) ** 0.5
+
+            # Hard foreground guards. They protect dark bezel pixels, gray/silver
+            # trim and colored UI content even when antialiasing touches the border.
+            if brightness < 218:
+                return False
+            if chroma > 30:
+                return False
+
+            # Very bright neutral pixels may vary more from the sampled backdrop;
+            # lower-brightness pixels must be extremely close to it.
+            if brightness >= 244:
+                return distance <= 42
+            if brightness >= 234:
+                return distance <= 28
+            return distance <= 16
 
         def enqueue(x, y):
             idx = y * width + x
@@ -22530,12 +22578,10 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
         for x in range(width):
             enqueue(x, 0)
-            if height > 1:
-                enqueue(x, height - 1)
+            enqueue(x, height - 1)
         for y in range(height):
             enqueue(0, y)
-            if width > 1:
-                enqueue(width - 1, y)
+            enqueue(width - 1, y)
 
         while queue:
             x, y = queue.popleft()
@@ -22552,35 +22598,48 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
         alpha = Image.new("L", (width, height), 255)
         ap = alpha.load()
-        # Transparent border-connected background with a one-pixel antialias band.
         for y in range(height):
             for x in range(width):
                 idx = y * width + x
                 if background[idx]:
                     ap[x, y] = 0
                     continue
-                near_background = False
-                for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
-                    if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
-                        near_background = True
-                        break
-                if near_background:
-                    r, g, b = pixels[x, y]
-                    brightness = (r + g + b) / 3.0
-                    neutrality = max(r, g, b) - min(r, g, b)
-                    if brightness >= 235 and neutrality <= 18:
-                        ap[x, y] = 96
-                    elif brightness >= 220 and neutrality <= 26:
-                        ap[x, y] = 190
 
+                # A one-pixel antialias band removes white fringe without shrinking
+                # the object. Only pixels that are themselves very close to the
+                # measured background receive partial transparency.
+                adjacent_bg = False
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
+                        adjacent_bg = True
+                        break
+                if not adjacent_bg:
+                    continue
+
+                r, g, b = pixels[x, y]
+                hi, lo = max(r, g, b), min(r, g, b)
+                brightness = (r + g + b) / 3.0
+                chroma = hi - lo
+                distance = ((r - bg_r) ** 2 + (g - bg_g) ** 2 + (b - bg_b) ** 2) ** 0.5
+                if brightness >= 246 and chroma <= 18 and distance <= 34:
+                    ap[x, y] = 72
+                elif brightness >= 238 and chroma <= 22 and distance <= 24:
+                    ap[x, y] = 150
+                elif brightness >= 230 and chroma <= 24 and distance <= 16:
+                    ap[x, y] = 218
+
+        # Keep original RGB and full-canvas coordinates exactly. No crop, resize,
+        # erosion, dilation, blur, recoloring or product geometry normalization.
         im.putalpha(alpha)
-        # v20020: preserve original full-canvas coordinates. Downstream trimming occurs
-        # only after the untouched master bezel pixels are restored.
-        out = io.BytesIO()
-        im.save(out, format="PNG", optimize=True)
-        return out.getvalue()
+        out_buffer = io.BytesIO()
+        im.save(out_buffer, format="PNG", optimize=True)
+        return out_buffer.getvalue()
     except Exception as error:
-        diagnostic_log("graphic_v19400_border_mask_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log(
+            "graphic_v26000_bezel_safe_mask_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
         return b""
 
 
@@ -23287,227 +23346,45 @@ def _graphic_select_brand_template_v8000(prompt_text, has_style=False):
     return selected
 
 
-
-GRAPHIC_ENGINE_11_VERSION = "graphic-engine-11.0"
-ENGINEERING_DNA_2_VERSION = "engineering-dna-2.0"
-
-
-def _graphic_engine11_product_cache_key(role_items):
-    """Return a stable identity for the authoritative product set without altering files."""
-    fingerprints = []
-    for item in (role_items or []):
-        if item.get("role") != "product_photo":
-            continue
-        signature = _graphic_product_source_signature_v9000(item)
-        value = str(signature.get("sha256") or item.get("asset_id") or item.get("name") or "").strip()
-        if value:
-            fingerprints.append(value)
-    return hashlib.sha256("|".join(fingerprints).encode("utf-8")).hexdigest() if fingerprints else ""
-
-
-def _graphic_engine11_structured_dna(role_items, structure_profile=None):
-    """Build compact JSON Engineering DNA 2.0 from deterministic source evidence."""
-    products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
-    signatures = [_graphic_product_source_signature_v9000(item) for item in products[:8]]
-    structure = dict(structure_profile or {})
-    primary = signatures[0] if signatures else {}
-    feature_map = {
-        "bezel_shape": structure.get("bezel_shape") or structure.get("housing_shape") or "source_locked",
-        "screen_aspect_ratio": structure.get("screen_aspect_ratio") or structure.get("screen_ratio") or None,
-        "button_count": structure.get("button_count"),
-        "button_layout": structure.get("button_layout") or structure.get("controls_layout"),
-        "knob_count": structure.get("knob_count"),
-        "silver_trim": structure.get("silver_trim"),
-        "vent_position": structure.get("vent_position"),
-        "hazard_button": structure.get("hazard_button"),
-        "climate_style": structure.get("climate_style"),
-        "gap_below_screen": structure.get("gap_below_screen"),
-        "side_openings": structure.get("side_openings"),
-        "mounting_tabs": structure.get("mounting_tabs"),
-        "lower_cavities": structure.get("lower_cavities"),
-        "surface_finish": structure.get("surface_finish") or "preserve_source_rgb",
-    }
-    return {
-        "version": ENGINEERING_DNA_2_VERSION,
-        "engine": GRAPHIC_ENGINE_11_VERSION,
-        "product_cache_key": _graphic_engine11_product_cache_key(role_items),
-        "source_count": len(products),
-        "source_names": [str(item.get("name") or "") for item in products[:8]],
-        "source_signatures": signatures,
-        "primary_source": {
-            "sha256": primary.get("sha256"),
-            "width": primary.get("width"),
-            "height": primary.get("height"),
-            "aspect_ratio": primary.get("aspect_ratio"),
-        },
-        "geometry": feature_map,
-        "immutable_pixel_policy": {
-            "enabled": True,
-            "preserve_rgb": True,
-            "allow_alpha_refinement_only": True,
-            "allow_uniform_scale": True,
-            "allow_whole_object_translation": True,
-            "allow_product_redraw": False,
-            "allow_new_angle_only_when_explicit": True,
-        },
-        "critical_lock_targets": [
-            "outer silhouette", "all bezel corners", "inner bezel contour", "screen aperture",
-            "button and knob count", "button spacing", "openings and cavities", "mounting tabs",
-            "screws and seams", "trim boundaries", "visible reflections and surface finish",
-        ],
-        "segmentation": _graphic_segmentation_diagnostics_v10000(products[0]) if products else {},
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def _graphic_engine11_vehicle_lock(vehicle_profile, prompt_text=""):
-    """Enrich the existing vehicle lock without replacing its verified facts."""
-    profile = dict(vehicle_profile or {})
-    explicit = str(profile.get("explicit_display_name") or _graphic_extract_explicit_vehicle(prompt_text) or "").strip()
-    lowered = explicit.casefold()
-    body = str(profile.get("required_body_type") or profile.get("body_type") or "").strip()
-    if not body:
-        if any(x in lowered for x in ("cherokee", "tahoe", "yukon", "escalade", "durango", "explorer", "expedition", "suv", "crossover")):
-            body = "closed-body SUV or crossover"
-        elif any(x in lowered for x in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "pickup", "truck")):
-            body = "pickup truck"
-    prohibited = list(profile.get("prohibited_reference_vehicle_terms") or [])
-    if "closed-body SUV" in body or "crossover" in body:
-        prohibited += ["pickup truck", "open pickup bed", "Ford F-150", "Silverado", "Sierra", "RAM"]
-    profile.update({
-        "engine11_vehicle_lock": True,
-        "explicit_display_name": explicit or profile.get("explicit_display_name"),
-        "required_body_type": body or profile.get("required_body_type"),
-        "identity_dimensions": {
-            "brand": profile.get("make") or profile.get("brand"),
-            "model": profile.get("model"),
-            "year": profile.get("year"),
-            "generation": profile.get("generation"),
-            "body": body,
-            "cab": profile.get("cab"),
-            "bed": profile.get("bed"),
-            "trim": profile.get("trim"),
-            "front_fascia": profile.get("front_fascia"),
-            "headlights": profile.get("headlights"),
-            "wheels": profile.get("wheels"),
-        },
-        "prohibited_reference_vehicle_terms": list(dict.fromkeys(str(x) for x in prohibited if str(x).strip())),
-    })
-    return profile
-
-
-def _graphic_engine11_reference_library_blueprint(reference_blueprint, template_key=""):
-    """Normalize and retain a small curated library of accepted layout blueprints."""
-    current = _graphic_safe_reference_blueprint_v16000(reference_blueprint or {})
-    if not current:
-        return {}
-    state = get_graphic_project_state()
-    library = list(state.get("engine11_reference_library") or [])
-    digest = hashlib.sha256(json.dumps(current, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-    if not any(str(item.get("digest")) == digest for item in library if isinstance(item, dict)):
-        library.append({"digest": digest, "template": str(template_key or "reference_guided"), "blueprint": current, "approved": True})
-    library = library[-12:]
-    state["engine11_reference_library"] = library
-    state["engine11_reference_library_count"] = len(library)
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    # Preserve the current reference exactly; the library is governance/context, not a blurry average.
-    normalized = dict(current)
-    normalized["engine11_library_digest"] = digest
-    normalized["engine11_library_count"] = len(library)
-    normalized["engine11_template"] = str(template_key or "reference_guided")
-    return normalized
-
-
-def _graphic_engine11_render_trace(result, *, product_dna=None, reference_blueprint=None, vehicle_profile=None, route=""):
-    """Attach deterministic provenance for production diagnostics."""
-    result = dict(result or {})
-    dna = dict(product_dna or {})
-    blueprint = dict(reference_blueprint or {})
-    vehicle = dict(vehicle_profile or {})
-    trace = {
-        "engine": GRAPHIC_ENGINE_11_VERSION,
-        "engineering_dna_version": ENGINEERING_DNA_2_VERSION,
-        "route": str(route or result.get("generation_route") or result.get("provider_route") or ""),
-        "product_cache_key": dna.get("product_cache_key"),
-        "reference_digest": blueprint.get("engine11_library_digest"),
-        "vehicle": vehicle.get("explicit_display_name"),
-        "body_type": vehicle.get("required_body_type"),
-        "product_pixels_locked": bool((result.get("layered_metadata") or {}).get("product_master_rgb_preserved")),
-        "background_only_generation": True,
-        "deterministic_typography": True,
-        "deterministic_icon_system": True,
-        "selective_retry_policy": "background_vehicle_lighting_only; never product",
-        "completed_at": datetime.now(timezone.utc).isoformat(),
-    }
-    result["render_trace"] = trace
-    result["graphic_engine_name"] = "AutoTecPro Graphic Engine 11"
-    return result
-
-
-def _graphic_engine11_unified_qc(result, role_items, vehicle_profile=None):
-    """Combine existing deterministic gates into one publishability decision."""
-    source_gate = _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile or {})
-    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
-    vehicle = dict((result or {}).get("vehicle_validation") or {})
-    hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-    vehicle_passed = (not hard_vehicle) or _graphic_validation_is_unavailable_v4100(vehicle) or vehicle.get("verified") is True
-    issues = list(source_gate.get("issues") or [])
-    if layout_gate.get("required") and not layout_gate.get("passed"):
-        issues.extend("layout: " + str(x) for x in (layout_gate.get("issues") or ["reference layout mismatch"]))
-    if not vehicle_passed:
-        issues.append("vehicle identity/body-class validation failed")
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    if metadata.get("deterministic_typography") is False:
-        issues.append("deterministic typography not confirmed")
-    if metadata.get("campaign_zones") and "bottom_benefit_bar" not in set(metadata.get("campaign_zones") or []):
-        issues.append("bottom benefit bar missing")
-    return {
-        "passed": not issues,
-        "issues": issues,
-        "source_gate": source_gate,
-        "layout_gate": layout_gate,
-        "vehicle_passed": vehicle_passed,
-        "engine": GRAPHIC_ENGINE_11_VERSION,
-    }
-
 def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
-    """Build Product DNA plus compact Engineering DNA 2.0 without altering product pixels."""
+    """Build flexible Product DNA: preserve identity, not one fixed camera view."""
     products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
     signatures = [_graphic_product_source_signature_v9000(item) for item in products[:8]]
     source_ratios = [float(sig.get("aspect_ratio") or 0.0) for sig in signatures if float(sig.get("aspect_ratio") or 0.0) > 0]
-    engineering_dna_2 = _graphic_engine11_structured_dna(role_items, structure_profile)
     dna = {
-        "engine": GRAPHIC_ENGINE_11_VERSION,
-        "engineering_dna_version": ENGINEERING_DNA_2_VERSION,
-        "engineering_dna_2": engineering_dna_2,
-        "product_cache_key": engineering_dna_2.get("product_cache_key"),
+        "engine": "v17000-product-dna",
         "product_view_count": len(products),
         "source_names": [str(item.get("name") or "") for item in products[:8]],
         "source_ids": [str(item.get("asset_id") or item.get("id") or "") for item in products[:8]],
-        "identity_policy": "immutable_uploaded_product_master_for_front_and_near_front_campaigns",
+        "identity_policy": "preserve_engineering_identity_allow_camera_scale_perspective",
         "exact_pixel_default": True,
         "angle_recreation_allowed_when_explicit": True,
-        "allowed_transformations": ["uniform whole-product scale", "whole-product translation", "alpha-edge refinement", "contact shadow"],
-        "prohibited_transformations": ["bezel redraw", "button redraw", "independent screen resize", "housing reshape", "reflection repaint", "trim substitution"],
-        "invariants": engineering_dna_2.get("critical_lock_targets") or [],
+        "allowed_transformations": [
+            "uniform size change", "camera-angle change", "perspective change",
+            "rotation", "scene relighting", "realistic reflections", "partial artistic crop",
+        ],
+        "invariants": [
+            "recognizable outer silhouette", "whole-unit width-to-height proportion",
+            "visible screen width-to-height proportion", "screen position inside housing",
+            "bezel thickness relationships", "button/knob count and placement",
+            "side brackets and mounting tabs", "open cavities and negative spaces",
+            "lower control-panel geometry", "trim and material identity",
+            "visible screen interface and UI hierarchy",
+        ],
         "critical_features": [
             "outer silhouette", "screen aspect ratio and visible UI", "bezel thickness",
             "gap below screen", "side openings", "climate knobs", "physical buttons",
-            "lower cavities", "mounting tabs", "trim geometry", "screws and seams",
+            "lower cavities", "mounting tabs", "trim geometry",
         ],
         "source_aspect_ratios": source_ratios,
         "primary_source_aspect_ratio": source_ratios[0] if source_ratios else 0.0,
         "structure_profile": dict(structure_profile or {}),
         "multi_view": len(products) >= 2,
-        "segmentation_diagnostics": engineering_dna_2.get("segmentation") or {},
+        "segmentation_diagnostics": _graphic_segmentation_diagnostics_v10000(products[0]) if products else {},
         "source_signatures": signatures,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     state = get_graphic_project_state()
-    cache = dict(state.get("engineering_dna_2_cache") or {})
-    if dna.get("product_cache_key"):
-        cache[dna["product_cache_key"]] = engineering_dna_2
-    state["engineering_dna_2_cache"] = cache
     state["product_dna"] = dna
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return dna
@@ -23887,185 +23764,40 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return final_result
 
-
-GRAPHIC_ENGINE_12_VERSION = "graphic-engine-12.0-true-layered"
-GRAPHIC_LAYER_MANIFEST_VERSION = "layer-manifest-1.0"
-
-
-def _graphic_engine12_standard_commercial_mode(mode_info, has_edit_base=False):
-    """Return True only for immutable front/near-front commercial production."""
-    info = dict(mode_info or {})
-    return bool(
-        info.get("exact_product")
-        and not info.get("recreates_product")
-        and not has_edit_base
-    )
-
-
-def _graphic_engine12_layer_manifest(result, role_items, reference_blueprint=None, vehicle_profile=None):
-    """Build an auditable, ordered layer manifest for the final deterministic artwork."""
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
-    source = _graphic_product_source_signature_v9000(product) if product else {}
-    boxes = dict(metadata.get("actual_normalized_boxes") or {})
-    layers = [
-        {"id": "background", "source": "ai_background_only", "mutable": True, "provider_generated": True},
-        {"id": "vehicle", "source": "ai_background_plate", "mutable": True, "provider_generated": True,
-         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or "")},
-        {"id": "product_shadow", "source": "deterministic_local", "mutable": True, "provider_generated": False},
-        {"id": "product", "source": "uploaded_master_rgb", "mutable": False, "provider_generated": False,
-         "sha256": source.get("sha256"), "box": boxes.get("hero_product_box")},
-        {"id": "brand_logo", "source": "local_brand_asset", "mutable": True, "provider_generated": False,
-         "box": boxes.get("logo_box")},
-        {"id": "headline", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
-         "box": boxes.get("headline_box")},
-        {"id": "compatibility", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
-         "box": boxes.get("compatibility_box")},
-        {"id": "tagline", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
-         "box": boxes.get("tagline_box")},
-        {"id": "feature_grid", "source": "deterministic_icons_and_type", "mutable": True, "provider_generated": False,
-         "box": boxes.get("feature_matrix_box")},
-        {"id": "bottom_bar", "source": "deterministic_icons_and_type", "mutable": True, "provider_generated": False,
-         "box": boxes.get("bottom_bar_box")},
-    ]
-    return {
-        "version": GRAPHIC_LAYER_MANIFEST_VERSION,
-        "engine": GRAPHIC_ENGINE_12_VERSION,
-        "ordered_layers": layers,
-        "product_layer_immutable": True,
-        "product_pixels_sent_to_provider": False,
-        "reference_pixels_sent_to_provider": False,
-        "provider_scope": ["background", "environment", "lighting", "target_vehicle"],
-        "reference_blueprint_digest": hashlib.sha256(
-            json.dumps(reference_blueprint or {}, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest(),
-    }
-
-
-def _graphic_engine12_immutable_product_gate(result, role_items):
-    """Fail closed unless the standard campaign proves the product came from the uploaded master."""
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
-    expected = _graphic_product_source_signature_v9000(product) if product else {}
-    actual_sha = str(metadata.get("product_source_sha256") or result.get("product_source_sha256") or "")
-    expected_sha = str(expected.get("sha256") or "")
-    ratio_error = float(metadata.get("product_ratio_relative_error") or 0.0)
-    checks = {
-        "source_fingerprint_present": bool(expected_sha),
-        "source_fingerprint_match": bool(expected_sha and actual_sha == expected_sha),
-        "exact_product_pixels": metadata.get("exact_product_pixels") is True,
-        "master_rgb_preserved": metadata.get("product_master_rgb_preserved") is True,
-        "provider_generated_product": metadata.get("product_pixels_provider_generated") is True,
-        "bezel_regenerated": metadata.get("bezel_pixels_regenerated") is True,
-        "aspect_ratio_error": ratio_error,
-        "aspect_ratio_preserved": ratio_error <= 0.0025,
-    }
-    issues=[]
-    if not checks["source_fingerprint_present"]: issues.append("authoritative product fingerprint missing")
-    if not checks["source_fingerprint_match"]: issues.append("final product source does not match uploaded master")
-    if not checks["exact_product_pixels"]: issues.append("exact-product pixel flag missing")
-    if not checks["master_rgb_preserved"]: issues.append("uploaded master RGB was not confirmed")
-    if checks["provider_generated_product"]: issues.append("product was provider-generated")
-    if checks["bezel_regenerated"]: issues.append("bezel pixels were regenerated")
-    if not checks["aspect_ratio_preserved"]: issues.append("product aspect ratio changed")
-    return {"passed": not issues, "checks": checks, "issues": issues}
-
-
-def _graphic_engine12_finalize_layered_result(result, role_items, reference_blueprint, vehicle_profile, route=""):
-    """Attach true-layered metadata and enforce immutable product fidelity before presentation."""
-    result = dict(result or {})
-    manifest = _graphic_engine12_layer_manifest(result, role_items, reference_blueprint, vehicle_profile)
-    gate = _graphic_engine12_immutable_product_gate(result, role_items)
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_12_VERSION
-    result["layer_manifest"] = manifest
-    result["immutable_product_gate"] = gate
-    result["true_layered_pipeline"] = True
-    result["standard_commercial_product_provider_calls"] = 0
-    result["product_pixels_sent_to_provider"] = False
-    result["reference_pixels_sent_to_provider"] = False
-    result["provider_scope"] = manifest["provider_scope"]
-    result["selective_retry_policy"] = {
-        "background": True,
-        "vehicle": True,
-        "lighting": True,
-        "typography": "local_only",
-        "product": False,
-    }
-    result["generation_route"] = str(result.get("generation_route") or route or "") + "+engine12-true-layered"
-    if not gate.get("passed"):
-        raise RuntimeError("Graphic Engine 12 immutable product gate failed: " + "; ".join(gate.get("issues") or []))
-    return result
-
 # v23000: restored v20100 visual-baseline behavior for _graphic_fast_exact_campaign_v7000.
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Graphic Engine 12 standard commercial route: AI creates only scene/vehicle; product is immutable local layer."""
-    vehicle_profile = _graphic_engine11_vehicle_lock(vehicle_profile or {}, prompt_text)
-    reference_blueprint = _graphic_engine11_reference_library_blueprint(
-        reference_blueprint or {}, str((mode_info or {}).get("brand_template") or "")
-    )
-    state = get_graphic_project_state()
-    product_dna = dict(state.get("active_product_dna") or state.get("product_dna") or {})
-
-    # The controlled campaign builder calls the provider only through
-    # _graphic_generate_background_plate_v3200(), whose provider_items list is empty.
-    # Therefore neither product pixels nor reference pixels can enter standard generation.
-    result = _graphic_build_hybrid_campaign_result_v3300(
-        prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
-    )
-    result = _graphic_engine12_finalize_layered_result(
-        result, role_items, reference_blueprint, vehicle_profile, route=(mode_info or {}).get("mode")
-    )
-
-    validation = _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehicle_profile)
-    result["deterministic_verification"] = validation
-    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
-    unified_qc = _graphic_engine11_unified_qc(result, role_items, vehicle_profile)
-    result["engine12_quality_gate"] = unified_qc
-    result["engine11_quality_gate"] = unified_qc
-    result["source_fidelity_gate"] = unified_qc.get("source_gate") or {}
-    result["reference_layout_fidelity_gate"] = unified_qc.get("layout_gate") or {}
-    if not unified_qc.get("passed"):
-        raise RuntimeError("Graphic Engine 12 quality gate failed: " + "; ".join(unified_qc.get("issues") or []))
-
-    if validation.get("verified"):
-        result["output_status"] = "verified_exact_product_engine12"
-        result["verification_status"] = "verified"
-    elif validation.get("unverified"):
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The exact uploaded product is preserved, but optional vehicle verification was unavailable.",
-            status="completed_exact_product_unverified_engine12",
+    """Create a deterministic exact-product campaign and fail closed on product/reference integrity."""
+    result=_graphic_build_hybrid_campaign_result_v3300(prompt_text,role_items,output_size,reference_blueprint or {},vehicle_profile or {})
+    validation=_graphic_exact_result_validation_v7100(result,role_items,prompt_text,vehicle_profile or {})
+    result["deterministic_verification"]=validation; result["vehicle_validation"]=validation.get("vehicle_validation") or {}
+    source_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile or {})
+    result["source_fidelity_gate"]=source_gate
+    if not source_gate.get("passed"):
+        raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
+    layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
+    result["reference_layout_fidelity_gate"]=layout_gate
+    if layout_gate.get("required") and not layout_gate.get("passed"):
+        raise RuntimeError(
+            "The exact-product campaign failed the reference-layout fidelity gate: "
+            + "; ".join(layout_gate.get("issues") or ["layout score below threshold"])
         )
+    if validation.get("verified"):
+        result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
+    elif validation.get("unverified"):
+        result=_graphic_mark_unverified_v4100(result,"The exact product is preserved, but optional vehicle verification was unavailable.",status="completed_exact_product_unverified_v9000")
     elif validation.get("passed"):
-        result["output_status"] = "completed_exact_product_engine12"
-        result["verification_status"] = "completed"
+        result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
     else:
-        raise RuntimeError("The true-layered exact-product output failed deterministic validation.")
-
-    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"] = str(next(
-        (i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""
-    ))
-    result["style_reference_sources"] = [
-        str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
-    ][:4]
-    result["reference_content_leakage_prohibited"] = True
-    result["product_render_mode"] = _graphic_render_mode_v9000(
-        mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
-    )
-    result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
-    result["ai_product_recreated"] = False
-    result["product_master_immutable"] = True
-    result["background_only_generation"] = True
-    result["deterministic_typography"] = True
-    result["deterministic_icon_system"] = True
-    result["smart_retry_scope"] = "background_vehicle_lighting_only"
-    result["speed_optimized"] = True
-    result["project_editable"] = True
-    return _graphic_engine11_render_trace(
-        result, product_dna=product_dna, reference_blueprint=reference_blueprint,
-        vehicle_profile=vehicle_profile, route=(mode_info or {}).get("mode")
-    )
+        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
+    result["graphic_engine_version"]=GRAPHIC_ENGINE_VERSION
+    result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
+    result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
+    result["reference_content_leakage_prohibited"]=True
+    result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
+    result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
+    result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
+    return result
 
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
@@ -24106,7 +23838,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
         product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
         product_mode["render_mode"] = _graphic_render_mode_v9000(product_mode, has_style)
-        product_mode["graphic_engine"] = GRAPHIC_ENGINE_11_VERSION
         structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
         brand_template = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
@@ -24145,7 +23876,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             else:
                 t=time.perf_counter()
                 reference_blueprint, reference_cached = _graphic_cached_reference_blueprint_v8200(role_items,prompt_text,style_strength) if has_style else ({},True)
-                reference_blueprint = _graphic_engine11_reference_library_blueprint(reference_blueprint, brand_template) if reference_blueprint else {}
                 stage_times["reference_analysis_seconds"]=time.perf_counter()-t
                 if reference_blueprint:
                     saved_state["last_reference_blueprint"] = reference_blueprint
@@ -24159,16 +23889,15 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             else:
                 t=time.perf_counter()
                 vehicle_profile, vehicle_cached = _graphic_cached_vehicle_profile_v8200(role_items,prompt_text) if has_product else ({},True)
-                vehicle_profile = _graphic_engine11_vehicle_lock(_graphic_resolve_vehicle_lock(prompt_text, vehicle_profile), prompt_text)
+                vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
                 stage_times["vehicle_resolution_seconds"]=time.perf_counter()-t
                 if vehicle_profile:
                     saved_state["last_vehicle_profile"] = vehicle_profile
                     saved_state["vehicle_profile_locked"] = bool(vehicle_profile.get("hard_vehicle_lock"))
-            vehicle_profile = _graphic_engine11_vehicle_lock(vehicle_profile, prompt_text)
             campaign_spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
-        production_prompt=_graphic_background_exclusion_contract_v20500(_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+"\nENGINEERING DNA 2.0: "+json.dumps((product_dna or {}).get("engineering_dna_2") or {},ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile))
+        production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
         diagnostic_log("graphic_v8000_route", mode=product_mode.get("mode"), edit_kind=edit_kind, template=brand_template)
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
@@ -24185,7 +23914,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 local_result["layer_stack"] = _graphic_layer_stack_v8000(local_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
                 local_result["professional_qa"] = _graphic_professional_qa_v8000(local_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
                 local_result["runtime_audit"] = _graphic_runtime_audit_v10000(local_result, route=edit_kind, provider_calls=0, retries=0, stages=stage_times)
-                local_result = _graphic_engine11_render_trace(local_result, product_dna=product_dna, reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile, route=edit_kind)
                 state = get_graphic_project_state(); state["layer_stack"] = local_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
                 _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, local_edit=True, route=edit_kind, stages=stage_times)
                 _graphic_progress_update_v3300(status, "Graphic local edit completed.", "complete")
@@ -24194,7 +23922,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         # Exact-product jobs use one scenery request followed by deterministic
         # composition and lightweight verification.
         if product_mode.get("exact_product") and not has_edit_base:
-            _graphic_progress_update_v3300(status, "Generating only the scene and vehicle, then compositing the immutable uploaded product…")
+            _graphic_progress_update_v3300(status, "Creating the automotive scene and composing the exact uploaded product…")
             exact_result = _graphic_fast_exact_campaign_v7000(
                 prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, product_mode
             )
@@ -24207,10 +23935,9 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result["product_dna"] = product_dna
             exact_result["professional_qa"] = _graphic_professional_qa_v8000(exact_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
             exact_result["runtime_audit"] = _graphic_runtime_audit_v10000(exact_result, route=product_mode.get("mode"), provider_calls=1, retries=0, stages=stage_times)
-            exact_result = _graphic_engine11_render_trace(exact_result, product_dna=product_dna, reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile, route=product_mode.get("mode"))
             state = get_graphic_project_state(); state["layer_stack"] = exact_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, route=product_mode.get("mode"), stages=stage_times)
-            completion = "True-layered exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
+            completion = "Exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
             _graphic_progress_update_v3300(status, completion, "complete")
             return [exact_result]
 
@@ -24673,7 +24400,7 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100", "verified_exact_product_engine12"}:
+    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100"}:
         action = "Created your exact-product AutoTecPro campaign image"
     elif image.get("ai_product_recreated"):
         action = "Created an AI-recreated product view from your supplied product references"
