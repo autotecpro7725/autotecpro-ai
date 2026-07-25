@@ -46,9 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v45000
+# AutoTecPro AI performance/stability revision: v46000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v45000 Vehicle Installation Engine built directly from the working v44000 adaptive baseline.
+# v46000 Adaptive Interior Source Engine built directly from the working v45000 Vehicle Installation Engine.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
@@ -16786,6 +16786,9 @@ def _graphic_update_project_brief(prompt_text):
         if value.casefold() not in {"create it", "create", "generate it", "proceed", "do it", "regenerate"}:
             history.append(value[:1200])
             state["project_brief_history"] = history[-12:]
+            state["last_meaningful_generation_prompt_v47000"] = value[:4000]
+            if re.search(r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|\binstall .{0,70}(?:dashboard|dash|interior|vehicle|car)\b", value, flags=re.I):
+                state["pending_adaptive_mode_v47000"] = "installed_view"
         explicit = _graphic_extract_explicit_vehicle(value)
         if explicit:
             state["explicit_vehicle"] = explicit
@@ -19819,6 +19822,8 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
         "style_reference": "STYLE REFERENCE — copy design language only",
         "logo_asset": "OFFICIAL LOGO ASSET",
         "supporting_image": "SUPPORTING VISUAL ASSET",
+        "installation_dashboard_reference": "AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry",
+        "installation_ui_reference": "AUTHORITATIVE SCREEN UI REFERENCE",
     }
     usable_count = 0
     for item in role_items or []:
@@ -19826,7 +19831,7 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
         if not data_url:
             continue
         usable_count += 1
-        content.append({"type": "input_text", "text": f"{label_lookup.get(item.get('role'), 'REFERENCE IMAGE')}: {item.get('name') or 'image'}"})
+        content.append({"type": "input_text", "text": f"{label_lookup.get(item.get('provider_role') or item.get('role'), 'REFERENCE IMAGE')}: {item.get('name') or 'image'}"})
         content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
 
     action = "edit" if usable_count else "generate"
@@ -24847,7 +24852,86 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v45000-adaptive-automotive-studio"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v47000-installed-intent-continuity-engine"
+
+
+
+_GRAPHIC_GENERIC_EXECUTION_PROMPTS_V47000 = {
+    "create", "create it", "create now", "create it now", "generate", "generate it",
+    "generate now", "generate it now", "make it", "make it now", "do it", "proceed",
+    "go ahead", "yes", "yes create it", "yes generate it", "render it", "start",
+}
+
+
+def _graphic_is_generic_execution_prompt_v47000(prompt_text):
+    """Return True when a turn only authorizes a previously described job."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold().strip(" .!?;")
+    if value in _GRAPHIC_GENERIC_EXECUTION_PROMPTS_V47000:
+        return True
+    return bool(re.fullmatch(
+        r"(?:please\s+)?(?:go ahead|proceed|do it|make it|create it|generate it|render it|start)(?:\s+now)?",
+        value,
+        flags=re.I,
+    ))
+
+
+def _graphic_resolve_effective_prompt_v47000(prompt_text):
+    """Carry the last meaningful Graphic request into short execution follow-ups.
+
+    A common two-turn workflow is: describe an Installed View job with the product
+    upload, receive an acknowledgement, then say only ``create it``. Earlier routes
+    classified that second turn as a fresh commercial campaign because the Installed
+    View words were absent. This resolver preserves the user's actual request across
+    the primary, compatibility, and recovery pipelines.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    state = get_graphic_project_state()
+    history = [
+        re.sub(r"\s+", " ", str(item or "")).strip()
+        for item in (state.get("project_brief_history") or [])
+        if str(item or "").strip()
+    ]
+    remembered = str(state.get("last_meaningful_generation_prompt_v47000") or "").strip()
+    if not remembered and history:
+        remembered = history[-1]
+
+    if _graphic_is_generic_execution_prompt_v47000(current) and remembered:
+        effective = f"{remembered}\n\nExecution confirmation: {current or 'create it'}"
+        source = "project_brief_continuation"
+    else:
+        effective = current
+        source = "current_turn"
+        if current and not _graphic_is_generic_execution_prompt_v47000(current):
+            state["last_meaningful_generation_prompt_v47000"] = current[:4000]
+
+    # Persist a hard intent hint so every fallback route makes the same decision.
+    lower = effective.casefold()
+    if re.search(r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|\bshow .{0,40} installed\b|\binstall .{0,60}(?:dashboard|dash|interior|vehicle|car)\b", lower, flags=re.I):
+        state["pending_adaptive_mode_v47000"] = "installed_view"
+    elif re.search(r"\b(?:replace|change|swap|update)\b.{0,50}\b(?:ui|interface|screen content|display content)\b", lower, flags=re.I):
+        state["pending_adaptive_mode_v47000"] = "ui_replacement"
+    elif current and not _graphic_is_generic_execution_prompt_v47000(current):
+        state["pending_adaptive_mode_v47000"] = ""
+
+    state["last_effective_prompt_source_v47000"] = source
+    state["last_effective_prompt_v47000"] = effective[:5000]
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return effective
+
+
+def _graphic_installed_intent_hint_v47000(prompt_text):
+    """Resolve a fail-closed Installed View hint from prompt plus project state."""
+    lower = str(prompt_text or "").casefold()
+    explicit = bool(re.search(
+        r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|"
+        r"\bshow .{0,45} installed\b|\binstall .{0,70}(?:dashboard|dash|interior|vehicle|car)\b",
+        lower,
+        flags=re.I,
+    ))
+    state = get_graphic_project_state()
+    remembered = str(state.get("pending_adaptive_mode_v47000") or "").strip() == "installed_view"
+    return explicit or remembered
 
 
 def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=False):
@@ -24887,6 +24971,7 @@ def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=
         r"\bnew camera angle\b", r"\bdifferent angle\b", r"\bexploded view\b", r"\b3d render\b",
     ))
     concept = any_re((r"\bconcept\b", r"\bfuturistic\b", r"\bcyberpunk\b", r"\btransparent housing\b"))
+    installed = installed or _graphic_installed_intent_hint_v47000(value)
 
     # Most-specific transformations win. UI replacement intentionally outranks
     # installed-view language when the user asks to change an installed screen UI.
@@ -24921,6 +25006,191 @@ def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=
         "local_screen_only_edit": mode == "ui_replacement",
     }
 
+
+
+def _graphic_installation_candidate_items_v46000(role_items):
+    """Return non-product images that may be an OEM dashboard target."""
+    candidates = []
+    for index, item in enumerate(role_items or []):
+        if not isinstance(item, dict) or item.get("file") is None:
+            continue
+        role = str(item.get("role") or "").casefold()
+        if role in {"product_photo", "edit_base", "logo_asset"}:
+            continue
+        name = str(item.get("name") or getattr(item.get("file"), "name", "") or "").casefold()
+        score = 0
+        if any(k in name for k in ("dashboard", "dash", "interior", "cabin", "center stack", "centre stack", "oem interior")):
+            score += 8
+        if any(k in name for k in ("ui", "interface", "screen shot", "screenshot", "launcher")):
+            score -= 6
+        if any(k in name for k in ("reference", "template", "advert", "ad style", "watermark")):
+            score -= 2
+        if role == "supporting_image":
+            score += 1
+        candidates.append((score, index, item))
+    candidates.sort(key=lambda row: (row[0], -row[1]), reverse=True)
+    return [item for _, _, item in candidates]
+
+
+def _graphic_classify_dashboard_source_v46000(item, prompt_text=""):
+    """Classify one upload as an actual vehicle interior/dashboard image."""
+    if not item or item.get("file") is None:
+        return {"available": False, "is_dashboard": False, "confidence": 0}
+    raw = _graphic_uploaded_file_bytes(item.get("file"))
+    if not raw:
+        return {"available": False, "is_dashboard": False, "confidence": 0}
+    digest = hashlib.sha256(raw).hexdigest()
+    cache = st.session_state.setdefault("graphic_dashboard_source_classifier_v46000", {})
+    if digest in cache:
+        return dict(cache[digest])
+    data_url = _graphic_role_data_url(item)
+    content = [
+        {"type": "input_text", "text": (
+            "Classify this uploaded image for an automotive installation workflow. Return JSON only with keys: "
+            "is_dashboard, confidence, image_type, vehicle_interior_visible, center_stack_visible, factory_screen_region_visible, "
+            "usable_as_exact_installation_target, reason. A dashboard target must show a real vehicle cabin/interior and enough of the center stack "
+            "to integrate an aftermarket screen. Commercial advertisements, product-only photos, UI screenshots, exterior vehicle photos, and style templates are not dashboard targets. "
+            f"User request: {str(prompt_text or '')[:800]}"
+        )},
+        {"type": "input_image", "image_url": data_url, "detail": "high"},
+    ]
+    try:
+        response = client.responses.create(
+            model=_graphic_responses_model_v4000(),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=700,
+        )
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        payload = payload if isinstance(payload, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v46000_dashboard_classifier_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        payload = {}
+    try:
+        confidence = max(0, min(100, int(float(payload.get("confidence") or 0))))
+    except Exception:
+        confidence = 0
+    result = {
+        "available": bool(payload),
+        "is_dashboard": bool(payload.get("is_dashboard")) and confidence >= 70,
+        "confidence": confidence,
+        "image_type": str(payload.get("image_type") or ""),
+        "vehicle_interior_visible": bool(payload.get("vehicle_interior_visible")),
+        "center_stack_visible": bool(payload.get("center_stack_visible")),
+        "factory_screen_region_visible": bool(payload.get("factory_screen_region_visible")),
+        "usable_as_exact_installation_target": bool(payload.get("usable_as_exact_installation_target")) and confidence >= 75,
+        "reason": str(payload.get("reason") or "")[:1000],
+        "sha256": digest,
+        "provider_calls": 1,
+    }
+    cache[digest] = result
+    return result
+
+
+def _graphic_uploaded_dashboard_profile_v46000(item, prompt_text, vehicle_profile=None, classification=None):
+    """Compile Interior DNA from the user's actual dashboard photo; no web search."""
+    raw = _graphic_uploaded_file_bytes((item or {}).get("file"))
+    if not raw:
+        return {"available": False, "source_level": 1, "source_method": "uploaded_dashboard", "reason": "Dashboard bytes unavailable."}
+    digest = hashlib.sha256(raw).hexdigest()
+    cache = st.session_state.setdefault("graphic_uploaded_interior_dna_v46000", {})
+    if digest in cache:
+        result = dict(cache[digest])
+        result["dashboard_source_item"] = item
+        return result
+    data_url = _graphic_role_data_url(item)
+    explicit = _graphic_extract_explicit_vehicle(prompt_text) or {}
+    requested = str(explicit.get("display_name") or (vehicle_profile or {}).get("explicit_display_name") or "").strip()
+    content = [
+        {"type": "input_text", "text": (
+            "Analyze this exact uploaded vehicle interior as the authoritative installation target. Return JSON only with keys: available, vehicle_identity_visible, "
+            "vehicle_identity_confidence, dashboard_center_stack_description, factory_screen_location, installation_target_region, installation_opening_shape, "
+            "left_vent, right_vent, vent_relationship_to_screen, climate_controls, physical_buttons, hazard_button_location, surrounding_trim_shape, dashboard_materials, "
+            "steering_wheel_and_cluster_cues, center_console_cues, cabin_color_guidance, camera_view_detected, perspective_and_scale_rules, occlusion_rules, lighting_rules, "
+            "product_integration_rules, ui_visibility_rules, prohibited_mismatches, crop_or_visibility_limitations, confidence_score. "
+            "Do not infer hidden areas as facts. Preserve the dashboard pixels, proportions, vents, controls, trim seams, camera perspective, and cabin lighting shown in this photo. "
+            f"Requested vehicle identity from user, if any: {requested or 'not specified'}. User request: {str(prompt_text or '')[:1000]}"
+        )},
+        {"type": "input_image", "image_url": data_url, "detail": "high"},
+    ]
+    try:
+        response = client.responses.create(model=_graphic_responses_model_v4000(), input=[{"role": "user", "content": content}], max_output_tokens=2300)
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        payload = payload if isinstance(payload, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v46000_uploaded_dashboard_analysis_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        payload = {}
+    try:
+        confidence = max(0, min(100, int(float(payload.get("confidence_score") or 0))))
+    except Exception:
+        confidence = 0
+    result = dict(payload)
+    result.update({
+        "available": bool(payload.get("dashboard_center_stack_description")) and confidence >= 60,
+        "source_level": 1,
+        "source_method": "uploaded_dashboard_ground_truth",
+        "dashboard_ground_truth": True,
+        "web_search_used": False,
+        "confidence_score": confidence,
+        "dashboard_source_sha256": digest,
+        "dashboard_source_name": str((item or {}).get("name") or "uploaded dashboard"),
+        "requested_vehicle": requested,
+        "research_version": GRAPHIC_ADAPTIVE_ENGINE_VERSION,
+        "research_schema": "v46000-uploaded-dashboard-interior-dna-1",
+        "classification": classification or {},
+        "source_records": [{"title": "User-uploaded dashboard photo", "domain": "user_upload", "source_type": "ground_truth_image", "supported_facts": ["visible dashboard geometry", "camera perspective", "vents", "controls", "trim", "lighting"]}],
+    })
+    cache[digest] = {k: v for k, v in result.items() if k != "dashboard_source_item"}
+    result["dashboard_source_item"] = item
+    return result
+
+
+def _graphic_vehicle_specificity_v46000(prompt_text, vehicle_profile=None):
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    explicit = _graphic_extract_explicit_vehicle(text) or {}
+    identity = str(explicit.get("display_name") or (vehicle_profile or {}).get("explicit_display_name") or (vehicle_profile or {}).get("model") or "").strip()
+    years = re.findall(r"\b(?:19|20)\d{2}\b", text)
+    has_model = bool(identity and re.search(r"[A-Za-z]", identity))
+    has_year = bool(years or re.search(r"\b(?:19|20)\d{2}\s*[-–]\s*(?:19|20)?\d{2}\b", text))
+    trim = bool(re.search(r"\b(XL|XLT|Lariat|King Ranch|Platinum|Limited|Raptor|Tremor|WT|LT|RST|LTZ|High Country|SLE|SLT|AT4|Denali|Tradesman|Big Horn|Laramie|Rebel|Longhorn)\b", text, re.I))
+    return {"identity": identity, "has_model": has_model, "has_year": has_year, "has_trim": trim, "years": years[:4]}
+
+
+def _graphic_installation_source_plan_v46000(prompt_text, role_items, vehicle_profile=None):
+    """Resolve Level 1 uploaded dash, Level 2 exact vehicle research, or Level 3 best-effort research."""
+    candidates = _graphic_installation_candidate_items_v46000(role_items)
+    for item in candidates[:4]:
+        name = str(item.get("name") or "").casefold()
+        likely = any(k in name for k in ("dashboard", "dash", "interior", "cabin", "center stack", "centre stack"))
+        classification = _graphic_classify_dashboard_source_v46000(item, prompt_text)
+        if classification.get("usable_as_exact_installation_target") or (likely and classification.get("is_dashboard")):
+            profile = _graphic_uploaded_dashboard_profile_v46000(item, prompt_text, vehicle_profile, classification)
+            if profile.get("available"):
+                item["provider_role"] = "installation_dashboard_reference"
+                return profile
+
+    specificity = _graphic_vehicle_specificity_v46000(prompt_text, vehicle_profile)
+    researched = _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile)
+    researched = dict(researched or {})
+    if specificity.get("has_model") and specificity.get("has_year"):
+        researched.update({
+            "source_level": 2,
+            "source_method": "cached_or_live_exact_vehicle_research",
+            "dashboard_ground_truth": False,
+            "web_search_used": not bool(researched.get("cache_hit")),
+            "needs_vehicle_clarification": False,
+        })
+    else:
+        researched.update({
+            "source_level": 3,
+            "source_method": "best_effort_vehicle_family_research",
+            "dashboard_ground_truth": False,
+            "web_search_used": True,
+            "needs_vehicle_clarification": not specificity.get("has_year"),
+            "clarification_message": "A precise model year or generation was not supplied. The engine used the best-supported dashboard family and the result requires review.",
+            "research_verified_enough_for_generation": bool(researched.get("available") and researched.get("confidence_score", 0) >= 75 and specificity.get("has_model")),
+        })
+    researched["vehicle_specificity"] = specificity
+    return researched
 
 def _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile=None):
     """Research and compile an OEM interior contract for Installed View Mode.
@@ -25033,7 +25303,7 @@ def _graphic_installed_view_validation_v45000(data_url, role_items, prompt_text,
     }
     content = [{"type": "input_text", "text": (
         "Act as a strict automotive OEM interior and aftermarket-installation visualization inspector. "
-        "The first image is the generated after-installation result; later images are authoritative product sources. "
+        "The first image is the generated after-installation result. If an uploaded dashboard ground-truth image follows, it is authoritative for cabin geometry and perspective; remaining images are authoritative product sources. "
         "Return JSON only with keys: passed, score, vehicle_interior_identity_score, dashboard_generation_score, center_stack_geometry_score, "
         "vent_and_control_layout_score, installation_fit_score, product_identity_score, product_scale_perspective_score, lighting_integration_score, "
         "ui_visibility_score, photorealism_score, wrong_or_invented_details, confirmed_details, correction_prompt, reason. "
@@ -25043,6 +25313,12 @@ def _graphic_installed_view_validation_v45000(data_url, role_items, prompt_text,
         "Required minimums: overall 92; vehicle interior identity 95; dashboard generation 95; center stack 94; vents/controls 93; installation fit 94; product identity 92; perspective 92; lighting 88; UI 90; photorealism 90.\n"
         f"Requested vehicle: {required_vehicle}\nOEM interior contract: {json.dumps(contract, ensure_ascii=False, default=str)[:14000]}\nUser request: {str(prompt_text or '')[:1400]}"
     )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
+    dashboard_item = (interior_profile or {}).get("dashboard_source_item") if isinstance(interior_profile, dict) else None
+    if isinstance(dashboard_item, dict):
+        dashboard_source = _graphic_role_data_url(dashboard_item)
+        if dashboard_source:
+            content.append({"type": "input_text", "text": "AUTHORITATIVE USER-UPLOADED DASHBOARD GROUND TRUTH. The generated result must preserve this cabin geometry and camera perspective."})
+            content.append({"type": "input_image", "image_url": dashboard_source, "detail": "high"})
     for item in product_sources:
         source = _graphic_role_data_url(item)
         if source:
@@ -25076,7 +25352,7 @@ def _graphic_installed_view_validation_v45000(data_url, role_items, prompt_text,
             "confirmed_details": (payload.get("confirmed_details") or [])[:30],
             "correction_prompt": str(payload.get("correction_prompt") or "")[:2500],
             "reason": str(payload.get("reason") or "")[:1800], "provider_calls": 1,
-            "required_vehicle": required_vehicle, "policy": "v45000_oem_installed_view_validation"
+            "required_vehicle": required_vehicle, "policy": "v46000_adaptive_interior_source_validation"
         }
     except Exception as error:
         diagnostic_log("graphic_v45000_installed_validation_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
@@ -25196,16 +25472,18 @@ def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_p
     if mode == "installed_view" or internal_mode == "installed_product_view":
         research = dict(interior_profile or {})
         return base + (
-            "VEHICLE INSTALLATION ENGINE v45000 — AFTER-INSTALLATION MODE.\n"
+            "VEHICLE INSTALLATION ENGINE v46000 — ADAPTIVE INTERIOR SOURCE MODE.\n"
             "Create a photorealistic interior photograph from inside the exact requested vehicle generation. The OEM cabin and dashboard—not an exterior vehicle scene—must fill the image. "
-            "Use the researched center-stack geometry as an authoritative installation blueprint. Reconstruct the supplied AutoTecPro unit only as much as required by the installed perspective. "
+            "Apply this source hierarchy strictly: Level 1 user-uploaded dashboard photo is immutable ground truth and must be visually preserved; Level 2 exact vehicle/year Interior DNA uses cached or live verified OEM research; Level 3 incomplete vehicle details use best-effort research and must not invent unsupported trim details. "
+            "When dashboard_ground_truth is true, use the uploaded dashboard image as the actual installation canvas/visual authority, preserving its camera angle, vents, controls, trim seams, steering wheel, console, lighting and visible cabin pixels. Modify only the factory replacement region and necessary local integration pixels. "
+            "When no dashboard is uploaded, use the researched center-stack geometry as the authoritative installation blueprint. Reconstruct the supplied AutoTecPro unit only as much as required by the installed perspective. "
             "Preserve recognizable Product DNA: visible screen aspect ratio, housing/bezel relationship, control layout, trim architecture, supplied UI identity, and major structural landmarks. "
             "Place the unit into the real factory replacement region; it must share the dashboard plane, depth, perspective, occlusion, trim seams, reflections, exposure, color temperature, and contact shadows. "
             "Retain all factory components identified as retained in the research contract. Do not invent vents, climate controls, buttons, trim seams, steering wheels, clusters, or center consoles from another generation. "
             "Do not show a floating tablet, generic double-DIN radio, exterior vehicle, concept cabin, mirrored dashboard, impossible screen opening, or oversized/undersized unit. "
             "Use a natural driver-seat or front-passenger three-quarter camera view unless the user explicitly requests another interior angle. Keep the installed screen clearly visible and commercially attractive. "
             "Any uncertainty in trim-specific details must default to the most widely documented dashboard family for the requested generation and must not contradict the contract.\n"
-            "LIVE OEM INTERIOR RESEARCH CONTRACT: " + json.dumps(research, ensure_ascii=False, default=str)[:18000] + "\n"
+            "ADAPTIVE INTERIOR SOURCE CONTRACT: " + json.dumps({k: v for k, v in research.items() if k != "dashboard_source_item"}, ensure_ascii=False, default=str)[:20000] + "\n"
             "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:14000]
         )
     return base
@@ -25233,6 +25511,10 @@ def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_bl
             "14_learning_engine": True,
         },
         "interior_research_available": bool((interior_profile or {}).get("available")),
+        "installation_source_level": (interior_profile or {}).get("source_level"),
+        "installation_source_method": (interior_profile or {}).get("source_method"),
+        "uploaded_dashboard_ground_truth": bool((interior_profile or {}).get("dashboard_ground_truth")),
+        "needs_vehicle_clarification": bool((interior_profile or {}).get("needs_vehicle_clarification")),
         "interior_research_verified": bool((interior_profile or {}).get("research_verified_enough_for_generation")),
         "vehicle_installation_engine": "v45000",
     }
@@ -26138,12 +26420,16 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
         interior_profile = {}
         if product_mode.get("installed_view"):
-            _graphic_progress_update_v3300(status, "Researching the correct OEM interior and dashboard generation…")
+            _graphic_progress_update_v3300(status, "Resolving the best dashboard source: uploaded ground truth, cached Interior DNA, or live OEM research…")
             t = time.perf_counter()
-            interior_profile = _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile)
-            stage_times["installed_interior_research_seconds"] = time.perf_counter() - t
+            interior_profile = _graphic_installation_source_plan_v46000(prompt_text, role_items, vehicle_profile)
+            stage_times["installed_interior_source_resolution_seconds"] = time.perf_counter() - t
+            source_item = interior_profile.get("dashboard_source_item") if isinstance(interior_profile, dict) else None
+            if isinstance(source_item, dict):
+                source_item["provider_role"] = "installation_dashboard_reference"
             state_i = get_graphic_project_state()
-            state_i["last_installed_interior_profile_v44000"] = interior_profile
+            state_i["last_installed_interior_profile_v46000"] = {k: v for k, v in dict(interior_profile or {}).items() if k != "dashboard_source_item"}
+            state_i["installed_interior_source_level"] = (interior_profile or {}).get("source_level")
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_i
         adaptive_directive = _graphic_mode_directive_v44000(product_mode, prompt_text, role_items, vehicle_profile, interior_profile)
         production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)+adaptive_directive
@@ -26490,7 +26776,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 final_result = _graphic_mark_unverified_v4100(
                     final_result,
                     "The Installed View image was created, but OEM interior or installation-integration verification did not fully pass. Review before publishing.",
-                    status="completed_installed_view_needs_review_v45000",
+                    status="completed_installed_view_needs_review_v46000",
                 )
 
         final_result = _graphic_finalize_result_v7100(
@@ -26614,6 +26900,77 @@ def _graphic_emergency_provider_result_v15000(
     return [result]
 
 
+
+def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, output_size="1536x1024", forced_upload_role="Auto-detect"):
+    """Dedicated fail-safe recovery that can only return an interior installation.
+
+    Generic emergency generation is intentionally forbidden for Installed View jobs,
+    because it may reinterpret the product as a marketing poster. This route keeps
+    the product upload, researches/resolves the best interior source, and gives the
+    provider a strict interior-only contract.
+    """
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = classify_graphic_uploaded_image_roles(
+        graphic_project_uploaded_files(include_current=uploaded_files),
+        effective_prompt,
+        forced_upload_role,
+    )
+    product_items = [item for item in role_items if item.get("role") == "product_photo"]
+    if not product_items:
+        raise RuntimeError("Installed View recovery requires an identifiable product image.")
+
+    vehicle_profile = _graphic_resolve_vehicle_lock(effective_prompt, {})
+    interior_profile = _graphic_installation_source_plan_v46000(
+        effective_prompt, role_items, vehicle_profile
+    )
+    dashboard_item = interior_profile.get("dashboard_source_item") if isinstance(interior_profile, dict) else None
+    if isinstance(dashboard_item, dict):
+        dashboard_item["provider_role"] = "installation_dashboard_reference"
+
+    strict_prompt = (
+        "FAIL-SAFE VEHICLE INSTALLATION RENDER. Create one photorealistic AFTER-INSTALLATION photograph from INSIDE the vehicle cabin. "
+        "This is not an advertisement poster, product hero graphic, catalogue layout, exterior vehicle image, infographic, or feature-callout design. "
+        "Do not render a logo, headline, compatibility ribbon, feature grid, arrows, labels, footer bar, or marketing text. "
+        "Use the uploaded AutoTecPro unit only as the product identity reference and integrate it into the real factory center-stack replacement region. "
+        "The cabin and OEM dashboard must fill the frame. Preserve generation-specific vents, climate controls, physical buttons, trim seams, steering wheel, console, and dashboard depth. "
+        "The installed unit must share the dashboard plane, perspective, occlusion, contact shadows, reflections, exposure, and color temperature. "
+        "Never return the source product photo or recreate its surrounding white background/poster. Never show a floating tablet or generic double-DIN radio.\n"
+        f"USER REQUEST: {effective_prompt}\n"
+        "INTERIOR SOURCE CONTRACT: " + json.dumps(
+            {k: v for k, v in dict(interior_profile or {}).items() if k != "dashboard_source_item"},
+            ensure_ascii=False,
+            default=str,
+        )[:18000]
+    )
+    raw_images, route = _graphic_responses_generate_v3000(role_items, strict_prompt, output_size)
+    if not raw_images:
+        raw_images, route = _graphic_images_api_fallback_v3000(role_items, strict_prompt, output_size)
+    if not raw_images:
+        raise RuntimeError("Installed View recovery returned no image.")
+
+    result = _graphic_build_provider_result_v3000(
+        raw_images[0], effective_prompt, output_size, role_items, route, {}, vehicle_profile
+    )
+    validation = _graphic_safe_optional_call(
+        "graphic_v47000_installed_recovery_validation_unavailable",
+        lambda: _graphic_installed_view_validation_v45000(
+            result.get("data_url"), role_items, effective_prompt, vehicle_profile, interior_profile
+        ),
+        {"available": False, "passed": None, "reason": "Installed View recovery validation unavailable", "provider_calls": 0},
+    )
+    result.update({
+        "adaptive_mode": "installed_view",
+        "installed_interior_profile": interior_profile,
+        "installed_view_validation": validation,
+        "output_status": "completed_installed_view_recovery_v47000" if validation.get("passed") is True else "completed_installed_view_needs_review_v47000",
+        "verification_status": "verified" if validation.get("passed") is True else "review_required",
+        "recovery_route": "installed-view-only-v47000",
+        "poster_output_prohibited": True,
+        "ai_product_recreated": True,
+    })
+    return [result]
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
@@ -26629,6 +26986,8 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         professional_layered_studio=professional_layered_studio,
     )
     failures = []
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
@@ -26637,7 +26996,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
         return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
-            prompt_text, uploaded_files, **arguments
+            effective_prompt, uploaded_files, **arguments
         ), "advanced", failures)
     except Exception as error:
         failures.append(
@@ -26649,11 +27008,43 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             error=_graphic_compact_error_v4000(error),
         )
 
+    # Installed View must fail closed to an interior-only recovery. Generic legacy
+    # or emergency routes are not allowed to turn it into a commercial poster.
+    if installed_request:
+        try:
+            result = _graphic_installed_view_recovery_v47000(
+                effective_prompt, uploaded_files,
+                output_size="1536x1024",
+                forced_upload_role=forced_upload_role,
+            )
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["recovered_from_v47000"] = True
+                    image["recovery_failures"] = failures[-2:]
+            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
+        except Exception as error:
+            failures.append(
+                f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+            diagnostic_log(
+                "graphic_v47000_installed_recovery_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+            state = get_graphic_project_state()
+            state["stage"] = "ready_to_generate"
+            state["last_error"] = " | ".join(failures[-4:])[:1800]
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            raise RuntimeError(
+                "Installed View generation failed safely. The app did not substitute a commercial poster. "
+                + " | ".join(failures[-3:])
+            ) from error
+
     # The earlier v3200 path has fewer governance/QA dependencies and is retained
-    # as a compatibility recovery route for deployed Streamlit environments.
+    # only for non-installed compatibility recovery.
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
-            prompt_text, uploaded_files, **arguments
+            effective_prompt, uploaded_files, **arguments
         )
         for image in result or []:
             if isinstance(image, dict):
@@ -26672,7 +27063,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
 
     try:
         result = _graphic_emergency_provider_result_v15000(
-            prompt_text,
+            effective_prompt,
             uploaded_files,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
