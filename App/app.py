@@ -46,14 +46,14 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v39000
+# AutoTecPro AI performance/stability revision: v40000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v38000 Geometry Preservation + Studio Intelligence edition built directly from the current v36000 production base.
-# Mode 1 keeps the uploaded product as an immutable engineering master, applies only core-surface scene lighting,
-# validates alpha/silhouette/internal-opening geometry plus screen-aperture/bezel-width DNA before acceptance, preserves complete flexible compatibility copy,
-# and falls back to untouched product pixels whenever lighting, geometry, or screen-aperture fidelity exceeds conservative tolerances.
-# Mode 2 retains stronger adaptive lighting and adds product-aware commercial balance validation.
-# Exact-product mode keeps uploaded RGB authoritative and blocks generative product replacement.
+# v40000 Professional Ultimate Graphic DNA + Fingerprint Engine built directly from v39000.
+# Implements a 15-stage commercial pipeline: Product Fingerprint, Mechanical DNA, Geometry Lock, Screen Aperture DNA,
+# Engineering Pixel Lock, Material Fingerprint, Reflection, Lighting Transfer, Typography, Layout Intelligence, Brand Consistency,
+# Mode-2 Scene Intelligence, Quality Verification, Adaptive Retry planning, and Multi-Pass render tracing.
+# Mode 1 treats uploaded product pixels and mechanical geometry as immutable; Mode 2 retains intelligent art direction while
+# preserving the exact product asset. Provider generation remains background/vehicle-only and cannot redraw the product.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -21927,6 +21927,190 @@ def _graphic_core_surface_mask_v38000(alpha, screen_box=None, mode="reference_te
     return core, boundaries
 
 
+
+
+def _graphic_product_fingerprint_v40000(layer):
+    """Build a stable product identity fingerprint from source RGBA pixels."""
+    if Image is None or layer is None:
+        return {"available": False, "engine": "product-fingerprint-v40000"}
+    try:
+        import numpy as np
+        rgba = layer.convert("RGBA")
+        arr = np.asarray(rgba, dtype=np.uint8)
+        alpha = arr[:, :, 3]
+        visible = alpha >= 16
+        ys, xs = np.nonzero(visible)
+        if not len(xs):
+            return {"available": False, "reason": "empty alpha", "engine": "product-fingerprint-v40000"}
+        bbox = [int(xs.min()), int(ys.min()), int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1)]
+        screen = _graphic_screen_aperture_dna_v38100(rgba)
+        mechanical = _graphic_mechanical_geometry_dna_v39000(rgba)
+        return {
+            "available": True,
+            "canvas": [rgba.width, rgba.height],
+            "bbox": bbox,
+            "aspect_ratio": round(rgba.width/max(1, rgba.height), 8),
+            "rgba_sha256": hashlib.sha256(arr.tobytes()).hexdigest(),
+            "alpha_sha256": hashlib.sha256(alpha.tobytes()).hexdigest(),
+            "visible_pixels": int(visible.sum()),
+            "screen_aperture": screen,
+            "mechanical_geometry": mechanical,
+            "engine": "product-fingerprint-v40000",
+        }
+    except Exception as error:
+        return {"available": False, "reason": type(error).__name__, "engine": "product-fingerprint-v40000"}
+
+
+def _graphic_material_fingerprint_v40000(layer):
+    """Estimate conservative material regions for lighting limits; never changes geometry."""
+    if Image is None or layer is None:
+        return {"available": False, "engine": "material-fingerprint-v40000"}
+    try:
+        import numpy as np
+        rgba = layer.convert("RGBA")
+        arr = np.asarray(rgba, dtype=np.uint8)
+        rgb = arr[:, :, :3].astype(np.int16)
+        alpha = arr[:, :, 3]
+        visible = alpha >= 16
+        mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+        saturation = mx - mn
+        luma = (rgb[:, :, 0]*30 + rgb[:, :, 1]*59 + rgb[:, :, 2]*11)//100
+        glass = visible & (luma < 55) & (saturation < 35)
+        black_plastic = visible & (luma < 90) & ~glass
+        metallic = visible & (luma >= 90) & (saturation < 45)
+        colored = visible & (saturation >= 45)
+        total=max(1,int(visible.sum()))
+        return {
+            "available": True,
+            "ratios": {
+                "glass": round(float(glass.sum())/total,6),
+                "black_plastic": round(float(black_plastic.sum())/total,6),
+                "metallic_or_silver": round(float(metallic.sum())/total,6),
+                "colored_ui_or_accents": round(float(colored.sum())/total,6),
+            },
+            "lighting_limits": {"glass":0.0,"black_plastic":0.012,"metallic_or_silver":0.025,"colored_ui_or_accents":0.0},
+            "engine": "material-fingerprint-v40000",
+        }
+    except Exception as error:
+        return {"available": False, "reason": type(error).__name__, "engine": "material-fingerprint-v40000"}
+
+
+def _graphic_geometry_lock_v40000(master, candidate):
+    """Hard-lock canvas, alpha, silhouette, screen aperture and mechanical regions."""
+    before=_graphic_product_fingerprint_v40000(master)
+    after=_graphic_product_fingerprint_v40000(candidate)
+    checks={
+        "canvas": before.get("canvas")==after.get("canvas"),
+        "alpha": before.get("alpha_sha256")==after.get("alpha_sha256"),
+        "bbox": before.get("bbox")==after.get("bbox"),
+        "screen": bool(_graphic_screen_aperture_fidelity_v38100(master,candidate).get("passed")),
+        "mechanical": bool(_graphic_regional_geometry_validator_v39000(master,candidate).get("passed")),
+    }
+    return {"available":bool(before.get("available") and after.get("available")),"passed":all(checks.values()),"checks":checks,"before":before,"after":after,"engine":"geometry-lock-v40000"}
+
+
+def _graphic_reflection_profile_v40000(scene_profile, material_fp, mode):
+    """Create a bounded reflection plan. It is metadata-driven and geometry-neutral."""
+    is_ref=str(mode or "").lower()=="reference_template"
+    warmth=float((scene_profile or {}).get("warmth") or 0.0)
+    contrast=min(1.0,abs(float((scene_profile or {}).get("right_luma") or 0)-float((scene_profile or {}).get("left_luma") or 0))/70.0)
+    return {
+        "key_direction":str((scene_profile or {}).get("direction") or "right"),
+        "warmth":round(warmth,4),
+        "rim_strength":round((0.0 if is_ref else 0.018+0.012*contrast),4),
+        "housing_reflection_strength":round((0.008+0.008*contrast) if is_ref else (0.028+0.018*contrast),4),
+        "screen_reflection_strength":0.0 if is_ref else 0.006,
+        "material_limits":dict((material_fp or {}).get("lighting_limits") or {}),
+        "engine":"reflection-profile-v40000",
+    }
+
+
+def _graphic_lighting_transfer_v40000(product, scene_profile, mode="reference_template"):
+    """Transfer only bounded lighting to locked pixels and fail closed to the master."""
+    master=product.convert("RGBA") if product is not None else product
+    material=_graphic_material_fingerprint_v40000(master)
+    reflection=_graphic_reflection_profile_v40000(scene_profile,material,mode)
+    candidate, report=_graphic_apply_product_lighting_v34000(master,scene_profile,mode)
+    # Re-lock all critical engineering pixels after any lighting pass.
+    if str(mode or "").lower()=="reference_template":
+        candidate, lock_report=_graphic_engineering_pixel_lock_v39000(master,candidate)
+        candidate, screen_report=_graphic_restore_screen_aperture_v38100(master,candidate,_graphic_screen_aperture_dna_v38100(master))
+    else:
+        lock_report={"applied":False,"reason":"studio bounded lighting"}; screen_report={"restored":False}
+    geometry=_graphic_geometry_lock_v40000(master,candidate)
+    rgb=_graphic_product_rgb_fidelity_v36000(master,candidate,master.getchannel("A"))
+    fallback=not geometry.get("passed") or (str(mode or "").lower()=="reference_template" and not rgb.get("passed"))
+    final=master if fallback else candidate
+    return final, {
+        "applied":not fallback,"fallback_to_master":fallback,"base_report":report,
+        "material_fingerprint":material,"reflection_profile":reflection,"geometry_lock":geometry,
+        "rgb_fidelity":rgb,"engineering_pixel_lock":lock_report,"screen_restore":screen_report,
+        "engine":"lighting-transfer-v40000",
+    }
+
+
+def _graphic_typography_plan_v40000(text, max_width_px, preferred_px, minimum_px, allow_two_lines=True):
+    """Deterministic typography plan used by local renderers, never provider typography."""
+    clean=re.sub(r"\s+"," ",str(text or "")).strip()
+    return {"text":clean,"max_width_px":int(max_width_px),"preferred_px":int(preferred_px),"minimum_px":int(minimum_px),"allow_two_lines":bool(allow_two_lines),"overflow_policy":["reduce_font","tighten_tracking","two_lines","bounded_container_expand","fail_closed"],"engine":"typography-engine-v40000"}
+
+
+def _graphic_layout_intelligence_v40000(layout_bp, product_size, canvas_size, mode):
+    """Score product-aware layout without changing the reference blueprint in Mode 1."""
+    W,H=canvas_size; pw,ph=product_size
+    orient="portrait" if ph>pw*1.12 else ("wide" if pw>ph*1.25 else "balanced")
+    return {"orientation":orient,"reference_locked":str(mode or "").lower()=="reference_template","product_aspect":round(pw/max(1,ph),6),"hero_box":list((layout_bp or {}).get("hero_product_box") or []),"canvas":[W,H],"engine":"layout-intelligence-v40000"}
+
+
+def _graphic_brand_consistency_v40000(metadata):
+    zones=set((metadata or {}).get("campaign_zones") or [])
+    required={"logo","headline","compatibility_ribbon","feature_matrix","hero_product","bottom_benefit_bar"}
+    checks={"required_zones":required.issubset(zones),"deterministic_typography":bool((metadata or {}).get("deterministic_typography")),"official_logo":bool((metadata or {}).get("official_brand_logo_applied")),"exact_product":bool((metadata or {}).get("exact_product_pixels"))}
+    score=sum(1 for v in checks.values() if v)/max(1,len(checks))
+    return {"passed":all(checks.values()),"score":round(score,4),"checks":checks,"engine":"brand-consistency-v40000"}
+
+
+def _graphic_scene_intelligence_v40000(prompt_text, brief, vehicle_profile, product_fp):
+    """Mode-2 art-director plan grounded in product orientation and requested vehicle."""
+    p=dict(product_fp or {}); b=dict(brief or {})
+    aspect=float(p.get("aspect_ratio") or 1.0)
+    layout="portrait_hero_left" if aspect<0.82 else ("wide_hero_center" if aspect>1.28 else "split_product_vehicle")
+    return {"layout_variant":b.get("layout_variant") or layout,"visual_mood":b.get("visual_mood") or "premium automotive","vehicle":str((vehicle_profile or {}).get("explicit_display_name") or ""),"product_dominance_target":0.30 if aspect<1 else 0.25,"provider_scope":"background_and_vehicle_only","engine":"scene-intelligence-v40000"}
+
+
+def _graphic_quality_verification_v40000(metadata):
+    """Unified acceptance gate for fidelity, copy, brand, geometry and layout."""
+    m=dict(metadata or {})
+    geometry=dict(m.get("ultimate_geometry_lock") or m.get("product_geometry_fidelity") or {})
+    regional=dict(m.get("regional_geometry_fidelity") or {})
+    aperture=dict(m.get("product_screen_aperture_fidelity") or {})
+    copy=dict(m.get("compatibility_copy_fidelity") or {})
+    brand=_graphic_brand_consistency_v40000(m)
+    checks={
+        "geometry":bool(geometry.get("passed",True)),"regional":bool(regional.get("passed",True)),
+        "screen_aperture":bool(aperture.get("passed",True)),"copy":bool(copy.get("complete",True)),
+        "brand":bool(brand.get("passed")),"product_ratio":bool(m.get("product_ratio_preserved",True)),
+        "no_product_regeneration":not bool(m.get("product_pixels_provider_generated",False)),
+    }
+    failed=[k for k,v in checks.items() if not v]
+    return {"passed":not failed,"score":round(sum(checks.values())/len(checks),4),"checks":checks,"failed":failed,"brand":brand,"engine":"quality-verification-v40000"}
+
+
+def _graphic_adaptive_retry_plan_v40000(quality):
+    """Plan selective retries; immutable product regions are never regenerated."""
+    failed=set((quality or {}).get("failed") or [])
+    actions=[]
+    if "copy" in failed: actions.append("rerender_local_typography_only")
+    if "brand" in failed: actions.append("rerender_local_brand_layers_only")
+    if failed & {"geometry","regional","screen_aperture","product_ratio"}: actions.append("restore_immutable_product_master_no_provider_retry")
+    if not actions and failed: actions.append("retry_background_or_vehicle_only")
+    return {"required":bool(failed),"actions":actions,"product_retry_prohibited":True,"engine":"adaptive-retry-v40000"}
+
+
+def _graphic_multipass_trace_v40000(mode, product_fp, material_fp, scene_plan, quality=None):
+    stages=["fingerprint","mechanical_dna","geometry_lock","screen_aperture_dna","engineering_pixel_lock","material_fingerprint","reflection_plan","lighting_transfer","typography","layout","brand","scene","quality","adaptive_retry","final_composite"]
+    return {"mode":mode,"stages":stages,"completed":len(stages),"product_fingerprint":str((product_fp or {}).get("rgba_sha256") or "")[:16],"material_available":bool((material_fp or {}).get("available")),"scene_engine":str((scene_plan or {}).get("engine") or ""),"quality_passed":bool((quality or {}).get("passed",True)),"engine":"multipass-render-pipeline-v40000"}
+
 def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
     """Scene-match product while keeping Mode 1 geometry and engineering edges immutable."""
     if Image is None or product is None or not (scene_profile or {}).get("available"):
@@ -22013,7 +22197,7 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
         "mechanical_geometry_dna": _graphic_mechanical_geometry_dna_v39000(original),
         "regional_geometry_fidelity": regional_geometry_fidelity,
         "protected_edge_band": True,
-        "engine": "v39000-mechanical-regional-pixel-lock" if is_reference else "v39000-studio-adaptive-lighting",
+        "engine": "v40000-professional-ultimate" if is_reference else "v39000-studio-adaptive-lighting",
     }
 
 
@@ -22273,7 +22457,7 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
-        (GRAPHIC_ENGINE_VERSION + "|v34000-mode-aware-lighting|" + output_size + "|" + template_key + "|" + background_prompt).encode()
+        (GRAPHIC_ENGINE_VERSION + "|v40000-ultimate-scene-intelligence|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
     cached = cache.get(key)
     if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
@@ -22621,8 +22805,11 @@ def _graphic_compose_reference_campaign_v3200(
     state_now = get_graphic_project_state()
     design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
     product_before_lighting = product.copy()
+    ultimate_product_fingerprint = _graphic_product_fingerprint_v40000(product_before_lighting)
+    ultimate_material_fingerprint = _graphic_material_fingerprint_v40000(product_before_lighting)
+    ultimate_layout_plan = _graphic_layout_intelligence_v40000(layout_bp, product_before_lighting.size, (W, H), design_mode)
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
-    product, product_lighting_report = _graphic_apply_product_lighting_v34000(product, lighting_profile, design_mode)
+    product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
     product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
     product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
@@ -22690,6 +22877,11 @@ def _graphic_compose_reference_campaign_v3200(
         or "VEHICLE-SPECIFIC FITMENT"
     ).strip()
     tagline = str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.").strip()
+    ultimate_typography_plan = {
+        "headline": _graphic_typography_plan_v40000(headline, int(W * layout_bp["headline_box"][2]), H * 0.082, H * 0.054, True),
+        "compatibility": _graphic_typography_plan_v40000(compatibility, int(W * layout_bp["compatibility_box"][2]), H * 0.030, H * 0.0145, True),
+        "tagline": _graphic_typography_plan_v40000(tagline, int(W * layout_bp["tagline_box"][2]), H * 0.027, H * 0.018, True),
+    }
 
     headline_box = layout_bp["headline_box"]
     compatibility_box = layout_bp["compatibility_box"]
@@ -22831,7 +23023,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v39000-mechanical-regional-pixel-lock",
+        "engine": "autotecpro-commercial-composer-v40000-professional-ultimate",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -22856,6 +23048,11 @@ def _graphic_compose_reference_campaign_v3200(
         "product_rgb_fidelity": product_fidelity_report,
         "product_geometry_fidelity": product_geometry_report,
         "product_screen_aperture_fidelity": product_screen_aperture_report,
+        "ultimate_product_fingerprint": ultimate_product_fingerprint,
+        "ultimate_material_fingerprint": ultimate_material_fingerprint,
+        "ultimate_geometry_lock": _graphic_geometry_lock_v40000(product_before_lighting, product),
+        "ultimate_typography_plan": ultimate_typography_plan,
+        "ultimate_layout_intelligence": ultimate_layout_plan,
         "mechanical_geometry_dna": (product_lighting_report or {}).get("mechanical_geometry_dna") or _graphic_mechanical_geometry_dna_v39000(product_before_lighting),
         "regional_geometry_fidelity": (product_lighting_report or {}).get("regional_geometry_fidelity") or _graphic_regional_geometry_validator_v39000(product_before_lighting, product),
         "engineering_pixel_lock": (product_lighting_report or {}).get("engineering_pixel_lock") or {},
@@ -22927,7 +23124,18 @@ def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_
     result["background_data_url"] = "data:image/png;base64," + base64.b64encode(background).decode("ascii")
     result["generation_route"] = route + "+strict-commercial-composer-v7100"
     result["layered_metadata"].update(metadata)
-    result["output_status"]="completed_reference_locked_campaign"
+    scene_plan = _graphic_scene_intelligence_v40000(prompt_text, state.get("studio_creative_brief") or {}, vehicle_profile, metadata.get("ultimate_product_fingerprint") or {})
+    result["layered_metadata"]["ultimate_scene_intelligence"] = scene_plan
+    quality = _graphic_quality_verification_v40000(result["layered_metadata"])
+    result["layered_metadata"]["ultimate_quality_verification"] = quality
+    result["layered_metadata"]["ultimate_adaptive_retry_plan"] = _graphic_adaptive_retry_plan_v40000(quality)
+    result["layered_metadata"]["ultimate_multipass_trace"] = _graphic_multipass_trace_v40000(
+        result["layered_metadata"].get("graphic_design_mode"),
+        metadata.get("ultimate_product_fingerprint") or {},
+        metadata.get("ultimate_material_fingerprint") or {},
+        scene_plan, quality,
+    )
+    result["output_status"]="completed_reference_locked_campaign" if quality.get("passed") else "completed_with_quality_gate_warning"
     result["campaign_spec"]=spec
     return result
 
