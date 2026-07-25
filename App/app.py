@@ -46,9 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v41100
+# AutoTecPro AI performance/stability revision: v43000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v41100 Campaign Copy Integrity + Controlled Recovery Flow built directly from the working v41000 baseline.
+# v43000 Five-Stage Compiled Graphic Pipeline built directly from the working v42000 baseline.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
@@ -19641,7 +19641,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v41000"
+GRAPHIC_ENGINE_VERSION = "v43000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -23062,6 +23062,246 @@ def _graphic_deterministic_campaign_plan_v42000(prompt_text, campaign_spec, refe
         "version":"deterministic-campaign-builder-v42000",
     }
 
+
+def _graphic_reference_intelligence_v43000(reference_blueprint=None, role_items=None):
+    """Compile style-reference evidence into a normalized, content-isolated layout contract."""
+    raw = dict(reference_blueprint or {})
+    normalized = {}
+    default_boxes = {
+        "logo_box": [0.03, 0.025, 0.20, 0.09],
+        "headline_box": [0.03, 0.12, 0.51, 0.105],
+        "compatibility_box": [0.03, 0.235, 0.45, 0.055],
+        "tagline_box": [0.03, 0.295, 0.49, 0.045],
+        "feature_matrix_box": [0.57, 0.035, 0.40, 0.285],
+        "hero_product_box": [0.03, 0.34, 0.60, 0.53],
+        "vehicle_box": [0.64, 0.43, 0.32, 0.36],
+        "bottom_bar_box": [0.03, 0.89, 0.94, 0.095],
+    }
+    for key, fallback in default_boxes.items():
+        value = raw.get(key)
+        if isinstance(value, (list, tuple)) and len(value) == 4:
+            try:
+                box = [float(v) for v in value]
+            except Exception:
+                box = list(fallback)
+        else:
+            box = list(fallback)
+        x, y, w, h = box
+        normalized[key] = [
+            round(max(0.0, min(1.0, x)), 6),
+            round(max(0.0, min(1.0, y)), 6),
+            round(max(0.01, min(1.0, w)), 6),
+            round(max(0.01, min(1.0, h)), 6),
+        ]
+    state = get_graphic_project_state()
+    history = list(state.get("reference_intelligence_history_v43000") or [])
+    signature_payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    signature = hashlib.sha256(signature_payload.encode("utf-8")).hexdigest()
+    record = {
+        "available": bool(reference_blueprint),
+        "boxes": normalized,
+        "hierarchy": ["logo", "headline", "compatibility", "tagline", "feature_matrix", "hero_product", "vehicle", "bottom_bar"],
+        "content_policy": "geometry_typography_hierarchy_only_no_reference_pixels_or_copy",
+        "reference_count": sum(1 for item in (role_items or []) if item.get("role") == "style_reference"),
+        "signature": signature,
+        "version": "reference-intelligence-v43000",
+    }
+    if not history or history[-1].get("signature") != signature:
+        history.append(record)
+    state["reference_intelligence_history_v43000"] = history[-3:]
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return record
+
+
+def _graphic_product_intelligence_v43000(product_item):
+    """Build and cache one immutable engineering fingerprint for the uploaded product."""
+    if Image is None or not product_item:
+        return {"available": False, "reason": "product unavailable", "version": "product-intelligence-v43000"}
+    signature = _graphic_product_source_signature_v9000(product_item)
+    sha = str(signature.get("sha256") or "").strip()
+    state = get_graphic_project_state()
+    cache = dict(state.get("product_intelligence_cache_v43000") or {})
+    cached = cache.get(sha)
+    if sha and isinstance(cached, dict) and cached.get("available"):
+        return dict(cached)
+    layer, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if layer is None:
+        return {"available": False, "reason": "product decode failed", "version": "product-intelligence-v43000"}
+    layer = ImageOps.exif_transpose(layer).convert("RGBA")
+    layer, trim = _graphic_trim_visible_product_canvas_v14000(layer, transparent=transparent)
+    alpha = layer.getchannel("A")
+    box = alpha.getbbox()
+    if not box:
+        return {"available": False, "reason": "empty alpha", "version": "product-intelligence-v43000"}
+    mechanical = _graphic_mechanical_geometry_dna_v39000(layer)
+    aperture = _graphic_screen_aperture_dna_v38100(layer)
+    fingerprint = _graphic_product_fingerprint_v40000(layer)
+    material = _graphic_material_fingerprint_v40000(layer)
+    perspective = _graphic_perspective_analysis_v42000(layer)
+    bottom = dict((mechanical.get("regions") or {}).get("bottom_mount") or {})
+    intelligence = {
+        "available": True,
+        "source_sha256": sha,
+        "source_signature": signature,
+        "trim_report": trim,
+        "visible_size": [int(layer.width), int(layer.height)],
+        "aspect_ratio": round(layer.width / max(1, layer.height), 8),
+        "product_fingerprint": fingerprint,
+        "mechanical_geometry_dna": mechanical,
+        "screen_aperture_dna": aperture,
+        "material_fingerprint": {k: v for k, v in material.items() if not str(k).endswith("_mask")},
+        "perspective": perspective,
+        "critical_regions": {
+            "bottom_mount": bottom,
+            "screen_aperture": aperture.get("screen_box") if isinstance(aperture, dict) else None,
+        },
+        "immutable_policy": {
+            "provider_redraw_allowed": False,
+            "warp_allowed": False,
+            "one_proportional_resize_only": True,
+            "critical_pixels_restored_after_lighting": True,
+        },
+        "version": "product-intelligence-v43000",
+    }
+    if sha:
+        cache[sha] = intelligence
+        state["product_intelligence_cache_v43000"] = dict(list(cache.items())[-24:])
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return intelligence
+
+
+def _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile=None):
+    """Compile user facts into immutable campaign fields; scene identity remains separate."""
+    spec = dict(campaign_spec or {})
+    contract = _graphic_campaign_contract_v42000(prompt_text, spec)
+    fields = dict(contract.get("fields") or {})
+    scene_vehicle = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
+    compatibility = str(fields.get("compatibility") or "").strip()
+    required = list(contract.get("required_compatibility_tokens") or [])
+    return {
+        "available": bool(fields.get("headline") or compatibility),
+        "fields": fields,
+        "scene_vehicle": scene_vehicle,
+        "compatibility": compatibility,
+        "required_compatibility_tokens": required,
+        "copy_lock": {
+            "compatibility_immutable": bool(compatibility),
+            "headline_immutable": bool(fields.get("headline")),
+            "provider_may_render_copy": False,
+            "scene_vehicle_may_replace_compatibility": False,
+        },
+        "normalized_prompt": re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
+        "version": "campaign-compiler-v43000",
+    }
+
+
+def _graphic_layout_compiler_v43000(reference_intelligence, product_intelligence, canvas_size, campaign_contract):
+    """Compile normalized layout evidence into deterministic normalized and pixel zones."""
+    boxes = dict((reference_intelligence or {}).get("boxes") or {})
+    product_size = (product_intelligence or {}).get("visible_size") or [1, 1]
+    solved = _graphic_layout_solver_v42000(boxes, product_size, canvas_size, campaign_contract)
+    W, H = [max(1, int(v)) for v in canvas_size]
+    pixel_boxes = {}
+    for key, value in solved.items():
+        if not (isinstance(value, (list, tuple)) and len(value) == 4):
+            continue
+        x, y, w, h = [float(v) for v in value]
+        pixel_boxes[key] = [round(x * W), round(y * H), round(w * W), round(h * H)]
+    footer = pixel_boxes.get("bottom_bar_box") or [0, round(H * 0.89), W, round(H * 0.095)]
+    hero = pixel_boxes.get("hero_product_box") or [0, round(H * 0.34), round(W * 0.60), round(H * 0.53)]
+    safety = max(8, round(H * 0.012))
+    constraints = {
+        "hero_clears_footer": hero[1] + hero[3] <= footer[1] - safety,
+        "footer_safety_px": safety,
+        "product_aspect_locked": True,
+        "critical_region_visibility_target": 0.95,
+        "provider_text_forbidden": True,
+    }
+    return {
+        "normalized_boxes": solved,
+        "pixel_boxes": pixel_boxes,
+        "constraints": constraints,
+        "passed": all((constraints["hero_clears_footer"], constraints["product_aspect_locked"])),
+        "version": "layout-compiler-v43000",
+    }
+
+
+def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_blueprint, role_items, vehicle_profile, output_size):
+    """Compile Stages 1-4 into the single immutable input consumed by Stage 5."""
+    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)
+    W, H = [int(v) for v in str(output_size or "1536x1024").lower().split("x", 1)]
+    reference = _graphic_reference_intelligence_v43000(reference_blueprint, role_items)
+    product = _graphic_product_intelligence_v43000(product_item)
+    campaign = _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile)
+    layout = _graphic_layout_compiler_v43000(reference, product, (W, H), {"fields": campaign.get("fields") or {}})
+    mode = "reference_template" if reference.get("available") else "autotecpro_studio"
+    scene = _graphic_scene_strategy_v42000(prompt_text, campaign_spec, vehicle_profile, mode)
+    scene["compiled_layout"] = {
+        "vehicle_box": layout.get("normalized_boxes", {}).get("vehicle_box"),
+        "hero_product_box": layout.get("normalized_boxes", {}).get("hero_product_box"),
+        "top_copy_clearance": layout.get("normalized_boxes", {}).get("headline_box"),
+    }
+    return {
+        "stages": {
+            "1_reference_intelligence": reference,
+            "2_product_intelligence": product,
+            "3_campaign_compiler": campaign,
+            "4_layout_compiler": layout,
+        },
+        "scene_strategy": scene,
+        "provider_scope": "background_and_one_scene_vehicle_only",
+        "deterministic_local_layers": ["exact_product", "logo", "headline", "compatibility", "tagline", "feature_grid", "bottom_bar"],
+        "ready": bool(product.get("available") and campaign.get("available") and layout.get("passed")),
+        "version": "five-stage-execution-blueprint-v43000",
+    }
+
+
+def _graphic_local_repair_blueprint_v43000(reference_blueprint, failed_checks):
+    """Apply one bounded deterministic layout repair without another provider call."""
+    repaired = dict(reference_blueprint or {})
+    failed = {str(x) for x in (failed_checks or [])}
+    if "critical_visibility" in failed or "critical_region_visibility" in failed:
+        hero = list(repaired.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
+        hero[1] = max(0.30, hero[1] - 0.025)
+        hero[3] = max(0.40, min(hero[3], 0.52))
+        repaired["hero_product_box"] = hero
+        footer = list(repaired.get("bottom_bar_box") or [0.03, 0.89, 0.94, 0.095])
+        footer[1] = min(0.915, max(0.895, footer[1] + 0.008))
+        repaired["bottom_bar_box"] = footer
+    return repaired
+
+
+def _graphic_stage5_execute_v43000(
+    background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+    role_items, execution_blueprint, template_key="", product_dna=None,
+):
+    """Execute the compiled blueprint and perform one local-only repair pass when needed."""
+    ref = dict(((execution_blueprint or {}).get("stages") or {}).get("4_layout_compiler", {}).get("normalized_boxes") or {})
+    composed, metadata = _graphic_compose_reference_campaign_v3200(
+        background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+        role_items, reference_blueprint=ref, template_key=template_key, product_dna=product_dna or {},
+    )
+    score = _graphic_qa_scorecard_v42000(metadata)
+    repair_applied = False
+    if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):
+        repaired_ref = _graphic_local_repair_blueprint_v43000(ref, score.get("critical_failed"))
+        if repaired_ref != ref:
+            composed, metadata = _graphic_compose_reference_campaign_v3200(
+                background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+                role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},
+            )
+            score = _graphic_qa_scorecard_v42000(metadata)
+            repair_applied = True
+    metadata["five_stage_execution_v43000"] = {
+        "ready": bool((execution_blueprint or {}).get("ready")),
+        "local_repair_applied": repair_applied,
+        "provider_retry_used": False,
+        "final_scorecard": score,
+        "version": "stage5-image-generator-v43000",
+    }
+    return composed, metadata
+
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -23414,7 +23654,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v42000-autonomous-deterministic-production",
+        "engine": "autotecpro-commercial-composer-v43000-five-stage-compiled-production",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -24438,70 +24678,128 @@ def _graphic_zone_completeness_v3300(review, campaign_spec):
 
 
 def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
-    product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
+    """Run the compiled five-stage commercial pipeline with exact-product authority."""
+    product_item = next((item for item in role_items if item.get("role") == "product_photo"), None)
     if not product_item:
         raise RuntimeError("A product source is required for the controlled campaign engine.")
-    spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
-    plan_v42000=_graphic_deterministic_campaign_plan_v42000(prompt_text,spec,reference_blueprint,role_items,vehicle_profile,output_size)
-    spec.update({"compatibility":plan_v42000["campaign_contract"]["fields"].get("compatibility") or spec.get("compatibility"),"compatibility_required_tokens":plan_v42000["campaign_contract"].get("required_compatibility_tokens") or []})
-    reference_blueprint=plan_v42000.get("reference_blueprint") or reference_blueprint
-    state=get_graphic_project_state(); template_key=str(state.get("brand_template") or "autotecpro_adventure")
-    state["deterministic_campaign_plan_v42000"]=plan_v42000
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
-    design_mode=str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
-    studio_brief=dict(state.get("studio_creative_brief") or {})
-    # Scene Intelligence now controls the provider prompt before generation.
-    product_fp={}
-    try:
-        preview,_transparent=_graphic_open_product_layer_v3300(product_item.get("file"))
-        if preview is not None: product_fp=_graphic_product_fingerprint_v40000(ImageOps.exif_transpose(preview).convert("RGBA"))
-    except Exception: product_fp={}
-    scene_plan=_graphic_scene_intelligence_v40000(prompt_text,studio_brief,vehicle_profile,product_fp)
-    scene_plan.update(plan_v42000.get("scene_strategy") or {})
-    state["active_scene_intelligence_v41000"]=scene_plan
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
-    background,route=_graphic_generate_background_plate_v3200(role_items,prompt_text,output_size,vehicle_profile,spec,reference_blueprint,template_key)
-    geometry=_graphic_reference_geometry_v3300(reference_blueprint,prompt_text)
-    composed,metadata=_graphic_compose_reference_campaign_v3200(background,product_item,prompt_text,output_size,spec,vehicle_profile,role_items,reference_blueprint=reference_blueprint,template_key=template_key,product_dna=state.get("product_dna") or {})
-    metadata["reference_geometry"]=geometry; metadata["product_library_grounded"]=bool(spec.get("product_library_grounded")); metadata["ultimate_scene_intelligence"]=scene_plan
-    result=_graphic_build_provider_result_v3000(composed,prompt_text,output_size,role_items,route+"+controlled-compositor-v41000",reference_blueprint,vehicle_profile,corrected=True)
-    result["product_identity_method"]="engine-v41000-protected-exact-product-asset-composite"
-    metadata["deterministic_campaign_plan_v42000"] = plan_v42000
+
+    spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
+    compiled = _graphic_execution_blueprint_v43000(
+        prompt_text, spec, reference_blueprint, role_items, vehicle_profile, output_size
+    )
+    if not compiled.get("ready"):
+        missing = []
+        for name, stage in (compiled.get("stages") or {}).items():
+            if isinstance(stage, dict) and stage.get("available") is False:
+                missing.append(name)
+        raise RuntimeError(
+            "The five-stage graphic compiler could not prepare a safe campaign blueprint"
+            + (": " + ", ".join(missing) if missing else ".")
+        )
+
+    campaign_stage = ((compiled.get("stages") or {}).get("3_campaign_compiler") or {})
+    campaign_fields = dict(campaign_stage.get("fields") or {})
+    spec.update({
+        "compatibility": campaign_fields.get("compatibility") or spec.get("compatibility"),
+        "headline": campaign_fields.get("headline") or spec.get("headline"),
+        "tagline": campaign_fields.get("tagline") or spec.get("tagline"),
+        "feature_labels": campaign_fields.get("features") or spec.get("feature_labels"),
+        "bottom_benefits": campaign_fields.get("benefits") or spec.get("bottom_benefits"),
+        "compatibility_required_tokens": campaign_stage.get("required_compatibility_tokens") or [],
+        "compatibility_locked": True,
+        "compatibility_source": "campaign-compiler-v43000",
+    })
+
+    state = get_graphic_project_state()
+    template_key = str(state.get("brand_template") or "autotecpro_adventure")
+    state["five_stage_execution_blueprint_v43000"] = compiled
+    state["active_scene_intelligence_v41000"] = dict(compiled.get("scene_strategy") or {})
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+    background, route = _graphic_generate_background_plate_v3200(
+        role_items, prompt_text, output_size, vehicle_profile, spec,
+        ((compiled.get("stages") or {}).get("4_layout_compiler") or {}).get("normalized_boxes") or reference_blueprint,
+        template_key,
+    )
+
+    composed, metadata = _graphic_stage5_execute_v43000(
+        background, product_item, prompt_text, output_size, spec, vehicle_profile,
+        role_items, compiled, template_key=template_key, product_dna=state.get("product_dna") or {},
+    )
+    metadata["five_stage_execution_blueprint_v43000"] = compiled
+    metadata["reference_geometry"] = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
+    metadata["product_library_grounded"] = bool(spec.get("product_library_grounded"))
+    metadata["ultimate_scene_intelligence"] = dict(compiled.get("scene_strategy") or {})
+
+    result = _graphic_build_provider_result_v3000(
+        composed, prompt_text, output_size, role_items,
+        route + "+five-stage-controlled-compositor-v43000",
+        reference_blueprint, vehicle_profile, corrected=True,
+    )
+    result["product_identity_method"] = "engine-v43000-compiled-exact-product-asset-composite"
     result["layered_metadata"].update(metadata)
-    scorecard_v42000=_graphic_qa_scorecard_v42000(result["layered_metadata"])
-    result["layered_metadata"]["qa_scorecard_v42000"]=scorecard_v42000
-    quality=_graphic_quality_verification_v40000(result["layered_metadata"])
-    if not scorecard_v42000.get("passed"):
-        quality={"passed":False,"failed":list(dict.fromkeys(list(quality.get("failed") or [])+list(scorecard_v42000.get("critical_failed") or []))),"scorecard_v42000":scorecard_v42000}
-    retry_plan=_graphic_adaptive_retry_plan_v40000(quality)
-    # Execute safe recovery actions. Product/provider regeneration is prohibited.
-    executed=[]
-    if "restore_immutable_product_master_no_provider_retry" in retry_plan.get("actions",[]):
-        executed.append("master already restored by lighting/geometry fail-closed compositor")
-    if "rerender_local_typography_only" in retry_plan.get("actions",[]):
-        # Copy is locally rendered from immutable spec; a failure is unsafe to publish.
-        executed.append("local typography failed closed")
-    retry_plan["executed"]=executed
-    metadata["ultimate_quality_verification"]=quality; metadata["ultimate_adaptive_retry_plan"]=retry_plan
-    stage_status={name:True for name in ["fingerprint","mechanical_dna","geometry_lock","screen_aperture_dna","engineering_pixel_lock","material_fingerprint","reflection_plan","lighting_transfer","typography","layout","brand","scene","quality","final_composite"]}
-    stage_status["adaptive_retry"]=not retry_plan.get("required") or bool(executed)
-    metadata["ultimate_multipass_trace"]=_graphic_multipass_trace_v40000(design_mode,metadata.get("ultimate_product_fingerprint"),metadata.get("ultimate_material_fingerprint"),scene_plan,quality,stage_status)
-    result["layered_metadata"].update(metadata)
+
+    scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
+    result["layered_metadata"]["qa_scorecard_v43000"] = scorecard
+    quality = _graphic_quality_verification_v40000(result["layered_metadata"])
+    if not scorecard.get("passed"):
+        quality = {
+            "passed": False,
+            "failed": list(dict.fromkeys(
+                list(quality.get("failed") or []) + list(scorecard.get("critical_failed") or [])
+            )),
+            "scorecard_v43000": scorecard,
+        }
+
+    retry_plan = _graphic_adaptive_retry_plan_v40000(quality)
+    executed = []
+    if "restore_immutable_product_master_no_provider_retry" in retry_plan.get("actions", []):
+        executed.append("immutable product master retained by compiled compositor")
+    if "rerender_local_typography_only" in retry_plan.get("actions", []):
+        executed.append("campaign copy remained local and immutable")
+    retry_plan["executed"] = executed
+    result["layered_metadata"]["ultimate_quality_verification"] = quality
+    result["layered_metadata"]["ultimate_adaptive_retry_plan"] = retry_plan
+
+    stage_status = {
+        "reference_intelligence": bool(((compiled.get("stages") or {}).get("1_reference_intelligence") or {}).get("version")),
+        "product_intelligence": bool(((compiled.get("stages") or {}).get("2_product_intelligence") or {}).get("available")),
+        "campaign_compiler": bool(((compiled.get("stages") or {}).get("3_campaign_compiler") or {}).get("available")),
+        "layout_compiler": bool(((compiled.get("stages") or {}).get("4_layout_compiler") or {}).get("passed")),
+        "image_generator": bool((metadata.get("five_stage_execution_v43000") or {}).get("version")),
+        "quality": bool(quality),
+        "final_composite": True,
+    }
+    result["layered_metadata"]["five_stage_trace_v43000"] = {
+        "stage_status": stage_status,
+        "completed": sum(1 for value in stage_status.values() if value),
+        "total": len(stage_status),
+        "all_completed": all(stage_status.values()),
+        "version": "five-stage-trace-v43000",
+    }
+
     if not quality.get("passed"):
         failed_checks = list(quality.get("failed") or [])
         result = _graphic_mark_unverified_v4100(
             result,
-            "The exact-product controlled campaign was created, but these optional QA checks need review: "
+            "The exact-product compiled campaign was created, but these QA checks need review: "
             + ", ".join(failed_checks),
-            status="completed_controlled_campaign_review_v42000",
+            status="completed_compiled_campaign_review_v43000",
         )
         result["controlled_qa_failed_checks"] = failed_checks
-        diagnostic_log("graphic_v42000_controlled_qa_review", failed=failed_checks)
+        diagnostic_log("graphic_v43000_compiled_qa_review", failed=failed_checks)
     else:
-        result["output_status"]="completed_controlled_campaign_v42000"
-        result["verification_status"]="verified"
-    result["campaign_spec"]=spec; result["graphic_design_mode"]=design_mode
-    result["studio_creative_brief"]=studio_brief if design_mode=="autotecpro_studio" else {}; result["reference_template_used"]=design_mode=="reference_template"; result["reference_memory_isolated"]=design_mode=="autotecpro_studio"
+        result["output_status"] = "completed_compiled_campaign_v43000"
+        result["verification_status"] = "verified"
+
+    result["campaign_spec"] = spec
+    result["graphic_design_mode"] = "reference_template" if reference_blueprint else "autotecpro_studio"
+    result["studio_creative_brief"] = (
+        state.get("studio_creative_brief") or {}
+        if result["graphic_design_mode"] == "autotecpro_studio" else {}
+    )
+    result["reference_template_used"] = result["graphic_design_mode"] == "reference_template"
+    result["reference_memory_isolated"] = result["graphic_design_mode"] == "autotecpro_studio"
     return result
 
 
