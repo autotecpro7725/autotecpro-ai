@@ -46,11 +46,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v27000
+# AutoTecPro AI performance/stability revision: v29000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v27000 restores the approved v20100 template hierarchy with bounded reference measurements.
-# Keeps the v26000 bezel-safe mask, untouched product RGB, lazy upload, vehicle safeguards, and validated caching.
-# Enlarges the exact-product hero, restores substantial supporting-vehicle scale, and fails closed on weak commercial hierarchy.
+# v29000 surgical production update: keeps the proven v20100 composition/layout path and all v26000 safeguards.
+# Only the exact-product extraction path is strengthened: bottom-bezel/tabs preservation, adaptive border masking, untouched RGB, and no geometry correction.
 # Adds lazy Engineering DNA preparation, instant upload-state recovery, strict target-vehicle body-class locks,
 # reference-pixel isolation, validated vehicle-plate caching, bounded vehicle-only retry, and regression-isolated Graphic changes.
 # Exact-product mode keeps uploaded product pixels authoritative and blocks generative product replacement.
@@ -19955,11 +19954,12 @@ def _graphic_save_latest_project_result(image):
 
 
 def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template_key=""):
-    """Return a bounded v20100-style production grid for deterministic composition.
+    """Return bounded reference-locked geometry for deterministic composition.
 
-    v27000 treats reference analysis as advisory only. The approved v20100 commercial
-    hierarchy remains the hard baseline so one noisy reference analysis cannot shrink
-    the hero product, weaken the headline, or push the vehicle too far into the distance.
+    v13000 consumes normalized boxes produced by the reference analyst instead of
+    merely storing them. Missing or malformed fields fall back to the approved
+    AutoTecPro commercial hierarchy represented by the supplied reference artwork.
+    Reference pixels and reference content remain prohibited.
     """
     bp = dict(reference_blueprint or {})
     cfg = _graphic_template_config_v8200(template_key)
@@ -19969,8 +19969,8 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
         "compatibility_box": [0.020, 0.235, 0.435, 0.055],
         "tagline_box": [0.022, 0.300, 0.535, 0.045],
         "feature_matrix_box": [0.565, 0.025, 0.410, 0.315],
-        "hero_product_box": [0.018, 0.315, 0.682, 0.555],
-        "vehicle_box": [0.660, 0.405, 0.315, 0.365],
+        "hero_product_box": [0.018, 0.305, 0.682, 0.575],
+        "vehicle_box": [0.695, 0.435, 0.275, 0.335],
         "bottom_bar_box": [0.035, 0.875, 0.930, 0.110],
     }
     aliases = {
@@ -20001,44 +20001,53 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
         for raw_key, raw_box in candidates.items():
             key = aliases.get(str(raw_key).strip().lower(), str(raw_key).strip().lower())
             if key in defaults:
-                measured = clean_box(raw_box, defaults[key])
-                base = defaults[key]
-                # Blend only modestly toward analysis. v20100 geometry remains dominant.
-                defaults[key] = [round(base[i] * 0.78 + measured[i] * 0.22, 6) for i in range(4)]
+                defaults[key] = clean_box(raw_box, defaults[key])
 
-    # Hard v20100-style commercial guardrails.
+    # Backward-compatible scalar fields from earlier analyzers.
+    scalar_map = {
+        "top_ratio": ("headline_box", 1),
+        "bar_ratio": ("bottom_bar_box", 1),
+        "hero_left": ("hero_product_box", 0),
+        "hero_top": ("hero_product_box", 1),
+        "feature_left": ("feature_matrix_box", 0),
+        "feature_top": ("feature_matrix_box", 1),
+        "feature_width": ("feature_matrix_box", 2),
+        "feature_height": ("feature_matrix_box", 3),
+    }
+    for scalar, (box_key, index) in scalar_map.items():
+        if scalar not in bp:
+            continue
+        try:
+            value = float(bp.get(scalar))
+            if value > 1.5:
+                value /= 100.0
+            box = list(defaults[box_key]); box[index] = value
+            defaults[box_key] = clean_box(box, defaults[box_key])
+        except Exception:
+            pass
+
+    # Commercial guardrails: the reference product must remain dominant and the
+    # information zones must stay substantial. These limits prevent sparse slide-like output.
     hero = list(defaults["hero_product_box"])
-    hero[0] = min(hero[0], 0.030)
-    hero[1] = min(max(hero[1], 0.300), 0.335)
-    hero[2] = max(hero[2], 0.665)
-    hero[3] = max(hero[3], 0.545)
-    defaults["hero_product_box"] = clean_box(hero, [0.018, 0.315, 0.682, 0.555])
-
-    vehicle = list(defaults["vehicle_box"])
-    vehicle[0] = min(max(vehicle[0], 0.635), 0.700)
-    vehicle[1] = min(max(vehicle[1], 0.390), 0.455)
-    vehicle[2] = max(vehicle[2], 0.285)
-    vehicle[3] = max(vehicle[3], 0.335)
-    defaults["vehicle_box"] = clean_box(vehicle, [0.660, 0.405, 0.315, 0.365])
-
-    headline = list(defaults["headline_box"])
-    headline[2] = max(headline[2], 0.515); headline[3] = max(headline[3], 0.085)
-    defaults["headline_box"] = clean_box(headline, [0.022, 0.145, 0.535, 0.090])
+    hero[2] = max(hero[2], 0.64)
+    hero[3] = max(hero[3], 0.56)
+    hero[0] = min(hero[0], 0.045)
+    hero[1] = min(max(hero[1], 0.285), 0.37)
+    defaults["hero_product_box"] = clean_box(hero, defaults["hero_product_box"])
 
     features = list(defaults["feature_matrix_box"])
-    features[2] = max(features[2], 0.395); features[3] = max(features[3], 0.295)
-    defaults["feature_matrix_box"] = clean_box(features, [0.565, 0.025, 0.410, 0.315])
+    features[2] = max(features[2], 0.385); features[3] = max(features[3], 0.285)
+    defaults["feature_matrix_box"] = clean_box(features, defaults["feature_matrix_box"])
 
     footer = list(defaults["bottom_bar_box"])
-    footer[2] = max(footer[2], 0.92); footer[3] = max(footer[3], 0.105)
-    defaults["bottom_bar_box"] = clean_box(footer, [0.035, 0.875, 0.930, 0.110])
+    footer[2] = max(footer[2], 0.90); footer[3] = max(footer[3], 0.102)
+    defaults["bottom_bar_box"] = clean_box(footer, defaults["bottom_bar_box"])
 
     defaults.update({
-        "source": "v20100_template_with_bounded_reference_measurements" if bp else "v20100_approved_reference_fallback",
+        "source": "reference_blueprint" if bp else "approved_reference_fallback",
         "content_policy": "geometry_only_no_reference_content",
         "reference_locked": bool(bp),
-        "template_product_scale": max(1.0, float(cfg.get("product_scale", 1.0) or 1.0)),
-        "v20100_template_restored": True,
+        "template_product_scale": float(cfg.get("product_scale", 1.0) or 1.0),
     })
     return defaults
 
@@ -20297,8 +20306,8 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
         height_ratio = box[3] / canvas[1]
         source_ratio = float(source.get("aspect_ratio") or 0.0)
         reference_driven = any(item.get("role") == "style_reference" for item in (role_items or []))
-        minimum_height = 0.50 if reference_driven else 0.46
-        minimum_width = 0.20 if source_ratio < 0.90 else 0.32
+        minimum_height = 0.48 if reference_driven else 0.44
+        minimum_width = 0.18 if source_ratio < 0.90 else 0.28
         if height_ratio < minimum_height or width_ratio < minimum_width:
             issues.append("hero product too small for the commercial reference hierarchy")
         if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
@@ -21413,27 +21422,6 @@ def render_engineering_dna_approval_panel_v21000(uploaded_files):
             key=f"v21000_transparent_replacement_{source_sha[:12]}",
             help="Optional: upload a manually prepared transparent product cutout.",
         )
-        debug_enabled = st.checkbox(
-            "Enable renderer debug pack for the next generation",
-            value=bool(state.get("renderer_debug_enabled_v28000")),
-            key=f"v28000_renderer_debug_{source_sha[:12]}",
-            help="Stores raw product, alpha mask, background plate, position overlay and final composite in the generation result for diagnosis.",
-        )
-        state["renderer_debug_enabled_v28000"] = bool(debug_enabled)
-
-        edge_cols = st.columns(2)
-        current_adjustment = int(approval.get("mask_adjustment", 0) or 0)
-        if edge_cols[0].button("Keep More Bezel Edge", key=f"v28000_keep_edge_{source_sha[:12]}", use_container_width=True):
-            approval["mask_adjustment"] = max(-2, current_adjustment - 1)
-            approval["mask_approved"] = False
-            # Remove cached masks for this product so the adjustment applies immediately.
-            state["product_mask_cache"] = {k: v for k, v in (state.get("product_mask_cache") or {}).items() if source_sha not in str(k)}
-        if edge_cols[1].button("Remove More Background", key=f"v28000_remove_bg_{source_sha[:12]}", use_container_width=True):
-            approval["mask_adjustment"] = min(2, current_adjustment + 1)
-            approval["mask_approved"] = False
-            state["product_mask_cache"] = {k: v for k, v in (state.get("product_mask_cache") or {}).items() if source_sha not in str(k)}
-        st.caption(f"Mask edge adjustment: {int(approval.get('mask_adjustment', 0) or 0)} (negative keeps more bezel; positive removes more background)")
-
         action_cols = st.columns(4)
         if action_cols[0].button("Approve Mask", key=f"v21000_approve_mask_{source_sha[:12]}", use_container_width=True):
             approval.update({"mask_approved": True, "fingerprint_approved": True, "manually_approved": True, "approved_at": datetime.now(timezone.utc).isoformat()})
@@ -21485,21 +21473,24 @@ def _graphic_product_reference_separation_directive_v20400(prompt_text):
     )
     return value + contract
 
-def _graphic_campaign_background_prompt_v3200(
-    prompt_text,
-    reference_blueprint,
-    vehicle_profile,
-    template_key,
-    campaign_spec,
-    output_size,
-):
-    """Build a scene-only prompt with v20100 vehicle scale and perspective."""
+def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
+    """Create a target-only scenery prompt with no reference-image content channel."""
+    profile = dict(vehicle_profile or {})
+    explicit_name = str(
+        profile.get("explicit_display_name")
+        or (campaign_spec or {}).get("compatibility")
+        or ""
+    ).strip()
+    prohibited_terms = [
+        str(value).strip()
+        for value in (profile.get("prohibited_reference_vehicle_terms") or [])
+        if str(value).strip()
+    ]
+    prohibited = ", ".join(prohibited_terms)
     cfg = _graphic_template_config_v8200(template_key)
     layout = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
-    target = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
-    prohibited = ", ".join((vehicle_profile or {}).get("prohibited_vehicle_identities") or [])
-    lowered = target.lower()
-    body_type = "factory-correct vehicle body"
+
+    lowered = explicit_name.casefold()
     if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
         body_type = "full-size pickup truck"
     elif any(term in lowered for term in (
@@ -21510,22 +21501,34 @@ def _graphic_campaign_background_prompt_v3200(
         body_type = "factory-correct SUV or crossover"
     elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
         body_type = "passenger car"
+    else:
+        body_type = "the correct factory body type for the named vehicle"
 
-    lines = [
-        "Create ONLY a premium automotive background plate. Do not create an advertisement and do not draw any infotainment product.",
-        f"Canvas: {output_size}. Target vehicle: {target or 'the explicitly requested vehicle'}; required body: {body_type}.",
-        "Match the approved v20100 commercial mood: dramatic rocky foreground, compressed mountain perspective, premium sunrise/sunset light, realistic automotive photography, high local contrast, and a clean pale-sky upper region for deterministic copy.",
-        "VEHICLE COMPOSITION LOCK: place one complete target vehicle on the RIGHT as a substantial supporting subject, approximately 24-30% of canvas width and 30-38% of canvas height. Position it roughly from 67% to 96% canvas width and 43% to 78% canvas height. Use a three-quarter front view with grille, headlights, wheels, body silhouette, cab/roofline and wheelbase clearly visible.",
-        "The vehicle must be noticeably larger and closer than a distant scenic prop, but it must remain secondary to the future product hero on the left. Do not make it tiny, far away, hidden, cropped, or centered.",
-        f"Reserve the left foreground from {int(float(layout['hero_product_box'][0])*100)}% to {int(float(layout['hero_product_box'][0] + layout['hero_product_box'][2])*100)}% width and from {int(float(layout['hero_product_box'][1])*100)}% height downward for a dominant exact product cutout.",
-        f"Keep the top {int(float(layout.get('headline_box', [0,0.145])[1] + 0.20)*100)}% visually calm for deterministic branding and the bottom {int((1-float(layout['bottom_bar_box'][1]))*100)}% clear for a deterministic benefit bar.",
-        "Do not place vertical poles, road lines, borders, bright seams, signs, or high-contrast objects through the reserved product zone.",
-        "Do not create a product silhouette, screen, bezel, dashboard frame, buttons, knobs, mounting tabs, product shadow, logo, headline, icons, ribbon, bottom bar, text, or watermark.",
-        "IDENTITY HARD GATE: the target vehicle must have the correct factory body silhouette. If the target is an SUV/crossover, show a closed rear cargo body and absolutely no pickup bed. If the target is a pickup, show the correct cab and bed. Never copy the reference advertisement vehicle.",
+    # The free-form request can contain the reference advertisement's vehicle name.
+    # Do not pass those conflicting identity tokens into the scene generator.
+    clean_direction = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    for term in prohibited_terms:
+        clean_direction = re.sub(re.escape(term), "", clean_direction, flags=re.IGNORECASE)
+    clean_direction = re.sub(r"\s+", " ", clean_direction).strip()[:900]
+
+    return "\n".join([
+        "Create one premium photorealistic automotive BACKGROUND PLATE ONLY.",
+        f"Canvas: {output_size}.",
+        "This is not an advertisement and must contain no reference-image pixels or copied objects.",
+        "Allowed content: environment, realistic ground, natural lighting, and exactly one target vehicle.",
+        "Forbidden content: infotainment product, dashboard screen, gauge cluster, product frame, logo, headline, text, icons, ribbon, benefit bar, watermark, screenshot, poster, advertisement panel, collage, or floating UI.",
+        f"TARGET VEHICLE IDENTITY LOCK: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'}.",
+        f"BODY-TYPE LOCK: it must visibly be a {body_type}; do not substitute a different body class.",
+        "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
         f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
+        f"Reserve the left foreground from {int(float(layout.get('hero_left', layout.get('hero_product_box', [0.018])[0]))*100)}% to {int(float(layout.get('hero_right', (layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[0] + layout.get('hero_product_box', [0.018, 0.305, 0.682, 0.575])[2])))*100)}% width and from {int(float(layout.get('hero_top', layout.get('hero_product_box', [0.018, 0.305])[1]))*100)}% height downward for a dominant exact product cutout.",
+        f"Keep the top {int(float(layout.get('top_ratio', 0.34))*100)}% calm for deterministic typography and the bottom {int((1-float(layout.get('bar_ratio', 0.875)))*100)}% clear for a deterministic benefit bar.",
+        "The vehicle is strictly secondary and farther from camera; the empty left product zone must remain the strongest foreground area by a clear visual margin. Do not place the vehicle near center and do not enlarge it into a co-hero.",
+        "IDENTITY HARD GATE: the target vehicle must have the correct factory body silhouette. If the target is an SUV/crossover, show a closed rear cargo body and absolutely no pickup bed. If the target is a pickup, show the correct cab and bed. Never copy the reference advertisement vehicle.",
+        "Use realistic tonal separation and contact lighting behind the future product, but do not draw a product or product shadow.",
         ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
-    ]
-    return "\n".join(str(x) for x in lines if str(x).strip())
+        ("Additional scene direction, after removing conflicting reference-vehicle terms: " + clean_direction) if clean_direction else "Use a clean premium automotive environment.",
+    ])[:16000]
 
 
 
@@ -21768,372 +21771,6 @@ def _graphic_compose_reference_campaign_v3200(
     if product is None:
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
-    original_product_canvas = list(product.size)
-    product_trim_report = {
-        "trimmed": False,
-        "reason": "v27000 preserves source pixels and removes only empty/background margins for placement",
-        "original_size": original_product_canvas,
-    }
-
-    # Reference-faithful production grid. The approved artwork uses the scenery as the
-    # entire background; the top is merely calmed for copy, never replaced by a large
-    # opaque white panel. This prevents the empty presentation-slide look seen before.
-    header_h = int(H * max(
-        layout_bp["tagline_box"][1] + layout_bp["tagline_box"][3],
-        layout_bp["feature_matrix_box"][1] + layout_bp["feature_matrix_box"][3],
-    ))
-    bar_top = int(H * layout_bp["bottom_bar_box"][1])
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    od = ImageDraw.Draw(overlay, "RGBA")
-    od.rectangle((0, 0, W, header_h), fill=(244, 248, 253, 150))
-    # Gentle vertical transition into the scene.
-    fade_h = max(1, int(H * 0.075))
-    for step in range(fade_h):
-        alpha = int(150 * (1.0 - step / fade_h))
-        y = header_h + step
-        od.line((0, y, W, y), fill=(244, 248, 253, alpha))
-    canvas = Image.alpha_composite(canvas, overlay)
-
-    # Keep exact source pixels. When cutout confidence is low, use a tightly cropped
-    # neutral card rather than corrupting physical geometry.
-    if not transparent:
-        pad = max(6, int(H * 0.006))
-        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (250, 251, 253, 242))
-        card.alpha_composite(product, (pad, pad))
-        product = card
-    else:
-        # Preserve every non-transparent product pixel. Crop only truly transparent
-        # outer margins so the v20100 hero scale is calculated from visible hardware,
-        # never from the original white studio canvas. This does not erode, recolor,
-        # normalize, or regenerate bezel pixels.
-        alpha = product.getchannel("A")
-        strong_alpha = alpha.point(lambda value: 255 if value >= 18 else 0)
-        bbox = strong_alpha.getbbox()
-        if bbox:
-            left, top, right, bottom = bbox
-            pad = max(2, int(min(product.size) * 0.006))
-            left = max(0, left - pad); top = max(0, top - pad)
-            right = min(product.width, right + pad); bottom = min(product.height, bottom + pad)
-            visible_ratio = ((right-left) * (bottom-top)) / max(1, product.width * product.height)
-            if 0.06 <= visible_ratio <= 0.96:
-                product = product.crop((left, top, right, bottom))
-                product_trim_report = {
-                    "trimmed": True,
-                    "method": "transparent_margin_only",
-                    "original_size": original_product_canvas,
-                    "cropped_size": list(product.size),
-                    "crop_box": [left, top, right, bottom],
-                    "retained_ratio": round(visible_ratio, 4),
-                    "product_rgb_modified": False,
-                }
-
-    # Reference-locked hero geometry. The analyzed product zone is authoritative;
-    # aspect ratio is preserved and the exact product is never cropped or distorted.
-    source_aspect = product.width / max(1, product.height)
-    source_visible_size = [int(product.width), int(product.height)]
-    source_visible_aspect = float(source_aspect)
-    product_dx = float(transforms.get("product_dx", 0.0))
-    product_dy = float(transforms.get("product_dy", 0.0))
-    hero_box = list(layout_bp["hero_product_box"])
-    hero_left = hero_box[0] + product_dx
-    hero_top = hero_box[1] + product_dy
-    hero_right = hero_left + hero_box[2]
-    hero_bottom = min(layout_bp["bottom_bar_box"][1] - 0.006, hero_top + hero_box[3])
-
-    hero_x0 = int(W * hero_left)
-    hero_x1 = int(W * hero_right)
-    hero_y0 = int(H * hero_top)
-    hero_y1 = int(H * hero_bottom)
-    hero_w = max(1, hero_x1 - hero_x0)
-    hero_h = max(1, hero_y1 - hero_y0)
-
-    base_scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
-    # Fill the measured reference zone aggressively. Portrait products use the full
-    # available height; wide products use the full available width. This preserves
-    # geometry while recreating the reference's dominant foreground hierarchy.
-    if source_aspect < 1.0:
-        desired_scale = hero_h / max(1, product.height)
-    else:
-        desired_scale = hero_w / max(1, product.width)
-    scale = min(base_scale, max(base_scale * 0.998, desired_scale))
-    scale *= max(1.0, float(layout_bp.get("template_product_scale", template_cfg.get("product_scale", 1.0))))
-    scale *= float(transforms.get("product_scale", 1.0))
-    # Never crop the exact product.
-    scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
-    product = _graphic_premultiplied_resize_v20000(
-        product,
-        (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
-        Image.Resampling.LANCZOS,
-    )
-    if source_aspect < 0.90:
-        px = hero_x0 + max(0, int((hero_w - product.width) * 0.08))
-    elif source_aspect <= 1.55:
-        # Front-view infotainment systems follow the v20100 slightly-left hero balance.
-        px = hero_x0 + max(0, int((hero_w - product.width) * 0.18))
-    else:
-        px = hero_x0 + max(0, (hero_w - product.width) // 2)
-    py = hero_y1 - product.height
-
-    # Grounded contact shadow: downward and subtle, not a bright all-around halo.
-    alpha = product.getchannel("A")
-    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
-    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
-    canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
-    canvas.alpha_composite(product, (px, py))
-
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    navy = (7, 34, 76, 255)
-    red = (205, 8, 18, 255)
-    white = (255, 255, 255, 255)
-    divider = (7, 34, 76, 90)
-
-    def text_width(value, font):
-        try:
-            box = draw.textbbox((0, 0), str(value), font=font)
-            return max(0, box[2] - box[0])
-        except Exception:
-            return len(str(value)) * 10
-
-    def fitted_font(value, max_width, preferred_px, minimum_px, bold=True):
-        size = int(preferred_px)
-        while size > int(minimum_px):
-            font = _graphic_font(size, bold)
-            if text_width(value, font) <= max_width:
-                return font
-            size -= 2
-        return _graphic_font(int(minimum_px), bold)
-
-    # Official logo is a deterministic layer and is always applied in commercial mode.
-    logo_applied = False
-    logo = get_official_brand_logo_image()
-    if logo is not None:
-        try:
-            logo_box = layout_bp["logo_box"]
-            target_w = int(W * logo_box[2])
-            target_h = min(int(H * logo_box[3]), max(1, int(logo.height * target_w / max(1, logo.width))))
-            logo = logo.resize((target_w, target_h), Image.Resampling.LANCZOS)
-            canvas.alpha_composite(logo, (int(W * logo_box[0]), int(H * logo_box[1])))
-            logo_applied = True
-            draw = ImageDraw.Draw(canvas, "RGBA")
-        except Exception:
-            logo_applied = False
-
-    headline = str(campaign_spec.get("headline") or "PREMIUM INFOTAINMENT SYSTEM").strip().upper()
-    compatibility = str(
-        campaign_spec.get("compatibility")
-        or (vehicle_profile or {}).get("explicit_display_name")
-        or "VEHICLE-SPECIFIC FITMENT"
-    ).strip()
-    tagline = str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.").strip()
-
-    headline_box = layout_bp["headline_box"]
-    compatibility_box = layout_bp["compatibility_box"]
-    tagline_box = layout_bp["tagline_box"]
-    left_x = int(W * headline_box[0])
-    left_w = int(W * headline_box[2])
-    headline_y = int(H * headline_box[1])
-    headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.054, True)
-    headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
-    line_step = int(H * 0.068)
-    for line in headline_lines:
-        draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
-        headline_y += line_step
-
-    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.004))
-    ribbon_h = int(H * compatibility_box[3])
-    ribbon_font = fitted_font(compatibility, int(W * compatibility_box[2] * 0.92), H * 0.030, H * 0.019, True)
-    ribbon_w = int(W * compatibility_box[2])
-    draw.polygon(
-        [
-            (left_x, ribbon_y),
-            (left_x + ribbon_w, ribbon_y),
-            (left_x + ribbon_w - int(W * 0.018), ribbon_y + ribbon_h),
-            (left_x - int(W * 0.005), ribbon_y + ribbon_h),
-        ],
-        fill=red,
-    )
-    draw.text((left_x + int(W * 0.015), ribbon_y + int(H * 0.007)), compatibility, font=ribbon_font, fill=white)
-    tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
-    draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
-
-    # Compact, reference-faithful 4x2 feature matrix.
-    features = list(campaign_spec.get("feature_labels") or [])[:8]
-    defaults = [
-        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
-        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
-    ]
-    while len(features) < 8:
-        features.append(defaults[len(features)])
-    feature_box = layout_bp["feature_matrix_box"]
-    grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
-    grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
-    grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
-    cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
-    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
-    for idx, label in enumerate(features):
-        row, col = divmod(idx, 4)
-        x0 = int(grid_x + col * cell_w)
-        y0 = int(grid_y + row * cell_h)
-        if col:
-            draw.line((x0, y0 + int(H * 0.010), x0, y0 + int(cell_h) - int(H * 0.010)), fill=divider, width=1)
-        if row:
-            draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
-        icon_box = (
-            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
-            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
-        )
-        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
-        lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
-        ty = int(y0 + cell_h * 0.57)
-        for line in lines:
-            tw = text_width(line, feature_font)
-            draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
-            ty += int(H * 0.0225)
-
-    vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
-    vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
-    label_x, label_y = int(W * 0.67), int(H * 0.815)
-    draw.text((label_x, label_y), vehicle_label, font=vehicle_font, fill=white, stroke_width=2, stroke_fill=(0, 0, 0, 180))
-    underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
-    draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
-
-    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
-    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
-    while len(benefits) < 5:
-        benefits.append(bottom_defaults[len(benefits)])
-    bottom_box = layout_bp["bottom_bar_box"]
-    bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
-    bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
-    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 245), outline=(255, 255, 255, 85), width=1)
-    cell = bw / 5.0
-    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
-    for idx, label in enumerate(benefits):
-        x0 = int(bx + idx * cell)
-        if idx:
-            draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
-        icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
-        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
-        lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
-        ty = int(by + bh * 0.25)
-        for line in lines:
-            draw.text((int(x0 + cell * 0.34), ty), line, font=bottom_font, fill=white)
-            ty += int(H * 0.024)
-
-    output = io.BytesIO()
-    canvas.convert("RGB").save(output, format="PNG", optimize=True)
-    product_box = [px, py, product.width, product.height]
-    rendered_aspect = product.width / max(1, product.height)
-    product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
-    engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
-    return output.getvalue(), {
-        "engine": "autotecpro-v27000-v20100-template-restoration",
-        "exact_product_pixels": True,
-        "exact_product_asset_mode": True,
-        "product_master_rgb_preserved": True,
-        "product_pixels_provider_generated": False,
-        "product_ai_reconstruction_prohibited": True,
-        "deterministic_typography": True,
-        "fixed_production_geometry": True,
-        "official_brand_logo_applied": logo_applied,
-        "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
-        "campaign_zones": [
-            "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
-            "hero_product", "target_vehicle", "bottom_benefit_bar",
-        ],
-        "critical_product_geometry_preserved": True,
-        "negative_space_lock": [
-            "gap_below_screen", "lower_openings", "side_handle_openings",
-            "bottom_mounting_gaps", "climate_controls", "physical_buttons",
-        ],
-        "product_box": product_box,
-        "product_trim_report": product_trim_report,
-        "actual_normalized_boxes": {
-            "logo_box": layout_bp["logo_box"],
-            "headline_box": layout_bp["headline_box"],
-            "compatibility_box": layout_bp["compatibility_box"],
-            "tagline_box": layout_bp["tagline_box"],
-            "feature_matrix_box": layout_bp["feature_matrix_box"],
-            "hero_product_box": [round(px / max(1, W), 6), round(py / max(1, H), 6), round(product.width / max(1, W), 6), round(product.height / max(1, H), 6)],
-            "vehicle_box": layout_bp["vehicle_box"],
-            "bottom_bar_box": layout_bp["bottom_bar_box"],
-        },
-        "product_source_visible_size": source_visible_size,
-        "product_source_visible_aspect_ratio": round(source_visible_aspect, 8),
-        "product_rendered_aspect_ratio": round(rendered_aspect, 8),
-        "product_ratio_relative_error": round(product_ratio_relative_error, 10),
-        "product_ratio_preserved": product_ratio_relative_error <= 0.0025,
-        "premultiplied_alpha_resize": True,
-        "master_bezel_lock": True,
-        "master_bezel_source": "untouched_uploaded_product",
-        "bezel_pixels_regenerated": False,
-        "engineering_landmarks": engineering_landmarks,
-        "bezel_geometry_lock": dict(engineering_landmarks).get("bezel_profile"),
-        "screen_ratio_lock": dict(engineering_landmarks).get("inner_display_aspect_ratio"),
-        "housing_ratio_lock": dict(engineering_landmarks).get("unit_aspect_ratio"),
-        "product_width_ratio": round(product.width / max(1, W), 4),
-        "product_height_ratio": round(product.height / max(1, H), 4),
-        "product_area_ratio": round((product.width * product.height) / max(1, W * H), 4),
-        "brand_template": template_key,
-        "product_dna_active": bool(product_dna),
-        "layout_transforms": transforms,
-        "hero_region": [hero_x0, hero_y0, hero_x1, hero_y1],
-        "canvas_size": [W, H],
-        "reference_layout_blueprint": layout_bp,
-        "reference_content_policy": "geometry_only_no_reference_pixels",
-        "product_source_sha256": _graphic_product_source_signature_v9000(product_item).get("sha256"),
-        "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
-        "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
-        "hero_product_priority": "primary",
-        "reference_style_grid": "v20100-template-restored-v27000",
-        "v20100_template_restored": True,
-        "product_background_margin_only_crop": True,
-        "product_rgb_modified": False,
-    }
-
-
-
-
-# v28000: exact executable transplant of the proven v20100 commercial renderer.
-def render_v20100_reference_campaign(
-    background_bytes,
-    product_item,
-    prompt_text,
-    output_size,
-    campaign_spec,
-    vehicle_profile,
-    role_items,
-    reference_blueprint=None,
-    template_key="",
-    edit_directive=None,
-    product_dna=None,
-):
-    """Compose a reference-faithful AutoTecPro advertisement from deterministic layers.
-
-    v11000 never asks the image model to lay out the advertisement or redraw the
-    uploaded product. The provider supplies only scenery and the target vehicle.
-    This renderer applies a fixed AutoTecPro commercial grid modeled on the approved
-    reference: logo and strong copy upper-left, compact 4x2 feature matrix upper-right,
-    exact uploaded product as the dominant foreground hero, secondary vehicle behind it,
-    and a full-width benefit bar along the bottom.
-    """
-    if Image is None:
-        raise RuntimeError("Pillow is required for the commercial composer.")
-
-    from PIL import ImageDraw, ImageFilter
-
-    with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
-        canvas = ImageOps.exif_transpose(bg).convert("RGBA")
-    W, H = canvas.size
-    template_cfg = _graphic_template_config_v8200(template_key)
-    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
-    layout_bp = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
-    transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
-
-    product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
-    if product is None:
-        raise RuntimeError("The exact product source could not be decoded.")
-    product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
@@ -22163,13 +21800,11 @@ def render_v20100_reference_campaign(
         card.alpha_composite(product, (pad, pad))
         product = card
     else:
-        # v19400 preserves the exact alpha contour produced by the source cutout.
-        # Do not erode or dilate it: those operations alter bezel thickness, side
-        # rails, mounting tabs, button edges and opening geometry.
-        alpha = product.getchannel("A")
-        bbox = alpha.getbbox()
-        if bbox:
-            product = product.crop(bbox)
+        # v29000 preserves the full authoritative source coordinate system. The
+        # transparent outer canvas is intentionally retained here so no low-alpha
+        # bottom tab, lower corner, bezel highlight or mounting detail can be lost
+        # through a second bounding-box crop. The v20100 layout remains authoritative.
+        pass
 
     # Reference-locked hero geometry. The analyzed product zone is authoritative;
     # aspect ratio is preserved and the exact product is never cropped or distorted.
@@ -22368,7 +22003,7 @@ def render_v20100_reference_campaign(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-v28000-locked-v20100-renderer",
+        "engine": "autotecpro-commercial-composer-v20010-engine6.1",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -22426,106 +22061,10 @@ def render_v20100_reference_campaign(
         "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
-        "reference_style_grid": "locked-v20100-executable-baseline-v28000",
-        "v20100_renderer_locked": True,
-        "product_dna_geometry_modification_allowed": False,
+        "reference_style_grid": "reference-locked-commercial-grid-v16200",
     }
 
 
-def _graphic_v28000_layout_regression_test(result):
-    """Fail closed when the rendered hierarchy drifts outside the proven v20100 envelope."""
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    actual = dict(metadata.get("actual_normalized_boxes") or {})
-    issues = []
-    checks = {}
-
-    def box(name):
-        value = actual.get(name) or [0, 0, 0, 0]
-        try:
-            return [float(v) for v in value]
-        except Exception:
-            return [0.0, 0.0, 0.0, 0.0]
-
-    hero = box("hero_product_box")
-    headline = box("headline_box")
-    feature = box("feature_matrix_box")
-    footer = box("bottom_bar_box")
-    vehicle = box("vehicle_box")
-
-    checks["hero_height"] = round(hero[3], 4)
-    checks["hero_width"] = round(hero[2], 4)
-    checks["hero_center_x"] = round(hero[0] + hero[2] / 2, 4)
-    checks["headline_area"] = round(headline[2] * headline[3], 4)
-    checks["feature_area"] = round(feature[2] * feature[3], 4)
-    checks["footer_height"] = round(footer[3], 4)
-    checks["vehicle_area"] = round(vehicle[2] * vehicle[3], 4)
-
-    if hero[3] < 0.48:
-        issues.append("hero product height is below the v20100 commercial envelope")
-    if hero[2] < 0.18:
-        issues.append("hero product width is below the v20100 commercial envelope")
-    if not 0.30 <= hero[0] + hero[2] / 2 <= 0.60:
-        issues.append("hero product center drifted outside the v20100 balance")
-    if headline[2] * headline[3] < 0.045:
-        issues.append("headline hierarchy is weaker than the v20100 baseline")
-    if feature[2] * feature[3] < 0.070:
-        issues.append("feature grid is smaller than the v20100 baseline")
-    if footer[3] < 0.085 or footer[2] < 0.85:
-        issues.append("bottom benefit bar is weaker than the v20100 baseline")
-    if vehicle != [0.0, 0.0, 0.0, 0.0] and vehicle[2] * vehicle[3] < 0.035:
-        issues.append("supporting vehicle is too small for the v20100 balance")
-
-    return {
-        "required": True,
-        "passed": not issues,
-        "issues": issues,
-        "checks": checks,
-        "baseline": "v20100-executable-renderer-envelope",
-    }
-
-
-def _graphic_v28000_debug_pack(product_item, background_bytes, final_bytes, metadata):
-    """Build an optional in-memory debug pack without changing normal production output."""
-    state = get_graphic_project_state()
-    if not state.get("renderer_debug_enabled_v28000") or Image is None:
-        return {}
-    pack = {}
-    try:
-        raw = _graphic_uploaded_file_bytes(product_item.get("file") or product_item)
-        if raw:
-            pack["raw_product"] = "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
-        layer, _ = _graphic_open_product_layer_v3300(product_item.get("file") or product_item)
-        if layer is not None:
-            buf = io.BytesIO(); layer.save(buf, format="PNG", optimize=True)
-            pack["masked_product"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-            alpha = layer.getchannel("A")
-            rgba = Image.merge("RGBA", (alpha, alpha, alpha, Image.new("L", alpha.size, 255)))
-            ab = io.BytesIO(); rgba.save(ab, format="PNG", optimize=True)
-            pack["alpha_mask"] = "data:image/png;base64," + base64.b64encode(ab.getvalue()).decode("ascii")
-        if background_bytes:
-            pack["background_plate"] = "data:image/png;base64," + base64.b64encode(background_bytes).decode("ascii")
-        if final_bytes:
-            pack["final_composite"] = "data:image/png;base64," + base64.b64encode(final_bytes).decode("ascii")
-            with Image.open(io.BytesIO(final_bytes)) as final_image:
-                overlay = final_image.convert("RGBA")
-                from PIL import ImageDraw
-                draw = ImageDraw.Draw(overlay)
-                W, H = overlay.size
-                for name, color in (("hero_product_box", "red"), ("headline_box", "yellow"), ("feature_matrix_box", "cyan"), ("bottom_bar_box", "lime"), ("vehicle_box", "magenta")):
-                    values = (metadata.get("actual_normalized_boxes") or {}).get(name)
-                    if values and len(values) == 4:
-                        x, y, w, h = [float(v) for v in values]
-                        draw.rectangle((int(x*W), int(y*H), int((x+w)*W), int((y+h)*H)), outline=color, width=max(2, W//500))
-                ob = io.BytesIO(); overlay.save(ob, format="PNG", optimize=True)
-                pack["position_overlay"] = "data:image/png;base64," + base64.b64encode(ob.getvalue()).decode("ascii")
-        pack["layout_metadata"] = {
-            "actual_normalized_boxes": metadata.get("actual_normalized_boxes") or {},
-            "reference_layout_blueprint": metadata.get("reference_layout_blueprint") or {},
-            "product_trim_report": metadata.get("product_trim_report") or {},
-        }
-    except Exception as error:
-        pack["error"] = _graphic_compact_error_v4000(error)
-    return pack
 
 def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
     product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
@@ -22536,7 +22075,7 @@ def _graphic_build_hybrid_campaign_result_v3200(prompt_text, role_items, output_
     background,route=_graphic_generate_background_plate_v3200(
         role_items,prompt_text,output_size,vehicle_profile,spec,reference_blueprint,template_key
     )
-    composed,metadata=render_v20100_reference_campaign(
+    composed,metadata=_graphic_compose_reference_campaign_v3200(
         background, product_item, prompt_text, output_size, spec, vehicle_profile,
         role_items, reference_blueprint=reference_blueprint, template_key=template_key,
         product_dna=state.get("product_dna") or {}
@@ -22877,7 +22416,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v26000-v20100-bezel-safe-adaptive-border"
+GRAPHIC_MASK_CACHE_VERSION = "mask-v29000-v20100-bottom-bezel-preservation"
 
 
 def _graphic_progress_v3300(label):
@@ -22950,26 +22489,19 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Build a bezel-safe alpha mask while preserving the v20100 product canvas.
+    """Build a v20100-compatible alpha mask with bottom-bezel preservation.
 
-    v26000 keeps the proven v20100 composition contract: the source RGB and full
-    source canvas are immutable. Only neutral background pixels connected to the
-    outer border can become transparent. The adaptive border model is deliberately
-    stricter than the earlier fixed threshold so glossy black bezel edges, silver
-    trim, highlights, buttons, tabs and corners are not eaten by the mask.
+    The uploaded RGB and full source coordinate system remain authoritative. Only
+    neutral studio background connected to the outside border may become transparent.
+    v29000 adds a conservative lower-housing protection pass so glossy/silver bottom
+    bezel edges, mounting tabs, lower corners and antialiased highlights cannot be
+    mistaken for the white studio background. It never repaints, reshapes, crops,
+    resizes, erodes or dilates the product itself.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
         from collections import deque
-
-        digest = hashlib.sha256(raw_bytes).hexdigest()
-        state = get_graphic_project_state()
-        approval = dict((state.get("engineering_approval_v21000") or {}).get(digest) or {})
-        adjustment = max(-2, min(2, int(approval.get("mask_adjustment", 0) or 0)))
-        # Negative means keep more edge (stricter removal); positive removes more background.
-        brightness_shift = adjustment * 3
-        distance_shift = adjustment * 4
 
         im = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
         rgb = im.convert("RGB")
@@ -22978,9 +22510,8 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
             return b""
         pixels = rgb.load()
 
-        # Estimate the actual studio background from corner/edge samples instead of
-        # assuming every bright neutral pixel is background. This keeps warm silver
-        # trim and specular bezel highlights opaque.
+        # Model the real studio backdrop from border samples. This is intentionally
+        # neutral-only so silver trim and glossy white reflections remain foreground.
         sample_points = []
         edge_step_x = max(1, width // 48)
         edge_step_y = max(1, height // 48)
@@ -23002,40 +22533,36 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
 
         if neutral_samples:
             neutral_samples.sort(key=lambda c: c[0] + c[1] + c[2])
-            central = neutral_samples[len(neutral_samples) // 5:]
-            if not central:
-                central = neutral_samples
+            central = neutral_samples[len(neutral_samples) // 5:] or neutral_samples
             bg_r = sum(c[0] for c in central) / len(central)
             bg_g = sum(c[1] for c in central) / len(central)
             bg_b = sum(c[2] for c in central) / len(central)
         else:
             bg_r = bg_g = bg_b = 255.0
 
-        visited = bytearray(width * height)
-        background = bytearray(width * height)
-        queue = deque()
-
-        def candidate(x, y):
+        def metrics(x, y):
             r, g, b = pixels[x, y]
             hi, lo = max(r, g, b), min(r, g, b)
             brightness = (r + g + b) / 3.0
             chroma = hi - lo
             distance = ((r - bg_r) ** 2 + (g - bg_g) ** 2 + (b - bg_b) ** 2) ** 0.5
+            return r, g, b, brightness, chroma, distance
 
-            # Hard foreground guards. They protect dark bezel pixels, gray/silver
-            # trim and colored UI content even when antialiasing touches the border.
-            if brightness < 218 - brightness_shift:
-                return False
-            if chroma > 30:
-                return False
+        visited = bytearray(width * height)
+        background = bytearray(width * height)
+        queue = deque()
 
-            # Very bright neutral pixels may vary more from the sampled backdrop;
-            # lower-brightness pixels must be extremely close to it.
+        def candidate(x, y):
+            _, _, _, brightness, chroma, distance = metrics(x, y)
+            # Strong foreground guards. Dark bezel, silver housing and colored screen
+            # pixels can never join the outside-background flood.
+            if brightness < 218 or chroma > 30:
+                return False
             if brightness >= 244:
-                return distance <= 42 + distance_shift
-            if brightness >= 234 - brightness_shift:
-                return distance <= 28 + distance_shift
-            return distance <= 16 + distance_shift
+                return distance <= 42
+            if brightness >= 234:
+                return distance <= 28
+            return distance <= 16
 
         def enqueue(x, y):
             idx = y * width + x
@@ -23044,24 +22571,61 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                 queue.append((x, y))
 
         for x in range(width):
-            enqueue(x, 0)
-            enqueue(x, height - 1)
+            enqueue(x, 0); enqueue(x, height - 1)
         for y in range(height):
-            enqueue(0, y)
-            enqueue(width - 1, y)
+            enqueue(0, y); enqueue(width - 1, y)
 
         while queue:
             x, y = queue.popleft()
             idx = y * width + x
             background[idx] = 1
-            if x > 0:
-                enqueue(x - 1, y)
-            if x + 1 < width:
-                enqueue(x + 1, y)
-            if y > 0:
-                enqueue(x, y - 1)
-            if y + 1 < height:
-                enqueue(x, y + 1)
+            if x > 0: enqueue(x - 1, y)
+            if x + 1 < width: enqueue(x + 1, y)
+            if y > 0: enqueue(x, y - 1)
+            if y + 1 < height: enqueue(x, y + 1)
+
+        # v29000 lower-housing protection. Build a seed map from unquestionable
+        # product pixels in the lower 48% of the source, then protect only nearby
+        # edge pixels that differ measurably from the sampled backdrop. Pure white
+        # openings remain transparent because they have near-zero background distance.
+        lower_start = int(height * 0.52)
+        hard_fg = bytearray(width * height)
+        for y in range(lower_start, height):
+            for x in range(width):
+                _, _, _, brightness, chroma, distance = metrics(x, y)
+                if brightness <= 224 or chroma >= 28 or distance >= 30:
+                    hard_fg[y * width + x] = 1
+
+        protected = bytearray(width * height)
+        frontier = deque()
+        for y in range(lower_start, height):
+            for x in range(width):
+                idx = y * width + x
+                if hard_fg[idx]:
+                    protected[idx] = 1
+                    frontier.append((x, y, 0))
+
+        max_guard_radius = 3
+        while frontier:
+            x, y, depth = frontier.popleft()
+            if depth >= max_guard_radius:
+                continue
+            for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1),(x-1,y-1),(x+1,y-1),(x-1,y+1),(x+1,y+1)):
+                if not (0 <= nx < width and lower_start <= ny < height):
+                    continue
+                nidx = ny * width + nx
+                if protected[nidx]:
+                    continue
+                _, _, _, brightness, chroma, distance = metrics(nx, ny)
+                # Preserve only genuine antialias/highlight pixels near the lower
+                # product silhouette. Do not fill neutral holes or white background.
+                if brightness <= 248 and (distance >= 10 or chroma >= 10):
+                    protected[nidx] = 1
+                    frontier.append((nx, ny, depth + 1))
+
+        for idx, keep in enumerate(protected):
+            if keep:
+                background[idx] = 0
 
         alpha = Image.new("L", (width, height), 255)
         ap = alpha.load()
@@ -23071,10 +22635,10 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                 if background[idx]:
                     ap[x, y] = 0
                     continue
+                if protected[idx]:
+                    ap[x, y] = 255
+                    continue
 
-                # A one-pixel antialias band removes white fringe without shrinking
-                # the object. Only pixels that are themselves very close to the
-                # measured background receive partial transparency.
                 adjacent_bg = False
                 for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
                     if 0 <= nx < width and 0 <= ny < height and background[ny * width + nx]:
@@ -23083,11 +22647,9 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                 if not adjacent_bg:
                     continue
 
-                r, g, b = pixels[x, y]
-                hi, lo = max(r, g, b), min(r, g, b)
-                brightness = (r + g + b) / 3.0
-                chroma = hi - lo
-                distance = ((r - bg_r) ** 2 + (g - bg_g) ** 2 + (b - bg_b) ** 2) ** 0.5
+                _, _, _, brightness, chroma, distance = metrics(x, y)
+                # One-pixel fringe cleanup only. Lower product geometry is excluded
+                # by the protected map above.
                 if brightness >= 246 and chroma <= 18 and distance <= 34:
                     ap[x, y] = 72
                 elif brightness >= 238 and chroma <= 22 and distance <= 24:
@@ -23095,15 +22657,13 @@ def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_C
                 elif brightness >= 230 and chroma <= 24 and distance <= 16:
                     ap[x, y] = 218
 
-        # Keep original RGB and full-canvas coordinates exactly. No crop, resize,
-        # erosion, dilation, blur, recoloring or product geometry normalization.
         im.putalpha(alpha)
         out_buffer = io.BytesIO()
         im.save(out_buffer, format="PNG", optimize=True)
         return out_buffer.getvalue()
     except Exception as error:
         diagnostic_log(
-            "graphic_v26000_bezel_safe_mask_failed",
+            "graphic_v29000_bottom_bezel_mask_failed",
             error_type=type(error).__name__,
             error=str(error),
         )
@@ -23126,22 +22686,8 @@ def _graphic_open_product_layer_v3300(uploaded_file):
         return None, False
     digest = hashlib.sha256(raw).hexdigest()
     state = get_graphic_project_state()
-    approvals = dict(state.get("engineering_approval_v21000") or {})
-    approval = dict(approvals.get(digest) or {})
-    adjustment = int(approval.get("mask_adjustment", 0) or 0)
-    adjustment = max(-2, min(2, adjustment))
     cache = dict(state.get("product_mask_cache") or {})
-    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:v28000:{adjustment}:{digest}"
-
-    replacement_url = str(approval.get("replacement_data_url") or "")
-    if replacement_url.startswith("data:image/"):
-        replacement_raw, _ = data_url_to_bytes(replacement_url)
-        if replacement_raw:
-            try:
-                with Image.open(io.BytesIO(replacement_raw)) as replacement_image:
-                    return ImageOps.exif_transpose(replacement_image).convert("RGBA"), True
-            except Exception:
-                pass
+    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
     cached = cache.get(cache_key)
     if isinstance(cached, str) and cached.startswith("data:image/"):
         cached_raw, _ = data_url_to_bytes(cached)
@@ -23161,9 +22707,6 @@ def _graphic_open_product_layer_v3300(uploaded_file):
             error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
         )
         return None, False
-
-    if approval.get("use_original_studio_photo"):
-        return master.copy(), False
 
     # A genuine source alpha channel is already authoritative. Preserve it exactly.
     source_alpha = master.getchannel("A")
@@ -23444,7 +22987,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     )
     geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
     # Existing compositor now consumes v3300 geometry and cached product cutouts.
-    composed, metadata = render_v20100_reference_campaign(
+    composed, metadata = _graphic_compose_reference_campaign_v3200(
         background, product_item, prompt_text, output_size, spec, vehicle_profile, role_items,
         reference_blueprint=reference_blueprint, template_key=template_key,
         product_dna=state.get("product_dna") or {}
@@ -23456,15 +22999,13 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "v28000-locked-v20100-renderer-with-bezel-safe-approved-mask"
+    result["product_identity_method"] = "v20300-exact-source-pixel-composite-with-passive-engineering-dna"
     result["layered_metadata"].update(metadata)
     result["engineering_dna"] = metadata.get("engineering_dna") or {}
     result["engineering_dna_mode"] = "full_measurement_and_enforcement"
     result["engineering_geometry_qa"] = metadata.get("engineering_geometry_qa") or {}
-    result["background_data_url"] = "data:image/png;base64," + base64.b64encode(background).decode("ascii")
-    result["renderer_debug_pack"] = _graphic_v28000_debug_pack(product_item, background, composed, metadata)
     result["campaign_cache_version"] = CAMPAIGN_CACHE_VERSION
-    result["output_status"] = "completed_v28000_locked_v20100_renderer_campaign"
+    result["output_status"] = "completed_v21000_full_engineering_campaign"
 
     cache_state = get_graphic_project_state()
     campaign_cache = dict(cache_state.get("campaign_cache_v21000") or {})
@@ -24195,7 +23736,7 @@ def _graphic_local_copy_edit_v7100(prompt_text, role_items, output_size, vehicle
     product_item=next((item for item in (role_items or []) if item.get("role")=="product_photo"),None)
     if not background or not product_item: return None
     spec=_graphic_campaign_spec(prompt_text,vehicle_profile)
-    composed,metadata=render_v20100_reference_campaign(
+    composed,metadata=_graphic_compose_reference_campaign_v3200(
         background,product_item,prompt_text,output_size,spec,vehicle_profile,role_items,
         reference_blueprint=reference_blueprint or {},template_key=template_key or str(state.get("brand_template") or ""),
         edit_directive=edit_directive or state.get("last_edit_directive") or {},product_dna=product_dna or state.get("product_dna") or {},
@@ -24266,13 +23807,6 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         raise RuntimeError(
             "The exact-product campaign failed the reference-layout fidelity gate: "
             + "; ".join(layout_gate.get("issues") or ["layout score below threshold"])
-        )
-    renderer_gate = _graphic_v28000_layout_regression_test(result)
-    result["v20100_renderer_regression_gate"] = renderer_gate
-    if renderer_gate.get("required") and not renderer_gate.get("passed"):
-        raise RuntimeError(
-            "The campaign drifted outside the locked v20100 renderer envelope: "
-            + "; ".join(renderer_gate.get("issues") or ["renderer regression detected"])
         )
     if validation.get("verified"):
         result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
