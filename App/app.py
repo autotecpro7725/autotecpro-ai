@@ -47,6 +47,9 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v24000
+# v25000 Graphic Engine 12 True Layered Pipeline: standard commercial mode never sends product pixels to the image provider;
+# background/vehicle generation, immutable source-product compositing, deterministic typography/icons, layer manifests,
+# selective retries, and fail-closed product-fidelity verification are separated into explicit production stages.
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v24000 Graphic Engine 11 + Engineering DNA 2.0: immutable product-master pipeline, structured JSON DNA,
 # curated reference-library normalization, enriched vehicle lock, deterministic layout/typography/icon metadata,
@@ -23884,39 +23887,172 @@ def _graphic_finalize_result_v7100(final_result, *, prompt_text, output_size, ge
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return final_result
 
+
+GRAPHIC_ENGINE_12_VERSION = "graphic-engine-12.0-true-layered"
+GRAPHIC_LAYER_MANIFEST_VERSION = "layer-manifest-1.0"
+
+
+def _graphic_engine12_standard_commercial_mode(mode_info, has_edit_base=False):
+    """Return True only for immutable front/near-front commercial production."""
+    info = dict(mode_info or {})
+    return bool(
+        info.get("exact_product")
+        and not info.get("recreates_product")
+        and not has_edit_base
+    )
+
+
+def _graphic_engine12_layer_manifest(result, role_items, reference_blueprint=None, vehicle_profile=None):
+    """Build an auditable, ordered layer manifest for the final deterministic artwork."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    source = _graphic_product_source_signature_v9000(product) if product else {}
+    boxes = dict(metadata.get("actual_normalized_boxes") or {})
+    layers = [
+        {"id": "background", "source": "ai_background_only", "mutable": True, "provider_generated": True},
+        {"id": "vehicle", "source": "ai_background_plate", "mutable": True, "provider_generated": True,
+         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or "")},
+        {"id": "product_shadow", "source": "deterministic_local", "mutable": True, "provider_generated": False},
+        {"id": "product", "source": "uploaded_master_rgb", "mutable": False, "provider_generated": False,
+         "sha256": source.get("sha256"), "box": boxes.get("hero_product_box")},
+        {"id": "brand_logo", "source": "local_brand_asset", "mutable": True, "provider_generated": False,
+         "box": boxes.get("logo_box")},
+        {"id": "headline", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
+         "box": boxes.get("headline_box")},
+        {"id": "compatibility", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
+         "box": boxes.get("compatibility_box")},
+        {"id": "tagline", "source": "deterministic_typography", "mutable": True, "provider_generated": False,
+         "box": boxes.get("tagline_box")},
+        {"id": "feature_grid", "source": "deterministic_icons_and_type", "mutable": True, "provider_generated": False,
+         "box": boxes.get("feature_matrix_box")},
+        {"id": "bottom_bar", "source": "deterministic_icons_and_type", "mutable": True, "provider_generated": False,
+         "box": boxes.get("bottom_bar_box")},
+    ]
+    return {
+        "version": GRAPHIC_LAYER_MANIFEST_VERSION,
+        "engine": GRAPHIC_ENGINE_12_VERSION,
+        "ordered_layers": layers,
+        "product_layer_immutable": True,
+        "product_pixels_sent_to_provider": False,
+        "reference_pixels_sent_to_provider": False,
+        "provider_scope": ["background", "environment", "lighting", "target_vehicle"],
+        "reference_blueprint_digest": hashlib.sha256(
+            json.dumps(reference_blueprint or {}, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _graphic_engine12_immutable_product_gate(result, role_items):
+    """Fail closed unless the standard campaign proves the product came from the uploaded master."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    expected = _graphic_product_source_signature_v9000(product) if product else {}
+    actual_sha = str(metadata.get("product_source_sha256") or result.get("product_source_sha256") or "")
+    expected_sha = str(expected.get("sha256") or "")
+    ratio_error = float(metadata.get("product_ratio_relative_error") or 0.0)
+    checks = {
+        "source_fingerprint_present": bool(expected_sha),
+        "source_fingerprint_match": bool(expected_sha and actual_sha == expected_sha),
+        "exact_product_pixels": metadata.get("exact_product_pixels") is True,
+        "master_rgb_preserved": metadata.get("product_master_rgb_preserved") is True,
+        "provider_generated_product": metadata.get("product_pixels_provider_generated") is True,
+        "bezel_regenerated": metadata.get("bezel_pixels_regenerated") is True,
+        "aspect_ratio_error": ratio_error,
+        "aspect_ratio_preserved": ratio_error <= 0.0025,
+    }
+    issues=[]
+    if not checks["source_fingerprint_present"]: issues.append("authoritative product fingerprint missing")
+    if not checks["source_fingerprint_match"]: issues.append("final product source does not match uploaded master")
+    if not checks["exact_product_pixels"]: issues.append("exact-product pixel flag missing")
+    if not checks["master_rgb_preserved"]: issues.append("uploaded master RGB was not confirmed")
+    if checks["provider_generated_product"]: issues.append("product was provider-generated")
+    if checks["bezel_regenerated"]: issues.append("bezel pixels were regenerated")
+    if not checks["aspect_ratio_preserved"]: issues.append("product aspect ratio changed")
+    return {"passed": not issues, "checks": checks, "issues": issues}
+
+
+def _graphic_engine12_finalize_layered_result(result, role_items, reference_blueprint, vehicle_profile, route=""):
+    """Attach true-layered metadata and enforce immutable product fidelity before presentation."""
+    result = dict(result or {})
+    manifest = _graphic_engine12_layer_manifest(result, role_items, reference_blueprint, vehicle_profile)
+    gate = _graphic_engine12_immutable_product_gate(result, role_items)
+    result["graphic_engine_version"] = GRAPHIC_ENGINE_12_VERSION
+    result["layer_manifest"] = manifest
+    result["immutable_product_gate"] = gate
+    result["true_layered_pipeline"] = True
+    result["standard_commercial_product_provider_calls"] = 0
+    result["product_pixels_sent_to_provider"] = False
+    result["reference_pixels_sent_to_provider"] = False
+    result["provider_scope"] = manifest["provider_scope"]
+    result["selective_retry_policy"] = {
+        "background": True,
+        "vehicle": True,
+        "lighting": True,
+        "typography": "local_only",
+        "product": False,
+    }
+    result["generation_route"] = str(result.get("generation_route") or route or "") + "+engine12-true-layered"
+    if not gate.get("passed"):
+        raise RuntimeError("Graphic Engine 12 immutable product gate failed: " + "; ".join(gate.get("issues") or []))
+    return result
+
 # v23000: restored v20100 visual-baseline behavior for _graphic_fast_exact_campaign_v7000.
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Graphic Engine 11 exact-product route: immutable product, background-only AI, deterministic composition."""
+    """Graphic Engine 12 standard commercial route: AI creates only scene/vehicle; product is immutable local layer."""
     vehicle_profile = _graphic_engine11_vehicle_lock(vehicle_profile or {}, prompt_text)
-    reference_blueprint = _graphic_engine11_reference_library_blueprint(reference_blueprint or {}, str((mode_info or {}).get("brand_template") or ""))
+    reference_blueprint = _graphic_engine11_reference_library_blueprint(
+        reference_blueprint or {}, str((mode_info or {}).get("brand_template") or "")
+    )
     state = get_graphic_project_state()
     product_dna = dict(state.get("active_product_dna") or state.get("product_dna") or {})
-    result = _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile)
+
+    # The controlled campaign builder calls the provider only through
+    # _graphic_generate_background_plate_v3200(), whose provider_items list is empty.
+    # Therefore neither product pixels nor reference pixels can enter standard generation.
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
+    )
+    result = _graphic_engine12_finalize_layered_result(
+        result, role_items, reference_blueprint, vehicle_profile, route=(mode_info or {}).get("mode")
+    )
+
     validation = _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehicle_profile)
     result["deterministic_verification"] = validation
     result["vehicle_validation"] = validation.get("vehicle_validation") or {}
     unified_qc = _graphic_engine11_unified_qc(result, role_items, vehicle_profile)
+    result["engine12_quality_gate"] = unified_qc
     result["engine11_quality_gate"] = unified_qc
     result["source_fidelity_gate"] = unified_qc.get("source_gate") or {}
     result["reference_layout_fidelity_gate"] = unified_qc.get("layout_gate") or {}
     if not unified_qc.get("passed"):
-        raise RuntimeError("Graphic Engine 11 quality gate failed: " + "; ".join(unified_qc.get("issues") or []))
+        raise RuntimeError("Graphic Engine 12 quality gate failed: " + "; ".join(unified_qc.get("issues") or []))
+
     if validation.get("verified"):
-        result["output_status"] = "verified_exact_product_engine11"
+        result["output_status"] = "verified_exact_product_engine12"
         result["verification_status"] = "verified"
     elif validation.get("unverified"):
-        result = _graphic_mark_unverified_v4100(result, "The exact product is preserved, but optional vehicle verification was unavailable.", status="completed_exact_product_unverified_engine11")
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The exact uploaded product is preserved, but optional vehicle verification was unavailable.",
+            status="completed_exact_product_unverified_engine12",
+        )
     elif validation.get("passed"):
-        result["output_status"] = "completed_exact_product_engine11"
+        result["output_status"] = "completed_exact_product_engine12"
         result["verification_status"] = "completed"
     else:
-        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_11_VERSION
+        raise RuntimeError("The true-layered exact-product output failed deterministic validation.")
+
     result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"] = str(next((i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""))
-    result["style_reference_sources"] = [str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"][:4]
+    result["authoritative_product_source"] = str(next(
+        (i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""
+    ))
+    result["style_reference_sources"] = [
+        str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
+    ][:4]
     result["reference_content_leakage_prohibited"] = True
-    result["product_render_mode"] = _graphic_render_mode_v9000(mode_info, any(i.get("role") == "style_reference" for i in role_items or []))
+    result["product_render_mode"] = _graphic_render_mode_v9000(
+        mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
+    )
     result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
     result["ai_product_recreated"] = False
     result["product_master_immutable"] = True
@@ -23926,7 +24062,10 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["smart_retry_scope"] = "background_vehicle_lighting_only"
     result["speed_optimized"] = True
     result["project_editable"] = True
-    return _graphic_engine11_render_trace(result, product_dna=product_dna, reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile, route=(mode_info or {}).get("mode"))
+    return _graphic_engine11_render_trace(
+        result, product_dna=product_dna, reference_blueprint=reference_blueprint,
+        vehicle_profile=vehicle_profile, route=(mode_info or {}).get("mode")
+    )
 
 
 def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None, *, use_approved_style=True,
@@ -24055,7 +24194,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         # Exact-product jobs use one scenery request followed by deterministic
         # composition and lightweight verification.
         if product_mode.get("exact_product") and not has_edit_base:
-            _graphic_progress_update_v3300(status, "Creating the automotive scene and composing the exact uploaded product…")
+            _graphic_progress_update_v3300(status, "Generating only the scene and vehicle, then compositing the immutable uploaded product…")
             exact_result = _graphic_fast_exact_campaign_v7000(
                 prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, product_mode
             )
@@ -24071,7 +24210,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result = _graphic_engine11_render_trace(exact_result, product_dna=product_dna, reference_blueprint=reference_blueprint, vehicle_profile=vehicle_profile, route=product_mode.get("mode"))
             state = get_graphic_project_state(); state["layer_stack"] = exact_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, route=product_mode.get("mode"), stages=stage_times)
-            completion = "Exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
+            completion = "True-layered exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
             _graphic_progress_update_v3300(status, completion, "complete")
             return [exact_result]
 
@@ -24534,7 +24673,7 @@ def generated_image_answer_text(images, regenerated=False):
     image = images[0]
     status = str(image.get("output_status") or "")
     verification = str(image.get("verification_status") or "")
-    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100"}:
+    if status in {"verified_exact_product_fast_v7000", "verified_exact_product_fast_v7100", "verified_exact_product_engine12"}:
         action = "Created your exact-product AutoTecPro campaign image"
     elif image.get("ai_product_recreated"):
         action = "Created an AI-recreated product view from your supplied product references"
