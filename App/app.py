@@ -46,9 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v41000
+# AutoTecPro AI performance/stability revision: v41100
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v41000 Connected Ultimate Graphic Engine built directly from the satisfied v40000 production baseline.
+# v41100 Campaign Copy Integrity + Controlled Recovery Flow built directly from the working v41000 baseline.
 # Fully connects the v40000 engines: immutable verified campaign copy, semantic mechanical components, critical-region visibility,
 # material masks, rendered reflections, pre-generation scene intelligence, fail-closed QA, executed adaptive recovery,
 # shared product-analysis caching, and truthful multi-pass tracing.
@@ -16608,6 +16608,67 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     return directive
 
 
+def _graphic_explicit_fitment_v41100(text):
+    """Return authoritative multi-model fitment from the current user message only.
+
+    This deliberately separates product compatibility from the single representative
+    vehicle selected for the generated background. It never reads reference-image
+    wording or prior assistant text.
+    """
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not value:
+        return ""
+
+    # Prefer an explicitly labelled compatibility/fitment field when supplied.
+    labelled = re.search(
+        r"(?i)\b(?:compatibility|fits?|fitment|vehicles?)\s*[:\-]\s*([^.;]{3,300})",
+        value,
+    )
+    source = labelled.group(1).strip() if labelled else re.split(r"[.;]", value, maxsplit=1)[0].strip()
+    source = re.sub(r"(?i)^this\s+is\s+", "", source).strip()
+    source = re.split(
+        r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design)\s*[:\-]?",
+        source,
+        maxsplit=1,
+    )[0].strip()
+
+    year = re.search(r"\(?\s*((?:19|20)\d{2})\s*[–—-]\s*((?:19|20)\d{2})\s*\)?", source)
+    year_text = f"({year.group(1)}–{year.group(2)})" if year else ""
+    body = re.sub(r"\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?", "", source).strip(" ,:;.-")
+
+    ford_models = []
+    for match in re.finditer(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", body):
+        model = f"F-{match.group(1)}"
+        if model not in ford_models:
+            ford_models.append(model)
+    if ford_models:
+        return "For Ford " + " / ".join(ford_models) + (f" {year_text}" if year_text else "")
+
+    gm_models = []
+    if re.search(r"(?i)\bsilverado\b", body):
+        gm_models.append("Chevrolet Silverado")
+    if re.search(r"(?i)\bsierra\b", body):
+        gm_models.append("GMC Sierra")
+    if re.search(r"(?i)\btahoe\b", body):
+        gm_models.append("Chevrolet Tahoe")
+    if re.search(r"(?i)\bsuburban\b", body):
+        gm_models.append("Chevrolet Suburban")
+    if re.search(r"(?i)\byukon\b", body):
+        gm_models.append("GMC Yukon")
+    if gm_models:
+        return "For " + " / ".join(dict.fromkeys(gm_models)) + (f" {year_text}" if year_text else "")
+
+    normalized = re.sub(r"\s*[|,&]+\s*", " / ", body)
+    normalized = re.sub(r"\s*/\s*", " / ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip(" ,:;.-")
+    if len(normalized) >= 5 and re.search(
+        r"(?i)\b(?:ford|chevrolet|gmc|dodge|ram|infiniti|silverado|sierra|tahoe|suburban|yukon)\b",
+        normalized,
+    ):
+        return (normalized if re.match(r"(?i)^for\b", normalized) else "For " + normalized) + (f" {year_text}" if year_text else "")
+    return ""
+
+
 def _graphic_extract_campaign_spec(text, existing=None):
     """Extract durable commercial copy facts and object-level follow-up edits."""
     existing = dict(existing or {})
@@ -16616,12 +16677,20 @@ def _graphic_extract_campaign_spec(text, existing=None):
         return existing
     lower = value.casefold()
 
+    # Parse complete product fitment before resolving the one representative scene
+    # vehicle. A scene vehicle must never collapse F-150/F-250/F-350 fitment into
+    # only F-150.
+    explicit_fitment = _graphic_explicit_fitment_v41100(value)
     vehicle = _graphic_extract_explicit_vehicle(value)
     if vehicle:
         existing["vehicle"] = vehicle
         display_name = str(vehicle.get("display_name") or "").strip()
-        if display_name:
+        if display_name and not explicit_fitment and not existing.get("compatibility"):
             existing["compatibility"] = display_name
+    if explicit_fitment:
+        existing["compatibility"] = explicit_fitment
+        existing["compatibility_source"] = "current_user_prompt_v41100"
+        existing["compatibility_locked"] = True
 
     size_match = re.search(r"\b(\d{1,2}(?:\.\d)?)\s*(?:inch|inches|[\"”])\b", value, re.I)
     if size_match:
@@ -16680,7 +16749,8 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
     """Return project campaign copy with explicit facts and edits locked."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
-    explicit_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
+    current_fitment = _graphic_explicit_fitment_v41100(prompt_text)
+    explicit_context = str(prompt_text or "") if current_fitment else " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
     full_compatibility = _graphic_extract_full_compatibility_v36000(
@@ -22044,7 +22114,7 @@ def _graphic_apply_material_reflections_v41000(master, candidate, material_fp, r
         layer=Image.new("RGBA",(w,h),(255,245,226,0)); layer.putalpha(alpha)
         result=Image.alpha_composite(result,layer); applied.append(name)
     result.putalpha(master.getchannel("A"))
-    return result,{"applied":bool(applied),"materials":applied,"engine":"material-reflection-render-v41000"}
+    return result,{"applied":bool(applied),"materials":applied,"engine":"material-reflection-render-v41100"}
 
 
 
@@ -22066,7 +22136,7 @@ def _graphic_lighting_transfer_v40000(product, scene_profile, mode="reference_te
     final=master if fallback else candidate
     # Do not expose Pillow masks in persisted metadata.
     material_report={k:v for k,v in material.items() if k!="masks"}
-    return final,{"applied":not fallback,"fallback_to_master":fallback,"base_report":report,"material_fingerprint":material_report,"reflection_profile":reflection,"reflection_render":reflection_report,"geometry_lock":geometry,"rgb_fidelity":rgb,"engineering_pixel_lock":lock_report,"screen_restore":screen_report,"engine":"lighting-transfer-v41000"}
+    return final,{"applied":not fallback,"fallback_to_master":fallback,"base_report":report,"material_fingerprint":material_report,"reflection_profile":reflection,"reflection_render":reflection_report,"geometry_lock":geometry,"rgb_fidelity":rgb,"engineering_pixel_lock":lock_report,"screen_restore":screen_report,"engine":"lighting-transfer-v41100"}
 
 
 
@@ -22119,7 +22189,7 @@ def _graphic_quality_verification_v40000(metadata):
         "no_product_regeneration":m.get("product_pixels_provider_generated") is False,
     }
     failed=[k for k,v in checks.items() if not v]
-    return {"passed":not failed,"score":round(sum(bool(v) for v in checks.values())/len(checks),4),"checks":checks,"failed":failed,"brand":brand,"engine":"quality-verification-v41000"}
+    return {"passed":not failed,"score":round(sum(bool(v) for v in checks.values())/len(checks),4),"checks":checks,"failed":failed,"brand":brand,"engine":"quality-verification-v41100"}
 
 
 
@@ -22140,7 +22210,7 @@ def _graphic_multipass_trace_v40000(mode, product_fp, material_fp, scene_plan, q
     supplied=dict(stage_status or {})
     status={name:bool(supplied.get(name,False)) for name in stages}
     completed=sum(status.values())
-    return {"mode":mode,"stages":stages,"stage_status":status,"completed":completed,"total":len(stages),"all_completed":completed==len(stages),"product_fingerprint":str((product_fp or {}).get("rgba_sha256") or "")[:16],"material_available":bool((material_fp or {}).get("available")),"scene_engine":str((scene_plan or {}).get("engine") or ""),"quality_passed":bool((quality or {}).get("passed") is True),"engine":"multipass-render-pipeline-v41000"}
+    return {"mode":mode,"stages":stages,"stage_status":status,"completed":completed,"total":len(stages),"all_completed":completed==len(stages),"product_fingerprint":str((product_fp or {}).get("rgba_sha256") or "")[:16],"material_available":bool((material_fp or {}).get("available")),"scene_engine":str((scene_plan or {}).get("engine") or ""),"quality_passed":bool((quality or {}).get("passed") is True),"engine":"multipass-render-pipeline-v41100"}
 
 
 def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
@@ -22753,18 +22823,18 @@ def _graphic_product_analysis_v41000(layer):
 def _graphic_critical_region_visibility_v41000(product, product_xy, footer_top, canvas_size, mechanical_dna=None):
     """Require the bottom mechanical region to remain on-canvas and above overlays."""
     if Image is None or product is None:
-        return {"available":False,"passed":False,"reason":"product unavailable","engine":"critical-region-visibility-v41000"}
+        return {"available":False,"passed":False,"reason":"product unavailable","engine":"critical-region-visibility-v41100"}
     dna=dict(mechanical_dna or _graphic_mechanical_geometry_dna_v39000(product))
     bottom=dict((dna.get("regions") or {}).get("bottom_mount") or {})
     if not dna.get("available") or not bottom:
-        return {"available":False,"passed":False,"reason":"bottom DNA unavailable","engine":"critical-region-visibility-v41000"}
+        return {"available":False,"passed":False,"reason":"bottom DNA unavailable","engine":"critical-region-visibility-v41100"}
     px,py=[int(v) for v in product_xy]; W,H=[int(v) for v in canvas_size]
     rx,ry,rw,rh=[int(v) for v in bottom.get("box_px")]
     gx0,gy0=px+rx,py+ry; gx1,gy1=gx0+rw,gy0+rh
     visible_x=max(0,min(W,gx1)-max(0,gx0)); visible_y=max(0,min(H,int(footer_top),gy1)-max(0,gy0))
     visible_area=visible_x*visible_y; total=max(1,rw*rh); ratio=visible_area/total
     safety=max(4,int(H*0.008)); clears_footer=gy1<=int(footer_top)-safety
-    return {"available":True,"passed":ratio>=0.95 and clears_footer,"visible_ratio":round(ratio,6),"clears_footer":clears_footer,"bottom_global_box":[gx0,gy0,rw,rh],"footer_top":int(footer_top),"safety_px":safety,"engine":"critical-region-visibility-v41000"}
+    return {"available":True,"passed":ratio>=0.95 and clears_footer,"visible_ratio":round(ratio,6),"clears_footer":clears_footer,"bottom_global_box":[gx0,gy0,rw,rh],"footer_top":int(footer_top),"safety_px":safety,"engine":"critical-region-visibility-v41100"}
 
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
@@ -23113,7 +23183,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v41000-connected-ultimate",
+        "engine": "autotecpro-commercial-composer-v41100-copy-integrity-controlled-recovery",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -23876,57 +23946,10 @@ def _graphic_list_value_v3300(value, limit=8):
 
 
 def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
-    """Extract the complete product fitment independently from the scene vehicle.
-
-    v41000 treats the user's explicit multi-model fitment as immutable campaign copy.
-    A representative vehicle may be selected for the background, but it may never
-    replace or shorten this compatibility string.
-    """
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if not value:
-        return str(fallback or "").strip()
-
-    labelled = re.search(
-        r"(?i)\b(?:compatibility|fits?|fitment|vehicle(?:s)?)\s*[:\-]\s*([^.;]{3,260})",
-        value,
-    )
-    source = labelled.group(1).strip() if labelled else re.split(r"[.;]", value, maxsplit=1)[0].strip()
-    source = re.sub(r"(?i)^this\s+is\s+", "", source).strip()
-    source = re.split(r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design)\s*[:\-]?", source, maxsplit=1)[0].strip()
-
-    year = re.search(r"\(?\s*((?:19|20)\d{2})\s*[–—-]\s*((?:19|20)\d{2})\s*\)?", source)
-    year_text = f"({year.group(1)}–{year.group(2)})" if year else ""
-    without_year = re.sub(r"\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?", "", source).strip(" ,:;.-")
-
-    # Normalize Ford F-Series while preserving every explicitly named model.
-    ford_models = []
-    for match in re.finditer(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", without_year):
-        model = f"F-{match.group(1)}"
-        if model not in ford_models:
-            ford_models.append(model)
-    if ford_models and re.search(r"(?i)\bford\b|\bF\s*[- ]?\s*(?:150|250|350|450|550)\b", without_year):
-        text = "Ford " + " / ".join(ford_models)
-        return "For " + text + (f" {year_text}" if year_text else "")
-
-    # Normalize the common GM paired fitment without losing either brand/model.
-    has_silverado = bool(re.search(r"(?i)\bsilverado\b", without_year))
-    has_sierra = bool(re.search(r"(?i)\bsierra\b", without_year))
-    if has_silverado or has_sierra:
-        models = []
-        if has_silverado:
-            models.append("Chevrolet Silverado")
-        if has_sierra:
-            models.append("GMC Sierra")
-        return "For " + " / ".join(models) + (f" {year_text}" if year_text else "")
-
-    # Generic multi-model cleanup. Keep all names; only normalize separators.
-    text = re.sub(r"\s*[|,&]+\s*", " / ", without_year)
-    text = re.sub(r"\s*/\s*", " / ", text)
-    text = re.sub(r"\s+", " ", text).strip(" ,:;.-")
-    if len(text) >= 5 and re.search(r"(?i)\b(?:ford|chevrolet|gmc|dodge|ram|infiniti|silverado|sierra|tahoe|suburban|yukon|f\s*[- ]?\s*\d{3})\b", text):
-        if not re.match(r"(?i)^for\b", text):
-            text = "For " + text
-        return text + (f" {year_text}" if year_text and year_text not in text else "")
+    """Extract complete fitment while keeping scene-vehicle identity separate."""
+    explicit = _graphic_explicit_fitment_v41100(prompt_text)
+    if explicit:
+        return explicit
     return str(fallback or "").strip()
 
 
@@ -24033,7 +24056,8 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
         spec["tagline"] = str(tagline).strip()
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
-    project_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
+    current_fitment = _graphic_explicit_fitment_v41100(prompt_text)
+    project_context = str(prompt_text or "") if current_fitment else " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     full_compatibility = _graphic_extract_full_compatibility_v36000(
         project_context,
         spec.get("compatibility") or explicit_name,
@@ -24214,8 +24238,19 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     metadata["ultimate_multipass_trace"]=_graphic_multipass_trace_v40000(design_mode,metadata.get("ultimate_product_fingerprint"),metadata.get("ultimate_material_fingerprint"),scene_plan,quality,stage_status)
     result["layered_metadata"].update(metadata)
     if not quality.get("passed"):
-        raise RuntimeError("Controlled campaign failed v41000 QA: "+", ".join(quality.get("failed") or []))
-    result["output_status"]="completed_controlled_campaign_v41000"; result["campaign_spec"]=spec; result["graphic_design_mode"]=design_mode
+        failed_checks = list(quality.get("failed") or [])
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The exact-product controlled campaign was created, but these optional QA checks need review: "
+            + ", ".join(failed_checks),
+            status="completed_controlled_campaign_review_v41100",
+        )
+        result["controlled_qa_failed_checks"] = failed_checks
+        diagnostic_log("graphic_v41100_controlled_qa_review", failed=failed_checks)
+    else:
+        result["output_status"]="completed_controlled_campaign_v41100"
+        result["verification_status"]="verified"
+    result["campaign_spec"]=spec; result["graphic_design_mode"]=design_mode
     result["studio_creative_brief"]=studio_brief if design_mode=="autotecpro_studio" else {}; result["reference_template_used"]=design_mode=="reference_template"; result["reference_memory_isolated"]=design_mode=="autotecpro_studio"
     return result
 
@@ -25468,6 +25503,14 @@ def _graphic_emergency_provider_result_v15000(
         vehicle_profile=vehicle_profile,
         rejected_guidance="",
     )
+    recovery_spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
+    recovery_compatibility = str(recovery_spec.get("compatibility") or "").strip()
+    if recovery_compatibility:
+        production_prompt += (
+            "\n\nIMMUTABLE CAMPAIGN COPY — render this exact compatibility text without "
+            "shortening, paraphrasing, or replacing it with the representative scene vehicle: "
+            + recovery_compatibility
+        )
 
     route_errors = []
     raw_images = []
