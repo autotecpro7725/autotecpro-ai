@@ -46,12 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v30000
+# AutoTecPro AI performance/stability revision: v34000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v30000 Reference Fidelity Edition built directly from the current v29000 production base.
-# Restores the exact v20100 reference-layout blueprint and visible-product alpha trim while retaining v29000 bezel-safe masking.
-# Adds verified campaign-copy grounding, large secondary-hero vehicle composition, scene-density validation,
-# three bounded vehicle-only retries, reference-scale background caching, and strict identity/body/composition gates.
+# v34000 Graphic Engine upgrade built directly from the current running v32000 production base.
+# Preserves the v20100-derived Reference Template renderer while adding a separate product-aware AutoTecPro Studio engine.
+# Adds structured Studio creative briefs, adaptive product lighting, role confidence, mode-specific QA,
+# selective scene retries, reference-fidelity hard gates, and strict identity/body/composition safeguards.
 # Exact-product mode keeps uploaded RGB authoritative and blocks generative product replacement.
 # ============================================================
 # App Paths / API
@@ -19546,7 +19546,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v31000-v20100-renderer-v29000-mask"
+GRAPHIC_ENGINE_VERSION = "v34000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21477,6 +21477,225 @@ def _graphic_product_reference_separation_directive_v20400(prompt_text):
     )
     return value + contract
 
+def _graphic_role_confidence_v34000(role_items):
+    """Validate product/reference separation without second-guessing explicit user roles.
+
+    Explicit role assignments remain authoritative. Confidence is used for diagnostics and
+    to prevent one asset from entering both product and reference channels.
+    """
+    products=[item for item in (role_items or []) if item.get("role")=="product_photo"]
+    refs=[item for item in (role_items or []) if item.get("role")=="style_reference"]
+    product_ids={str(item.get("fingerprint") or item.get("name") or id(item)) for item in products}
+    ref_ids={str(item.get("fingerprint") or item.get("name") or id(item)) for item in refs}
+    overlap=sorted(product_ids & ref_ids)
+    confidence=1.0
+    issues=[]
+    if overlap:
+        confidence=0.0; issues.append("the same asset is assigned as both product and reference")
+    if len(products)>1:
+        confidence=min(confidence,0.88)
+    if len(refs)>4:
+        confidence=min(confidence,0.82)
+    return {
+        "passed": not overlap,
+        "confidence": round(confidence,4),
+        "product_count": len(products),
+        "reference_count": len(refs),
+        "issues": issues,
+        "engine": "v34000-role-confidence",
+    }
+
+
+def _graphic_design_mode_v34000(role_items, prompt_text=""):
+    """Choose the renderer explicitly: reference accuracy when a reference exists,
+    independent AutoTecPro Studio design otherwise.
+    """
+    role_gate=_graphic_role_confidence_v34000(role_items)
+    if not role_gate.get("passed"):
+        raise RuntimeError("Graphic asset roles are ambiguous: "+"; ".join(role_gate.get("issues") or []))
+    has_reference=any(item.get("role")=="style_reference" for item in (role_items or []))
+    disabled=graphic_prompt_disables_approved_reference(prompt_text)
+    mode="reference_template" if has_reference and not disabled else "autotecpro_studio"
+    return {"mode":mode,"has_reference":has_reference,"reference_disabled":disabled,"role_confidence":role_gate}
+
+
+def _graphic_product_shape_v34000(role_items):
+    item=next((i for i in (role_items or []) if i.get("role")=="product_photo"),None)
+    if not item or Image is None:
+        return {"orientation":"unknown","aspect_ratio":1.0}
+    try:
+        raw=_graphic_uploaded_file_bytes(item.get("file"))
+        with Image.open(io.BytesIO(raw)) as im:
+            w,h=ImageOps.exif_transpose(im).size
+        ratio=w/max(1,h)
+        orientation="portrait" if ratio<0.82 else ("wide" if ratio>1.28 else "balanced")
+        return {"orientation":orientation,"aspect_ratio":round(ratio,4),"width":w,"height":h}
+    except Exception:
+        return {"orientation":"unknown","aspect_ratio":1.0}
+
+
+def _graphic_studio_creative_brief_v34000(prompt_text, role_items, vehicle_profile, campaign_spec, output_size):
+    """Build a deterministic Studio art-direction brief from product and campaign facts."""
+    text=str(prompt_text or "").casefold()
+    shape=_graphic_product_shape_v34000(role_items)
+    vehicle=str((vehicle_profile or {}).get("explicit_display_name") or (campaign_spec or {}).get("compatibility") or "").casefold()
+    if any(k in text for k in ("ecommerce","amazon","white studio","white background","catalog")):
+        mood="studio_clean"
+    elif any(k in text for k in ("luxury","executive","elegant","premium interior")):
+        mood="urban_luxury"
+    elif any(k in text for k in ("performance","sport","racing","dynamic")):
+        mood="performance"
+    elif any(k in text for k in ("snow","winter","ice")):
+        mood="snow_adventure"
+    elif any(k in text for k in ("night","city lights","neon")):
+        mood="night_city"
+    elif any(k in text for k in ("forest","trail","woods")):
+        mood="forest_trail"
+    elif any(k in text for k in ("garage","industrial","workshop")):
+        mood="industrial_garage"
+    else:
+        mood="premium_mountain"
+    vehicle_class="pickup" if any(k in vehicle for k in ("sierra","silverado","ram","f-150","f150","super duty","pickup","truck")) else ("suv" if any(k in vehicle for k in ("tahoe","suburban","yukon","suv","cherokee")) else "vehicle")
+    orientation=shape.get("orientation")
+    if orientation=="portrait":
+        layout="portrait_hero_left"
+    elif orientation=="wide":
+        layout="wide_hero_center"
+    else:
+        layout="split_product_vehicle"
+    if mood=="studio_clean": layout="product_dominant_clean"
+    channel="social" if any(k in text for k in ("instagram","facebook","social")) else ("ecommerce" if mood=="studio_clean" else "website")
+    return {
+        "mode":"autotecpro_studio","visual_mood":mood,"layout_variant":layout,
+        "product_orientation":orientation,"product_aspect_ratio":shape.get("aspect_ratio"),
+        "vehicle_class":vehicle_class,"channel":channel,"output_size":output_size,
+        "campaign_goal":"product_launch" if any(k in text for k in ("launch","new product","introducing")) else "conversion",
+        "copy_density":"low" if any(k in text for k in ("minimal","clean","simple")) else "medium",
+        "engine":"v34000-studio-creative-brief",
+    }
+
+
+def _graphic_select_studio_template_v34000(brief):
+    mood=str((brief or {}).get("visual_mood") or "premium_mountain")
+    return {
+        "studio_clean":"autotecpro_white_studio",
+        "urban_luxury":"autotecpro_luxury",
+        "performance":"autotecpro_performance",
+        "industrial_garage":"autotecpro_oem_clean",
+    }.get(mood,"autotecpro_adventure")
+
+
+def _graphic_studio_blueprint_v34000(brief):
+    """Return product-shape-aware Studio geometry, isolated from reference memory."""
+    variant=str((brief or {}).get("layout_variant") or "split_product_vehicle")
+    boxes={
+        "logo_box":[0.022,0.025,0.205,0.105],
+        "headline_box":[0.022,0.145,0.520,0.090],
+        "compatibility_box":[0.020,0.235,0.420,0.055],
+        "tagline_box":[0.022,0.300,0.520,0.045],
+        "feature_matrix_box":[0.565,0.025,0.410,0.315],
+        "hero_product_box":[0.018,0.305,0.660,0.575],
+        "vehicle_box":[0.690,0.430,0.285,0.350],
+        "bottom_bar_box":[0.035,0.875,0.930,0.110],
+    }
+    if variant=="portrait_hero_left":
+        boxes["hero_product_box"]=[0.075,0.315,0.500,0.560]; boxes["vehicle_box"]=[0.620,0.430,0.350,0.360]
+    elif variant=="wide_hero_center":
+        boxes["hero_product_box"]=[0.020,0.350,0.700,0.500]; boxes["vehicle_box"]=[0.720,0.455,0.250,0.315]
+    elif variant=="product_dominant_clean":
+        boxes["hero_product_box"]=[0.180,0.300,0.640,0.550]; boxes["vehicle_box"]=[0.760,0.500,0.200,0.250]
+        boxes["feature_matrix_box"]=[0.590,0.030,0.385,0.285]
+    return {"normalized_boxes":boxes,"studio_generated":True,"layout_variant":variant,"content_policy":"autotecpro_studio_no_reference_memory"}
+
+
+def _graphic_scene_lighting_profile_v34000(canvas, product_box_px):
+    """Estimate scene lighting around the product placement using local background samples."""
+    if Image is None or canvas is None:
+        return {"available":False}
+    from PIL import ImageStat
+    x,y,w,h=[int(v) for v in product_box_px]
+    W,H=canvas.size
+    def sample(box):
+        x0,y0,x1,y1=box
+        x0=max(0,min(W-1,x0)); y0=max(0,min(H-1,y0)); x1=max(x0+1,min(W,x1)); y1=max(y0+1,min(H,y1))
+        return ImageStat.Stat(canvas.crop((x0,y0,x1,y1)).convert("RGB")).mean[:3]
+    band=max(12,int(min(W,H)*0.025))
+    left=sample((x-band,y,x,y+h)); right=sample((x+w,y,x+w+band,y+h)); top=sample((x,y-band,x+w,y)); bottom=sample((x,y+h,x+w,y+h+band))
+    lum=lambda c:0.2126*c[0]+0.7152*c[1]+0.0722*c[2]
+    direction="right" if lum(right)>lum(left) else "left"
+    avg=tuple((left[i]+right[i]+top[i]+bottom[i])/4 for i in range(3))
+    warmth=(avg[0]-avg[2])/255.0
+    return {"available":True,"direction":direction,"warmth":round(max(-0.25,min(0.35,warmth)),4),"ambient_rgb":[round(v,2) for v in avg],"left_luma":round(lum(left),2),"right_luma":round(lum(right),2)}
+
+
+def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
+    """Apply conservative local lighting without changing geometry or regenerating pixels.
+
+    The screen/UI is protected; lighting affects only the physical housing through a
+    low-strength gradient, warm/cool ambient blend, and edge-only specular lift.
+    """
+    if Image is None or product is None or not (scene_profile or {}).get("available"):
+        return product, {"applied":False,"reason":"profile unavailable"}
+    from PIL import ImageDraw, ImageFilter, ImageChops
+    rgba=product.convert("RGBA"); alpha=rgba.getchannel("A"); w,h=rgba.size
+    strength=0.055 if mode=="reference_template" else 0.075
+    direction=str(scene_profile.get("direction") or "right")
+    warmth=float(scene_profile.get("warmth") or 0.0)
+    # Protect the central display aperture from any colour or exposure change.
+    screen=_graphic_detect_screen_box_v20500(rgba,alpha)
+    housing_mask=alpha.copy()
+    if screen.get("available") and float(screen.get("confidence") or 0)>=0.58:
+        sx,sy,sw,sh=[int(v) for v in screen.get("box_px")]
+        d=ImageDraw.Draw(housing_mask); d.rectangle((sx,sy,sx+sw,sy+sh),fill=0)
+    grad=Image.new("L",(w,h),0); gp=grad.load()
+    for x in range(w):
+        t=x/max(1,w-1)
+        if direction=="left": t=1.0-t
+        value=int(255*(0.18+0.82*t))
+        for y in range(h): gp[x,y]=value
+    grad=ImageChops.multiply(grad,housing_mask)
+    # Luminance lift is intentionally bounded; reference mode is more conservative.
+    white=Image.new("RGBA",(w,h),(255,255,255,0)); white.putalpha(grad.point(lambda a:int(a*strength)))
+    lit=Image.alpha_composite(rgba,white)
+    if abs(warmth)>0.015:
+        color=(255,174,92,0) if warmth>0 else (120,170,255,0)
+        tint=Image.new("RGBA",(w,h),color); tint.putalpha(housing_mask.point(lambda a:int(a*min(0.035,abs(warmth)*0.11))))
+        lit=Image.alpha_composite(lit,tint)
+    # Edge-only highlight preserves black plastic while increasing realistic specular definition.
+    edge=alpha.filter(ImageFilter.MaxFilter(5)); inner=alpha.filter(ImageFilter.MinFilter(5)); edge=ImageChops.subtract(edge,inner).filter(ImageFilter.GaussianBlur(1.2))
+    edge=ImageChops.multiply(edge,housing_mask)
+    spec=Image.new("RGBA",(w,h),(255,255,255,0)); spec.putalpha(edge.point(lambda a:int(a*0.12)))
+    lit=Image.alpha_composite(lit,spec); lit.putalpha(alpha)
+    return lit,{"applied":True,"direction":direction,"warmth":round(warmth,4),"strength":strength,"screen_protected":bool(screen.get("available")),"engine":"v34000-adaptive-product-lighting"}
+
+
+def _graphic_studio_commercial_qa_v34000(result, brief):
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    actual=dict(metadata.get("actual_normalized_boxes") or {})
+    hero=actual.get("hero_product_box") or [0,0,0,0]
+    try: hero_area=float(hero[2])*float(hero[3]); hero_ok=hero_area>=0.16 and float(hero[3])>=0.48
+    except Exception: hero_area=0.0; hero_ok=False
+    zones={str(x) for x in metadata.get("campaign_zones") or []}
+    required={"logo","headline","compatibility_ribbon","feature_matrix","hero_product","bottom_benefit_bar"}
+    checks={"product_dominance":hero_ok,"zone_completeness":required.issubset(zones),"deterministic_typography":bool(metadata.get("deterministic_typography")),"product_not_regenerated":not bool((result or {}).get("ai_product_recreated"))}
+    score=round(sum(1 for v in checks.values() if v)/len(checks),4)
+    return {"passed":all(checks.values()) and score>=0.9,"score":score,"checks":checks,"hero_area":round(hero_area,4),"template":(brief or {}).get("layout_variant"),"engine":"v34000-studio-commercial-qa"}
+
+
+def _graphic_reference_fidelity_qa_v34000(result, role_items):
+    base=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
+    if not base.get("required"):
+        return {"required":False,"passed":True,"score":1.0,"checks":{},"issues":[],"engine":"v34000-reference-fidelity-qa"}
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    zones={str(x) for x in metadata.get("campaign_zones") or []}
+    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","bottom_benefit_bar"}
+    issues=list(base.get("issues") or [])
+    if not required.issubset(zones): issues.append("one or more deterministic reference zones are missing")
+    lighting=dict(metadata.get("product_lighting") or {})
+    checks=dict(base.get("checks") or {}); checks["zone_completeness"]=1.0 if required.issubset(zones) else 0.0; checks["lighting_integrated"]=1.0 if lighting.get("applied") else 0.7
+    score=round(float(base.get("score") or 0)*0.9+checks["zone_completeness"]*0.1,4)
+    return {"required":True,"passed":bool(base.get("passed") and not issues and score>=0.80),"score":score,"checks":checks,"issues":issues,"threshold":0.80,"engine":"v34000-reference-fidelity-qa"}
+
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
     """Create a target-only scenery prompt with no reference-image content channel."""
     profile = dict(vehicle_profile or {})
@@ -21492,6 +21711,9 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
     ]
     prohibited = ", ".join(prohibited_terms)
     cfg = _graphic_template_config_v8200(template_key)
+    state = get_graphic_project_state()
+    design_mode = str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    brief = dict(state.get("studio_creative_brief") or {})
     layout = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
 
     lowered = explicit_name.casefold()
@@ -21510,6 +21732,23 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
     for term in prohibited_terms:
         clean_direction = re.sub(re.escape(term), "", clean_direction, flags=re.IGNORECASE)
     clean_direction = re.sub(r"\s+", " ", clean_direction).strip()[:900]
+
+    if design_mode == "autotecpro_studio":
+        mood=str(brief.get("visual_mood") or "premium_mountain").replace("_"," ")
+        layout_variant=str(brief.get("layout_variant") or "split_product_vehicle")
+        vehicle_scale="large secondary hero" if layout_variant!="product_dominant_clean" else "small contextual vehicle"
+        return "\n".join([
+            "Create one premium photorealistic automotive BACKGROUND PLATE ONLY for an original AutoTecPro commercial campaign.",
+            f"Canvas: {output_size}.",
+            "Do not render any product, screen, dashboard frame, logo, text, icons, benefit bar, poster or advertisement panel.",
+            f"ART DIRECTION: {mood}; approved layout variant: {layout_variant}.",
+            f"TARGET VEHICLE: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'} with correct factory body type ({body_type}).",
+            f"VEHICLE ROLE: {vehicle_scale}, three-quarter front view, fully visible and physically grounded; preserve a dominant clean foreground zone for the exact product cutout.",
+            "Use intentional automotive lighting, strong foreground texture, controlled negative space, realistic contact shadows, and a clear directional key light that can be matched by the local product-lighting engine.",
+            "Never place the vehicle behind future typography or inside the product silhouette. Do not create a collage.",
+            ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: "+prohibited+".") if prohibited else "Never substitute another make, model, generation, or body type.",
+            ("Additional art direction: "+clean_direction) if clean_direction else "Create a polished conversion-focused automotive scene.",
+        ])[:16000]
 
     return "\n".join([
         "Create one premium photorealistic automotive BACKGROUND PLATE ONLY.",
@@ -21544,7 +21783,7 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
-        (GRAPHIC_ENGINE_VERSION + "|v31000-v20100-renderer|" + output_size + "|" + template_key + "|" + background_prompt).encode()
+        (GRAPHIC_ENGINE_VERSION + "|v34000-mode-aware-lighting|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
     cached = cache.get(key)
     if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
@@ -21889,6 +22128,11 @@ def _graphic_compose_reference_campaign_v3200(
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     py = hero_y1 - product.height
 
+    state_now = get_graphic_project_state()
+    design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
+    product, product_lighting_report = _graphic_apply_product_lighting_v34000(product, lighting_profile, design_mode)
+
     # Grounded contact shadow: downward and subtle, not a bright all-around halo.
     alpha = product.getchannel("A")
     shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
@@ -22063,6 +22307,8 @@ def _graphic_compose_reference_campaign_v3200(
         ],
         "product_box": product_box,
         "product_trim_report": product_trim_report,
+        "product_lighting": product_lighting_report,
+        "graphic_design_mode": design_mode,
         "actual_normalized_boxes": {
             "logo_box": layout_bp["logo_box"],
             "headline_box": layout_bp["headline_box"],
@@ -22959,6 +23205,8 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         raise RuntimeError("A product source is required for the controlled campaign engine.")
     spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
     state=get_graphic_project_state(); template_key=str(state.get("brand_template") or "autotecpro_adventure")
+    design_mode=str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    studio_brief=dict(state.get("studio_creative_brief") or {})
     background, route = _graphic_generate_background_plate_v3200(
         role_items, prompt_text, output_size, vehicle_profile, spec, reference_blueprint, template_key
     )
@@ -22980,6 +23228,10 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     result["layered_metadata"].update(metadata)
     result["output_status"] = "completed_controlled_campaign_v3300"
     result["campaign_spec"] = spec
+    result["graphic_design_mode"] = design_mode
+    result["studio_creative_brief"] = studio_brief if design_mode=="autotecpro_studio" else {}
+    result["reference_template_used"] = design_mode=="reference_template"
+    result["reference_memory_isolated"] = design_mode=="autotecpro_studio"
     return result
 
 
@@ -23290,28 +23542,21 @@ GRAPHIC_V8000_TEMPLATES = {
 }
 
 
-def _graphic_select_brand_template_v8000(prompt_text, has_style=False):
-    value = str(prompt_text or "").casefold()
-    mapping = (
-        (("luxury", "premium", "elegant"), "autotecpro_luxury"),
-        (("performance", "sport", "dynamic", "racing"), "autotecpro_performance"),
-        (("white background", "white studio", "clean studio", "ecommerce"), "autotecpro_white_studio"),
-        (("oem", "factory", "clean", "minimal"), "autotecpro_oem_clean"),
-        (("adventure", "mountain", "outdoor", "off-road", "rugged"), "autotecpro_adventure"),
-    )
-    selected = "autotecpro_adventure"
-    for terms, key in mapping:
-        if any(term in value for term in terms):
-            selected = key
-            break
-    if has_style and not any(term in value for terms, _ in mapping for term in terms):
-        selected = "reference_guided"
-    state = get_graphic_project_state()
-    state["brand_template"] = selected
-    history = list(state.get("template_history") or [])
-    history.append({"template": selected, "at": datetime.now(timezone.utc).isoformat()})
-    state["template_history"] = history[-20:]
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+def _graphic_select_brand_template_v8000(prompt_text, has_style=False, studio_brief=None):
+    """Select templates deterministically; reference mode never overrides measured geometry."""
+    if has_style:
+        selected="reference_guided"
+    elif studio_brief:
+        selected=_graphic_select_studio_template_v34000(studio_brief)
+    else:
+        value=str(prompt_text or "").casefold()
+        mapping=((('white background','white studio','ecommerce'),'autotecpro_white_studio'),(('performance','sport','racing'),'autotecpro_performance'),(('luxury','elegant'),'autotecpro_luxury'),(('oem','factory','minimal'),'autotecpro_oem_clean'))
+        selected="autotecpro_adventure"
+        for terms,key in mapping:
+            if any(term in value for term in terms): selected=key; break
+    state=get_graphic_project_state(); state["brand_template"]=selected
+    history=list(state.get("template_history") or []); history.append({"template":selected,"at":datetime.now(timezone.utc).isoformat()}); state["template_history"]=history[-20:]
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
     return selected
 
 
@@ -23517,9 +23762,15 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         checks["vehicle_valid"] = bool(not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is True)
     zones={str(x) for x in metadata.get("campaign_zones") or []}
     required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
-    layout_gate = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    design_mode=str((result or {}).get("graphic_design_mode") or (metadata.get("graphic_design_mode") or ("reference_template" if any(i.get("role")=="style_reference" for i in role_items or []) else "autotecpro_studio")))
+    if design_mode=="reference_template":
+        layout_gate = _graphic_reference_fidelity_qa_v34000(result, role_items)
+        studio_gate = {"required":False,"passed":True}
+    else:
+        layout_gate = {"required":False,"passed":True,"score":1.0,"issues":[],"engine":"v34000-reference-not-required"}
+        studio_gate = _graphic_studio_commercial_qa_v34000(result, dict((get_graphic_project_state() or {}).get("studio_creative_brief") or {}))
     checks["reference_layout_fidelity"] = bool(layout_gate.get("passed"))
-    checks["layout_valid"] = bool(required.issubset(zones) and layout_gate.get("passed"))
+    checks["layout_valid"] = bool(required.issubset(zones) and layout_gate.get("passed") and studio_gate.get("passed"))
     checks["branding_valid"]=bool(metadata.get("deterministic_typography") and "logo" in zones)
     checks["text_valid"]=bool(metadata.get("deterministic_typography"))
     hierarchy_gate = _graphic_commercial_hierarchy_score_v18000(result)
@@ -23544,8 +23795,10 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         "failure_memory":failure_memory,
         "vehicle_validation":vehicle,
         "layout_fidelity_gate":layout_gate,
+        "studio_commercial_qa":studio_gate,
+        "graphic_design_mode":design_mode,
         "commercial_hierarchy_gate":hierarchy_gate,
-        "engine":"v20010-engine6.1-production-hardening-quality-gate",
+        "engine":"v34000-dual-mode-lighting-quality-gate",
     }
 
 
@@ -23743,7 +23996,11 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["source_fidelity_gate"]=source_gate
     if not source_gate.get("passed"):
         raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
-    layout_gate=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
+    state_now=get_graphic_project_state(); design_mode=str(state_now.get("graphic_design_mode") or ("reference_template" if any(i.get("role")=="style_reference" for i in role_items or []) else "autotecpro_studio"))
+    if design_mode=="reference_template":
+        layout_gate=_graphic_reference_fidelity_qa_v34000(result,role_items)
+    else:
+        layout_gate={"required":False,"passed":True,"score":1.0,"issues":[],"engine":"v34000-studio-layout-delegated"}
     result["reference_layout_fidelity_gate"]=layout_gate
     if layout_gate.get("required") and not layout_gate.get("passed"):
         raise RuntimeError(
@@ -23766,6 +24023,10 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
     result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
     result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
+    result["graphic_design_mode"]=design_mode
+    if design_mode=="autotecpro_studio":
+        studio_qa=_graphic_studio_commercial_qa_v34000(result,dict(state_now.get("studio_creative_brief") or {})); result["studio_commercial_qa"]=studio_qa
+        if not studio_qa.get("passed"): raise RuntimeError("The AutoTecPro Studio composition failed commercial QA: "+str(studio_qa.get("checks")))
     return result
 
 
@@ -23805,12 +24066,23 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         has_product = any(i.get("role") == "product_photo" for i in role_items)
         has_style = any(i.get("role") == "style_reference" for i in role_items)
         has_edit_base = any(i.get("role") == "edit_base" for i in role_items)
+        design_info = _graphic_design_mode_v34000(role_items, prompt_text)
+        design_mode = design_info["mode"]
         product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
         product_mode["render_mode"] = _graphic_render_mode_v9000(product_mode, has_style)
         structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
-        brand_template = _graphic_select_brand_template_v8000(prompt_text, has_style=has_style)
+        preliminary_vehicle = _graphic_resolve_vehicle_lock(prompt_text, dict((get_graphic_project_state() or {}).get("last_vehicle_profile") or {}))
+        preliminary_spec = _graphic_verified_campaign_spec_v3300(prompt_text, preliminary_vehicle)
+        studio_brief = _graphic_studio_creative_brief_v34000(prompt_text, role_items, preliminary_vehicle, preliminary_spec, output_size) if design_mode=="autotecpro_studio" else {}
+        brand_template = _graphic_select_brand_template_v8000(prompt_text, has_style=(design_mode=="reference_template"), studio_brief=studio_brief)
         state_now = get_graphic_project_state()
+        state_now["graphic_design_mode"] = design_mode
+        state_now["graphic_role_confidence"] = design_info.get("role_confidence") or {}
+        state_now["studio_creative_brief"] = studio_brief
+        if design_mode=="autotecpro_studio":
+            state_now["last_reference_blueprint"] = {}
+            state_now["reference_blueprint_locked"] = False
         locked_dna = dict(state_now.get("active_product_dna") or {})
         product_dna = locked_dna if (locked_dna and state_now.get("product_dna_locked")) else (_graphic_build_product_dna_v8000(role_items, structure_profile) if has_product else {})
         state_now["active_product_dna"] = product_dna
@@ -23844,7 +24116,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 stage_times["reference_analysis_seconds"] = 0.0
             else:
                 t=time.perf_counter()
-                reference_blueprint, reference_cached = _graphic_cached_reference_blueprint_v8200(role_items,prompt_text,style_strength) if has_style else ({},True)
+                if design_mode=="reference_template" and has_style:
+                    reference_blueprint, reference_cached = _graphic_cached_reference_blueprint_v8200(role_items,prompt_text,style_strength)
+                else:
+                    reference_blueprint, reference_cached = _graphic_studio_blueprint_v34000(studio_brief), True
                 stage_times["reference_analysis_seconds"]=time.perf_counter()-t
                 if reference_blueprint:
                     saved_state["last_reference_blueprint"] = reference_blueprint
@@ -23867,7 +24142,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
         production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
-        diagnostic_log("graphic_v8000_route", mode=product_mode.get("mode"), edit_kind=edit_kind, template=brand_template)
+        diagnostic_log("graphic_v34000_route", mode=product_mode.get("mode"), design_mode=design_mode, edit_kind=edit_kind, template=brand_template, studio_layout=studio_brief.get("layout_variant"))
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
             local_result = _graphic_local_copy_edit_v7100(
@@ -23903,7 +24178,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result["layer_stack"] = _graphic_layer_stack_v8000(exact_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template)
             exact_result["product_dna"] = product_dna
             exact_result["professional_qa"] = _graphic_professional_qa_v8000(exact_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
-            exact_result["runtime_audit"] = _graphic_runtime_audit_v10000(exact_result, route=product_mode.get("mode"), provider_calls=1, retries=0, stages=stage_times)
+            exact_result["runtime_audit"] = _graphic_runtime_audit_v10000(exact_result, route=design_mode+":"+str(product_mode.get("mode")), provider_calls=1, retries=0, stages=stage_times)
+            exact_result["runtime_audit"]["provider_calls_estimated"] = True
+            exact_result["graphic_design_mode"] = design_mode
+            exact_result["graphic_role_confidence"] = design_info.get("role_confidence") or {}
             state = get_graphic_project_state(); state["layer_stack"] = exact_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, route=product_mode.get("mode"), stages=stage_times)
             completion = "Exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
