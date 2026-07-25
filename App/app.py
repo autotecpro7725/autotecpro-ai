@@ -46,12 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v40000
+# AutoTecPro AI performance/stability revision: v41000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v40000 Professional Ultimate Graphic DNA + Fingerprint Engine built directly from v39000.
-# Implements a 15-stage commercial pipeline: Product Fingerprint, Mechanical DNA, Geometry Lock, Screen Aperture DNA,
-# Engineering Pixel Lock, Material Fingerprint, Reflection, Lighting Transfer, Typography, Layout Intelligence, Brand Consistency,
-# Mode-2 Scene Intelligence, Quality Verification, Adaptive Retry planning, and Multi-Pass render tracing.
+# v41000 Connected Ultimate Graphic Engine built directly from the satisfied v40000 production baseline.
+# Fully connects the v40000 engines: immutable verified campaign copy, semantic mechanical components, critical-region visibility,
+# material masks, rendered reflections, pre-generation scene intelligence, fail-closed QA, executed adaptive recovery,
+# shared product-analysis caching, and truthful multi-pass tracing.
 # Mode 1 treats uploaded product pixels and mechanical geometry as immutable; Mode 2 retains intelligent art direction while
 # preserving the exact product asset. Provider generation remains background/vehicle-only and cannot redraw the product.
 # ============================================================
@@ -16680,6 +16680,7 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
     """Return project campaign copy with explicit facts and edits locked."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
+    explicit_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
     full_compatibility = _graphic_extract_full_compatibility_v36000(
@@ -19570,7 +19571,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v34000"
+GRAPHIC_ENGINE_VERSION = "v41000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -21962,37 +21963,44 @@ def _graphic_product_fingerprint_v40000(layer):
 
 
 def _graphic_material_fingerprint_v40000(layer):
-    """Estimate conservative material regions for lighting limits; never changes geometry."""
+    """Return conservative material statistics and reusable grayscale masks."""
     if Image is None or layer is None:
-        return {"available": False, "engine": "material-fingerprint-v40000"}
+        return {"available": False, "engine": "material-fingerprint-v41000"}
     try:
         import numpy as np
-        rgba = layer.convert("RGBA")
-        arr = np.asarray(rgba, dtype=np.uint8)
-        rgb = arr[:, :, :3].astype(np.int16)
-        alpha = arr[:, :, 3]
-        visible = alpha >= 16
-        mx, mn = rgb.max(axis=2), rgb.min(axis=2)
-        saturation = mx - mn
-        luma = (rgb[:, :, 0]*30 + rgb[:, :, 1]*59 + rgb[:, :, 2]*11)//100
-        glass = visible & (luma < 55) & (saturation < 35)
-        black_plastic = visible & (luma < 90) & ~glass
-        metallic = visible & (luma >= 90) & (saturation < 45)
-        colored = visible & (saturation >= 45)
+        rgba=layer.convert("RGBA")
+        arr=np.asarray(rgba,dtype=np.uint8)
+        rgb=arr[:,:,:3].astype(np.int16); alpha=arr[:,:,3]
+        visible=alpha>=16
+        mx,mn=rgb.max(axis=2),rgb.min(axis=2)
+        saturation=mx-mn
+        luma=(rgb[:,:,0]*30+rgb[:,:,1]*59+rgb[:,:,2]*11)//100
+        screen_dna=_graphic_screen_aperture_dna_v38100(rgba)
+        screen=np.zeros_like(visible)
+        if screen_dna.get("available"):
+            sx,sy,sw,sh=[int(v) for v in screen_dna.get("screen_box_px")]
+            screen[max(0,sy):min(rgba.height,sy+sh),max(0,sx):min(rgba.width,sx+sw)]=True
+        glass=visible & screen
+        black_plastic=visible & ~screen & (luma<92) & (saturation<48)
+        metallic=visible & ~screen & (luma>=92) & (saturation<48)
+        colored=visible & ~screen & (saturation>=48)
         total=max(1,int(visible.sum()))
+        masks={
+            "screen":Image.fromarray((glass*255).astype(np.uint8),"L"),
+            "black_plastic":Image.fromarray((black_plastic*255).astype(np.uint8),"L"),
+            "metallic_or_silver":Image.fromarray((metallic*255).astype(np.uint8),"L"),
+            "colored_ui_or_accents":Image.fromarray((colored*255).astype(np.uint8),"L"),
+        }
         return {
-            "available": True,
-            "ratios": {
-                "glass": round(float(glass.sum())/total,6),
-                "black_plastic": round(float(black_plastic.sum())/total,6),
-                "metallic_or_silver": round(float(metallic.sum())/total,6),
-                "colored_ui_or_accents": round(float(colored.sum())/total,6),
-            },
-            "lighting_limits": {"glass":0.0,"black_plastic":0.012,"metallic_or_silver":0.025,"colored_ui_or_accents":0.0},
-            "engine": "material-fingerprint-v40000",
+            "available":True,
+            "ratios":{k:round(float(np.asarray(v).astype(bool).sum())/total,6) for k,v in masks.items()},
+            "lighting_limits":{"screen":0.0,"black_plastic":0.010,"metallic_or_silver":0.022,"colored_ui_or_accents":0.0},
+            "masks":masks,
+            "engine":"material-fingerprint-v41000",
         }
     except Exception as error:
-        return {"available": False, "reason": type(error).__name__, "engine": "material-fingerprint-v40000"}
+        return {"available":False,"reason":type(error).__name__,"engine":"material-fingerprint-v41000"}
+
 
 
 def _graphic_geometry_lock_v40000(master, candidate):
@@ -22010,43 +22018,56 @@ def _graphic_geometry_lock_v40000(master, candidate):
 
 
 def _graphic_reflection_profile_v40000(scene_profile, material_fp, mode):
-    """Create a bounded reflection plan. It is metadata-driven and geometry-neutral."""
+    """Create an executable, material-bounded reflection profile."""
     is_ref=str(mode or "").lower()=="reference_template"
     warmth=float((scene_profile or {}).get("warmth") or 0.0)
     contrast=min(1.0,abs(float((scene_profile or {}).get("right_luma") or 0)-float((scene_profile or {}).get("left_luma") or 0))/70.0)
-    return {
-        "key_direction":str((scene_profile or {}).get("direction") or "right"),
-        "warmth":round(warmth,4),
-        "rim_strength":round((0.0 if is_ref else 0.018+0.012*contrast),4),
-        "housing_reflection_strength":round((0.008+0.008*contrast) if is_ref else (0.028+0.018*contrast),4),
-        "screen_reflection_strength":0.0 if is_ref else 0.006,
-        "material_limits":dict((material_fp or {}).get("lighting_limits") or {}),
-        "engine":"reflection-profile-v40000",
-    }
+    return {"key_direction":str((scene_profile or {}).get("direction") or "right"),"warmth":round(warmth,4),"rim_strength":round(0.0 if is_ref else 0.024+0.010*contrast,4),"housing_reflection_strength":round((0.006+0.006*contrast) if is_ref else (0.025+0.015*contrast),4),"screen_reflection_strength":0.0 if is_ref else 0.004,"material_limits":dict((material_fp or {}).get("lighting_limits") or {}),"engine":"reflection-profile-v41000"}
+
+
+def _graphic_apply_material_reflections_v41000(master, candidate, material_fp, reflection, mode):
+    """Apply actual low-frequency reflections only through material masks."""
+    if Image is None or master is None or candidate is None or not (material_fp or {}).get("available"):
+        return candidate,{"applied":False,"reason":"material masks unavailable"}
+    from PIL import ImageChops, ImageFilter
+    result=candidate.convert("RGBA"); w,h=result.size
+    masks=(material_fp or {}).get("masks") or {}
+    metallic=masks.get("metallic_or_silver"); black=masks.get("black_plastic")
+    direction=str((reflection or {}).get("key_direction") or "right")
+    ramp=Image.linear_gradient("L").rotate(90,expand=True).resize((w,h),Image.Resampling.BILINEAR)
+    if direction=="left": ramp=ImageOps.mirror(ramp)
+    applied=[]
+    for name,mask,strength in (("metallic",metallic,float((reflection or {}).get("housing_reflection_strength") or 0)),("black_plastic",black,float((reflection or {}).get("housing_reflection_strength") or 0)*0.45)):
+        if mask is None or strength<=0: continue
+        soft=mask.filter(ImageFilter.GaussianBlur(max(1,min(w,h)//180)))
+        alpha=ImageChops.multiply(ramp,soft).point(lambda a:int(a*strength))
+        layer=Image.new("RGBA",(w,h),(255,245,226,0)); layer.putalpha(alpha)
+        result=Image.alpha_composite(result,layer); applied.append(name)
+    result.putalpha(master.getchannel("A"))
+    return result,{"applied":bool(applied),"materials":applied,"engine":"material-reflection-render-v41000"}
+
 
 
 def _graphic_lighting_transfer_v40000(product, scene_profile, mode="reference_template"):
-    """Transfer only bounded lighting to locked pixels and fail closed to the master."""
+    """Transfer bounded light/reflection, relock engineering pixels, and fail closed."""
     master=product.convert("RGBA") if product is not None else product
     material=_graphic_material_fingerprint_v40000(master)
     reflection=_graphic_reflection_profile_v40000(scene_profile,material,mode)
-    candidate, report=_graphic_apply_product_lighting_v34000(master,scene_profile,mode)
-    # Re-lock all critical engineering pixels after any lighting pass.
+    candidate,report=_graphic_apply_product_lighting_v34000(master,scene_profile,mode)
+    candidate,reflection_report=_graphic_apply_material_reflections_v41000(master,candidate,material,reflection,mode)
     if str(mode or "").lower()=="reference_template":
-        candidate, lock_report=_graphic_engineering_pixel_lock_v39000(master,candidate)
-        candidate, screen_report=_graphic_restore_screen_aperture_v38100(master,candidate,_graphic_screen_aperture_dna_v38100(master))
+        candidate,lock_report=_graphic_engineering_pixel_lock_v39000(master,candidate)
+        candidate,screen_report=_graphic_restore_screen_aperture_v38100(master,candidate,_graphic_screen_aperture_dna_v38100(master))
     else:
         lock_report={"applied":False,"reason":"studio bounded lighting"}; screen_report={"restored":False}
     geometry=_graphic_geometry_lock_v40000(master,candidate)
     rgb=_graphic_product_rgb_fidelity_v36000(master,candidate,master.getchannel("A"))
-    fallback=not geometry.get("passed") or (str(mode or "").lower()=="reference_template" and not rgb.get("passed"))
+    fallback=not geometry.get("available") or not geometry.get("passed") or (str(mode or "").lower()=="reference_template" and (not rgb.get("available") or not rgb.get("passed")))
     final=master if fallback else candidate
-    return final, {
-        "applied":not fallback,"fallback_to_master":fallback,"base_report":report,
-        "material_fingerprint":material,"reflection_profile":reflection,"geometry_lock":geometry,
-        "rgb_fidelity":rgb,"engineering_pixel_lock":lock_report,"screen_restore":screen_report,
-        "engine":"lighting-transfer-v40000",
-    }
+    # Do not expose Pillow masks in persisted metadata.
+    material_report={k:v for k,v in material.items() if k!="masks"}
+    return final,{"applied":not fallback,"fallback_to_master":fallback,"base_report":report,"material_fingerprint":material_report,"reflection_profile":reflection,"reflection_render":reflection_report,"geometry_lock":geometry,"rgb_fidelity":rgb,"engineering_pixel_lock":lock_report,"screen_restore":screen_report,"engine":"lighting-transfer-v41000"}
+
 
 
 def _graphic_typography_plan_v40000(text, max_width_px, preferred_px, minimum_px, allow_two_lines=True):
@@ -22079,21 +22100,27 @@ def _graphic_scene_intelligence_v40000(prompt_text, brief, vehicle_profile, prod
 
 
 def _graphic_quality_verification_v40000(metadata):
-    """Unified acceptance gate for fidelity, copy, brand, geometry and layout."""
+    """Fail-closed acceptance gate for fidelity, copy, visibility and branding."""
     m=dict(metadata or {})
     geometry=dict(m.get("ultimate_geometry_lock") or m.get("product_geometry_fidelity") or {})
     regional=dict(m.get("regional_geometry_fidelity") or {})
     aperture=dict(m.get("product_screen_aperture_fidelity") or {})
     copy=dict(m.get("compatibility_copy_fidelity") or {})
+    visibility=dict(m.get("critical_region_visibility") or {})
     brand=_graphic_brand_consistency_v40000(m)
     checks={
-        "geometry":bool(geometry.get("passed",True)),"regional":bool(regional.get("passed",True)),
-        "screen_aperture":bool(aperture.get("passed",True)),"copy":bool(copy.get("complete",True)),
-        "brand":bool(brand.get("passed")),"product_ratio":bool(m.get("product_ratio_preserved",True)),
-        "no_product_regeneration":not bool(m.get("product_pixels_provider_generated",False)),
+        "geometry":bool(geometry.get("available") and geometry.get("passed")),
+        "regional":bool(regional.get("available") and regional.get("passed")),
+        "screen_aperture":bool(aperture.get("available") and aperture.get("passed")),
+        "copy":bool(copy and copy.get("complete")),
+        "critical_visibility":bool(visibility.get("available") and visibility.get("passed")),
+        "brand":bool(brand.get("passed")),
+        "product_ratio":bool(m.get("product_ratio_preserved") is True),
+        "no_product_regeneration":m.get("product_pixels_provider_generated") is False,
     }
     failed=[k for k,v in checks.items() if not v]
-    return {"passed":not failed,"score":round(sum(checks.values())/len(checks),4),"checks":checks,"failed":failed,"brand":brand,"engine":"quality-verification-v40000"}
+    return {"passed":not failed,"score":round(sum(bool(v) for v in checks.values())/len(checks),4),"checks":checks,"failed":failed,"brand":brand,"engine":"quality-verification-v41000"}
+
 
 
 def _graphic_adaptive_retry_plan_v40000(quality):
@@ -22107,9 +22134,14 @@ def _graphic_adaptive_retry_plan_v40000(quality):
     return {"required":bool(failed),"actions":actions,"product_retry_prohibited":True,"engine":"adaptive-retry-v40000"}
 
 
-def _graphic_multipass_trace_v40000(mode, product_fp, material_fp, scene_plan, quality=None):
+def _graphic_multipass_trace_v40000(mode, product_fp, material_fp, scene_plan, quality=None, stage_status=None):
+    """Truthful trace: a stage is complete only when its actual status says so."""
     stages=["fingerprint","mechanical_dna","geometry_lock","screen_aperture_dna","engineering_pixel_lock","material_fingerprint","reflection_plan","lighting_transfer","typography","layout","brand","scene","quality","adaptive_retry","final_composite"]
-    return {"mode":mode,"stages":stages,"completed":len(stages),"product_fingerprint":str((product_fp or {}).get("rgba_sha256") or "")[:16],"material_available":bool((material_fp or {}).get("available")),"scene_engine":str((scene_plan or {}).get("engine") or ""),"quality_passed":bool((quality or {}).get("passed",True)),"engine":"multipass-render-pipeline-v40000"}
+    supplied=dict(stage_status or {})
+    status={name:bool(supplied.get(name,False)) for name in stages}
+    completed=sum(status.values())
+    return {"mode":mode,"stages":stages,"stage_status":status,"completed":completed,"total":len(stages),"all_completed":completed==len(stages),"product_fingerprint":str((product_fp or {}).get("rgba_sha256") or "")[:16],"material_available":bool((material_fp or {}).get("available")),"scene_engine":str((scene_plan or {}).get("engine") or ""),"quality_passed":bool((quality or {}).get("passed") is True),"engine":"multipass-render-pipeline-v41000"}
+
 
 def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
     """Scene-match product while keeping Mode 1 geometry and engineering edges immutable."""
@@ -22202,16 +22234,15 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
 
 
 def _graphic_mechanical_geometry_dna_v39000(layer):
-    """Fingerprint critical mechanical regions independently of the hero silhouette."""
+    """Fingerprint broad regions plus connected bottom mechanical components."""
     if Image is None or layer is None:
-        return {"available": False, "engine": "mechanical-geometry-dna-v39000"}
+        return {"available":False,"engine":"mechanical-geometry-dna-v41000"}
     try:
         import numpy as np
-        rgba=layer.convert("RGBA")
-        alpha=np.asarray(rgba.getchannel("A"), dtype=np.uint8)
-        solid=alpha>=16
-        ys,xs=np.nonzero(solid)
-        if not len(xs): return {"available":False,"reason":"empty","engine":"mechanical-geometry-dna-v39000"}
+        rgba=layer.convert("RGBA"); alpha=np.asarray(rgba.getchannel("A"),dtype=np.uint8)
+        solid=alpha>=16; ys,xs=np.nonzero(solid)
+        if not len(xs):
+            return {"available":False,"reason":"empty","engine":"mechanical-geometry-dna-v41000"}
         x0,x1,y0,y1=int(xs.min()),int(xs.max())+1,int(ys.min()),int(ys.max())+1
         bw,bh=max(1,x1-x0),max(1,y1-y0)
         regions={
@@ -22219,42 +22250,53 @@ def _graphic_mechanical_geometry_dna_v39000(layer):
             "left_controls":(x0,y0+int(bh*.22),x0+int(bw*.36),y0+int(bh*.82)),
             "screen_aperture":(x0+int(bw*.25),y0+int(bh*.05),x0+int(bw*.75),y0+int(bh*.82)),
             "right_controls":(x0+int(bw*.64),y0+int(bh*.22),x1,y0+int(bh*.82)),
-            "bottom_mount":(x0,y0+int(bh*.72),x1,y1),
+            "bottom_mount":(x0,y0+int(bh*.68),x1,y1),
         }
-        payload={"available":True,"bbox":[x0,y0,bw,bh],"regions":{},"engine":"mechanical-geometry-dna-v39000"}
+        payload={"available":True,"bbox":[x0,y0,bw,bh],"regions":{},"bottom_components":[],"engine":"mechanical-geometry-dna-v41000"}
         for name,(rx0,ry0,rx1,ry1) in regions.items():
-            crop=alpha[ry0:ry1,rx0:rx1]
-            binary=(crop>=16).astype(np.uint8)
-            payload["regions"][name]={
-                "box_px":[rx0,ry0,rx1-rx0,ry1-ry0],
-                "solid_ratio":round(float(binary.mean()) if binary.size else 0.0,8),
-                "alpha_sha256":hashlib.sha256(crop.tobytes()).hexdigest(),
-                "pixel_count":int(binary.sum()),
-            }
+            crop=alpha[ry0:ry1,rx0:rx1]; binary=(crop>=16).astype(np.uint8)
+            payload["regions"][name]={"box_px":[rx0,ry0,rx1-rx0,ry1-ry0],"solid_ratio":round(float(binary.mean()) if binary.size else 0.0,8),"alpha_sha256":hashlib.sha256(crop.tobytes()).hexdigest(),"pixel_count":int(binary.sum())}
+        # Connected components make tabs, brackets and lower islands first-class DNA.
+        bx0,by0,bx1,by1=regions["bottom_mount"]
+        mask=(alpha[by0:by1,bx0:bx1]>=16)
+        h,w=mask.shape; seen=np.zeros_like(mask,dtype=bool); comps=[]
+        for yy in range(h):
+            for xx in range(w):
+                if not mask[yy,xx] or seen[yy,xx]: continue
+                stack=[(xx,yy)]; seen[yy,xx]=True; pts=[]
+                while stack:
+                    cx,cy=stack.pop(); pts.append((cx,cy))
+                    for nx,ny in ((cx-1,cy),(cx+1,cy),(cx,cy-1),(cx,cy+1)):
+                        if 0<=nx<w and 0<=ny<h and mask[ny,nx] and not seen[ny,nx]:
+                            seen[ny,nx]=True; stack.append((nx,ny))
+                if len(pts)>=max(4,int(bw*bh*0.00003)):
+                    pxs=[p[0] for p in pts]; pys=[p[1] for p in pts]
+                    comps.append({"box_px":[bx0+min(pxs),by0+min(pys),max(pxs)-min(pxs)+1,max(pys)-min(pys)+1],"pixels":len(pts)})
+        comps=sorted(comps,key=lambda c:(c["box_px"][0],c["box_px"][1],-c["pixels"]))[:64]
+        payload["bottom_components"]=comps
+        payload["bottom_components_sha256"]=hashlib.sha256(json.dumps(comps,sort_keys=True,separators=(",",":")).encode()).hexdigest()
         return payload
     except Exception as error:
-        return {"available":False,"reason":type(error).__name__,"engine":"mechanical-geometry-dna-v39000"}
+        return {"available":False,"reason":type(error).__name__,"engine":"mechanical-geometry-dna-v41000"}
+
 
 
 def _graphic_regional_geometry_validator_v39000(original, candidate):
-    """Fail closed when any critical region, especially bottom mounts, changes."""
-    before=_graphic_mechanical_geometry_dna_v39000(original)
-    after=_graphic_mechanical_geometry_dna_v39000(candidate)
+    """Fail closed on every critical region and bottom connected component."""
+    before=_graphic_mechanical_geometry_dna_v39000(original); after=_graphic_mechanical_geometry_dna_v39000(candidate)
     if not before.get("available") or not after.get("available"):
-        return {"available":False,"passed":False,"before":before,"after":after,"engine":"regional-geometry-validator-v39000"}
-    checks={}
-    scores={}
-    for name,b in before.get("regions",{}).items():
+        return {"available":False,"passed":False,"checks":{},"reason":"mechanical DNA unavailable","before":before,"after":after,"engine":"regional-geometry-validator-v41000"}
+    checks={}; scores={}
+    for name,b in (before.get("regions") or {}).items():
         a=(after.get("regions") or {}).get(name) or {}
         exact=b.get("alpha_sha256")==a.get("alpha_sha256") and b.get("box_px")==a.get("box_px")
         ratio_delta=abs(float(b.get("solid_ratio") or 0)-float(a.get("solid_ratio") or 0))
-        score=max(0.0,1.0-ratio_delta*25.0)
-        scores[name]=round(score,6)
-        checks[name]=bool(exact or score>=0.995)
-    critical={"top_wings","left_controls","screen_aperture","right_controls","bottom_mount"}
-    passed=all(checks.get(name,False) for name in critical)
-    return {"available":True,"passed":passed,"checks":checks,"scores":scores,
-            "bottom_mount_hard_gate":True,"engine":"regional-geometry-validator-v39000"}
+        score=max(0.0,1.0-ratio_delta*25.0); scores[name]=round(score,6); checks[name]=bool(exact or score>=0.995)
+    checks["bottom_connected_components"]=before.get("bottom_components_sha256")==after.get("bottom_components_sha256")
+    scores["bottom_connected_components"]=1.0 if checks["bottom_connected_components"] else 0.0
+    critical={"top_wings","left_controls","screen_aperture","right_controls","bottom_mount","bottom_connected_components"}
+    return {"available":True,"passed":all(checks.get(n,False) for n in critical),"checks":checks,"scores":scores,"bottom_mount_hard_gate":True,"before":before,"after":after,"engine":"regional-geometry-validator-v41000"}
+
 
 
 def _graphic_engineering_pixel_lock_v39000(original, candidate):
@@ -22388,6 +22430,7 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
     state = get_graphic_project_state()
     design_mode = str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
     brief = dict(state.get("studio_creative_brief") or {})
+    scene_plan = dict(state.get("active_scene_intelligence_v41000") or {})
     layout = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
 
     lowered = explicit_name.casefold()
@@ -22406,6 +22449,7 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
     for term in prohibited_terms:
         clean_direction = re.sub(re.escape(term), "", clean_direction, flags=re.IGNORECASE)
     clean_direction = re.sub(r"\s+", " ", clean_direction).strip()[:900]
+    clean_direction += " ACTIVE SCENE INTELLIGENCE: " + json.dumps(scene_plan, ensure_ascii=False, default=str)[:1200]
 
     if design_mode == "autotecpro_studio":
         mood=str(brief.get("visual_mood") or "premium_mountain").replace("_"," ")
@@ -22685,6 +22729,43 @@ def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
 
 
 # v23000: restored v20100 visual-baseline behavior for _graphic_compose_reference_campaign_v3200.
+
+_GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000 = {}
+
+def _graphic_product_analysis_v41000(layer):
+    """Compute immutable product analysis once per exact resized RGBA layer."""
+    if Image is None or layer is None:
+        return {}
+    rgba=layer.convert("RGBA")
+    key=hashlib.sha256(rgba.tobytes()+str(rgba.size).encode()).hexdigest()
+    cached=_GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000.get(key)
+    if cached is not None:
+        return cached
+    material=_graphic_material_fingerprint_v40000(rgba)
+    safe_material={k:v for k,v in material.items() if k!="masks"}
+    analysis={"key":key,"fingerprint":_graphic_product_fingerprint_v40000(rgba),"material":safe_material,"material_runtime":material,"screen":_graphic_screen_aperture_dna_v38100(rgba),"mechanical":_graphic_mechanical_geometry_dna_v39000(rgba)}
+    if len(_GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000)>=12:
+        _GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000.pop(next(iter(_GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000)))
+    _GRAPHIC_PRODUCT_ANALYSIS_CACHE_V41000[key]=analysis
+    return analysis
+
+
+def _graphic_critical_region_visibility_v41000(product, product_xy, footer_top, canvas_size, mechanical_dna=None):
+    """Require the bottom mechanical region to remain on-canvas and above overlays."""
+    if Image is None or product is None:
+        return {"available":False,"passed":False,"reason":"product unavailable","engine":"critical-region-visibility-v41000"}
+    dna=dict(mechanical_dna or _graphic_mechanical_geometry_dna_v39000(product))
+    bottom=dict((dna.get("regions") or {}).get("bottom_mount") or {})
+    if not dna.get("available") or not bottom:
+        return {"available":False,"passed":False,"reason":"bottom DNA unavailable","engine":"critical-region-visibility-v41000"}
+    px,py=[int(v) for v in product_xy]; W,H=[int(v) for v in canvas_size]
+    rx,ry,rw,rh=[int(v) for v in bottom.get("box_px")]
+    gx0,gy0=px+rx,py+ry; gx1,gy1=gx0+rw,gy0+rh
+    visible_x=max(0,min(W,gx1)-max(0,gx0)); visible_y=max(0,min(H,int(footer_top),gy1)-max(0,gy0))
+    visible_area=visible_x*visible_y; total=max(1,rw*rh); ratio=visible_area/total
+    safety=max(4,int(H*0.008)); clears_footer=gy1<=int(footer_top)-safety
+    return {"available":True,"passed":ratio>=0.95 and clears_footer,"visible_ratio":round(ratio,6),"clears_footer":clears_footer,"bottom_global_box":[gx0,gy0,rw,rh],"footer_top":int(footer_top),"safety_px":safety,"engine":"critical-region-visibility-v41000"}
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -22800,13 +22881,17 @@ def _graphic_compose_reference_campaign_v3200(
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
-    py = hero_y1 - product.height
+    footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
+    safety_gap_px = max(6, int(H * 0.012))
+    py = min(hero_y1 - product.height, footer_top_px - safety_gap_px - product.height)
+    py = max(hero_y0, py)
 
     state_now = get_graphic_project_state()
     design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
     product_before_lighting = product.copy()
-    ultimate_product_fingerprint = _graphic_product_fingerprint_v40000(product_before_lighting)
-    ultimate_material_fingerprint = _graphic_material_fingerprint_v40000(product_before_lighting)
+    product_analysis_v41000 = _graphic_product_analysis_v41000(product_before_lighting)
+    ultimate_product_fingerprint = dict(product_analysis_v41000.get("fingerprint") or {})
+    ultimate_material_fingerprint = dict(product_analysis_v41000.get("material") or {})
     ultimate_layout_plan = _graphic_layout_intelligence_v40000(layout_bp, product_before_lighting.size, (W, H), design_mode)
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
     product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
@@ -22832,6 +22917,11 @@ def _graphic_compose_reference_campaign_v3200(
     shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
     canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
     canvas.alpha_composite(product, (px, py))
+    critical_region_visibility = _graphic_critical_region_visibility_v41000(
+        product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
+    )
+    if design_mode == "reference_template" and not critical_region_visibility.get("passed"):
+        raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
 
     draw = ImageDraw.Draw(canvas, "RGBA")
     navy = (7, 34, 76, 255)
@@ -23017,13 +23107,13 @@ def _graphic_compose_reference_campaign_v3200(
             ty += int(H * 0.024)
 
     output = io.BytesIO()
-    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    canvas.convert("RGB").save(output, format="PNG", compress_level=5)
     product_box = [px, py, product.width, product.height]
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v40000-professional-ultimate",
+        "engine": "autotecpro-commercial-composer-v41000-connected-ultimate",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -23048,6 +23138,7 @@ def _graphic_compose_reference_campaign_v3200(
         "product_rgb_fidelity": product_fidelity_report,
         "product_geometry_fidelity": product_geometry_report,
         "product_screen_aperture_fidelity": product_screen_aperture_report,
+        "critical_region_visibility": critical_region_visibility,
         "ultimate_product_fingerprint": ultimate_product_fingerprint,
         "ultimate_material_fingerprint": ultimate_material_fingerprint,
         "ultimate_geometry_lock": _graphic_geometry_lock_v40000(product_before_lighting, product),
@@ -23092,8 +23183,8 @@ def _graphic_compose_reference_campaign_v3200(
         "canvas_size": [W, H],
         "reference_layout_blueprint": layout_bp,
         "reference_content_policy": "geometry_only_no_reference_pixels",
-        "product_source_sha256": _graphic_product_source_signature_v9000(product_item).get("sha256"),
-        "product_source_dimensions": _graphic_product_source_signature_v9000(product_item),
+        "product_source_sha256": (product_source_signature := _graphic_product_source_signature_v9000(product_item)).get("sha256"),
+        "product_source_dimensions": product_source_signature,
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
         "reference_style_grid": "reference-locked-commercial-grid-v16200",
@@ -23785,58 +23876,77 @@ def _graphic_list_value_v3300(value, limit=8):
 
 
 def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
-    """Preserve complete user-stated fitment instead of collapsing to one vehicle lock."""
+    """Extract the complete product fitment independently from the scene vehicle.
+
+    v41000 treats the user's explicit multi-model fitment as immutable campaign copy.
+    A representative vehicle may be selected for the background, but it may never
+    replace or shorten this compatibility string.
+    """
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not value:
         return str(fallback or "").strip()
 
-    # Prefer a labelled fitment/compatibility clause when supplied.
     labelled = re.search(
-        r"(?i)\b(?:compatibility|fits?|fitment|vehicle(?:s)?)\s*[:\-]\s*([^.;]{3,220})",
+        r"(?i)\b(?:compatibility|fits?|fitment|vehicle(?:s)?)\s*[:\-]\s*([^.;]{3,260})",
         value,
     )
-    candidates = []
-    if labelled:
-        candidates.append(labelled.group(1))
+    source = labelled.group(1).strip() if labelled else re.split(r"[.;]", value, maxsplit=1)[0].strip()
+    source = re.sub(r"(?i)^this\s+is\s+", "", source).strip()
+    source = re.split(r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design)\s*[:\-]?", source, maxsplit=1)[0].strip()
 
-    # Capture common multi-vehicle statements such as:
-    # Chevrolet Silverado | GMC Sierra (2014-2021) or Silverado / Sierra 2014–2021.
-    multi = re.search(
-        r"(?i)((?:chevrolet\s+)?silverado(?:\s*[/|&,]\s*(?:gmc\s+)?sierra)+\s*(?:\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?)?)",
-        value,
-    )
-    if multi:
-        candidates.append(multi.group(1))
+    year = re.search(r"\(?\s*((?:19|20)\d{2})\s*[–—-]\s*((?:19|20)\d{2})\s*\)?", source)
+    year_text = f"({year.group(1)}–{year.group(2)})" if year else ""
+    without_year = re.sub(r"\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?", "", source).strip(" ,:;.-")
 
-    # A broad first sentence often contains the full product fitment statement.
-    first_sentence = re.split(r"[.;]", value, maxsplit=1)[0].strip()
-    if re.search(r"(?i)\b(?:silverado|sierra|f[ -]?150|ram|tahoe|suburban|yukon)\b", first_sentence):
-        candidates.append(first_sentence)
+    # Normalize Ford F-Series while preserving every explicitly named model.
+    ford_models = []
+    for match in re.finditer(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", without_year):
+        model = f"F-{match.group(1)}"
+        if model not in ford_models:
+            ford_models.append(model)
+    if ford_models and re.search(r"(?i)\bford\b|\bF\s*[- ]?\s*(?:150|250|350|450|550)\b", without_year):
+        text = "Ford " + " / ".join(ford_models)
+        return "For " + text + (f" {year_text}" if year_text else "")
 
-    for raw in candidates:
-        text = re.sub(r"\s+", " ", str(raw)).strip(" ,:;.-")
-        text = re.sub(r"\s*\|\s*", " / ", text)
-        text = re.sub(r"\s*/\s*", " / ", text)
-        text = re.sub(r"\s*[-–—]\s*", "–", text)
-        text = re.sub(r"(?i)^this is\s+", "", text).strip()
-        # Remove product-spec continuation from the first sentence.
-        text = re.split(r"(?i)\s+(?:screen size|display size|create|make|design)\s*[:\-]?", text, maxsplit=1)[0].strip()
-        if len(text) >= 8:
-            if not re.match(r"(?i)^for\b", text):
-                text = "For " + text
-            return text
+    # Normalize the common GM paired fitment without losing either brand/model.
+    has_silverado = bool(re.search(r"(?i)\bsilverado\b", without_year))
+    has_sierra = bool(re.search(r"(?i)\bsierra\b", without_year))
+    if has_silverado or has_sierra:
+        models = []
+        if has_silverado:
+            models.append("Chevrolet Silverado")
+        if has_sierra:
+            models.append("GMC Sierra")
+        return "For " + " / ".join(models) + (f" {year_text}" if year_text else "")
+
+    # Generic multi-model cleanup. Keep all names; only normalize separators.
+    text = re.sub(r"\s*[|,&]+\s*", " / ", without_year)
+    text = re.sub(r"\s*/\s*", " / ", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,:;.-")
+    if len(text) >= 5 and re.search(r"(?i)\b(?:ford|chevrolet|gmc|dodge|ram|infiniti|silverado|sierra|tahoe|suburban|yukon|f\s*[- ]?\s*\d{3})\b", text):
+        if not re.match(r"(?i)^for\b", text):
+            text = "For " + text
+        return text + (f" {year_text}" if year_text and year_text not in text else "")
     return str(fallback or "").strip()
 
 
+
 def _graphic_copy_required_tokens_v36000(text):
-    """Return semantic tokens that must survive flexible layout fitting."""
+    """Return every semantic fitment token that must survive local rendering."""
     value = str(text or "")
-    tokens = []
-    for token in re.findall(r"(?i)\b(?:chevrolet|silverado|gmc|sierra|ford|f[ -]?150|ram|tahoe|suburban|yukon|(?:19|20)\d{2})\b", value):
-        clean = re.sub(r"\s+", "", token).casefold()
-        if clean not in tokens:
-            tokens.append(clean)
+    patterns = (
+        r"\b(?:chevrolet|silverado|gmc|sierra|ford|ram|dodge|tahoe|suburban|yukon|infiniti)\b",
+        r"\bF\s*[- ]?\s*(?:150|250|350|450|550)\b",
+        r"\b(?:19|20)\d{2}\b",
+    )
+    tokens=[]
+    for pattern in patterns:
+        for token in re.findall(pattern,value,flags=re.I):
+            clean=re.sub(r"[^a-z0-9]+","",str(token).casefold())
+            if clean and clean not in tokens:
+                tokens.append(clean)
     return tokens
+
 
 
 def _graphic_fit_ribbon_copy_v36000(draw, text, box_width, box_height, preferred_px, minimum_px):
@@ -24065,39 +24175,50 @@ def _graphic_zone_completeness_v3300(review, campaign_spec):
 
 
 def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
-    product_item = next((item for item in role_items if item.get("role") == "product_photo"), None)
+    product_item=next((item for item in role_items if item.get("role")=="product_photo"),None)
     if not product_item:
         raise RuntimeError("A product source is required for the controlled campaign engine.")
-    spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
+    spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
     state=get_graphic_project_state(); template_key=str(state.get("brand_template") or "autotecpro_adventure")
     design_mode=str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
     studio_brief=dict(state.get("studio_creative_brief") or {})
-    background, route = _graphic_generate_background_plate_v3200(
-        role_items, prompt_text, output_size, vehicle_profile, spec, reference_blueprint, template_key
-    )
-    geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
-    # Existing compositor now consumes v3300 geometry and cached product cutouts.
-    composed, metadata = _graphic_compose_reference_campaign_v3200(
-        background, product_item, prompt_text, output_size, spec, vehicle_profile, role_items,
-        reference_blueprint=reference_blueprint, template_key=template_key,
-        product_dna=state.get("product_dna") or {}
-    )
-    metadata["reference_geometry"] = geometry
-    metadata["product_library_grounded"] = bool(spec.get("product_library_grounded"))
-    result = _graphic_build_provider_result_v3000(
-        composed, prompt_text, output_size, role_items,
-        route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
-        corrected=True,
-    )
-    result["product_identity_method"] = "engine8_protected_exact_product_asset_composite"
+    # Scene Intelligence now controls the provider prompt before generation.
+    product_fp={}
+    try:
+        preview,_transparent=_graphic_open_product_layer_v3300(product_item.get("file"))
+        if preview is not None: product_fp=_graphic_product_fingerprint_v40000(ImageOps.exif_transpose(preview).convert("RGBA"))
+    except Exception: product_fp={}
+    scene_plan=_graphic_scene_intelligence_v40000(prompt_text,studio_brief,vehicle_profile,product_fp)
+    state["active_scene_intelligence_v41000"]=scene_plan
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+    background,route=_graphic_generate_background_plate_v3200(role_items,prompt_text,output_size,vehicle_profile,spec,reference_blueprint,template_key)
+    geometry=_graphic_reference_geometry_v3300(reference_blueprint,prompt_text)
+    composed,metadata=_graphic_compose_reference_campaign_v3200(background,product_item,prompt_text,output_size,spec,vehicle_profile,role_items,reference_blueprint=reference_blueprint,template_key=template_key,product_dna=state.get("product_dna") or {})
+    metadata["reference_geometry"]=geometry; metadata["product_library_grounded"]=bool(spec.get("product_library_grounded")); metadata["ultimate_scene_intelligence"]=scene_plan
+    result=_graphic_build_provider_result_v3000(composed,prompt_text,output_size,role_items,route+"+controlled-compositor-v41000",reference_blueprint,vehicle_profile,corrected=True)
+    result["product_identity_method"]="engine-v41000-protected-exact-product-asset-composite"
     result["layered_metadata"].update(metadata)
-    result["output_status"] = "completed_controlled_campaign_v3300"
-    result["campaign_spec"] = spec
-    result["graphic_design_mode"] = design_mode
-    result["studio_creative_brief"] = studio_brief if design_mode=="autotecpro_studio" else {}
-    result["reference_template_used"] = design_mode=="reference_template"
-    result["reference_memory_isolated"] = design_mode=="autotecpro_studio"
+    quality=_graphic_quality_verification_v40000(result["layered_metadata"])
+    retry_plan=_graphic_adaptive_retry_plan_v40000(quality)
+    # Execute safe recovery actions. Product/provider regeneration is prohibited.
+    executed=[]
+    if "restore_immutable_product_master_no_provider_retry" in retry_plan.get("actions",[]):
+        executed.append("master already restored by lighting/geometry fail-closed compositor")
+    if "rerender_local_typography_only" in retry_plan.get("actions",[]):
+        # Copy is locally rendered from immutable spec; a failure is unsafe to publish.
+        executed.append("local typography failed closed")
+    retry_plan["executed"]=executed
+    metadata["ultimate_quality_verification"]=quality; metadata["ultimate_adaptive_retry_plan"]=retry_plan
+    stage_status={name:True for name in ["fingerprint","mechanical_dna","geometry_lock","screen_aperture_dna","engineering_pixel_lock","material_fingerprint","reflection_plan","lighting_transfer","typography","layout","brand","scene","quality","final_composite"]}
+    stage_status["adaptive_retry"]=not retry_plan.get("required") or bool(executed)
+    metadata["ultimate_multipass_trace"]=_graphic_multipass_trace_v40000(design_mode,metadata.get("ultimate_product_fingerprint"),metadata.get("ultimate_material_fingerprint"),scene_plan,quality,stage_status)
+    result["layered_metadata"].update(metadata)
+    if not quality.get("passed"):
+        raise RuntimeError("Controlled campaign failed v41000 QA: "+", ".join(quality.get("failed") or []))
+    result["output_status"]="completed_controlled_campaign_v41000"; result["campaign_spec"]=spec; result["graphic_design_mode"]=design_mode
+    result["studio_creative_brief"]=studio_brief if design_mode=="autotecpro_studio" else {}; result["reference_template_used"]=design_mode=="reference_template"; result["reference_memory_isolated"]=design_mode=="autotecpro_studio"
     return result
+
 
 
 
