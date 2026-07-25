@@ -46,11 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v35000
-# v35000 audited optimization built directly from the current v34000 production base.
-# Preserves the v20100/v32000 Reference Template renderer and the v34000 AutoTecPro Studio engine.
-# Removes confirmed unreferenced Graphic helpers, reduces repeated image decoding, vectorizes adaptive lighting,
-# keeps mode-specific QA and strict product/vehicle safeguards, and prioritizes accuracy over raw speed.
+# AutoTecPro AI performance/stability revision: v36000
+# v22000 consolidated production update built directly from the current v21010 working base.
+# v36000 Reference Fidelity + Flexible Copy edition built directly from v34000.
+# Mode 1 restores v32000-grade bezel fidelity, adds geometry-safe scene lighting, complete compatibility-copy extraction,
+# dynamic ribbon text fitting, copy-fidelity validation, and automatic fallback to untouched product pixels whenever
+# relighting exceeds conservative RGB tolerances. Mode 2 retains the stronger Studio intelligence and lighting path.
 # Exact-product mode keeps uploaded RGB authoritative and blocks generative product replacement.
 # ============================================================
 # App Paths / API
@@ -16680,10 +16681,18 @@ def _graphic_campaign_spec(prompt_text="", vehicle_profile=None):
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
-    if explicit_name:
+    full_compatibility = _graphic_extract_full_compatibility_v36000(
+        explicit_context,
+        spec.get("compatibility") or explicit_name,
+    )
+    if full_compatibility:
+        spec["compatibility"] = full_compatibility
+    elif explicit_name:
         spec["compatibility"] = explicit_name
+    if explicit_name:
         spec["vehicle_label"] = explicit_name.upper()
         spec["vehicle"] = dict(state.get("explicit_vehicle") or {})
+    spec["compatibility_required_tokens"] = _graphic_copy_required_tokens_v36000(spec.get("compatibility"))
     if not spec.get("headline"):
         size = str(spec.get("screen_size") or "").strip()
         category = str(spec.get("product_category") or "PREMIUM INFOTAINMENT SYSTEM").strip()
@@ -18254,6 +18263,50 @@ def _graphic_collect_result_bytes(result):
     return collected
 
 
+def _graphic_emergency_exact_product_composite(role_items, output_size, prompt_text, reference_blueprint=None):
+    """Last-resort compositor that never calls the main layered studio.
+
+    It preserves the uploaded product pixels and produces a valid PNG even if
+    cutout, typography, review, logo, or the professional compositor fails.
+    """
+    if Image is None:
+        return b"", {"emergency_composite": False}
+    try:
+        width, height = [int(part) for part in str(output_size).lower().split("x", 1)]
+    except Exception:
+        width, height = 1536, 1024
+    product_item = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    raw = _graphic_uploaded_file_bytes((product_item or {}).get("file"))
+    if not raw:
+        return b"", {"emergency_composite": False}
+    try:
+        plate = _graphic_reference_background_plate(role_items, f"{width}x{height}")
+        if plate:
+            with Image.open(io.BytesIO(plate)) as bg:
+                canvas = ImageOps.exif_transpose(bg).convert("RGBA")
+        else:
+            canvas = Image.new("RGBA", (width, height), (7, 12, 22, 255))
+        with Image.open(io.BytesIO(raw)) as source:
+            product = ImageOps.exif_transpose(source).convert("RGBA")
+        product.thumbnail((int(width * 0.52), int(height * 0.68)), Image.Resampling.LANCZOS)
+        pad = max(18, int(min(width, height) * 0.018))
+        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (248, 250, 252, 246))
+        mask = Image.new("L", card.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(18, pad), fill=255)
+        card.putalpha(mask)
+        card.alpha_composite(product, (pad, pad))
+        x = max(20, width - card.width - int(width * 0.055))
+        y = max(20, (height - card.height) // 2)
+        shadow = Image.new("RGBA", card.size, (0, 0, 0, 0))
+        shadow.putalpha(card.getchannel("A").filter(ImageFilter.GaussianBlur(radius=max(12, min(width, height)//55))).point(lambda a: int(a * .48)))
+        canvas.alpha_composite(shadow, (x + 12, y + 16))
+        canvas.alpha_composite(card, (x, y))
+        buffer = io.BytesIO()
+        canvas.convert("RGB").save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue(), {"emergency_composite": True, "product_composited": True}
+    except Exception as error:
+        diagnostic_log("graphic_emergency_composite_failed", error_type=type(error).__name__, error=error)
+        return b"", {"emergency_composite": False}
 
 
 
@@ -20587,6 +20640,52 @@ def _graphic_detect_screen_box_v20500(layer, product_mask):
         "aspect_ratio": round(sw / max(1, sh), 8),
     }
 
+def _graphic_transparent_openings_v20500(mask):
+    """Describe major internal negative spaces without modifying the source cutout."""
+    if Image is None or mask is None:
+        return []
+    width, height = mask.size
+    # Downsample for bounded connected-component work.
+    scale = min(1.0, 512.0 / max(width, height))
+    small = mask.resize((max(1, int(width * scale)), max(1, int(height * scale))), Image.Resampling.NEAREST)
+    sp = small.load()
+    sw, sh = small.size
+    seen = bytearray(sw * sh)
+    components = []
+    from collections import deque
+    for y in range(1, sh - 1):
+        for x in range(1, sw - 1):
+            idx = y * sw + x
+            if seen[idx] or sp[x, y] > 0:
+                continue
+            queue = deque([(x, y)])
+            seen[idx] = 1
+            points = []
+            touches_border = False
+            while queue:
+                px, py = queue.popleft()
+                points.append((px, py))
+                if px in (0, sw - 1) or py in (0, sh - 1):
+                    touches_border = True
+                for nx, ny in ((px-1,py),(px+1,py),(px,py-1),(px,py+1)):
+                    nidx = ny * sw + nx
+                    if 0 <= nx < sw and 0 <= ny < sh and not seen[nidx] and sp[nx, ny] == 0:
+                        seen[nidx] = 1
+                        queue.append((nx, ny))
+            if touches_border or len(points) < max(8, int(sw * sh * 0.00025)):
+                continue
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
+            components.append({
+                "box_normalized": [
+                    round(bx0 / sw, 6), round(by0 / sh, 6),
+                    round((bx1 - bx0 + 1) / sw, 6), round((by1 - by0 + 1) / sh, 6),
+                ],
+                "area_ratio": round(len(points) / max(1, sw * sh), 8),
+            })
+    components.sort(key=lambda item: item["area_ratio"], reverse=True)
+    return components[:24]
 
 def _graphic_mask_bytes_v21000(mask):
     if Image is None or mask is None:
@@ -21026,6 +21125,41 @@ def _graphic_bezel_fingerprint_v20500(product_item, layer=None):
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     return fingerprint
 
+def _graphic_transform_request_v20500(prompt_text, role_items):
+    """Parse only bounded rigid whole-product transforms and reject unseen strong views."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
+    strong = any(term in lower for term in (
+        "rear view", "back view", "90 degree", "ninety degree", "full side view",
+        "from the side", "dramatic side", "show the rear", "show the back",
+    ))
+    product_views = [item for item in role_items or [] if item.get("role") == "product_photo"]
+    if strong and len(product_views) < 2:
+        return {
+            "allowed": False,
+            "reason": "A strong side or rear view requires multiple product photographs.",
+            "rotation_degrees": 0.0,
+            "perspective": 0.0,
+        }
+
+    rotation = 0.0
+    if any(term in lower for term in ("slight clockwise", "rotate clockwise")):
+        rotation = -3.0
+    elif any(term in lower for term in ("slight counterclockwise", "rotate counterclockwise")):
+        rotation = 3.0
+    elif any(term in lower for term in ("slightly angled", "small angle", "moderate angle", "three-quarter illusion")):
+        rotation = -1.5
+
+    perspective = 0.0
+    if any(term in lower for term in ("moderate perspective", "slight perspective", "three-quarter illusion", "slightly angled")):
+        perspective = 0.035
+    return {
+        "allowed": True,
+        "rotation_degrees": max(-6.0, min(6.0, rotation)),
+        "perspective": max(-0.06, min(0.06, perspective)),
+        "translation": [0.0, 0.0],
+        "uniform_scale_only": True,
+        "single_matrix_for_all_landmarks": True,
+    }
 
 def _graphic_rigid_transform_v20500(layer, transform_spec):
     if Image is None or layer is None:
@@ -21169,7 +21303,27 @@ def _graphic_geometry_qa_v20500(source_fingerprint, transformed_layer, transform
         "engine": GEOMETRY_ENGINE_VERSION,
     }
 
+def _graphic_apply_transform_with_component_retry_v20500(layer, transform_spec, fingerprint):
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, transform_spec)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    if qa.get("passed"):
+        return transformed, metadata, qa, False
+    safe = dict(transform_spec or {})
+    safe.update({"rotation_degrees": 0.0, "perspective": 0.0, "translation": [0.0, 0.0], "scale": 1.0})
+    transformed, metadata = _graphic_rigid_transform_v20500(layer, safe)
+    qa = _graphic_geometry_qa_v20500(fingerprint, transformed, metadata)
+    return transformed, metadata, qa, True
 
+def _graphic_background_exclusion_contract_v20500(prompt_text):
+    return str(prompt_text or "") + (
+        "\n\nV21000 BACKGROUND-ONLY CONTRACT: Generate only the requested target vehicle, "
+        "scenery, sky, atmosphere, terrain, environmental lighting, and background "
+        "composition. Never generate or redraw an infotainment unit, gauge cluster, "
+        "screen, bezel, dashboard unit, side rail, button, knob, mounting tab, opening, "
+        "product silhouette, product placeholder, product-shaped reflection, or "
+        "product-shaped shadow. Keep the measured hero zone clear. The exact uploaded "
+        "product is composited later from immutable source RGB and an approved mask."
+    )
 
 def _graphic_lightweight_upload_identity_v22000(file):
     """Return cheap upload metadata without running segmentation or Engineering DNA."""
@@ -21308,6 +21462,28 @@ def render_engineering_dna_approval_panel_v21000(uploaded_files):
         elif approval:
             st.warning("The current mask is not approved.")
 
+def _graphic_product_reference_separation_directive_v20400(prompt_text):
+    """Append one stable internal contract separating style and product authority.
+
+    This does not alter user-visible wording. It prevents ambiguous requests such as
+    "use this as a reference" from allowing the advertisement template to contribute
+    product geometry. The style image controls presentation only; the Product Photo is
+    the sole engineering authority.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    contract = (
+        "\n\nINTERNAL PRODUCT/STYLE AUTHORITY CONTRACT (v20400):\n"
+        "- Treat the Style Reference as presentation guidance only: layout, typography, "
+        "lighting, background, icon placement, color palette, vehicle placement and overall advertising style.\n"
+        "- Treat the uploaded Product Photo as the sole and direct product authority.\n"
+        "- Never copy, infer, borrow or reconstruct product geometry from the Style Reference.\n"
+        "- Preserve the Product Photo's housing, outer and inner bezel contours, screen aperture, "
+        "bottom-bezel profile, controls, knobs, openings, mounting tabs, holes, proportions, seams and surface details.\n"
+        "- For exact/front-view jobs, do not redraw or regenerate any product pixels.\n"
+        "- Resizing and placement may change only through one coherent whole-product transform; "
+        "never resize the screen, bezel, controls or housing independently.\n"
+    )
+    return value + contract
 
 def _graphic_role_confidence_v34000(role_items):
     """Validate product/reference separation without second-guessing explicit user roles.
@@ -21352,45 +21528,18 @@ def _graphic_design_mode_v34000(role_items, prompt_text=""):
 
 
 def _graphic_product_shape_v34000(role_items):
-    """Return product orientation with a fingerprint-scoped session cache.
-
-    Image decoding is skipped on reruns when the authoritative product asset is unchanged.
-    """
-    item = next((i for i in (role_items or []) if i.get("role") == "product_photo"), None)
+    item=next((i for i in (role_items or []) if i.get("role")=="product_photo"),None)
     if not item or Image is None:
-        return {"orientation": "unknown", "aspect_ratio": 1.0}
-
-    cache_key = str(item.get("fingerprint") or item.get("sha256") or item.get("name") or "")
-    state = get_graphic_project_state()
-    shape_cache = dict(state.get("product_shape_cache") or {})
-    cached = dict(shape_cache.get(cache_key) or {}) if cache_key else {}
-    if cached.get("width") and cached.get("height"):
-        cached["cache_hit"] = True
-        return cached
-
+        return {"orientation":"unknown","aspect_ratio":1.0}
     try:
-        raw = _graphic_uploaded_file_bytes(item.get("file"))
+        raw=_graphic_uploaded_file_bytes(item.get("file"))
         with Image.open(io.BytesIO(raw)) as im:
-            w, h = ImageOps.exif_transpose(im).size
-        ratio = w / max(1, h)
-        orientation = "portrait" if ratio < 0.82 else ("wide" if ratio > 1.28 else "balanced")
-        result = {
-            "orientation": orientation,
-            "aspect_ratio": round(ratio, 4),
-            "width": int(w),
-            "height": int(h),
-            "cache_hit": False,
-        }
-        if cache_key:
-            shape_cache[cache_key] = result
-            # Bound persistent project memory.
-            if len(shape_cache) > 24:
-                shape_cache = dict(list(shape_cache.items())[-24:])
-            state["product_shape_cache"] = shape_cache
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        return result
+            w,h=ImageOps.exif_transpose(im).size
+        ratio=w/max(1,h)
+        orientation="portrait" if ratio<0.82 else ("wide" if ratio>1.28 else "balanced")
+        return {"orientation":orientation,"aspect_ratio":round(ratio,4),"width":w,"height":h}
     except Exception:
-        return {"orientation": "unknown", "aspect_ratio": 1.0, "cache_hit": False}
+        return {"orientation":"unknown","aspect_ratio":1.0}
 
 
 def _graphic_studio_creative_brief_v34000(prompt_text, role_items, vehicle_profile, campaign_spec, output_size):
@@ -21487,20 +21636,49 @@ def _graphic_scene_lighting_profile_v34000(canvas, product_box_px):
     return {"available":True,"direction":direction,"warmth":round(max(-0.25,min(0.35,warmth)),4),"ambient_rgb":[round(v,2) for v in avg],"left_luma":round(lum(left),2),"right_luma":round(lum(right),2)}
 
 
-def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
-    """Apply conservative scene-matched lighting without geometry changes.
+def _graphic_product_rgb_fidelity_v36000(original, candidate, alpha=None):
+    """Measure RGB drift without treating transparent pixels as product content."""
+    if Image is None or original is None or candidate is None:
+        return {"available": False, "passed": False, "reason": "missing image"}
+    from PIL import ImageChops, ImageStat
+    before = original.convert("RGBA")
+    after = candidate.convert("RGBA")
+    if before.size != after.size:
+        return {"available": True, "passed": False, "reason": "size changed"}
+    product_alpha = (alpha or before.getchannel("A")).convert("L")
+    diff = ImageChops.difference(before.convert("RGB"), after.convert("RGB"))
+    stat = ImageStat.Stat(diff, mask=product_alpha)
+    mean = sum(float(v) for v in stat.mean) / 3.0
+    extrema = stat.extrema or [(0, 0), (0, 0), (0, 0)]
+    maximum = max(int(pair[1]) for pair in extrema)
+    # Mean drift is the useful stability signal. A few specular pixels may be higher.
+    passed = mean <= 5.25 and maximum <= 42
+    return {
+        "available": True,
+        "passed": bool(passed),
+        "mean_rgb_delta": round(mean, 4),
+        "max_rgb_delta": maximum,
+        "alpha_unchanged": before.getchannel("A").tobytes() == after.getchannel("A").tobytes(),
+    }
 
-    v35000 builds the directional mask as a one-row gradient and resizes it, avoiding
-    the previous Python per-pixel loop. Reference Mode remains intentionally subtle.
+
+def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
+    """Scene-match the product while making Mode 1 geometry and edge contrast immutable.
+
+    Reference Template Mode deliberately avoids perimeter/inner-opening specular masks.
+    Studio Mode keeps the stronger cinematic lighting treatment. In all cases the alpha,
+    dimensions, aspect ratio, screen pixels, and physical layout remain unchanged.
     """
     if Image is None or product is None or not (scene_profile or {}).get("available"):
-        return product, {"applied": False, "reason": "profile unavailable"}
-
+        return product, {"applied": False, "reason": "profile unavailable", "engine": "v36000-safe-lighting"}
     from PIL import ImageDraw, ImageFilter, ImageChops
     rgba = product.convert("RGBA")
+    original = rgba.copy()
     alpha = rgba.getchannel("A")
     w, h = rgba.size
-    strength = 0.050 if mode == "reference_template" else 0.072
+    is_reference = str(mode or "").strip().lower() == "reference_template"
+    strength = 0.026 if is_reference else 0.075
+    tint_cap = 0.014 if is_reference else 0.035
     direction = str(scene_profile.get("direction") or "right")
     warmth = float(scene_profile.get("warmth") or 0.0)
 
@@ -21508,15 +21686,20 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
     housing_mask = alpha.copy()
     if screen.get("available") and float(screen.get("confidence") or 0) >= 0.58:
         sx, sy, sw, sh = [int(v) for v in screen.get("box_px")]
-        ImageDraw.Draw(housing_mask).rectangle((sx, sy, sx + sw, sy + sh), fill=0)
+        d = ImageDraw.Draw(housing_mask)
+        d.rectangle((sx, sy, sx + sw, sy + sh), fill=0)
 
-    # Build a one-dimensional gradient in C-backed Pillow operations.
-    ramp = Image.new("L", (max(1, w), 1))
-    ramp.putdata([
-        int(255 * (0.18 + 0.82 * ((x / max(1, w - 1)) if direction != "left" else (1.0 - x / max(1, w - 1)))))
-        for x in range(w)
-    ])
-    grad = ramp.resize((w, h), Image.Resampling.BILINEAR)
+    # Build a broad one-dimensional gradient in compiled Pillow code. The reference
+    # route intentionally has no narrow edge band, so bezel thickness cannot appear altered.
+    ramp = []
+    for x in range(max(1, w)):
+        t = x / max(1, w - 1)
+        if direction == "left":
+            t = 1.0 - t
+        ramp.append(int(255 * (0.42 + 0.58 * t)))
+    grad = Image.new("L", (max(1, w), 1))
+    grad.putdata(ramp)
+    grad = grad.resize((w, h), Image.Resampling.BILINEAR)
     grad = ImageChops.multiply(grad, housing_mask)
 
     white = Image.new("RGBA", (w, h), (255, 255, 255, 0))
@@ -21526,26 +21709,35 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
     if abs(warmth) > 0.015:
         color = (255, 174, 92, 0) if warmth > 0 else (120, 170, 255, 0)
         tint = Image.new("RGBA", (w, h), color)
-        tint.putalpha(housing_mask.point(lambda a: int(a * min(0.032, abs(warmth) * 0.10))))
+        tint.putalpha(housing_mask.point(lambda a: int(a * min(tint_cap, abs(warmth) * (0.045 if is_reference else 0.11)))))
         lit = Image.alpha_composite(lit, tint)
 
-    edge = alpha.filter(ImageFilter.MaxFilter(5))
-    inner = alpha.filter(ImageFilter.MinFilter(5))
-    edge = ImageChops.subtract(edge, inner).filter(ImageFilter.GaussianBlur(1.2))
-    edge = ImageChops.multiply(edge, housing_mask)
-    spec = Image.new("RGBA", (w, h), (255, 255, 255, 0))
-    spec.putalpha(edge.point(lambda a: int(a * (0.10 if mode == "reference_template" else 0.12))))
-    lit = Image.alpha_composite(lit, spec)
-    lit.putalpha(alpha)
+    edge_specular_applied = False
+    if not is_reference:
+        edge = alpha.filter(ImageFilter.MaxFilter(5))
+        inner = alpha.filter(ImageFilter.MinFilter(5))
+        edge = ImageChops.subtract(edge, inner).filter(ImageFilter.GaussianBlur(1.2))
+        edge = ImageChops.multiply(edge, housing_mask)
+        spec = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+        spec.putalpha(edge.point(lambda a: int(a * 0.12)))
+        lit = Image.alpha_composite(lit, spec)
+        edge_specular_applied = True
 
-    return lit, {
-        "applied": True,
+    lit.putalpha(alpha)
+    fidelity = _graphic_product_rgb_fidelity_v36000(original, lit, alpha)
+    fallback = bool(is_reference and not fidelity.get("passed"))
+    final = original if fallback else lit
+    return final, {
+        "applied": not fallback,
+        "fallback_to_original": fallback,
         "direction": direction,
         "warmth": round(warmth, 4),
         "strength": strength,
         "screen_protected": bool(screen.get("available")),
-        "geometry_preserved": True,
-        "engine": "v35000-vectorized-adaptive-product-lighting",
+        "edge_specular_applied": edge_specular_applied,
+        "reference_edge_lock": bool(is_reference),
+        "rgb_fidelity": fidelity,
+        "engine": "v36000-reference-safe-lighting" if is_reference else "v36000-studio-adaptive-lighting",
     }
 
 
@@ -21563,18 +21755,50 @@ def _graphic_studio_commercial_qa_v34000(result, brief):
 
 
 def _graphic_reference_fidelity_qa_v34000(result, role_items):
-    base=_graphic_reference_layout_fidelity_gate_v13000(result,role_items)
+    """Fail Mode 1 when layout, product pixels, or authoritative copy drift."""
+    base = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
     if not base.get("required"):
-        return {"required":False,"passed":True,"score":1.0,"checks":{},"issues":[],"engine":"v34000-reference-fidelity-qa"}
-    metadata=dict((result or {}).get("layered_metadata") or {})
-    zones={str(x) for x in metadata.get("campaign_zones") or []}
-    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","bottom_benefit_bar"}
-    issues=list(base.get("issues") or [])
-    if not required.issubset(zones): issues.append("one or more deterministic reference zones are missing")
-    lighting=dict(metadata.get("product_lighting") or {})
-    checks=dict(base.get("checks") or {}); checks["zone_completeness"]=1.0 if required.issubset(zones) else 0.0; checks["lighting_integrated"]=1.0 if lighting.get("applied") else 0.7
-    score=round(float(base.get("score") or 0)*0.9+checks["zone_completeness"]*0.1,4)
-    return {"required":True,"passed":bool(base.get("passed") and not issues and score>=0.80),"score":score,"checks":checks,"issues":issues,"threshold":0.80,"engine":"v34000-reference-fidelity-qa"}
+        return {"required": False, "passed": True, "score": 1.0, "checks": {}, "issues": [], "engine": "v36000-reference-fidelity-qa"}
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    zones = {str(x) for x in metadata.get("campaign_zones") or []}
+    required = {"logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix", "hero_product", "bottom_benefit_bar"}
+    issues = list(base.get("issues") or [])
+    if not required.issubset(zones):
+        issues.append("one or more deterministic reference zones are missing")
+
+    lighting = dict(metadata.get("product_lighting") or {})
+    rgb = dict(metadata.get("product_rgb_fidelity") or {})
+    copy = dict(metadata.get("compatibility_copy_fidelity") or {})
+    if rgb.get("available") and not rgb.get("passed"):
+        issues.append("product RGB drift exceeded the reference-mode tolerance")
+    if not copy.get("complete", False):
+        missing = ", ".join(copy.get("missing_tokens") or [])
+        issues.append("compatibility copy is incomplete" + (f": {missing}" if missing else ""))
+    if not bool(metadata.get("product_ratio_preserved", False)):
+        issues.append("product aspect ratio was not preserved")
+
+    checks = dict(base.get("checks") or {})
+    checks["zone_completeness"] = 1.0 if required.issubset(zones) else 0.0
+    checks["lighting_integrated"] = 1.0 if lighting.get("applied") else 0.92
+    checks["product_rgb_fidelity"] = 1.0 if rgb.get("passed") else 0.0
+    checks["copy_fidelity"] = 1.0 if copy.get("complete") else 0.0
+    score = round(
+        float(base.get("score") or 0) * 0.74
+        + checks["zone_completeness"] * 0.08
+        + checks["product_rgb_fidelity"] * 0.10
+        + checks["copy_fidelity"] * 0.08,
+        4,
+    )
+    passed = bool(base.get("passed") and not issues and score >= 0.86)
+    return {
+        "required": True,
+        "passed": passed,
+        "score": score,
+        "checks": checks,
+        "issues": issues,
+        "threshold": 0.86,
+        "engine": "v36000-reference-fidelity-copy-product-qa",
+    }
 
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
     """Create a target-only scenery prompt with no reference-image content channel."""
@@ -22010,8 +22234,15 @@ def _graphic_compose_reference_campaign_v3200(
 
     state_now = get_graphic_project_state()
     design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    product_before_lighting = product.copy()
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
     product, product_lighting_report = _graphic_apply_product_lighting_v34000(product, lighting_profile, design_mode)
+    product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
+    if design_mode == "reference_template" and not product_fidelity_report.get("passed"):
+        product = product_before_lighting
+        product_lighting_report = dict(product_lighting_report or {})
+        product_lighting_report.update({"applied": False, "fallback_to_original": True, "postcheck_failed": True})
+        product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
 
     # Grounded contact shadow: downward and subtle, not a bright all-around halo.
     alpha = product.getchannel("A")
@@ -22081,8 +22312,23 @@ def _graphic_compose_reference_campaign_v3200(
 
     ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.004))
     ribbon_h = int(H * compatibility_box[3])
-    ribbon_font = fitted_font(compatibility, int(W * compatibility_box[2] * 0.92), H * 0.030, H * 0.019, True)
     ribbon_w = int(W * compatibility_box[2])
+    ribbon_fit = _graphic_fit_ribbon_copy_v36000(
+        draw,
+        compatibility,
+        ribbon_w,
+        ribbon_h,
+        H * 0.030,
+        H * 0.0155,
+    )
+    # If one-line copy is still too long, permit a bounded ribbon expansion while
+    # keeping the template's left edge and upper-right information grid intact.
+    if not ribbon_fit.get("complete"):
+        max_right = int(W * min(0.555, layout_bp["feature_matrix_box"][0] - 0.012))
+        ribbon_w = max(ribbon_w, max(1, max_right - left_x))
+        ribbon_fit = _graphic_fit_ribbon_copy_v36000(
+            draw, compatibility, ribbon_w, ribbon_h, H * 0.030, H * 0.0145
+        )
     draw.polygon(
         [
             (left_x, ribbon_y),
@@ -22092,7 +22338,32 @@ def _graphic_compose_reference_campaign_v3200(
         ],
         fill=red,
     )
-    draw.text((left_x + int(W * 0.015), ribbon_y + int(H * 0.007)), compatibility, font=ribbon_font, fill=white)
+    ribbon_lines = list(ribbon_fit.get("lines") or [compatibility])
+    ribbon_font = ribbon_fit.get("font") or _graphic_font(max(12, int(H * 0.016)), True)
+    if len(ribbon_lines) == 1:
+        text_y = ribbon_y + max(1, int((ribbon_h - ribbon_fit.get("font_px", 16)) * 0.44))
+        draw.text((left_x + int(W * 0.015), text_y), ribbon_lines[0], font=ribbon_font, fill=white)
+    else:
+        line_gap = max(1, int(ribbon_fit.get("font_px", 14) * 0.08))
+        total_h = int(ribbon_fit.get("font_px", 14) * 2 + line_gap)
+        text_y = ribbon_y + max(1, int((ribbon_h - total_h) / 2))
+        for line in ribbon_lines:
+            draw.text((left_x + int(W * 0.015), text_y), line, font=ribbon_font, fill=white)
+            text_y += int(ribbon_fit.get("font_px", 14)) + line_gap
+    required_copy_tokens = list(campaign_spec.get("compatibility_required_tokens") or _graphic_copy_required_tokens_v36000(compatibility))
+    rendered_copy_norm = re.sub(r"\s+", "", " ".join(ribbon_lines)).casefold()
+    missing_copy_tokens = [token for token in required_copy_tokens if token not in rendered_copy_norm]
+    copy_fidelity_report = {
+        "authoritative_text": compatibility,
+        "rendered_text": " ".join(ribbon_lines),
+        "required_tokens": required_copy_tokens,
+        "missing_tokens": missing_copy_tokens,
+        "complete": bool(ribbon_fit.get("complete") and not missing_copy_tokens),
+        "font_px": int(ribbon_fit.get("font_px") or 0),
+        "two_line": bool(ribbon_fit.get("two_line")),
+        "ribbon_width_px": ribbon_w,
+        "engine": "v36000-flexible-compatibility-copy",
+    }
     tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
     draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
 
@@ -22188,6 +22459,8 @@ def _graphic_compose_reference_campaign_v3200(
         "product_box": product_box,
         "product_trim_report": product_trim_report,
         "product_lighting": product_lighting_report,
+        "product_rgb_fidelity": product_fidelity_report,
+        "compatibility_copy_fidelity": copy_fidelity_report,
         "graphic_design_mode": design_mode,
         "actual_normalized_boxes": {
             "logo_box": layout_bp["logo_box"],
@@ -22904,6 +23177,102 @@ def _graphic_list_value_v3300(value, limit=8):
     return []
 
 
+def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
+    """Preserve complete user-stated fitment instead of collapsing to one vehicle lock."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not value:
+        return str(fallback or "").strip()
+
+    # Prefer a labelled fitment/compatibility clause when supplied.
+    labelled = re.search(
+        r"(?i)\b(?:compatibility|fits?|fitment|vehicle(?:s)?)\s*[:\-]\s*([^.;]{3,220})",
+        value,
+    )
+    candidates = []
+    if labelled:
+        candidates.append(labelled.group(1))
+
+    # Capture common multi-vehicle statements such as:
+    # Chevrolet Silverado | GMC Sierra (2014-2021) or Silverado / Sierra 2014–2021.
+    multi = re.search(
+        r"(?i)((?:chevrolet\s+)?silverado(?:\s*[/|&,]\s*(?:gmc\s+)?sierra)+\s*(?:\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?)?)",
+        value,
+    )
+    if multi:
+        candidates.append(multi.group(1))
+
+    # A broad first sentence often contains the full product fitment statement.
+    first_sentence = re.split(r"[.;]", value, maxsplit=1)[0].strip()
+    if re.search(r"(?i)\b(?:silverado|sierra|f[ -]?150|ram|tahoe|suburban|yukon)\b", first_sentence):
+        candidates.append(first_sentence)
+
+    for raw in candidates:
+        text = re.sub(r"\s+", " ", str(raw)).strip(" ,:;.-")
+        text = re.sub(r"\s*\|\s*", " / ", text)
+        text = re.sub(r"\s*/\s*", " / ", text)
+        text = re.sub(r"\s*[-–—]\s*", "–", text)
+        text = re.sub(r"(?i)^this is\s+", "", text).strip()
+        # Remove product-spec continuation from the first sentence.
+        text = re.split(r"(?i)\s+(?:screen size|display size|create|make|design)\s*[:\-]?", text, maxsplit=1)[0].strip()
+        if len(text) >= 8:
+            if not re.match(r"(?i)^for\b", text):
+                text = "For " + text
+            return text
+    return str(fallback or "").strip()
+
+
+def _graphic_copy_required_tokens_v36000(text):
+    """Return semantic tokens that must survive flexible layout fitting."""
+    value = str(text or "")
+    tokens = []
+    for token in re.findall(r"(?i)\b(?:chevrolet|silverado|gmc|sierra|ford|f[ -]?150|ram|tahoe|suburban|yukon|(?:19|20)\d{2})\b", value):
+        clean = re.sub(r"\s+", "", token).casefold()
+        if clean not in tokens:
+            tokens.append(clean)
+    return tokens
+
+
+def _graphic_fit_ribbon_copy_v36000(draw, text, box_width, box_height, preferred_px, minimum_px):
+    """Fit complete compatibility copy without deleting vehicle names or years."""
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    max_text_w = max(20, int(box_width * 0.91))
+    minimum_px = max(10, int(minimum_px))
+    preferred_px = max(minimum_px, int(preferred_px))
+
+    def width(v, font):
+        try:
+            b = draw.textbbox((0, 0), str(v), font=font)
+            return max(0, b[2] - b[0])
+        except Exception:
+            return len(str(v)) * max(6, int(preferred_px * 0.5))
+
+    for size in range(preferred_px, minimum_px - 1, -1):
+        font = _graphic_font(size, True)
+        if width(value, font) <= max_text_w:
+            return {"lines": [value], "font": font, "font_px": size, "two_line": False, "complete": True}
+
+    # Two-line fallback is allowed only if the reference ribbon has enough height.
+    if box_height >= minimum_px * 2.05:
+        words = value.split()
+        best = None
+        for split in range(1, len(words)):
+            lines = [" ".join(words[:split]), " ".join(words[split:])]
+            for size in range(preferred_px, minimum_px - 1, -1):
+                font = _graphic_font(size, True)
+                if all(width(line, font) <= max_text_w for line in lines):
+                    score = abs(width(lines[0], font) - width(lines[1], font))
+                    candidate = (score, size, lines, font)
+                    if best is None or candidate[:2] < best[:2]:
+                        best = candidate
+                    break
+        if best:
+            _, size, lines, font = best
+            return {"lines": lines, "font": font, "font_px": size, "two_line": True, "complete": True}
+
+    font = _graphic_font(minimum_px, True)
+    return {"lines": [value], "font": font, "font_px": minimum_px, "two_line": False, "complete": width(value, font) <= max_text_w}
+
+
 def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
     """Build copy from explicit facts and verified Product Library data only."""
     state = get_graphic_project_state()
@@ -22947,10 +23316,19 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
         spec["tagline"] = str(tagline).strip()
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
-    if explicit_name:
+    project_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
+    full_compatibility = _graphic_extract_full_compatibility_v36000(
+        project_context,
+        spec.get("compatibility") or explicit_name,
+    )
+    if full_compatibility:
+        spec["compatibility"] = full_compatibility
+    elif explicit_name:
         spec["compatibility"] = explicit_name
+    if explicit_name:
         spec["vehicle_label"] = explicit_name.upper()
         spec["vehicle"] = dict(state.get("explicit_vehicle") or {})
+    spec["compatibility_required_tokens"] = _graphic_copy_required_tokens_v36000(spec.get("compatibility"))
     # Remove unsafe universal defaults when no verified fact supports them.
     if not spec.get("headline"):
         size = str(spec.get("screen_size") or "").strip()
@@ -23678,7 +24056,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
         "studio_commercial_qa":studio_gate,
         "graphic_design_mode":design_mode,
         "commercial_hierarchy_gate":hierarchy_gate,
-        "engine":"v35000-dual-mode-lighting-quality-gate",
+        "engine":"v34000-dual-mode-lighting-quality-gate",
     }
 
 
@@ -24022,7 +24400,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
         production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
-        diagnostic_log("graphic_v35000_route", mode=product_mode.get("mode"), design_mode=design_mode, edit_kind=edit_kind, template=brand_template, studio_layout=studio_brief.get("layout_variant"))
+        diagnostic_log("graphic_v34000_route", mode=product_mode.get("mode"), design_mode=design_mode, edit_kind=edit_kind, template=brand_template, studio_layout=studio_brief.get("layout_variant"))
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
             local_result = _graphic_local_copy_edit_v7100(
