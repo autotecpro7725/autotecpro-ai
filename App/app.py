@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v38100
+# AutoTecPro AI performance/stability revision: v39000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v38000 Geometry Preservation + Studio Intelligence edition built directly from the current v36000 production base.
 # Mode 1 keeps the uploaded product as an immutable engineering master, applies only core-surface scene lighting,
@@ -17867,12 +17867,13 @@ def _graphic_vehicle_profile_text(profile):
 
 
 def _graphic_extract_product_cutout(uploaded_file):
-    """Create a production-safe transparent cutout while preserving source pixels.
+    """Extract the uploaded product without redesigning mechanical geometry.
 
-    v1100 keeps existing alpha when supplied, estimates neutral backgrounds from
-    border samples, uses luminance/chroma distance, suppresses white spill only
-    at partially transparent edges, and crops conservatively. Complex scenes are
-    preserved rather than risking damage to product geometry.
+    v39000 uses an edge-aware, border-connected background model. Only pixels that
+    are both background-like and connected to the outer canvas are removed. Dark
+    mounting tabs, clips, holes, screw bosses, lower brackets, glossy black trim,
+    and thin engineering edges are therefore retained as first-class product pixels.
+    The source RGB is never synthesized or repainted.
     """
     if Image is None:
         return None
@@ -17880,11 +17881,13 @@ def _graphic_extract_product_cutout(uploaded_file):
     if not raw:
         return None
     try:
-        from PIL import ImageFilter, ImageChops
+        import cv2
+        import numpy as np
         with Image.open(io.BytesIO(raw)) as source:
             image = ImageOps.exif_transpose(source).convert("RGBA")
     except Exception:
         return None
+
     image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
     existing_alpha = image.getchannel("A")
     extrema = existing_alpha.getextrema()
@@ -17892,65 +17895,74 @@ def _graphic_extract_product_cutout(uploaded_file):
         bbox = existing_alpha.getbbox()
         return image.crop(bbox) if bbox else image
 
-    rgb = image.convert("RGB")
-    w, h = rgb.size
-    if w < 12 or h < 12:
-        return image
-    border = max(3, min(w, h)//70)
-    samples=[]
-    # Sample the full border, not only four corners, to resist shadows/crop noise.
-    for box in ((0,0,w,border),(0,h-border,w,h),(0,0,border,h),(w-border,0,w,h)):
-        patch=rgb.crop(box).resize((max(1,patch_w:=min(128, max(1, box[2]-box[0]))), max(1,patch_h:=min(128,max(1,box[3]-box[1])))))
-        samples.extend(list(patch.getdata()))
-    if not samples:
-        return image
-    # Median is more robust than the mean when the product touches an edge.
-    ordered=[sorted(px[i] for px in samples) for i in range(3)]
-    mid=len(samples)//2
-    bg=tuple(ch[mid] for ch in ordered)
-    spread=max(ch[min(len(ch)-1,int(len(ch)*.9))]-ch[max(0,int(len(ch)*.1))] for ch in ordered)
-    neutral=max(bg)-min(bg)<38
-    bright=sum(bg)/3>168
-    if not (neutral and bright and spread<105):
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    h, w = rgb.shape[:2]
+    if w < 24 or h < 24:
         return image
 
-    alpha=[]
-    soft_start, hard_end = 12.0, 72.0
-    for r,g,b in rgb.getdata():
-        dr,dg,db=r-bg[0],g-bg[1],b-bg[2]
-        euclid=(dr*dr+dg*dg+db*db)**0.5
-        chroma=(max(r,g,b)-min(r,g,b))*0.35
-        distance=euclid+chroma
-        if distance<=soft_start: a=0
-        elif distance>=hard_end: a=255
-        else:
-            t=(distance-soft_start)/(hard_end-soft_start)
-            a=int(255*(t*t*(3-2*t)))
-        alpha.append(a)
-    mask=Image.new("L",(w,h)); mask.putdata(alpha)
-    mask=mask.filter(ImageFilter.GaussianBlur(radius=max(.45,min(w,h)/1500)))
-    # Preserve enclosed light UI/product areas by retaining pixels surrounded by foreground.
-    dilated=mask.filter(ImageFilter.MaxFilter(5))
-    mask=ImageChops.lighter(mask, ImageChops.multiply(dilated,dilated))
+    border = max(4, min(w, h) // 80)
+    border_pixels = np.concatenate([
+        rgb[:border].reshape(-1, 3), rgb[-border:].reshape(-1, 3),
+        rgb[:, :border].reshape(-1, 3), rgb[:, -border:].reshape(-1, 3),
+    ], axis=0)
+    bg = np.median(border_pixels, axis=0).astype(np.float32)
+    border_spread = float(np.percentile(np.linalg.norm(border_pixels.astype(np.float32)-bg, axis=1), 90))
+    neutral = float(bg.max()-bg.min()) < 42
+    bright = float(bg.mean()) > 165
+    if not (neutral and bright and border_spread < 85):
+        return image
+
+    arr = rgb.astype(np.float32)
+    distance = np.linalg.norm(arr-bg[None,None,:], axis=2)
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    edge = cv2.magnitude(gx, gy)
+    edge = cv2.GaussianBlur(edge, (3,3), 0)
+    saturation = rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
+
+    # Background may only propagate through smooth pixels close to the sampled
+    # border color. Engineering edges form barriers, protecting thin brackets.
+    traversable = ((distance < 48) & (edge < 34) & (saturation < 34)).astype(np.uint8)
+    seeds = np.zeros((h, w), np.uint8)
+    seeds[:border, :] = traversable[:border, :]
+    seeds[-border:, :] = traversable[-border:, :]
+    seeds[:, :border] = np.maximum(seeds[:, :border], traversable[:, :border])
+    seeds[:, -border:] = np.maximum(seeds[:, -border:], traversable[:, -border:])
+    n, labels = cv2.connectedComponents(traversable, connectivity=8)
+    seed_labels = np.unique(labels[seeds.astype(bool)])
+    connected_bg = np.isin(labels, seed_labels[seed_labels != 0])
+
+    # Strong foreground evidence always wins, especially in the lower mechanical
+    # region where tabs, holes and brackets are frequently small and dark.
+    foreground_evidence = (distance > 30) | (edge > 42) | (gray < 232) | (saturation > 28)
+    foreground = (~connected_bg) | foreground_evidence
+
+    # Keep only meaningful components, but use a very small threshold so screws,
+    # mounting ears and clips are not discarded.
+    fg_u8 = foreground.astype(np.uint8)
+    count, comp, stats, _ = cv2.connectedComponentsWithStats(fg_u8, connectivity=8)
+    keep = np.zeros_like(fg_u8)
+    min_area = max(6, int(w*h*0.000004))
+    for idx in range(1, count):
+        x, y, cw, ch, area = stats[idx]
+        central = (x < w*0.78 and x+cw > w*0.22 and y < h*0.98 and y+ch > h*0.04)
+        lower_mechanical = y+ch > h*0.68 and area >= max(3, min_area//2)
+        if area >= min_area and (central or lower_mechanical):
+            keep[comp == idx] = 255
+
+    kernel = np.ones((3,3), np.uint8)
+    keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # Feather only one pixel; broad feathering visually changes bezel thickness.
+    soft = cv2.GaussianBlur(keep, (3,3), 0.45)
+    soft[keep == 255] = np.maximum(soft[keep == 255], 245)
+    mask = Image.fromarray(soft.astype(np.uint8), mode="L")
     image.putalpha(mask)
-
-    # Edge decontamination: neutralize white halo only on semi-transparent pixels.
-    px=image.load(); mp=mask.load()
-    for y in range(h):
-        for x in range(w):
-            a=mp[x,y]
-            if 8<a<245:
-                r,g,b,_=px[x,y]
-                strength=(245-a)/245.0
-                r=max(0,min(255,int(r-(bg[0]-r)*strength*.18)))
-                g=max(0,min(255,int(g-(bg[1]-g)*strength*.18)))
-                b=max(0,min(255,int(b-(bg[2]-b)*strength*.18)))
-                px[x,y]=(r,g,b,a)
-    bbox=mask.getbbox()
+    bbox = mask.point(lambda a: 255 if a >= 8 else 0).getbbox()
     if not bbox:
         return image
-    pad=max(2,min(w,h)//180)
-    bbox=(max(0,bbox[0]-pad),max(0,bbox[1]-pad),min(w,bbox[2]+pad),min(h,bbox[3]+pad))
+    pad = max(2, min(w,h)//220)
+    bbox = (max(0,bbox[0]-pad), max(0,bbox[1]-pad), min(w,bbox[2]+pad), min(h,bbox[3]+pad))
     return image.crop(bbox)
 
 def _graphic_font(size, bold=False):
@@ -21973,13 +21985,19 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
         # This prevents even subtle scene tint from changing apparent screen size.
         lit, screen_restore_report = _graphic_restore_screen_aperture_v38100(original, lit, screen_aperture_dna)
         lit.putalpha(alpha)
+    pixel_lock_report = {"applied": False}
+    if is_reference:
+        lit, pixel_lock_report = _graphic_engineering_pixel_lock_v39000(original, lit)
+        lit.putalpha(alpha)
     rgb_fidelity = _graphic_product_rgb_fidelity_v36000(original, lit, alpha)
     geometry_fidelity = _graphic_geometry_fidelity_v38000(original, lit)
     screen_aperture_fidelity = _graphic_screen_aperture_fidelity_v38100(original, lit)
+    regional_geometry_fidelity = _graphic_regional_geometry_validator_v39000(original, lit)
     fallback = bool(is_reference and (
         not rgb_fidelity.get("passed")
         or not geometry_fidelity.get("passed")
         or not screen_aperture_fidelity.get("passed")
+        or not regional_geometry_fidelity.get("passed")
     ))
     final = original if fallback else lit
     return final, {
@@ -21991,9 +22009,86 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
         "screen_aperture_dna": screen_aperture_dna,
         "screen_aperture_fidelity": screen_aperture_fidelity,
         "screen_aperture_restore": screen_restore_report,
+        "engineering_pixel_lock": pixel_lock_report,
+        "mechanical_geometry_dna": _graphic_mechanical_geometry_dna_v39000(original),
+        "regional_geometry_fidelity": regional_geometry_fidelity,
         "protected_edge_band": True,
-        "engine": "v38100-reference-geometry-and-screen-aperture-lock" if is_reference else "v38100-studio-adaptive-lighting",
+        "engine": "v39000-mechanical-regional-pixel-lock" if is_reference else "v39000-studio-adaptive-lighting",
     }
+
+
+def _graphic_mechanical_geometry_dna_v39000(layer):
+    """Fingerprint critical mechanical regions independently of the hero silhouette."""
+    if Image is None or layer is None:
+        return {"available": False, "engine": "mechanical-geometry-dna-v39000"}
+    try:
+        import numpy as np
+        rgba=layer.convert("RGBA")
+        alpha=np.asarray(rgba.getchannel("A"), dtype=np.uint8)
+        solid=alpha>=16
+        ys,xs=np.nonzero(solid)
+        if not len(xs): return {"available":False,"reason":"empty","engine":"mechanical-geometry-dna-v39000"}
+        x0,x1,y0,y1=int(xs.min()),int(xs.max())+1,int(ys.min()),int(ys.max())+1
+        bw,bh=max(1,x1-x0),max(1,y1-y0)
+        regions={
+            "top_wings":(x0,y0,x1,y0+int(bh*.28)),
+            "left_controls":(x0,y0+int(bh*.22),x0+int(bw*.36),y0+int(bh*.82)),
+            "screen_aperture":(x0+int(bw*.25),y0+int(bh*.05),x0+int(bw*.75),y0+int(bh*.82)),
+            "right_controls":(x0+int(bw*.64),y0+int(bh*.22),x1,y0+int(bh*.82)),
+            "bottom_mount":(x0,y0+int(bh*.72),x1,y1),
+        }
+        payload={"available":True,"bbox":[x0,y0,bw,bh],"regions":{},"engine":"mechanical-geometry-dna-v39000"}
+        for name,(rx0,ry0,rx1,ry1) in regions.items():
+            crop=alpha[ry0:ry1,rx0:rx1]
+            binary=(crop>=16).astype(np.uint8)
+            payload["regions"][name]={
+                "box_px":[rx0,ry0,rx1-rx0,ry1-ry0],
+                "solid_ratio":round(float(binary.mean()) if binary.size else 0.0,8),
+                "alpha_sha256":hashlib.sha256(crop.tobytes()).hexdigest(),
+                "pixel_count":int(binary.sum()),
+            }
+        return payload
+    except Exception as error:
+        return {"available":False,"reason":type(error).__name__,"engine":"mechanical-geometry-dna-v39000"}
+
+
+def _graphic_regional_geometry_validator_v39000(original, candidate):
+    """Fail closed when any critical region, especially bottom mounts, changes."""
+    before=_graphic_mechanical_geometry_dna_v39000(original)
+    after=_graphic_mechanical_geometry_dna_v39000(candidate)
+    if not before.get("available") or not after.get("available"):
+        return {"available":False,"passed":False,"before":before,"after":after,"engine":"regional-geometry-validator-v39000"}
+    checks={}
+    scores={}
+    for name,b in before.get("regions",{}).items():
+        a=(after.get("regions") or {}).get(name) or {}
+        exact=b.get("alpha_sha256")==a.get("alpha_sha256") and b.get("box_px")==a.get("box_px")
+        ratio_delta=abs(float(b.get("solid_ratio") or 0)-float(a.get("solid_ratio") or 0))
+        score=max(0.0,1.0-ratio_delta*25.0)
+        scores[name]=round(score,6)
+        checks[name]=bool(exact or score>=0.995)
+    critical={"top_wings","left_controls","screen_aperture","right_controls","bottom_mount"}
+    passed=all(checks.get(name,False) for name in critical)
+    return {"available":True,"passed":passed,"checks":checks,"scores":scores,
+            "bottom_mount_hard_gate":True,"engine":"regional-geometry-validator-v39000"}
+
+
+def _graphic_engineering_pixel_lock_v39000(original, candidate):
+    """Restore immutable RGB+alpha in every engineering-critical region."""
+    if Image is None or original is None or candidate is None or original.size!=candidate.size:
+        return original, {"applied":False,"reason":"unavailable","engine":"engineering-pixel-lock-v39000"}
+    dna=_graphic_mechanical_geometry_dna_v39000(original)
+    if not dna.get("available"):
+        return original, {"applied":False,"reason":"dna unavailable","engine":"engineering-pixel-lock-v39000"}
+    locked=candidate.convert("RGBA").copy(); src=original.convert("RGBA")
+    restored=[]
+    for name,entry in (dna.get("regions") or {}).items():
+        if name in {"top_wings","left_controls","screen_aperture","right_controls","bottom_mount"}:
+            x,y,w,h=entry["box_px"]
+            locked.paste(src.crop((x,y,x+w,y+h)),(x,y),src.crop((x,y,x+w,y+h)))
+            restored.append(name)
+    locked.putalpha(src.getchannel("A"))
+    return locked,{"applied":True,"restored_regions":restored,"engine":"engineering-pixel-lock-v39000"}
 
 def _graphic_studio_commercial_qa_v34000(result, brief):
     """Product-aware commercial gate for independent Studio Mode."""
@@ -22051,6 +22146,7 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     rgb = dict(metadata.get("product_rgb_fidelity") or {})
     copy = dict(metadata.get("compatibility_copy_fidelity") or {})
     aperture = dict(metadata.get("product_screen_aperture_fidelity") or {})
+    regional = dict(metadata.get("regional_geometry_fidelity") or {})
     if rgb.get("available") and not rgb.get("passed"):
         issues.append("product RGB drift exceeded the reference-mode tolerance")
     if not copy.get("complete", False):
@@ -22060,6 +22156,9 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
         issues.append("product aspect ratio was not preserved")
     if aperture.get("available") and not aperture.get("passed"):
         issues.append("screen aperture or bezel-width DNA changed")
+    if regional.get("available") and not regional.get("passed"):
+        failed=[k for k,v in (regional.get("checks") or {}).items() if not v]
+        issues.append("regional mechanical geometry changed: " + ", ".join(failed))
 
     checks = dict(base.get("checks") or {})
     checks["zone_completeness"] = 1.0 if required.issubset(zones) else 0.0
@@ -22067,6 +22166,7 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     checks["product_rgb_fidelity"] = 1.0 if rgb.get("passed") else 0.0
     checks["copy_fidelity"] = 1.0 if copy.get("complete") else 0.0
     checks["screen_aperture_fidelity"] = 1.0 if aperture.get("passed", True) else 0.0
+    checks["regional_mechanical_geometry"] = 1.0 if regional.get("passed", True) else 0.0
     score = round(
         float(base.get("score") or 0) * 0.68
         + checks["zone_completeness"] * 0.07
@@ -22731,7 +22831,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v38100-geometry-screen-aperture-lock",
+        "engine": "autotecpro-commercial-composer-v39000-mechanical-regional-pixel-lock",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -22756,6 +22856,9 @@ def _graphic_compose_reference_campaign_v3200(
         "product_rgb_fidelity": product_fidelity_report,
         "product_geometry_fidelity": product_geometry_report,
         "product_screen_aperture_fidelity": product_screen_aperture_report,
+        "mechanical_geometry_dna": (product_lighting_report or {}).get("mechanical_geometry_dna") or _graphic_mechanical_geometry_dna_v39000(product_before_lighting),
+        "regional_geometry_fidelity": (product_lighting_report or {}).get("regional_geometry_fidelity") or _graphic_regional_geometry_validator_v39000(product_before_lighting, product),
+        "engineering_pixel_lock": (product_lighting_report or {}).get("engineering_pixel_lock") or {},
         "screen_aperture_dna": _graphic_screen_aperture_dna_v38100(product_before_lighting),
         "compatibility_copy_fidelity": copy_fidelity_report,
         "graphic_design_mode": design_mode,
