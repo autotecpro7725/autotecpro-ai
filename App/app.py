@@ -46,12 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v38000
+# AutoTecPro AI performance/stability revision: v38100
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v38000 Geometry Preservation + Studio Intelligence edition built directly from the current v36000 production base.
 # Mode 1 keeps the uploaded product as an immutable engineering master, applies only core-surface scene lighting,
-# validates alpha/silhouette/internal-opening geometry before acceptance, preserves complete flexible compatibility copy,
-# and falls back to untouched product pixels whenever lighting or geometry exceeds conservative tolerances.
+# validates alpha/silhouette/internal-opening geometry plus screen-aperture/bezel-width DNA before acceptance, preserves complete flexible compatibility copy,
+# and falls back to untouched product pixels whenever lighting, geometry, or screen-aperture fidelity exceeds conservative tolerances.
 # Mode 2 retains stronger adaptive lighting and adds product-aware commercial balance validation.
 # Exact-product mode keeps uploaded RGB authoritative and blocks generative product replacement.
 # ============================================================
@@ -21740,6 +21740,159 @@ def _graphic_geometry_fidelity_v38000(original, candidate):
             "engine": "v38000-alpha-geometry-lock"}
 
 
+def _graphic_screen_aperture_dna_v38100(layer):
+    """Measure the visible screen aperture and surrounding bezel relationships.
+
+    This DNA is independent from the product's outer alpha silhouette. It detects the
+    actual display opening from source RGB, records its pixel and normalized box, and
+    measures the four bezel widths relative to the visible product bounding box.
+    """
+    if Image is None or layer is None:
+        return {"available": False, "reason": "missing image", "engine": "screen-aperture-dna-v38100"}
+    try:
+        rgba = layer.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        visible = alpha.point(lambda a: 255 if a >= 16 else 0)
+        product_bbox = visible.getbbox()
+        screen = _graphic_detect_screen_box_v20500(rgba, visible)
+        if not product_bbox or not screen.get("available"):
+            return {
+                "available": False,
+                "reason": "screen aperture could not be detected",
+                "screen_detection": screen,
+                "engine": "screen-aperture-dna-v38100",
+            }
+        px0, py0, px1, py1 = [int(v) for v in product_bbox]
+        sx, sy, sw, sh = [int(v) for v in screen.get("box_px")]
+        product_w = max(1, px1 - px0)
+        product_h = max(1, py1 - py0)
+        left = max(0, sx - px0)
+        right = max(0, px1 - (sx + sw))
+        top = max(0, sy - py0)
+        bottom = max(0, py1 - (sy + sh))
+        payload = {
+            "available": True,
+            "screen_box_px": [sx, sy, sw, sh],
+            "screen_box_normalized_canvas": [
+                round(sx / max(1, rgba.width), 8),
+                round(sy / max(1, rgba.height), 8),
+                round(sw / max(1, rgba.width), 8),
+                round(sh / max(1, rgba.height), 8),
+            ],
+            "screen_box_normalized_product": [
+                round((sx - px0) / product_w, 8),
+                round((sy - py0) / product_h, 8),
+                round(sw / product_w, 8),
+                round(sh / product_h, 8),
+            ],
+            "screen_aspect_ratio": round(sw / max(1, sh), 8),
+            "screen_to_product_width_ratio": round(sw / product_w, 8),
+            "screen_to_product_height_ratio": round(sh / product_h, 8),
+            "bezel_widths_px": {"left": left, "right": right, "top": top, "bottom": bottom},
+            "bezel_widths_normalized": {
+                "left": round(left / product_w, 8),
+                "right": round(right / product_w, 8),
+                "top": round(top / product_h, 8),
+                "bottom": round(bottom / product_h, 8),
+            },
+            "product_bbox_px": [px0, py0, product_w, product_h],
+            "confidence": round(float(screen.get("confidence") or 0.0), 4),
+            "engine": "screen-aperture-dna-v38100",
+        }
+        stable = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        payload["dna_sha256"] = hashlib.sha256(stable).hexdigest()
+        return payload
+    except Exception as error:
+        return {"available": False, "reason": type(error).__name__, "engine": "screen-aperture-dna-v38100"}
+
+
+def _graphic_screen_aperture_fidelity_v38100(original, candidate):
+    """Validate screen opening, screen ratio and all four bezel widths.
+
+    Mode 1 is fail-closed: if a reliable source aperture was detected but the
+    candidate cannot reproduce it within tight tolerances, the untouched product
+    layer must be restored.
+    """
+    before = _graphic_screen_aperture_dna_v38100(original)
+    after = _graphic_screen_aperture_dna_v38100(candidate)
+    if not before.get("available"):
+        return {
+            "available": False,
+            "passed": True,
+            "reason": "source screen aperture unavailable; geometry lock remains authoritative",
+            "before": before,
+            "after": after,
+            "engine": "screen-aperture-fidelity-v38100",
+        }
+    if not after.get("available"):
+        return {
+            "available": True,
+            "passed": False,
+            "reason": "candidate screen aperture unavailable",
+            "before": before,
+            "after": after,
+            "engine": "screen-aperture-fidelity-v38100",
+        }
+
+    def rel_delta(a, b):
+        return abs(float(a) - float(b)) / max(abs(float(a)), 1e-6)
+
+    b_box = before.get("screen_box_normalized_product") or [0, 0, 0, 0]
+    a_box = after.get("screen_box_normalized_product") or [0, 0, 0, 0]
+    position_delta = max(abs(float(b_box[i]) - float(a_box[i])) for i in (0, 1))
+    size_delta = max(rel_delta(b_box[i], a_box[i]) for i in (2, 3))
+    aspect_delta = rel_delta(before.get("screen_aspect_ratio") or 0, after.get("screen_aspect_ratio") or 0)
+    b_bezel = before.get("bezel_widths_normalized") or {}
+    a_bezel = after.get("bezel_widths_normalized") or {}
+    bezel_deltas = {
+        side: rel_delta(b_bezel.get(side, 0), a_bezel.get(side, 0))
+        for side in ("left", "right", "top", "bottom")
+    }
+    checks = {
+        "screen_position": position_delta <= 0.004,
+        "screen_size": size_delta <= 0.006,
+        "screen_aspect_ratio": aspect_delta <= 0.004,
+        "left_bezel": bezel_deltas["left"] <= 0.015,
+        "right_bezel": bezel_deltas["right"] <= 0.015,
+        "top_bezel": bezel_deltas["top"] <= 0.015,
+        "bottom_bezel": bezel_deltas["bottom"] <= 0.015,
+    }
+    return {
+        "available": True,
+        "passed": all(checks.values()),
+        "checks": checks,
+        "screen_position_delta": round(position_delta, 8),
+        "screen_size_relative_delta": round(size_delta, 8),
+        "screen_aspect_relative_delta": round(aspect_delta, 8),
+        "bezel_relative_deltas": {k: round(v, 8) for k, v in bezel_deltas.items()},
+        "before": before,
+        "after": after,
+        "engine": "screen-aperture-fidelity-v38100",
+    }
+
+
+def _graphic_restore_screen_aperture_v38100(original, candidate, dna=None):
+    """Restore the source screen and a protected bezel margin pixel-for-pixel."""
+    if Image is None or original is None or candidate is None:
+        return candidate, {"restored": False, "reason": "missing image"}
+    source = original.convert("RGBA")
+    result = candidate.convert("RGBA")
+    dna = dict(dna or _graphic_screen_aperture_dna_v38100(source))
+    if not dna.get("available"):
+        return result, {"restored": False, "reason": "screen aperture unavailable"}
+    sx, sy, sw, sh = [int(v) for v in dna.get("screen_box_px") or [0, 0, 0, 0]]
+    margin = max(5, int(round(min(source.size) * 0.012)))
+    x0 = max(0, sx - margin); y0 = max(0, sy - margin)
+    x1 = min(source.width, sx + sw + margin); y1 = min(source.height, sy + sh + margin)
+    result.alpha_composite(source.crop((x0, y0, x1, y1)), (x0, y0))
+    return result, {
+        "restored": True,
+        "box_px": [x0, y0, x1 - x0, y1 - y0],
+        "margin_px": margin,
+        "engine": "screen-aperture-restore-v38100",
+    }
+
+
 def _graphic_core_surface_mask_v38000(alpha, screen_box=None, mode="reference_template"):
     """Protect every exterior and internal edge; expose only broad housing interiors."""
     from PIL import ImageDraw, ImageFilter, ImageChops
@@ -21813,9 +21966,21 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
         edge_specular_applied = True
 
     lit.putalpha(alpha)
+    screen_aperture_dna = _graphic_screen_aperture_dna_v38100(original)
+    screen_restore_report = {"restored": False}
+    if is_reference:
+        # Reinsert the original display opening and its surrounding bezel margin exactly.
+        # This prevents even subtle scene tint from changing apparent screen size.
+        lit, screen_restore_report = _graphic_restore_screen_aperture_v38100(original, lit, screen_aperture_dna)
+        lit.putalpha(alpha)
     rgb_fidelity = _graphic_product_rgb_fidelity_v36000(original, lit, alpha)
     geometry_fidelity = _graphic_geometry_fidelity_v38000(original, lit)
-    fallback = bool(is_reference and (not rgb_fidelity.get("passed") or not geometry_fidelity.get("passed")))
+    screen_aperture_fidelity = _graphic_screen_aperture_fidelity_v38100(original, lit)
+    fallback = bool(is_reference and (
+        not rgb_fidelity.get("passed")
+        or not geometry_fidelity.get("passed")
+        or not screen_aperture_fidelity.get("passed")
+    ))
     final = original if fallback else lit
     return final, {
         "applied": not fallback, "fallback_to_original": fallback,
@@ -21823,8 +21988,11 @@ def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="referen
         "screen_protected": bool(screen.get("available")), "edge_specular_applied": edge_specular_applied,
         "reference_edge_lock": bool(is_reference), "rgb_fidelity": rgb_fidelity,
         "geometry_fidelity": geometry_fidelity,
+        "screen_aperture_dna": screen_aperture_dna,
+        "screen_aperture_fidelity": screen_aperture_fidelity,
+        "screen_aperture_restore": screen_restore_report,
         "protected_edge_band": True,
-        "engine": "v38000-reference-core-surface-lighting" if is_reference else "v38000-studio-adaptive-lighting",
+        "engine": "v38100-reference-geometry-and-screen-aperture-lock" if is_reference else "v38100-studio-adaptive-lighting",
     }
 
 def _graphic_studio_commercial_qa_v34000(result, brief):
@@ -21847,6 +22015,7 @@ def _graphic_studio_commercial_qa_v34000(result, brief):
     side_consistency = not ("left" in layout and hero_x > 0.46)
     copy_ok = bool((metadata.get("compatibility_copy_fidelity") or {}).get("complete", True))
     geometry_ok = bool((metadata.get("product_lighting") or {}).get("geometry_fidelity", {}).get("passed", True))
+    aperture_ok = bool((metadata.get("product_screen_aperture_fidelity") or {}).get("passed", True))
     checks={
         "product_dominance":product_dominance,
         "vehicle_balance":vehicle_balance,
@@ -21855,15 +22024,16 @@ def _graphic_studio_commercial_qa_v34000(result, brief):
         "deterministic_typography":bool(metadata.get("deterministic_typography")),
         "copy_complete":copy_ok,
         "product_geometry_locked":geometry_ok,
+        "screen_aperture_locked":aperture_ok,
         "product_not_regenerated":not bool((result or {}).get("ai_product_recreated")),
     }
     weights={"product_dominance":0.20,"vehicle_balance":0.12,"layout_side_consistency":0.08,
              "zone_completeness":0.15,"deterministic_typography":0.10,"copy_complete":0.10,
-             "product_geometry_locked":0.15,"product_not_regenerated":0.10}
+             "product_geometry_locked":0.12,"screen_aperture_locked":0.08,"product_not_regenerated":0.05}
     score=round(sum(weights[k] for k,v in checks.items() if v),4)
     return {"passed":all(checks.values()) and score>=0.90,"score":score,"checks":checks,
             "hero_area":round(hero_area,4),"vehicle_area":round(vehicle_area,4),
-            "template":layout,"engine":"v38000-studio-commercial-qa"}
+            "template":layout,"engine":"v38100-studio-commercial-qa"}
 
 def _graphic_reference_fidelity_qa_v34000(result, role_items):
     """Fail Mode 1 when layout, product pixels, or authoritative copy drift."""
@@ -21880,6 +22050,7 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     lighting = dict(metadata.get("product_lighting") or {})
     rgb = dict(metadata.get("product_rgb_fidelity") or {})
     copy = dict(metadata.get("compatibility_copy_fidelity") or {})
+    aperture = dict(metadata.get("product_screen_aperture_fidelity") or {})
     if rgb.get("available") and not rgb.get("passed"):
         issues.append("product RGB drift exceeded the reference-mode tolerance")
     if not copy.get("complete", False):
@@ -21887,17 +22058,21 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
         issues.append("compatibility copy is incomplete" + (f": {missing}" if missing else ""))
     if not bool(metadata.get("product_ratio_preserved", False)):
         issues.append("product aspect ratio was not preserved")
+    if aperture.get("available") and not aperture.get("passed"):
+        issues.append("screen aperture or bezel-width DNA changed")
 
     checks = dict(base.get("checks") or {})
     checks["zone_completeness"] = 1.0 if required.issubset(zones) else 0.0
     checks["lighting_integrated"] = 1.0 if lighting.get("applied") else 0.92
     checks["product_rgb_fidelity"] = 1.0 if rgb.get("passed") else 0.0
     checks["copy_fidelity"] = 1.0 if copy.get("complete") else 0.0
+    checks["screen_aperture_fidelity"] = 1.0 if aperture.get("passed", True) else 0.0
     score = round(
-        float(base.get("score") or 0) * 0.74
-        + checks["zone_completeness"] * 0.08
-        + checks["product_rgb_fidelity"] * 0.10
-        + checks["copy_fidelity"] * 0.08,
+        float(base.get("score") or 0) * 0.68
+        + checks["zone_completeness"] * 0.07
+        + checks["product_rgb_fidelity"] * 0.09
+        + checks["copy_fidelity"] * 0.07
+        + checks["screen_aperture_fidelity"] * 0.09,
         4,
     )
     passed = bool(base.get("passed") and not issues and score >= 0.86)
@@ -21908,7 +22083,7 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
         "checks": checks,
         "issues": issues,
         "threshold": 0.86,
-        "engine": "v36000-reference-fidelity-copy-product-qa",
+        "engine": "v38100-reference-fidelity-geometry-aperture-copy-qa",
     }
 
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
@@ -22350,12 +22525,18 @@ def _graphic_compose_reference_campaign_v3200(
     product, product_lighting_report = _graphic_apply_product_lighting_v34000(product, lighting_profile, design_mode)
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
     product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
-    if design_mode == "reference_template" and (not product_fidelity_report.get("passed") or not product_geometry_report.get("passed")):
+    product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
+    if design_mode == "reference_template" and (
+        not product_fidelity_report.get("passed")
+        or not product_geometry_report.get("passed")
+        or not product_screen_aperture_report.get("passed")
+    ):
         product = product_before_lighting
         product_lighting_report = dict(product_lighting_report or {})
         product_lighting_report.update({"applied": False, "fallback_to_original": True, "postcheck_failed": True})
         product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
         product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
+        product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
 
     # Grounded contact shadow: downward and subtle, not a bright all-around halo.
     alpha = product.getchannel("A")
@@ -22550,7 +22731,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v38000-geometry-lock",
+        "engine": "autotecpro-commercial-composer-v38100-geometry-screen-aperture-lock",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -22574,6 +22755,8 @@ def _graphic_compose_reference_campaign_v3200(
         "product_lighting": product_lighting_report,
         "product_rgb_fidelity": product_fidelity_report,
         "product_geometry_fidelity": product_geometry_report,
+        "product_screen_aperture_fidelity": product_screen_aperture_report,
+        "screen_aperture_dna": _graphic_screen_aperture_dna_v38100(product_before_lighting),
         "compatibility_copy_fidelity": copy_fidelity_report,
         "graphic_design_mode": design_mode,
         "actual_normalized_boxes": {
