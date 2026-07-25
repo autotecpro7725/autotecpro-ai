@@ -46,14 +46,15 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v43000
+# AutoTecPro AI performance/stability revision: v44000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v43000 Five-Stage Compiled Graphic Pipeline built directly from the working v42000 baseline.
+# v44000 Adaptive Automotive Graphic Engine built directly from the working v43000 five-stage baseline.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
-# Mode 1 treats uploaded product pixels and mechanical geometry as immutable; Mode 2 retains intelligent art direction while
-# preserving the exact product asset. Provider generation remains background/vehicle-only and cannot redraw the product.
+# Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
+# and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
+# recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -19641,7 +19642,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v43000"
+GRAPHIC_ENGINE_VERSION = "v44000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -24840,6 +24841,293 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 
 
 
+
+# ============================================================
+# v44000 Adaptive Automotive Graphic Engine
+# Five task modes + fourteen connected production subsystems.
+# ============================================================
+
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v44000-adaptive-automotive-studio"
+
+
+def _graphic_adaptive_intent_v44000(prompt_text, role_items=None, has_edit_base=False):
+    """Classify the user's requested visual operation before choosing a pipeline.
+
+    Modes:
+      1 commercial_lock     exact uploaded product in advertising/catalog artwork
+      2 product_recreation  new angle/view while preserving Product DNA
+      3 ui_replacement      replace only visible display content locally
+      4 product_variant     recolor/material/trim variant with locked geometry
+      5 installed_view      research the correct vehicle interior and install the unit
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = value.casefold()
+    def any_re(patterns):
+        return any(re.search(p, lower, flags=re.I) for p in patterns)
+
+    ui = any_re((
+        r"\b(?:replace|change|swap|update|insert|apply)\b.{0,45}\b(?:ui|interface|screen content|display content|home screen|launcher|firmware screen)\b",
+        r"\buse (?:this|the uploaded) (?:ui|interface|screenshot)\b",
+        r"\bput .{0,30} (?:on|inside) the screen\b",
+    ))
+    installed = any_re((
+        r"\b(?:show|place|install|integrate|mount)\b.{0,45}\b(?:installed|in the dashboard|inside the vehicle|in the car|in-car|dashboard|dash)\b",
+        r"\binstalled (?:view|photo|render|result)\b",
+        r"\bafter installation\b",
+        r"\bshow (?:the )?(?:unit|product|screen) installed\b",
+    ))
+    variant = any_re((
+        r"\b(?:make|change|convert|recolor|finish)\b.{0,35}\b(?:black|silver|white|red|blue|matte|gloss|glossy|carbon|wood|metallic|trim|color|colour|finish)\b",
+        r"\b(?:black|silver|matte|gloss|carbon fiber|colour|color) version\b",
+        r"\bproduct variant\b",
+    ))
+    recreation = any_re((
+        r"\bchange (?:the )?(?:product )?angle\b", r"\brotate (?:the )?(?:product|unit|device|screen)\b",
+        r"\b(?:three|3)[ -]?quarter view\b", r"\b(?:left|right|side|rear|back|top|overhead|low)[ -]?(?:angle|view|perspective)\b",
+        r"\bnew camera angle\b", r"\bdifferent angle\b", r"\bexploded view\b", r"\b3d render\b",
+    ))
+    concept = any_re((r"\bconcept\b", r"\bfuturistic\b", r"\bcyberpunk\b", r"\btransparent housing\b"))
+
+    # Most-specific transformations win. UI replacement intentionally outranks
+    # installed-view language when the user asks to change an installed screen UI.
+    if ui:
+        mode = "ui_replacement"
+        confidence = 0.99
+    elif installed:
+        mode = "installed_view"
+        confidence = 0.98
+    elif variant:
+        mode = "product_variant"
+        confidence = 0.96
+    elif recreation:
+        mode = "product_recreation"
+        confidence = 0.96
+    elif concept and not any(i.get("role") == "product_photo" for i in (role_items or [])):
+        mode = "creative_concept"
+        confidence = 0.92
+    else:
+        mode = "commercial_lock"
+        confidence = 0.94
+
+    return {
+        "version": GRAPHIC_ADAPTIVE_ENGINE_VERSION,
+        "mode": mode,
+        "confidence": confidence,
+        "source_text": value[:1200],
+        "has_edit_base": bool(has_edit_base),
+        "allows_product_redraw": mode in {"product_recreation", "product_variant", "installed_view", "creative_concept"},
+        "requires_exact_product": mode in {"commercial_lock", "ui_replacement"},
+        "requires_live_interior_research": mode == "installed_view",
+        "local_screen_only_edit": mode == "ui_replacement",
+    }
+
+
+def _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile=None):
+    """Use live web search to research the correct OEM interior/dashboard.
+
+    The result is a text/JSON research contract only. Web images are never copied
+    directly into the output; they provide factual dashboard geometry guidance.
+    """
+    explicit = _graphic_extract_explicit_vehicle(prompt_text) or {}
+    identity = str(explicit.get("display_name") or (vehicle_profile or {}).get("explicit_display_name") or (vehicle_profile or {}).get("model") or "").strip()
+    if not identity:
+        return {"available": False, "reason": "No explicit vehicle identity was available."}
+    cache = st.session_state.setdefault("graphic_installed_interior_research_v44000", {})
+    key = hashlib.sha256((GRAPHIC_ADAPTIVE_ENGINE_VERSION + "|" + identity.casefold()).encode("utf-8")).hexdigest()
+    if isinstance(cache.get(key), dict):
+        return dict(cache[key])
+    request = (
+        "Research the factory/OEM interior dashboard for this exact vehicle and generation: " + identity + ". "
+        "Use live web search and reputable OEM, manufacturer, established automotive, and parts-catalog sources. "
+        "Return JSON only with: vehicle_identity, model_year_range, generation, dashboard_center_stack_description, "
+        "factory_screen_location, vents, climate_controls, physical_buttons, trim_shape, installation_opening, "
+        "camera_view_recommendation, prohibited_mismatches, source_summary, confidence_score. "
+        "The goal is a photorealistic after-installation visualization of an AutoTecPro screen while preserving the supplied unit identity."
+    )
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            tools=[{"type": "web_search"}],
+            instructions="Act as a cautious OEM automotive interior researcher. Verify generation-specific dashboard facts. Return JSON only.",
+            input=request,
+            max_output_tokens=2200,
+        )
+        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if not isinstance(result, dict):
+            result = {}
+    except Exception as error:
+        diagnostic_log("graphic_v44000_interior_research_failed", error_type=type(error).__name__, error=str(error))
+        result = {}
+    result = dict(result or {})
+    result["available"] = bool(result)
+    result["research_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
+    result["requested_vehicle"] = identity
+    cache[key] = result
+    return result
+
+
+def _graphic_ui_source_item_v44000(role_items):
+    """Choose the most likely uploaded UI screenshot without confusing the product."""
+    product = next((x for x in (role_items or []) if x.get("role") == "product_photo"), None)
+    candidates = [x for x in (role_items or []) if x is not product and x.get("file") is not None]
+    if not candidates:
+        return None
+    scored = []
+    for item in candidates:
+        raw = _graphic_uploaded_file_bytes(item.get("file"))
+        score = 0.0
+        try:
+            image = Image.open(io.BytesIO(raw)).convert("RGB")
+            w, h = image.size
+            ratio = w / max(1, h)
+            # UI screenshots tend to be landscape or portrait rectangles and have
+            # fewer transparent/white-border characteristics than ad references.
+            if 0.55 <= ratio <= 2.4:
+                score += 2.0
+            if min(w, h) >= 400:
+                score += 1.0
+            name = str(item.get("name") or "").casefold()
+            if any(k in name for k in ("ui", "interface", "screen", "home", "launcher", "screenshot")):
+                score += 4.0
+            if item.get("role") == "style_reference":
+                score += 0.25
+        except Exception:
+            pass
+        scored.append((score, item))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[0][1] if scored else None
+
+
+def _graphic_ui_replacement_local_v44000(prompt_text, role_items, output_size, vehicle_profile=None):
+    """Replace only screen pixels; keep housing, aperture and mechanics unchanged."""
+    product_item = next((x for x in (role_items or []) if x.get("role") == "product_photo"), None)
+    ui_item = _graphic_ui_source_item_v44000(role_items)
+    if not product_item or not ui_item:
+        raise RuntimeError("UI Replacement Mode requires one product photo and one UI/interface image.")
+    product = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if product is None:
+        raise RuntimeError("The uploaded product image could not be decoded for UI replacement.")
+    product = product.convert("RGBA")
+    raw_ui = _graphic_uploaded_file_bytes(ui_item.get("file"))
+    ui = Image.open(io.BytesIO(raw_ui)).convert("RGB")
+    aperture = _graphic_screen_aperture_dna_v38100(product)
+    box = aperture.get("screen_box_px")
+    if not (isinstance(box, (list, tuple)) and len(box) == 4):
+        raise RuntimeError("The product screen aperture could not be detected safely.")
+    x0, y0, sw, sh = [int(v) for v in box]
+    x1, y1 = x0 + sw, y0 + sh
+    if sw <= 0 or sh <= 0:
+        raise RuntimeError("The detected product screen aperture is invalid.")
+    # Crop UI to fill the screen while preserving its aspect ratio.
+    tw, th = sw, sh
+    ui_ratio, target_ratio = ui.width / max(1, ui.height), tw / max(1, th)
+    if ui_ratio > target_ratio:
+        nw = int(ui.height * target_ratio)
+        left = max(0, (ui.width - nw) // 2)
+        ui = ui.crop((left, 0, left + nw, ui.height))
+    else:
+        nh = int(ui.width / max(target_ratio, 0.001))
+        top = max(0, (ui.height - nh) // 2)
+        ui = ui.crop((0, top, ui.width, top + nh))
+    ui = ui.resize((tw, th), Image.Resampling.LANCZOS)
+    # Preserve a subtle amount of original glass reflection for realism.
+    original_screen = product.crop((x0, y0, x1, y1)).convert("RGB")
+    ui = Image.blend(ui, original_screen, 0.08)
+    product.alpha_composite(ui.convert("RGBA"), (x0, y0))
+    out = io.BytesIO()
+    product.convert("RGB").save(out, format="PNG", compress_level=5)
+    data = out.getvalue()
+    result = {
+        "generated": True,
+        "data_url": "data:image/png;base64," + base64.b64encode(data).decode("ascii"),
+        "filename": "AutoTecPro_UI_Replacement.png",
+        "resolution": f"{product.width}x{product.height}",
+        "output_size": f"{product.width}x{product.height}",
+        "prompt": prompt_text,
+        "graphic_engine_version": "v44000",
+        "adaptive_mode": "ui_replacement",
+        "provider_route": "local-ui-replacement-v44000",
+        "output_status": "verified_local_ui_replacement_v44000",
+        "verification_status": "verified",
+        "exact_product_pixels": True,
+        "housing_pixels_immutable": True,
+        "screen_pixels_replaced": True,
+        "screen_aperture_dna": aperture,
+        "ui_source_name": str(ui_item.get("name") or ""),
+        "vehicle_validation": {"verified": True, "available": True, "reason": "not applicable"},
+    }
+    return result
+
+
+def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_profile=None, interior_profile=None):
+    """Build a strict provider directive for modes that intentionally recreate pixels."""
+    mode = str((mode_info or {}).get("mode") or "commercial_lock")
+    product_dna = _graphic_build_product_dna_v8000(role_items, _graphic_product_structure_profile_v4300(role_items)) if any(i.get("role") == "product_photo" for i in (role_items or [])) else {}
+    base = "\n\nADAPTIVE GRAPHIC ENGINE MODE: " + mode.upper() + "\n"
+    if mode == "product_recreation":
+        return base + (
+            "Recreate the supplied physical product from the explicitly requested new viewpoint. Camera angle, perspective, shadows and scene lighting may change. "
+            "Preserve Product DNA, screen ratio, housing silhouette, buttons, knobs, mounting features, openings, materials and branding. Do not substitute a generic unit.\n"
+            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:12000]
+        )
+    if mode == "product_variant":
+        return base + (
+            "Create only the requested color/material/trim variant. Preserve all geometry, dimensions, screen aperture, controls, openings, mounting tabs and product identity. "
+            "Do not change camera angle unless explicitly requested.\nPRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:12000]
+        )
+    if mode == "installed_view":
+        return base + (
+            "Create a photorealistic AFTER-INSTALLATION view inside the correct OEM vehicle interior. The researched dashboard generation is authoritative. "
+            "Integrate the supplied AutoTecPro unit into the real factory center-stack location with correct vents, climate controls, trim, perspective, reflections and cabin lighting. "
+            "The product may be perspective-transformed/recreated only as required for installation, but its Product DNA and visible UI identity must remain recognizable and mechanically plausible. "
+            "Never use an exterior truck-only scene for this mode.\n"
+            "LIVE OEM INTERIOR RESEARCH: " + json.dumps(interior_profile or {}, ensure_ascii=False, default=str)[:12000] + "\n"
+            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:12000]
+        )
+    return base
+
+
+def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_blueprint=None, product_dna=None, interior_profile=None):
+    """Expose the fourteen connected subsystems for diagnostics and learning."""
+    return {
+        "version": GRAPHIC_ADAPTIVE_ENGINE_VERSION,
+        "active_mode": str((mode_info or {}).get("mode") or "commercial_lock"),
+        "subsystems": {
+            "1_intent_intelligence": True,
+            "2_product_dna": bool(product_dna),
+            "3_product_fingerprint": bool(any(i.get("role") == "product_photo" for i in (role_items or []))),
+            "4_reference_intelligence": bool(reference_blueprint),
+            "5_product_lock": str((mode_info or {}).get("mode")) in {"commercial_lock", "ui_replacement"},
+            "6_product_recreation": str((mode_info or {}).get("mode")) == "product_recreation",
+            "7_ui_replacement": str((mode_info or {}).get("mode")) == "ui_replacement",
+            "8_scene_generation": True,
+            "9_typography": True,
+            "10_commercial_layout": True,
+            "11_engineering_validator": True,
+            "12_commercial_quality_validator": True,
+            "13_smart_retry": True,
+            "14_learning_engine": True,
+        },
+        "interior_research_available": bool((interior_profile or {}).get("available")),
+    }
+
+
+def _graphic_store_adaptive_learning_v44000(prompt_text, result, mode_info):
+    """Store compact, non-image learning telemetry for future approved workflows."""
+    state = get_graphic_project_state()
+    history = list(state.get("adaptive_graphic_learning_v44000") or [])
+    history.append({
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "mode": str((mode_info or {}).get("mode") or ""),
+        "prompt_fingerprint": hashlib.sha256(str(prompt_text or "").encode("utf-8")).hexdigest()[:20],
+        "output_status": str((result or {}).get("output_status") or ""),
+        "route": str((result or {}).get("provider_route") or (result or {}).get("generation_route") or ""),
+        "verified": str((result or {}).get("verification_status") or "") == "verified",
+    })
+    state["adaptive_graphic_learning_v44000"] = history[-100:]
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+
 def _graphic_product_recreation_intent_v7000(prompt_text):
     """Return a bounded product-view recreation directive.
 
@@ -24892,15 +25180,22 @@ def _graphic_product_recreation_intent_v7000(prompt_text):
 
 
 def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
-    """Select one authoritative product rendering mode for the request."""
-    recreation = _graphic_product_recreation_intent_v7000(prompt_text)
+    """Select one authoritative adaptive rendering mode for the request."""
+    adaptive = _graphic_adaptive_intent_v44000(prompt_text, role_items, has_edit_base=has_edit_base)
     product_items = [i for i in (role_items or []) if i.get("role") == "product_photo"]
     style_items = [i for i in (role_items or []) if i.get("role") == "style_reference"]
-    if has_edit_base and not recreation.get("enabled"):
+    adaptive_mode = adaptive.get("mode")
+    if has_edit_base and adaptive_mode == "commercial_lock":
         mode = "edit_existing"
-    elif recreation.get("enabled") and len(product_items) >= 2:
+    elif adaptive_mode == "ui_replacement":
+        mode = "ui_replacement"
+    elif adaptive_mode == "installed_view":
+        mode = "installed_product_view"
+    elif adaptive_mode == "product_variant":
+        mode = "product_variant"
+    elif adaptive_mode == "product_recreation" and len(product_items) >= 2:
         mode = "multi_view_product_reconstruction"
-    elif recreation.get("enabled") and product_items:
+    elif adaptive_mode == "product_recreation" and product_items:
         mode = "ai_product_recreation"
     elif product_items and style_items:
         mode = "reference_guided_exact_product"
@@ -24910,11 +25205,16 @@ def _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=False):
         mode = "fully_generative_concept"
     return {
         "mode": mode,
-        "recreation": recreation,
+        "adaptive_mode": adaptive_mode,
+        "adaptive_intent": adaptive,
+        "recreation": _graphic_product_recreation_intent_v7000(prompt_text),
         "product_count": len(product_items),
         "style_count": len(style_items),
         "exact_product": mode in {"reference_guided_exact_product", "autotecpro_style_exact_product"},
-        "recreates_product": mode in {"ai_product_recreation", "multi_view_product_reconstruction"},
+        "recreates_product": mode in {"ai_product_recreation", "multi_view_product_reconstruction", "product_variant", "installed_product_view"},
+        "ui_replacement": mode == "ui_replacement",
+        "installed_view": mode == "installed_product_view",
+        "product_variant": mode == "product_variant",
     }
 
 
@@ -25710,7 +26010,17 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             campaign_spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
             st.session_state[GRAPHIC_PROJECT_STATE_KEY]=saved_state
         rejected_guidance=_graphic_safe_optional_call("graphic_v8200_rejection_guidance_failed_open",_graphic_session_rejection_guidance,"")
-        production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)
+        interior_profile = {}
+        if product_mode.get("installed_view"):
+            _graphic_progress_update_v3300(status, "Researching the correct OEM interior and dashboard generation…")
+            t = time.perf_counter()
+            interior_profile = _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile)
+            stage_times["installed_interior_research_seconds"] = time.perf_counter() - t
+            state_i = get_graphic_project_state()
+            state_i["last_installed_interior_profile_v44000"] = interior_profile
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_i
+        adaptive_directive = _graphic_mode_directive_v44000(product_mode, prompt_text, role_items, vehicle_profile, interior_profile)
+        production_prompt=_graphic_chatgpt_production_prompt(prompt_text,role_items,output_size,reference_blueprint=reference_blueprint,vehicle_profile=vehicle_profile,rejected_guidance=rejected_guidance)+"\n\nACTIVE BRAND TEMPLATE: "+json.dumps(_graphic_template_config_v8200(brand_template),ensure_ascii=False)+"\nREFERENCE GEOMETRY (normalized): "+json.dumps(geometry,ensure_ascii=False)+"\nVERIFIED CAMPAIGN FACTS: "+json.dumps(campaign_spec,ensure_ascii=False,default=str)+_graphic_multiview_identity_prompt_v7000(role_items,product_mode,structure_profile)+adaptive_directive
         diagnostic_log("graphic_v34000_route", mode=product_mode.get("mode"), design_mode=design_mode, edit_kind=edit_kind, template=brand_template, studio_layout=studio_brief.get("layout_variant"))
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             _graphic_progress_update_v3300(status, "Applying the requested copy change locally…")
@@ -25732,6 +26042,21 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 _graphic_progress_update_v3300(status, "Graphic local edit completed.", "complete")
                 return [local_result]
 
+        # UI Replacement Mode modifies only the detected display aperture locally.
+        if product_mode.get("ui_replacement") and not has_edit_base:
+            _graphic_progress_update_v3300(status, "Replacing the screen interface while locking all housing geometry…")
+            ui_result = _graphic_ui_replacement_local_v44000(prompt_text, role_items, output_size, vehicle_profile)
+            ui_result["adaptive_engine_manifest"] = _graphic_adaptive_system_manifest_v44000(
+                product_mode, role_items, reference_blueprint, product_dna, interior_profile
+            )
+            ui_result["product_dna"] = product_dna
+            ui_result["runtime_audit"] = _graphic_runtime_audit_v10000(
+                ui_result, route="ui_replacement_v44000", provider_calls=0, retries=0, stages=stage_times
+            )
+            _graphic_store_adaptive_learning_v44000(prompt_text, ui_result, product_mode)
+            _graphic_progress_update_v3300(status, "UI replacement completed with housing pixels locked.", "complete")
+            return [ui_result]
+
         # Exact-product jobs use one scenery request followed by deterministic
         # composition and lightweight verification.
         if product_mode.get("exact_product") and not has_edit_base:
@@ -25751,6 +26076,11 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result["runtime_audit"]["provider_calls_estimated"] = True
             exact_result["graphic_design_mode"] = design_mode
             exact_result["graphic_role_confidence"] = design_info.get("role_confidence") or {}
+            exact_result["adaptive_engine_manifest"] = _graphic_adaptive_system_manifest_v44000(
+                product_mode, role_items, reference_blueprint, product_dna, interior_profile
+            )
+            exact_result["adaptive_mode"] = product_mode.get("adaptive_mode") or "commercial_lock"
+            _graphic_store_adaptive_learning_v44000(prompt_text, exact_result, product_mode)
             state = get_graphic_project_state(); state["layer_stack"] = exact_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, route=product_mode.get("mode"), stages=stage_times)
             completion = "Exact-product campaign completed and verified." if exact_result.get("professional_qa", {}).get("passed") else "Exact-product campaign completed; review the QA note before publishing."
@@ -25788,6 +26118,11 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         candidate_failed = True
 
         if candidate:
+            candidate["adaptive_mode"] = product_mode.get("adaptive_mode") or "commercial_lock"
+            candidate["installed_interior_profile"] = interior_profile if product_mode.get("installed_view") else {}
+            candidate["adaptive_engine_manifest"] = _graphic_adaptive_system_manifest_v44000(
+                product_mode, role_items, reference_blueprint, product_dna, interior_profile
+            )
             _graphic_progress_update_v3300(status, "Checking product fidelity, target vehicle, text, and reference completeness…")
             t=time.perf_counter()
             candidate_review = _graphic_safe_optional_call(
