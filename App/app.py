@@ -46,12 +46,13 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v36000
+# AutoTecPro AI performance/stability revision: v38000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v36000 Reference Fidelity + Flexible Copy edition built directly from v34000.
-# Mode 1 restores v32000-grade bezel fidelity, adds geometry-safe scene lighting, complete compatibility-copy extraction,
-# dynamic ribbon text fitting, copy-fidelity validation, and automatic fallback to untouched product pixels whenever
-# relighting exceeds conservative RGB tolerances. Mode 2 retains the stronger Studio intelligence and lighting path.
+# v38000 Geometry Preservation + Studio Intelligence edition built directly from the current v36000 production base.
+# Mode 1 keeps the uploaded product as an immutable engineering master, applies only core-surface scene lighting,
+# validates alpha/silhouette/internal-opening geometry before acceptance, preserves complete flexible compatibility copy,
+# and falls back to untouched product pixels whenever lighting or geometry exceeds conservative tolerances.
+# Mode 2 retains stronger adaptive lighting and adds product-aware commercial balance validation.
 # Exact-product mode keeps uploaded RGB authoritative and blocks generative product replacement.
 # ============================================================
 # App Paths / API
@@ -19282,6 +19283,9 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
     if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
     if metadata.get("master_bezel_lock") is not True or metadata.get("bezel_pixels_regenerated") is not False:
         issues.append("untouched master bezel lock not confirmed")
+    geometry_fidelity = dict(metadata.get("product_geometry_fidelity") or {})
+    if geometry_fidelity and not geometry_fidelity.get("passed"):
+        issues.append("product alpha/silhouette/internal-opening geometry changed")
     if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
     if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
     if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
@@ -20381,9 +20385,9 @@ def _graphic_render_mode_v9000(product_mode, has_style=False):
 # ============================================================
 # v21010 Product Preservation Subsystem (direct v20300 base)
 # ============================================================
-ENGINEERING_DNA_VERSION = "engineering-dna-11.0"
-GEOMETRY_ENGINE_VERSION = "geometry-engine-3.0"
-CAMPAIGN_CACHE_VERSION = "campaign-cache-v31000-renderer-restore"
+ENGINEERING_DNA_VERSION = "engineering-dna-12.0"
+GEOMETRY_ENGINE_VERSION = "geometry-engine-4.0"
+CAMPAIGN_CACHE_VERSION = "campaign-cache-v38000-geometry-lock"
 
 
 def _graphic_matrix_identity_v21000():
@@ -21651,7 +21655,6 @@ def _graphic_product_rgb_fidelity_v36000(original, candidate, alpha=None):
     mean = sum(float(v) for v in stat.mean) / 3.0
     extrema = stat.extrema or [(0, 0), (0, 0), (0, 0)]
     maximum = max(int(pair[1]) for pair in extrema)
-    # Mean drift is the useful stability signal. A few specular pixels may be higher.
     passed = mean <= 5.25 and maximum <= 42
     return {
         "available": True,
@@ -21662,97 +21665,205 @@ def _graphic_product_rgb_fidelity_v36000(original, candidate, alpha=None):
     }
 
 
-def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
-    """Scene-match the product while making Mode 1 geometry and edge contrast immutable.
+def _graphic_geometry_signature_v38000(layer):
+    """Return deterministic silhouette/opening metrics for exact-product validation.
 
-    Reference Template Mode deliberately avoids perimeter/inner-opening specular masks.
-    Studio Mode keeps the stronger cinematic lighting treatment. In all cases the alpha,
-    dimensions, aspect ratio, screen pixels, and physical layout remain unchanged.
+    The signature is derived from alpha only, so lighting and RGB changes cannot hide
+    a contour, opening, or canvas-coordinate change.
     """
-    if Image is None or product is None or not (scene_profile or {}).get("available"):
-        return product, {"applied": False, "reason": "profile unavailable", "engine": "v36000-safe-lighting"}
+    if Image is None or layer is None:
+        return {"available": False}
+    try:
+        import numpy as np
+        from PIL import ImageFilter
+        rgba = layer.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        a = np.asarray(alpha, dtype=np.uint8)
+        solid = a >= 128
+        ys, xs = np.nonzero(solid)
+        if not len(xs):
+            return {"available": False, "reason": "empty alpha"}
+        x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+        bw, bh = max(1, x1 - x0), max(1, y1 - y0)
+        crop = solid[y0:y1, x0:x1]
+        # Edge band includes outer contour and internal openings.
+        dil = np.asarray(alpha.filter(ImageFilter.MaxFilter(3)), dtype=np.uint8) >= 128
+        ero = np.asarray(alpha.filter(ImageFilter.MinFilter(3)), dtype=np.uint8) >= 128
+        edge = dil ^ ero
+        # Transparent holes fully enclosed by the product bbox are engineering openings.
+        inv = (~crop).astype(np.uint8)
+        # Flood border-connected empty area; remaining empty pixels are enclosed holes.
+        from collections import deque
+        seen = np.zeros_like(inv, dtype=bool)
+        q = deque()
+        h, w = inv.shape
+        for x in range(w):
+            if inv[0, x]: q.append((0, x)); seen[0, x] = True
+            if inv[h-1, x] and not seen[h-1, x]: q.append((h-1, x)); seen[h-1, x] = True
+        for y in range(h):
+            if inv[y, 0] and not seen[y, 0]: q.append((y, 0)); seen[y, 0] = True
+            if inv[y, w-1] and not seen[y, w-1]: q.append((y, w-1)); seen[y, w-1] = True
+        while q:
+            y, x = q.popleft()
+            for ny, nx in ((y-1,x),(y+1,x),(y,x-1),(y,x+1)):
+                if 0 <= ny < h and 0 <= nx < w and inv[ny,nx] and not seen[ny,nx]:
+                    seen[ny,nx] = True; q.append((ny,nx))
+        holes = inv.astype(bool) & ~seen
+        payload = {
+            "size": list(rgba.size), "bbox": [x0,y0,bw,bh],
+            "aspect": round(bw/max(1,bh), 8),
+            "solid_ratio": round(float(solid.sum())/solid.size, 8),
+            "bbox_solid_ratio": round(float(crop.sum())/crop.size, 8),
+            "edge_pixels": int(edge.sum()), "hole_pixels": int(holes.sum()),
+            "alpha_sha256": hashlib.sha256(alpha.tobytes()).hexdigest(),
+        }
+        payload["available"] = True
+        return payload
+    except Exception as error:
+        return {"available": False, "reason": type(error).__name__}
+
+
+def _graphic_geometry_fidelity_v38000(original, candidate):
+    """Hard gate for Mode 1 alpha, silhouette, bbox and internal openings."""
+    before = _graphic_geometry_signature_v38000(original)
+    after = _graphic_geometry_signature_v38000(candidate)
+    if not before.get("available") or not after.get("available"):
+        return {"available": False, "passed": False, "before": before, "after": after}
+    checks = {
+        "canvas_size": before.get("size") == after.get("size"),
+        "alpha_exact": before.get("alpha_sha256") == after.get("alpha_sha256"),
+        "bbox_exact": before.get("bbox") == after.get("bbox"),
+        "hole_pixels_exact": before.get("hole_pixels") == after.get("hole_pixels"),
+        "edge_pixels_exact": before.get("edge_pixels") == after.get("edge_pixels"),
+    }
+    return {"available": True, "passed": all(checks.values()), "checks": checks, "before": before, "after": after,
+            "engine": "v38000-alpha-geometry-lock"}
+
+
+def _graphic_core_surface_mask_v38000(alpha, screen_box=None, mode="reference_template"):
+    """Protect every exterior and internal edge; expose only broad housing interiors."""
     from PIL import ImageDraw, ImageFilter, ImageChops
+    alpha = alpha.convert("L")
+    is_reference = str(mode or "").strip().lower() == "reference_template"
+    # Internal and external boundaries are both represented by dilate-minus-erode.
+    radius = 9 if is_reference else 5
+    kernel = radius if radius % 2 else radius + 1
+    dil = alpha.filter(ImageFilter.MaxFilter(kernel))
+    ero = alpha.filter(ImageFilter.MinFilter(kernel))
+    boundaries = ImageChops.subtract(dil, ero)
+    if is_reference:
+        boundaries = boundaries.filter(ImageFilter.MaxFilter(9))
+    core = ImageChops.subtract(alpha, boundaries)
+    if screen_box and screen_box.get("available") and float(screen_box.get("confidence") or 0) >= 0.50:
+        sx, sy, sw, sh = [int(v) for v in screen_box.get("box_px")]
+        d = ImageDraw.Draw(core)
+        margin = max(4, int(min(alpha.size) * 0.008))
+        d.rectangle((sx-margin, sy-margin, sx+sw+margin, sy+sh+margin), fill=0)
+    return core, boundaries
+
+
+def _graphic_apply_product_lighting_v34000(product, scene_profile, mode="reference_template"):
+    """Scene-match product while keeping Mode 1 geometry and engineering edges immutable."""
+    if Image is None or product is None or not (scene_profile or {}).get("available"):
+        return product, {"applied": False, "reason": "profile unavailable", "engine": "v38000-geometry-safe-lighting"}
+    from PIL import ImageFilter, ImageChops
     rgba = product.convert("RGBA")
     original = rgba.copy()
     alpha = rgba.getchannel("A")
     w, h = rgba.size
     is_reference = str(mode or "").strip().lower() == "reference_template"
-    strength = 0.026 if is_reference else 0.075
-    tint_cap = 0.014 if is_reference else 0.035
     direction = str(scene_profile.get("direction") or "right")
     warmth = float(scene_profile.get("warmth") or 0.0)
+    left_luma = float(scene_profile.get("left_luma") or 0.0)
+    right_luma = float(scene_profile.get("right_luma") or 0.0)
+    contrast = min(1.0, abs(right_luma-left_luma)/70.0)
+    # Reference mode is deliberately subtle. Contact shadow provides most integration.
+    strength = (0.010 + 0.010*contrast) if is_reference else (0.055 + 0.025*contrast)
+    tint_cap = 0.0075 if is_reference else 0.032
 
     screen = _graphic_detect_screen_box_v20500(rgba, alpha)
-    housing_mask = alpha.copy()
-    if screen.get("available") and float(screen.get("confidence") or 0) >= 0.58:
-        sx, sy, sw, sh = [int(v) for v in screen.get("box_px")]
-        d = ImageDraw.Draw(housing_mask)
-        d.rectangle((sx, sy, sx + sw, sy + sh), fill=0)
+    lighting_mask, protected_edges = _graphic_core_surface_mask_v38000(alpha, screen, mode)
 
-    # Build a broad one-dimensional gradient in compiled Pillow code. The reference
-    # route intentionally has no narrow edge band, so bezel thickness cannot appear altered.
+    # Low-frequency horizontal illumination only. No perspective, warping, sharpening,
+    # edge whitening, or contour-dependent highlight is permitted in Mode 1.
     ramp = []
     for x in range(max(1, w)):
         t = x / max(1, w - 1)
-        if direction == "left":
-            t = 1.0 - t
-        ramp.append(int(255 * (0.42 + 0.58 * t)))
-    grad = Image.new("L", (max(1, w), 1))
-    grad.putdata(ramp)
-    grad = grad.resize((w, h), Image.Resampling.BILINEAR)
-    grad = ImageChops.multiply(grad, housing_mask)
-
-    white = Image.new("RGBA", (w, h), (255, 255, 255, 0))
-    white.putalpha(grad.point(lambda a: int(a * strength)))
+        if direction == "left": t = 1.0 - t
+        ramp.append(int(255 * (0.48 + 0.52*t)))
+    grad = Image.new("L", (max(1,w),1)); grad.putdata(ramp)
+    grad = grad.resize((w,h), Image.Resampling.BILINEAR)
+    grad = ImageChops.multiply(grad, lighting_mask)
+    white = Image.new("RGBA", (w,h), (255,255,255,0))
+    white.putalpha(grad.point(lambda a: int(a*strength)))
     lit = Image.alpha_composite(rgba, white)
 
-    if abs(warmth) > 0.015:
-        color = (255, 174, 92, 0) if warmth > 0 else (120, 170, 255, 0)
-        tint = Image.new("RGBA", (w, h), color)
-        tint.putalpha(housing_mask.point(lambda a: int(a * min(tint_cap, abs(warmth) * (0.045 if is_reference else 0.11)))))
+    if abs(warmth) > 0.02:
+        color = (255,174,92,0) if warmth > 0 else (120,170,255,0)
+        tint = Image.new("RGBA", (w,h), color)
+        tint_strength = min(tint_cap, abs(warmth)*(0.025 if is_reference else 0.10))
+        tint.putalpha(lighting_mask.point(lambda a: int(a*tint_strength)))
         lit = Image.alpha_composite(lit, tint)
 
     edge_specular_applied = False
     if not is_reference:
-        edge = alpha.filter(ImageFilter.MaxFilter(5))
-        inner = alpha.filter(ImageFilter.MinFilter(5))
-        edge = ImageChops.subtract(edge, inner).filter(ImageFilter.GaussianBlur(1.2))
-        edge = ImageChops.multiply(edge, housing_mask)
-        spec = Image.new("RGBA", (w, h), (255, 255, 255, 0))
-        spec.putalpha(edge.point(lambda a: int(a * 0.12)))
+        spec = Image.new("RGBA", (w,h), (255,255,255,0))
+        spec.putalpha(protected_edges.point(lambda a: int(a*0.075)))
         lit = Image.alpha_composite(lit, spec)
         edge_specular_applied = True
 
     lit.putalpha(alpha)
-    fidelity = _graphic_product_rgb_fidelity_v36000(original, lit, alpha)
-    fallback = bool(is_reference and not fidelity.get("passed"))
+    rgb_fidelity = _graphic_product_rgb_fidelity_v36000(original, lit, alpha)
+    geometry_fidelity = _graphic_geometry_fidelity_v38000(original, lit)
+    fallback = bool(is_reference and (not rgb_fidelity.get("passed") or not geometry_fidelity.get("passed")))
     final = original if fallback else lit
     return final, {
-        "applied": not fallback,
-        "fallback_to_original": fallback,
-        "direction": direction,
-        "warmth": round(warmth, 4),
-        "strength": strength,
-        "screen_protected": bool(screen.get("available")),
-        "edge_specular_applied": edge_specular_applied,
-        "reference_edge_lock": bool(is_reference),
-        "rgb_fidelity": fidelity,
-        "engine": "v36000-reference-safe-lighting" if is_reference else "v36000-studio-adaptive-lighting",
+        "applied": not fallback, "fallback_to_original": fallback,
+        "direction": direction, "warmth": round(warmth,4), "strength": round(strength,4),
+        "screen_protected": bool(screen.get("available")), "edge_specular_applied": edge_specular_applied,
+        "reference_edge_lock": bool(is_reference), "rgb_fidelity": rgb_fidelity,
+        "geometry_fidelity": geometry_fidelity,
+        "protected_edge_band": True,
+        "engine": "v38000-reference-core-surface-lighting" if is_reference else "v38000-studio-adaptive-lighting",
     }
 
-
 def _graphic_studio_commercial_qa_v34000(result, brief):
+    """Product-aware commercial gate for independent Studio Mode."""
     metadata=dict((result or {}).get("layered_metadata") or {})
     actual=dict(metadata.get("actual_normalized_boxes") or {})
     hero=actual.get("hero_product_box") or [0,0,0,0]
-    try: hero_area=float(hero[2])*float(hero[3]); hero_ok=hero_area>=0.16 and float(hero[3])>=0.48
-    except Exception: hero_area=0.0; hero_ok=False
+    vehicle=actual.get("vehicle_box") or [0,0,0,0]
+    try:
+        hero_area=float(hero[2])*float(hero[3]); hero_h=float(hero[3]); hero_x=float(hero[0])
+        vehicle_area=float(vehicle[2])*float(vehicle[3])
+    except Exception:
+        hero_area=hero_h=hero_x=vehicle_area=0.0
     zones={str(x) for x in metadata.get("campaign_zones") or []}
     required={"logo","headline","compatibility_ribbon","feature_matrix","hero_product","bottom_benefit_bar"}
-    checks={"product_dominance":hero_ok,"zone_completeness":required.issubset(zones),"deterministic_typography":bool(metadata.get("deterministic_typography")),"product_not_regenerated":not bool((result or {}).get("ai_product_recreated"))}
-    score=round(sum(1 for v in checks.values() if v)/len(checks),4)
-    return {"passed":all(checks.values()) and score>=0.9,"score":score,"checks":checks,"hero_area":round(hero_area,4),"template":(brief or {}).get("layout_variant"),"engine":"v34000-studio-commercial-qa"}
-
+    layout=str((brief or {}).get("layout_variant") or "")
+    product_shape=str((brief or {}).get("product_orientation") or "")
+    product_dominance = hero_area >= (0.145 if product_shape=="wide" else 0.16) and hero_h >= 0.44
+    vehicle_balance = vehicle_area <= max(0.24, hero_area*1.35)
+    side_consistency = not ("left" in layout and hero_x > 0.46)
+    copy_ok = bool((metadata.get("compatibility_copy_fidelity") or {}).get("complete", True))
+    geometry_ok = bool((metadata.get("product_lighting") or {}).get("geometry_fidelity", {}).get("passed", True))
+    checks={
+        "product_dominance":product_dominance,
+        "vehicle_balance":vehicle_balance,
+        "layout_side_consistency":side_consistency,
+        "zone_completeness":required.issubset(zones),
+        "deterministic_typography":bool(metadata.get("deterministic_typography")),
+        "copy_complete":copy_ok,
+        "product_geometry_locked":geometry_ok,
+        "product_not_regenerated":not bool((result or {}).get("ai_product_recreated")),
+    }
+    weights={"product_dominance":0.20,"vehicle_balance":0.12,"layout_side_consistency":0.08,
+             "zone_completeness":0.15,"deterministic_typography":0.10,"copy_complete":0.10,
+             "product_geometry_locked":0.15,"product_not_regenerated":0.10}
+    score=round(sum(weights[k] for k,v in checks.items() if v),4)
+    return {"passed":all(checks.values()) and score>=0.90,"score":score,"checks":checks,
+            "hero_area":round(hero_area,4),"vehicle_area":round(vehicle_area,4),
+            "template":layout,"engine":"v38000-studio-commercial-qa"}
 
 def _graphic_reference_fidelity_qa_v34000(result, role_items):
     """Fail Mode 1 when layout, product pixels, or authoritative copy drift."""
@@ -22238,11 +22349,13 @@ def _graphic_compose_reference_campaign_v3200(
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
     product, product_lighting_report = _graphic_apply_product_lighting_v34000(product, lighting_profile, design_mode)
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
-    if design_mode == "reference_template" and not product_fidelity_report.get("passed"):
+    product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
+    if design_mode == "reference_template" and (not product_fidelity_report.get("passed") or not product_geometry_report.get("passed")):
         product = product_before_lighting
         product_lighting_report = dict(product_lighting_report or {})
         product_lighting_report.update({"applied": False, "fallback_to_original": True, "postcheck_failed": True})
         product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
+        product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
 
     # Grounded contact shadow: downward and subtle, not a bright all-around halo.
     alpha = product.getchannel("A")
@@ -22437,7 +22550,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v20010-engine6.1",
+        "engine": "autotecpro-commercial-composer-v38000-geometry-lock",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -22460,6 +22573,7 @@ def _graphic_compose_reference_campaign_v3200(
         "product_trim_report": product_trim_report,
         "product_lighting": product_lighting_report,
         "product_rgb_fidelity": product_fidelity_report,
+        "product_geometry_fidelity": product_geometry_report,
         "compatibility_copy_fidelity": copy_fidelity_report,
         "graphic_design_mode": design_mode,
         "actual_normalized_boxes": {
@@ -22854,7 +22968,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "mask-v32000-contour-safe-border-connected-rgb-lock"
+GRAPHIC_MASK_CACHE_VERSION = "v38000-mask-v32000-contour-safe-border-connected-rgb-lock"
 
 
 def _graphic_progress_v3300(label):
@@ -22924,7 +23038,6 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
     return defaults
 
 
-@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
