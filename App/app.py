@@ -19213,11 +19213,11 @@ def _graphic_engineering_landmarks_v20000(role_items, structure_profile=None):
     if cached is not None:
         return dict(cached)
     try:
-        layer,transparent=_graphic_open_product_layer_v3300(item.get("file"))
-        if layer is None:
+        # Measure engineering geometry from the untouched upload, not from a cutout.
+        raw=_graphic_uploaded_file_bytes(item.get("file"))
+        if not raw:
             return _graphic_engineering_landmarks_from_rgba_v20010(None, structure_profile)
-        layer=ImageOps.exif_transpose(layer).convert("RGBA")
-        layer,_trim=_graphic_trim_visible_product_canvas_v14000(layer,transparent=transparent)
+        layer=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
         report=_graphic_engineering_landmarks_from_rgba_v20010(layer,structure_profile)
         if len(_GRAPHIC_LANDMARK_CACHE_V20010)>=64:
             _GRAPHIC_LANDMARK_CACHE_V20010.pop(next(iter(_GRAPHIC_LANDMARK_CACHE_V20010)),None)
@@ -19272,6 +19272,8 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
     ratio_error=float(metadata.get("product_ratio_relative_error") or 0.0)
     if ratio_error>0.0025: issues.append("whole-unit ratio drift exceeds 0.25%")
     if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
+    if metadata.get("master_bezel_lock") is not True or metadata.get("bezel_pixels_regenerated") is not False:
+        issues.append("untouched master bezel lock not confirmed")
     if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
     if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
     if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
@@ -19544,7 +19546,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v21010-v20300-base-full-fingerprint-engine"
+GRAPHIC_ENGINE_VERSION = "v31000-v20100-renderer-v29000-mask"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -20373,7 +20375,7 @@ def _graphic_render_mode_v9000(product_mode, has_style=False):
 # ============================================================
 ENGINEERING_DNA_VERSION = "engineering-dna-11.0"
 GEOMETRY_ENGINE_VERSION = "geometry-engine-3.0"
-CAMPAIGN_CACHE_VERSION = "campaign-cache-4.0"
+CAMPAIGN_CACHE_VERSION = "campaign-cache-v31000-renderer-restore"
 
 
 def _graphic_matrix_identity_v21000():
@@ -21476,7 +21478,7 @@ def _graphic_product_reference_separation_directive_v20400(prompt_text):
     return value + contract
 
 def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size="1536x1024", template_key=""):
-    """Create a reference-faithful scenery plate with a large, identity-locked secondary hero vehicle."""
+    """Create a target-only scenery prompt with no reference-image content channel."""
     profile = dict(vehicle_profile or {})
     explicit_name = str(
         profile.get("explicit_display_name")
@@ -21494,43 +21496,37 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
 
     lowered = explicit_name.casefold()
     if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
-        body_type = "full-size pickup truck with the correct cab and visible pickup bed"
-    elif any(term in lowered for term in (
-        "tahoe", "suburban", "yukon", "escalade", "cherokee", "grand cherokee",
-        "compass", "renegade", "wrangler", "bronco sport", "explorer", "expedition",
-        "durango", "suv", "crossover"
-    )):
-        body_type = "factory-correct SUV or crossover with a closed rear cargo body and no pickup bed"
+        body_type = "full-size pickup truck"
+    elif any(term in lowered for term in ("tahoe", "suburban", "yukon", "escalade", "suv")):
+        body_type = "full-size SUV"
     elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
-        body_type = "factory-correct passenger car"
+        body_type = "passenger car"
     else:
         body_type = "the correct factory body type for the named vehicle"
 
+    # The free-form request can contain the reference advertisement's vehicle name.
+    # Do not pass those conflicting identity tokens into the scene generator.
     clean_direction = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     for term in prohibited_terms:
         clean_direction = re.sub(re.escape(term), "", clean_direction, flags=re.IGNORECASE)
     clean_direction = re.sub(r"\s+", " ", clean_direction).strip()[:900]
 
-    hero_box = layout.get("hero_product_box", [0.018, 0.305, 0.682, 0.575])
-    hero_right = float(hero_box[0]) + float(hero_box[2])
-    top_ratio = float(layout.get("top_ratio", 0.34))
-    bar_ratio = float(layout.get("bar_ratio", 0.875))
-
     return "\n".join([
-        "Create one premium photorealistic automotive BACKGROUND PLATE ONLY for a dense commercial banner.",
+        "Create one premium photorealistic automotive BACKGROUND PLATE ONLY.",
         f"Canvas: {output_size}.",
-        "Do not draw the product, logo, headline, text, icons, ribbon, benefit bar, watermark, poster, collage, dashboard screen, gauge cluster, or floating UI.",
-        f"TARGET VEHICLE IDENTITY LOCK: show exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'}.",
-        f"BODY-TYPE LOCK: it must visibly be a {body_type}; never substitute another body class, make, model, or generation.",
-        "COMMERCIAL VEHICLE COMPOSITION LOCK: the vehicle is a LARGE SECONDARY HERO, not a tiny distant prop. Use a close-to-medium three-quarter front camera view on the right. The complete vehicle should occupy about 27-38% of canvas width and 28-46% of canvas height, with grille, lamps, hood, cab/roofline, wheels, and pickup bed or cargo body clearly visible. Keep it behind and to the right of the future product, but visually substantial and comparable to the approved reference advertisement.",
-        "SCENE FIDELITY LOCK: use a low automotive camera, dramatic mountain depth, rocky or gravel foreground, warm directional sunrise/sunset light, strong foreground texture, and compressed premium commercial perspective. Avoid a huge empty asphalt lot, excessive empty road, distant miniature vehicle, flat presentation-slide scenery, or weak horizon.",
-        f"Reserve the left foreground through approximately {int(hero_right*100)}% canvas width and from {int(float(hero_box[1])*100)}% height downward for the dominant exact product cutout. Do not place trees, poles, vehicles, signs, bright seams, or high-contrast objects through that product zone.",
-        f"Keep the top {int(top_ratio*100)}% calm enough for deterministic typography and keep the bottom {int((1-bar_ratio)*100)}% usable for a full-width benefit bar, while preserving visible scenery behind the translucent header treatment.",
-        "The product will be the primary hero and the target vehicle will be the strong secondary hero. Minimize unused negative space between them.",
-        "Use realistic contact lighting and tonal separation behind the future product, but do not draw the product or its shadow.",
-        ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
+        "This is not an advertisement and must contain no reference-image pixels or copied objects.",
+        "Allowed content: environment, realistic ground, natural lighting, and exactly one target vehicle.",
+        "Forbidden content: infotainment product, dashboard screen, gauge cluster, product frame, logo, headline, text, icons, ribbon, benefit bar, watermark, screenshot, poster, advertisement panel, collage, or floating UI.",
+        f"TARGET VEHICLE IDENTITY LOCK: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'}.",
+        f"BODY-TYPE LOCK: it must visibly be a {body_type}; do not substitute a different body class.",
+        "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
         f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
-        ("Additional scene direction after removing conflicting reference-vehicle terms: " + clean_direction) if clean_direction else "Use the approved dense premium AutoTecPro automotive-advertising style.",
+        f"Reserve the left foreground from {int(layout['hero_left']*100)}% to {int(layout['hero_right']*100)}% width and from {int(layout['hero_top']*100)}% height downward for a dominant exact product cutout.",
+        f"Keep the top {int(layout['top_ratio']*100)}% calm for deterministic typography and the bottom {int((1-layout['bar_ratio'])*100)}% clear for a deterministic benefit bar.",
+        "The vehicle is strictly secondary and farther from camera; the empty left product zone must remain the strongest foreground area by a clear visual margin. Do not place the vehicle near center and do not enlarge it into a co-hero.",
+        "Use realistic tonal separation and contact lighting behind the future product, but do not draw a product or product shadow.",
+        ("ABSOLUTELY PROHIBITED VEHICLE IDENTITIES: " + prohibited + ".") if prohibited else "Never substitute another make, model, generation, or body type.",
+        ("Additional scene direction, after removing conflicting reference-vehicle terms: " + clean_direction) if clean_direction else "Use a clean premium automotive environment.",
     ])[:16000]
 
 
@@ -21541,35 +21537,47 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
 
 
 def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_size, vehicle_profile, campaign_spec, reference_blueprint, template_key=""):
-    """Generate and cache only identity-accurate, reference-scale commercial background plates."""
+    """Generate a reference-isolated plate; cache only plates that pass vehicle validation."""
     background_prompt = _graphic_campaign_background_prompt_v3200(
         prompt_text, vehicle_profile, campaign_spec, reference_blueprint, output_size, template_key
     )
     state = get_graphic_project_state()
     cache = dict(state.get("background_plate_cache") or {})
     key = hashlib.sha256(
-        (GRAPHIC_ENGINE_VERSION + "|v30000-reference-fidelity|" + output_size + "|" + template_key + "|" + background_prompt).encode()
+        (GRAPHIC_ENGINE_VERSION + "|v31000-v20100-renderer|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
     cached = cache.get(key)
-    if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True and cached.get("composition_verified") is True:
+    if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
         raw, _ = data_url_to_bytes(cached["data_url"])
         if raw:
-            diagnostic_log("graphic_v30000_background_cache_hit", vehicle_verified=True, composition_verified=True)
-            return raw, "cached-validated-background-v30000"
+            diagnostic_log("graphic_v12000_background_cache_hit", vehicle_verified=True)
+            return raw, "cached-validated-background-v12000"
 
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     last_raw = None
     last_route = ""
     last_validation = {"verified": not hard_vehicle, "available": not hard_vehicle, "reason": "not required"}
 
+    # Reference advertisements are intentionally NOT sent to the provider. Their
+    # geometry and mood already exist as text in the blueprint/prompt, eliminating
+    # the direct pixel/content leakage path.
     provider_items = []
-    correction = ""
-    for attempt in range(3):
-        attempt_prompt = background_prompt + correction
+    for attempt in range(2):
+        attempt_prompt = background_prompt
+        if attempt:
+            attempt_prompt += (
+                "\nRETRY CORRECTION: The previous plate failed vehicle identity validation. "
+                "Render the exact locked target vehicle and body type only. Remove every conflicting vehicle cue."
+            )
         try:
             raw_images, route = _graphic_responses_generate_v3000(provider_items, attempt_prompt, output_size)
         except Exception as first_error:
-            diagnostic_log("graphic_v30000_background_responses_failed", attempt=attempt + 1, error_type=type(first_error).__name__, error=first_error)
+            diagnostic_log(
+                "graphic_v12000_background_responses_failed",
+                attempt=attempt + 1,
+                error_type=type(first_error).__name__,
+                error=first_error,
+            )
             raw_images, route = _graphic_images_api_fallback_v3000(provider_items, attempt_prompt, output_size)
         if not raw_images:
             continue
@@ -21577,33 +21585,27 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
         last_raw = raw_images[0]
         last_route = route
         if not hard_vehicle:
-            last_validation = {"verified": True, "available": True, "score": 100, "layout_score": 100, "density_score": 100, "reason": "vehicle lock not required"}
+            last_validation = {"verified": True, "available": True, "score": 100, "reason": "vehicle lock not required"}
             break
 
         data_url = "data:image/png;base64," + base64.b64encode(last_raw).decode("ascii")
         last_validation = _graphic_safe_optional_call(
-            "graphic_v30000_background_vehicle_validation_unavailable",
-            lambda: _graphic_focused_vehicle_validation_v3300(data_url, [], prompt_text, vehicle_profile),
+            "graphic_v12000_background_vehicle_validation_unavailable",
+            lambda: _graphic_focused_vehicle_validation_v3300(
+                data_url, [], prompt_text, vehicle_profile
+            ),
             _graphic_validation_unavailable_v4100(),
         )
         diagnostic_log(
-            "graphic_v30000_background_vehicle_validation",
+            "graphic_v12000_background_vehicle_validation",
             attempt=attempt + 1,
             verified=last_validation.get("verified") is True,
+            available=not _graphic_validation_is_unavailable_v4100(last_validation),
             score=last_validation.get("score"),
-            layout_score=last_validation.get("layout_score"),
-            density_score=last_validation.get("density_score"),
             route=route,
         )
         if last_validation.get("verified") is True:
             break
-        correction = (
-            "\nRETRY CORRECTION: The previous plate failed the commercial vehicle-composition gate. "
-            "Render the exact locked target vehicle in a close-to-medium three-quarter front view on the right. "
-            "Make it a large secondary hero occupying roughly one-third of the canvas width, clearly showing factory body identity. "
-            "Use rocky/gravel foreground and dense mountain-commercial composition. Remove excessive empty road and never use a tiny distant vehicle. "
-            "Failure reason: " + str(last_validation.get("reason") or "vehicle/layout mismatch")[:700]
-        )
 
     if not last_raw:
         raise RuntimeError("The vehicle background provider returned no image.")
@@ -21611,31 +21613,29 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     verified = last_validation.get("verified") is True
     if hard_vehicle and not verified and not _graphic_validation_is_unavailable_v4100(last_validation):
         raise RuntimeError(
-            "The background plate did not meet the locked vehicle identity and commercial composition after bounded retries: "
-            + str(last_validation.get("reason") or "vehicle/composition mismatch")[:700]
+            "The background vehicle did not match the locked target after one bounded retry: "
+            + str(last_validation.get("reason") or "vehicle identity mismatch")[:500]
         )
 
+    # Validation-unavailable plates may still be composed and returned as unverified,
+    # but they are never cached. This prevents an uncertain plate from contaminating
+    # future projects or being repeatedly labelled as verified.
     if verified:
         cache[key] = {
             "data_url": "data:image/png;base64," + base64.b64encode(last_raw).decode("ascii"),
             "route": last_route,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "vehicle_verified": True,
-            "composition_verified": True,
             "vehicle_validation": {
                 "score": last_validation.get("score"),
-                "layout_score": last_validation.get("layout_score"),
-                "density_score": last_validation.get("density_score"),
-                "reason": str(last_validation.get("reason") or "")[:700],
+                "reason": str(last_validation.get("reason") or "")[:500],
             },
             "reference_pixels_used": False,
-            "vehicle_body_type_gate": str(last_validation.get("required_body_type") or ""),
-            "vehicle_identity_gate_passed": True,
         }
         state["background_plate_cache"] = {key: value for key, value in list(cache.items())[-8:]}
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     else:
-        diagnostic_log("graphic_v30000_background_not_cached", reason="vehicle/composition validation unavailable")
+        diagnostic_log("graphic_v12000_background_not_cached", reason="vehicle validation unavailable")
 
     return last_raw, last_route
 
@@ -21801,9 +21801,9 @@ def _graphic_compose_reference_campaign_v3200(
         card.alpha_composite(product, (pad, pad))
         product = card
     else:
-        # v30000 keeps the v29000 bezel-safe alpha contour, then removes only fully
-        # transparent exterior canvas. This restores v20100 hero occupancy without
-        # eroding, repainting, reshaping, or cropping any non-transparent product pixel.
+        # v19400 preserves the exact alpha contour produced by the source cutout.
+        # Do not erode or dilate it: those operations alter bezel thickness, side
+        # rails, mounting tabs, button edges and opening geometry.
         alpha = product.getchannel("A")
         bbox = alpha.getbbox()
         if bbox:
@@ -22805,91 +22805,70 @@ def _graphic_list_value_v3300(value, limit=8):
 
 
 def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
-    """Build product-specific campaign copy from explicit facts, Product Library, and passive Engineering DNA."""
+    """Build copy from explicit facts and verified Product Library data only."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
     product = _graphic_product_library_grounding_v3300(prompt_text, state)
-    dna = dict(state.get("product_dna") or {})
     explicit_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     explicit_size = bool(re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])\b", explicit_context, re.I))
-    explicit_category = bool(re.search(r"\b(?:digital gauge cluster|vertical dash display|infotainment|head unit|radio|display|screen)\b", explicit_context, re.I))
-
-    def first(mapping, *keys):
+    explicit_category = bool(re.search(r"\b(?:digital gauge cluster|vertical dash display|infotainment|head unit|radio|display)\b", explicit_context, re.I))
+    def first(*keys):
         for key in keys:
-            value = (mapping or {}).get(key)
+            value = product.get(key)
             if value not in (None, "", [], {}):
                 return value
         return None
-
-    if not explicit_size and not product and not first(dna, "screen_size", "display_size", "size"):
+    # Product Library fills gaps; explicit user values already in spec always win.
+    if not explicit_size and not product:
         spec.pop("screen_size", None)
-
-    screen_size = first(product, "screen_size", "display_size", "size") or first(dna, "screen_size", "display_size", "screen_inches", "size")
+    if not explicit_category and not product and str(spec.get("product_category") or "").upper() == "VERTICAL DASH DISPLAY":
+        spec.pop("product_category", None)
+    screen_size = first("screen_size", "display_size", "size")
     if screen_size and not spec.get("screen_size"):
         clean = re.sub(r"\s+", " ", str(screen_size)).strip()
         spec["screen_size"] = clean if '"' in clean else clean + ('"' if re.fullmatch(r"\d+(?:\.\d+)?", clean) else '')
-
-    product_name = first(product, "marketing_name", "product_name", "name", "title") or first(dna, "marketing_name", "product_name", "name")
-    category = first(product, "product_category", "category", "type") or first(dna, "product_category", "category", "product_type", "type")
-    resolution = first(product, "resolution", "display_resolution") or first(dna, "resolution", "display_resolution")
-
+    product_name = first("marketing_name", "product_name", "name", "title")
+    category = first("product_category", "category", "type")
     if product_name and not spec.get("headline"):
         spec["headline"] = str(product_name).strip()
     elif category and not spec.get("product_category"):
         spec["product_category"] = str(category).strip().upper()
-
-    compatibility = first(product, "compatibility", "vehicle_compatibility", "fitment", "year_range") or first(dna, "compatibility", "vehicle_compatibility", "fitment")
+    compatibility = first("compatibility", "vehicle_compatibility", "fitment", "year_range")
     if compatibility and not spec.get("compatibility"):
         spec["compatibility"] = str(compatibility).strip()
-
-    verified_features = _graphic_list_value_v3300(first(product, "marketing_features", "features", "key_features", "selling_points"), 8)
-    if not verified_features:
-        verified_features = _graphic_list_value_v3300(first(dna, "marketing_features", "features", "key_features", "selling_points"), 8)
+    verified_features = _graphic_list_value_v3300(first("marketing_features", "features", "key_features", "selling_points"), 8)
     if verified_features:
         spec["feature_labels"] = verified_features
-
-    verified_benefits = _graphic_list_value_v3300(first(product, "bottom_benefits", "benefits", "highlights"), 5)
-    if not verified_benefits:
-        verified_benefits = _graphic_list_value_v3300(first(dna, "bottom_benefits", "benefits", "highlights"), 5)
+    verified_benefits = _graphic_list_value_v3300(first("bottom_benefits", "benefits", "highlights"), 5)
     if verified_benefits:
         spec["bottom_benefits"] = verified_benefits
-
-    tagline = first(product, "tagline", "marketing_tagline") or first(dna, "tagline", "marketing_tagline")
+    tagline = first("tagline", "marketing_tagline")
     if tagline and not spec.get("tagline"):
         spec["tagline"] = str(tagline).strip()
-
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile or {})
     explicit_name = str(vehicle_profile.get("explicit_display_name") or "").strip()
     if explicit_name:
         spec["compatibility"] = explicit_name
         spec["vehicle_label"] = explicit_name.upper()
         spec["vehicle"] = dict(state.get("explicit_vehicle") or {})
-
+    # Remove unsafe universal defaults when no verified fact supports them.
     if not spec.get("headline"):
         size = str(spec.get("screen_size") or "").strip()
-        category_text = str(spec.get("product_category") or "OEM-STYLE SCREEN UPGRADE").strip().upper()
-        res = str(resolution or "").strip().upper()
-        pieces = [p for p in (size, res, category_text) if p]
-        spec["headline"] = " ".join(pieces).strip()
-
-    generic_headlines = {"PREMIUM INFOTAINMENT SYSTEM", "PREMIUM IN-VEHICLE DISPLAY", "OEM-STYLE SCREEN UPGRADE"}
-    spec["campaign_copy_verified"] = bool(product or dna or explicit_size or explicit_category or str(spec.get("headline") or "").upper() not in generic_headlines)
-
+        category = str(spec.get("product_category") or "PREMIUM IN-VEHICLE DISPLAY").strip()
+        spec["headline"] = f"{size} {category}".strip()
     if not spec.get("feature_labels"):
         spec["feature_labels"] = [
-            "Large Touchscreen", "Wireless CarPlay", "Android Auto", "Bluetooth",
-            "Navigation", "Backup Camera", "OEM Controls", "High-Brightness Display",
+            "Vehicle-Specific Fitment", "Integrated Display", "Real-Time Vehicle Data",
+            "Factory Controls Retained", "Smart Connectivity", "OEM-Style Integration",
+            "Responsive Interface", "High-Brightness Screen",
         ]
     if not spec.get("bottom_benefits"):
         spec["bottom_benefits"] = [
-            "Plug and Play", "OEM Fit & Finish", "High-Brightness IPS Screen",
-            "Steering Wheel Control", "Fast Response",
+            "Vehicle-Specific Installation", "Factory Integration", "Smart Connectivity",
+            "OEM Fit & Finish", "High-Brightness Display",
         ]
-    spec.setdefault("tagline", "Smarter Drive. Bigger View. OEM-Style Fit.")
     spec["product_library_grounded"] = bool(product)
-    spec["engineering_dna_grounded"] = bool(dna)
     spec["product_library_code"] = str(product.get("product_code") or product.get("sku") or "")
-
     state["campaign_spec"] = spec
     state["product_library_grounding"] = {
         "matched": bool(product), "product_code": spec["product_library_code"],
@@ -22927,22 +22906,18 @@ def _graphic_review_scores_v3300(review, has_product, has_style, hard_vehicle_lo
 
 
 def _graphic_focused_vehicle_validation_v3300(data_url, role_items, prompt_text, vehicle_profile):
-    """Verify target identity plus the large secondary-hero composition required by reference campaigns."""
+    """Strictly verify make/model plus body class for a hard-locked vehicle."""
     explicit = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
     if not explicit:
-        return {"verified": True, "available": True, "score": 100, "layout_score": 100, "density_score": 100, "reason": "no explicit vehicle lock"}
+        return {"verified": True, "available": True, "score": 100, "reason": "no explicit vehicle lock"}
 
     lowered = explicit.casefold()
     if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
-        required_body = "pickup truck with visible cab and bed"
+        required_body = "pickup truck"
         forbidden_body = "SUV, crossover, sedan, coupe, van"
-    elif any(term in lowered for term in (
-        "tahoe", "suburban", "yukon", "escalade", "cherokee", "grand cherokee",
-        "compass", "renegade", "wrangler", "bronco sport", "explorer", "expedition",
-        "durango", "suv", "crossover"
-    )):
-        required_body = "SUV or crossover with closed rear cargo body and no pickup bed"
-        forbidden_body = "pickup truck, open-bed truck, sedan, coupe, or van"
+    elif any(term in lowered for term in ("tahoe", "suburban", "yukon", "escalade", "suv")):
+        required_body = "SUV"
+        forbidden_body = "pickup truck, sedan, coupe, van"
     elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
         required_body = "passenger car"
         forbidden_body = "pickup truck, SUV, van"
@@ -22950,35 +22925,35 @@ def _graphic_focused_vehicle_validation_v3300(data_url, role_items, prompt_text,
         required_body = "factory-correct body type"
         forbidden_body = "any conflicting body class"
 
-    prohibited = ", ".join(str(value).strip() for value in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(value).strip())
-    focused_prompt = (
-        "VEHICLE IDENTITY, SCALE, AND COMMERCIAL COMPOSITION AUDIT. "
-        f"Required vehicle: {explicit}. Required body class: {required_body}. Reject any {forbidden_body}. "
-        "The vehicle must be a large secondary hero in a close-to-medium three-quarter front view on the right, approximately 27-38% of canvas width and 28-46% of canvas height. "
-        "Reject a tiny or distant vehicle, excessive empty asphalt/road, weak mountain depth, flat scene, materially cropped vehicle, hidden grille, wrong generation, wrong make/model, or wrong body class. "
-        "The preferred scene has rocky or gravel foreground, low automotive camera height, warm directional light, strong mountain depth, and dense premium commercial balance. "
-        "Inspect grille, headlamps, badge region, hood, fenders, cab/roofline, doors, bed or cargo body, wheels, wheelbase, camera distance, and visual occupancy. "
-        + (("Explicitly prohibited identities: " + prohibited + ". ") if prohibited else "")
-        + "Return strict vehicle/layout scores. " + str(prompt_text or "")[:900]
+    prohibited = ", ".join(
+        str(value).strip()
+        for value in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or [])
+        if str(value).strip()
     )
-    review = review_graphic_output_accuracy(data_url, role_items, focused_prompt, "Vehicle Identity Audit", reference_blueprint={}) or {}
-    def score(key):
-        try:
-            return int(float(review.get(key)))
-        except Exception:
-            return 0
-    vehicle_score = score("vehicle_accuracy_score")
-    layout_score = score("layout_adherence_score")
-    density_score = score("content_density_score")
-    summary = str(review.get("summary") or review.get("correction_prompt") or "vehicle/composition verification unavailable")[:1200]
-    available = bool(review) and vehicle_score > 0
-    verified = available and bool(review.get("passed", False)) and vehicle_score >= 96 and layout_score >= 88 and density_score >= 82
+    focused_prompt = (
+        "VEHICLE IDENTITY AND BODY-TYPE AUDIT ONLY. "
+        f"Required vehicle: {explicit}. Required body class: {required_body}. "
+        f"Reject any {forbidden_body}. "
+        "Inspect grille, headlamps, badge region, hood, fenders, cab/roofline, doors, bed or cargo body, wheelbase, and overall proportions. "
+        "Reject if the vehicle is ambiguous, too hidden, materially cropped, a different generation, a different make/model, or the wrong body class. "
+        + (("Explicitly prohibited identities: " + prohibited + ". ") if prohibited else "")
+        + "Ignore all product, typography, and layout quality. Return a vehicle score only. "
+        + str(prompt_text or "")[:900]
+    )
+    review = review_graphic_output_accuracy(
+        data_url, role_items, focused_prompt, "Vehicle Identity Audit", reference_blueprint={}
+    ) or {}
+    try:
+        score = int(float(review.get("vehicle_accuracy_score")))
+    except Exception:
+        score = 0
+    summary = str(review.get("summary") or review.get("correction_prompt") or "vehicle verification unavailable")[:1000]
+    available = bool(review) and score > 0
+    verified = available and bool(review.get("passed", False)) and score >= 97
     return {
         "verified": verified,
         "available": available,
-        "score": vehicle_score,
-        "layout_score": layout_score,
-        "density_score": density_score,
+        "score": score,
         "required_vehicle": explicit,
         "required_body_type": required_body,
         "reason": summary,
@@ -23027,46 +23002,9 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         route + "+controlled-compositor-v3300", reference_blueprint, vehicle_profile,
         corrected=True,
     )
-    result["product_identity_method"] = "v20300-exact-source-pixel-composite-with-passive-engineering-dna"
+    result["product_identity_method"] = "engine8_protected_exact_product_asset_composite"
     result["layered_metadata"].update(metadata)
-    result["engineering_dna"] = metadata.get("engineering_dna") or {}
-    result["engineering_dna_mode"] = "full_measurement_and_enforcement"
-    result["engineering_geometry_qa"] = metadata.get("engineering_geometry_qa") or {}
-    result["campaign_cache_version"] = CAMPAIGN_CACHE_VERSION
-    result["output_status"] = "completed_v21000_full_engineering_campaign"
-
-    cache_state = get_graphic_project_state()
-    campaign_cache = dict(cache_state.get("campaign_cache_v21000") or {})
-    campaign_key = hashlib.sha256(
-        (
-            str(metadata.get("product_source_sha256") or "")
-            + "|" + str(output_size)
-            + "|" + str(template_key)
-            + "|" + str(reference_blueprint or {})
-            + "|" + str(vehicle_profile or {})
-            + "|" + CAMPAIGN_CACHE_VERSION
-        ).encode("utf-8")
-    ).hexdigest()
-    campaign_cache[campaign_key] = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "product_cutout_source_sha256": metadata.get("product_source_sha256"),
-        "engineering_fingerprint": metadata.get("engineering_dna"),
-        "reference_layout_blueprint": metadata.get("reference_layout_blueprint"),
-        "vehicle_profile": vehicle_profile or {},
-        "output_dimensions": metadata.get("canvas_size"),
-        "approved_transform": metadata.get("geometry_transform"),
-        "background_plate_data_url": result.get("background_data_url"),
-        "final_layer_stack": [
-            "background_plate", "external_product_shadow", "immutable_product",
-            "deterministic_typography", "feature_icons", "bottom_benefit_bar",
-        ],
-        "engineering_qa": metadata.get("engineering_geometry_qa"),
-        "retry_history": {
-            "product_transform_retried": metadata.get("transform_component_retried"),
-        },
-    }
-    cache_state["campaign_cache_v21000"] = {k: v for k, v in list(campaign_cache.items())[-16:]}
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = cache_state
+    result["output_status"] = "completed_controlled_campaign_v3300"
     result["campaign_spec"] = spec
     return result
 
@@ -23132,6 +23070,8 @@ def _graphic_product_recreation_intent_v7000(prompt_text):
     exact_override = any(term in lower for term in (
         "use exact product", "keep exact product", "do not recreate", "do not redraw",
         "preserve exact pixels", "front view only", "same angle",
+        "use uploaded product", "use the uploaded product", "actual product image",
+        "same product", "exact same product", "do not change the product",
     ))
     if exact_override:
         matched = False
@@ -24387,31 +24327,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "graphic_v15000_v3200_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
-        )
-
-    # A provider-generated whole-product fallback can recreate bezel, lower housing,
-    # openings and mounting geometry. Keep it available only for explicit product
-    # recreation/new-angle requests. Front-view exact campaigns fail clearly rather
-    # than silently returning a redesigned unit.
-    exact_front_job = False
-    try:
-        recovery_roles = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
-        has_product = any(item.get("role") == "product_photo" for item in recovery_roles or [])
-        recreation_requested = bool(_graphic_product_recreation_intent_v7000(prompt_text))
-        exact_front_job = bool(preserve_product and has_product and not recreation_requested)
-    except Exception:
-        exact_front_job = False
-
-    if exact_front_job:
-        state = get_graphic_project_state()
-        state["stage"] = "ready_to_generate"
-        state["last_error"] = " | ".join(failures[-3:])[:1800]
-        state["last_failed_stage"] = "professional_exact_routes"
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        raise RuntimeError(
-            "The professional exact-product routes could not complete. The uploaded unit was not regenerated. "
-            + " | ".join(failures[-2:])
         )
 
     try:
