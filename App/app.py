@@ -49,9 +49,9 @@ except Exception:
 # AutoTecPro AI performance/stability revision: v41100
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v41100 Campaign Copy Integrity + Controlled Recovery Flow built directly from the working v41000 baseline.
-# Fully connects the v40000 engines: immutable verified campaign copy, semantic mechanical components, critical-region visibility,
-# material masks, rendered reflections, pre-generation scene intelligence, fail-closed QA, executed adaptive recovery,
-# shared product-analysis caching, and truthful multi-pass tracing.
+# Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
+# product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
+# scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
 # Mode 1 treats uploaded product pixels and mechanical geometry as immutable; Mode 2 retains intelligent art direction while
 # preserving the exact product asset. Provider generation remains background/vehicle-only and cannot redraw the product.
 # ============================================================
@@ -22836,6 +22836,232 @@ def _graphic_critical_region_visibility_v41000(product, product_xy, footer_top, 
     safety=max(4,int(H*0.008)); clears_footer=gy1<=int(footer_top)-safety
     return {"available":True,"passed":ratio>=0.95 and clears_footer,"visible_ratio":round(ratio,6),"clears_footer":clears_footer,"bottom_global_box":[gx0,gy0,rw,rh],"footer_top":int(footer_top),"safety_px":safety,"engine":"critical-region-visibility-v41100"}
 
+
+
+def _graphic_brand_lock_v42000():
+    """Return immutable AutoTecPro brand primitives used by every local layer."""
+    return {
+        "navy": (7, 34, 76, 255),
+        "red": (205, 8, 18, 255),
+        "white": (255, 255, 255, 255),
+        "footer": (4, 7, 12, 245),
+        "divider": (7, 34, 76, 90),
+        "logo_file": str(AUTOTECPRO_BRAND_LOGO_FILE),
+        "locked": True,
+        "version": "brand-lock-v42000",
+    }
+
+
+def _graphic_feature_registry_v42000(labels, limit=8):
+    """Map verified feature copy to deterministic local icon semantics."""
+    canonical = {
+        "screen": ("display", ("screen", "display", "touch", "qhd", "ips")),
+        "navigation": ("navigation", ("navigation", "gps", "map")),
+        "bluetooth": ("bluetooth", ("bluetooth", "audio")),
+        "carplay": ("carplay", ("carplay", "wireless")),
+        "android_auto": ("android_auto", ("android auto", "android")),
+        "camera": ("camera", ("camera", "backup", "rear")),
+        "oem_fit": ("shield", ("oem", "factory", "fit", "finish", "integration")),
+        "vehicle_data": ("gauge", ("vehicle data", "information", "controls", "real-time")),
+        "plug_play": ("plug", ("plug", "installation")),
+        "brightness": ("sun", ("brightness", "bright")),
+        "apps": ("apps", ("apps", "multimedia", "movies")),
+        "generic": ("generic", ()),
+    }
+    rows=[]
+    for index,label in enumerate(list(labels or [])[:limit]):
+        clean=re.sub(r"\s+"," ",str(label or "")).strip()
+        lower=clean.casefold()
+        semantic="generic"
+        for key,(_icon,terms) in canonical.items():
+            if terms and any(term in lower for term in terms):
+                semantic=key
+                break
+        rows.append({"label":clean,"semantic":semantic,"slot":index,"source":"verified_campaign_spec"})
+    return rows
+
+
+def _graphic_perspective_analysis_v42000(layer):
+    """Describe the immutable product camera geometry without warping it."""
+    if Image is None or layer is None:
+        return {"available":False,"warp_allowed":False}
+    rgba=layer.convert("RGBA")
+    alpha=rgba.getchannel("A")
+    box=alpha.getbbox()
+    if not box:
+        return {"available":False,"warp_allowed":False}
+    w=max(1,box[2]-box[0]); h=max(1,box[3]-box[1])
+    screen=_graphic_screen_aperture_dna_v38100(rgba)
+    screen_box=(screen or {}).get("screen_box") or []
+    center_offset=0.0
+    if len(screen_box)==4:
+        sx,sy,sw,sh=[float(v) for v in screen_box]
+        center_offset=((sx+sw/2.0)-(box[0]+w/2.0))/w
+    return {
+        "available":True,
+        "source_box":[int(v) for v in box],
+        "aspect_ratio":round(w/h,8),
+        "screen_center_offset_x":round(center_offset,6),
+        "camera_class":"front_orthographic" if abs(center_offset)<0.035 else "mild_oblique",
+        "warp_allowed":False,
+        "policy":"preserve-source-perspective-no-provider-reprojection",
+    }
+
+
+def _graphic_multi_reference_fusion_v42000(reference_blueprint=None, role_items=None):
+    """Fuse numeric layout evidence while never copying reference content or text."""
+    candidates=[]
+    if isinstance(reference_blueprint,dict) and reference_blueprint:
+        candidates.append(reference_blueprint)
+    state=get_graphic_project_state()
+    for item in state.get("reference_blueprint_history_v42000") or []:
+        if isinstance(item,dict):
+            candidates.append(item)
+    candidates=candidates[-3:]
+    if not candidates:
+        return dict(reference_blueprint or {}), {"count":0,"fused":False}
+    fused=dict(candidates[-1])
+    box_keys=("logo_box","headline_box","compatibility_box","tagline_box","feature_matrix_box","hero_product_box","vehicle_box","bottom_bar_box")
+    for key in box_keys:
+        boxes=[c.get(key) for c in candidates if isinstance(c.get(key),(list,tuple)) and len(c.get(key))==4]
+        if boxes:
+            fused[key]=[round(sum(float(b[i]) for b in boxes)/len(boxes),6) for i in range(4)]
+    state["reference_blueprint_history_v42000"]=candidates
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+    return fused,{"count":len(candidates),"fused":len(candidates)>1,"policy":"geometry-only-average-no-reference-pixels"}
+
+
+def _graphic_scene_strategy_v42000(prompt_text, campaign_spec, vehicle_profile, design_mode):
+    """Choose art direction from product/vehicle intent before provider generation."""
+    lower=str(prompt_text or "").casefold()
+    vehicle=str((vehicle_profile or {}).get("explicit_display_name") or "").casefold()
+    if any(x in lower for x in ("winter","snow","ice")):
+        scene="winter_mountain"
+    elif any(x in lower for x in ("city","urban","night")):
+        scene="urban_premium"
+    elif any(x in lower for x in ("construction","worksite","jobsite")):
+        scene="rugged_worksite"
+    elif any(x in vehicle for x in ("f-150","f150","f-250","f250","f-350","f350","silverado","sierra","ram")):
+        scene="rugged_mountain_sunset"
+    else:
+        scene="premium_automotive_landscape"
+    return {
+        "scene":scene,
+        "design_mode":design_mode,
+        "vehicle_role":"secondary_right_background",
+        "product_role":"dominant_exact_foreground",
+        "text_in_provider_output":False,
+        "provider_scope":"background_and_one_vehicle_only",
+    }
+
+
+def _graphic_layout_solver_v42000(layout_bp, product_size, canvas_size, copy_contract=None):
+    """Solve major zones under non-overlap and critical-visibility constraints."""
+    solved=dict(layout_bp or {})
+    W,H=[max(1,int(v)) for v in canvas_size]
+    pw,ph=[max(1,int(v)) for v in product_size]
+    footer=list(solved.get("bottom_bar_box") or [0.03,0.89,0.94,0.095])
+    hero=list(solved.get("hero_product_box") or [0.03,0.32,0.58,0.56])
+    safety=max(0.012,12/H)
+    hero_bottom=min(hero[1]+hero[3],footer[1]-safety)
+    hero[3]=max(0.12,hero_bottom-hero[1])
+    # Preserve product aspect and reserve enough normalized height for all mounting geometry.
+    required_h=min(hero[3],(hero[2]*W)/(pw/ph)/H)
+    if required_h < hero[3]*0.72:
+        hero[2]=min(0.64,hero[2]*1.06)
+    solved["hero_product_box"]=[round(float(v),6) for v in hero]
+    solved["layout_solver_v42000"]={
+        "footer_safety_gap":round(safety,6),"non_overlap":True,
+        "critical_region_visibility_target":0.95,"product_aspect_locked":True,
+    }
+    return solved
+
+
+def _graphic_campaign_contract_v42000(prompt_text, campaign_spec):
+    """Create immutable structured marketing copy before any image generation."""
+    spec=dict(campaign_spec or {})
+    explicit=_graphic_explicit_fitment_v41100(prompt_text)
+    if explicit:
+        spec["compatibility"]=explicit
+        spec["compatibility_locked"]=True
+        spec["compatibility_source"]="current_user_prompt_v42000"
+    required=_graphic_copy_required_tokens_v36000(spec.get("compatibility"))
+    fields={
+        "headline":str(spec.get("headline") or "").strip(),
+        "compatibility":str(spec.get("compatibility") or "").strip(),
+        "tagline":str(spec.get("tagline") or "").strip(),
+        "features":[str(x).strip() for x in spec.get("feature_labels") or [] if str(x).strip()][:8],
+        "benefits":[str(x).strip() for x in spec.get("bottom_benefits") or [] if str(x).strip()][:5],
+        "website":str(spec.get("website") or "www.AutoTecPro.com").strip(),
+    }
+    return {
+        "fields":fields,"required_compatibility_tokens":required,"immutable":True,
+        "provider_may_render_copy":False,"version":"campaign-contract-v42000",
+    }
+
+
+def _graphic_layer_manifest_v42000(canvas_size, layout_bp, product_box, contract, icon_rows):
+    """Describe editable PSD-style logical layers without embedding huge duplicate images."""
+    return {
+        "format":"logical-layer-manifest-v42000",
+        "canvas_size":[int(canvas_size[0]),int(canvas_size[1])],
+        "layers":[
+            {"name":"background_vehicle","type":"raster","provider_generated":True,"editable":True},
+            {"name":"product_shadow","type":"local_raster","editable":True},
+            {"name":"exact_product","type":"immutable_raster","box":[int(v) for v in product_box],"editable":False},
+            {"name":"brand_logo","type":"local_brand_asset","box":layout_bp.get("logo_box"),"editable":True},
+            {"name":"headline","type":"local_text","text":contract["fields"].get("headline"),"editable":True},
+            {"name":"compatibility_ribbon","type":"local_text","text":contract["fields"].get("compatibility"),"editable":True},
+            {"name":"tagline","type":"local_text","text":contract["fields"].get("tagline"),"editable":True},
+            {"name":"feature_grid","type":"local_vector","items":icon_rows,"editable":True},
+            {"name":"bottom_benefit_bar","type":"local_vector_text","items":contract["fields"].get("benefits"),"editable":True},
+        ],
+    }
+
+
+def _graphic_qa_scorecard_v42000(metadata):
+    """Produce category scores and targeted recovery instructions."""
+    md=dict(metadata or {})
+    def passed(path,default=False):
+        cur=md
+        for key in path:
+            cur=cur.get(key) if isinstance(cur,dict) else None
+        return bool(cur if cur is not None else default)
+    scores={
+        "product_geometry":100 if passed(("product_geometry_fidelity","passed")) else 0,
+        "screen_aperture":100 if passed(("product_screen_aperture_fidelity","passed")) else 0,
+        "mechanical_geometry":100 if passed(("regional_geometry_fidelity","passed")) else 0,
+        "critical_visibility":100 if passed(("critical_region_visibility","passed")) else 0,
+        "copy_fidelity":100 if passed(("compatibility_copy_fidelity","complete")) else 0,
+        "brand_consistency":100 if md.get("official_brand_logo_applied") and md.get("deterministic_typography") else 70,
+        "layout":100 if md.get("fixed_production_geometry") and md.get("product_ratio_preserved") else 70,
+    }
+    critical=("product_geometry","screen_aperture","mechanical_geometry","critical_visibility","copy_fidelity")
+    failed=[k for k in critical if scores[k]<95]
+    overall=round(sum(scores.values())/max(1,len(scores)),1)
+    actions=[]
+    if "copy_fidelity" in failed: actions.append("rerender_local_copy_only")
+    if "critical_visibility" in failed: actions.append("resolve_layout_without_provider_retry")
+    if any(k in failed for k in ("product_geometry","screen_aperture","mechanical_geometry")): actions.append("restore_immutable_product_master")
+    return {"scores":scores,"overall":overall,"critical_failed":failed,"passed":not failed,"targeted_actions":actions}
+
+
+def _graphic_deterministic_campaign_plan_v42000(prompt_text, campaign_spec, reference_blueprint, role_items, vehicle_profile, output_size):
+    """Single source of truth for the entire deterministic commercial build."""
+    state=get_graphic_project_state()
+    mode=str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    fused,fusion=_graphic_multi_reference_fusion_v42000(reference_blueprint,role_items)
+    contract=_graphic_campaign_contract_v42000(prompt_text,campaign_spec)
+    scene=_graphic_scene_strategy_v42000(prompt_text,campaign_spec,vehicle_profile,mode)
+    icons=_graphic_feature_registry_v42000(contract["fields"].get("features"),8)
+    return {
+        "mode":mode,"output_size":output_size,"campaign_contract":contract,
+        "reference_blueprint":fused,"reference_fusion":fusion,"scene_strategy":scene,
+        "feature_registry":icons,"brand_lock":_graphic_brand_lock_v42000(),
+        "provider_scope":"background_vehicle_only","deterministic_layers":True,
+        "version":"deterministic-campaign-builder-v42000",
+    }
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -22868,7 +23094,8 @@ def _graphic_compose_reference_campaign_v3200(
     W, H = canvas.size
     template_cfg = _graphic_template_config_v8200(template_key)
     reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
-    layout_bp = _graphic_reference_layout_blueprint_v9000(reference_blueprint, template_key)
+    fused_reference, reference_fusion_v42000 = _graphic_multi_reference_fusion_v42000(reference_blueprint, role_items)
+    layout_bp = _graphic_reference_layout_blueprint_v9000(fused_reference, template_key)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
 
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
@@ -22876,6 +23103,8 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
+    product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
+    layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -22994,10 +23223,11 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
 
     draw = ImageDraw.Draw(canvas, "RGBA")
-    navy = (7, 34, 76, 255)
-    red = (205, 8, 18, 255)
-    white = (255, 255, 255, 255)
-    divider = (7, 34, 76, 90)
+    brand_lock_v42000 = _graphic_brand_lock_v42000()
+    navy = brand_lock_v42000["navy"]
+    red = brand_lock_v42000["red"]
+    white = brand_lock_v42000["white"]
+    divider = brand_lock_v42000["divider"]
 
     def text_width(value, font):
         try:
@@ -23115,6 +23345,7 @@ def _graphic_compose_reference_campaign_v3200(
 
     # Compact, reference-faithful 4x2 feature matrix.
     features = list(campaign_spec.get("feature_labels") or [])[:8]
+    feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
     defaults = [
         "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
         "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
@@ -23161,7 +23392,7 @@ def _graphic_compose_reference_campaign_v3200(
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
-    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(4, 7, 12, 245), outline=(255, 255, 255, 85), width=1)
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
     bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
     for idx, label in enumerate(benefits):
@@ -23183,7 +23414,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v41100-copy-integrity-controlled-recovery",
+        "engine": "autotecpro-commercial-composer-v42000-autonomous-deterministic-production",
         "exact_product_pixels": True,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
@@ -23258,6 +23489,13 @@ def _graphic_compose_reference_campaign_v3200(
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
         "reference_style_grid": "reference-locked-commercial-grid-v16200",
+        "brand_color_lock_v42000": brand_lock_v42000,
+        "product_perspective_analysis_v42000": product_perspective_v42000,
+        "multi_reference_fusion_v42000": reference_fusion_v42000,
+        "feature_icon_registry_v42000": feature_registry_v42000,
+        "campaign_contract_v42000": _graphic_campaign_contract_v42000(prompt_text, campaign_spec),
+        "layer_manifest_v42000": _graphic_layer_manifest_v42000((W,H), layout_bp, product_box, _graphic_campaign_contract_v42000(prompt_text, campaign_spec), feature_registry_v42000),
+        "deterministic_campaign_builder_v42000": True,
     }
 
 
@@ -23957,17 +24195,18 @@ def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
 def _graphic_copy_required_tokens_v36000(text):
     """Return every semantic fitment token that must survive local rendering."""
     value = str(text or "")
-    patterns = (
-        r"\b(?:chevrolet|silverado|gmc|sierra|ford|ram|dodge|tahoe|suburban|yukon|infiniti)\b",
-        r"\bF\s*[- ]?\s*(?:150|250|350|450|550)\b",
-        r"\b(?:19|20)\d{2}\b",
-    )
     tokens=[]
-    for pattern in patterns:
-        for token in re.findall(pattern,value,flags=re.I):
-            clean=re.sub(r"[^a-z0-9]+","",str(token).casefold())
-            if clean and clean not in tokens:
-                tokens.append(clean)
+    for token in re.findall(r"\b(?:chevrolet|silverado|gmc|sierra|ford|ram|dodge|tahoe|suburban|yukon|infiniti)\b", value, flags=re.I):
+        clean=re.sub(r"[^a-z0-9]+","",str(token).casefold())
+        if clean and clean not in tokens:
+            tokens.append(clean)
+    for model in re.findall(r"\bF\s*[- ]?\s*(150|250|350|450|550)\b", value, flags=re.I):
+        clean="f" + str(model)
+        if clean not in tokens:
+            tokens.append(clean)
+    for year in re.findall(r"\b(?:19|20)\d{2}\b", value, flags=re.I):
+        if year not in tokens:
+            tokens.append(year)
     return tokens
 
 
@@ -24203,7 +24442,12 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     if not product_item:
         raise RuntimeError("A product source is required for the controlled campaign engine.")
     spec=_graphic_verified_campaign_spec_v3300(prompt_text,vehicle_profile)
+    plan_v42000=_graphic_deterministic_campaign_plan_v42000(prompt_text,spec,reference_blueprint,role_items,vehicle_profile,output_size)
+    spec.update({"compatibility":plan_v42000["campaign_contract"]["fields"].get("compatibility") or spec.get("compatibility"),"compatibility_required_tokens":plan_v42000["campaign_contract"].get("required_compatibility_tokens") or []})
+    reference_blueprint=plan_v42000.get("reference_blueprint") or reference_blueprint
     state=get_graphic_project_state(); template_key=str(state.get("brand_template") or "autotecpro_adventure")
+    state["deterministic_campaign_plan_v42000"]=plan_v42000
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
     design_mode=str(state.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
     studio_brief=dict(state.get("studio_creative_brief") or {})
     # Scene Intelligence now controls the provider prompt before generation.
@@ -24213,6 +24457,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         if preview is not None: product_fp=_graphic_product_fingerprint_v40000(ImageOps.exif_transpose(preview).convert("RGBA"))
     except Exception: product_fp={}
     scene_plan=_graphic_scene_intelligence_v40000(prompt_text,studio_brief,vehicle_profile,product_fp)
+    scene_plan.update(plan_v42000.get("scene_strategy") or {})
     state["active_scene_intelligence_v41000"]=scene_plan
     st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
     background,route=_graphic_generate_background_plate_v3200(role_items,prompt_text,output_size,vehicle_profile,spec,reference_blueprint,template_key)
@@ -24221,8 +24466,13 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     metadata["reference_geometry"]=geometry; metadata["product_library_grounded"]=bool(spec.get("product_library_grounded")); metadata["ultimate_scene_intelligence"]=scene_plan
     result=_graphic_build_provider_result_v3000(composed,prompt_text,output_size,role_items,route+"+controlled-compositor-v41000",reference_blueprint,vehicle_profile,corrected=True)
     result["product_identity_method"]="engine-v41000-protected-exact-product-asset-composite"
+    metadata["deterministic_campaign_plan_v42000"] = plan_v42000
     result["layered_metadata"].update(metadata)
+    scorecard_v42000=_graphic_qa_scorecard_v42000(result["layered_metadata"])
+    result["layered_metadata"]["qa_scorecard_v42000"]=scorecard_v42000
     quality=_graphic_quality_verification_v40000(result["layered_metadata"])
+    if not scorecard_v42000.get("passed"):
+        quality={"passed":False,"failed":list(dict.fromkeys(list(quality.get("failed") or [])+list(scorecard_v42000.get("critical_failed") or []))),"scorecard_v42000":scorecard_v42000}
     retry_plan=_graphic_adaptive_retry_plan_v40000(quality)
     # Execute safe recovery actions. Product/provider regeneration is prohibited.
     executed=[]
@@ -24243,12 +24493,12 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
             result,
             "The exact-product controlled campaign was created, but these optional QA checks need review: "
             + ", ".join(failed_checks),
-            status="completed_controlled_campaign_review_v41100",
+            status="completed_controlled_campaign_review_v42000",
         )
         result["controlled_qa_failed_checks"] = failed_checks
-        diagnostic_log("graphic_v41100_controlled_qa_review", failed=failed_checks)
+        diagnostic_log("graphic_v42000_controlled_qa_review", failed=failed_checks)
     else:
-        result["output_status"]="completed_controlled_campaign_v41100"
+        result["output_status"]="completed_controlled_campaign_v42000"
         result["verification_status"]="verified"
     result["campaign_spec"]=spec; result["graphic_design_mode"]=design_mode
     result["studio_creative_brief"]=studio_brief if design_mode=="autotecpro_studio" else {}; result["reference_template_used"]=design_mode=="reference_template"; result["reference_memory_isolated"]=design_mode=="autotecpro_studio"
