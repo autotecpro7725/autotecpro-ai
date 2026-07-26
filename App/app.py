@@ -46,11 +46,14 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v54000
+# AutoTecPro AI performance/stability revision: v55000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
 # v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
+# v55000 Product Pixel Authority & Deterministic Composition Engine built directly from v54000.
+# v55000 adds immutable source-pixel authority, protected-product-zone inpainting, strict lower-bezel/
+# lower-housing contour validation, fresh source-hash cache epochs, and fail-closed product-region QA.
 # Removes soft connected studio-floor shadows and nearby false components from exact-product cutouts,
 # locks the lower housing and mounting silhouette, and rejects any product mask whose lower profile drifts.
 # Adds authoritative source fingerprinting, new-upload cache invalidation, reference-mode exact-route enforcement,
@@ -17949,7 +17952,147 @@ def _graphic_vehicle_profile_text(profile):
     return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
+GRAPHIC_V55000_CACHE_EPOCH = "v55000-product-authority-2026-07-26-1"
+
+
+def _graphic_apply_v55000_cache_epoch():
+    """Invalidate geometry-sensitive Graphic Marketing caches once per engine epoch.
+
+    The invalidation is intentionally narrow: conversation content and uploaded files
+    remain untouched, while masks, background plates, source fingerprints and product
+    analysis produced by older engines are discarded.
+    """
+    try:
+        state = get_graphic_project_state()
+        if state.get("graphic_cache_epoch") == GRAPHIC_V55000_CACHE_EPOCH:
+            return state
+        for key in (
+            "background_plate_cache", "product_dna_cache", "product_analysis_cache",
+            "product_cutout_cache", "reference_analysis_cache", "last_campaign_product_sha",
+            "last_reference_product_composite", "last_product_cutout_report_v53000",
+            "last_product_cutout_report_v54000", "last_product_cutout_report_v55000",
+        ):
+            state.pop(key, None)
+        state["graphic_cache_epoch"] = GRAPHIC_V55000_CACHE_EPOCH
+        state["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
+        state["graphic_adaptive_engine_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        diagnostic_log("graphic_v55000_cache_epoch_applied", epoch=GRAPHIC_V55000_CACHE_EPOCH)
+        return state
+    except Exception as error:
+        diagnostic_log("graphic_v55000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
+        return {}
+
+
+def _graphic_alpha_geometry_signature_v55000(layer):
+    """Return deterministic whole-product and lower-housing alpha geometry metrics."""
+    if Image is None or layer is None:
+        return {"available": False}
+    try:
+        import cv2
+        import numpy as np
+        rgba = layer.convert("RGBA")
+        alpha = np.asarray(rgba.getchannel("A"), dtype=np.uint8)
+        mask = (alpha >= 8).astype(np.uint8)
+        ys, xs = np.where(mask > 0)
+        if not len(xs):
+            return {"available": False}
+        x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+        crop = mask[y0:y1, x0:x1]
+        h, w = crop.shape
+        lower_start = max(0, int(round(h * 0.70)))
+        lower = crop[lower_start:, :]
+        contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contour = max(contours, key=cv2.contourArea) if contours else None
+        lower_widths = [int(row.sum()) for row in lower]
+        lower_components = int(cv2.connectedComponents(lower, connectivity=8)[0] - 1) if lower.size else 0
+        payload = crop.tobytes() + b"|" + lower.tobytes()
+        return {
+            "available": True, "bbox": [x0, y0, x1, y1], "visible_size": [w, h],
+            "aspect_ratio": round(w / max(1, h), 10),
+            "alpha_sha256": hashlib.sha256(payload).hexdigest(),
+            "area": int(crop.sum()),
+            "perimeter": round(float(cv2.arcLength(contour, True)), 4) if contour is not None else 0.0,
+            "lower_start_ratio": 0.70, "lower_area": int(lower.sum()),
+            "lower_row_widths": lower_widths, "lower_components": lower_components,
+            "engine": "product-alpha-geometry-v55000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v55000_geometry_signature_failed", error_type=type(error).__name__, error=str(error))
+        return {"available": False, "reason": str(error)[:300]}
+
+
+def _graphic_lower_housing_fidelity_v55000(source, candidate):
+    """Fail closed when the bezel, lower lip, tabs, openings or lower contour drift."""
+    before = _graphic_alpha_geometry_signature_v55000(source)
+    after = _graphic_alpha_geometry_signature_v55000(candidate)
+    if not before.get("available") or not after.get("available"):
+        return {"available": False, "passed": False, "reason": "lower-housing geometry unavailable", "engine": "lower-housing-fidelity-v55000"}
+    bw = list(before.get("lower_row_widths") or [])
+    aw = list(after.get("lower_row_widths") or [])
+    if len(bw) != len(aw):
+        width_error = 1.0
+    else:
+        denom = max(1.0, float(max(bw or [1])))
+        width_error = max((abs(a-b) / denom for a,b in zip(aw,bw)), default=0.0)
+    area_error = abs(float(after.get("lower_area",0))-float(before.get("lower_area",0))) / max(1.0,float(before.get("lower_area",1)))
+    aspect_error = abs(float(after.get("aspect_ratio",0))-float(before.get("aspect_ratio",0))) / max(0.001,float(before.get("aspect_ratio",1)))
+    exact_alpha = before.get("alpha_sha256") == after.get("alpha_sha256")
+    passed = bool(exact_alpha and width_error <= 0.002 and area_error <= 0.002 and aspect_error <= 0.0005 and before.get("lower_components") == after.get("lower_components"))
+    return {
+        "available": True, "passed": passed, "exact_alpha": exact_alpha,
+        "max_lower_row_width_error": round(width_error,8),
+        "lower_area_relative_error": round(area_error,8),
+        "aspect_ratio_relative_error": round(aspect_error,8),
+        "source_lower_components": before.get("lower_components"),
+        "candidate_lower_components": after.get("lower_components"),
+        "source": before, "candidate": after, "engine": "lower-housing-fidelity-v55000",
+    }
+
+
+def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
+    """Remove provider-created product remnants before the source product is composited.
+
+    A dilated version of the exact product alpha defines the protected placement zone.
+    OpenCV inpainting reconstructs only the scene behind that zone. The authoritative
+    uploaded product is then composited locally, so provider bezels, tabs or housings
+    cannot remain visible around its lower or side edges.
+    """
+    if Image is None or canvas is None or product is None:
+        return canvas, {"applied": False, "reason": "image unavailable"}
+    try:
+        import cv2
+        import numpy as np
+        base = canvas.convert("RGBA")
+        rgba = np.asarray(base, dtype=np.uint8)
+        alpha = np.asarray(product.convert("RGBA").getchannel("A"), dtype=np.uint8)
+        local = (alpha >= 8).astype(np.uint8) * 255
+        halo = max(8, int(round(max(product.size) * 0.018)))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (halo * 2 + 1, halo * 2 + 1))
+        local = cv2.dilate(local, kernel, iterations=1)
+        mask = np.zeros((base.height, base.width), dtype=np.uint8)
+        x0, y0 = max(0, int(x)-halo), max(0, int(y)-halo)
+        x1, y1 = min(base.width, int(x)+product.width+halo), min(base.height, int(y)+product.height+halo)
+        sx0, sy0 = x0-(int(x)-halo), y0-(int(y)-halo)
+        sx1, sy1 = sx0+(x1-x0), sy0+(y1-y0)
+        padded = cv2.copyMakeBorder(local, halo, halo, halo, halo, cv2.BORDER_CONSTANT, value=0)
+        mask[y0:y1, x0:x1] = padded[sy0:sy1, sx0:sx1]
+        # Avoid erasing deterministic header/footer content if a layout is unusually tight.
+        rgb = cv2.cvtColor(rgba[:,:,:3], cv2.COLOR_RGB2BGR)
+        cleaned = cv2.inpaint(rgb, mask, max(3, halo//2), cv2.INPAINT_TELEA)
+        out = np.dstack([cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB), rgba[:,:,3]])
+        return Image.fromarray(out.astype(np.uint8), "RGBA"), {
+            "applied": True, "halo_px": halo, "mask_pixels": int((mask>0).sum()),
+            "product_region_provider_pixels_removed": True,
+            "engine": "protected-product-zone-inpaint-v55000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v55000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
+        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-inpaint-v55000"}
+
+
 def _graphic_extract_product_cutout(uploaded_file):
+    _graphic_apply_v55000_cache_epoch()
     """Extract the authoritative product while preserving its exact silhouette.
 
     v54000 strengthens the v53000 cutout path in the two areas that still caused
@@ -18002,6 +18145,7 @@ def _graphic_extract_product_cutout(uploaded_file):
             state = get_graphic_project_state()
             state["last_product_cutout_report_v53000"] = dict(report)
             state["last_product_cutout_report_v54000"] = dict(report)
+            state["last_product_cutout_report_v55000"] = dict(report)
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         except Exception:
             pass
@@ -18208,6 +18352,7 @@ def _graphic_extract_product_cutout(uploaded_file):
         state = get_graphic_project_state()
         state["last_product_cutout_report_v53000"] = dict(report)
         state["last_product_cutout_report_v54000"] = dict(report)
+        state["last_product_cutout_report_v55000"] = dict(report)
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     except Exception:
         pass
@@ -19923,7 +20068,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v50000"
+GRAPHIC_ENGINE_VERSION = "v55000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -23842,6 +23987,7 @@ def _graphic_compose_reference_campaign_v3200(
 
     from PIL import ImageDraw, ImageFilter
 
+    _graphic_apply_v55000_cache_epoch()
     with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
         canvas = ImageOps.exif_transpose(bg).convert("RGBA")
     W, H = canvas.size
@@ -23949,10 +24095,24 @@ def _graphic_compose_reference_campaign_v3200(
     detail_policy_v48000 = _graphic_detail_policy_v48000(prompt_text, design_mode, adaptive_mode)
     detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
-    product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
-    product, background_harmony_v48000 = _graphic_background_harmony_v48000(product, lighting_profile, ultimate_material_fingerprint)
-    product, micro_reflection_v48000 = _graphic_micro_reflection_v48000(product, detail_masks_v48000, lighting_profile)
-    product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
+    if design_mode == "reference_template":
+        # v55000: Reference Style is an immutable-source route. Scene lighting is
+        # expressed through external shadows and background treatment only; no RGB or
+        # alpha pixel inside the uploaded product may be regenerated or relit.
+        product = product_before_lighting.copy()
+        product_lighting_report = {
+            "applied": False, "immutable_source_pixels": True,
+            "reason": "reference-style exact pixel authority",
+            "engine": "immutable-product-lighting-policy-v55000",
+        }
+        background_harmony_v48000 = {"applied": False, "immutable_source_pixels": True}
+        micro_reflection_v48000 = {"applied": False, "immutable_source_pixels": True}
+        detail_restoration_v48000 = {"applied": False, "source_already_authoritative": True}
+    else:
+        product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
+        product, background_harmony_v48000 = _graphic_background_harmony_v48000(product, lighting_profile, ultimate_material_fingerprint)
+        product, micro_reflection_v48000 = _graphic_micro_reflection_v48000(product, detail_masks_v48000, lighting_profile)
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
     product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
     product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
@@ -23968,6 +24128,19 @@ def _graphic_compose_reference_campaign_v3200(
         product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
         product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
         product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
+
+    lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
+    if design_mode == "reference_template" and not lower_housing_fidelity_v55000.get("passed"):
+        # Restore the complete immutable master once, then fail closed if any alpha or
+        # lower-bezel geometry still differs.
+        product = product_before_lighting.copy()
+        lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
+        if not lower_housing_fidelity_v55000.get("passed"):
+            raise RuntimeError("v55000 rejected the result because the bottom bezel or lower housing geometry changed.")
+
+    # Remove any provider-created device, bezel, mounting tab or product shadow from
+    # the protected region before placing the exact uploaded product.
+    canvas, protected_product_zone_v55000 = _graphic_clear_reserved_product_zone_v55000(canvas, product, px, py)
 
     # Stage 7: physically layered contact, ambient and directional shadows.
     shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v48000(product, (W,H), lighting_profile)
@@ -24175,6 +24348,12 @@ def _graphic_compose_reference_campaign_v3200(
     return output.getvalue(), {
         "engine": "autotecpro-commercial-composer-v43000-five-stage-compiled-production",
         "exact_product_pixels": True,
+        "v55000_product_pixel_authority": True,
+        "graphic_cache_epoch_v55000": GRAPHIC_V55000_CACHE_EPOCH,
+        "protected_product_zone_v55000": protected_product_zone_v55000,
+        "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
+        "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),
+        "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
         "product_pixels_provider_generated": False,
@@ -24273,6 +24452,14 @@ def _graphic_compose_reference_campaign_v3200(
         "product_cutout_fail_closed_v54000": True,
         "lower_housing_geometry_lock_v54000": True,
         "uniform_transform_only_v54000": True,
+        "product_cutout_integrity_v55000": dict(get_graphic_project_state().get("last_product_cutout_report_v55000") or {}),
+        "product_cutout_fail_closed_v55000": True,
+        "immutable_product_pixels_v55000": design_mode == "reference_template",
+        "lower_housing_geometry_lock_v55000": True,
+        "screen_aperture_pixel_lock_v55000": True,
+        "physical_control_pixel_lock_v55000": True,
+        "ui_pixel_lock_v55000": True,
+        "provider_product_region_cleared_v55000": bool(protected_product_zone_v55000.get("applied")),
     }
 
 
@@ -25383,7 +25570,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v54000-exact-silhouette-lower-housing-integrity-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v55000-product-pixel-authority-deterministic-composition-engine"
 
 
 
