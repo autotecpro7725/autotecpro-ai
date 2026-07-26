@@ -46,9 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v51000
+# AutoTecPro AI performance/stability revision: v52000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
+# v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
+# Adds authoritative source fingerprinting, new-upload cache invalidation, reference-mode exact-route enforcement,
+# deterministic product provenance manifests, and fail-closed source/geometry validation before publication.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
@@ -18691,6 +18694,101 @@ def _graphic_enforce_reference_product_roles_v8300(role_items, prompt_text=""):
     return items
 
 
+
+def _graphic_current_product_authority_v52000(role_items):
+    """Return the authoritative current product identity from the actual uploaded bitmap."""
+    product = next((item for item in (role_items or []) if item.get("role") == "product_photo"), None)
+    signature = _graphic_product_source_signature_v9000(product) if product else {}
+    return {
+        "available": bool(product and signature.get("sha256")),
+        "sha256": str(signature.get("sha256") or ""),
+        "name": str((product or {}).get("name") or ""),
+        "asset_id": str((product or {}).get("asset_id") or (product or {}).get("id") or ""),
+        "aspect_ratio": float(signature.get("aspect_ratio") or 0.0),
+        "engine": "product-authority-v52000",
+    }
+
+
+def _graphic_invalidate_product_caches_v52000(role_items):
+    """Invalidate every product-derived cache when the authoritative upload changes."""
+    authority = _graphic_current_product_authority_v52000(role_items)
+    if not authority.get("available"):
+        return {"changed": False, "authority": authority, "cleared": []}
+    state = get_graphic_project_state()
+    previous = dict(state.get("active_product_authority_v52000") or {})
+    changed = bool(previous.get("sha256") and previous.get("sha256") != authority.get("sha256"))
+    cleared = []
+    if changed:
+        for key in (
+            "active_product_dna", "product_dna", "product_dna_locked", "engineering_approval_v21000",
+            "last_product_mask", "last_product_layer", "last_product_transform", "last_product_perspective",
+            "last_campaign_product_sha", "last_reference_product_composite", "product_structure_profile",
+            "product_segmentation_cache", "product_detail_masks", "last_generated_product_asset",
+        ):
+            if key in state:
+                state.pop(key, None); cleared.append(key)
+        # Cached Streamlit functions are keyed by raw bytes, but project-level stale assets must never survive.
+        state["reference_blueprint_locked"] = False
+    state["active_product_authority_v52000"] = authority
+    state["active_product_source_sha256"] = authority.get("sha256")
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log("graphic_v52000_product_authority", changed=changed, cleared=cleared, sha256=authority.get("sha256"), name=authority.get("name"))
+    return {"changed": changed, "authority": authority, "cleared": cleared}
+
+
+def _graphic_enforce_reference_exact_mode_v52000(product_mode, design_mode, has_product, has_style, prompt_text):
+    """Reference-style front-view campaigns must use immutable uploaded pixels, never recreation."""
+    mode = dict(product_mode or {})
+    text = str(prompt_text or "").casefold()
+    explicit_recreation = any(term in text for term in (
+        "change the angle", "new camera angle", "three-quarter product view", "3/4 product view",
+        "side view of the unit", "rear view of the unit", "recreate the product", "product recreation",
+    ))
+    if design_mode == "reference_template" and has_product and has_style and not explicit_recreation:
+        mode.update({
+            "exact_product": True,
+            "recreates_product": False,
+            "installed_view": False,
+            "adaptive_mode": "commercial_lock",
+            "mode": "reference_exact_product_v52000",
+            "render_mode": "Pixel Immutable",
+            "product_authority_policy": "uploaded_bitmap_only",
+        })
+    return mode
+
+
+def _graphic_product_provenance_gate_v52000(result, role_items):
+    """Prove that the commercial hero came from the current uploaded source and no AI product layer."""
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    authority = _graphic_current_product_authority_v52000(role_items)
+    issues = []
+    if not authority.get("available"):
+        issues.append("authoritative product source unavailable")
+    if str(metadata.get("product_source_sha256") or "") != str(authority.get("sha256") or ""):
+        issues.append("composited product SHA-256 does not match the current upload")
+    if metadata.get("exact_product_pixels") is not True:
+        issues.append("exact uploaded pixels were not confirmed")
+    if metadata.get("product_pixels_provider_generated") is not False:
+        issues.append("provider-generated product pixels entered the exact route")
+    if metadata.get("product_master_rgb_preserved") is not True:
+        issues.append("product master RGB was not preserved")
+    if metadata.get("product_ai_reconstruction_prohibited") is not True:
+        issues.append("AI product reconstruction was not prohibited")
+    if str((result or {}).get("product_identity_method") or "").casefold().find("composite") < 0:
+        issues.append("result does not identify a deterministic product composite")
+    manifest = {
+        "source_sha256": authority.get("sha256"),
+        "source_name": authority.get("name"),
+        "selected_sha256": metadata.get("product_source_sha256"),
+        "pixel_origin": "uploaded_product_bitmap",
+        "allowed_product_operations": ["background removal", "uniform scale", "translation", "bounded perspective", "local lighting/reflection overlay", "contact shadow"],
+        "forbidden_product_operations": ["generative redraw", "outpainting", "new brackets", "new holes", "new buttons", "bezel reshaping", "independent screen scaling"],
+        "engine": "pixel-provenance-gate-v52000",
+    }
+    return {"passed": not issues, "issues": issues, "manifest": manifest, "engine": "product-provenance-v52000"}
+
+
 def _graphic_role_integrity_v8300(role_items):
     """Fail closed when product/reference separation is still implausible."""
     products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
@@ -25101,7 +25199,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v51000-oem-component-transfer-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v52000-product-authority-provenance-engine"
 
 
 
@@ -26565,7 +26663,7 @@ def _graphic_layer_stack_v8000(result=None, *, geometry=None, campaign_spec=None
     layers = {
         "background": {"editable": True, "source": "ai_scene", "asset": result.get("background_data_url") or ""},
         "vehicle": {"editable": True, "source": "ai_scene", "locked": False},
-        "product": {"editable": True, "source": "exact_or_engine5_recreated_product", "identity_locked": True, "engineering_dna": True, "pixel_locked": bool((result or {}).get("exact_product_structure_lock"))},
+        "product": {"editable": True, "source": "uploaded_bitmap_deterministic_composite" if (result or {}).get("product_layer_immutable") else "bounded_recreated_product", "identity_locked": True, "engineering_dna": True, "pixel_locked": bool((result or {}).get("product_layer_immutable") or (result or {}).get("exact_product_structure_lock")), "source_sha256": (result or {}).get("authoritative_product_sha256") or ""},
         "logo": {"editable": True, "source": "brand_asset", "locked": True},
         "headline": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("headline") or ""},
         "ribbon": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("compatibility") or ""},
@@ -26978,6 +27076,14 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
     result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
     result["graphic_design_mode"]=design_mode
+    provenance_v52000 = _graphic_product_provenance_gate_v52000(result, role_items)
+    result["product_provenance_v52000"] = provenance_v52000
+    result["pixel_provenance_manifest"] = provenance_v52000.get("manifest") or {}
+    result["authoritative_product_sha256"] = (provenance_v52000.get("manifest") or {}).get("source_sha256")
+    result["product_layer_immutable"] = True
+    result["product_geometry_provider_generated"] = False
+    if not provenance_v52000.get("passed"):
+        raise RuntimeError("The exact-product campaign failed the v52000 pixel-provenance gate: " + "; ".join(provenance_v52000.get("issues") or []))
     if design_mode=="autotecpro_studio":
         studio_qa=_graphic_studio_commercial_qa_v34000(result,dict(state_now.get("studio_creative_brief") or {})); result["studio_commercial_qa"]=studio_qa
         if not studio_qa.get("passed"): raise RuntimeError("The AutoTecPro Studio composition failed commercial QA: "+str(studio_qa.get("checks")))
@@ -27010,6 +27116,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
         role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
+        product_authority_reset_v52000 = _graphic_invalidate_product_caches_v52000(role_items)
         role_integrity = _graphic_role_integrity_v8300(role_items)
         if not role_integrity.get("passed"):
             raise RuntimeError(
@@ -27023,7 +27130,8 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         design_info = _graphic_design_mode_v34000(role_items, prompt_text)
         design_mode = design_info["mode"]
         product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
-        product_mode["render_mode"] = _graphic_render_mode_v9000(product_mode, has_style)
+        product_mode = _graphic_enforce_reference_exact_mode_v52000(product_mode, design_mode, has_product, has_style, prompt_text)
+        product_mode["render_mode"] = product_mode.get("render_mode") or _graphic_render_mode_v9000(product_mode, has_style)
         structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
         preliminary_vehicle = _graphic_resolve_vehicle_lock(prompt_text, dict((get_graphic_project_state() or {}).get("last_vehicle_profile") or {}))
@@ -27038,7 +27146,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             state_now["last_reference_blueprint"] = {}
             state_now["reference_blueprint_locked"] = False
         locked_dna = dict(state_now.get("active_product_dna") or {})
-        product_dna = locked_dna if (locked_dna and state_now.get("product_dna_locked")) else (_graphic_build_product_dna_v8000(role_items, structure_profile) if has_product else {})
+        current_authority_v52000 = _graphic_current_product_authority_v52000(role_items)
+        locked_sha_v52000 = str((locked_dna.get("source_signatures") or [{}])[0].get("sha256") or "") if locked_dna else ""
+        can_reuse_locked_dna_v52000 = bool(locked_dna and state_now.get("product_dna_locked") and locked_sha_v52000 and locked_sha_v52000 == current_authority_v52000.get("sha256"))
+        product_dna = locked_dna if can_reuse_locked_dna_v52000 else (_graphic_build_product_dna_v8000(role_items, structure_profile) if has_product else {})
         state_now["active_product_dna"] = product_dna
         state_now["product_dna_locked"] = bool(product_dna)
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_now
