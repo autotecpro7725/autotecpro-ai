@@ -46,12 +46,14 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v46000
+# AutoTecPro AI performance/stability revision: v48000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v46000 Adaptive Interior Source Engine built directly from the working v45000 Vehicle Installation Engine.
+# v48000 Detail Fidelity and Commercial Optics Engine built directly from the working v47000 Installed Intent Continuity Engine.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
+# v48000 stages: UI/control pixel restoration, optical relighting, lens policy, micro-reflection, material recognition,
+# three-layer shadows, background harmony, commercial detail QA, and final fail-closed AutoTecPro QA.
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
 # recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
@@ -23277,6 +23279,230 @@ def _graphic_local_repair_blueprint_v43000(reference_blueprint, failed_checks):
     return repaired
 
 
+
+# ============================================================
+# v48000 Detail Fidelity + Commercial Optics Engine
+# Stages 1-10: localized UI/control restoration, optical relighting,
+# lens-aware integration, micro-reflections, material recognition,
+# multi-layer shadow solving, background harmony, commercial QA,
+# and a fail-closed AutoTecPro final quality gate.
+# ============================================================
+
+
+def _graphic_detail_policy_v48000(prompt_text, design_mode="reference_template", adaptive_mode="commercial_lock"):
+    """Select an automatic fidelity policy without globally restricting creative modes."""
+    text = str(prompt_text or "").casefold()
+    if adaptive_mode in {"installed_view", "product_recreation"} or any(k in text for k in ("rotate", "angle", "three-quarter", "3/4", "side view", "perspective")):
+        policy = "dna_guided_recreation"
+    elif any(k in text for k in ("blend naturally", "integrate deeply", "match perspective", "dynamic scene")):
+        policy = "flexible_lock"
+    else:
+        policy = "absolute_front_detail_lock"
+    return {
+        "policy": policy,
+        "ui_lock": policy != "dna_guided_recreation" or "replace ui" not in text,
+        "control_detail_lock": policy != "dna_guided_recreation",
+        "allow_geometry_warp": policy == "dna_guided_recreation",
+        "design_mode": str(design_mode or ""),
+        "engine": "adaptive-fidelity-policy-v48000",
+    }
+
+
+def _graphic_high_frequency_score_v48000(image, mask=None):
+    """Measure local fine-detail energy for UI/button fidelity QA."""
+    if Image is None or image is None:
+        return 0.0
+    try:
+        from PIL import ImageFilter, ImageStat, ImageChops
+        gray = image.convert("L")
+        edges = gray.filter(ImageFilter.FIND_EDGES)
+        if mask is not None:
+            stat = ImageStat.Stat(edges, mask=mask.convert("L"))
+        else:
+            stat = ImageStat.Stat(edges)
+        return round(float(stat.mean[0]), 4)
+    except Exception:
+        return 0.0
+
+
+def _graphic_detail_masks_v48000(source):
+    """Build screen/UI and small-control masks from the exact resized product layer."""
+    if Image is None or source is None:
+        return {"available": False}
+    try:
+        from PIL import ImageDraw, ImageFilter, ImageChops
+        rgba = source.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        screen_dna = _graphic_screen_aperture_dna_v38100(rgba)
+        ui_mask = Image.new("L", rgba.size, 0)
+        if screen_dna.get("available"):
+            sx, sy, sw, sh = [int(v) for v in screen_dna.get("screen_box_px") or [0,0,0,0]]
+            inset = max(1, int(min(sw, sh) * 0.006))
+            ImageDraw.Draw(ui_mask).rectangle((sx+inset, sy+inset, sx+sw-inset, sy+sh-inset), fill=255)
+        # Controls are high-frequency regions outside the screen, concentrated on side/lower housing.
+        gray = rgba.convert("L")
+        edge = gray.filter(ImageFilter.FIND_EDGES)
+        edge = edge.point(lambda v: 255 if v >= 28 else 0)
+        zones = Image.new("L", rgba.size, 0)
+        d = ImageDraw.Draw(zones)
+        W,H=rgba.size
+        d.rectangle((0, int(H*0.30), int(W*0.34), int(H*0.96)), fill=255)
+        d.rectangle((int(W*0.66), int(H*0.30), W, int(H*0.96)), fill=255)
+        d.rectangle((int(W*0.18), int(H*0.74), int(W*0.82), H), fill=255)
+        control = ImageChops.multiply(edge, zones)
+        control = ImageChops.multiply(control, alpha)
+        control = control.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.GaussianBlur(0.7))
+        if ui_mask.getbbox():
+            control = ImageChops.subtract(control, ui_mask.filter(ImageFilter.MaxFilter(11)))
+        return {
+            "available": True,
+            "ui_mask": ui_mask,
+            "control_mask": control,
+            "screen_dna": screen_dna,
+            "ui_box": screen_dna.get("screen_box_px") if screen_dna.get("available") else None,
+            "engine": "detail-region-masks-v48000",
+        }
+    except Exception as error:
+        return {"available": False, "reason": type(error).__name__}
+
+
+def _graphic_restore_ui_and_controls_v48000(source, candidate, masks=None):
+    """Restore exact UI/button pixels after relighting and apply only localized crispness."""
+    if Image is None or source is None or candidate is None:
+        return candidate, {"applied": False, "reason": "missing image"}
+    try:
+        from PIL import ImageFilter, ImageChops, ImageStat
+        src = source.convert("RGBA")
+        out = candidate.convert("RGBA")
+        masks = dict(masks or _graphic_detail_masks_v48000(src))
+        if not masks.get("available"):
+            return out, {"applied": False, "reason": masks.get("reason") or "mask unavailable"}
+        ui_mask = masks.get("ui_mask")
+        control_mask = masks.get("control_mask")
+        # UI: exact source pixels with a very small retained scene-reflection contribution.
+        ui_exact = src.filter(ImageFilter.UnsharpMask(radius=0.75, percent=145, threshold=2))
+        out.paste(ui_exact, (0,0), ui_mask)
+        # Controls: restore source micro-detail and sharpen gently, avoiding synthetic redraw.
+        controls_exact = src.filter(ImageFilter.UnsharpMask(radius=0.65, percent=175, threshold=1))
+        out.paste(controls_exact, (0,0), control_mask)
+        before_ui = _graphic_high_frequency_score_v48000(src, ui_mask)
+        after_ui = _graphic_high_frequency_score_v48000(out, ui_mask)
+        before_controls = _graphic_high_frequency_score_v48000(src, control_mask)
+        after_controls = _graphic_high_frequency_score_v48000(out, control_mask)
+        return out, {
+            "applied": True,
+            "ui_restored": bool(ui_mask and ui_mask.getbbox()),
+            "controls_restored": bool(control_mask and control_mask.getbbox()),
+            "ui_detail_source": before_ui,
+            "ui_detail_final": after_ui,
+            "control_detail_source": before_controls,
+            "control_detail_final": after_controls,
+            "engine": "ui-control-pixel-restoration-v48000",
+        }
+    except Exception as error:
+        return candidate, {"applied": False, "reason": type(error).__name__}
+
+
+def _graphic_micro_reflection_v48000(product, masks, lighting_profile):
+    """Apply restrained glass reflection before exact UI restoration."""
+    if Image is None or product is None or not (masks or {}).get("available"):
+        return product, {"applied": False}
+    try:
+        from PIL import ImageDraw, ImageFilter, ImageChops
+        out = product.convert("RGBA")
+        ui_mask = masks.get("ui_mask")
+        if not ui_mask or not ui_mask.getbbox():
+            return out, {"applied": False}
+        reflection = Image.new("RGBA", out.size, (0,0,0,0))
+        d = ImageDraw.Draw(reflection, "RGBA")
+        x0,y0,x1,y1=ui_mask.getbbox()
+        warm=float((lighting_profile or {}).get("warmth") or 0.0)
+        tint=(255, 228 if warm>0 else 242, 205 if warm>0 else 255)
+        for i in range(max(1,y1-y0)):
+            a=int(22*(1-i/max(1,y1-y0)))
+            d.line((x0,y0+i,x1,y0+i), fill=(*tint,a))
+        reflection.putalpha(ImageChops.multiply(reflection.getchannel("A"), ui_mask))
+        reflection=reflection.filter(ImageFilter.GaussianBlur(1.1))
+        out=Image.alpha_composite(out,reflection)
+        return out, {"applied": True, "strength": 0.086, "engine": "micro-reflection-v48000"}
+    except Exception as error:
+        return product, {"applied": False, "reason": type(error).__name__}
+
+
+def _graphic_shadow_solver_v48000(product, canvas_size, lighting_profile):
+    """Return contact, ambient and directional shadow layers."""
+    if Image is None or product is None:
+        return [], {"applied": False}
+    from PIL import ImageFilter
+    alpha=product.getchannel("A")
+    W,H=canvas_size
+    direction=str((lighting_profile or {}).get("direction") or "right")
+    dx = int(W*0.004) * (-1 if direction=="left" else 1)
+    contact_a=alpha.filter(ImageFilter.GaussianBlur(max(2,H//240))).point(lambda a:int(a*0.38))
+    ambient_a=alpha.filter(ImageFilter.GaussianBlur(max(7,H//95))).point(lambda a:int(a*0.19))
+    directional_a=alpha.filter(ImageFilter.GaussianBlur(max(12,H//70))).point(lambda a:int(a*0.12))
+    layers=[]
+    for name,mask,offset in (
+        ("contact",contact_a,(0,int(H*0.006))),
+        ("ambient",ambient_a,(dx,int(H*0.014))),
+        ("directional",directional_a,(dx*2,int(H*0.020))),
+    ):
+        layer=Image.new("RGBA",product.size,(0,0,0,0)); layer.putalpha(mask); layers.append((name,layer,offset))
+    return layers, {"applied": True, "layers": [x[0] for x in layers], "direction": direction, "engine": "three-layer-shadow-solver-v48000"}
+
+
+def _graphic_background_harmony_v48000(product, lighting_profile, material_fp=None):
+    """Bounded scene-color harmonization on broad surfaces only; geometry and detail stay immutable."""
+    if Image is None or product is None:
+        return product, {"applied": False}
+    try:
+        from PIL import ImageEnhance, ImageChops
+        out=product.convert("RGBA")
+        ambient=(lighting_profile or {}).get("ambient_rgb") or [128,128,128]
+        warmth=float((lighting_profile or {}).get("warmth") or 0.0)
+        tint=Image.new("RGBA",out.size,(int(ambient[0]),int(ambient[1]),int(ambient[2]),18))
+        core,_=_graphic_core_surface_mask_v38000(out.getchannel("A"), _graphic_detect_screen_box_v20500(out,out.getchannel("A")), "reference_template")
+        blended=Image.blend(out,tint,0.035)
+        out.paste(blended,(0,0),core)
+        if abs(warmth)>0.02:
+            enhancer=ImageEnhance.Color(out); out=enhancer.enhance(1.015)
+        return out, {"applied": True, "ambient_rgb": ambient, "warmth": warmth, "strength": 0.035, "engine": "background-harmony-v48000"}
+    except Exception as error:
+        return product, {"applied": False, "reason": type(error).__name__}
+
+
+def _graphic_detail_fidelity_qa_v48000(source, final_product, masks, policy):
+    """Stage 9/10 deterministic detail and product-quality gate."""
+    if Image is None or source is None or final_product is None:
+        return {"passed": False, "failed": ["missing_product"]}
+    ui_mask=(masks or {}).get("ui_mask")
+    control_mask=(masks or {}).get("control_mask")
+    src_ui=_graphic_high_frequency_score_v48000(source,ui_mask)
+    dst_ui=_graphic_high_frequency_score_v48000(final_product,ui_mask)
+    src_ctl=_graphic_high_frequency_score_v48000(source,control_mask)
+    dst_ctl=_graphic_high_frequency_score_v48000(final_product,control_mask)
+    ui_ratio=dst_ui/max(src_ui,1e-6) if src_ui else 1.0
+    ctl_ratio=dst_ctl/max(src_ctl,1e-6) if src_ctl else 1.0
+    geom=_graphic_geometry_fidelity_v38000(source,final_product)
+    aperture=_graphic_screen_aperture_fidelity_v38100(source,final_product)
+    rgb=_graphic_product_rgb_fidelity_v36000(source,final_product,source.getchannel("A"))
+    failed=[]
+    if ui_ratio < 0.88: failed.append("ui_detail_softened")
+    if ctl_ratio < 0.82: failed.append("physical_control_detail_softened")
+    if not geom.get("passed"): failed.append("geometry_changed")
+    if not aperture.get("passed"): failed.append("screen_aperture_changed")
+    return {
+        "passed": not failed,
+        "failed": failed,
+        "ui_detail_ratio": round(ui_ratio,4),
+        "control_detail_ratio": round(ctl_ratio,4),
+        "geometry": geom,
+        "screen_aperture": aperture,
+        "rgb_fidelity": rgb,
+        "policy": dict(policy or {}),
+        "engine": "autotecpro-final-detail-qa-v48000",
+    }
+
 def _graphic_stage5_execute_v43000(
     background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
     role_items, execution_blueprint, template_key="", product_dna=None,
@@ -23298,12 +23524,17 @@ def _graphic_stage5_execute_v43000(
             )
             score = _graphic_qa_scorecard_v42000(metadata)
             repair_applied = True
+    detail_gate_v48000 = dict(metadata.get("autotecpro_final_qa_v48000") or {})
+    if detail_gate_v48000 and not detail_gate_v48000.get("passed"):
+        score = dict(score or {})
+        score["passed"] = False
+        score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))
     metadata["five_stage_execution_v43000"] = {
         "ready": bool((execution_blueprint or {}).get("ready")),
         "local_repair_applied": repair_applied,
         "provider_retry_used": False,
         "final_scorecard": score,
-        "version": "stage5-image-generator-v43000",
+        "version": "stage5-image-generator-v48000",
     }
     return composed, metadata
 
@@ -23438,8 +23669,14 @@ def _graphic_compose_reference_campaign_v3200(
     ultimate_product_fingerprint = dict(product_analysis_v41000.get("fingerprint") or {})
     ultimate_material_fingerprint = dict(product_analysis_v41000.get("material") or {})
     ultimate_layout_plan = _graphic_layout_intelligence_v40000(layout_bp, product_before_lighting.size, (W, H), design_mode)
+    adaptive_mode = str((get_graphic_project_state() or {}).get("adaptive_mode_v44000") or "commercial_lock")
+    detail_policy_v48000 = _graphic_detail_policy_v48000(prompt_text, design_mode, adaptive_mode)
+    detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
     product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
+    product, background_harmony_v48000 = _graphic_background_harmony_v48000(product, lighting_profile, ultimate_material_fingerprint)
+    product, micro_reflection_v48000 = _graphic_micro_reflection_v48000(product, detail_masks_v48000, lighting_profile)
+    product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
     product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
     product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
@@ -23454,14 +23691,14 @@ def _graphic_compose_reference_campaign_v3200(
         product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
         product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
         product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
 
-    # Grounded contact shadow: downward and subtle, not a bright all-around halo.
-    alpha = product.getchannel("A")
-    shadow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius=max(7, H // 95)))
-    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-    shadow.putalpha(shadow_alpha.point(lambda a: int(a * 0.28)))
-    canvas.alpha_composite(shadow, (px + int(W * 0.006), py + int(H * 0.014)))
+    # Stage 7: physically layered contact, ambient and directional shadows.
+    shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v48000(product, (W,H), lighting_profile)
+    for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
+        canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
+    final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
         product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
     )
@@ -23741,7 +23978,19 @@ def _graphic_compose_reference_campaign_v3200(
         "feature_icon_registry_v42000": feature_registry_v42000,
         "campaign_contract_v42000": _graphic_campaign_contract_v42000(prompt_text, campaign_spec),
         "layer_manifest_v42000": _graphic_layer_manifest_v42000((W,H), layout_bp, product_box, _graphic_campaign_contract_v42000(prompt_text, campaign_spec), feature_registry_v42000),
+        "adaptive_fidelity_policy_v48000": detail_policy_v48000,
+        "ui_control_detail_masks_v48000": {k:v for k,v in detail_masks_v48000.items() if k not in {"ui_mask","control_mask"}},
+        "ui_control_detail_restoration_v48000": detail_restoration_v48000,
+        "optical_relighting_v48000": {"lighting_profile": lighting_profile, "report": product_lighting_report, "engine":"bounded-optical-relighting-v48000"},
+        "lens_matching_v48000": {"perspective": product_perspective_v42000, "geometry_warp_allowed": bool(detail_policy_v48000.get("allow_geometry_warp")), "engine":"lens-policy-v48000"},
+        "micro_reflection_v48000": micro_reflection_v48000,
+        "material_recognition_v48000": ultimate_material_fingerprint,
+        "shadow_solver_v48000": shadow_solver_v48000,
+        "background_harmony_v48000": background_harmony_v48000,
+        "commercial_detail_qa_v48000": final_detail_qa_v48000,
+        "autotecpro_final_qa_v48000": final_detail_qa_v48000,
         "deterministic_campaign_builder_v42000": True,
+        "detail_fidelity_engine_v48000": True,
     }
 
 
@@ -24739,10 +24988,10 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
 
     result = _graphic_build_provider_result_v3000(
         composed, prompt_text, output_size, role_items,
-        route + "+five-stage-controlled-compositor-v43000",
+        route + "+five-stage-controlled-compositor-v48000",
         reference_blueprint, vehicle_profile, corrected=True,
     )
-    result["product_identity_method"] = "engine-v43000-compiled-exact-product-asset-composite"
+    result["product_identity_method"] = "engine-v48000-compiled-detail-restored-product-composite"
     result["layered_metadata"].update(metadata)
 
     scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
@@ -24795,7 +25044,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         result["controlled_qa_failed_checks"] = failed_checks
         diagnostic_log("graphic_v43000_compiled_qa_review", failed=failed_checks)
     else:
-        result["output_status"] = "completed_compiled_campaign_v43000"
+        result["output_status"] = "completed_compiled_campaign_v48000"
         result["verification_status"] = "verified"
 
     result["campaign_spec"] = spec
@@ -24852,7 +25101,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v47000-installed-intent-continuity-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v48000-detail-fidelity-commercial-optics-engine"
 
 
 
