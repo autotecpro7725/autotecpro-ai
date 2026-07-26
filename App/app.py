@@ -46,13 +46,13 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v49000
+# AutoTecPro AI performance/stability revision: v50000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v49000 Dashboard Lock Installation Engine built directly from the working v48000 Detail Fidelity and Commercial Optics Engine.
+# v50000 Installed Photographic Integration Engine built directly from the working v49000 Dashboard Lock Installation Engine.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
-# v49000 adds uploaded-dashboard pixel authority, installation-region-only editing, camera/crop lock, dashboard similarity QA, while retaining v48000 stages: UI/control pixel restoration, optical relighting, lens policy, micro-reflection, material recognition,
+# v50000 adds reflection transfer, lighting/material matching, LCD glass depth, micro-seam blending, OEM donor-control transfer and receiving-aperture validation while retaining v49000 dashboard pixel authority and v48000 detail fidelity:
 # three-layer shadows, background harmony, commercial detail QA, and final fail-closed AutoTecPro QA.
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
@@ -19647,7 +19647,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v44000"
+GRAPHIC_ENGINE_VERSION = "v50000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -25101,7 +25101,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v48000-detail-fidelity-commercial-optics-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v50000-installed-photographic-integration-engine"
 
 
 
@@ -25786,6 +25786,101 @@ def _graphic_dashboard_lock_validation_v49000(data_url, role_items, prompt_text,
     }
 
 
+
+def _graphic_installed_integration_profile_v50000(prompt_text, role_items, interior_profile=None):
+    """Analyze photographic integration and OEM donor-control transfer requirements.
+
+    Active only for Installed View. The returned contract is advisory for generation and
+    mandatory for the v50000 validator. It does not participate in Reference Template mode.
+    """
+    profile = dict(interior_profile or {})
+    dashboard_item = profile.get("dashboard_source_item")
+    product_items = [x for x in (role_items or []) if x.get("role") == "product_photo"][:2]
+    if not isinstance(dashboard_item, dict) or not product_items:
+        return {
+            "available": False,
+            "reason": "Uploaded dashboard and product source are both required for v50000 integration analysis.",
+            "engine": "installed-photographic-integration-profile-v50000",
+            "provider_calls": 0,
+        }
+    dashboard_url = _graphic_role_data_url(dashboard_item)
+    product_urls = [u for u in (_graphic_role_data_url(x) for x in product_items) if u]
+    if not dashboard_url or not product_urls:
+        return {"available": False, "reason": "Source image data unavailable", "engine": "installed-photographic-integration-profile-v50000", "provider_calls": 0}
+    content=[
+        {"type":"input_text","text":(
+            "Act as an automotive installation engineer and forensic photo compositor. Image 1 is the untouched OEM dashboard donor image. "
+            "The remaining images are the AutoTecPro product references. Build a precise installation integration contract. "
+            "Identify: (a) factory components replaced by the new unit, (b) factory components preserved in place, and (c) factory controls/panels that must be physically transferred into receiving apertures in the new fascia. "
+            "Pay special attention to lower switch banks, parking sensor controls, tow/haul, traction control, hazard controls, USB/AUX panels, toggle rows, climate modules and any empty product cavity designed to receive OEM controls. "
+            "Also analyze dashboard light direction, exposure, colour temperature, black level, gloss/reflection character, screen-glass reflection, camera/lens perspective, and seam/contact-shadow behaviour. "
+            "Return JSON only with keys: available, replacement_region, preserve_in_place, transfer_components, receiving_apertures, required_component_matches, light_direction, exposure_profile, colour_temperature, black_level_profile, gloss_reflection_profile, lcd_glass_profile, seam_shadow_profile, camera_lens_profile, prohibited_changes, confidence, notes. "
+            "For every transfer component include source_location, component_type, button_count, label_or_icon_cues, destination_aperture, order_must_match, and required_in_final. "
+            "For every receiving aperture include product_location, expected_component_type, must_be_filled, and alignment_anchors. Do not infer controls that are not visibly supported by the images."
+        )},
+        {"type":"input_image","image_url":dashboard_url,"detail":"high"},
+    ]
+    for u in product_urls:
+        content.append({"type":"input_image","image_url":u,"detail":"high"})
+    try:
+        response=client.responses.create(model=_graphic_responses_model_v4000(),input=[{"role":"user","content":content}],max_output_tokens=2400)
+        payload=extract_json_object(str(getattr(response,"output_text","") or ""))
+        payload=payload if isinstance(payload,dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v50000_integration_profile_unavailable",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+        return {"available":False,"reason":"Installed integration analysis unavailable","engine":"installed-photographic-integration-profile-v50000","provider_calls":1}
+    payload["available"]=bool(payload.get("available",True))
+    payload["engine"]="installed-photographic-integration-profile-v50000"
+    payload["provider_calls"]=1
+    return payload
+
+
+def _graphic_installed_photographic_validation_v50000(data_url, role_items, prompt_text, vehicle_profile, interior_profile):
+    """Validate photographic integration plus OEM donor-control transfer completeness."""
+    profile=dict(interior_profile or {})
+    dashboard_item=profile.get("dashboard_source_item")
+    integration=dict(profile.get("integration_profile_v50000") or {})
+    if not data_url or not isinstance(dashboard_item,dict):
+        return {"available":False,"passed":None,"reason":"Dashboard ground truth unavailable","provider_calls":0}
+    dashboard_url=_graphic_role_data_url(dashboard_item)
+    product_items=[x for x in (role_items or []) if x.get("role")=="product_photo"][:2]
+    product_urls=[u for u in (_graphic_role_data_url(x) for x in product_items) if u]
+    if not dashboard_url:
+        return {"available":False,"passed":None,"reason":"Dashboard image unavailable","provider_calls":0}
+    content=[
+        {"type":"input_text","text":(
+            "Act as a strict automotive installation-photography and OEM-control-transfer inspector. Image 1 is the generated result, Image 2 is the original dashboard, and remaining images are product references. "
+            "Assess whether the installed unit looks physically photographed rather than pasted. Verify reflection transfer on screen glass and gloss trim; dashboard-matched light direction, exposure and colour temperature; black levels and materials; LCD cover-glass depth/anti-glare/bezel-edge darkening; and micro seam/contact shadows. "
+            "Critically verify OEM donor controls: every factory switch bank or control panel identified for transfer must appear in the correct receiving aperture in the new unit, in the same order and with readable icons/labels. Empty required apertures, missing switch banks, invented controls, duplicated controls or transferred panels left in the old location are automatic failures. "
+            "Return JSON only with keys: passed, score, reflection_transfer_score, lighting_match_score, material_match_score, lcd_glass_score, micro_seam_score, pasted_appearance_score, donor_control_transfer_score, receiving_aperture_completion_score, switch_order_identity_score, ui_detail_score, physical_control_detail_score, missing_or_wrong_components, failed_categories, correction_prompt, reason. "
+            "Required minimums: overall 94; reflection 90; lighting 92; material 92; LCD glass 88; micro seam 88; pasted-appearance 92; donor transfer 98 when required; receiving apertures 100 when required; switch order/identity 96; UI detail 88; physical controls 90. "
+            "Integration contract: "+json.dumps(integration,ensure_ascii=False,default=str)[:16000]+"\nUser request: "+str(prompt_text or '')[:1000]
+        )},
+        {"type":"input_image","image_url":data_url,"detail":"high"},
+        {"type":"input_image","image_url":dashboard_url,"detail":"high"},
+    ]
+    for u in product_urls:
+        content.append({"type":"input_image","image_url":u,"detail":"high"})
+    try:
+        response=client.responses.create(model=_graphic_responses_model_v4000(),input=[{"role":"user","content":content}],max_output_tokens=2200)
+        payload=extract_json_object(str(getattr(response,"output_text","") or ""))
+        payload=payload if isinstance(payload,dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v50000_photographic_validation_unavailable",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+        return {"available":False,"passed":None,"reason":"Photographic integration validation unavailable","provider_calls":1}
+    keys=("score","reflection_transfer_score","lighting_match_score","material_match_score","lcd_glass_score","micro_seam_score","pasted_appearance_score","donor_control_transfer_score","receiving_aperture_completion_score","switch_order_identity_score","ui_detail_score","physical_control_detail_score")
+    scores={}
+    for k in keys:
+        try:scores[k]=max(0,min(100,int(float(payload.get(k) or 0))))
+        except Exception:scores[k]=0
+    transfer_required=bool(integration.get("transfer_components") or integration.get("required_component_matches") or integration.get("receiving_apertures"))
+    thresholds={"score":94,"reflection_transfer_score":90,"lighting_match_score":92,"material_match_score":92,"lcd_glass_score":88,"micro_seam_score":88,"pasted_appearance_score":92,"ui_detail_score":88,"physical_control_detail_score":90}
+    if transfer_required:
+        thresholds.update({"donor_control_transfer_score":98,"receiving_aperture_completion_score":100,"switch_order_identity_score":96})
+    failed=[k for k,v in thresholds.items() if scores.get(k,0)<v]
+    passed=bool(payload.get("passed")) and not failed
+    return {"available":True,"passed":passed,"score":scores.get("score"),"scores":scores,"thresholds":thresholds,"failed_categories":failed,"transfer_required":transfer_required,"missing_or_wrong_components":(payload.get("missing_or_wrong_components") or [])[:40],"correction_prompt":str(payload.get("correction_prompt") or "")[:4000],"reason":str(payload.get("reason") or "")[:2000],"provider_calls":1,"engine":"installed-photographic-validation-v50000"}
+
 def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_profile=None, interior_profile=None):
     """Build a strict provider directive for modes that intentionally recreate pixels."""
     internal_mode = str((mode_info or {}).get("mode") or "commercial_lock")
@@ -25831,7 +25926,11 @@ def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_p
             "When no uploaded dashboard is available, use a natural driver-seat or front-passenger three-quarter camera view unless the user explicitly requests another interior angle. When a dashboard is uploaded, preserve its exact camera view and crop unless the user explicitly asks to change them. Keep the installed screen clearly visible and commercially attractive. "
             "Any uncertainty in trim-specific details must default to the most widely documented dashboard family for the requested generation and must not contradict the contract.\n"
             "ADAPTIVE INTERIOR SOURCE CONTRACT: " + json.dumps({k: v for k, v in research.items() if k != "dashboard_source_item"}, ensure_ascii=False, default=str)[:20000] + "\n"
-            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:14000]
+            "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:14000] + "\n" +
+            "V50000 PHOTOGRAPHIC INTEGRATION AND OEM CONTROL TRANSFER CONTRACT: " + json.dumps(research.get("integration_profile_v50000") or {}, ensure_ascii=False, default=str)[:18000] + "\n" +
+            "V50000 REQUIRED FINISHING: transfer real dashboard reflections onto screen glass and piano-black trim without obscuring UI; match dashboard light direction, exposure, colour temperature and black levels; preserve metallic/plastic material identity; add subtle LCD cover-glass depth, anti-glare and bezel-edge darkening; add micro contact shadows and realistic seam transitions. " +
+            "OEM CONTROL TRANSFER IS MANDATORY: identify every original switch bank, button panel, auxiliary-port panel or retained control that the product fascia is designed to receive. Extract it from the original dashboard context and place it into the matching receiving aperture in the new unit, preserving button count, order, icons, labels and orientation. Never leave a required receiving aperture empty. Never invent, duplicate, omit or relocate unrelated controls. " +
+            "The dashboard outside the replacement region remains immutable. The product must no longer look pasted: reflections, light, black levels, glass optics and seams must all agree with the source cabin while UI and physical controls remain sharp."
         )
     return base
 
@@ -25863,8 +25962,11 @@ def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_bl
         "uploaded_dashboard_ground_truth": bool((interior_profile or {}).get("dashboard_ground_truth")),
         "needs_vehicle_clarification": bool((interior_profile or {}).get("needs_vehicle_clarification")),
         "interior_research_verified": bool((interior_profile or {}).get("research_verified_enough_for_generation")),
-        "vehicle_installation_engine": "v49000",
+        "vehicle_installation_engine": "v50000",
         "dashboard_lock_policy": _graphic_dashboard_lock_policy_v49000("", interior_profile),
+        "photographic_integration_engine_v50000": True,
+        "oem_control_transfer_engine_v50000": True,
+        "integration_profile_v50000_available": bool((interior_profile or {}).get("integration_profile_v50000", {}).get("available")),
     }
 
 
@@ -26771,7 +26873,15 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_progress_update_v3300(status, "Resolving the best dashboard source: uploaded ground truth, cached Interior DNA, or live OEM research…")
             t = time.perf_counter()
             interior_profile = _graphic_installation_source_plan_v46000(prompt_text, role_items, vehicle_profile)
+            integration_profile = _graphic_safe_optional_call(
+                "graphic_v50000_integration_profile_unavailable",
+                lambda: _graphic_installed_integration_profile_v50000(prompt_text, role_items, interior_profile),
+                {"available": False, "provider_calls": 0, "reason": "Installed integration profile unavailable"},
+            ) or {}
+            if isinstance(interior_profile, dict):
+                interior_profile["integration_profile_v50000"] = integration_profile
             stage_times["installed_interior_source_resolution_seconds"] = time.perf_counter() - t
+            stage_times["installed_integration_analysis_provider_calls"] = int(integration_profile.get("provider_calls") or 0)
             source_item = interior_profile.get("dashboard_source_item") if isinstance(interior_profile, dict) else None
             if isinstance(source_item, dict):
                 source_item["provider_role"] = "installation_dashboard_reference"
@@ -26929,6 +27039,16 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     candidate_failed = candidate_failed or dashboard_lock_validation.get("passed") is not True
             else:
                 dashboard_lock_validation = {"available": False, "passed": None, "provider_calls": 0}
+            photographic_validation_v50000 = {"available": False, "passed": None, "provider_calls": 0}
+            if product_mode.get("installed_view") and (interior_profile or {}).get("dashboard_ground_truth"):
+                photographic_validation_v50000 = _graphic_safe_optional_call(
+                    "graphic_v50000_photographic_validation_unavailable",
+                    lambda: _graphic_installed_photographic_validation_v50000(candidate.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile),
+                    {"available": False, "passed": None, "reason": "Photographic integration validation unavailable", "provider_calls": 0},
+                )
+                engineering_qa_call_count += int(photographic_validation_v50000.get("provider_calls") or 0)
+                if photographic_validation_v50000.get("available"):
+                    candidate_failed = candidate_failed or photographic_validation_v50000.get("passed") is not True
             candidate.update({
                 "quality_review": candidate_review,
                 "vehicle_validation": focused_vehicle,
@@ -26936,6 +27056,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 "qa_missing_scores": missing_scores,
                 "installed_view_validation": installed_validation,
                 "dashboard_lock_validation_v49000": dashboard_lock_validation,
+                "installed_photographic_validation_v50000": photographic_validation_v50000,
             })
             if candidate_failed:
                 reason = "The image was created, but one or more optional quality checks did not pass or were unavailable."
@@ -26975,6 +27096,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     "DASHBOARD LOCK CORRECTION. Return to the exact uploaded dashboard photograph. Do not regenerate the cabin. Restore the original camera/crop, steering wheel, cluster, vents, trim, lower controls, console, materials and lighting outside the radio replacement region. Edit only the installation opening and seam boundary. "
                     + str(dashboard_lock_validation.get("correction_prompt") or dashboard_lock_validation.get("reason") or "")
                     + " Failed dashboard-lock categories: " + ", ".join(map(str, dashboard_lock_validation.get("failed_categories") or []))
+                )
+            if product_mode.get("installed_view") and photographic_validation_v50000.get("available") and photographic_validation_v50000.get("passed") is not True:
+                correction_parts.append(
+                    "V50000 PHOTOGRAPHIC INTEGRATION AND OEM CONTROL TRANSFER CORRECTION. Keep the dashboard pixels and camera locked. Repair only reflection transfer, lighting/exposure/colour-temperature match, material black levels and gloss, LCD glass depth/anti-glare, micro seam shadows, and OEM donor-control transplantation. Populate every required receiving aperture with the correct original factory switch panel in the original button order. Preserve UI and physical-control detail. "
+                    + str(photographic_validation_v50000.get("correction_prompt") or photographic_validation_v50000.get("reason") or "")
+                    + " Failed v50000 categories: " + ", ".join(map(str, photographic_validation_v50000.get("failed_categories") or []))
                 )
             correction = "\n".join(part for part in correction_parts if part).strip()
             if correction:
@@ -27026,7 +27153,17 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                             engineering_qa_call_count += int(dashboard_lock2.get("provider_calls") or 0)
                             if dashboard_lock2.get("available"):
                                 failed2 = failed2 or dashboard_lock2.get("passed") is not True
-                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2, "installed_view_validation": installed2, "dashboard_lock_validation_v49000": dashboard_lock2})
+                    photographic2 = {"available": False, "passed": None, "provider_calls": 0}
+                    if product_mode.get("installed_view") and (interior_profile or {}).get("dashboard_ground_truth"):
+                        photographic2 = _graphic_safe_optional_call(
+                            "graphic_v50000_corrected_photographic_validation_unavailable",
+                            lambda: _graphic_installed_photographic_validation_v50000(corrected.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile),
+                            {"available": False, "passed": None, "reason": "Photographic integration validation unavailable", "provider_calls": 0},
+                        )
+                        engineering_qa_call_count += int(photographic2.get("provider_calls") or 0)
+                        if photographic2.get("available"):
+                            failed2 = failed2 or photographic2.get("passed") is not True
+                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2, "installed_view_validation": installed2, "dashboard_lock_validation_v49000": dashboard_lock2, "installed_photographic_validation_v50000": photographic2})
                     diagnostic_log("graphic_v4100_corrected_review", scores=scores2, missing=missing2, vehicle_available=not _graphic_validation_is_unavailable_v4100(vehicle2), failed=failed2)
                     if not failed2:
                         corrected["output_status"] = "verified_after_correction"
@@ -27149,6 +27286,20 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             if not final_result.get("installed_view_validation"):
                 engineering_qa_call_count += int(final_installed.get("provider_calls") or 0)
             final_result["installed_view_validation"] = final_installed
+            if (interior_profile or {}).get("dashboard_ground_truth"):
+                final_photo_v50000 = final_result.get("installed_photographic_validation_v50000") or _graphic_safe_optional_call(
+                    "graphic_v50000_final_photographic_validation_unavailable",
+                    lambda: _graphic_installed_photographic_validation_v50000(final_result.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile),
+                    {"available": False, "passed": None, "reason": "Photographic integration validation unavailable", "provider_calls": 0},
+                )
+                engineering_qa_call_count += int(final_photo_v50000.get("provider_calls") or 0)
+                final_result["installed_photographic_validation_v50000"] = final_photo_v50000
+                if final_photo_v50000.get("available") and final_photo_v50000.get("passed") is not True:
+                    final_result = _graphic_mark_unverified_v4100(
+                        final_result,
+                        "The Installed View was created, but v50000 photographic integration or OEM control-transfer verification did not pass. Review before publishing.",
+                        status="completed_installed_view_needs_review_v50000",
+                    )
             final_result["installed_interior_profile"] = interior_profile
             final_result["vehicle_installation_engine_version"] = "v45000"
             if final_installed.get("available") and final_installed.get("passed") is not True:
