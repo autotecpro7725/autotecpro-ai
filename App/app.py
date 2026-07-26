@@ -51,6 +51,9 @@ except Exception:
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
 # v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
+# v56000 Fresh Mask, Bottom-Bezel Authority & Deterministic Product Composition Engine built directly from v55000.
+# Forces fresh authoritative mask extraction, versions all geometry caches, fails closed on provider-zone clearing,
+# strengthens lower-housing verification, and uses deterministic supersampled product resizing for small controls/UI.
 # v55000 Product Pixel Authority & Deterministic Composition Engine built directly from v54000.
 # v55000 adds immutable source-pixel authority, protected-product-zone inpainting, strict lower-bezel/
 # lower-housing contour validation, fresh source-hash cache epochs, and fail-closed product-region QA.
@@ -17952,10 +17955,10 @@ def _graphic_vehicle_profile_text(profile):
     return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
-GRAPHIC_V55000_CACHE_EPOCH = "v55000-product-authority-2026-07-26-1"
+GRAPHIC_V56000_CACHE_EPOCH = "v56000-fresh-mask-bezel-authority-2026-07-26-1"
 
 
-def _graphic_apply_v55000_cache_epoch():
+def _graphic_apply_v56000_cache_epoch():
     """Invalidate geometry-sensitive Graphic Marketing caches once per engine epoch.
 
     The invalidation is intentionally narrow: conversation content and uploaded files
@@ -17964,23 +17967,26 @@ def _graphic_apply_v55000_cache_epoch():
     """
     try:
         state = get_graphic_project_state()
-        if state.get("graphic_cache_epoch") == GRAPHIC_V55000_CACHE_EPOCH:
+        if state.get("graphic_cache_epoch") == GRAPHIC_V56000_CACHE_EPOCH:
             return state
         for key in (
             "background_plate_cache", "product_dna_cache", "product_analysis_cache",
-            "product_cutout_cache", "reference_analysis_cache", "last_campaign_product_sha",
-            "last_reference_product_composite", "last_product_cutout_report_v53000",
-            "last_product_cutout_report_v54000", "last_product_cutout_report_v55000",
+            "product_cutout_cache", "product_mask_cache", "product_bezel_master_reports",
+            "engineering_dna_cache_v21000", "engineering_approval_v21000",
+            "reference_analysis_cache", "vehicle_analysis_cache", "dashboard_analysis_cache",
+            "last_campaign_product_sha", "last_reference_product_composite",
+            "last_product_cutout_report_v53000", "last_product_cutout_report_v54000",
+            "last_product_cutout_report_v55000", "last_product_cutout_report_v56000",
         ):
             state.pop(key, None)
-        state["graphic_cache_epoch"] = GRAPHIC_V55000_CACHE_EPOCH
+        state["graphic_cache_epoch"] = GRAPHIC_V56000_CACHE_EPOCH
         state["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
         state["graphic_adaptive_engine_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        diagnostic_log("graphic_v55000_cache_epoch_applied", epoch=GRAPHIC_V55000_CACHE_EPOCH)
+        diagnostic_log("graphic_v56000_cache_epoch_applied", epoch=GRAPHIC_V56000_CACHE_EPOCH)
         return state
     except Exception as error:
-        diagnostic_log("graphic_v55000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log("graphic_v56000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
         return {}
 
 
@@ -18092,7 +18098,7 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
 
 
 def _graphic_extract_product_cutout(uploaded_file):
-    _graphic_apply_v55000_cache_epoch()
+    _graphic_apply_v56000_cache_epoch()
     """Extract the authoritative product while preserving its exact silhouette.
 
     v54000 strengthens the v53000 cutout path in the two areas that still caused
@@ -21579,6 +21585,7 @@ def _graphic_bezel_fingerprint_v20500(product_item, layer=None):
         "version": ENGINEERING_DNA_VERSION,
         "fingerprint_algorithm_version": "fingerprint-v21000",
         "segmentation_version": GRAPHIC_MASK_CACHE_VERSION,
+        "product_authority_cache_version": GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION,
         "source_sha256": source_sha,
         "source_rgb_sha256": hashlib.sha256(rgba.convert("RGB").tobytes()).hexdigest(),
         "source_name": str(product_item.get("name") or ""),
@@ -23960,6 +23967,33 @@ def _graphic_stage5_execute_v43000(
     return composed, metadata
 
 
+def _graphic_supersampled_product_resize_v56000(image, target_size):
+    """Resize an immutable product through a 2x intermediate for cleaner small UI.
+
+    This is deterministic local resampling only. It never invents pixels with AI and
+    preserves the source alpha/RGB relationship while reducing one-step downscale blur.
+    """
+    if Image is None or image is None:
+        return image, {"applied": False, "reason": "image unavailable"}
+    tw, th = max(1, int(target_size[0])), max(1, int(target_size[1]))
+    try:
+        source = image.convert("RGBA")
+        if source.size == (tw, th):
+            return source.copy(), {"applied": False, "reason": "already target size", "factor": 1}
+        # Only use the intermediate when downscaling. Upscaling cannot recover source detail.
+        if tw < source.width or th < source.height:
+            factor = 2
+            iw, ih = max(tw, min(source.width, tw * factor)), max(th, min(source.height, th * factor))
+            intermediate = _graphic_premultiplied_resize_v20000(source, (iw, ih), Image.Resampling.LANCZOS)
+            final = _graphic_premultiplied_resize_v20000(intermediate, (tw, th), Image.Resampling.LANCZOS)
+            return final, {"applied": True, "factor": factor, "intermediate_size": [iw, ih], "engine": "supersampled-product-resize-v56000"}
+        final = _graphic_premultiplied_resize_v20000(source, (tw, th), Image.Resampling.LANCZOS)
+        return final, {"applied": False, "reason": "upscale or equal", "factor": 1, "engine": "supersampled-product-resize-v56000"}
+    except Exception as error:
+        diagnostic_log("graphic_v56000_supersampled_resize_failed", error_type=type(error).__name__, error=str(error))
+        return _graphic_premultiplied_resize_v20000(image, (tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300]}
+
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -23987,7 +24021,7 @@ def _graphic_compose_reference_campaign_v3200(
 
     from PIL import ImageDraw, ImageFilter
 
-    _graphic_apply_v55000_cache_epoch()
+    _graphic_apply_v56000_cache_epoch()
     with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
         canvas = ImageOps.exif_transpose(bg).convert("RGBA")
     W, H = canvas.size
@@ -24070,10 +24104,9 @@ def _graphic_compose_reference_campaign_v3200(
     scale *= float(transforms.get("product_scale", 1.0))
     # Never crop the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
-    product = _graphic_premultiplied_resize_v20000(
+    product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
         product,
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
-        Image.Resampling.LANCZOS,
     )
     if source_aspect < 0.90:
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
@@ -24096,14 +24129,14 @@ def _graphic_compose_reference_campaign_v3200(
     detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
     lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
     if design_mode == "reference_template":
-        # v55000: Reference Style is an immutable-source route. Scene lighting is
+        # v56000: Reference Style is an immutable-source route. Scene lighting is
         # expressed through external shadows and background treatment only; no RGB or
         # alpha pixel inside the uploaded product may be regenerated or relit.
         product = product_before_lighting.copy()
         product_lighting_report = {
             "applied": False, "immutable_source_pixels": True,
             "reason": "reference-style exact pixel authority",
-            "engine": "immutable-product-lighting-policy-v55000",
+            "engine": "immutable-product-lighting-policy-v56000",
         }
         background_harmony_v48000 = {"applied": False, "immutable_source_pixels": True}
         micro_reflection_v48000 = {"applied": False, "immutable_source_pixels": True}
@@ -24136,11 +24169,16 @@ def _graphic_compose_reference_campaign_v3200(
         product = product_before_lighting.copy()
         lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
         if not lower_housing_fidelity_v55000.get("passed"):
-            raise RuntimeError("v55000 rejected the result because the bottom bezel or lower housing geometry changed.")
+            raise RuntimeError("v56000 rejected the result because the bottom bezel or lower housing geometry changed.")
 
     # Remove any provider-created device, bezel, mounting tab or product shadow from
     # the protected region before placing the exact uploaded product.
     canvas, protected_product_zone_v55000 = _graphic_clear_reserved_product_zone_v55000(canvas, product, px, py)
+    if design_mode == "reference_template" and not protected_product_zone_v55000.get("applied"):
+        raise RuntimeError(
+            "v56000 rejected the result because the provider product zone could not be cleared safely. "
+            "Confirm opencv-python-headless is installed in the deployment environment."
+        )
 
     # Stage 7: physically layered contact, ambient and directional shadows.
     shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v48000(product, (W,H), lighting_profile)
@@ -24349,11 +24387,15 @@ def _graphic_compose_reference_campaign_v3200(
         "engine": "autotecpro-commercial-composer-v43000-five-stage-compiled-production",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
-        "graphic_cache_epoch_v55000": GRAPHIC_V55000_CACHE_EPOCH,
+        "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
+        "graphic_cache_epoch_v56000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
-        "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),
-        "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),
+        "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
+        "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
+        "bottom_bezel_pixel_lock_v56000": bool(lower_housing_fidelity_v55000.get("passed")),
+        "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),  # compatibility alias
+        "provider_product_exclusion_v56000": bool(protected_product_zone_v55000.get("applied")),
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
         "product_pixels_provider_generated": False,
@@ -24825,7 +24867,8 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "v38000-mask-v32000-contour-safe-border-connected-rgb-lock"
+GRAPHIC_MASK_CACHE_VERSION = "v56000-mask-fresh-source-bezel-authority-rgb-lock-1"
+GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v56000-product-authority-master-1"
 
 
 def _graphic_progress_v3300(label):
@@ -25033,16 +25076,12 @@ def _graphic_open_product_layer_v3300(uploaded_file):
     digest = hashlib.sha256(raw).hexdigest()
     state = get_graphic_project_state()
     cache = dict(state.get("product_mask_cache") or {})
-    cache_key = f"{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
+    cache_key = f"{GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
+    # v56000 never trusts a cached cutout as the validation baseline. The source
+    # image is decoded and its authoritative alpha is freshly regenerated below.
+    # Cached entries are retained only as diagnostics/performance evidence and are
+    # overwritten after the fresh source-derived master passes validation.
     cached = cache.get(cache_key)
-    if isinstance(cached, str) and cached.startswith("data:image/"):
-        cached_raw, _ = data_url_to_bytes(cached)
-        if cached_raw:
-            try:
-                with Image.open(io.BytesIO(cached_raw)) as cached_image:
-                    return ImageOps.exif_transpose(cached_image).convert("RGBA"), True
-            except Exception:
-                pass
 
     try:
         with Image.open(io.BytesIO(raw)) as source_image:
@@ -25099,7 +25138,7 @@ def _graphic_open_product_layer_v3300(uploaded_file):
             reports = dict(state.get("product_bezel_master_reports") or {})
             reports[cache_key] = {
                 "applied": True,
-                "mode": "exact_product_asset_v32000_rgb_locked",
+                "mode": "exact_product_asset_v56000_fresh_source_rgb_locked",
                 "mask_method": mask_method,
                 "master_rgb_sha256": digest,
                 "rgb_pixels_regenerated": False,
@@ -25570,7 +25609,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v55000-product-pixel-authority-deterministic-composition-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v56000-fresh-mask-bottom-bezel-authority-engine"
 
 
 
