@@ -46,13 +46,13 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v48000
+# AutoTecPro AI performance/stability revision: v49000
 # v22000 consolidated production update built directly from the current v21010 working base.
-# v48000 Detail Fidelity and Commercial Optics Engine built directly from the working v47000 Installed Intent Continuity Engine.
+# v49000 Dashboard Lock Installation Engine built directly from the working v48000 Detail Fidelity and Commercial Optics Engine.
 # Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
 # product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
 # scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
-# v48000 stages: UI/control pixel restoration, optical relighting, lens policy, micro-reflection, material recognition,
+# v49000 adds uploaded-dashboard pixel authority, installation-region-only editing, camera/crop lock, dashboard similarity QA, while retaining v48000 stages: UI/control pixel restoration, optical relighting, lens policy, micro-reflection, material recognition,
 # three-layer shadows, background harmony, commercial detail QA, and final fail-closed AutoTecPro QA.
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
@@ -25700,6 +25700,92 @@ def _graphic_ui_replacement_local_v44000(prompt_text, role_items, output_size, v
     return result
 
 
+def _graphic_dashboard_lock_policy_v49000(prompt_text, interior_profile=None):
+    """Return the strict dashboard-lock contract used only for Installed View with an uploaded dashboard.
+
+    This is intentionally separate from Reference Template / Studio design routing. It never
+    changes normal commercial-reference behavior.
+    """
+    profile = dict(interior_profile or {})
+    locked = bool(profile.get("dashboard_ground_truth") and profile.get("dashboard_source_item"))
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    commercial_frame = any(k in text for k in ("advertisement", "commercial", "marketing", "poster", "banner"))
+    exact_view = not any(k in text for k in ("change camera", "different angle", "driver-side three-quarter", "passenger-side", "close-up", "wide interior"))
+    return {
+        "available": locked,
+        "dashboard_pixels_authoritative": locked,
+        "edit_scope": "factory_radio_region_plus_seam_blending_only" if locked else "generated_interior",
+        "preserve_camera_and_crop": bool(locked and exact_view),
+        "preserve_dashboard_outside_roi": locked,
+        "web_search_prohibited": locked,
+        "dashboard_reconstruction_prohibited": locked,
+        "commercial_frame_allowed": bool(locked and commercial_frame),
+        "commercial_graphics_must_not_cover_dashboard": bool(locked and commercial_frame),
+        "engine": "dashboard-lock-installation-policy-v49000",
+    }
+
+
+def _graphic_dashboard_lock_validation_v49000(data_url, role_items, prompt_text, vehicle_profile, interior_profile):
+    """Strictly compare an Installed View result with the uploaded dashboard ground truth.
+
+    The validator focuses on unchanged cabin/camera geometry outside the replacement region.
+    It is only active for Level-1 uploaded-dashboard jobs and therefore cannot affect the
+    Reference Template engine.
+    """
+    profile = dict(interior_profile or {})
+    dashboard_item = profile.get("dashboard_source_item")
+    if not data_url or not isinstance(dashboard_item, dict):
+        return {"available": False, "passed": None, "reason": "Uploaded dashboard ground truth unavailable", "provider_calls": 0}
+    dashboard_url = _graphic_role_data_url(dashboard_item)
+    if not dashboard_url:
+        return {"available": False, "passed": None, "reason": "Dashboard image unavailable", "provider_calls": 0}
+    product_sources = [x for x in (role_items or []) if x.get("role") == "product_photo"][:2]
+    content = [
+        {"type": "input_text", "text": (
+            "Act as a forensic automotive compositing inspector. Image 1 is the generated Installed View. Image 2 is the authoritative uploaded OEM dashboard before installation. "
+            "Any product images after Image 2 are authoritative unit references. Compare the dashboard at the level of camera position, crop, steering-wheel size/location, cluster, vents, dash contour, trim, climate panel, center console, door portions, windshield framing, materials and lighting. "
+            "Outside the factory radio/replacement region, the generated result must remain visually the same dashboard and viewpoint, not a newly imagined interior. Commercial text may be placed only in unused margins and must not cause the cabin to be regenerated. "
+            "Return JSON only with keys: passed, score, dashboard_identity_score, camera_crop_score, steering_cluster_score, vent_trim_score, lower_controls_console_score, material_texture_score, unchanged_outside_install_region_score, product_fit_score, product_identity_score, ui_detail_score, wrong_or_invented_details, correction_prompt, reason. "
+            "Required minimums: overall 94; dashboard identity 97; camera/crop 96; steering/cluster 96; vents/trim 97; lower controls/console 96; material/texture 92; unchanged outside install region 97; product fit 94; product identity 92; UI detail 88. "
+            "Fail if the dashboard was re-created, camera moved without explicit request, steering wheel changed scale, vents or controls changed, lower console was invented, windshield/background altered in a way that changes the source cabin, or the unit is only approximately similar. "
+            f"User request: {str(prompt_text or '')[:1200]}"
+        )},
+        {"type": "input_image", "image_url": data_url, "detail": "high"},
+        {"type": "input_image", "image_url": dashboard_url, "detail": "high"},
+    ]
+    for item in product_sources:
+        source = _graphic_role_data_url(item)
+        if source:
+            content.append({"type": "input_image", "image_url": source, "detail": "high"})
+    try:
+        response = client.responses.create(model=_graphic_responses_model_v4000(), input=[{"role": "user", "content": content}], max_output_tokens=1800)
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        payload = payload if isinstance(payload, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_v49000_dashboard_lock_validation_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        return {"available": False, "passed": None, "reason": "Dashboard lock validation unavailable", "provider_calls": 1}
+    keys = ("score", "dashboard_identity_score", "camera_crop_score", "steering_cluster_score", "vent_trim_score", "lower_controls_console_score", "material_texture_score", "unchanged_outside_install_region_score", "product_fit_score", "product_identity_score", "ui_detail_score")
+    scores = {}
+    for key in keys:
+        try:
+            scores[key] = max(0, min(100, int(float(payload.get(key) or 0))))
+        except Exception:
+            scores[key] = 0
+    thresholds = {
+        "score": 94, "dashboard_identity_score": 97, "camera_crop_score": 96, "steering_cluster_score": 96,
+        "vent_trim_score": 97, "lower_controls_console_score": 96, "material_texture_score": 92,
+        "unchanged_outside_install_region_score": 97, "product_fit_score": 94, "product_identity_score": 92, "ui_detail_score": 88,
+    }
+    failed = [k for k, minimum in thresholds.items() if scores.get(k, 0) < minimum]
+    passed = bool(payload.get("passed")) and not failed
+    return {
+        "available": True, "passed": passed, "score": scores.get("score"), "scores": scores, "thresholds": thresholds,
+        "failed_categories": failed, "wrong_or_invented_details": (payload.get("wrong_or_invented_details") or [])[:30],
+        "correction_prompt": str(payload.get("correction_prompt") or "")[:3000], "reason": str(payload.get("reason") or "")[:1800],
+        "provider_calls": 1, "policy": "v49000_dashboard_pixel_authority",
+    }
+
+
 def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_profile=None, interior_profile=None):
     """Build a strict provider directive for modes that intentionally recreate pixels."""
     internal_mode = str((mode_info or {}).get("mode") or "commercial_lock")
@@ -25720,8 +25806,20 @@ def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_p
         )
     if mode == "installed_view" or internal_mode == "installed_product_view":
         research = dict(interior_profile or {})
-        return base + (
-            "VEHICLE INSTALLATION ENGINE v46000 — ADAPTIVE INTERIOR SOURCE MODE.\n"
+        dashboard_lock = _graphic_dashboard_lock_policy_v49000(prompt_text, research)
+        lock_directive = ""
+        if dashboard_lock.get("available"):
+            lock_directive = (
+                "\nDASHBOARD LOCK MODE v49000 — HIGHEST PRIORITY. The uploaded OEM dashboard is the actual base photograph, not inspiration. "
+                "Preserve the same camera position, crop, steering wheel size/location, instrument cluster, vents, dashboard contour, trim, climate panel, lower controls, console, doors, windshield framing, visible background, material texture, exposure and cabin lighting. "
+                "Do not generate a replacement cabin and do not beautify, widen, compress, rotate, restage or reinterpret the dashboard. Modify only the factory radio/display replacement region plus a narrow seam-blending boundary. "
+                "Insert the uploaded AutoTecPro unit into that exact opening with correct physical scale, perspective, occlusion and depth. Preserve the unit UI, buttons, labels, bezel and trim as sharply as the source allows. "
+                "No web research may override the uploaded dashboard. If commercial artwork is requested, place typography/icons only in truly unused margins without changing or covering the dashboard photograph. "
+                "If exact integration cannot be achieved, fail rather than returning a newly invented interior.\n"
+                "DASHBOARD LOCK CONTRACT: " + json.dumps(dashboard_lock, ensure_ascii=False, default=str) + "\n"
+            )
+        return base + lock_directive + (
+            "VEHICLE INSTALLATION ENGINE v49000 — ADAPTIVE INTERIOR SOURCE MODE.\n"
             "Create a photorealistic interior photograph from inside the exact requested vehicle generation. The OEM cabin and dashboard—not an exterior vehicle scene—must fill the image. "
             "Apply this source hierarchy strictly: Level 1 user-uploaded dashboard photo is immutable ground truth and must be visually preserved; Level 2 exact vehicle/year Interior DNA uses cached or live verified OEM research; Level 3 incomplete vehicle details use best-effort research and must not invent unsupported trim details. "
             "When dashboard_ground_truth is true, use the uploaded dashboard image as the actual installation canvas/visual authority, preserving its camera angle, vents, controls, trim seams, steering wheel, console, lighting and visible cabin pixels. Modify only the factory replacement region and necessary local integration pixels. "
@@ -25730,7 +25828,7 @@ def _graphic_mode_directive_v44000(mode_info, prompt_text, role_items, vehicle_p
             "Place the unit into the real factory replacement region; it must share the dashboard plane, depth, perspective, occlusion, trim seams, reflections, exposure, color temperature, and contact shadows. "
             "Retain all factory components identified as retained in the research contract. Do not invent vents, climate controls, buttons, trim seams, steering wheels, clusters, or center consoles from another generation. "
             "Do not show a floating tablet, generic double-DIN radio, exterior vehicle, concept cabin, mirrored dashboard, impossible screen opening, or oversized/undersized unit. "
-            "Use a natural driver-seat or front-passenger three-quarter camera view unless the user explicitly requests another interior angle. Keep the installed screen clearly visible and commercially attractive. "
+            "When no uploaded dashboard is available, use a natural driver-seat or front-passenger three-quarter camera view unless the user explicitly requests another interior angle. When a dashboard is uploaded, preserve its exact camera view and crop unless the user explicitly asks to change them. Keep the installed screen clearly visible and commercially attractive. "
             "Any uncertainty in trim-specific details must default to the most widely documented dashboard family for the requested generation and must not contradict the contract.\n"
             "ADAPTIVE INTERIOR SOURCE CONTRACT: " + json.dumps({k: v for k, v in research.items() if k != "dashboard_source_item"}, ensure_ascii=False, default=str)[:20000] + "\n"
             "PRODUCT DNA CONTRACT: " + json.dumps(product_dna, ensure_ascii=False, default=str)[:14000]
@@ -25765,7 +25863,8 @@ def _graphic_adaptive_system_manifest_v44000(mode_info, role_items, reference_bl
         "uploaded_dashboard_ground_truth": bool((interior_profile or {}).get("dashboard_ground_truth")),
         "needs_vehicle_clarification": bool((interior_profile or {}).get("needs_vehicle_clarification")),
         "interior_research_verified": bool((interior_profile or {}).get("research_verified_enough_for_generation")),
-        "vehicle_installation_engine": "v45000",
+        "vehicle_installation_engine": "v49000",
+        "dashboard_lock_policy": _graphic_dashboard_lock_policy_v49000("", interior_profile),
     }
 
 
@@ -26818,12 +26917,25 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 engineering_qa_call_count += int(installed_validation.get("provider_calls") or 0)
                 if installed_validation.get("available"):
                     candidate_failed = candidate_failed or installed_validation.get("passed") is not True
+                dashboard_lock_validation = _graphic_safe_optional_call(
+                    "graphic_v49000_dashboard_lock_validation_unavailable",
+                    lambda: _graphic_dashboard_lock_validation_v49000(
+                        candidate.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile
+                    ),
+                    {"available": False, "passed": None, "reason": "Dashboard lock validation unavailable", "provider_calls": 0},
+                ) if (interior_profile or {}).get("dashboard_ground_truth") else {"available": False, "passed": None, "provider_calls": 0}
+                engineering_qa_call_count += int(dashboard_lock_validation.get("provider_calls") or 0)
+                if dashboard_lock_validation.get("available"):
+                    candidate_failed = candidate_failed or dashboard_lock_validation.get("passed") is not True
+            else:
+                dashboard_lock_validation = {"available": False, "passed": None, "provider_calls": 0}
             candidate.update({
                 "quality_review": candidate_review,
                 "vehicle_validation": focused_vehicle,
                 "zone_completeness": zone_check,
                 "qa_missing_scores": missing_scores,
                 "installed_view_validation": installed_validation,
+                "dashboard_lock_validation_v49000": dashboard_lock_validation,
             })
             if candidate_failed:
                 reason = "The image was created, but one or more optional quality checks did not pass or were unavailable."
@@ -26858,6 +26970,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     + str(installed_validation.get("correction_prompt") or installed_validation.get("reason") or "")
                     + " Failed categories: " + ", ".join(map(str, installed_validation.get("failed_categories") or []))
                 )
+            if product_mode.get("installed_view") and dashboard_lock_validation.get("available") and dashboard_lock_validation.get("passed") is not True:
+                correction_parts.append(
+                    "DASHBOARD LOCK CORRECTION. Return to the exact uploaded dashboard photograph. Do not regenerate the cabin. Restore the original camera/crop, steering wheel, cluster, vents, trim, lower controls, console, materials and lighting outside the radio replacement region. Edit only the installation opening and seam boundary. "
+                    + str(dashboard_lock_validation.get("correction_prompt") or dashboard_lock_validation.get("reason") or "")
+                    + " Failed dashboard-lock categories: " + ", ".join(map(str, dashboard_lock_validation.get("failed_categories") or []))
+                )
             correction = "\n".join(part for part in correction_parts if part).strip()
             if correction:
                 _graphic_progress_update_v3300(status, "Applying one targeted correction pass…")
@@ -26885,6 +27003,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     if has_style and review2:
                         failed2 = failed2 or not zones2.get("passed", True)
                     installed2 = installed_validation
+                    dashboard_lock2 = {"available": False, "passed": None, "provider_calls": 0}
                     if product_mode.get("installed_view"):
                         installed2 = _graphic_safe_optional_call(
                             "graphic_v45000_corrected_installed_validation_unavailable",
@@ -26896,7 +27015,18 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                         engineering_qa_call_count += int(installed2.get("provider_calls") or 0)
                         if installed2.get("available"):
                             failed2 = failed2 or installed2.get("passed") is not True
-                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2, "installed_view_validation": installed2})
+                        if (interior_profile or {}).get("dashboard_ground_truth"):
+                            dashboard_lock2 = _graphic_safe_optional_call(
+                                "graphic_v49000_corrected_dashboard_lock_validation_unavailable",
+                                lambda: _graphic_dashboard_lock_validation_v49000(
+                                    corrected.get("data_url"), role_items, prompt_text, vehicle_profile, interior_profile
+                                ),
+                                {"available": False, "passed": None, "reason": "Dashboard lock validation unavailable", "provider_calls": 0},
+                            )
+                            engineering_qa_call_count += int(dashboard_lock2.get("provider_calls") or 0)
+                            if dashboard_lock2.get("available"):
+                                failed2 = failed2 or dashboard_lock2.get("passed") is not True
+                    corrected.update({"quality_review": review2, "vehicle_validation": vehicle2, "zone_completeness": zones2, "qa_missing_scores": missing2, "installed_view_validation": installed2, "dashboard_lock_validation_v49000": dashboard_lock2})
                     diagnostic_log("graphic_v4100_corrected_review", scores=scores2, missing=missing2, vehicle_available=not _graphic_validation_is_unavailable_v4100(vehicle2), failed=failed2)
                     if not failed2:
                         corrected["output_status"] = "verified_after_correction"
@@ -26913,7 +27043,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         force_exact_product = bool(
             has_product and not has_edit_base and product_mode.get("exact_product")
         )
-        if has_product and has_style and (final_result is None or force_exact_product):
+        if has_product and has_style and not product_mode.get("installed_view") and (final_result is None or force_exact_product):
             _graphic_progress_update_v3300(status, "Applying the exact uploaded product structure and preserving every opening, gap, control, and mounting detail…")
             try:
                 hybrid = _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile)
@@ -27177,7 +27307,7 @@ def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, outp
         dashboard_item["provider_role"] = "installation_dashboard_reference"
 
     strict_prompt = (
-        "FAIL-SAFE VEHICLE INSTALLATION RENDER. Create one photorealistic AFTER-INSTALLATION photograph from INSIDE the vehicle cabin. "
+        "FAIL-SAFE VEHICLE INSTALLATION RENDER. Create one photorealistic AFTER-INSTALLATION photograph from INSIDE the vehicle cabin. When an uploaded dashboard reference exists, use it as the immutable base photograph: preserve all pixels and geometry outside the factory radio replacement region, including camera/crop, steering wheel, cluster, vents, trim, lower controls, console, windshield framing, materials and lighting. Do not generate a new cabin. "
         "This is not an advertisement poster, product hero graphic, catalogue layout, exterior vehicle image, infographic, or feature-callout design. "
         "Do not render a logo, headline, compatibility ribbon, feature grid, arrows, labels, footer bar, or marketing text. "
         "Use the uploaded AutoTecPro unit only as the product identity reference and integrate it into the real factory center-stack replacement region. "
