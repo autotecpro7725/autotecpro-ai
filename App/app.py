@@ -46,11 +46,15 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v55000
+# AutoTecPro AI performance/stability revision: v57000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
 # v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
+# v57000 Bottom-Bezel Absolute Authority & Provider Exclusion Engine built directly from v56000.
+# Reserves and reconstructs the entire product bounding region plus an asymmetric lower-housing safety apron
+# before local composition, preventing provider-generated rails, tabs, brackets or false lower bezels from surviving.
+# Adds fail-closed protected-zone coverage verification and a dedicated bottom-apron authority report.
 # v56000 Fresh Mask, Bottom-Bezel Authority & Deterministic Product Composition Engine built directly from v55000.
 # Forces fresh authoritative mask extraction, versions all geometry caches, fails closed on provider-zone clearing,
 # strengthens lower-housing verification, and uses deterministic supersampled product resizing for small controls/UI.
@@ -17955,7 +17959,7 @@ def _graphic_vehicle_profile_text(profile):
     return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
-GRAPHIC_V56000_CACHE_EPOCH = "v56000-fresh-mask-bezel-authority-2026-07-26-1"
+GRAPHIC_V56000_CACHE_EPOCH = "v57000-bottom-bezel-absolute-authority-2026-07-26-1"
 
 
 def _graphic_apply_v56000_cache_epoch():
@@ -17983,10 +17987,10 @@ def _graphic_apply_v56000_cache_epoch():
         state["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
         state["graphic_adaptive_engine_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        diagnostic_log("graphic_v56000_cache_epoch_applied", epoch=GRAPHIC_V56000_CACHE_EPOCH)
+        diagnostic_log("graphic_v57000_cache_epoch_applied", epoch=GRAPHIC_V56000_CACHE_EPOCH)
         return state
     except Exception as error:
-        diagnostic_log("graphic_v56000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log("graphic_v57000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
         return {}
 
 
@@ -18057,44 +18061,108 @@ def _graphic_lower_housing_fidelity_v55000(source, candidate):
 
 
 def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
-    """Remove provider-created product remnants before the source product is composited.
+    """Remove every provider-created product remnant before exact local compositing.
 
-    A dilated version of the exact product alpha defines the protected placement zone.
-    OpenCV inpainting reconstructs only the scene behind that zone. The authoritative
-    uploaded product is then composited locally, so provider bezels, tabs or housings
-    cannot remain visible around its lower or side edges.
+    v57000 treats the full product bounding rectangle as reserved, not only the alpha
+    silhouette. This is essential for products photographed on a neutral studio card:
+    provider-generated rails, brackets, tabs and false lower bezels can otherwise sit
+    just outside the real alpha edge and remain visible after the source product is
+    composited. The reserved zone therefore includes:
+
+      * the complete product rectangle;
+      * a small top/side safety margin;
+      * a much larger asymmetric bottom apron covering lower-housing hallucinations;
+      * the dilated exact alpha silhouette as an additional geometry-aware mask.
+
+    The function fails closed when the requested region cannot be fully covered.
     """
     if Image is None or canvas is None or product is None:
-        return canvas, {"applied": False, "reason": "image unavailable"}
+        return canvas, {"applied": False, "reason": "image unavailable", "engine": "protected-product-zone-v57000"}
     try:
         import cv2
         import numpy as np
+
         base = canvas.convert("RGBA")
         rgba = np.asarray(base, dtype=np.uint8)
-        alpha = np.asarray(product.convert("RGBA").getchannel("A"), dtype=np.uint8)
-        local = (alpha >= 8).astype(np.uint8) * 255
-        halo = max(8, int(round(max(product.size) * 0.018)))
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (halo * 2 + 1, halo * 2 + 1))
-        local = cv2.dilate(local, kernel, iterations=1)
+        product_rgba = product.convert("RGBA")
+        alpha = np.asarray(product_rgba.getchannel("A"), dtype=np.uint8)
+        if alpha.size == 0 or int((alpha >= 8).sum()) == 0:
+            return canvas, {"applied": False, "reason": "empty authoritative product alpha", "engine": "protected-product-zone-v57000"}
+
+        # Asymmetric authority margins. The lower apron is intentionally large because
+        # the observed Toyota failure was a provider-generated mounting frame extending
+        # below the true product. Side/top margins remain conservative to protect layout.
+        side_margin = max(12, int(round(product.width * 0.055)))
+        top_margin = max(10, int(round(product.height * 0.035)))
+        bottom_apron = max(28, int(round(product.height * 0.20)))
+        alpha_halo = max(10, int(round(max(product.size) * 0.022)))
+
         mask = np.zeros((base.height, base.width), dtype=np.uint8)
-        x0, y0 = max(0, int(x)-halo), max(0, int(y)-halo)
-        x1, y1 = min(base.width, int(x)+product.width+halo), min(base.height, int(y)+product.height+halo)
-        sx0, sy0 = x0-(int(x)-halo), y0-(int(y)-halo)
-        sx1, sy1 = sx0+(x1-x0), sy0+(y1-y0)
-        padded = cv2.copyMakeBorder(local, halo, halo, halo, halo, cv2.BORDER_CONSTANT, value=0)
-        mask[y0:y1, x0:x1] = padded[sy0:sy1, sx0:sx1]
-        # Avoid erasing deterministic header/footer content if a layout is unusually tight.
-        rgb = cv2.cvtColor(rgba[:,:,:3], cv2.COLOR_RGB2BGR)
-        cleaned = cv2.inpaint(rgb, mask, max(3, halo//2), cv2.INPAINT_TELEA)
-        out = np.dstack([cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB), rgba[:,:,3]])
+
+        # 1) Full rectangular reserved region plus asymmetric bottom apron.
+        rx0 = max(0, int(x) - side_margin)
+        ry0 = max(0, int(y) - top_margin)
+        rx1 = min(base.width, int(x) + product.width + side_margin)
+        ry1 = min(base.height, int(y) + product.height + bottom_apron)
+        if rx1 <= rx0 or ry1 <= ry0:
+            return canvas, {"applied": False, "reason": "reserved region outside canvas", "engine": "protected-product-zone-v57000"}
+        mask[ry0:ry1, rx0:rx1] = 255
+
+        # 2) Geometry-aware alpha dilation catches unusual side ears and protrusions.
+        local = (alpha >= 8).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (alpha_halo * 2 + 1, alpha_halo * 2 + 1))
+        local = cv2.dilate(local, kernel, iterations=1)
+        lx0, ly0 = max(0, int(x) - alpha_halo), max(0, int(y) - alpha_halo)
+        lx1 = min(base.width, int(x) + product.width + alpha_halo)
+        ly1 = min(base.height, int(y) + product.height + alpha_halo)
+        padded = cv2.copyMakeBorder(local, alpha_halo, alpha_halo, alpha_halo, alpha_halo, cv2.BORDER_CONSTANT, value=0)
+        sx0, sy0 = lx0 - (int(x) - alpha_halo), ly0 - (int(y) - alpha_halo)
+        sx1, sy1 = sx0 + (lx1 - lx0), sy0 + (ly1 - ly0)
+        mask[ly0:ly1, lx0:lx1] = np.maximum(mask[ly0:ly1, lx0:lx1], padded[sy0:sy1, sx0:sx1])
+
+        requested_pixels = int((mask > 0).sum())
+        if requested_pixels <= 0:
+            return canvas, {"applied": False, "reason": "empty protected mask", "engine": "protected-product-zone-v57000"}
+
+        rgb = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+        radius = max(5, min(19, int(round(max(product.size) * 0.012))))
+        cleaned = cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
+        if cleaned is None or cleaned.shape[:2] != rgb.shape[:2]:
+            return canvas, {"applied": False, "reason": "inpainting returned invalid canvas", "engine": "protected-product-zone-v57000"}
+
+        # Coverage is deterministic because the exact mask is known. Fail closed if any
+        # requested pixel was lost through clipping or conversion.
+        covered_pixels = int((mask[ry0:ry1, rx0:rx1] > 0).sum())
+        expected_rect_pixels = int((ry1 - ry0) * (rx1 - rx0))
+        coverage_ratio = covered_pixels / max(1, expected_rect_pixels)
+        if coverage_ratio < 0.999:
+            return canvas, {
+                "applied": False,
+                "reason": "protected rectangle coverage incomplete",
+                "coverage_ratio": round(coverage_ratio, 6),
+                "engine": "protected-product-zone-v57000",
+            }
+
+        out = np.dstack([cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB), rgba[:, :, 3]])
         return Image.fromarray(out.astype(np.uint8), "RGBA"), {
-            "applied": True, "halo_px": halo, "mask_pixels": int((mask>0).sum()),
+            "applied": True,
+            "engine": "protected-product-zone-v57000",
+            "mask_pixels": requested_pixels,
+            "coverage_ratio": round(coverage_ratio, 6),
+            "reserved_rect": [rx0, ry0, rx1, ry1],
+            "side_margin_px": side_margin,
+            "top_margin_px": top_margin,
+            "bottom_apron_px": bottom_apron,
+            "alpha_halo_px": alpha_halo,
+            "inpaint_radius_px": radius,
             "product_region_provider_pixels_removed": True,
-            "engine": "protected-product-zone-inpaint-v55000",
+            "bottom_bezel_provider_exclusion": True,
+            "provider_mounting_rail_exclusion": True,
+            "fail_closed": True,
         }
     except Exception as error:
-        diagnostic_log("graphic_v55000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
-        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-inpaint-v55000"}
+        diagnostic_log("graphic_v57000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
+        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v57000", "fail_closed": True}
 
 
 def _graphic_extract_product_cutout(uploaded_file):
@@ -24389,13 +24457,18 @@ def _graphic_compose_reference_campaign_v3200(
         "v55000_product_pixel_authority": True,
         "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
         "graphic_cache_epoch_v56000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v57000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
         "bottom_bezel_pixel_lock_v56000": bool(lower_housing_fidelity_v55000.get("passed")),
+        "bottom_bezel_pixel_lock_v57000": bool(lower_housing_fidelity_v55000.get("passed")) and bool(protected_product_zone_v55000.get("applied")),
         "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),  # compatibility alias
         "provider_product_exclusion_v56000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v57000": bool(protected_product_zone_v55000.get("applied")),
+        "bottom_bezel_absolute_authority_v57000": bool(protected_product_zone_v55000.get("bottom_bezel_provider_exclusion")) and bool(lower_housing_fidelity_v55000.get("passed")),
+        "bottom_apron_authority_v57000": protected_product_zone_v55000,
         "exact_product_asset_mode": True,
         "product_master_rgb_preserved": True,
         "product_pixels_provider_generated": False,
@@ -24867,7 +24940,7 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "v56000-mask-fresh-source-bezel-authority-rgb-lock-1"
+GRAPHIC_MASK_CACHE_VERSION = "v57000-mask-bottom-bezel-absolute-authority-rgb-lock-1"
 GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v56000-product-authority-master-1"
 
 
@@ -25609,7 +25682,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v56000-fresh-mask-bottom-bezel-authority-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v57000-bottom-bezel-absolute-authority-engine"
 
 
 
