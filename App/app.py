@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v52000
+# AutoTecPro AI performance/stability revision: v53000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
@@ -17947,13 +17947,21 @@ def _graphic_vehicle_profile_text(profile):
 
 
 def _graphic_extract_product_cutout(uploaded_file):
-    """Extract the uploaded product without redesigning mechanical geometry.
+    """Extract the authoritative uploaded product without inventing geometry.
 
-    v39000 uses an edge-aware, border-connected background model. Only pixels that
-    are both background-like and connected to the outer canvas are removed. Dark
-    mounting tabs, clips, holes, screw bosses, lower brackets, glossy black trim,
-    and thin engineering edges are therefore retained as first-class product pixels.
-    The source RGB is never synthesized or repainted.
+    v53000 fixes a critical failure in the earlier white-background remover.  The
+    previous implementation treated every moderately grey or edged studio-background
+    pixel as foreground.  Faint paper seams, floor shadows and compression lines could
+    therefore become large false side brackets, holes or bezel extensions after the
+    image was cropped and composited.
+
+    This implementation is deliberately conservative:
+      * transparent uploads keep their original alpha unchanged;
+      * only border-connected, background-colour pixels are removed;
+      * the retained product must belong to the dominant central physical component;
+      * low-contrast studio shadows and page seams are rejected;
+      * no RGB pixels are synthesized, painted, inpainted or outpainted;
+      * the final mask is checked for implausible edge contact and fragmented wings.
     """
     if Image is None:
         return None
@@ -17965,7 +17973,8 @@ def _graphic_extract_product_cutout(uploaded_file):
         import numpy as np
         with Image.open(io.BytesIO(raw)) as source:
             image = ImageOps.exif_transpose(source).convert("RGBA")
-    except Exception:
+    except Exception as error:
+        diagnostic_log("graphic_v53000_cutout_open_failed", error_type=type(error).__name__, error=str(error))
         return None
 
     image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
@@ -17973,6 +17982,18 @@ def _graphic_extract_product_cutout(uploaded_file):
     extrema = existing_alpha.getextrema()
     if extrema and extrema[0] < 250:
         bbox = existing_alpha.getbbox()
+        report = {
+            "engine": "cutout-integrity-v53000",
+            "source_alpha_preserved": True,
+            "background_removed": False,
+            "mask_source": "uploaded_alpha",
+            "bbox": list(bbox or (0, 0, image.width, image.height)),
+        }
+        try:
+            state = get_graphic_project_state(); state["last_product_cutout_report_v53000"] = report
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        except Exception:
+            pass
         return image.crop(bbox) if bbox else image
 
     rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
@@ -17980,70 +18001,156 @@ def _graphic_extract_product_cutout(uploaded_file):
     if w < 24 or h < 24:
         return image
 
-    border = max(4, min(w, h) // 80)
+    border = max(5, min(w, h) // 70)
     border_pixels = np.concatenate([
         rgb[:border].reshape(-1, 3), rgb[-border:].reshape(-1, 3),
         rgb[:, :border].reshape(-1, 3), rgb[:, -border:].reshape(-1, 3),
     ], axis=0)
     bg = np.median(border_pixels, axis=0).astype(np.float32)
-    border_spread = float(np.percentile(np.linalg.norm(border_pixels.astype(np.float32)-bg, axis=1), 90))
-    neutral = float(bg.max()-bg.min()) < 42
-    bright = float(bg.mean()) > 165
-    if not (neutral and bright and border_spread < 85):
+    border_distance = np.linalg.norm(border_pixels.astype(np.float32) - bg, axis=1)
+    border_spread = float(np.percentile(border_distance, 90))
+    neutral = float(bg.max() - bg.min()) < 48
+    bright = float(bg.mean()) > 160
+    if not (neutral and bright and border_spread < 92):
+        # Fail safely: preserve the entire upload instead of guessing a cutout.
+        diagnostic_log("graphic_v53000_cutout_skipped", reason="background_not_safely_uniform", bg=bg.tolist(), spread=border_spread)
         return image
 
     arr = rgb.astype(np.float32)
-    distance = np.linalg.norm(arr-bg[None,None,:], axis=2)
+    distance = np.linalg.norm(arr - bg[None, None, :], axis=2)
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    saturation = hsv[:, :, 1].astype(np.float32)
     gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    edge = cv2.magnitude(gx, gy)
-    edge = cv2.GaussianBlur(edge, (3,3), 0)
-    saturation = rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
+    edge = cv2.GaussianBlur(cv2.magnitude(gx, gy), (3, 3), 0)
 
-    # Background may only propagate through smooth pixels close to the sampled
-    # border color. Engineering edges form barriers, protecting thin brackets.
-    traversable = ((distance < 48) & (edge < 34) & (saturation < 34)).astype(np.uint8)
-    seeds = np.zeros((h, w), np.uint8)
-    seeds[:border, :] = traversable[:border, :]
-    seeds[-border:, :] = traversable[-border:, :]
-    seeds[:, :border] = np.maximum(seeds[:, :border], traversable[:, :border])
-    seeds[:, -border:] = np.maximum(seeds[:, -border:], traversable[:, -border:])
-    n, labels = cv2.connectedComponents(traversable, connectivity=8)
-    seed_labels = np.unique(labels[seeds.astype(bool)])
-    connected_bg = np.isin(labels, seed_labels[seed_labels != 0])
+    # Adaptive border-connected background.  Crucially, edge pixels are NOT
+    # promoted globally to foreground; this prevents paper seams from becoming tabs.
+    distance_limit = float(max(30.0, min(58.0, 24.0 + border_spread * 0.55)))
+    traversable = (
+        (distance <= distance_limit)
+        & (saturation <= 52)
+        & (gray >= 145)
+    ).astype(np.uint8)
 
-    # Strong foreground evidence always wins, especially in the lower mechanical
-    # region where tabs, holes and brackets are frequently small and dark.
-    foreground_evidence = (distance > 30) | (edge > 42) | (gray < 232) | (saturation > 28)
-    foreground = (~connected_bg) | foreground_evidence
+    # Connected-component flood from every canvas edge.
+    n_bg, bg_labels = cv2.connectedComponents(traversable, connectivity=8)
+    edge_labels = np.unique(np.concatenate([
+        bg_labels[:border, :].ravel(), bg_labels[-border:, :].ravel(),
+        bg_labels[:, :border].ravel(), bg_labels[:, -border:].ravel(),
+    ]))
+    edge_labels = edge_labels[edge_labels != 0]
+    connected_bg = np.isin(bg_labels, edge_labels)
 
-    # Keep only meaningful components, but use a very small threshold so screws,
-    # mounting ears and clips are not discarded.
-    fg_u8 = foreground.astype(np.uint8)
-    count, comp, stats, _ = cv2.connectedComponentsWithStats(fg_u8, connectivity=8)
-    keep = np.zeros_like(fg_u8)
-    min_area = max(6, int(w*h*0.000004))
-    for idx in range(1, count):
-        x, y, cw, ch, area = stats[idx]
-        central = (x < w*0.78 and x+cw > w*0.22 and y < h*0.98 and y+ch > h*0.04)
-        lower_mechanical = y+ch > h*0.68 and area >= max(3, min_area//2)
-        if area >= min_area and (central or lower_mechanical):
-            keep[comp == idx] = 255
+    # Foreground evidence must be materially different from the studio background.
+    # A soft grey shadow alone is not enough to become product geometry.
+    strong_material = (distance >= max(distance_limit + 10.0, 48.0)) | (saturation >= 60) | (gray <= 205)
+    strong_edge_material = (edge >= 58) & ((distance >= 28) | (gray <= 222) | (saturation >= 35))
+    initial_fg = ((~connected_bg) & (strong_material | strong_edge_material)).astype(np.uint8)
 
-    kernel = np.ones((3,3), np.uint8)
-    keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, kernel, iterations=1)
-    # Feather only one pixel; broad feathering visually changes bezel thickness.
-    soft = cv2.GaussianBlur(keep, (3,3), 0.45)
-    soft[keep == 255] = np.maximum(soft[keep == 255], 245)
-    mask = Image.fromarray(soft.astype(np.uint8), mode="L")
-    image.putalpha(mask)
-    bbox = mask.point(lambda a: 255 if a >= 8 else 0).getbbox()
-    if not bbox:
+    # Light morphology joins one-pixel breaks without expanding the silhouette.
+    initial_fg = cv2.morphologyEx(initial_fg, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(initial_fg, connectivity=8)
+    if count <= 1:
+        diagnostic_log("graphic_v53000_cutout_skipped", reason="no_foreground_component")
         return image
-    pad = max(2, min(w,h)//220)
-    bbox = (max(0,bbox[0]-pad), max(0,bbox[1]-pad), min(w,bbox[2]+pad), min(h,bbox[3]+pad))
-    return image.crop(bbox)
+
+    image_area = float(w * h)
+    cx0, cx1 = w * 0.18, w * 0.82
+    cy0, cy1 = h * 0.06, h * 0.97
+    candidates = []
+    for idx in range(1, count):
+        x, y, cw, ch, area = [int(v) for v in stats[idx]]
+        cx, cy = centroids[idx]
+        central_overlap = max(0, min(x + cw, cx1) - max(x, cx0)) * max(0, min(y + ch, cy1) - max(y, cy0))
+        overlap_ratio = central_overlap / max(1.0, float(cw * ch))
+        score = float(area) * (1.0 + min(1.0, overlap_ratio))
+        # Prefer a component covering the visual centre and substantial vertical range.
+        if x <= w * 0.58 <= x + cw or x <= w * 0.42 <= x + cw:
+            score *= 1.25
+        if y < h * 0.45 and y + ch > h * 0.58:
+            score *= 1.25
+        if area >= image_area * 0.012:
+            candidates.append((score, idx, x, y, cw, ch, area))
+    if not candidates:
+        diagnostic_log("graphic_v53000_cutout_skipped", reason="no_dominant_central_component")
+        return image
+
+    candidates.sort(reverse=True)
+    _, main_idx, mx, my, mw, mh, main_area = candidates[0]
+    main = labels == main_idx
+
+    # Retain only small disconnected components that are physically close to the
+    # dominant housing.  This preserves genuine separated screws/knobs while rejecting
+    # remote studio seams and floor shadows.
+    keep = main.copy()
+    margin_x = max(8, int(mw * 0.055)); margin_y = max(8, int(mh * 0.055))
+    ex0, ey0 = max(0, mx - margin_x), max(0, my - margin_y)
+    ex1, ey1 = min(w, mx + mw + margin_x), min(h, my + mh + margin_y)
+    for idx in range(1, count):
+        if idx == main_idx:
+            continue
+        x, y, cw, ch, area = [int(v) for v in stats[idx]]
+        inside_expanded = x < ex1 and x + cw > ex0 and y < ey1 and y + ch > ey0
+        meaningful = area >= max(10, int(main_area * 0.00012))
+        if inside_expanded and meaningful:
+            keep |= labels == idx
+
+    mask_u8 = (keep.astype(np.uint8) * 255)
+    # Fill tiny accidental pinholes only; preserve real vents/openings by limiting area.
+    inv = 255 - mask_u8
+    holes_n, holes_l, holes_s, _ = cv2.connectedComponentsWithStats((inv > 0).astype(np.uint8), connectivity=8)
+    for idx in range(1, holes_n):
+        x, y, cw, ch, area = [int(v) for v in holes_s[idx]]
+        touches_edge = x == 0 or y == 0 or x + cw >= w or y + ch >= h
+        if not touches_edge and area <= max(6, int(main_area * 0.000025)):
+            mask_u8[holes_l == idx] = 255
+
+    # Anti-alias only the immediate contour; do not dilate or invent pixels.
+    soft = cv2.GaussianBlur(mask_u8, (3, 3), 0.38)
+    soft[mask_u8 == 255] = np.maximum(soft[mask_u8 == 255], 248)
+    soft[mask_u8 == 0] = np.minimum(soft[mask_u8 == 0], 7)
+    mask = Image.fromarray(soft.astype(np.uint8), mode="L")
+    hard_bbox = Image.fromarray(mask_u8, mode="L").getbbox()
+    if not hard_bbox:
+        return image
+
+    # Fail closed if the detected product implausibly touches broad canvas edges or
+    # occupies almost the whole studio image; in that case preserve the original card.
+    x0, y0, x1, y1 = hard_bbox
+    touches = sum((x0 <= 1, y0 <= 1, x1 >= w - 1, y1 >= h - 1))
+    bbox_area_ratio = ((x1 - x0) * (y1 - y0)) / image_area
+    foreground_ratio = float((mask_u8 > 0).mean())
+    sane = touches <= 1 and 0.035 <= foreground_ratio <= 0.90 and bbox_area_ratio <= 0.94
+    report = {
+        "engine": "cutout-integrity-v53000",
+        "source_alpha_preserved": False,
+        "background_removed": bool(sane),
+        "mask_source": "dominant-central-component",
+        "background_rgb": [round(float(v), 2) for v in bg],
+        "border_spread": round(border_spread, 3),
+        "distance_limit": round(distance_limit, 3),
+        "foreground_ratio": round(foreground_ratio, 6),
+        "bbox_area_ratio": round(bbox_area_ratio, 6),
+        "edge_contacts": int(touches),
+        "main_component_area": int(main_area),
+        "bbox": [int(v) for v in hard_bbox],
+        "passed": bool(sane),
+    }
+    try:
+        state = get_graphic_project_state(); state["last_product_cutout_report_v53000"] = report
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    except Exception:
+        pass
+    diagnostic_log("graphic_v53000_cutout_integrity", **report)
+    if not sane:
+        return image
+
+    image.putalpha(mask)
+    pad = max(2, min(w, h) // 240)
+    crop_box = (max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad))
+    return image.crop(crop_box)
 
 def _graphic_font(size, bold=False):
     candidates = [
@@ -18777,6 +18884,9 @@ def _graphic_product_provenance_gate_v52000(result, role_items):
         issues.append("AI product reconstruction was not prohibited")
     if str((result or {}).get("product_identity_method") or "").casefold().find("composite") < 0:
         issues.append("result does not identify a deterministic product composite")
+    cutout_report = dict(metadata.get("product_cutout_integrity_v53000") or {})
+    if cutout_report and cutout_report.get("passed") is not True and cutout_report.get("source_alpha_preserved") is not True:
+        issues.append("authoritative product cutout did not pass v53000 mask-integrity validation")
     manifest = {
         "source_sha256": authority.get("sha256"),
         "source_name": authority.get("name"),
@@ -18784,9 +18894,9 @@ def _graphic_product_provenance_gate_v52000(result, role_items):
         "pixel_origin": "uploaded_product_bitmap",
         "allowed_product_operations": ["background removal", "uniform scale", "translation", "bounded perspective", "local lighting/reflection overlay", "contact shadow"],
         "forbidden_product_operations": ["generative redraw", "outpainting", "new brackets", "new holes", "new buttons", "bezel reshaping", "independent screen scaling"],
-        "engine": "pixel-provenance-gate-v52000",
+        "engine": "pixel-provenance-gate-v53000",
     }
-    return {"passed": not issues, "issues": issues, "manifest": manifest, "engine": "product-provenance-v52000"}
+    return {"passed": not issues, "issues": issues, "manifest": manifest, "engine": "product-provenance-v53000"}
 
 
 def _graphic_role_integrity_v8300(role_items):
@@ -24089,6 +24199,8 @@ def _graphic_compose_reference_campaign_v3200(
         "autotecpro_final_qa_v48000": final_detail_qa_v48000,
         "deterministic_campaign_builder_v42000": True,
         "detail_fidelity_engine_v48000": True,
+        "product_cutout_integrity_v53000": dict(get_graphic_project_state().get("last_product_cutout_report_v53000") or {}),
+        "product_cutout_fail_closed_v53000": True,
     }
 
 
@@ -25199,7 +25311,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v52000-product-authority-provenance-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v53000-product-authority-cutout-integrity-engine"
 
 
 
@@ -27078,6 +27190,7 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
     result["graphic_design_mode"]=design_mode
     provenance_v52000 = _graphic_product_provenance_gate_v52000(result, role_items)
     result["product_provenance_v52000"] = provenance_v52000
+    result["product_provenance_v53000"] = provenance_v52000
     result["pixel_provenance_manifest"] = provenance_v52000.get("manifest") or {}
     result["authoritative_product_sha256"] = (provenance_v52000.get("manifest") or {}).get("source_sha256")
     result["product_layer_immutable"] = True
