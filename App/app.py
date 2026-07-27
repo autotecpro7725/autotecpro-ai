@@ -98,6 +98,9 @@ except Exception:
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
 # recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
 # v66850 replaces the incomplete source-photo canvas with a complete deterministic commercial fallback, mandatory geometry/fitment/completeness gates, and retains v66840 resilient Product Library archiving:
+# v66860 restores the proven v66600 recovery principle: missing optional metadata is diagnostic, not proof of failure.
+# Product geometry and full-fitment wording remain release blockers only when direct evidence proves a violation.
+# The complete local commercial fallback remains mandatory and the obsolete opaque source-photo canvas is forbidden.
 # v66840 adds resilient Product Library archiving: Google Drive remains primary, while revoked/expired OAuth tokens automatically fall back to private Supabase Storage without blocking uploads.
 # v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
 # and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
@@ -20574,9 +20577,16 @@ def _graphic_v66850_local_scene_plate(output_size, prompt_text="", vehicle_profi
 
 
 def _graphic_v66850_campaign_completeness(result, prompt_text, campaign_spec=None):
-    """Release-block incomplete Reference Mode posters and protect full fitment wording."""
+    """Evidence-based release audit.
+
+    Missing optional manifest metadata is reported as a warning. It is not treated
+    as proof that a visually rendered local campaign is invalid. Hard failures are
+    limited to direct evidence of provider-generated product geometry, an absent
+    rendered payload, or actual loss of required fitment tokens.
+    """
     if not isinstance(result, dict) or not result.get("data_url"):
-        return {"passed": False, "issues": ["missing rendered image"]}
+        return {"passed": False, "hard_issues": ["missing rendered image"], "warnings": []}
+
     spec = dict(campaign_spec or result.get("campaign_spec") or {})
     metadata = dict(result.get("layered_metadata") or {})
     zones = set(metadata.get("campaign_zones") or [])
@@ -20584,27 +20594,53 @@ def _graphic_v66850_campaign_completeness(result, prompt_text, campaign_spec=Non
         "logo", "headline", "compatibility_ribbon", "tagline",
         "feature_matrix", "hero_product", "bottom_benefit_bar",
     }
-    issues = []
+    hard_issues = []
+    warnings = []
+
     missing = sorted(required_zones - zones)
     if missing:
-        issues.append("missing campaign zones: " + ", ".join(missing))
+        warnings.append("campaign-zone manifest incomplete: " + ", ".join(missing))
+
     compatibility = str(spec.get("compatibility") or "").strip()
     if not compatibility:
-        issues.append("missing full compatibility wording")
+        hard_issues.append("missing full compatibility wording")
+
     required_tokens = list(spec.get("compatibility_required_tokens") or [])
     rendered_copy = " ".join([
         str(spec.get("headline") or ""), compatibility,
         str(spec.get("tagline") or ""), str(spec.get("screen_size") or ""),
         str(spec.get("product_designation") or ""),
     ]).casefold()
-    lost = [str(token) for token in required_tokens if str(token).strip() and str(token).casefold() not in rendered_copy]
+    lost = [
+        str(token) for token in required_tokens
+        if str(token).strip() and str(token).casefold() not in rendered_copy
+    ]
     if lost:
-        issues.append("missing required fitment tokens: " + ", ".join(lost))
-    immutable = bool(result.get("product_layer_immutable") or metadata.get("exact_product_asset_mode"))
+        hard_issues.append("missing required fitment tokens: " + ", ".join(lost))
+
     provider_generated = metadata.get("product_pixels_provider_generated")
-    if not immutable or provider_generated is not False:
-        issues.append("immutable uploaded-product authority not proven")
-    return {"passed": not issues, "issues": issues, "required_zones": sorted(required_zones)}
+    if provider_generated is None:
+        provider_generated = result.get("product_geometry_provider_generated")
+    ai_recreated = bool(result.get("ai_product_recreated") or metadata.get("ai_product_recreated"))
+    if provider_generated is True or ai_recreated:
+        hard_issues.append("direct evidence of provider-generated product geometry")
+
+    immutable = result.get("product_layer_immutable")
+    exact_asset = metadata.get("exact_product_asset_mode")
+    if immutable is False or exact_asset is False:
+        hard_issues.append("uploaded-product authority explicitly rejected")
+    elif immutable is None and exact_asset is None:
+        warnings.append("immutable-product metadata unavailable; result retained unless direct violation exists")
+
+    return {
+        "passed": not hard_issues,
+        "hard_issues": hard_issues,
+        "issues": hard_issues,
+        "warnings": warnings,
+        "required_zones": sorted(required_zones),
+        "observed_zones": sorted(zones),
+        "policy": "v66860-evidence-based-release-gate",
+    }
 
 
 def _graphic_v66830_source_canvas_result(prompt_text, role_items, output_size, reference_blueprint=None, vehicle_profile=None, failure_reason=""):
@@ -20681,8 +20717,17 @@ def _graphic_v66830_source_canvas_result(prompt_text, role_items, output_size, r
     })
     gate = _graphic_v66850_campaign_completeness(result, effective_prompt, spec)
     result["commercial_completeness_gate_v66850"] = gate
+    result["commercial_completeness_gate_v66860"] = gate
     if not gate.get("passed"):
-        raise RuntimeError("Guaranteed commercial fallback failed release gates: " + "; ".join(gate.get("issues") or []))
+        raise RuntimeError(
+            "Guaranteed commercial fallback failed evidence-based release gates: "
+            + "; ".join(gate.get("hard_issues") or gate.get("issues") or [])
+        )
+    if gate.get("warnings"):
+        diagnostic_log(
+            "graphic_v66860_completeness_warnings",
+            warnings=" | ".join(gate.get("warnings") or []),
+        )
     return [result]
 
 
@@ -29041,38 +29086,190 @@ def _graphic_exact_reference_deterministic_recovery_v66820(prompt_text, uploaded
 
 
 
-def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True, style_strength="High", forced_upload_role="Auto-detect", quality_retry=True, product_transform_mode="Auto", professional_layered_studio=True):
-    """v66830 public API: exact geometry, flexible wording, and guaranteed local completion."""
-    arguments=dict(use_approved_style=use_approved_style,preserve_product=preserve_product,style_strength=style_strength,forced_upload_role=forced_upload_role,quality_retry=quality_retry,product_transform_mode=product_transform_mode,professional_layered_studio=professional_layered_studio)
-    failures=[]; effective=_graphic_resolve_effective_prompt_v47000(prompt_text); installed=_graphic_installed_intent_hint_v47000(effective)
-    try: exact_state=_graphic_exact_reference_request_v66820(effective,uploaded_files,forced_upload_role)
-    except Exception as error: exact_state={"required":False,"role_items":[]}; failures.append("role:"+_graphic_compact_error_v4000(error))
-    exact=bool(exact_state.get("required")); project=_graphic_active_project_assets_v16000(_graphic_repair_project_asset_roles_v15000(get_graphic_project_state())); project.update({"stage":"generating","last_error":"","generation_started_at":datetime.now(timezone.utc).isoformat()}); st.session_state[GRAPHIC_PROJECT_STATE_KEY]=project
-    try:
-        result=_generate_graphic_marketing_images_advanced(effective,uploaded_files,**arguments)
-        if exact and not _graphic_exact_reference_result_safe_v66820(result): raise RuntimeError("The advanced route did not prove immutable uploaded-product pixels.")
-        return _graphic_finalize_recovery_v16000(result,"advanced",failures)
-    except Exception as error: failures.append(f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"); diagnostic_log("graphic_v66830_advanced_recovery",error_type=type(error).__name__,exact_reference_required=exact)
-    if exact:
+def _graphic_v66860_direct_product_violation(images):
+    """Return direct evidence of a product-authority violation, never infer from missing metadata."""
+    if not isinstance(images, (list, tuple)) or not images:
+        return "missing generated image"
+    image = images[0] if isinstance(images[0], dict) else {}
+    metadata = dict(image.get("layered_metadata") or {})
+    provider_generated = metadata.get("product_pixels_provider_generated")
+    if provider_generated is None:
+        provider_generated = image.get("product_geometry_provider_generated")
+    if provider_generated is True:
+        return "provider-generated product geometry"
+    if bool(image.get("ai_product_recreated") or metadata.get("ai_product_recreated")):
+        return "AI-recreated product geometry"
+    if image.get("product_layer_immutable") is False:
+        return "product layer explicitly marked mutable"
+    if metadata.get("exact_product_asset_mode") is False:
+        return "exact product asset mode explicitly rejected"
+    return ""
+
+
+def _graphic_v66860_attach_diagnostic_audit(images, prompt_text):
+    """Attach non-blocking completeness diagnostics to successful results."""
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
         try:
-            result=_graphic_exact_reference_deterministic_recovery_v66820(effective,uploaded_files,style_strength=style_strength,forced_upload_role=forced_upload_role)
-            for image in result or []:
-                if isinstance(image,dict): image["recovered_from_v66830"]=True; image["recovery_failures"]=failures[-3:]
-            return _graphic_finalize_recovery_v16000(result,"v66830-deterministic-exact-reference",failures)
+            spec = dict(image.get("campaign_spec") or {})
+            audit = _graphic_v66850_campaign_completeness(image, prompt_text, spec)
+            image["evidence_release_audit_v66860"] = audit
         except Exception as error:
-            failures.append(f"deterministic:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"); diagnostic_log("graphic_v66830_deterministic_failed",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
-        # Final local boundary: never provider-painted, never generic no-image failure.
-        result=_graphic_v66830_guaranteed_exact_result(effective,uploaded_files,style_strength=style_strength,forced_upload_role=forced_upload_role,failure_reason=" | ".join(failures[-4:]))
+            image["evidence_release_audit_v66860"] = {
+                "passed": True,
+                "warnings": ["audit unavailable: " + _graphic_compact_error_v4000(error)],
+                "policy": "diagnostic-only-when-unavailable",
+            }
+    return images
+
+
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
+                                      preserve_product=True, style_strength="High",
+                                      forced_upload_role="Auto-detect", quality_retry=True,
+                                      product_transform_mode="Auto", professional_layered_studio=True):
+    """v66860 public API with proven working recovery and evidence-based product gates."""
+    arguments = dict(
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+    failures = []
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
+    try:
+        exact_state = _graphic_exact_reference_request_v66820(
+            effective_prompt, uploaded_files, forced_upload_role
+        )
+    except Exception as error:
+        exact_state = {"required": False, "role_items": []}
+        failures.append("role:" + _graphic_compact_error_v4000(error))
+    exact_reference = bool(exact_state.get("required"))
+
+    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    project = _graphic_active_project_assets_v16000(project)
+    project["stage"] = "generating"
+    project["last_error"] = ""
+    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+
+    try:
+        result = _generate_graphic_marketing_images_advanced(
+            effective_prompt, uploaded_files, **arguments
+        )
+        violation = _graphic_v66860_direct_product_violation(result) if exact_reference else ""
+        if violation:
+            raise RuntimeError("Exact Reference Mode rejected: " + violation)
+        result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
+        return _graphic_finalize_recovery_v16000(result, "advanced-v66860", failures)
+    except Exception as error:
+        failures.append(
+            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v66860_advanced_recovery",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+            exact_reference_required=exact_reference,
+        )
+
+    if exact_reference:
+        try:
+            result = _graphic_exact_reference_deterministic_recovery_v66820(
+                effective_prompt,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+            )
+            violation = _graphic_v66860_direct_product_violation(result)
+            if violation:
+                raise RuntimeError("Deterministic exact route rejected: " + violation)
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["recovered_from_v66860"] = True
+                    image["recovery_failures"] = failures[-3:]
+            result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
+            return _graphic_finalize_recovery_v16000(
+                result, "v66860-deterministic-exact-reference", failures
+            )
+        except Exception as error:
+            failures.append(
+                f"deterministic:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+            diagnostic_log(
+                "graphic_v66860_deterministic_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+
+        # Complete local commercial fallback. It uses the authoritative v66000
+        # product extractor and v66200 full-fitment copy, never a provider-painted
+        # product and never the obsolete opaque source-photo canvas.
+        result = _graphic_v66830_guaranteed_exact_result(
+            effective_prompt,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            failure_reason=" | ".join(failures[-4:]),
+        )
+        violation = _graphic_v66860_direct_product_violation(result)
+        if violation:
+            raise RuntimeError("Guaranteed exact commercial route rejected: " + violation)
         for image in result or []:
-            if isinstance(image,dict): image["recovered_from_v66830_guaranteed_local"]=True; image["recovery_failures"]=failures[-4:]
-        return _graphic_finalize_recovery_v16000(result,"v66830-guaranteed-local-exact-product",failures)
-    if installed:
-        try: return _graphic_finalize_recovery_v16000(_graphic_installed_view_recovery_v47000(effective,uploaded_files,output_size="1536x1024",forced_upload_role=forced_upload_role),"installed-view-only-v47000",failures)
-        except Exception as error: failures.append(f"installed:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
-    try: return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced_v3200(effective,uploaded_files,**arguments),"v3200-compatibility",failures)
-    except Exception as error: failures.append(f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
-    try: return _graphic_finalize_recovery_v16000(_graphic_emergency_provider_result_v15000(effective,uploaded_files,style_strength=style_strength,forced_upload_role=forced_upload_role),"emergency-provider",failures)
-    except Exception as error: failures.append(f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"); raise RuntimeError("All available image-generation routes failed. Your project assets remain saved. "+" | ".join(failures[-3:])) from error
+            if isinstance(image, dict):
+                image["recovered_from_v66860_guaranteed_local"] = True
+                image["recovery_failures"] = failures[-4:]
+        result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
+        return _graphic_finalize_recovery_v16000(
+            result, "v66860-guaranteed-local-commercial", failures
+        )
+
+    if installed_request:
+        try:
+            result = _graphic_installed_view_recovery_v47000(
+                effective_prompt,
+                uploaded_files,
+                output_size="1536x1024",
+                forced_upload_role=forced_upload_role,
+            )
+            return _graphic_finalize_recovery_v16000(
+                result, "installed-view-only-v47000", failures
+            )
+        except Exception as error:
+            failures.append(
+                f"installed:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+
+    try:
+        result = _generate_graphic_marketing_images_advanced_v3200(
+            effective_prompt, uploaded_files, **arguments
+        )
+        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+    except Exception as error:
+        failures.append(
+            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+
+    try:
+        result = _graphic_emergency_provider_result_v15000(
+            effective_prompt,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+        )
+        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+    except Exception as error:
+        failures.append(
+            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        raise RuntimeError(
+            "All available image-generation routes failed. Your project assets remain saved. "
+            + " | ".join(failures[-3:])
+        ) from error
 
 
 
