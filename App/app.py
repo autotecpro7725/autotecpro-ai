@@ -25479,23 +25479,31 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
         style=has_style,
         edit_base=has_edit_base,
     )
-    reference_blueprint = _graphic_safe_optional_call(
-        "graphic_v3000_reference_analysis_failed_open",
-        lambda: analyze_graphic_reference_blueprint(
-            role_items, prompt_text=prompt_text, style_strength=style_strength
-        ),
-        {},
-    ) if has_style else {}
-    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint) if has_style else {}
+    prep_started = time.perf_counter()
+    prepared_facts = _graphic_v67200_prepare_locked_facts(
+        role_items,
+        prompt_text,
+        style_strength,
+        has_style=has_style,
+        has_product=has_product,
+    )
+    reference_blueprint = (
+        _graphic_safe_reference_blueprint_v16000(prepared_facts.get("reference_blueprint") or {})
+        if has_style else {}
+    )
     if has_style:
         _graphic_project_style_dna_v16000(reference_blueprint)
-    vehicle_profile = _graphic_safe_optional_call(
-        "graphic_v3100_vehicle_research_failed_open",
-        lambda: research_graphic_vehicle_profile(role_items, prompt_text),
-        {},
-    ) if has_product else {}
-    # Explicit user statements persisted from earlier turns always override visual guesses.
-    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
+    vehicle_profile = (
+        _graphic_resolve_vehicle_lock(prompt_text, prepared_facts.get("vehicle_profile") or {})
+        if has_product else {}
+    )
+    _graphic_v67200_record_stage(
+        "locked-reference-geometry-and-verified-product-facts",
+        prep_started,
+        parallel=bool(prepared_facts.get("parallel")),
+        reference_cache_hit=bool(reference_blueprint.get("cache_hit_v67200")),
+        vehicle_cache_hit=bool(vehicle_profile.get("cache_hit_v67200")),
+    )
     rejected_guidance = _graphic_safe_optional_call(
         "graphic_v3000_rejection_guidance_failed_open",
         _graphic_session_rejection_guidance,
@@ -27773,7 +27781,7 @@ def _graphic_select_brand_template_v8000(prompt_text, has_style=False, studio_br
     return selected
 
 
-def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
+def _graphic_build_product_dna_v8000_original_v67200(role_items, structure_profile=None):
     """Build flexible Product DNA: preserve identity, not one fixed camera view."""
     products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
     signatures = [_graphic_product_source_signature_v9000(item) for item in products[:8]]
@@ -29769,37 +29777,411 @@ def _graphic_v67100_accept_or_route(images, prompt_text, contract, *, route_name
     }
 
 
-def _graphic_v67100_exact_reference_fallback(
+
+GRAPHIC_V67310_POLICY_VERSION = "v67310-non-terminating-exact-recovery-with-v67200-cache"
+
+def _graphic_v67300_has_rendered_image(images):
+    return bool(
+        isinstance(images, (list, tuple))
+        and any(isinstance(item, dict) and item.get("data_url") for item in images)
+    )
+
+def _graphic_v67300_route_failure(failures, route, error):
+    message = (
+        f"{route}:{type(error).__name__}:"
+        f"{_graphic_compact_error_v4000(error)}"
+    )
+    failures.append(message)
+    diagnostic_log(
+        "graphic_v67300_route_failed",
+        route=route,
+        error_type=type(error).__name__,
+        error=_graphic_compact_error_v4000(error),
+    )
+    return message
+
+def _graphic_v67300_repair_local_authority(
+    images,
+    prompt_text,
+    role_items,
+    *,
+    route_name,
+):
+    """Repair legacy/local metadata without changing rendered pixels.
+
+    This function does not make an unverified provider image acceptable. It is
+    only used for deterministic/local product composites that already state that
+    the uploaded product layer is immutable and provider-generated product
+    geometry is false.
+    """
+    if not _graphic_v67300_has_rendered_image(images):
+        return images
+
+    expected = _graphic_extract_full_compatibility_v36000(prompt_text, "")
+    required_tokens = _graphic_copy_required_tokens_v36000(expected)
+    explicit = _graphic_explicit_fitment_v41100(prompt_text)
+
+    repaired = []
+    for original in images or []:
+        if not isinstance(original, dict) or not original.get("data_url"):
+            continue
+        image = dict(original)
+        metadata = dict(image.get("layered_metadata") or {})
+
+        provider_generated = metadata.get("product_pixels_provider_generated")
+        if provider_generated is None:
+            provider_generated = image.get("product_geometry_provider_generated")
+        ai_recreated = bool(
+            image.get("ai_product_recreated")
+            or metadata.get("ai_product_recreated")
+        )
+        immutable = image.get("product_layer_immutable")
+        exact_asset = metadata.get("exact_product_asset_mode")
+
+        local_route = any(
+            marker in str(route_name or "").casefold()
+            for marker in (
+                "deterministic",
+                "guaranteed-local",
+                "local-commercial",
+                "exact-reference",
+                "hybrid-local",
+            )
+        )
+        direct_local_evidence = (
+            provider_generated is False
+            and not ai_recreated
+            and (
+                immutable is True
+                or exact_asset is True
+                or str(image.get("product_identity_method") or "").casefold()
+                in {
+                    "exact_source_pixel_composite",
+                    "v66000-authoritative-mask-local-commercial-composite",
+                }
+            )
+        )
+        if not (local_route and direct_local_evidence):
+            repaired.append(image)
+            continue
+
+        spec = dict(image.get("campaign_spec") or {})
+        compatibility = str(
+            spec.get("compatibility")
+            or image.get("compatibility")
+            or metadata.get("compatibility")
+            or ""
+        ).strip()
+
+        if explicit:
+            compatibility = explicit
+        elif not compatibility and expected:
+            compatibility = expected
+
+        spec["compatibility"] = compatibility
+        spec["compatibility_required_tokens"] = required_tokens
+        spec["compatibility_locked"] = True
+        spec["compatibility_source"] = "v66200-full-fitment-authority"
+        image["campaign_spec"] = spec
+        image["compatibility"] = compatibility
+        image["deterministic_fitment_copy"] = compatibility
+        image["product_layer_immutable"] = True
+        image["product_geometry_provider_generated"] = False
+        image["ai_product_recreated"] = False
+        image["strict_product_identity_lock"] = True
+
+        metadata.update(
+            {
+                "exact_product_asset_mode": True,
+                "product_pixels_provider_generated": False,
+                "ai_product_recreated": False,
+                "compatibility": compatibility,
+                "compatibility_required_tokens": required_tokens,
+                "authority_repaired_v67300": True,
+                "authority_repair_route": route_name,
+            }
+        )
+        image["layered_metadata"] = metadata
+        image["authority_repaired_v67300"] = True
+        repaired.append(image)
+
+    return repaired
+
+def _graphic_v67300_local_result_acceptable(
+    images,
+    prompt_text,
+    contract,
+    *,
+    route_name,
+):
+    """Evidence-based acceptance for exact local composites.
+
+    Direct geometry violations remain release blockers. Missing optional
+    manifests or newer metadata names do not discard an otherwise proven local
+    exact-product commercial.
+    """
+    if not _graphic_v67300_has_rendered_image(images):
+        return {
+            "accepted": False,
+            "hard_block": False,
+            "reason": "route returned no rendered image",
+        }
+
+    violation = _graphic_v66860_direct_product_violation(images)
+    if violation:
+        return {
+            "accepted": False,
+            "hard_block": True,
+            "reason": violation,
+        }
+
+    proof = _graphic_v67100_exact_proof(images)
+    if not proof.get("passed"):
+        return {
+            "accepted": False,
+            "hard_block": proof.get("tier") == "direct-violation",
+            "reason": "; ".join(
+                proof.get("issues") or ["positive local-product proof unavailable"]
+            ),
+            "exact_proof": proof,
+        }
+
+    fitment = _graphic_v67100_fitment_gate(
+        images,
+        prompt_text,
+        required=True,
+        route_name=route_name,
+    )
+    if not fitment.get("passed"):
+        return {
+            "accepted": False,
+            "hard_block": False,
+            "reason": "; ".join(
+                fitment.get("issues") or ["fitment verification failed"]
+            ),
+            "fitment": fitment,
+        }
+
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        image["exact_product_proof_v67300"] = proof
+        image["fitment_gate_v67300"] = fitment
+        image["accepted_route_v67300"] = route_name
+        image["graphic_policy_version"] = GRAPHIC_V67310_POLICY_VERSION
+        image["graphic_mode_contract_v67300"] = {
+            key: value for key, value in contract.items() if key != "role_items"
+        }
+
+    return {
+        "accepted": True,
+        "hard_block": False,
+        "reason": "",
+        "exact_proof": proof,
+        "fitment": fitment,
+    }
+
+def _graphic_v67300_direct_local_commercial(
     prompt_text,
     uploaded_files,
     *,
     style_strength,
     forced_upload_role,
+    failure_reason,
+):
+    """Build a complete local advertisement with the v66000 exact product layer."""
+    effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_state = _graphic_exact_reference_request_v66820(
+        effective,
+        uploaded_files,
+        forced_upload_role,
+    )
+    role_items = list(role_state.get("role_items") or [])
+    if not role_items:
+        role_items = _graphic_recover_role_items(
+            uploaded_files,
+            effective,
+            forced_role=forced_upload_role,
+        )
+    if not any(item.get("role") == "product_photo" for item in role_items):
+        raise RuntimeError("No authoritative product photo is available.")
+
+    output_size = _graphic_normalize_output_size_v4000(
+        choose_graphic_image_size(effective)
+    )
+
+    # Use v67200 prepared facts when available. Every helper fails open to the
+    # existing cache/session behavior.
+    prepared = _graphic_v67200_prepare_locked_facts(
+        role_items,
+        effective,
+        style_strength,
+        has_style=any(item.get("role") == "style_reference" for item in role_items),
+        has_product=True,
+    )
+    blueprint = _graphic_safe_reference_blueprint_v16000(
+        prepared.get("reference_blueprint") or {}
+    )
+    vehicle = _graphic_resolve_vehicle_lock(
+        effective,
+        prepared.get("vehicle_profile") or {},
+    )
+
+    result = _graphic_v66830_source_canvas_result(
+        effective,
+        role_items,
+        output_size,
+        blueprint,
+        vehicle,
+        failure_reason,
+    )
+    return result
+
+def _graphic_v67300_exact_recovery_ladder(
+    prompt_text,
+    uploaded_files,
+    contract,
+    *,
+    style_strength,
+    forced_upload_role,
     failures,
 ):
-    """Use the proven deterministic/local commercial recovery sequence."""
-    try:
-        result = _graphic_exact_reference_deterministic_recovery_v66820(
-            prompt_text,
-            uploaded_files,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-        )
-        return result, "v67100-deterministic-exact-reference"
-    except Exception as error:
-        failures.append(
-            f"deterministic:{type(error).__name__}:"
-            f"{_graphic_compact_error_v4000(error)}"
-        )
+    """Run every safe exact-product route independently.
 
-    result = _graphic_v66830_guaranteed_exact_result(
-        prompt_text,
-        uploaded_files,
-        style_strength=style_strength,
-        forced_upload_role=forced_upload_role,
-        failure_reason=" | ".join(failures[-5:]),
+    No route is allowed to terminate the complete ladder. The ladder never uses
+    a provider-painted product fallback.
+    """
+    effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = list(contract.get("role_items") or [])
+    attempts = []
+
+    routes = [
+        (
+            "v67300-deterministic-exact-reference",
+            lambda: _graphic_exact_reference_deterministic_recovery_v66820(
+                effective,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+            ),
+        ),
+        (
+            "v67300-guaranteed-local-commercial",
+            lambda: _graphic_v66830_guaranteed_exact_result(
+                effective,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+                failure_reason=" | ".join(failures[-6:]),
+            ),
+        ),
+        (
+            "v67300-direct-local-commercial",
+            lambda: _graphic_v67300_direct_local_commercial(
+                effective,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+                failure_reason=" | ".join(failures[-8:]),
+            ),
+        ),
+    ]
+
+    last_usable = None
+    last_usable_route = ""
+
+    for route_name, runner in routes:
+        started = time.perf_counter()
+        try:
+            result = runner()
+            if _graphic_v67300_has_rendered_image(result):
+                result = _graphic_v67300_repair_local_authority(
+                    result,
+                    effective,
+                    role_items,
+                    route_name=route_name,
+                )
+                last_usable = result
+                last_usable_route = route_name
+
+            decision = _graphic_v67300_local_result_acceptable(
+                result,
+                effective,
+                contract,
+                route_name=route_name,
+            )
+            attempts.append(
+                {
+                    "route": route_name,
+                    "duration_seconds": round(time.perf_counter() - started, 3),
+                    "rendered_image": _graphic_v67300_has_rendered_image(result),
+                    "accepted": bool(decision.get("accepted")),
+                    "hard_block": bool(decision.get("hard_block")),
+                    "reason": str(decision.get("reason") or ""),
+                }
+            )
+            diagnostic_log(
+                "graphic_v67300_exact_recovery_attempt",
+                **attempts[-1],
+            )
+            if decision.get("accepted"):
+                for image in result or []:
+                    if isinstance(image, dict):
+                        image["exact_recovery_attempts_v67300"] = attempts
+                        image["recovery_failures"] = failures[-8:]
+                        image["recovered_from_v67300"] = True
+                return result, route_name, attempts
+
+            failures.append(
+                f"{route_name}-policy:"
+                + str(decision.get("reason") or "not accepted")
+            )
+        except Exception as error:
+            _graphic_v67300_route_failure(failures, route_name, error)
+            attempts.append(
+                {
+                    "route": route_name,
+                    "duration_seconds": round(time.perf_counter() - started, 3),
+                    "rendered_image": False,
+                    "accepted": False,
+                    "hard_block": False,
+                    "reason": f"{type(error).__name__}:"
+                    f"{_graphic_compact_error_v4000(error)}",
+                }
+            )
+
+    # Preserve an already-rendered, directly proven local result when a later
+    # optional audit alone failed. Never use this clause for provider imagery.
+    if last_usable:
+        repaired = _graphic_v67300_repair_local_authority(
+            last_usable,
+            effective,
+            role_items,
+            route_name=last_usable_route,
+        )
+        proof = _graphic_v67100_exact_proof(repaired)
+        violation = _graphic_v66860_direct_product_violation(repaired)
+        if proof.get("passed") and not violation:
+            fitment = _graphic_v67100_fitment_gate(
+                repaired,
+                effective,
+                required=True,
+                route_name=last_usable_route,
+            )
+            if fitment.get("passed"):
+                for image in repaired or []:
+                    if isinstance(image, dict):
+                        image["exact_recovery_attempts_v67300"] = attempts
+                        image["recovery_failures"] = failures[-8:]
+                        image["accepted_by_local_authority_v67300"] = True
+                        image["accepted_route_v67300"] = last_usable_route
+                return repaired, last_usable_route, attempts
+
+    raise RuntimeError(
+        "All exact-product local commercial recovery routes failed. "
+        + " | ".join(failures[-8:])
     )
-    return result, "v67100-guaranteed-local-commercial"
+
 
 
 def generate_graphic_marketing_images(
@@ -29814,7 +30196,7 @@ def generate_graphic_marketing_images(
     product_transform_mode="Auto",
     professional_layered_studio=True,
 ):
-    """v67100 current-job adaptive Reference Style API with proven recovery."""
+    """v67310 public API with non-terminating exact recovery and v67200 caches."""
     failures = []
     original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
 
@@ -29828,7 +30210,7 @@ def generate_graphic_marketing_images(
     except Exception as error:
         failures.append("mode:" + _graphic_compact_error_v4000(error))
         contract = {
-            "version": GRAPHIC_V67100_POLICY_VERSION,
+            "version": GRAPHIC_V67310_POLICY_VERSION,
             "mode": "fully_generative_concept",
             "role_items": [],
             "strict_exact_product": False,
@@ -29836,11 +30218,15 @@ def generate_graphic_marketing_images(
             "screen_local_edit": False,
             "allows_product_reconstruction": True,
             "requires_fitment_lock": False,
-            "installed_view": _graphic_installed_intent_hint_v47000(original_prompt),
+            "installed_view": _graphic_installed_intent_hint_v47000(
+                original_prompt
+            ),
             "reference_adaptation": {},
         }
 
-    effective_prompt = original_prompt + _graphic_v67100_reference_directive(contract)
+    effective_prompt = (
+        original_prompt + _graphic_v67100_reference_directive(contract)
+    )
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -29852,102 +30238,126 @@ def generate_graphic_marketing_images(
     )
 
     project = _graphic_active_project_assets_v16000(
-        _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+        _graphic_repair_project_asset_roles_v15000(
+            get_graphic_project_state()
+        )
     )
-    project.update({
-        "stage": "generating",
-        "last_error": "",
-        "generation_started_at": datetime.now(timezone.utc).isoformat(),
-        "graphic_mode_contract_v67100": {
-            key: value for key, value in contract.items() if key != "role_items"
-        },
-    })
+    project.update(
+        {
+            "stage": "generating",
+            "last_error": "",
+            "generation_started_at": datetime.now(timezone.utc).isoformat(),
+            "graphic_policy_version": GRAPHIC_V67310_POLICY_VERSION,
+            "graphic_mode_contract_v67300": {
+                key: value
+                for key, value in contract.items()
+                if key != "role_items"
+            },
+        }
+    )
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
 
     try:
         result = _generate_graphic_marketing_images_advanced(
-            effective_prompt, uploaded_files, **arguments
+            effective_prompt,
+            uploaded_files,
+            **arguments,
         )
         decision = _graphic_v67100_accept_or_route(
-            result, original_prompt, contract, route_name="advanced-v67100"
+            result,
+            original_prompt,
+            contract,
+            route_name="advanced-v67300",
         )
         if decision.get("accepted"):
             result = _graphic_v66860_attach_diagnostic_audit(
-                result, original_prompt
+                result,
+                original_prompt,
             )
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["graphic_policy_version"] = (
+                        GRAPHIC_V67310_POLICY_VERSION
+                    )
             return _graphic_finalize_recovery_v16000(
-                result, "advanced-v67100", failures
+                result,
+                "advanced-v67300",
+                failures,
             )
+
         failures.append(
-            "advanced-policy:" + str(decision.get("reason") or "not accepted")
+            "advanced-policy:"
+            + str(decision.get("reason") or "not accepted")
         )
         diagnostic_log(
-            "graphic_v67100_advanced_policy_route",
+            "graphic_v67300_advanced_policy_route",
             mode=contract.get("mode"),
-            treatment=(contract.get("reference_adaptation") or {}).get("treatment"),
+            treatment=(
+                contract.get("reference_adaptation") or {}
+            ).get("treatment"),
             hard_block=decision.get("hard_block"),
             reason=decision.get("reason"),
-            job_fingerprint=str(contract.get("job_fingerprint") or "")[:16],
         )
     except Exception as error:
-        failures.append(
-            f"advanced:{type(error).__name__}:"
-            f"{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v67100_advanced_recovery",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-            mode=contract.get("mode"),
+        _graphic_v67300_route_failure(
+            failures,
+            "advanced-v67300",
+            error,
         )
 
     if contract.get("strict_exact_product"):
-        result, route = _graphic_v67100_exact_reference_fallback(
+        result, route, attempts = _graphic_v67300_exact_recovery_ladder(
             original_prompt,
             uploaded_files,
+            contract,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
             failures=failures,
         )
-        decision = _graphic_v67100_accept_or_route(
-            result, original_prompt, contract, route_name=route
+        result = _graphic_v66860_attach_diagnostic_audit(
+            result,
+            original_prompt,
         )
-        if not decision.get("accepted"):
-            raise RuntimeError(
-                "Exact Reference Style recovery could not prove product and fitment "
-                "authority: " + str(decision.get("reason") or "unknown failure")
-            )
         for image in result or []:
             if isinstance(image, dict):
-                image["recovered_from_v67100"] = True
-                image["recovery_failures"] = failures[-5:]
-        result = _graphic_v66860_attach_diagnostic_audit(
-            result, original_prompt
+                image["exact_recovery_attempts_v67300"] = attempts
+                image["graphic_policy_version"] = (
+                    GRAPHIC_V67310_POLICY_VERSION
+                )
+        return _graphic_finalize_recovery_v16000(
+            result,
+            route,
+            failures,
         )
-        return _graphic_finalize_recovery_v16000(result, route, failures)
 
     if contract.get("screen_local_edit"):
         try:
             result = _generate_graphic_marketing_images_advanced_v3200(
-                effective_prompt, uploaded_files, **arguments
+                effective_prompt,
+                uploaded_files,
+                **arguments,
             )
             decision = _graphic_v67100_accept_or_route(
                 result,
                 original_prompt,
                 contract,
-                route_name="v67100-ui-replacement",
+                route_name="v67300-ui-replacement",
             )
             if decision.get("accepted"):
                 return _graphic_finalize_recovery_v16000(
-                    result, "v67100-ui-replacement", failures
+                    result,
+                    "v67300-ui-replacement",
+                    failures,
                 )
             failures.append(
-                "ui-policy:" + str(decision.get("reason") or "not accepted")
+                "ui-policy:"
+                + str(decision.get("reason") or "not accepted")
             )
         except Exception as error:
-            failures.append(
-                f"ui:{type(error).__name__}:"
-                f"{_graphic_compact_error_v4000(error)}"
+            _graphic_v67300_route_failure(
+                failures,
+                "v67300-ui-replacement",
+                error,
             )
 
     if contract.get("installed_view"):
@@ -29958,110 +30368,97 @@ def generate_graphic_marketing_images(
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
             )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["graphic_mode_contract_v67100"] = {
-                        key: value for key, value in contract.items()
-                        if key != "role_items"
-                    }
             return _graphic_finalize_recovery_v16000(
-                result, "v67100-installed-view", failures
+                result,
+                "v67300-installed-view",
+                failures,
             )
         except Exception as error:
-            failures.append(
-                f"installed:{type(error).__name__}:"
-                f"{_graphic_compact_error_v4000(error)}"
+            _graphic_v67300_route_failure(
+                failures,
+                "v67300-installed-view",
+                error,
             )
 
     if contract.get("reference_recreation"):
         try:
             result = _generate_graphic_marketing_images_advanced_v3200(
-                effective_prompt, uploaded_files, **arguments
+                effective_prompt,
+                uploaded_files,
+                **arguments,
             )
             decision = _graphic_v67100_accept_or_route(
                 result,
                 original_prompt,
                 contract,
-                route_name="v67100-reference-controlled-recreation",
+                route_name="v67300-reference-controlled-recreation",
             )
             if decision.get("accepted"):
                 return _graphic_finalize_recovery_v16000(
-                    result, "v67100-reference-controlled-recreation", failures
+                    result,
+                    "v67300-reference-controlled-recreation",
+                    failures,
                 )
             failures.append(
                 "reference-recreation-policy:"
                 + str(decision.get("reason") or "not accepted")
             )
         except Exception as error:
-            failures.append(
-                f"reference-recreation:{type(error).__name__}:"
-                f"{_graphic_compact_error_v4000(error)}"
+            _graphic_v67300_route_failure(
+                failures,
+                "v67300-reference-controlled-recreation",
+                error,
             )
 
-        # Never fall into an unverified whole-poster product recreation.
-        # Preserve the reference style and complete the job with the exact
-        # uploaded product at its original angle instead.
+        # Keep the style but safely retain the exact uploaded angle when
+        # Product-DNA recreation cannot be positively verified.
         exact_contract = dict(contract)
-        exact_contract.update({
-            "mode": "reference_guided_exact_product",
-            "reference_recreation": False,
-            "strict_exact_product": True,
-            "allows_product_reconstruction": False,
-        })
-        exact_plan = dict(exact_contract.get("reference_adaptation") or {})
-        exact_plan.update({
-            "treatment": "exact_composite",
-            "reason": (
-                "Requested angle recreation could not be positively verified; "
-                "fell back to the exact uploaded product while retaining reference style."
-            ),
-        })
-        exact_contract["reference_adaptation"] = exact_plan
-
-        result, route = _graphic_v67100_exact_reference_fallback(
+        exact_contract.update(
+            {
+                "mode": "reference_guided_exact_product",
+                "reference_recreation": False,
+                "strict_exact_product": True,
+                "allows_product_reconstruction": False,
+            }
+        )
+        result, route, attempts = _graphic_v67300_exact_recovery_ladder(
             original_prompt,
             uploaded_files,
+            exact_contract,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
             failures=failures,
         )
-        decision = _graphic_v67100_accept_or_route(
-            result, original_prompt, exact_contract, route_name=route
-        )
-        if not decision.get("accepted"):
-            raise RuntimeError(
-                "Reference Style recreation and exact-product recovery both failed: "
-                + str(decision.get("reason") or "unknown failure")
-            )
         for image in result or []:
             if isinstance(image, dict):
-                image["angle_recreation_fallback_v67100"] = True
+                image["angle_recreation_fallback_v67300"] = True
                 image["angle_recreation_warning"] = (
-                    "The requested new angle could not be positively verified, so "
-                    "the exact uploaded product angle was retained."
+                    "The requested new angle could not be positively verified, "
+                    "so the exact uploaded product angle was retained."
                 )
-                image["recovery_failures"] = failures[-5:]
+                image["exact_recovery_attempts_v67300"] = attempts
         return _graphic_finalize_recovery_v16000(
-            result, "v67100-reference-angle-safe-exact-fallback", failures
+            result,
+            "v67300-reference-angle-safe-exact-fallback",
+            failures,
         )
 
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
-            effective_prompt, uploaded_files, **arguments
+            effective_prompt,
+            uploaded_files,
+            **arguments,
         )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["graphic_mode_contract_v67100"] = {
-                    key: value for key, value in contract.items()
-                    if key != "role_items"
-                }
         return _graphic_finalize_recovery_v16000(
-            result, "v67100-mode-compatible-v3200", failures
+            result,
+            "v67300-mode-compatible-v3200",
+            failures,
         )
     except Exception as error:
-        failures.append(
-            f"v3200:{type(error).__name__}:"
-            f"{_graphic_compact_error_v4000(error)}"
+        _graphic_v67300_route_failure(
+            failures,
+            "v67300-mode-compatible-v3200",
+            error,
         )
 
     try:
@@ -30071,26 +30468,313 @@ def generate_graphic_marketing_images(
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
         )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["graphic_mode_contract_v67100"] = {
-                    key: value for key, value in contract.items()
-                    if key != "role_items"
-                }
         return _graphic_finalize_recovery_v16000(
-            result, "v67100-mode-compatible-emergency-provider", failures
+            result,
+            "v67300-mode-compatible-emergency-provider",
+            failures,
         )
     except Exception as error:
-        failures.append(
-            f"emergency:{type(error).__name__}:"
-            f"{_graphic_compact_error_v4000(error)}"
+        _graphic_v67300_route_failure(
+            failures,
+            "v67300-mode-compatible-emergency-provider",
+            error,
         )
         raise RuntimeError(
             "All mode-compatible image-generation routes failed. "
             "Your project assets remain saved. "
-            + " | ".join(failures[-4:])
+            + " | ".join(failures[-8:])
         ) from error
 
+
+
+
+# ============================================================
+# v67200 LTS — quality-preserving parallel preparation and persistent asset cache
+# This layer changes only orchestration and reuse. It does not modify the v66000
+# product geometry authority, v66200 fitment authority, v67100 mode contracts,
+# deterministic compositor, glass, lighting, shadows, or provider output quality.
+# ============================================================
+GRAPHIC_V67200_POLICY_VERSION = "v67200-quality-preserving-parallel-preparation"
+GRAPHIC_V67200_CACHE_SCHEMA = "asset-preparation-v2"
+GRAPHIC_V67200_REFERENCE_TTL_SECONDS = 60 * 60 * 24 * 180
+GRAPHIC_V67200_PRODUCT_TTL_SECONDS = 60 * 60 * 24 * 180
+GRAPHIC_V67200_VEHICLE_TTL_SECONDS = 60 * 60 * 24 * 30
+GRAPHIC_V67200_PARALLEL_PREPARATION = True
+
+_GRAPHIC_V67200_ORIGINAL_ANALYZE_REFERENCE = analyze_graphic_reference_blueprint
+_GRAPHIC_V67200_ORIGINAL_RESEARCH_VEHICLE = research_graphic_vehicle_profile
+_GRAPHIC_V67200_ORIGINAL_BUILD_PRODUCT_DNA = _graphic_build_product_dna_v8000_original_v67200
+
+
+def _graphic_v67200_now_epoch():
+    return float(time.time())
+
+
+def _graphic_v67200_upload_bytes(item):
+    if not isinstance(item, dict):
+        return b""
+    file_obj = item.get("file")
+    if file_obj is not None:
+        try:
+            return bytes(file_obj.getvalue() or b"")
+        except Exception:
+            pass
+    data_url = str(item.get("data_url") or "")
+    if data_url:
+        return data_url.encode("utf-8", "ignore")
+    return b""
+
+
+def _graphic_v67200_asset_digest(item):
+    """Compute one digest per upload and reuse it across the complete job."""
+    if not isinstance(item, dict):
+        return ""
+    existing = str(item.get("sha256") or item.get("source_sha256") or "").strip()
+    if existing:
+        return existing
+    raw = _graphic_v67200_upload_bytes(item)
+    digest = hashlib.sha256(raw).hexdigest() if raw else hashlib.sha256(
+        str(item.get("name") or "").encode("utf-8", "ignore")
+    ).hexdigest()
+    item["sha256"] = digest
+    return digest
+
+
+def _graphic_v67200_assets_fingerprint(role_items, allowed_roles=None):
+    allowed = set(allowed_roles or [])
+    rows = []
+    for item in role_items or []:
+        role = str((item or {}).get("role") or "")
+        if allowed and role not in allowed:
+            continue
+        rows.append((role, _graphic_v67200_asset_digest(item), str((item or {}).get("name") or "")))
+    payload = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8", "ignore")).hexdigest()
+
+
+def _graphic_v67200_cache_key(kind, fingerprint):
+    return f"analysis:{GRAPHIC_V67200_CACHE_SCHEMA}:{kind}:{fingerprint}"
+
+
+def _graphic_v67200_cache_read(kind, fingerprint, ttl_seconds):
+    key = _graphic_v67200_cache_key(kind, fingerprint)
+    payload = _graphic_v66100_cache_get(key)
+    if not isinstance(payload, dict):
+        return None
+    try:
+        created = float(payload.get("created_epoch") or 0)
+        if created and (_graphic_v67200_now_epoch() - created) > float(ttl_seconds):
+            return None
+    except Exception:
+        return None
+    value = payload.get("value")
+    return dict(value) if isinstance(value, dict) else None
+
+
+def _graphic_v67200_cache_write(kind, fingerprint, value, metadata=None):
+    if not isinstance(value, dict):
+        return False
+    return _graphic_v66100_cache_put(
+        _graphic_v67200_cache_key(kind, fingerprint),
+        {
+            "schema": GRAPHIC_V67200_CACHE_SCHEMA,
+            "kind": kind,
+            "created_epoch": _graphic_v67200_now_epoch(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "value": dict(value),
+            "metadata": dict(metadata or {}),
+        },
+    )
+
+
+def _graphic_v67200_reference_fingerprint(role_items, style_strength="High"):
+    return hashlib.sha256(
+        (
+            GRAPHIC_V67200_CACHE_SCHEMA + "|reference|" + str(style_strength) + "|" +
+            _graphic_v67200_assets_fingerprint(role_items, {"style_reference"})
+        ).encode("utf-8", "ignore")
+    ).hexdigest()
+
+
+def _graphic_v67200_vehicle_fingerprint(role_items, prompt_text=""):
+    explicit = _graphic_extract_explicit_vehicle(prompt_text) or {}
+    identity = "|".join([
+        str(explicit.get("make") or ""), str(explicit.get("model") or ""),
+        str(explicit.get("year_range") or explicit.get("years") or ""),
+        str(explicit.get("display_name") or ""),
+    ]).casefold()
+    return hashlib.sha256(
+        (
+            GRAPHIC_V67200_CACHE_SCHEMA + "|vehicle|" + identity + "|" +
+            _graphic_v67200_assets_fingerprint(role_items, {"product_photo", "installation_photo"})
+        ).encode("utf-8", "ignore")
+    ).hexdigest()
+
+
+def _graphic_v67200_product_fingerprint(role_items, structure_profile=None):
+    structure = json.dumps(structure_profile or {}, ensure_ascii=False, sort_keys=True, default=str)[:20000]
+    return hashlib.sha256(
+        (
+            GRAPHIC_V67200_CACHE_SCHEMA + "|product-dna|" +
+            _graphic_v67200_assets_fingerprint(role_items, {"product_photo"}) + "|" + structure
+        ).encode("utf-8", "ignore")
+    ).hexdigest()
+
+
+def _graphic_v67200_analyze_reference(role_items, prompt_text="", style_strength="High"):
+    """Persistent reference blueprint cache keyed only to reference pixels and analysis schema."""
+    fingerprint = _graphic_v67200_reference_fingerprint(role_items, style_strength)
+    cached = _graphic_v67200_cache_read(
+        "reference-blueprint", fingerprint, GRAPHIC_V67200_REFERENCE_TTL_SECONDS
+    )
+    if cached:
+        cached["cache_hit_v67200"] = True
+        cached["style_reference_sha256"] = _graphic_v67200_assets_fingerprint(role_items, {"style_reference"})
+        return _graphic_safe_reference_blueprint_v16000(cached)
+
+    started = time.perf_counter()
+    result = _GRAPHIC_V67200_ORIGINAL_ANALYZE_REFERENCE(
+        role_items, prompt_text=prompt_text, style_strength=style_strength
+    ) or {}
+    result = _graphic_safe_reference_blueprint_v16000(result)
+    result["style_reference_sha256"] = _graphic_v67200_assets_fingerprint(role_items, {"style_reference"})
+    result["cache_hit_v67200"] = False
+    _graphic_v67200_cache_write(
+        "reference-blueprint", fingerprint, result,
+        {"duration_seconds": round(time.perf_counter() - started, 3)},
+    )
+    return result
+
+
+def _graphic_v67200_research_vehicle(role_items, prompt_text=""):
+    """Persistent vehicle cache that preserves explicit prompt overrides."""
+    fingerprint = _graphic_v67200_vehicle_fingerprint(role_items, prompt_text)
+    cached = _graphic_v67200_cache_read(
+        "vehicle-profile", fingerprint, GRAPHIC_V67200_VEHICLE_TTL_SECONDS
+    )
+    if cached:
+        cached["cache_hit_v67200"] = True
+        return _graphic_resolve_vehicle_lock(prompt_text, cached)
+
+    started = time.perf_counter()
+    result = _GRAPHIC_V67200_ORIGINAL_RESEARCH_VEHICLE(role_items, prompt_text) or {}
+    result = _graphic_resolve_vehicle_lock(prompt_text, result)
+    result["cache_hit_v67200"] = False
+    _graphic_v67200_cache_write(
+        "vehicle-profile", fingerprint, result,
+        {"duration_seconds": round(time.perf_counter() - started, 3)},
+    )
+    return result
+
+
+def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
+    """v67200 persistent Product DNA cache; falls back to the unchanged v8000 builder."""
+    fingerprint = _graphic_v67200_product_fingerprint(role_items, structure_profile)
+    cached = _graphic_v67200_cache_read(
+        "product-dna", fingerprint, GRAPHIC_V67200_PRODUCT_TTL_SECONDS
+    )
+    if cached:
+        cached["cache_hit_v67200"] = True
+        return cached
+
+    started = time.perf_counter()
+    result = _GRAPHIC_V67200_ORIGINAL_BUILD_PRODUCT_DNA(role_items, structure_profile) or {}
+    if isinstance(result, dict):
+        result = dict(result)
+        result["cache_hit_v67200"] = False
+        result["product_source_fingerprint_v67200"] = _graphic_v67200_assets_fingerprint(
+            role_items, {"product_photo"}
+        )
+        _graphic_v67200_cache_write(
+            "product-dna", fingerprint, result,
+            {"duration_seconds": round(time.perf_counter() - started, 3)},
+        )
+    return result
+
+
+def _graphic_v67200_prepare_locked_facts(role_items, prompt_text, style_strength, *, has_style, has_product):
+    """Prepare independent remote facts concurrently, then persist once on the main path.
+
+    Thread execution is best-effort. Any Streamlit/runtime incompatibility automatically
+    falls back to the same sequential cached functions, preserving compatibility.
+    """
+    started = time.perf_counter()
+    result = {"reference_blueprint": {}, "vehicle_profile": {}, "timings": {}, "parallel": False}
+
+    tasks = []
+    if has_style:
+        tasks.append(("reference_blueprint", lambda: _graphic_v67200_analyze_reference(
+            role_items, prompt_text=prompt_text, style_strength=style_strength
+        )))
+    if has_product:
+        tasks.append(("vehicle_profile", lambda: _graphic_v67200_research_vehicle(
+            role_items, prompt_text=prompt_text
+        )))
+
+    if len(tasks) > 1 and GRAPHIC_V67200_PARALLEL_PREPARATION:
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            executor_kwargs = {
+                "max_workers": min(2, len(tasks)),
+                "thread_name_prefix": "atp-graphic-prep",
+            }
+            try:
+                import threading
+                from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+                current_ctx = get_script_run_ctx()
+                if current_ctx is not None:
+                    executor_kwargs["initializer"] = lambda: add_script_run_ctx(threading.current_thread(), current_ctx)
+            except Exception:
+                pass
+            with ThreadPoolExecutor(**executor_kwargs) as pool:
+                futures = {name: (pool.submit(func), time.perf_counter()) for name, func in tasks}
+                for name, (future, task_started) in futures.items():
+                    result[name] = future.result()
+                    result["timings"][name] = round(time.perf_counter() - task_started, 3)
+            result["parallel"] = True
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v67200_parallel_preparation_fallback",
+                error_type=type(error).__name__, error=str(error)[:800],
+            )
+            for name, func in tasks:
+                task_started = time.perf_counter()
+                result[name] = func()
+                result["timings"][name] = round(time.perf_counter() - task_started, 3)
+    else:
+        for name, func in tasks:
+            task_started = time.perf_counter()
+            result[name] = func()
+            result["timings"][name] = round(time.perf_counter() - task_started, 3)
+
+    result["duration_seconds"] = round(time.perf_counter() - started, 3)
+    diagnostic_log(
+        "graphic_v67200_locked_facts_ready",
+        parallel=result.get("parallel"),
+        duration_seconds=result.get("duration_seconds"),
+        reference_cache_hit=bool((result.get("reference_blueprint") or {}).get("cache_hit_v67200")),
+        vehicle_cache_hit=bool((result.get("vehicle_profile") or {}).get("cache_hit_v67200")),
+        timings=result.get("timings"),
+    )
+    return result
+
+
+def _graphic_v67200_stage_manifest():
+    return st.session_state.setdefault("graphic_stage_timing_manifest_v67200", [])
+
+
+def _graphic_v67200_record_stage(stage, started, **fields):
+    row = {
+        "stage": str(stage),
+        "duration_seconds": round(max(0.0, time.perf_counter() - started), 3),
+        "at": datetime.now(timezone.utc).isoformat(),
+        **fields,
+    }
+    manifest = _graphic_v67200_stage_manifest()
+    manifest.append(row)
+    del manifest[:-100]
+    diagnostic_log("graphic_v67200_stage_timing", **row)
+    return row
 
 
 def generated_image_answer_text(images, regenerated=False):
