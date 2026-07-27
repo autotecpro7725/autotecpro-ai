@@ -46,8 +46,8 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v67610 LTS — State-Machine v66200 Return Path with Reference Transform Compatibility
-# v67610 restores the proven v66200 public return contract and v3200 compatibility path while retaining newer nonblocking Reference transformations.
+# AutoTecPro AI Graphic Marketing Engine v67800 LTS — Final v66200 Reference Compositor, Official Logo, HD Copy & Locked Footer
+# v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -16777,83 +16777,212 @@ def _graphic_explicit_fitment_v41100(text):
 
 
 
-def _graphic_extract_campaign_spec(text, existing=None):
-    """Extract durable commercial copy facts and object-level follow-up edits."""
-    existing = dict(existing or {})
+
+GRAPHIC_V67800_POLICY_VERSION = "v67800-v66200-reference-compositor-authority"
+
+
+def _graphic_v67800_current_display_facts(text):
     value = re.sub(r"\s+", " ", str(text or "")).strip()
+    lower = value.casefold()
+    size_match = re.search(
+        r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|inches|[\"”])"
+        r"(?:\s*[,;:\-]?\s*(2k\s*qhd|qhd|full\s*hd|fhd|hd|uhd|4k))?\b",
+        value,
+        re.I,
+    )
+    screen_size = ""
+    display_grade = ""
+    if size_match:
+        screen_size = size_match.group(1).rstrip("0").rstrip(".") + '"'
+        display_grade = re.sub(r"\s+", " ", str(size_match.group(2) or "")).strip().upper()
+
+    designation = ""
+    for pattern, label in [
+        (r"\bdigital\s+gauge\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
+        (r"\binstrument\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
+        (r"\bdigital\s+display\b", "DIGITAL DISPLAY"),
+        (r"\btouchscreen\b", "TOUCHSCREEN"),
+        (r"\binfotainment\s+(?:system|screen|display)\b", "INFOTAINMENT SYSTEM"),
+        (r"\bhead\s*unit\b", "INFOTAINMENT SYSTEM"),
+        (r"\bradio\s+screen\b", "INFOTAINMENT SYSTEM"),
+    ]:
+        if re.search(pattern, lower, re.I):
+            designation = label
+            break
+
+    return {
+        "screen_size": screen_size,
+        "display_grade": display_grade,
+        "product_designation": designation,
+        "has_current_size": bool(screen_size),
+        "has_current_grade": bool(display_grade),
+        "has_current_designation": bool(designation),
+    }
+
+
+def _graphic_v67800_build_authoritative_headline(spec, prompt_text):
+    facts = _graphic_v67800_current_display_facts(prompt_text)
+    size = facts.get("screen_size") or str(spec.get("screen_size") or "").strip()
+    grade = facts.get("display_grade") or str(spec.get("display_grade") or "").strip()
+    designation = (
+        facts.get("product_designation")
+        or str(spec.get("product_designation") or "").strip()
+        or str(spec.get("product_category") or "").strip()
+        or "DIGITAL DISPLAY"
+    )
+    parts=[]
+    for value in (size,grade,designation):
+        clean=re.sub(r"\s+"," ",str(value or "")).strip().upper()
+        if clean and clean not in parts:
+            parts.append(clean)
+    return " ".join(parts)
+
+
+def _graphic_v67800_reference_features(spec, prompt_text):
+    result=[]; seen=set()
+    category=" ".join([
+        str(spec.get("product_designation") or ""),
+        str(spec.get("product_category") or ""),
+        str(prompt_text or ""),
+    ]).casefold()
+    size=str(spec.get("screen_size") or "").strip()
+    grade=str(spec.get("display_grade") or "").strip()
+    if "gauge cluster" in category or "instrument cluster" in category:
+        defaults=[
+            f"{size} {grade} Large Screen".strip(),
+            "Multiple Display Styles","Real-Time Vehicle Data","Fuel Level Display",
+            "Outdoor Temperature","Off-Road Information","Dual Travel Mileage",
+            "Hill Descent Assist",
+        ]
+    else:
+        defaults=[
+            f"{size} {grade} Large Screen".strip(),
+            "Wireless CarPlay","Android Auto","Bluetooth","Navigation",
+            "OEM Controls","Plug & Play","Backup Camera",
+        ]
+    # Current verified/default feature plan is preferred over stale arbitrary copy.
+    for item in defaults:
+        label=re.sub(r"\s+"," ",str(item or "")).strip()
+        key=re.sub(r"[^a-z0-9]+","",label.casefold())
+        if label and key and key not in seen:
+            seen.add(key); result.append(label)
+    return result[:8]
+
+
+def _graphic_v67800_bottom_benefits(spec, prompt_text):
+    category=" ".join([
+        str(spec.get("product_designation") or ""),
+        str(spec.get("product_category") or ""),
+        str(prompt_text or ""),
+    ]).casefold()
+    if "gauge cluster" in category or "instrument cluster" in category:
+        defaults=[
+            "Plug and Play","Off-Road Information","Multiple Display Styles",
+            "OEM Fit & Finish","High-Brightness IPS Screen",
+        ]
+    else:
+        defaults=[
+            "Plug and Play","GPS Navigation","Wireless CarPlay",
+            "OEM Fit & Finish","High-Brightness IPS Screen",
+        ]
+    return defaults
+
+
+def _graphic_v67800_locked_reference_boxes(layout_bp):
+    layout=dict(layout_bp or {})
+    layout.update({
+        "logo_box":[0.024,0.026,0.205,0.090],
+        "headline_box":[0.022,0.135,0.515,0.105],
+        "compatibility_box":[0.022,0.235,0.440,0.056],
+        "tagline_box":[0.022,0.305,0.500,0.050],
+        "hero_product_box":[0.035,0.350,0.545,0.545],
+        "feature_matrix_box":[0.565,0.040,0.410,0.300],
+        "bottom_bar_box":[0.045,0.885,0.910,0.095],
+    })
+    layout["template_product_scale"]=max(1.0,float(layout.get("template_product_scale") or 1.0))
+    return layout
+
+
+def _graphic_v67800_prepare_official_logo(logo):
+    if logo is None:
+        return None
+    try:
+        clean=logo.convert("RGBA")
+        bbox=clean.getchannel("A").getbbox()
+        return clean.crop(bbox) if bbox else clean
+    except Exception:
+        return logo
+
+
+def _graphic_extract_campaign_spec(text, existing=None):
+    existing=dict(existing or {})
+    value=re.sub(r"\s+"," ",str(text or "")).strip()
     if not value:
         return existing
-    lower = value.casefold()
+    lower=value.casefold()
+    facts=_graphic_v67800_current_display_facts(value)
 
-    # Parse complete product fitment before resolving the one representative scene
-    # vehicle. A scene vehicle must never collapse F-150/F-250/F-350 fitment into
-    # only F-150.
-    explicit_fitment = _graphic_explicit_fitment_v41100(value)
-    vehicle = _graphic_extract_explicit_vehicle(value)
+    explicit_fitment=_graphic_explicit_fitment_v41100(value)
+    vehicle=_graphic_extract_explicit_vehicle(value)
     if vehicle:
-        existing["vehicle"] = vehicle
-        display_name = str(vehicle.get("display_name") or "").strip()
+        existing["vehicle"]=vehicle
+        display_name=str(vehicle.get("display_name") or "").strip()
         if display_name and not explicit_fitment and not existing.get("compatibility"):
-            existing["compatibility"] = display_name
+            existing["compatibility"]=display_name
     if explicit_fitment:
-        existing["compatibility"] = explicit_fitment
-        existing["compatibility_source"] = "current_user_prompt_v41100"
-        existing["compatibility_locked"] = True
+        existing["compatibility"]=explicit_fitment
+        existing["compatibility_source"]="current_user_prompt_v41100"
+        existing["compatibility_locked"]=True
 
-    size_match = re.search(r"\b(\d{1,2}(?:\.\d)?)\s*(?:inch|inches|[\"”])\b", value, re.I)
-    if size_match:
-        existing["screen_size"] = size_match.group(1) + '\"'
+    if facts["screen_size"]:
+        existing["screen_size"]=facts["screen_size"]
+    if facts["display_grade"]:
+        existing["display_grade"]=facts["display_grade"]
+    if facts["product_designation"]:
+        existing["product_designation"]=facts["product_designation"]
+        existing["product_category"]=facts["product_designation"]
 
-    labelled = {
-        "headline": r"(?i)\bheadline\s*[:\-]\s*([^|;]{4,120})",
-        "tagline": r"(?i)\btagline\s*[:\-]\s*([^|;]{4,140})",
-        "compatibility": r"(?i)\b(?:compatibility|vehicle|fits?)\s*[:\-]\s*([^|;]{3,140})",
-        "website": r"(?i)\bwebsite\s*[:\-]\s*([^|;\s]{4,100})",
-        "product_category": r"(?i)\b(?:product category|product name|category)\s*[:\-]\s*([^|;]{3,120})",
+    labelled={
+        "headline":r"(?i)\bheadline\s*[:\-]\s*([^|;]{4,120})",
+        "tagline":r"(?i)\btagline\s*[:\-]\s*([^|;]{4,140})",
+        "compatibility":r"(?i)\b(?:compatibility|vehicle|fits?)\s*[:\-]\s*([^|;]{3,140})",
+        "website":r"(?i)\bwebsite\s*[:\-]\s*([^|;\s]{4,100})",
+        "product_category":r"(?i)\b(?:product category|product name|category)\s*[:\-]\s*([^|;]{3,120})",
     }
-    for key, pattern in labelled.items():
-        match = re.search(pattern, value)
-        if match:
-            candidate = re.sub(r"\s+", " ", match.group(1)).strip(" .")
-            if key == "compatibility":
-                candidate = _graphic_extract_full_compatibility_v36000(candidate, candidate)
-                if not existing.get("compatibility_locked"):
-                    existing[key] = candidate
-            else:
-                existing[key] = candidate
+    explicit_headline=False
+    for key,pattern in labelled.items():
+        match=re.search(pattern,value)
+        if not match:
+            continue
+        candidate=re.sub(r"\s+"," ",match.group(1)).strip(" .")
+        if key=="compatibility":
+            candidate=_graphic_extract_full_compatibility_v36000(candidate,candidate)
+            if not existing.get("compatibility_locked"):
+                existing[key]=candidate
+        else:
+            existing[key]=candidate
+            explicit_headline = explicit_headline or key=="headline"
 
-    quoted = re.findall(r'["“]([^"”]{4,140})["”]', value)
-    if quoted and any(term in lower for term in ("headline", "title", "say", "write", "text")):
-        existing["headline"] = quoted[0].strip()
-
-    edit = _graphic_parse_followup_edit_v4200(value, existing)
-    for key, val in (edit.get("copy_updates") or {}).items():
+    edit=_graphic_parse_followup_edit_v4200(value,existing)
+    for key,val in (edit.get("copy_updates") or {}).items():
         if str(val).strip():
-            existing[key] = str(val).strip()
+            existing[key]=str(val).strip()
+            explicit_headline = explicit_headline or key=="headline"
 
-    if "silverado" in lower:
-        existing["vehicle_label"] = "CHEVROLET SILVERADO"
-    elif re.search(r"\bf[\s-]?150\b", lower):
-        existing["vehicle_label"] = "FORD F-150"
+    existing.setdefault("website","www.AutoTecPro.com")
+    existing.setdefault("tagline","Smarter Drive. More Control. All in Sight.")
+    existing.setdefault("product_category","DIGITAL DISPLAY")
 
-    # Do not invent universal product facts. Preserve legacy values only when they
-    # already exist; otherwise use neutral wording until the user/Product Library
-    # supplies a verified category and size.
-    existing.setdefault("website", "www.AutoTecPro.com")
-    existing.setdefault("tagline", "Smarter Drive. More Control. All in Sight.")
-    existing.setdefault("product_category", "PREMIUM INFOTAINMENT SYSTEM")
-    existing.setdefault("feature_labels", [
-        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data",
-        "Integrated Climate Control", "Multimedia Interface", "Vehicle Information",
-        "OEM-Style Integration", "High-Brightness Display",
-    ])
-    existing.setdefault("bottom_benefits", [
-        "Plug and Play", "Vehicle Information", "Multiple Display Styles",
-        "OEM Fit & Finish", "High-Brightness Screen",
-    ])
-    if not existing.get("headline"):
-        size = str(existing.get("screen_size") or "").strip()
-        existing["headline"] = f"{size} {existing['product_category']}".strip().upper()
+    if not explicit_headline and any([
+        facts["has_current_size"],facts["has_current_grade"],facts["has_current_designation"]
+    ]):
+        existing["headline"]=_graphic_v67800_build_authoritative_headline(existing,value)
+        existing["headline_source"]="current_command_display_authority_v67800"
+    elif not existing.get("headline"):
+        existing["headline"]=_graphic_v67800_build_authoritative_headline(existing,value)
+
+    existing["feature_labels"]=_graphic_v67800_reference_features(existing,value)
+    existing["bottom_benefits"]=_graphic_v67800_bottom_benefits(existing,value)
     return existing
 
 
@@ -24860,6 +24989,7 @@ def _graphic_compose_reference_campaign_v3200(
     reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
     fused_reference, reference_fusion_v42000 = _graphic_multi_reference_fusion_v42000(reference_blueprint, role_items)
     layout_bp = _graphic_reference_layout_blueprint_v9000(fused_reference, template_key)
+    layout_bp = _graphic_v67800_locked_reference_boxes(layout_bp)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
 
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
@@ -25064,14 +25194,26 @@ def _graphic_compose_reference_campaign_v3200(
 
     # Official logo is a deterministic layer and is always applied in commercial mode.
     logo_applied = False
-    logo = get_official_brand_logo_image()
+    logo = _graphic_v67800_prepare_official_logo(get_official_brand_logo_image())
     if logo is not None:
         try:
             logo_box = layout_bp["logo_box"]
-            target_w = int(W * logo_box[2])
-            target_h = min(int(H * logo_box[3]), max(1, int(logo.height * target_w / max(1, logo.width))))
-            logo = logo.resize((target_w, target_h), Image.Resampling.LANCZOS)
-            canvas.alpha_composite(logo, (int(W * logo_box[0]), int(H * logo_box[1])))
+            logo_x, logo_y = int(W * logo_box[0]), int(H * logo_box[1])
+            logo_w, logo_h = int(W * logo_box[2]), int(H * logo_box[3])
+            # Remove any provider-invented wordmark, then place the exact official asset.
+            canvas.alpha_composite(
+                Image.new("RGBA", (logo_w, logo_h), (245, 249, 253, 238)),
+                (logo_x, logo_y),
+            )
+            ratio = min(logo_w / max(1, logo.width), logo_h / max(1, logo.height))
+            logo = logo.resize(
+                (max(1, int(logo.width * ratio)), max(1, int(logo.height * ratio))),
+                Image.Resampling.LANCZOS,
+            )
+            canvas.alpha_composite(
+                logo,
+                (logo_x, logo_y + max(0, (logo_h - logo.height) // 2)),
+            )
             logo_applied = True
             draw = ImageDraw.Draw(canvas, "RGBA")
         except Exception:
@@ -25195,21 +25337,11 @@ def _graphic_compose_reference_campaign_v3200(
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
             ty += int(H * 0.0225)
 
-    vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
-    vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
-    label_x, label_y = int(W * 0.67), int(H * 0.815)
-    draw.text((label_x, label_y), vehicle_label, font=vehicle_font, fill=white, stroke_width=2, stroke_fill=(0, 0, 0, 180))
-    underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
-    draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
-
-    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
-    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
-    while len(benefits) < 5:
-        benefits.append(bottom_defaults[len(benefits)])
+    benefits = _graphic_v67800_bottom_benefits(campaign_spec, prompt_text)
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
-    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=(8, 18, 31, 248), outline=(255, 255, 255, 120), width=2)
     cell = bw / 5.0
     bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
     for idx, label in enumerate(benefits):
@@ -26010,6 +26142,7 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
     """Build copy from explicit facts and verified Product Library data only."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
+    current_display_facts_v67800 = _graphic_v67800_current_display_facts(prompt_text)
     product = _graphic_product_library_grounding_v3300(prompt_text, state)
     explicit_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     explicit_size = bool(re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])\b", explicit_context, re.I))
@@ -26079,6 +26212,11 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
             "Vehicle-Specific Installation", "Factory Integration", "Smart Connectivity",
             "OEM Fit & Finish", "High-Brightness Display",
         ]
+    if any([current_display_facts_v67800.get("has_current_size"), current_display_facts_v67800.get("has_current_grade"), current_display_facts_v67800.get("has_current_designation")]):
+        spec["headline"] = _graphic_v67800_build_authoritative_headline(spec, prompt_text)
+        spec["headline_source"] = "current_command_display_authority_v67800"
+    spec["feature_labels"] = _graphic_v67800_reference_features(spec, prompt_text)
+    spec["bottom_benefits"] = _graphic_v67800_bottom_benefits(spec, prompt_text)
     spec["product_library_grounded"] = bool(product)
     spec["product_library_code"] = str(product.get("product_code") or product.get("sku") or "")
     state["campaign_spec"] = spec
@@ -31451,25 +31589,11 @@ def _graphic_v67300_exact_recovery_ladder(
 
 
 
-def generate_graphic_marketing_images(
-    prompt_text,
-    uploaded_files=None,
-    *,
-    use_approved_style=True,
-    preserve_product=True,
-    style_strength="High",
-    forced_upload_role="Auto-detect",
-    quality_retry=True,
-    product_transform_mode="Auto",
-    professional_layered_studio=True,
-):
-    """v67610 state-machine public API using the proven v66200 return contract.
-
-    Expected route failures are represented as stage outcomes instead of being
-    used as fatal control flow. Newer Reference resize/angle instructions may
-    enrich the advanced prompt, but later metadata/policy wrappers cannot block
-    a usable generated result.
-    """
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
+                                      preserve_product=True, style_strength="High",
+                                      forced_upload_role="Auto-detect", quality_retry=True,
+                                      product_transform_mode="Auto", professional_layered_studio=True):
+    """Public Graphic API with bounded professional and emergency recovery routes."""
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -31480,177 +31604,111 @@ def generate_graphic_marketing_images(
         professional_layered_studio=professional_layered_studio,
     )
     failures = []
-    original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
-    effective_prompt = original_prompt
-    contract = None
-
-    # Reference transformation parsing is optional enrichment only. It must not
-    # become a gate around the known-good image return path.
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
+    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    project = _graphic_active_project_assets_v16000(project)
+    project["stage"] = "generating"
+    project["last_error"] = ""
+    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
-        contract = _graphic_v67400_mode_contract(
-            original_prompt,
-            uploaded_files,
-            forced_upload_role,
-            product_transform_mode,
-        )
-        directive = _graphic_v67400_reference_directive(contract)
-        if directive:
-            effective_prompt = original_prompt + directive
+        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
+            effective_prompt, uploaded_files, **arguments
+        ), "advanced", failures)
     except Exception as error:
         failures.append(
-            f"reference-plan:{type(error).__name__}:"
-            f"{_graphic_compact_error_v4000(error)}"
+            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v67610_reference_plan_unavailable",
+            "graphic_v15000_advanced_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
         )
 
-    installed_request = _graphic_installed_intent_hint_v47000(original_prompt)
-    if isinstance(contract, dict):
-        installed_request = bool(contract.get("installed_view") or installed_request)
-
-    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
-    project = _graphic_active_project_assets_v16000(project)
-    project.update({
-        "stage": "generating",
-        "last_error": "",
-        "generation_started_at": datetime.now(timezone.utc).isoformat(),
-        "graphic_policy_version": "v67610-v66200-return-contract",
-    })
-    if isinstance(contract, dict):
-        project["graphic_mode_contract_v67400"] = {
-            key: value for key, value in contract.items() if key != "role_items"
-        }
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-
-    def run_stage(route_name, runner):
-        started = time.perf_counter()
-        try:
-            raw = runner()
-            images = _graphic_v67500_normalize_results(raw)
-            if not images:
-                reason = "route returned no rendered image"
-                failures.append(f"{route_name}:EmptyResult:{reason}")
-                diagnostic_log(
-                    "graphic_v67610_stage_result",
-                    route=route_name,
-                    success=False,
-                    duration_seconds=round(time.perf_counter() - started, 3),
-                    error_type="EmptyResult",
-                    error=reason,
-                )
-                return {"success": False, "images": [], "reason": reason}
-
-            # Only direct, affirmative product-geometry evidence may reject a
-            # strict Reference result. Missing optional metadata is never proof
-            # of distortion and therefore cannot discard the image.
-            if isinstance(contract, dict) and contract.get("strict_exact_product"):
-                violation = _graphic_v66860_direct_product_violation(images)
-                if violation:
-                    reason = str(violation)
-                    failures.append(f"{route_name}:DirectGeometryViolation:{reason}")
-                    diagnostic_log(
-                        "graphic_v67610_stage_result",
-                        route=route_name,
-                        success=False,
-                        duration_seconds=round(time.perf_counter() - started, 3),
-                        error_type="DirectGeometryViolation",
-                        error=reason,
-                    )
-                    return {"success": False, "images": images, "reason": reason}
-
-            for image in images:
-                if isinstance(image, dict):
-                    image["graphic_policy_version"] = "v67610-v66200-return-contract"
-                    image["accepted_route_v67610"] = route_name
-                    image["recovery_failures"] = failures[-6:]
-                    image["optional_metadata_missing_is_not_failure"] = True
-            diagnostic_log(
-                "graphic_v67610_stage_result",
-                route=route_name,
-                success=True,
-                duration_seconds=round(time.perf_counter() - started, 3),
-                image_count=len(images),
-            )
-            return {"success": True, "images": images, "reason": ""}
-        except Exception as error:
-            compact = _graphic_compact_error_v4000(error)
-            failures.append(f"{route_name}:{type(error).__name__}:{compact}")
-            diagnostic_log(
-                "graphic_v67610_stage_result",
-                route=route_name,
-                success=False,
-                duration_seconds=round(time.perf_counter() - started, 3),
-                error_type=type(error).__name__,
-                error=compact,
-            )
-            return {"success": False, "images": [], "reason": compact}
-
-    stages = [
-        (
-            "advanced-v67610",
-            lambda: _generate_graphic_marketing_images_advanced(
-                effective_prompt, uploaded_files, **arguments
-            ),
-        ),
-    ]
-
-    # Installed View remains fail-closed to an interior-only route. A poster is
-    # never substituted for an explicitly requested installed dashboard view.
+    # Installed View must fail closed to an interior-only recovery. Generic legacy
+    # or emergency routes are not allowed to turn it into a commercial poster.
     if installed_request:
-        stages.append((
-            "installed-view-only-v47000",
-            lambda: _graphic_installed_view_recovery_v47000(
-                original_prompt,
-                uploaded_files,
+        try:
+            result = _graphic_installed_view_recovery_v47000(
+                effective_prompt, uploaded_files,
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
-            ),
-        ))
-    else:
-        stages.extend([
-            (
-                "v3200-compatibility-v66200",
-                lambda: _generate_graphic_marketing_images_advanced_v3200(
-                    effective_prompt, uploaded_files, **arguments
-                ),
-            ),
-            (
-                "emergency-provider-v66200",
-                lambda: _graphic_emergency_provider_result_v15000(
-                    effective_prompt,
-                    uploaded_files,
-                    style_strength=style_strength,
-                    forced_upload_role=forced_upload_role,
-                ),
-            ),
-        ])
-
-    for route_name, runner in stages:
-        outcome = run_stage(route_name, runner)
-        if outcome.get("success"):
-            return _graphic_finalize_recovery_v16000(
-                outcome["images"], route_name, failures
             )
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["recovered_from_v47000"] = True
+                    image["recovery_failures"] = failures[-2:]
+            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
+        except Exception as error:
+            failures.append(
+                f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            )
+            diagnostic_log(
+                "graphic_v47000_installed_recovery_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+            state = get_graphic_project_state()
+            state["stage"] = "ready_to_generate"
+            state["last_error"] = " | ".join(failures[-4:])[:1800]
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            raise RuntimeError(
+                "Installed View generation failed safely. The app did not substitute a commercial poster. "
+                + " | ".join(failures[-3:])
+            ) from error
 
-    state = get_graphic_project_state()
-    state["stage"] = "ready_to_generate"
-    state["last_error"] = " | ".join(failures[-8:])[:3000]
-    state["last_failed_stage"] = "all_generation_routes"
-    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-    state["updated_at"] = datetime.now(timezone.utc).isoformat()
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    diagnostic_log(
-        "graphic_v67610_all_routes_failed",
-        failures=" | ".join(failures[-8:]),
-    )
-    raise RuntimeError(
-        "All established image-generation routes failed. "
-        "Your reference and product assets remain saved. "
-        + " | ".join(failures[-6:])
-    )
+    # The earlier v3200 path has fewer governance/QA dependencies and is retained
+    # only for non-installed compatibility recovery.
+    try:
+        result = _generate_graphic_marketing_images_advanced_v3200(
+            effective_prompt, uploaded_files, **arguments
+        )
+        for image in result or []:
+            if isinstance(image, dict):
+                image["recovered_from_v15000"] = True
+                image["recovery_failures"] = failures[-2:]
+        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+    except Exception as error:
+        failures.append(
+            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_v3200_pipeline_recovery",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+
+    try:
+        result = _graphic_emergency_provider_result_v15000(
+            effective_prompt,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+        )
+        for image in result or []:
+            if isinstance(image, dict):
+                image["recovery_failures"] = failures[-3:]
+        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+    except Exception as error:
+        failures.append(
+            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_all_routes_failed",
+            failures=failures[-4:],
+        )
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-4:])[:1800]
+        state["last_failed_stage"] = "all_generation_routes"
+        state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
+            + " | ".join(failures[-3:])
+        ) from error
 
 
 
