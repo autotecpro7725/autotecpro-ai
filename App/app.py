@@ -46,11 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v66600 LTS — Working Recovery Orchestration and Layout Guard
-# Built from v66500 with the complete known-good v66200 public generation/recovery orchestration restored.
-# Preserves v66000 exact-geometry/bezel authority, v66200 full-fitment authority, v66300 universal regression
-# coverage, and the deterministic v66400 layout compositor. Removes the v66400/v66500 hard metadata-gate
-# interception that caused valid product + style-reference requests to terminate before normal recovery.
+# AutoTecPro AI performance/stability revision: v63000 LTS — Final Bezel Authority
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -16664,108 +16660,114 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
 
 
 def _graphic_explicit_fitment_v41100(text):
-    """Return authoritative full fitment from flexible, catalog-neutral wording.
+    """Return authoritative flexible full fitment from the current user message.
 
-    v66300 preserves the v66200 rule that explicit product compatibility outranks
-    the representative scene vehicle, but removes the closed make/model whitelist.
-    Unknown and future makes, models, chassis codes and generations are retained
-    rather than discarded. Numbers such as screen sizes are never treated as years.
+    v66200 restores the proven v40100 Full Fitment Copy Fidelity behavior and
+    expands it to common punctuation and wording variants. Product compatibility
+    remains independent from the single representative vehicle used in the scene.
+    The style reference is never allowed to replace user-stated make/model/year
+    coverage.
     """
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     if not value:
         return ""
 
-    # Use the product-identification sentence as the model authority. A labelled
-    # compatibility clause is preferred only when it contains alphabetic model text.
-    leading = re.split(r"[;\n]", value, maxsplit=1)[0].strip()
-    labelled_match = re.search(
-        r"(?i)\b(?:compatibility|compatible\s+with|fits?|fitment|vehicles?)\s*[:\-]?\s*([^.;]{3,360})",
+    # Prefer explicitly labelled compatibility, otherwise inspect the leading
+    # product-identification sentence. Stop before visual/design instructions.
+    labelled = re.search(
+        r"(?i)\b(?:compatibility|compatible\s+with|fits?|fitment|vehicles?|for)\s*[:\-]?\s*([^.;]{3,320})",
         value,
     )
-    labelled = labelled_match.group(1).strip() if labelled_match else ""
-    candidates = [labelled, leading]
+    leading = re.split(r"[.;\n]", value, maxsplit=1)[0].strip()
+    candidates = []
+    if labelled:
+        candidates.append(labelled.group(1))
+    candidates.append(leading)
 
-    instruction_cut = re.compile(
-        r"(?i)\s+(?:screen\s*size|display\s*size|screen\b|resolution|create|make|design|"
-        r"with\s+the\s+same\s+style|please\s+use|commercial\s+photo|reference\s+image)\s*[:\-]?"
+    model_token = re.compile(
+        r"(?i)\b(?:"
+        r"(?:ford\s+)?f\s*[- ]?\s*(?:150|250|350|450|550)|"
+        r"(?:chevrolet\s+|chevy\s+)?silverado|(?:gmc\s+)?sierra|"
+        r"(?:dodge\s+|ram\s+)?ram(?:\s+(?:1500|2500|3500))?|"
+        r"(?:chevrolet\s+)?tahoe|(?:chevrolet\s+)?suburban|"
+        r"(?:gmc\s+)?yukon|(?:cadillac\s+)?escalade|"
+        r"(?:toyota\s+)?tundra|(?:toyota\s+)?tacoma|"
+        r"(?:jeep\s+)?wrangler|(?:jeep\s+)?gladiator|"
+        r"(?:infiniti\s+)?q50|(?:infiniti\s+)?q60"
+        r")\b"
     )
-    year_range_re = re.compile(
+
+    def canonical_model(raw):
+        token = re.sub(r"\s+", " ", str(raw or "")).strip()
+        low = token.casefold()
+        f_match = re.search(r"f\s*[- ]?\s*(150|250|350|450|550)", low)
+        if f_match:
+            return "F-" + f_match.group(1)
+        if "silverado" in low:
+            return "Chevrolet Silverado"
+        if "sierra" in low:
+            return "GMC Sierra"
+        ram_match = re.search(r"\bram(?:\s+(1500|2500|3500))?\b", low)
+        if ram_match:
+            return "RAM" + (" " + ram_match.group(1) if ram_match.group(1) else "")
+        names = {
+            "tahoe": "Chevrolet Tahoe", "suburban": "Chevrolet Suburban",
+            "yukon": "GMC Yukon", "escalade": "Cadillac Escalade",
+            "tundra": "Toyota Tundra", "tacoma": "Toyota Tacoma",
+            "wrangler": "Jeep Wrangler", "gladiator": "Jeep Gladiator",
+            "q50": "Infiniti Q50", "q60": "Infiniti Q60",
+        }
+        for key, name in names.items():
+            if re.search(rf"\b{re.escape(key)}\b", low):
+                return name
+        return token
+
+    year_range_patterns = [
         r"\(?\s*((?:19|20)\d{2})\s*(?:[–—-]|\bto\b|\bthrough\b)\s*((?:19|20)\d{2})\s*\)?",
-        re.I,
-    )
-    year_plus_re = re.compile(r"\b((?:19|20)\d{2})\s*\+")
-    single_year_re = re.compile(r"\b((?:19|20)\d{2})\b")
-
-    # Year authority may appear later in the same message after a screen-size phrase.
-    range_match = year_range_re.search(value)
-    plus_match = year_plus_re.search(value) if not range_match else None
-    single_matches = single_year_re.findall(value) if not range_match and not plus_match else []
-    if range_match:
-        start, end = range_match.group(1), range_match.group(2)
-        year_text = f" ({min(int(start), int(end))}–{max(int(start), int(end))})"
-    elif plus_match:
-        year_text = f" ({plus_match.group(1)}+)"
-    elif len(single_matches) == 1:
-        year_text = f" ({single_matches[0]})"
-    else:
-        year_text = ""
-
-    casing = {
-        "bmw": "BMW", "gmc": "GMC", "ram": "RAM", "vw": "VW", "mini": "MINI",
-        "audi": "Audi", "ford": "Ford", "toyota": "Toyota", "lexus": "Lexus",
-        "chevrolet": "Chevrolet", "chevy": "Chevrolet", "dodge": "Dodge",
-        "jeep": "Jeep", "infiniti": "Infiniti", "nissan": "Nissan", "honda": "Honda",
-        "acura": "Acura", "porsche": "Porsche", "volkswagen": "Volkswagen",
-        "mercedes": "Mercedes", "benz": "Benz", "cadillac": "Cadillac",
-        "buick": "Buick", "lincoln": "Lincoln", "subaru": "Subaru", "mazda": "Mazda",
-        "hyundai": "Hyundai", "kia": "Kia", "volvo": "Volvo", "tesla": "Tesla",
-        "land": "Land", "rover": "Rover", "range": "Range", "mitsubishi": "Mitsubishi",
-    }
-
-    def smart_case(phrase):
-        parts = re.split(r"(\s+|/|,)", phrase)
-        output = []
-        for part in parts:
-            low = part.casefold()
-            if low in casing:
-                output.append(casing[low])
-            elif re.fullmatch(r"[a-z]+\d+[a-z0-9.]*", low):
-                output.append(part.upper() if len(re.match(r"[a-z]+", low).group(0)) <= 3 else part)
-            elif part.islower() and part.isalpha():
-                output.append(part.title())
-            else:
-                output.append(part)
-        return "".join(output)
+        r"\(?\s*((?:19|20)\d{2})\s*[/\\]\s*((?:19|20)\d{2})\s*\)?",
+    ]
 
     for raw in candidates:
-        candidate = re.sub(r"(?i)^\s*(?:this\s+is|these\s+are|for|fits?|compatible\s+with)\s+", "", str(raw or "")).strip(" ,:;.-")
-        if not candidate:
-            continue
-        candidate = instruction_cut.split(candidate, maxsplit=1)[0].strip()
-        candidate = re.sub(r"(?i)\b\d{1,2}(?:\.\d+)?\s*(?:inch|inches|[\"”])\s*$", "", candidate).strip()
-        # Remove year notation while retaining chassis/generation codes such as W205,
-        # G30, 958.2, B9 and F10.
-        candidate = year_range_re.sub(" ", candidate)
-        candidate = year_plus_re.sub(" ", candidate)
-        candidate = re.sub(r"\(\s*\)", " ", candidate)
-        # Product-type wording is not part of the fitment model identity.
+        candidate = re.sub(r"(?i)^\s*(?:this\s+is|these\s+are)\s+", "", str(raw or "")).strip(" ,:;.-")
         candidate = re.split(
-            r"(?i)\s+\b(?:head\s*unit|radio|infotainment|navigation|digital\s+cluster|gauge\s+cluster|screen)\b",
+            r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design|with\s+the\s+same\s+style|please\s+use)\s*[:\-]?",
             candidate,
             maxsplit=1,
-        )[0]
-        candidate = re.sub(r"(?i)^\s*(?:compatibility|fitment|vehicles?)\s*[:\-]?\s*", "", candidate)
-        candidate = re.sub(r"\s*(?:,|\band\b)\s*", " / ", candidate, flags=re.I)
-        candidate = re.sub(r"\s*/\s*", " / ", candidate)
-        candidate = re.sub(r"\s+", " ", candidate).strip(" /,;:-")
-        if not candidate or not re.search(r"[A-Za-z]", candidate):
-            continue
-        # Canonicalize F-series typography without limiting acceptance to Ford.
-        candidate = re.sub(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", lambda m: "F-" + m.group(1), candidate)
-        candidate = smart_case(candidate)
-        return "For " + candidate + year_text
-    return ""
+        )[0].strip()
 
+        models=[]
+        for match in model_token.finditer(candidate):
+            model=canonical_model(match.group(0))
+            if model and model not in models:
+                models.append(model)
+        if not models:
+            continue
+
+        if all(re.fullmatch(r"F-(?:150|250|350|450|550)", m) for m in models):
+            model_text="Ford " + " / ".join(models)
+        else:
+            model_text=" / ".join(models)
+
+        year_text=""
+        for pattern in year_range_patterns:
+            yr=re.search(pattern,candidate,flags=re.I)
+            if yr:
+                start,end=yr.group(1),yr.group(2)
+                if int(start) <= int(end):
+                    year_text=f" ({start}–{end})"
+                else:
+                    year_text=f" ({end}–{start})"
+                break
+        if not year_text:
+            plus=re.search(r"\b((?:19|20)\d{2})\s*\+",candidate)
+            if plus:
+                year_text=f" ({plus.group(1)}+)"
+            else:
+                single=re.search(r"\b((?:19|20)\d{2})\b",candidate)
+                if single:
+                    year_text=f" ({single.group(1)})"
+        return "For " + model_text + year_text
+    return ""
 
 
 
@@ -20159,7 +20161,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v66300"
+GRAPHIC_ENGINE_VERSION = "v63000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -24508,108 +24510,6 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
-
-def _graphic_layout_authority_v66710(layout_bp, canvas_size):
-    """Improve reference typography rhythm without moving or resizing the product.
-
-    v66710 is intentionally built around the approved v66600 product placement. It may
-    normalize copy and feature/footer spacing, but ``hero_product_box`` is immutable.
-    This prevents layout polish from exposing provider-generated structures behind the
-    exact uploaded product or changing its approved scale and position.
-    """
-    solved = dict(layout_bp or {})
-    W, H = [max(1, int(v)) for v in canvas_size]
-    original_hero = list(solved.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
-
-    logo = list(solved.get("logo_box") or [0.022, 0.025, 0.205, 0.105])
-    headline = list(solved.get("headline_box") or [0.022, 0.145, 0.535, 0.090])
-    compatibility = list(solved.get("compatibility_box") or [0.022, 0.235, 0.435, 0.055])
-    tagline = list(solved.get("tagline_box") or [0.022, 0.300, 0.535, 0.045])
-    feature = list(solved.get("feature_matrix_box") or [0.565, 0.025, 0.410, 0.315])
-    footer = list(solved.get("bottom_bar_box") or [0.035, 0.875, 0.930, 0.110])
-
-    # One left copy rail. This does not influence the product region.
-    copy_x = max(0.018, min(0.035, float(headline[0])))
-    logo[0] = copy_x
-    headline[0] = copy_x
-    compatibility[0] = copy_x
-    tagline[0] = copy_x
-
-    # Reference-style copy rhythm, constrained to the existing v66600 zones.
-    headline[1] = max(0.125, min(0.155, float(headline[1])))
-    headline[2] = max(0.505, min(0.545, float(headline[2])))
-    headline[3] = max(0.082, min(0.102, float(headline[3])))
-    compatibility[1] = max(float(compatibility[1]), headline[1] + headline[3] - 0.004)
-    compatibility[2] = max(0.405, min(0.505, float(compatibility[2])))
-    compatibility[3] = max(0.048, min(0.060, float(compatibility[3])))
-    tagline[1] = max(float(tagline[1]), compatibility[1] + compatibility[3] + 0.010)
-    tagline[2] = max(0.485, min(0.535, float(tagline[2])))
-    tagline[3] = max(0.038, min(0.050, float(tagline[3])))
-
-    # Keep the complete 4x2 feature matrix, but do not let it change the hero box.
-    feature[0] = max(0.555, min(0.585, float(feature[0])))
-    feature[1] = max(0.025, min(0.045, float(feature[1])))
-    feature[2] = max(0.390, min(0.425, float(feature[2])))
-    feature[3] = max(0.295, min(0.325, float(feature[3])))
-
-    # Footer typography area only. Product placement remains the exact v66600 result.
-    footer[0] = max(0.025, min(0.040, float(footer[0])))
-    footer[1] = max(0.870, min(0.895, float(footer[1])))
-    footer[2] = max(0.920, min(0.950, float(footer[2])))
-    footer[3] = max(0.100, min(0.115, float(footer[3])))
-
-    solved.update({
-        "logo_box": [round(float(v), 6) for v in logo],
-        "headline_box": [round(float(v), 6) for v in headline],
-        "compatibility_box": [round(float(v), 6) for v in compatibility],
-        "tagline_box": [round(float(v), 6) for v in tagline],
-        "feature_matrix_box": [round(float(v), 6) for v in feature],
-        "hero_product_box": [round(float(v), 6) for v in original_hero],
-        "bottom_bar_box": [round(float(v), 6) for v in footer],
-        "layout_authority_v66710": {
-            "reference_typography_blueprint": True,
-            "copy_column_x": round(copy_x, 6),
-            "copy_rhythm_locked": True,
-            "feature_matrix_4x2_locked": True,
-            "footer_rhythm_locked": True,
-            "v66600_hero_box_immutable": True,
-            "product_geometry_modified": False,
-            "product_position_modified": False,
-        },
-    })
-    return solved
-
-
-def _graphic_layout_qa_v66710(before_bp, after_bp, canvas_size, product_box=None):
-    """Fail closed if typography polish changes the approved v66600 hero region."""
-    W, H = [max(1, int(v)) for v in canvas_size]
-    before = dict(before_bp or {})
-    after = dict(after_bp or {})
-    before_hero = [round(float(v), 6) for v in (before.get("hero_product_box") or [])]
-    after_hero = [round(float(v), 6) for v in (after.get("hero_product_box") or [])]
-    headline = list(after.get("headline_box") or [0, 0, 0, 0])
-    compatibility = list(after.get("compatibility_box") or [0, 0, 0, 0])
-    tagline = list(after.get("tagline_box") or [0, 0, 0, 0])
-    feature = list(after.get("feature_matrix_box") or [0, 0, 0, 0])
-    footer = list(after.get("bottom_bar_box") or [0, 0, 0, 0])
-    copy_xs = [headline[0], compatibility[0], tagline[0]]
-    checks = {
-        "v66600_hero_box_unchanged": before_hero == after_hero,
-        "copy_column_aligned": (max(copy_xs) - min(copy_xs)) <= 0.002,
-        "tagline_below_ribbon": tagline[1] >= compatibility[1] + compatibility[3] + 0.007,
-        "feature_matrix_complete_space": feature[2] >= 0.39 and feature[3] >= 0.295,
-        "footer_reference_proportion": 0.095 <= footer[3] <= 0.118,
-    }
-    return {
-        "passed": all(checks.values()),
-        "checks": checks,
-        "before_hero_product_box": before_hero,
-        "after_hero_product_box": after_hero,
-        "engine": "typography-layout-qa-v66710",
-        "product_box": list(product_box or []),
-    }
-
-
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -24655,9 +24555,6 @@ def _graphic_compose_reference_campaign_v3200(
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
-    layout_bp = _graphic_layout_authority_v66400(layout_bp, (W, H))
-    layout_bp_v66600_product_authority = dict(layout_bp)
-    layout_bp = _graphic_layout_authority_v66710(layout_bp, (W, H))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -24734,15 +24631,8 @@ def _graphic_compose_reference_campaign_v3200(
     else:
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
-    banner_overlap_requested_v66400 = _graphic_banner_overlap_requested_v66400(prompt_text)
-    banner_overlap_px_v66400 = 0
-    if banner_overlap_requested_v66400:
-        banner_overlap_px_v66400 = max(6, min(int(product.height * 0.035), int(H * 0.025)))
-        desired_product_bottom = footer_top_px + banner_overlap_px_v66400
-    else:
-        safety_gap_px = max(6, int(H * 0.012))
-        desired_product_bottom = footer_top_px - safety_gap_px
-    py = min(hero_y1 - product.height, desired_product_bottom - product.height)
+    safety_gap_px = max(6, int(H * 0.012))
+    py = min(hero_y1 - product.height, footer_top_px - safety_gap_px - product.height)
     py = max(hero_y0, py)
 
     state_now = get_graphic_project_state()
@@ -24829,9 +24719,8 @@ def _graphic_compose_reference_campaign_v3200(
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
     final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
-    critical_visibility_footer_v66400 = footer_top_px + banner_overlap_px_v66400 if banner_overlap_requested_v66400 else footer_top_px
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
-        product, (px, py), critical_visibility_footer_v66400, (W, H), product_analysis_v41000.get("mechanical")
+        product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
     )
     if design_mode == "reference_template" and not critical_region_visibility.get("passed"):
         raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
@@ -24895,12 +24784,12 @@ def _graphic_compose_reference_campaign_v3200(
     headline_y = int(H * headline_box[1])
     headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.054, True)
     headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
-    line_step = int(H * 0.064)
+    line_step = int(H * 0.068)
     for line in headline_lines:
         draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
         headline_y += line_step
 
-    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.006))
+    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.004))
     ribbon_h = int(H * compatibility_box[3])
     ribbon_w = int(W * compatibility_box[2])
     ribbon_fit = _graphic_fit_ribbon_copy_v36000(
@@ -24954,11 +24843,8 @@ def _graphic_compose_reference_campaign_v3200(
         "ribbon_width_px": ribbon_w,
         "engine": "v36000-flexible-compatibility-copy",
     }
-    tagline_x = left_x
-    tagline_y = max(int(H * tagline_box[1]), ribbon_y + ribbon_h + int(H * 0.014))
-    tagline_available_w = min(int(W * tagline_box[2]), max(1, int(W * layout_bp["feature_matrix_box"][0]) - int(W * 0.018) - tagline_x))
-    tag_font = fitted_font(tagline, tagline_available_w, H * 0.027, H * 0.018, False)
-    draw.text((tagline_x, tagline_y), tagline, font=tag_font, fill=navy)
+    tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
+    draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
 
     # Compact, reference-faithful 4x2 feature matrix.
     features = list(campaign_spec.get("feature_labels") or [])[:8]
@@ -24974,7 +24860,7 @@ def _graphic_compose_reference_campaign_v3200(
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
     grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
     cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
-    feature_font = _graphic_font(max(17, int(H * 0.0208)), False)
+    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
     for idx, label in enumerate(features):
         row, col = divmod(idx, 4)
         x0 = int(grid_x + col * cell_w)
@@ -24984,16 +24870,16 @@ def _graphic_compose_reference_campaign_v3200(
         if row:
             draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
         icon_box = (
-            int(x0 + cell_w * 0.30), int(y0 + cell_h * 0.045),
-            int(x0 + cell_w * 0.70), int(y0 + cell_h * 0.395),
+            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
+            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
         )
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
-        ty = int(y0 + cell_h * 0.545)
+        ty = int(y0 + cell_h * 0.57)
         for line in lines:
             tw = text_width(line, feature_font)
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
-            ty += int(H * 0.0215)
+            ty += int(H * 0.0225)
 
     vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
     vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
@@ -25011,29 +24897,22 @@ def _graphic_compose_reference_campaign_v3200(
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
-    bottom_font = _graphic_font(max(17, int(H * 0.0208)), False)
+    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
             draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
-        icon_box = (int(x0 + cell * 0.070), int(by + bh * 0.17), int(x0 + cell * 0.285), int(by + bh * 0.75))
+        icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
         lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
         ty = int(by + bh * 0.25)
         for line in lines:
-            draw.text((int(x0 + cell * 0.325), ty), line, font=bottom_font, fill=white)
-            ty += int(H * 0.0225)
+            draw.text((int(x0 + cell * 0.34), ty), line, font=bottom_font, fill=white)
+            ty += int(H * 0.024)
 
-    product_box = [px, py, product.width, product.height]
-    layout_qa_v66710 = _graphic_layout_qa_v66710(
-        layout_bp_v66600_product_authority, layout_bp, (W, H), product_box
-    )
-    if not layout_qa_v66710.get("passed"):
-        raise RuntimeError(
-            "v66710 rejected typography layout because the approved v66600 product region changed."
-        )
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", compress_level=5)
+    product_box = [px, py, product.width, product.height]
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
@@ -25074,21 +24953,6 @@ def _graphic_compose_reference_campaign_v3200(
         "product_ai_reconstruction_prohibited": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
-        "layout_authority_v66400": dict(layout_bp.get("layout_authority_v66400") or {}),
-        "layout_authority_v66710": dict(layout_bp.get("layout_authority_v66710") or {}),
-        "reference_layout_qa_v66710": layout_qa_v66710,
-        "v66600_product_placement_authority": True,
-        "reference_style_fidelity_target_v66710": 0.95,
-        "typography_layout_fidelity_target_v66710": 0.95,
-        "tagline_left_column_lock_v66400": True,
-        "complete_feature_matrix_v66400": len(features) == 8,
-        "banner_overlap_v66400": {
-            "requested": bool(banner_overlap_requested_v66400),
-            "overlap_px": int(banner_overlap_px_v66400),
-            "product_pixels_modified": False,
-            "product_geometry_modified": False,
-            "banner_drawn_after_product": True,
-        },
         "official_brand_logo_applied": logo_applied,
         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
         "campaign_zones": [
@@ -25769,31 +25633,20 @@ def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
 
 
 def _graphic_copy_required_tokens_v36000(text):
-    """Return catalog-neutral make/model/year tokens that must survive rendering.
-
-    The validator no longer uses a closed vehicle-brand list. Every meaningful
-    alphanumeric token in the authoritative fitment is protected, including future
-    makes, chassis codes and model designations.
-    """
+    """Return every make, model, and year token that must survive rendering."""
     value = str(text or "")
-    stop = {"for", "and", "to", "through", "from", "the", "vehicle", "vehicles", "fits", "fitment"}
     tokens = []
-    for raw in re.findall(r"[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?", value):
-        clean = re.sub(r"[^a-z0-9]+", "", raw.casefold())
-        if not clean or clean in stop:
-            continue
-        # Single-letter chassis/model prefixes are retained together with their
-        # adjacent number by also adding a compact phrase below.
-        if len(clean) >= 2 and clean not in tokens:
-            tokens.append(clean)
-    compact = re.sub(r"[^a-z0-9]+", "", value.casefold())
-    # Protect common letter-number model pairs generically (X5, G30, W205, F-150).
-    for pair in re.findall(r"(?i)\b([A-Z]{1,4})\s*[- ]?\s*(\d{1,4}(?:\.\d+)?)\b", value):
-        clean = re.sub(r"[^a-z0-9]+", "", "".join(pair).casefold())
-        if clean and clean not in tokens and clean in compact:
+    pattern = (
+        r"(?i)\b(?:toyota|tundra|tacoma|chevrolet|chevy|silverado|gmc|sierra|"
+        r"ford|f\s*[\- ]?\s*(?:150|250|350|450|550)|dodge|ram|"
+        r"tahoe|suburban|yukon|cadillac|escalade|jeep|wrangler|gladiator|"
+        r"infiniti|q50|q60|(?:19|20)\d{2})\b"
+    )
+    for token in re.findall(pattern, value):
+        clean = re.sub(r"[^a-z0-9]+", "", str(token).casefold())
+        if clean and clean not in tokens:
             tokens.append(clean)
     return tokens
-
 
 
 
@@ -28844,309 +28697,6 @@ def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, outp
     return [result]
 
 
-
-
-def _graphic_reference_exact_request_v66400(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
-    """Detect product+style commercial work that must never use a generated-poster fallback."""
-    try:
-        role_items = _graphic_project_role_items(uploaded_files, str(prompt_text or ""), forced_upload_role)
-    except Exception as error:
-        diagnostic_log(
-            "graphic_v66400_reference_request_detection_failed",
-            error_type=type(error).__name__,
-            error=str(error)[:300],
-        )
-        role_items = []
-    has_product = any(isinstance(item, dict) and item.get("role") == "product_photo" for item in role_items)
-    has_style = any(isinstance(item, dict) and item.get("role") == "style_reference" for item in role_items)
-    lower = str(prompt_text or "").casefold()
-    commercial_intent = any(term in lower for term in (
-        "commercial", "advertisement", "advertising", "ad style", "same style",
-        "reference image", "template", "marketing photo", "campaign image",
-    ))
-    return {
-        "active": bool(has_product and has_style and commercial_intent),
-        "has_product": bool(has_product),
-        "has_style": bool(has_style),
-        "commercial_intent": bool(commercial_intent),
-        "role_count": len(role_items),
-        "engine": "reference-exact-request-v66400",
-    }
-
-
-
-def _graphic_v66500_collect_contract_values(value, *, depth=0, output=None):
-    """Collect exact-product contract evidence from nested result metadata.
-
-    Older deterministic routes stored equivalent facts at different nesting levels. This
-    bounded collector normalizes those facts without accepting provider-painted products.
-    Image bytes are deliberately excluded from traversal.
-    """
-    if output is None:
-        output = {}
-    if depth > 7:
-        return output
-    if isinstance(value, dict):
-        for key, item in value.items():
-            clean_key = str(key or "").strip()
-            if clean_key in {"data_url", "image_bytes", "raw_bytes", "background_data_url"}:
-                continue
-            if clean_key and clean_key not in output:
-                output[clean_key] = item
-            if isinstance(item, (dict, list, tuple)):
-                _graphic_v66500_collect_contract_values(item, depth=depth + 1, output=output)
-    elif isinstance(value, (list, tuple)):
-        for item in value[:40]:
-            if isinstance(item, (dict, list, tuple)):
-                _graphic_v66500_collect_contract_values(item, depth=depth + 1, output=output)
-    return output
-
-
-def _graphic_v66500_bool(values, *keys, default=None):
-    """Return the first explicit boolean-compatible contract value."""
-    for key in keys:
-        if key not in values:
-            continue
-        value = values.get(key)
-        if value is True or value is False:
-            return value
-        if isinstance(value, (int, float)) and value in {0, 1}:
-            return bool(value)
-        if isinstance(value, str):
-            lowered = value.strip().casefold()
-            if lowered in {"true", "yes", "passed", "verified", "exact", "immutable"}:
-                return True
-            if lowered in {"false", "no", "failed", "recreated", "generated"}:
-                return False
-    return default
-
-
-def _graphic_v66500_exact_result_contract(result):
-    """Normalize deterministic exact-product evidence into one stable contract.
-
-    Safety rule: route names and strict-lock flags alone never prove exact pixels. The
-    contract requires immutable/source-pixel evidence and rejects any explicit provider
-    product generation or AI recreation signal.
-    """
-    result = result if isinstance(result, dict) else {}
-    values = _graphic_v66500_collect_contract_values(result)
-    route = str(
-        result.get("generation_route") or result.get("provider_route")
-        or values.get("generation_route") or values.get("provider_route") or ""
-    ).strip()
-    route_lower = route.casefold()
-    identity_method = str(
-        result.get("product_identity_method") or values.get("product_identity_method") or ""
-    ).strip().casefold()
-
-    zones_raw = values.get("campaign_zones") or []
-    if isinstance(zones_raw, dict):
-        zones = {str(key).strip().casefold() for key, present in zones_raw.items() if present}
-    else:
-        zones = {str(item).strip().casefold() for item in (zones_raw or [])}
-
-    provenance = values.get("product_provenance_v52000") or values.get("product_provenance_v53000") or {}
-    provenance_passed = bool(isinstance(provenance, dict) and provenance.get("passed") is True)
-    immutable_layer = _graphic_v66500_bool(
-        values, "product_layer_immutable", "exact_product_asset_mode", "fixed_production_geometry",
-        default=False,
-    ) is True
-    explicit_exact_pixels = _graphic_v66500_bool(
-        values, "exact_product_pixels", "critical_product_geometry_preserved",
-        default=False,
-    ) is True
-    exact_identity_method = identity_method in {
-        "exact_source_pixel_composite", "exact_source_pixels", "immutable_source_pixel_composite",
-    }
-    exact_pixels = bool(explicit_exact_pixels or (immutable_layer and provenance_passed) or exact_identity_method)
-
-    explicit_source_rgb = _graphic_v66500_bool(
-        values, "product_master_rgb_preserved", "rgb_pixels_regenerated",
-        default=None,
-    )
-    if "rgb_pixels_regenerated" in values and _graphic_v66500_bool(values, "rgb_pixels_regenerated", default=None) is False:
-        source_rgb = True
-    else:
-        source_rgb = explicit_source_rgb is True or (exact_identity_method and immutable_layer)
-
-    provider_product = _graphic_v66500_bool(
-        values, "product_pixels_provider_generated", "product_geometry_provider_generated",
-        default=False,
-    ) is True
-    ai_recreated = _graphic_v66500_bool(values, "ai_product_recreated", default=False) is True
-    reconstruction_prohibited = _graphic_v66500_bool(
-        values, "product_ai_reconstruction_prohibited", "reference_content_leakage_prohibited",
-        default=False,
-    ) is True
-
-    deterministic_route = any(token in route_lower for token in (
-        "strict-commercial-composer", "controlled-campaign", "exact-product",
-        "local-deterministic", "hybrid-campaign", "reference-locked-campaign",
-    ))
-    deterministic_copy = _graphic_v66500_bool(
-        values, "deterministic_typography", "tagline_left_column_lock_v66400",
-        default=False,
-    ) is True
-    if not deterministic_copy and deterministic_route:
-        required_copy_zones = {"headline", "compatibility_ribbon", "tagline"}
-        deterministic_copy = required_copy_zones.issubset(zones)
-
-    matrix_flag = _graphic_v66500_bool(
-        values, "complete_feature_matrix_v66400", "complete_feature_matrix",
-        default=False,
-    ) is True
-    feature_values = values.get("top_features") or values.get("features") or []
-    feature_count = len(feature_values) if isinstance(feature_values, (list, tuple)) else 0
-    full_matrix = bool("feature_matrix" in zones or matrix_flag or feature_count >= 8)
-
-    has_image = str(result.get("data_url") or "").startswith("data:image/")
-    safe_product = bool(exact_pixels and source_rgb and not provider_product and not ai_recreated)
-    deterministic_commercial = bool(deterministic_copy and full_matrix and (deterministic_route or "feature_matrix" in zones))
-    passed = bool(has_image and safe_product and deterministic_commercial)
-
-    missing = []
-    if not has_image: missing.append("image_data")
-    if not exact_pixels: missing.append("exact_product_pixels")
-    if not source_rgb: missing.append("source_rgb_preservation")
-    if provider_product: missing.append("provider_product_pixels_prohibited")
-    if ai_recreated: missing.append("ai_product_recreation_prohibited")
-    if not deterministic_copy: missing.append("deterministic_typography")
-    if not full_matrix: missing.append("complete_feature_matrix")
-    if not deterministic_route and "feature_matrix" not in zones: missing.append("deterministic_composer_route")
-
-    return {
-        "passed": passed,
-        "has_image": has_image,
-        "exact_product_pixels": exact_pixels,
-        "source_rgb_preserved": source_rgb,
-        "provider_product_pixels": provider_product,
-        "ai_product_recreated": ai_recreated,
-        "reconstruction_prohibited": reconstruction_prohibited,
-        "deterministic_typography": deterministic_copy,
-        "feature_matrix_present": full_matrix,
-        "deterministic_route": deterministic_route,
-        "route": route,
-        "campaign_zones": sorted(zones),
-        "missing_or_failed": missing,
-        "engine": "normalized-exact-result-contract-v66500",
-    }
-
-
-def _graphic_v66500_apply_exact_contract(result, contract):
-    """Attach canonical facts to a verified result without changing image pixels."""
-    if not isinstance(result, dict):
-        return result
-    contract = dict(contract or {})
-    result["exact_result_contract_v66500"] = contract
-    result["reference_exact_guard_v66500"] = {
-        "passed": bool(contract.get("passed")),
-        "reason": "verified normalized deterministic exact-product result" if contract.get("passed") else "contract failed",
-        "missing_or_failed": list(contract.get("missing_or_failed") or []),
-        "engine": "reference-exact-result-guard-v66500",
-    }
-    if contract.get("passed"):
-        layered = result.get("layered_metadata")
-        if not isinstance(layered, dict):
-            layered = {}
-            result["layered_metadata"] = layered
-        layered.update({
-            "exact_product_pixels": True,
-            "product_master_rgb_preserved": True,
-            "product_pixels_provider_generated": False,
-            "ai_product_recreated": False,
-            "deterministic_typography": True,
-            "complete_feature_matrix_v66400": True,
-            "normalized_exact_result_contract_v66500": True,
-        })
-    return result
-
-
-def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
-    """v66500-compatible guard using normalized evidence instead of brittle field location."""
-    guard = dict(request_guard or {})
-    if not guard.get("active"):
-        return {"passed": True, "guarded": False, "reason": "request not guarded", "engine": "reference-exact-result-guard-v66500"}
-    if not isinstance(images, (list, tuple)) or not images:
-        return {"passed": False, "guarded": True, "reason": "no result", "missing_or_failed": ["result"], "engine": "reference-exact-result-guard-v66500"}
-    result = images[0] if isinstance(images[0], dict) else {}
-    contract = _graphic_v66500_exact_result_contract(result)
-    if contract.get("passed"):
-        _graphic_v66500_apply_exact_contract(result, contract)
-    return {
-        "passed": bool(contract.get("passed")),
-        "guarded": True,
-        **contract,
-        "reason": (
-            "verified normalized deterministic exact-product result"
-            if contract.get("passed") else
-            "exact-product contract failed: " + ", ".join(contract.get("missing_or_failed") or ["unknown"])
-        ),
-        "engine": "reference-exact-result-guard-v66500",
-    }
-
-
-def _graphic_banner_overlap_requested_v66400(prompt_text):
-    """Return a bounded layout-only overlap request; never changes product alpha/RGB."""
-    lower = re.sub(r"\s+", " ", str(prompt_text or "").casefold()).strip()
-    phrases = (
-        "banner in front of the product", "banner in front of the unit",
-        "product behind the bottom banner", "unit behind the bottom banner",
-        "bottom banner overlays the product", "bottom banner overlays the unit",
-        "banner place on top of the unit", "banner on top of the unit",
-        "overlap the lower edge", "overlay the lower edge",
-    )
-    return any(phrase in lower for phrase in phrases)
-
-
-def _graphic_layout_authority_v66400(layout_bp, canvas_size):
-    """Lock the approved copy grid while retaining source-derived product geometry."""
-    solved = dict(layout_bp or {})
-    headline = list(solved.get("headline_box") or [0.03, 0.12, 0.51, 0.105])
-    compatibility = list(solved.get("compatibility_box") or [0.03, 0.235, 0.45, 0.055])
-    tagline = list(solved.get("tagline_box") or [0.03, 0.295, 0.49, 0.045])
-    feature = list(solved.get("feature_matrix_box") or [0.57, 0.035, 0.40, 0.285])
-    hero = list(solved.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
-    footer = list(solved.get("bottom_bar_box") or [0.03, 0.89, 0.94, 0.095])
-
-    # Logo, headline, ribbon and tagline form one immutable left copy column.
-    copy_x = max(0.018, min(0.08, float(headline[0])))
-    headline[0] = copy_x
-    compatibility[0] = copy_x
-    tagline[0] = copy_x
-    tagline[2] = max(float(tagline[2]), min(0.535, float(headline[2])))
-
-    # The approved style is always a complete 4x2 information matrix.
-    feature[2] = max(float(feature[2]), 0.38)
-    feature[3] = max(float(feature[3]), 0.265)
-
-    # Reserve visible air between top copy and product silhouette. The product remains
-    # uniformly scaled and uncropped; only its layout region is adjusted.
-    copy_bottom = max(
-        float(tagline[1]) + float(tagline[3]),
-        float(feature[1]) + float(feature[3]),
-    )
-    minimum_hero_top = min(float(footer[1]) - 0.18, copy_bottom + 0.018)
-    original_bottom = float(hero[1]) + float(hero[3])
-    hero[1] = max(float(hero[1]), minimum_hero_top)
-    hero[3] = max(0.12, min(original_bottom, float(footer[1]) - 0.006) - float(hero[1]))
-
-    solved.update({
-        "headline_box": [round(float(v), 6) for v in headline],
-        "compatibility_box": [round(float(v), 6) for v in compatibility],
-        "tagline_box": [round(float(v), 6) for v in tagline],
-        "feature_matrix_box": [round(float(v), 6) for v in feature],
-        "hero_product_box": [round(float(v), 6) for v in hero],
-        "layout_authority_v66400": {
-            "copy_column_x": round(copy_x, 6),
-            "tagline_left_locked": True,
-            "complete_feature_matrix": True,
-            "minimum_product_top_clearance": round(0.018, 6),
-            "product_geometry_modified": False,
-        },
-    })
-    return solved
-
-
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
@@ -29267,7 +28817,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
             + " | ".join(failures[-3:])
         ) from error
-
 
 
 
@@ -47044,344 +46593,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-
-
-# ============================================================
-# v66500 LTS — Normalized Exact-Result Contract & Deterministic Recovery
-# Built directly from v66400. Preserves the v66000 bezel/geometry authority and v66200 fitment authority byte-for-byte.
-# Replaces brittle metadata-only rejection with a canonical exact-result contract, deterministic-route normalization,
-# and typed fail-closed diagnostics. Generic provider-poster substitution remains prohibited for product+style work.
-# v66400 LTS — Deterministic Layout & Exact-Product Recovery Guard
-# Built directly from verified v66300. Preserves the complete v66000 geometry/mask
-# authority byte-for-byte and the v66200 flexible fitment authority. Adds a fail-closed
-# result guard so product+style commercial jobs can never fall through to a provider-
-# generated poster, locks the tagline to the left copy column, enforces the complete
-# deterministic 4x2 feature matrix, reserves silhouette-aware top clearance, and supports
-# an optional prompt-driven bottom-banner overlap without cropping or modifying product pixels.
-# v66300 LTS — Universal deterministic regression and release guard
-# This suite is deliberately product/make/model agnostic. Toyota is one historical
-# regression fixture, never a hard-coded geometry or catalog assumption.
-# It performs no provider calls and does not alter production generation state.
-# ============================================================
-GRAPHIC_V66300_REGRESSION_VERSION = "v66300-universal-regression-1"
-GRAPHIC_V66300_REQUIRED_GEOMETRY_FUNCTIONS = (
-    "_graphic_v66000_flood_connected_background",
-    "_graphic_v66000_source_geometry_evidence",
-    "_graphic_v66000_geometry_report",
-    "_graphic_v66000_build_candidate",
-    "_graphic_v66000_select_exact_geometry_alpha",
-    "_graphic_white_background_mask_v3300",
-    "_graphic_open_product_layer_v3300",
-)
-
-
-def _graphic_v66300_result(name, passed, **details):
-    return {"name": str(name), "passed": bool(passed), **details}
-
-
-def _graphic_v66300_synthetic_product_bytes(
-    *,
-    body_rgb=(205, 205, 200),
-    background_rgb=(255, 255, 255),
-    asymmetric=False,
-    include_lower_housing=True,
-    include_mounting_ears=True,
-):
-    """Build a generic product fixture without assuming any vehicle or bezel layout."""
-    if Image is None:
-        raise RuntimeError("Pillow is required for v66300 regression fixtures.")
-    from PIL import ImageDraw
-    canvas = Image.new("RGB", (520, 420), tuple(background_rgb))
-    draw = ImageDraw.Draw(canvas)
-    outline = (42, 42, 44)
-    left, top, right, bottom = (84, 62, 424, 304)
-    draw.rounded_rectangle((left, top, right, bottom), radius=22, fill=tuple(body_rgb), outline=outline, width=4)
-    # Interior opening is intentionally asymmetric when requested. The suite must not
-    # assume equal side bezels or a rectangular Toyota-specific housing.
-    aperture_left = 130 if not asymmetric else 116
-    aperture_right = 376 if not asymmetric else 388
-    draw.rounded_rectangle((aperture_left, 94, aperture_right, 254), radius=8, fill=(14, 17, 20), outline=(5, 5, 5), width=2)
-    # Generic controls/features produce source evidence on both sides.
-    for y in (108, 148, 188, 228):
-        draw.ellipse((96, y, 116, y + 20), fill=(35, 35, 38), outline=(10, 10, 10))
-    for y in (112, 158, 204):
-        x0 = 394 if not asymmetric else 402
-        draw.rectangle((x0, y, x0 + 16, y + 24), fill=(38, 38, 40), outline=(10, 10, 10))
-    if include_lower_housing:
-        draw.polygon(((102, 300), (408, 300), (374, 354), (132, 354)), fill=tuple(body_rgb), outline=outline)
-        draw.rectangle((184, 309, 330, 337), fill=(52, 52, 54), outline=(15, 15, 15))
-    if include_mounting_ears:
-        # Deliberately different ear shapes and positions; these are source-derived
-        # structural components, not brand-specific expectations.
-        draw.polygon(((58, 116), (86, 106), (88, 164), (60, 158)), fill=tuple(body_rgb), outline=outline)
-        draw.polygon(((424, 202), (462, 192), (468, 242), (424, 234)), fill=tuple(body_rgb), outline=outline)
-        if asymmetric:
-            draw.rectangle((218, 48, 252, 65), fill=tuple(body_rgb), outline=outline)
-    output = io.BytesIO()
-    canvas.save(output, format="PNG")
-    return output.getvalue()
-
-
-def _graphic_v66300_source_evidence_from_bytes(raw_bytes):
-    """Reproduce the v66000 source-evidence setup for deterministic damage tests."""
-    import numpy as np
-    source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
-    rgb = np.asarray(source.convert("RGB"), dtype=np.int16)
-    height, width = rgb.shape[:2]
-    band = max(2, min(width, height) // 80)
-    border = np.concatenate(
-        [
-            rgb[:band].reshape(-1, 3),
-            rgb[-band:].reshape(-1, 3),
-            rgb[:, :band].reshape(-1, 3),
-            rgb[:, -band:].reshape(-1, 3),
-        ],
-        axis=0,
-    )
-    bbright = border.mean(axis=1)
-    bchroma = border.max(axis=1) - border.min(axis=1)
-    neutral = border[(bbright >= 190) & (bchroma <= 46)]
-    samples = neutral if len(neutral) >= 32 else border
-    bg = np.median(samples, axis=0).astype(np.float32)
-    evidence, _, _, _ = _graphic_v66000_source_geometry_evidence(rgb, bg)
-    return evidence
-
-
-def _graphic_v66300_damage_alpha(alpha, region):
-    import numpy as np
-    damaged = np.asarray(alpha, dtype=np.uint8).copy()
-    h, w = damaged.shape[:2]
-    x0, y0, x1, y1 = region
-    x0, x1 = max(0, int(x0 * w)), min(w, int(x1 * w))
-    y0, y1 = max(0, int(y0 * h)), min(h, int(y1 * h))
-    damaged[y0:y1, x0:x1] = 0
-    return damaged
-
-
-def _graphic_v66300_geometry_regressions():
-    """Universal source-relative geometry tests for bezel, housing and thin structures."""
-    results = []
-    fixtures = (
-        ("bright_neutral_asymmetric", dict(body_rgb=(208, 208, 202), asymmetric=True)),
-        ("dark_horizontal", dict(body_rgb=(34, 35, 38), asymmetric=False)),
-        ("warm_metallic", dict(body_rgb=(186, 174, 157), asymmetric=True)),
-    )
-    for fixture_name, kwargs in fixtures:
-        raw = _graphic_v66300_synthetic_product_bytes(**kwargs)
-        alpha, selection = _graphic_v66000_select_exact_geometry_alpha(raw)
-        results.append(_graphic_v66300_result(
-            f"geometry_candidate_{fixture_name}",
-            alpha is not None and selection.get("passed") is True,
-            selected=selection.get("selected"),
-            confidence=selection.get("confidence"),
-            reason=selection.get("reason", ""),
-        ))
-        if alpha is None:
-            continue
-        evidence = _graphic_v66300_source_evidence_from_bytes(raw)
-        # Damage zones intentionally represent generic side structure, lower housing,
-        # and isolated mounting projections. The report must reject each damaged matte.
-        damage_cases = (
-            ("side_structure", (0.08, 0.23, 0.24, 0.72)),
-            ("lower_housing", (0.18, 0.70, 0.82, 0.89)),
-            ("mounting_projection", (0.78, 0.42, 0.94, 0.64)),
-        )
-        for damage_name, region in damage_cases:
-            damaged = _graphic_v66300_damage_alpha(alpha, region)
-            report = _graphic_v66000_geometry_report(evidence, damaged, f"v66300_{damage_name}")
-            results.append(_graphic_v66300_result(
-                f"reject_{fixture_name}_{damage_name}",
-                report.get("passed") is False,
-                confidence=report.get("confidence"),
-                failed=list(report.get("failed") or []),
-            ))
-    return results
-
-
-def _graphic_v66300_fitment_regressions():
-    """Catalog-neutral wording tests, including but not limited to Toyota."""
-    cases = (
-        ("Toyota Tundra (2014-2022)", "For Toyota Tundra (2014–2022)"),
-        ("Ford F150 / F250 / F350 (2015-2021)", "For Ford F-150 / F-250 / F-350 (2015–2021)"),
-        ("Chevrolet Silverado, GMC Sierra 2014-2019", "For Chevrolet Silverado / GMC Sierra (2014–2019)"),
-        ("BMW X5 / X6 (2014-2018)", "For BMW X5 / X6 (2014–2018)"),
-        ("Audi A4 / S4 2009 to 2016", "For Audi A4 / S4 (2009–2016)"),
-        ("Mercedes-Benz C-Class W205 2015 through 2021", "For Mercedes-Benz C-Class W205 (2015–2021)"),
-        ("Porsche Cayenne 958.2 (2015-2018)", "For Porsche Cayenne 958.2 (2015–2018)"),
-        ("Jeep Wrangler / Gladiator 2018+", "For Jeep Wrangler / Gladiator (2018+)"),
-    )
-    results = []
-    for prompt, expected in cases:
-        actual = _graphic_extract_full_compatibility_v36000(prompt, "")
-        results.append(_graphic_v66300_result(
-            "fitment_" + hashlib.sha256(prompt.encode()).hexdigest()[:10],
-            actual == expected,
-            prompt=prompt,
-            expected=expected,
-            actual=actual,
-        ))
-    # Ensure screen/chassis numbers are not collapsed into a year lock.
-    non_year_prompt = 'BMW G30 12.3" screen, compatible with 2017-2023'
-    actual = _graphic_extract_full_compatibility_v36000(non_year_prompt, "")
-    results.append(_graphic_v66300_result(
-        "fitment_non_year_number_protection",
-        "2017–2023" in actual and "12.3" not in actual,
-        actual=actual,
-    ))
-    return results
-
-
-def _graphic_v66300_cache_regressions():
-    """Verify session fallback without requiring or mutating production Supabase data."""
-    key = "v66300-regression:" + hashlib.sha256(str(time.time_ns()).encode()).hexdigest()
-    payload = {"value": "session-fallback", "version": GRAPHIC_V66300_REGRESSION_VERSION}
-    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
-    before = session.get(key, None)
-    had_key = key in session
-    results = []
-    try:
-        # Directly seed the documented fallback layer. This test intentionally avoids
-        # a remote database write and proves that cache_get remains available when the
-        # persistent backend is absent or denied.
-        session[key] = payload
-        loaded = _graphic_v66100_cache_get(key)
-        results.append(_graphic_v66300_result(
-            "cache_session_fallback",
-            loaded == payload,
-            loaded=loaded,
-        ))
-        missing_key = key + ":missing"
-        results.append(_graphic_v66300_result(
-            "cache_missing_key_safe",
-            _graphic_v66100_cache_get(missing_key) in (None, {}),
-        ))
-    finally:
-        if had_key:
-            session[key] = before
-        else:
-            session.pop(key, None)
-        session.pop(key + ":missing", None)
-    return results
-
-
-def _graphic_v66300_provider_route_regressions():
-    """Verify route fingerprint separation and preferred-route ordering state."""
-    results = []
-    cases = (
-        ("generate", "1536x1024", False),
-        ("edit", "1536x1024", True),
-        ("generate", "1024x1024", False),
-    )
-    fingerprints = [_graphic_v66100_route_fingerprint(*case) for case in cases]
-    results.append(_graphic_v66300_result(
-        "provider_route_fingerprint_separation",
-        len(set(fingerprints)) == len(fingerprints),
-        fingerprints=fingerprints,
-    ))
-    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
-    action, size, has_images = cases[1]
-    key = GRAPHIC_V66100_ROUTE_CACHE_KEY + ":" + _graphic_v66100_route_fingerprint(action, size, has_images)
-    old = session.get(key)
-    had_key = key in session
-    route = "responses-image-tool-v4100-regression-model-2"
-    try:
-        session[key] = {"route": route, "updated_at": datetime.now(timezone.utc).isoformat()}
-        results.append(_graphic_v66300_result(
-            "provider_preferred_route_retrieval",
-            _graphic_v66100_preferred_route(action, size, has_images) == route,
-        ))
-        results.append(_graphic_v66300_result(
-            "provider_route_scope_isolation",
-            _graphic_v66100_preferred_route("generate", size, False) != route,
-        ))
-    finally:
-        if had_key:
-            session[key] = old
-        else:
-            session.pop(key, None)
-    return results
-
-
-def run_graphic_regression_suite_v66300(*, include_geometry=True):
-    """Run the deterministic release suite. No OpenAI, WooCommerce or network calls."""
-    started = time.perf_counter()
-    sections = {}
-    required_missing = [name for name in GRAPHIC_V66300_REQUIRED_GEOMETRY_FUNCTIONS if not callable(globals().get(name))]
-    sections["authority_presence"] = [
-        _graphic_v66300_result("v66000_geometry_authority_present", not required_missing, missing=required_missing),
-        _graphic_v66300_result(
-            "v66200_fitment_authority_present",
-            callable(globals().get("_graphic_extract_full_compatibility_v36000"))
-            and callable(globals().get("_graphic_copy_required_tokens_v36000")),
-        ),
-    ]
-    if include_geometry and not required_missing:
-        try:
-            sections["geometry"] = _graphic_v66300_geometry_regressions()
-        except Exception as error:
-            sections["geometry"] = [_graphic_v66300_result(
-                "geometry_suite_execution", False, error=f"{type(error).__name__}: {error}"
-            )]
-    try:
-        sections["fitment"] = _graphic_v66300_fitment_regressions()
-    except Exception as error:
-        sections["fitment"] = [_graphic_v66300_result(
-            "fitment_suite_execution", False, error=f"{type(error).__name__}: {error}"
-        )]
-    try:
-        sections["cache"] = _graphic_v66300_cache_regressions()
-    except Exception as error:
-        sections["cache"] = [_graphic_v66300_result(
-            "cache_suite_execution", False, error=f"{type(error).__name__}: {error}"
-        )]
-    try:
-        sections["provider_routing"] = _graphic_v66300_provider_route_regressions()
-    except Exception as error:
-        sections["provider_routing"] = [_graphic_v66300_result(
-            "provider_route_suite_execution", False, error=f"{type(error).__name__}: {error}"
-        )]
-    all_results = [row for rows in sections.values() for row in rows]
-    failed = [row for row in all_results if not row.get("passed")]
-    report = {
-        "suite": GRAPHIC_V66300_REGRESSION_VERSION,
-        "engine": GRAPHIC_ENGINE_VERSION,
-        "passed": not failed,
-        "test_count": len(all_results),
-        "failed_count": len(failed),
-        "duration_ms": round((time.perf_counter() - started) * 1000.0, 2),
-        "sections": sections,
-        "failed": failed,
-        "network_calls": 0,
-        "universal": True,
-    }
-    return report
-
-
-def _graphic_v66300_optional_startup_self_check():
-    """Run once only when explicitly enabled; normal production startup is unchanged."""
-    enabled = str(os.getenv("GRAPHIC_V66300_RUN_REGRESSION_ON_STARTUP", "")).strip().lower() in {"1", "true", "yes", "on"}
-    try:
-        enabled = enabled or bool(st.secrets.get("GRAPHIC_V66300_RUN_REGRESSION_ON_STARTUP", False))
-    except Exception:
-        pass
-    if not enabled or st.session_state.get("graphic_v66300_regression_completed"):
-        return None
-    report = run_graphic_regression_suite_v66300(include_geometry=True)
-    st.session_state["graphic_v66300_regression_completed"] = True
-    st.session_state["graphic_v66300_regression_report"] = report
-    diagnostic_log(
-        "graphic_v66300_regression_suite",
-        passed=report.get("passed"),
-        test_count=report.get("test_count"),
-        failed_count=report.get("failed_count"),
-        duration_ms=report.get("duration_ms"),
-    )
-    return report
-
-
-_graphic_v66300_optional_startup_self_check()
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
