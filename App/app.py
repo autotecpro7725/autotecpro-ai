@@ -97,6 +97,7 @@ except Exception:
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
 # recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
+# v66840 adds resilient Product Library archiving: Google Drive remains primary, while revoked/expired OAuth tokens automatically fall back to private Supabase Storage without blocking uploads.
 # v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
 # and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
 # The v66000 exact-geometry/bezel authority and v66100 performance/integration systems remain unchanged.
@@ -40216,6 +40217,49 @@ def _product_library_storage_upload(path, data, content_type):
         return bucket.upload(path, data, options)
 
 
+def _product_library_google_auth_failure(error):
+    """Return True for revoked/expired Google OAuth credentials."""
+    text = str(error or "").strip().lower()
+    return any(token in text for token in (
+        "token has been expired or revoked",
+        "invalid_grant",
+        "unauthorized_client",
+        "invalid_client",
+        "oauth",
+    ))
+
+
+def _product_library_original_fallback_path(product_code, asset_type, asset_subtype, digest, filename):
+    """Build a private Supabase Storage path for an original-file archive fallback."""
+    return (
+        f"{product_code}/_originals/{asset_type}/{asset_subtype}/"
+        f"{digest}-{_product_library_safe_filename(filename)}"
+    )
+
+
+def _product_library_remove_archive(asset):
+    """Remove an original archive from its actual provider."""
+    asset = asset or {}
+    provider = str(asset.get("archive_provider") or "").strip().lower()
+    archive_id = str(asset.get("archive_file_id") or "").strip()
+    if not archive_id:
+        return False
+    if provider in {"supabase", "supabase_storage", "supabase_storage_fallback"}:
+        _product_library_storage_remove([archive_id])
+        return True
+    return _product_library_drive_trash_file(archive_id)
+
+
+def _product_library_original_url(asset, expires=3600):
+    """Return a current URL for the original archive regardless of provider."""
+    asset = asset or {}
+    provider = str(asset.get("archive_provider") or "").strip().lower()
+    archive_id = str(asset.get("archive_file_id") or "").strip()
+    if provider in {"supabase", "supabase_storage", "supabase_storage_fallback"} and archive_id:
+        return _product_library_signed_url(archive_id, expires=expires)
+    return str(asset.get("archive_web_url") or "").strip()
+
+
 def _product_library_signed_url(path, expires=3600):
     """Create a temporary URL for a private Product Library image."""
     clean_path = str(path or "").strip().lstrip("/")
@@ -40313,7 +40357,7 @@ def _product_library_delete_asset(asset):
 
     archive_file_id = str(asset.get("archive_file_id") or "").strip()
     if archive_file_id:
-        _product_library_drive_trash_file(archive_file_id)
+        _product_library_remove_archive(asset)
 
     supabase.table("product_assets").delete().eq("id", asset["id"]).execute()
     _product_library_clear_read_caches()
@@ -40421,7 +40465,7 @@ def _product_library_delete_product(product):
     product_id = product["id"]
     assets = (
         supabase.table("product_assets")
-        .select("id,storage_path,archive_file_id")
+        .select("id,storage_path,archive_provider,archive_file_id")
         .eq("product_id", product_id)
         .execute().data
         or []
@@ -40449,13 +40493,15 @@ def _product_library_delete_product(product):
 
         if archive_file_id:
             try:
-                _product_library_drive_trash_file(archive_file_id)
+                _product_library_remove_archive(asset)
             except Exception as error:
-                cleanup_warnings.append(f"Google Drive: {error}")
+                provider_label = str(asset.get("archive_provider") or "archive")
+                cleanup_warnings.append(f"{provider_label}: {error}")
                 diagnostic_log(
-                    "product_library_delete_drive_cleanup_failed",
+                    "product_library_delete_archive_cleanup_failed",
                     product_id=product_id,
                     asset_id=asset_id,
+                    archive_provider=provider_label,
                     error=error,
                 )
 
@@ -41284,7 +41330,7 @@ def _product_library_cached_asset_catalog():
     asset_columns = (
         "id,product_id,product_code,asset_type,asset_subtype,original_filename,"
         "optimized_filename,content_type,storage_bucket,storage_path,"
-        "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
+        "storage_status,archive_provider,archive_status,archive_file_id,archive_web_url,created_at"
     )
     response = (
         get_supabase_admin_client()
@@ -41342,7 +41388,7 @@ def _product_library_cached_assets(product_code, product_id):
     asset_columns = (
         "id,product_id,product_code,asset_type,asset_subtype,original_filename,"
         "optimized_filename,content_type,storage_bucket,storage_path,"
-        "storage_status,archive_status,archive_file_id,archive_web_url,created_at"
+        "storage_status,archive_provider,archive_status,archive_file_id,archive_web_url,created_at"
     )
 
     clean_code = str(product_code or "").strip()
@@ -41999,31 +42045,81 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
             f"{filename} is already saved for this product and asset category."
         )
 
-    archive_status = "not_configured"
-    archive_file_id = ""
-    archive_web_url = ""
-    if _product_library_google_configured():
-        product_folder = _product_library_drive_create_folder(
-            product_code, GOOGLE_DRIVE_ROOT_FOLDER_ID
-        )
-        category_folder = _product_library_drive_create_folder(
-            PRODUCT_ASSET_LABELS.get(asset_type, "Other"), product_folder["id"]
-        )
-        subtype_folder = _product_library_drive_create_folder(
-            PRODUCT_ASSET_SUBTYPE_LABELS.get(clean_subtype, "Other"),
-            category_folder["id"],
-        )
-        drive_file = _product_library_drive_upload_bytes(
-            filename, content_type, original, subtype_folder["id"]
-        )
-        archive_status = "available"
-        archive_file_id = str(drive_file.get("id") or "")
-        archive_web_url = str(drive_file.get("webViewLink") or "")
-
+    # Save the optimized display image first so an external archive-provider
+    # outage cannot abort the Product Library upload.
     if storage_path:
         _product_library_storage_upload(storage_path, optimized, optimized_type)
         optimized_bytes = len(optimized)
         storage_status = "available"
+
+    archive_provider = "none"
+    archive_status = "not_configured"
+    archive_file_id = ""
+    archive_web_url = ""
+    drive_error = None
+
+    if _product_library_google_configured():
+        try:
+            product_folder = _product_library_drive_create_folder(
+                product_code, GOOGLE_DRIVE_ROOT_FOLDER_ID
+            )
+            category_folder = _product_library_drive_create_folder(
+                PRODUCT_ASSET_LABELS.get(asset_type, "Other"), product_folder["id"]
+            )
+            subtype_folder = _product_library_drive_create_folder(
+                PRODUCT_ASSET_SUBTYPE_LABELS.get(clean_subtype, "Other"),
+                category_folder["id"],
+            )
+            drive_file = _product_library_drive_upload_bytes(
+                filename, content_type, original, subtype_folder["id"]
+            )
+            archive_provider = "google_drive"
+            archive_status = "available"
+            archive_file_id = str(drive_file.get("id") or "")
+            archive_web_url = str(drive_file.get("webViewLink") or "")
+        except Exception as error:
+            drive_error = error
+            diagnostic_log(
+                "product_library_google_archive_unavailable",
+                filename=filename,
+                auth_failure=_product_library_google_auth_failure(error),
+                error_type=type(error).__name__,
+                error=error,
+            )
+
+    # Google Drive is the preferred archive, but it must never make a valid
+    # Product Library upload fail. Preserve the original privately in Supabase
+    # Storage whenever Drive is unavailable, misconfigured, expired, or revoked.
+    if archive_status != "available":
+        fallback_path = _product_library_original_fallback_path(
+            product_code, asset_type, clean_subtype, digest, filename
+        )
+        try:
+            _product_library_storage_upload(fallback_path, original, content_type)
+            archive_provider = "supabase_storage_fallback"
+            archive_status = (
+                "available_google_auth_fallback"
+                if drive_error and _product_library_google_auth_failure(drive_error)
+                else "available_fallback"
+            )
+            archive_file_id = fallback_path
+            archive_web_url = ""
+        except Exception as fallback_error:
+            # Image assets still have their optimized private copy. Non-image
+            # assets have no usable file without an archive, so fail truthfully.
+            if not storage_path:
+                raise RuntimeError(
+                    f"{filename} could not be archived in Google Drive or Supabase Storage: "
+                    f"{fallback_error}"
+                ) from fallback_error
+            archive_provider = "none"
+            archive_status = "unavailable"
+            diagnostic_log(
+                "product_library_original_fallback_failed",
+                filename=filename,
+                error_type=type(fallback_error).__name__,
+                error=fallback_error,
+            )
 
     record = {
         "product_id": product_id,
@@ -42038,7 +42134,7 @@ def _product_library_upload_asset(product, asset_type, uploaded_file, asset_subt
         "storage_bucket": PRODUCT_LIBRARY_BUCKET if storage_path else "",
         "storage_path": storage_path,
         "storage_status": storage_status,
-        "archive_provider": "google_drive" if _product_library_google_configured() else "none",
+        "archive_provider": archive_provider,
         "archive_status": archive_status,
         "archive_file_id": archive_file_id,
         "archive_web_url": archive_web_url,
@@ -42065,7 +42161,10 @@ def _product_library_dashboard_data():
         "assets": len(assets),
         "optimized_bytes": sum(int(row.get("optimized_bytes") or 0) for row in assets),
         "storage_missing": sum(1 for row in assets if row.get("storage_status") not in {"available", "not_applicable"}),
-        "archive_missing": sum(1 for row in assets if row.get("archive_status") != "available"),
+        "archive_missing": sum(
+            1 for row in assets
+            if not str(row.get("archive_status") or "").startswith("available")
+        ),
     }
 
 
@@ -42449,7 +42548,7 @@ def render_product_library_manage_fragment():
                             replace_panel_key = f"replace_panel_{asset_id}"
                             delete_panel_key = f"delete_panel_{asset_id}"
 
-                            archive_url = str(asset.get("archive_web_url") or "").strip()
+                            archive_url = _product_library_original_url(asset)
                             with st.container(
                                 key=f"product_asset_toolbar_{asset_id}"
                             ):
@@ -42477,7 +42576,7 @@ def render_product_library_manage_fragment():
                                             "Original",
                                             archive_url,
                                             use_container_width=True,
-                                            help="Open the original Google Drive archive",
+                                            help="Open the original private archive",
                                         )
                                     else:
                                         st.button(
@@ -42825,8 +42924,8 @@ def render_product_library_admin():
     with st.container(key="atp_product_library_panel"):
         st.markdown("### Product Library")
         st.caption(
-            "Original files are archived in Google Drive, optimized display images are served "
-            "from private Supabase Storage, and metadata is stored in Supabase."
+            "Original files are archived in Google Drive when available, with an automatic "
+            "private Supabase Storage fallback. Optimized display images and metadata remain in Supabase."
         )
         dashboard_tab, upload_tab, manage_tab = st.tabs([
             "Dashboard", "Upload Product", "Manage Products"
@@ -42892,7 +42991,7 @@ def render_product_library_admin():
                 heading="Upload product files",
             )
             st.caption(
-                "Originals go to Google Drive; optimized images go to Supabase."
+                "Originals go to Google Drive when available; Supabase provides a private automatic fallback."
             )
             upload_submit_cols = st.columns([1, 2, 1])
             with upload_submit_cols[1]:
