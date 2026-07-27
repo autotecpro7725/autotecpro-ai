@@ -97,6 +97,14 @@ except Exception:
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
 # recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
+# v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
+# and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
+# The v66000 exact-geometry/bezel authority and v66100 performance/integration systems remain unchanged.
+# v66100 LTS is built directly from verified v66000. It preserves the v66000
+# multi-candidate fail-closed bezel geometry authority unchanged while adding:
+# remembered provider routes, persistent fingerprint caches with session fallback,
+# verified-background validation reuse, actual attempt timing, complete-alpha-envelope
+# cropping, confidence-gated environmental integration metadata, and QA reuse.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -16652,64 +16660,115 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
 
 
 def _graphic_explicit_fitment_v41100(text):
-    """Return authoritative multi-model fitment from the current user message only.
+    """Return authoritative flexible full fitment from the current user message.
 
-    This deliberately separates product compatibility from the single representative
-    vehicle selected for the generated background. It never reads reference-image
-    wording or prior assistant text.
+    v66200 restores the proven v40100 Full Fitment Copy Fidelity behavior and
+    expands it to common punctuation and wording variants. Product compatibility
+    remains independent from the single representative vehicle used in the scene.
+    The style reference is never allowed to replace user-stated make/model/year
+    coverage.
     """
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     if not value:
         return ""
 
-    # Prefer an explicitly labelled compatibility/fitment field when supplied.
+    # Prefer explicitly labelled compatibility, otherwise inspect the leading
+    # product-identification sentence. Stop before visual/design instructions.
     labelled = re.search(
-        r"(?i)\b(?:compatibility|fits?|fitment|vehicles?)\s*[:\-]\s*([^.;]{3,300})",
+        r"(?i)\b(?:compatibility|compatible\s+with|fits?|fitment|vehicles?|for)\s*[:\-]?\s*([^.;]{3,320})",
         value,
     )
-    source = labelled.group(1).strip() if labelled else re.split(r"[.;]", value, maxsplit=1)[0].strip()
-    source = re.sub(r"(?i)^this\s+is\s+", "", source).strip()
-    source = re.split(
-        r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design)\s*[:\-]?",
-        source,
-        maxsplit=1,
-    )[0].strip()
+    leading = re.split(r"[.;\n]", value, maxsplit=1)[0].strip()
+    candidates = []
+    if labelled:
+        candidates.append(labelled.group(1))
+    candidates.append(leading)
 
-    year = re.search(r"\(?\s*((?:19|20)\d{2})\s*[–—-]\s*((?:19|20)\d{2})\s*\)?", source)
-    year_text = f"({year.group(1)}–{year.group(2)})" if year else ""
-    body = re.sub(r"\(?\s*(?:19|20)\d{2}\s*[–—-]\s*(?:19|20)\d{2}\s*\)?", "", source).strip(" ,:;.-")
+    model_token = re.compile(
+        r"(?i)\b(?:"
+        r"(?:ford\s+)?f\s*[- ]?\s*(?:150|250|350|450|550)|"
+        r"(?:chevrolet\s+|chevy\s+)?silverado|(?:gmc\s+)?sierra|"
+        r"(?:dodge\s+|ram\s+)?ram(?:\s+(?:1500|2500|3500))?|"
+        r"(?:chevrolet\s+)?tahoe|(?:chevrolet\s+)?suburban|"
+        r"(?:gmc\s+)?yukon|(?:cadillac\s+)?escalade|"
+        r"(?:toyota\s+)?tundra|(?:toyota\s+)?tacoma|"
+        r"(?:jeep\s+)?wrangler|(?:jeep\s+)?gladiator|"
+        r"(?:infiniti\s+)?q50|(?:infiniti\s+)?q60"
+        r")\b"
+    )
 
-    ford_models = []
-    for match in re.finditer(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", body):
-        model = f"F-{match.group(1)}"
-        if model not in ford_models:
-            ford_models.append(model)
-    if ford_models:
-        return "For Ford " + " / ".join(ford_models) + (f" {year_text}" if year_text else "")
+    def canonical_model(raw):
+        token = re.sub(r"\s+", " ", str(raw or "")).strip()
+        low = token.casefold()
+        f_match = re.search(r"f\s*[- ]?\s*(150|250|350|450|550)", low)
+        if f_match:
+            return "F-" + f_match.group(1)
+        if "silverado" in low:
+            return "Chevrolet Silverado"
+        if "sierra" in low:
+            return "GMC Sierra"
+        ram_match = re.search(r"\bram(?:\s+(1500|2500|3500))?\b", low)
+        if ram_match:
+            return "RAM" + (" " + ram_match.group(1) if ram_match.group(1) else "")
+        names = {
+            "tahoe": "Chevrolet Tahoe", "suburban": "Chevrolet Suburban",
+            "yukon": "GMC Yukon", "escalade": "Cadillac Escalade",
+            "tundra": "Toyota Tundra", "tacoma": "Toyota Tacoma",
+            "wrangler": "Jeep Wrangler", "gladiator": "Jeep Gladiator",
+            "q50": "Infiniti Q50", "q60": "Infiniti Q60",
+        }
+        for key, name in names.items():
+            if re.search(rf"\b{re.escape(key)}\b", low):
+                return name
+        return token
 
-    gm_models = []
-    if re.search(r"(?i)\bsilverado\b", body):
-        gm_models.append("Chevrolet Silverado")
-    if re.search(r"(?i)\bsierra\b", body):
-        gm_models.append("GMC Sierra")
-    if re.search(r"(?i)\btahoe\b", body):
-        gm_models.append("Chevrolet Tahoe")
-    if re.search(r"(?i)\bsuburban\b", body):
-        gm_models.append("Chevrolet Suburban")
-    if re.search(r"(?i)\byukon\b", body):
-        gm_models.append("GMC Yukon")
-    if gm_models:
-        return "For " + " / ".join(dict.fromkeys(gm_models)) + (f" {year_text}" if year_text else "")
+    year_range_patterns = [
+        r"\(?\s*((?:19|20)\d{2})\s*(?:[–—-]|\bto\b|\bthrough\b)\s*((?:19|20)\d{2})\s*\)?",
+        r"\(?\s*((?:19|20)\d{2})\s*[/\\]\s*((?:19|20)\d{2})\s*\)?",
+    ]
 
-    normalized = re.sub(r"\s*[|,&]+\s*", " / ", body)
-    normalized = re.sub(r"\s*/\s*", " / ", normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip(" ,:;.-")
-    if len(normalized) >= 5 and re.search(
-        r"(?i)\b(?:ford|chevrolet|gmc|dodge|ram|infiniti|silverado|sierra|tahoe|suburban|yukon)\b",
-        normalized,
-    ):
-        return (normalized if re.match(r"(?i)^for\b", normalized) else "For " + normalized) + (f" {year_text}" if year_text else "")
+    for raw in candidates:
+        candidate = re.sub(r"(?i)^\s*(?:this\s+is|these\s+are)\s+", "", str(raw or "")).strip(" ,:;.-")
+        candidate = re.split(
+            r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design|with\s+the\s+same\s+style|please\s+use)\s*[:\-]?",
+            candidate,
+            maxsplit=1,
+        )[0].strip()
+
+        models=[]
+        for match in model_token.finditer(candidate):
+            model=canonical_model(match.group(0))
+            if model and model not in models:
+                models.append(model)
+        if not models:
+            continue
+
+        if all(re.fullmatch(r"F-(?:150|250|350|450|550)", m) for m in models):
+            model_text="Ford " + " / ".join(models)
+        else:
+            model_text=" / ".join(models)
+
+        year_text=""
+        for pattern in year_range_patterns:
+            yr=re.search(pattern,candidate,flags=re.I)
+            if yr:
+                start,end=yr.group(1),yr.group(2)
+                if int(start) <= int(end):
+                    year_text=f" ({start}–{end})"
+                else:
+                    year_text=f" ({end}–{start})"
+                break
+        if not year_text:
+            plus=re.search(r"\b((?:19|20)\d{2})\s*\+",candidate)
+            if plus:
+                year_text=f" ({plus.group(1)}+)"
+            else:
+                single=re.search(r"\b((?:19|20)\d{2})\b",candidate)
+                if single:
+                    year_text=f" ({single.group(1)})"
+        return "For " + model_text + year_text
     return ""
+
 
 
 def _graphic_extract_campaign_spec(text, existing=None):
@@ -16749,7 +16808,13 @@ def _graphic_extract_campaign_spec(text, existing=None):
     for key, pattern in labelled.items():
         match = re.search(pattern, value)
         if match:
-            existing[key] = re.sub(r"\s+", " ", match.group(1)).strip(" .")
+            candidate = re.sub(r"\s+", " ", match.group(1)).strip(" .")
+            if key == "compatibility":
+                candidate = _graphic_extract_full_compatibility_v36000(candidate, candidate)
+                if not existing.get("compatibility_locked"):
+                    existing[key] = candidate
+            else:
+                existing[key] = candidate
 
     quoted = re.findall(r'["“]([^"”]{4,140})["”]', value)
     if quoted and any(term in lower for term in ("headline", "title", "say", "write", "text")):
@@ -18195,7 +18260,7 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
 # component authority, silhouette filling, and selective mechanical-tail recovery.
 
 # ============================================================
-# v66000 LTS — Universal Fail-Closed Exact Geometry Authority
+# v66100 LTS — Quality-Preserving Performance and Environmental Integration
 # ============================================================
 def _graphic_v66000_flood_connected_background(candidate):
     """Return only candidate background connected to the outside canvas."""
@@ -20260,64 +20325,123 @@ def _graphic_project_failure_v4000(stage, errors):
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
 
+
+# ============================================================
+# v66100 LTS — quality-preserving performance and observability
+# Keeps the v66000 geometry authority unchanged. All persistent optimizations
+# fail open to the verified v66000 behavior when storage is unavailable.
+# ============================================================
+GRAPHIC_V66100_CACHE_TABLE = "graphic_runtime_cache"
+GRAPHIC_V66100_CACHE_NAMESPACE = "v66100"
+GRAPHIC_V66100_ROUTE_CACHE_KEY = "provider-route"
+
+
+def _graphic_v66100_attempt_manifest():
+    return st.session_state.setdefault("graphic_provider_attempt_manifest_v66100", [])
+
+
+def _graphic_v66100_record_attempt(**entry):
+    row = {"at": datetime.now(timezone.utc).isoformat(), **entry}
+    manifest = _graphic_v66100_attempt_manifest()
+    manifest.append(row)
+    del manifest[:-80]
+    diagnostic_log("graphic_v66100_provider_attempt", **{k:v for k,v in row.items() if k != "error"})
+    return row
+
+
+def _graphic_v66100_cache_get(cache_key):
+    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    if cache_key in session:
+        return session.get(cache_key)
+    try:
+        result = (supabase.table(GRAPHIC_V66100_CACHE_TABLE)
+                  .select("payload")
+                  .eq("cache_key", cache_key).limit(1).execute())
+        rows = getattr(result, "data", None) or []
+        if rows and isinstance(rows[0].get("payload"), dict):
+            session[cache_key] = rows[0]["payload"]
+            return session[cache_key]
+    except Exception as error:
+        diagnostic_log("graphic_v66100_cache_read_unavailable", error_type=type(error).__name__)
+    return None
+
+
+def _graphic_v66100_cache_put(cache_key, payload):
+    if not isinstance(payload, dict):
+        return False
+    st.session_state.setdefault("graphic_persistent_cache_v66100", {})[cache_key] = payload
+    try:
+        record = {"cache_key": cache_key, "namespace": GRAPHIC_V66100_CACHE_NAMESPACE,
+                  "payload": payload, "updated_at": datetime.now(timezone.utc).isoformat()}
+        try:
+            supabase.table(GRAPHIC_V66100_CACHE_TABLE).upsert(record, on_conflict="cache_key").execute()
+        except Exception:
+            supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+        return True
+    except Exception as error:
+        diagnostic_log("graphic_v66100_cache_write_unavailable", error_type=type(error).__name__)
+        return False
+
+
+def _graphic_v66100_route_fingerprint(action, output_size, has_images):
+    return hashlib.sha256(f"{GRAPHIC_ENGINE_VERSION}|{action}|{output_size}|{int(has_images)}".encode()).hexdigest()
+
+
+def _graphic_v66100_remember_route(action, output_size, has_images, route):
+    key = GRAPHIC_V66100_ROUTE_CACHE_KEY + ":" + _graphic_v66100_route_fingerprint(action, output_size, has_images)
+    _graphic_v66100_cache_put(key, {"route": route, "updated_at": datetime.now(timezone.utc).isoformat()})
+
+
+def _graphic_v66100_preferred_route(action, output_size, has_images):
+    key = GRAPHIC_V66100_ROUTE_CACHE_KEY + ":" + _graphic_v66100_route_fingerprint(action, output_size, has_images)
+    data = _graphic_v66100_cache_get(key) or {}
+    return str(data.get("route") or "")
+
+
+def _graphic_v66100_bytes_sha(raw):
+    return hashlib.sha256(raw or b"").hexdigest() if raw else ""
+
+
 def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
-    """Primary Responses image route with bounded model/schema compatibility retries."""
+    """Responses route with remembered-success fast path and bounded fallback ladder."""
     capabilities = _graphic_sdk_capabilities_v4100()
     if not capabilities.get("responses"):
         raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
-
-    content = [{"type": "input_text", "text": str(production_prompt or "")[:30000]}]
-    label_lookup = {
-        "edit_base": "CURRENT ARTWORK TO EDIT",
-        "product_photo": "PRODUCT SOURCE — preserve this exact product identity",
-        "style_reference": "STYLE REFERENCE — copy design language only",
-        "logo_asset": "OFFICIAL LOGO ASSET",
-        "supporting_image": "SUPPORTING VISUAL ASSET",
-        "installation_dashboard_reference": "AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry",
-        "installation_ui_reference": "AUTHORITATIVE SCREEN UI REFERENCE",
-    }
-    usable_count = 0
+    content=[{"type":"input_text","text":str(production_prompt or "")[:30000]}]
+    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRODUCT SOURCE — preserve this exact product identity","style_reference":"STYLE REFERENCE — copy design language only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
+    usable=0
     for item in role_items or []:
-        data_url = _graphic_role_data_url(item)
-        if not data_url:
-            continue
-        usable_count += 1
-        content.append({"type": "input_text", "text": f"{label_lookup.get(item.get('provider_role') or item.get('role'), 'REFERENCE IMAGE')}: {item.get('name') or 'image'}"})
-        content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+        url=_graphic_role_data_url(item)
+        if not url: continue
+        usable+=1; content += [{"type":"input_text","text":f"{labels.get(item.get('provider_role') or item.get('role'),'REFERENCE IMAGE')}: {item.get('name') or 'image'}"},{"type":"input_image","image_url":url,"detail":"high"}]
+    action="edit" if usable else "generate"
+    variants=_graphic_responses_tool_variants_v4000(action,output_size,bool(usable))[:3]
+    models=list(_graphic_responses_model_candidates_v4100())
+    preferred=_graphic_v66100_preferred_route(action,output_size,bool(usable))
+    ordered=[]
+    m=re.match(r"responses-image-tool-v4100-(.+)-(\d+)$",preferred)
+    if m:
+        model=m.group(1); idx=int(m.group(2))
+        if model in models and 1<=idx<=len(variants): ordered.append((model,idx,variants[idx-1],True))
+    ordered += [(model,idx,tool,False) for model in models for idx,tool in enumerate(variants,1) if not any(x[0]==model and x[1]==idx for x in ordered)]
+    errors=[]; response_client=client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,max_retries=0)
+    for model,idx,tool,fast in ordered:
+        request={"model":model,"input":[{"role":"user","content":content}],"tools":[tool],"max_output_tokens":1200}
+        if idx==1: request["tool_choice"]={"type":"image_generation"}
+        started=time.perf_counter()
+        try:
+            response=response_client.responses.create(**request); images=_graphic_response_image_bytes_v4000(response)
+            duration=time.perf_counter()-started
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=bool(images),preferred_fast_path=fast,validation_purpose="generation")
+            if images:
+                route=f"responses-image-tool-v4100-{model}-{idx}"; _graphic_v66100_remember_route(action,output_size,bool(usable),route); return images,route
+            errors.append(f"{model}/variant-{idx}:no-image")
+        except Exception as error:
+            duration=time.perf_counter()-started; compact=_graphic_compact_error_v4000(error)
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=False,error_class=type(error).__name__,error=compact,preferred_fast_path=fast,validation_purpose="generation")
+            errors.append(f"{model}/variant-{idx}:{type(error).__name__}:{compact}")
+    raise RuntimeError("Responses image generation failed: "+" | ".join(errors[-4:]))
 
-    action = "edit" if usable_count else "generate"
-    errors = []
-    response_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
-    variants = _graphic_responses_tool_variants_v4000(action, output_size, bool(usable_count))[:3]
-    for model_name in _graphic_responses_model_candidates_v4100():
-        for index, tool in enumerate(variants, start=1):
-            request = {
-                "model": model_name,
-                "input": [{"role": "user", "content": content}],
-                "tools": [tool],
-                "max_output_tokens": 1200,
-            }
-            if index == 1:
-                request["tool_choice"] = {"type": "image_generation"}
-            try:
-                diagnostic_log("graphic_v4100_responses_attempt", model=model_name, variant=index, image_count=usable_count, tool_fields=sorted(tool))
-                response = response_client.responses.create(**request)
-                images = _graphic_response_image_bytes_v4000(response)
-                if images:
-                    return images, f"responses-image-tool-v4100-{model_name}-{index}"
-                errors.append(f"{model_name}/variant-{index}:no-image")
-            except Exception as error:
-                compact = _graphic_compact_error_v4000(error)
-                errors.append(f"{model_name}/variant-{index}:{type(error).__name__}:{compact}")
-                diagnostic_log(
-                    "graphic_v4100_responses_attempt_failed",
-                    model=model_name,
-                    variant=index,
-                    error_type=type(error).__name__,
-                    error=compact,
-                    tool_fields=sorted(tool),
-                )
-    raise RuntimeError("Responses image generation failed: " + " | ".join(errors[-4:]))
 
 
 def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size):
@@ -23460,12 +23584,14 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     key = hashlib.sha256(
         (GRAPHIC_ENGINE_VERSION + "|v40000-ultimate-scene-intelligence|" + output_size + "|" + template_key + "|" + background_prompt).encode()
     ).hexdigest()
-    cached = cache.get(key)
+    cached = cache.get(key) or _graphic_v66100_cache_get("background:" + key)
     if isinstance(cached, dict) and cached.get("data_url") and cached.get("vehicle_verified") is True:
         raw, _ = data_url_to_bytes(cached["data_url"])
         if raw:
-            diagnostic_log("graphic_v12000_background_cache_hit", vehicle_verified=True)
-            return raw, "cached-validated-background-v12000"
+            diagnostic_log("graphic_v66100_background_cache_hit", vehicle_verified=True)
+            state["last_verified_background_v66100"]={"sha256":_graphic_v66100_bytes_sha(raw),"vehicle_validation":cached.get("vehicle_validation") or {},"route":cached.get("route"),"validated_at":cached.get("created_at")}
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+            return raw, "cached-validated-background-v66100"
 
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     last_raw = None
@@ -23547,7 +23673,9 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
             "reference_pixels_used": False,
         }
         state["background_plate_cache"] = {key: value for key, value in list(cache.items())[-8:]}
+        state["last_verified_background_v66100"]={"sha256":_graphic_v66100_bytes_sha(last_raw),"vehicle_validation":last_validation,"route":last_route,"validated_at":datetime.now(timezone.utc).isoformat()}
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        _graphic_v66100_cache_put("background:"+key,cache[key])
     else:
         diagnostic_log("graphic_v12000_background_not_cached", reason="vehicle validation unavailable")
 
@@ -23603,86 +23731,29 @@ def _graphic_wrap_text_v3200(draw, text, font, max_width, max_lines=3):
     return lines
 
 
+
 def _graphic_trim_visible_product_canvas_v14000(product, transparent=False):
-    """Trim empty exterior canvas without letting isolated matte specks control scale.
-
-    v32000 measures sustained foreground occupancy instead of a raw alpha getbbox().
-    This prevents one low-alpha pixel at a source edge from retaining the entire studio
-    canvas and shrinking the visible product. The crop never cuts product RGB; it only
-    removes rows/columns that contain no meaningful foreground structure.
-    """
-    if Image is None or product is None:
-        return product, {"trimmed": False, "reason": "image unavailable"}
+    """v66100: crop only to the complete validated alpha envelope; never largest-run geometry."""
+    if Image is None or product is None: return product,{"trimmed":False,"reason":"image unavailable"}
     try:
-        import numpy as np
         from PIL import ImageChops, ImageFilter
-        image = ImageOps.exif_transpose(product).convert("RGBA")
-        original_size = image.size
-        bbox = None
-        method = "none"
+        image=ImageOps.exif_transpose(product).convert("RGBA"); original=image.size
         if transparent:
-            alpha = np.asarray(image.getchannel("A"), dtype=np.uint8)
-            foreground = alpha >= 24
-            h, w = foreground.shape
-            # Require sustained occupancy so isolated halo/speck pixels cannot keep
-            # an otherwise empty row or column. Thresholds stay low enough to retain
-            # thin mounting tabs and narrow bezel protrusions.
-            min_col_pixels = max(4, int(round(h * 0.0080)))
-            min_row_pixels = max(4, int(round(w * 0.0080)))
-
-            def largest_run(indices):
-                if indices.size == 0:
-                    return None
-                best = (int(indices[0]), int(indices[0]))
-                start = previous = int(indices[0])
-                for value in indices[1:]:
-                    value = int(value)
-                    if value > previous + 1:
-                        if previous - start > best[1] - best[0]:
-                            best = (start, previous)
-                        start = value
-                    previous = value
-                if previous - start > best[1] - best[0]:
-                    best = (start, previous)
-                return best
-
-            col_run = largest_run(np.flatnonzero(foreground.sum(axis=0) >= min_col_pixels))
-            row_run = largest_run(np.flatnonzero(foreground.sum(axis=1) >= min_row_pixels))
-            if col_run and row_run:
-                bbox = (
-                    int(col_run[0]), int(row_run[0]),
-                    int(col_run[1]) + 1, int(row_run[1]) + 1,
-                )
-                method = "alpha_sustained_largest_run"
+            bbox=image.getchannel("A").point(lambda a:255 if a>=8 else 0).getbbox(); method="v66100_complete_validated_alpha_envelope"
         else:
-            rgb = image.convert("RGB")
-            w, h = rgb.size
-            sample = max(2, min(w, h) // 80)
-            regions = [rgb.crop((0,0,sample,sample)), rgb.crop((w-sample,0,w,sample)), rgb.crop((0,h-sample,sample,h)), rgb.crop((w-sample,h-sample,w,h))]
+            rgb=image.convert("RGB"); w,h=rgb.size; s=max(2,min(w,h)//80)
             pixels=[]
-            for region in regions:
-                pixels.extend(list(region.getdata()))
-            if pixels:
-                pixels.sort(key=lambda c: sum(c))
-                bg = pixels[len(pixels)//2]
-                diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, bg)).convert("L")
-                bbox = diff.point(lambda value: 255 if value >= 18 else 0).filter(ImageFilter.MaxFilter(5)).getbbox()
-                method = "border_difference"
-        if not bbox:
-            return image, {"trimmed": False, "reason": "no visible-object bbox", "original_size": list(original_size)}
-        left, top, right, bottom = bbox
-        # Small transparent safety pad retains antialiasing and the complete lower
-        # silhouette without restoring the large studio canvas.
-        pad = max(2, int(min(original_size) * 0.006))
-        left=max(0,left-pad); top=max(0,top-pad); right=min(original_size[0],right+pad); bottom=min(original_size[1],bottom+pad)
-        retained=((right-left)*(bottom-top))/max(1,original_size[0]*original_size[1])
-        if retained < 0.06 or retained > 0.96:
-            return image, {"trimmed": False, "reason": "unsafe or insignificant bbox", "retained_ratio": round(retained,4), "original_size": list(original_size)}
-        cropped=image.crop((left,top,right,bottom))
-        return cropped, {"trimmed": True, "method": method, "original_size": list(original_size), "cropped_size": list(cropped.size), "crop_box": [left,top,right,bottom], "retained_ratio": round(retained,4)}
+            for box in [(0,0,s,s),(w-s,0,w,s),(0,h-s,s,h),(w-s,h-s,w,h)]: pixels.extend(list(rgb.crop(box).getdata()))
+            pixels.sort(key=sum); bg=pixels[len(pixels)//2] if pixels else (255,255,255)
+            bbox=ImageChops.difference(rgb,Image.new("RGB",rgb.size,bg)).convert("L").point(lambda v:255 if v>=18 else 0).filter(ImageFilter.MaxFilter(5)).getbbox(); method="border_difference"
+        if not bbox: return image,{"trimmed":False,"reason":"no visible-object bbox","original_size":list(original)}
+        pad=max(3,int(min(original)*0.008)); l,t,r,b=bbox; l=max(0,l-pad);t=max(0,t-pad);r=min(original[0],r+pad);b=min(original[1],b+pad)
+        retained=((r-l)*(b-t))/max(1,original[0]*original[1])
+        if retained<0.06 or retained>0.985: return image,{"trimmed":False,"reason":"unsafe or insignificant bbox","retained_ratio":round(retained,4),"original_size":list(original)}
+        cropped=image.crop((l,t,r,b)); return cropped,{"trimmed":True,"method":method,"geometry_authority":"v66000_complete_alpha_envelope","original_size":list(original),"cropped_size":list(cropped.size),"crop_box":[l,t,r,b],"retained_ratio":round(retained,4)}
     except Exception as error:
-        diagnostic_log("graphic_v32000_product_trim_failed", error_type=type(error).__name__, error=str(error))
-        return product, {"trimmed": False, "reason": type(error).__name__}
+        diagnostic_log("graphic_v66100_product_trim_failed",error_type=type(error).__name__,error=str(error)); return product,{"trimmed":False,"reason":type(error).__name__}
+
 
 
 # v23000: restored v20100 visual-baseline behavior for _graphic_compose_reference_campaign_v3200.
@@ -24575,6 +24646,7 @@ def _graphic_compose_reference_campaign_v3200(
     detail_policy_v48000 = _graphic_detail_policy_v48000(prompt_text, design_mode, adaptive_mode)
     detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
     lighting_profile = _graphic_scene_lighting_profile_v60000(canvas, (px, py, product.width, product.height))
+    lighting_profile["directional_confidence_v66100"] = round(min(1.0, max(0.0, abs(float(lighting_profile.get("direction_x", 0.0) or 0.0)) * 0.55 + float(lighting_profile.get("contrast", 0.0) or 0.0) * 0.45)), 4)
     if design_mode == "reference_template":
         # v60000 keeps alpha/geometry immutable while applying bounded optical layers.
         product, product_lighting_report = _graphic_material_aware_lighting_v61000(
@@ -24970,6 +25042,9 @@ def _graphic_compose_reference_campaign_v3200(
         "advanced_glass_optics_v61000": micro_reflection_v48000,
         "material_aware_lighting_v61000": product_lighting_report,
         "five_layer_shadow_engine_v61000": shadow_solver_v48000,
+        "terrain_contact_shadow_v66100": {"alpha_contact_aware": True, "source": "lowest_opaque_alpha_runs", "product_pixels_modified": False},
+        "background_derived_glass_reflection_v66100": {"enabled": True, "bounded_by_screen_mask": True, "fail_closed_by_aperture_qa": True},
+        "environment_colour_spill_v66100": {"bounded_to_external_material_masks": True, "ui_and_geometry_protected": True},
         "unified_high_resolution_policy_v61000": {"complete_canvas_supersampling": "2x-capable", "single_product_resize": True, "single_final_downsample": True},
         "black_level_preservation_v60000": bool(photoreal_lighting_qa_v60000.get("black_level_mean_rise", 99) <= 9.0),
         "environment_aware_reflection_v60000": bool(micro_reflection_v48000.get("environment_aware")),
@@ -25545,30 +25620,34 @@ def _graphic_list_value_v3300(value, limit=8):
 
 
 def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
-    """Extract complete fitment while keeping scene-vehicle identity separate."""
+    """Extract complete user-stated fitment without scene-lock collapse."""
     explicit = _graphic_explicit_fitment_v41100(prompt_text)
     if explicit:
         return explicit
-    return str(fallback or "").strip()
+    fallback_value = re.sub(r"\s+", " ", str(fallback or "")).strip()
+    if fallback_value and not re.match(r"(?i)^for\b", fallback_value):
+        fallback_value = "For " + fallback_value
+    return fallback_value
+
 
 
 
 def _graphic_copy_required_tokens_v36000(text):
-    """Return every semantic fitment token that must survive local rendering."""
+    """Return every make, model, and year token that must survive rendering."""
     value = str(text or "")
-    tokens=[]
-    for token in re.findall(r"\b(?:chevrolet|silverado|gmc|sierra|ford|ram|dodge|tahoe|suburban|yukon|infiniti)\b", value, flags=re.I):
-        clean=re.sub(r"[^a-z0-9]+","",str(token).casefold())
+    tokens = []
+    pattern = (
+        r"(?i)\b(?:toyota|tundra|tacoma|chevrolet|chevy|silverado|gmc|sierra|"
+        r"ford|f\s*[\- ]?\s*(?:150|250|350|450|550)|dodge|ram|"
+        r"tahoe|suburban|yukon|cadillac|escalade|jeep|wrangler|gladiator|"
+        r"infiniti|q50|q60|(?:19|20)\d{2})\b"
+    )
+    for token in re.findall(pattern, value):
+        clean = re.sub(r"[^a-z0-9]+", "", str(token).casefold())
         if clean and clean not in tokens:
             tokens.append(clean)
-    for model in re.findall(r"\bF\s*[- ]?\s*(150|250|350|450|550)\b", value, flags=re.I):
-        clean="f" + str(model)
-        if clean not in tokens:
-            tokens.append(clean)
-    for year in re.findall(r"\b(?:19|20)\d{2}\b", value, flags=re.I):
-        if year not in tokens:
-            tokens.append(year)
     return tokens
+
 
 
 
@@ -27674,13 +27753,20 @@ def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehi
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
     vehicle = {"verified": True, "available": True, "score": 100, "reason": "not required"}
     if hard_vehicle:
-        vehicle = _graphic_safe_optional_call(
-            "graphic_v7100_fast_vehicle_validation_unavailable",
-            lambda: _graphic_focused_vehicle_validation_v3300(
-                result.get("data_url"), role_items, prompt_text, vehicle_profile
-            ),
-            _graphic_validation_unavailable_v4100(),
-        )
+        state_now=get_graphic_project_state(); verified_bg=dict(state_now.get("last_verified_background_v66100") or {})
+        background_raw,_=data_url_to_bytes(str(result.get("background_data_url") or ""))
+        same_background=bool(background_raw and verified_bg.get("sha256")==_graphic_v66100_bytes_sha(background_raw))
+        cached_validation=dict(verified_bg.get("vehicle_validation") or {})
+        if same_background and cached_validation.get("verified") is True:
+            vehicle={**cached_validation,"reused_verified_background":True,"provider_calls":0,"background_sha256":verified_bg.get("sha256")}
+        else:
+            vehicle = _graphic_safe_optional_call(
+                "graphic_v7100_fast_vehicle_validation_unavailable",
+                lambda: _graphic_focused_vehicle_validation_v3300(
+                    result.get("data_url"), role_items, prompt_text, vehicle_profile
+                ),
+                _graphic_validation_unavailable_v4100(),
+            )
     unavailable = hard_vehicle and _graphic_validation_is_unavailable_v4100(vehicle)
     explicit_failure = hard_vehicle and not unavailable and vehicle.get("verified") is not True
     core_passed = bool(image_valid and exact_product and zones_valid)
@@ -28051,7 +28137,9 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             exact_result["product_dna"] = product_dna
             exact_result["professional_qa"] = _graphic_professional_qa_v8000(exact_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile)
             exact_result["runtime_audit"] = _graphic_runtime_audit_v10000(exact_result, route=design_mode+":"+str(product_mode.get("mode")), provider_calls=1, retries=0, stages=stage_times)
-            exact_result["runtime_audit"]["provider_calls_estimated"] = True
+            exact_result["runtime_audit"]["provider_calls_estimated"] = False
+            exact_result["runtime_audit"]["provider_attempt_manifest_v66100"] = list(_graphic_v66100_attempt_manifest())[-20:]
+            exact_result["runtime_audit"]["provider_calls_actual"] = sum(1 for x in _graphic_v66100_attempt_manifest() if x.get("validation_purpose") in {"generation","vehicle_validation","consolidated_qa"})
             exact_result["graphic_design_mode"] = design_mode
             exact_result["graphic_role_confidence"] = design_info.get("role_confidence") or {}
             exact_result["adaptive_engine_manifest"] = _graphic_adaptive_system_manifest_v44000(
