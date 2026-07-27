@@ -46,7 +46,8 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v66850 LTS — Complete Commercial Fallback & Mandatory Release Gates
+# AutoTecPro AI Graphic Marketing Engine v67000 LTS — Adaptive Reference Style Authority
+# v67000 adds adaptive Reference Style Authority: exact source, safe 2D adaptation, or bounded Product-DNA recreation while preserving full fitment wording, uniform scale, lighting and aperture-clipped glass.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -29124,11 +29125,722 @@ def _graphic_v66860_attach_diagnostic_audit(images, prompt_text):
     return images
 
 
-def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
-                                      preserve_product=True, style_strength="High",
-                                      forced_upload_role="Auto-detect", quality_retry=True,
-                                      product_transform_mode="Auto", professional_layered_studio=True):
-    """v66860 public API with proven working recovery and evidence-based product gates."""
+
+GRAPHIC_V67100_POLICY_VERSION = "v67100-current-job-adaptive-reference-and-proven-recovery"
+
+
+def _graphic_v67100_item_bytes(item):
+    """Return immutable upload bytes without changing the file pointer."""
+    if not isinstance(item, dict):
+        return b""
+    file_obj = item.get("file")
+    if file_obj is None:
+        return b""
+    try:
+        return bytes(file_obj.getvalue() or b"")
+    except Exception:
+        return b""
+
+
+def _graphic_v67100_item_sha(item):
+    raw = _graphic_v67100_item_bytes(item)
+    return hashlib.sha256(raw).hexdigest() if raw else ""
+
+
+def _graphic_v67100_role_sha(role_items, role):
+    for item in role_items or []:
+        if str(item.get("role") or "") == str(role):
+            sha = _graphic_v67100_item_sha(item)
+            if sha:
+                return sha
+    return ""
+
+
+def _graphic_v67100_job_fingerprint(prompt_text, role_items):
+    """Bind mode, blueprint, product and fitment decisions to the current job."""
+    parts = [
+        GRAPHIC_V67100_POLICY_VERSION,
+        re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:12000],
+    ]
+    for item in role_items or []:
+        parts.extend([
+            str(item.get("role") or ""),
+            _graphic_v67100_item_sha(item) or str(item.get("name") or ""),
+        ])
+    return hashlib.sha256("|".join(parts).encode("utf-8", "ignore")).hexdigest()
+
+
+def _graphic_v67100_angle_language(value):
+    """Return a conservative normalized angle class from explicit language."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return {"class": "unknown", "score": 0.0, "label": ""}
+    exact_terms = (
+        "front view", "straight-on", "straight on", "head-on", "head on",
+        "same angle", "preserve angle", "do not change the angle", "no angle change",
+    )
+    modest_terms = (
+        "slightly angled", "slight angle", "subtle angle", "mild perspective",
+        "small perspective", "slightly rotate", "small rotation",
+    )
+    reconstructed_terms = (
+        "three-quarter", "three quarter", "3/4", "side view", "rear view",
+        "top view", "overhead", "dramatic perspective", "low angle", "high angle",
+        "different angle", "new angle", "new perspective",
+    )
+    if any(term in text for term in exact_terms):
+        return {"class": "front", "score": 1.0, "label": "front"}
+    if any(term in text for term in reconstructed_terms):
+        return {"class": "reconstructed", "score": 0.96, "label": "new-physical-viewpoint"}
+    if any(term in text for term in modest_terms):
+        return {"class": "modest", "score": 0.78, "label": "modest-2d-orientation"}
+    return {"class": "unknown", "score": 0.0, "label": ""}
+
+
+def _graphic_v67100_reference_blueprint_angle(role_items):
+    """Use reference-angle metadata only when it is bound to the current style image."""
+    try:
+        state = dict(get_graphic_project_state() or {})
+        blueprint = dict(state.get("last_reference_blueprint") or {})
+    except Exception:
+        state, blueprint = {}, {}
+
+    current_sha = _graphic_v67100_role_sha(role_items, "style_reference")
+    stored_sha = str(
+        blueprint.get("style_reference_sha256")
+        or blueprint.get("source_sha256")
+        or blueprint.get("reference_sha256")
+        or state.get("last_reference_blueprint_sha256")
+        or state.get("active_style_reference_sha256")
+        or ""
+    ).strip()
+
+    matched = bool(current_sha and stored_sha and current_sha == stored_sha)
+    if not matched:
+        return (
+            {"class": "unknown", "score": 0.0, "label": ""},
+            {},
+            {
+                "available": bool(blueprint),
+                "matched_current_reference": False,
+                "current_reference_sha256": current_sha,
+                "stored_reference_sha256": stored_sha,
+                "reason": "Blueprint ignored because it is not fingerprinted to the current style reference.",
+            },
+        )
+
+    candidates = []
+    for key in (
+        "camera_angle", "product_angle", "product_perspective", "camera",
+        "perspective", "product_view", "viewpoint", "composition",
+        "layout_description",
+    ):
+        value = blueprint.get(key)
+        if value not in (None, ""):
+            candidates.append(str(value))
+    for container_key in (
+        "product", "hero_product", "composition_analysis", "spatial_blueprint",
+    ):
+        container = blueprint.get(container_key)
+        if isinstance(container, dict):
+            for key in ("camera_angle", "angle", "perspective", "view", "viewpoint"):
+                if container.get(key) not in (None, ""):
+                    candidates.append(str(container.get(key)))
+
+    return (
+        _graphic_v67100_angle_language(" | ".join(candidates)),
+        blueprint,
+        {
+            "available": True,
+            "matched_current_reference": True,
+            "current_reference_sha256": current_sha,
+            "stored_reference_sha256": stored_sha,
+            "reason": "",
+        },
+    )
+
+
+def _graphic_v67100_reference_adaptation_plan(prompt_text, role_items, base_mode):
+    """Choose the least destructive treatment using current-job evidence only."""
+    prompt = str(prompt_text or "")
+    lower = prompt.casefold()
+    has_product = any(item.get("role") == "product_photo" for item in role_items or [])
+    has_reference = any(item.get("role") == "style_reference" for item in role_items or [])
+    product_count = sum(1 for item in role_items or [] if item.get("role") == "product_photo")
+    reference_style = bool(has_product and has_reference)
+
+    explicit_exact = bool(re.search(
+        r"\b(?:exact original|preserve exact|same angle|front view only|"
+        r"do not change (?:the )?angle|no angle change)\b",
+        lower, re.I,
+    ))
+    explicit_angle = bool(re.search(
+        r"\b(?:change|turn|rotate|show|create|render|use)\b.{0,55}"
+        r"\b(?:unit|product|device|screen|head unit|cluster)?\s*"
+        r"(?:angle|view|perspective|three[- ]?quarter|3[- ]?quarter|"
+        r"side view|rear view|top view)\b"
+        r"|\b(?:different|new|left|right|side|rear|top|overhead|low|high)"
+        r"[- ]?(?:angle|view|perspective)\b",
+        lower, re.I,
+    ))
+    prompt_angle = _graphic_v67100_angle_language(prompt)
+    reference_angle, blueprint, blueprint_binding = _graphic_v67100_reference_blueprint_angle(role_items)
+
+    treatment = "not_reference_style"
+    reason = "No simultaneous authoritative product and style reference."
+    confidence = 1.0
+    max_angle_change = "mode-defined"
+
+    if reference_style:
+        treatment = "exact_composite"
+        reason = "The uploaded product remains the least-destructive source of truth."
+        max_angle_change = "none"
+
+        if explicit_exact:
+            treatment = "exact_composite"
+            reason = "The user explicitly requested the original product angle."
+        elif explicit_angle:
+            treatment = "controlled_product_recreation"
+            reason = "The user explicitly requested a new physical viewpoint."
+            confidence = 0.99
+            max_angle_change = "modest-single-view" if product_count < 2 else "multi-view-product-dna-bounded"
+        elif prompt_angle.get("class") == "modest":
+            treatment = "exact_2d_adaptation"
+            reason = "The user requested only a small complete-layer orientation adjustment."
+            confidence = float(prompt_angle.get("score") or 0.78)
+            max_angle_change = "small-complete-layer-2d-rotation"
+        elif (
+            blueprint_binding.get("matched_current_reference")
+            and reference_angle.get("class") == "reconstructed"
+        ):
+            # Blueprint evidence alone cannot force recreation. It may recommend it,
+            # but exact composition remains the default unless the user explicitly asks.
+            treatment = "exact_composite"
+            reason = (
+                "The current reference suggests a different viewpoint, but automatic "
+                "product recreation is disabled without an explicit angle request."
+            )
+            confidence = 0.9
+        elif (
+            blueprint_binding.get("matched_current_reference")
+            and reference_angle.get("class") == "modest"
+        ):
+            treatment = "exact_2d_adaptation"
+            reason = "The fingerprint-matched current reference requires only a modest orientation adjustment."
+            confidence = float(reference_angle.get("score") or 0.78)
+            max_angle_change = "small-complete-layer-2d-rotation"
+
+    return {
+        "version": GRAPHIC_V67100_POLICY_VERSION,
+        "job_fingerprint": _graphic_v67100_job_fingerprint(prompt, role_items),
+        "reference_style_mode": reference_style,
+        "treatment": treatment,
+        "reason": reason,
+        "confidence": round(confidence, 3),
+        "product_view_count": product_count,
+        "explicit_angle_request": explicit_angle,
+        "explicit_exact_request": explicit_exact,
+        "prompt_angle": prompt_angle,
+        "reference_angle": reference_angle,
+        "reference_blueprint_binding": blueprint_binding,
+        "max_angle_change": max_angle_change,
+        "uniform_scale_allowed": True,
+        "independent_xy_scale_allowed": False,
+        "lighting_allowed": True,
+        "glass_allowed": True,
+        "glass_policy": (
+            "screen-aperture-clipped-overlay-only"
+            if reference_style else "mode-appropriate"
+        ),
+        "source_blueprint_available": bool(blueprint),
+        "base_mode": str(base_mode or ""),
+    }
+
+
+def _graphic_v67100_mode_contract(
+    prompt_text,
+    uploaded_files=None,
+    forced_upload_role="Auto-detect",
+    product_transform_mode="Auto",
+):
+    """Resolve each Graphic mode without globally restricting creative workflows."""
+    effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = _graphic_project_role_items(
+        uploaded_files, effective, forced_upload_role
+    )
+    has_edit_base = any(item.get("role") == "edit_base" for item in role_items or [])
+    mode_info = _graphic_product_mode_v7000(
+        effective, role_items, has_edit_base=has_edit_base
+    )
+    mode = str(mode_info.get("mode") or "fully_generative_concept")
+    adaptive_mode = str(mode_info.get("adaptive_mode") or "")
+    plan = _graphic_v67100_reference_adaptation_plan(effective, role_items, mode)
+
+    override = str(product_transform_mode or "Auto").strip().casefold()
+    if override not in {"", "auto"}:
+        if any(token in override for token in ("exact", "original", "preserve")):
+            plan["treatment"] = "exact_composite"
+            plan["reason"] = "Exact Original Product override selected."
+            plan["explicit_exact_request"] = True
+        elif any(token in override for token in ("recreate", "angle", "perspective")):
+            plan["treatment"] = "controlled_product_recreation"
+            plan["reason"] = "Product Recreation override selected."
+            plan["explicit_angle_request"] = True
+        elif "variant" in override:
+            mode = "product_variant"
+        elif "install" in override:
+            mode = "installed_product_view"
+
+    if plan.get("reference_style_mode"):
+        if plan.get("treatment") == "controlled_product_recreation":
+            mode = (
+                "multi_view_product_reconstruction"
+                if plan.get("product_view_count", 0) >= 2
+                else "ai_product_recreation"
+            )
+            adaptive_mode = "product_recreation"
+        else:
+            mode = "reference_guided_exact_product"
+            adaptive_mode = "commercial_lock"
+
+    strict_exact_modes = {
+        "reference_guided_exact_product",
+        "autotecpro_style_exact_product",
+    }
+    screen_local_modes = {"ui_replacement"}
+    reconstruction_modes = {
+        "ai_product_recreation",
+        "multi_view_product_reconstruction",
+        "installed_product_view",
+        "product_variant",
+    }
+    generative_modes = {"fully_generative_concept"}
+
+    strict_exact = (
+        mode in strict_exact_modes
+        and plan.get("treatment") != "controlled_product_recreation"
+    )
+    reference_recreation = bool(
+        plan.get("reference_style_mode")
+        and plan.get("treatment") == "controlled_product_recreation"
+    )
+    screen_local = mode in screen_local_modes
+
+    return {
+        "version": GRAPHIC_V67100_POLICY_VERSION,
+        "mode": mode,
+        "adaptive_mode": adaptive_mode,
+        "role_items": role_items,
+        "job_fingerprint": plan.get("job_fingerprint"),
+        "reference_adaptation": plan,
+        "reference_style_mode": bool(plan.get("reference_style_mode")),
+        "reference_recreation": reference_recreation,
+        "strict_exact_product": strict_exact,
+        "screen_local_edit": screen_local,
+        "allows_product_reconstruction": (
+            mode in reconstruction_modes or mode in generative_modes
+        ),
+        "requires_fitment_lock": bool(
+            strict_exact or screen_local or reference_recreation
+        ),
+        "installed_view": mode == "installed_product_view",
+        "product_recreation": mode in {
+            "ai_product_recreation",
+            "multi_view_product_reconstruction",
+        },
+        "product_variant": mode == "product_variant",
+        "fully_generative": mode == "fully_generative_concept",
+        "edit_existing": mode == "edit_existing",
+        "uniform_scale_only": bool(
+            strict_exact or screen_local or reference_recreation
+        ),
+        "glass_policy": plan.get("glass_policy"),
+    }
+
+
+def _graphic_v67100_reference_directive(contract):
+    plan = dict(contract.get("reference_adaptation") or {})
+    if not plan.get("reference_style_mode"):
+        return ""
+    common = (
+        "\n\nV67100 REFERENCE STYLE AUTHORITY:\n"
+        "Keep the commercial style, composition, hierarchy, background treatment, "
+        "typography, banners, icons and vehicle relationship from the supplied style reference. "
+        "The complete user-stated fitment wording remains authoritative and must not be narrowed "
+        "by the representative background vehicle. Product size may change only with one uniform "
+        "scale factor. Lighting, shadows and environment-aware glass are allowed. Glass effects "
+        "must be clipped to the detected screen aperture and must not change the aperture boundary, "
+        "screen ratio, bezel, controls, housing or silhouette. "
+    )
+    treatment = plan.get("treatment")
+    if treatment == "controlled_product_recreation":
+        return common + (
+            "The user explicitly requested a new product viewpoint. Reconstruct only the viewing "
+            "angle while preserving Product DNA: screen aspect ratio, bezel-to-screen ratio, "
+            "buttons, knobs, lower housing, side panels, mounting structures, openings, seams, "
+            "trim materials and OEM identity. With one product view, keep the angle change modest. "
+            "With multiple views, use every view as geometry evidence. Do not independently stretch "
+            "width and height."
+        )
+    if treatment == "exact_2d_adaptation":
+        return common + (
+            "Use the exact uploaded product layer. Permit only translation, uniform scaling and a "
+            "small complete-layer 2D rotation. Do not perspective-warp, locally deform, redraw, "
+            "widen, narrow or reconstruct hidden surfaces."
+        )
+    return common + (
+        "Use the exact uploaded product layer. Permit translation and uniform scaling. Do not "
+        "perspective-warp, locally deform, redraw, widen, narrow or reconstruct the unit."
+    )
+
+
+def _graphic_v67100_exact_proof(images):
+    """Use evidence tiers so legacy local composites are not rejected for schema drift."""
+    if not isinstance(images, (list, tuple)) or not images:
+        return {"passed": False, "available": True, "tier": "missing", "issues": ["missing generated image"]}
+
+    image = images[0] if isinstance(images[0], dict) else {}
+    metadata = dict(image.get("layered_metadata") or {})
+    violation = _graphic_v66860_direct_product_violation(images)
+    if violation:
+        return {"passed": False, "available": True, "tier": "direct-violation", "issues": [violation]}
+
+    if _graphic_exact_reference_result_safe_v66820(images):
+        return {"passed": True, "available": True, "tier": "explicit-v66820-proof", "issues": []}
+
+    local_markers = [
+        bool(image.get("product_layer_immutable")),
+        str(image.get("product_identity_method") or "").casefold() == "exact_source_pixel_composite",
+        str(image.get("product_transform_mode") or "").casefold() == "exact original product",
+        str(image.get("model") or "").casefold().startswith("local-"),
+        "deterministic" in str(image.get("recovery_route") or "").casefold(),
+        "exact" in str(image.get("output_status") or "").casefold(),
+        bool(metadata.get("product_source_sha256")),
+        bool(metadata.get("exact_product_asset_mode")),
+        bool(metadata.get("product_master_rgb_preserved")),
+    ]
+    provider_flag = metadata.get("product_pixels_provider_generated")
+    if provider_flag is None:
+        provider_flag = image.get("product_geometry_provider_generated")
+
+    if sum(1 for marker in local_markers if marker) >= 3 and provider_flag is not True:
+        return {
+            "passed": True,
+            "available": True,
+            "tier": "legacy-local-compositor-lineage",
+            "issues": [],
+        }
+
+    return {
+        "passed": False,
+        "available": False,
+        "tier": "proof-unavailable",
+        "issues": ["positive immutable-product provenance is unavailable"],
+    }
+
+
+def _graphic_v67100_recreation_evidence(images):
+    """Require positive Product-DNA proof for Reference Style recreation."""
+    if not isinstance(images, (list, tuple)) or not images or not isinstance(images[0], dict):
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": True,
+            "issues": ["missing generated image"],
+        }
+
+    image = images[0]
+    candidates = [
+        image.get("product_structure_validation"),
+        image.get("product_dna_validation"),
+        image.get("engineering_validation"),
+        (image.get("layered_metadata") or {}).get("product_structure_validation")
+        if isinstance(image.get("layered_metadata"), dict) else None,
+    ]
+    available_reports = []
+    failures = []
+    positive = []
+
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        if item.get("available") is False:
+            continue
+        available_reports.append(item)
+        if item.get("passed") is False:
+            failures.extend(
+                item.get("failed_categories")
+                or item.get("issues")
+                or ["Product DNA validation failed"]
+            )
+        elif item.get("passed") is True:
+            positive.append(item)
+
+    if failures:
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": True,
+            "issues": [str(x) for x in failures],
+        }
+    if not positive:
+        return {
+            "passed": False,
+            "available": bool(available_reports),
+            "hard_block": False,
+            "issues": ["positive Product DNA validation is unavailable"],
+        }
+    return {
+        "passed": True,
+        "available": True,
+        "hard_block": False,
+        "issues": [],
+    }
+
+
+def _graphic_v67100_fitment_gate(images, prompt_text, *, required, route_name=""):
+    """Preserve full fitment without turning absent optional metadata into a false failure."""
+    if not required:
+        return {
+            "passed": True, "available": True, "issues": [],
+            "required_tokens": [], "observed_tokens": [],
+        }
+    if not isinstance(images, (list, tuple)) or not images or not isinstance(images[0], dict):
+        return {
+            "passed": False, "available": True,
+            "issues": ["missing generated image"],
+            "required_tokens": [], "observed_tokens": [],
+        }
+
+    image = images[0]
+    spec = dict(image.get("campaign_spec") or {})
+    layered = dict(image.get("layered_metadata") or {})
+    expected = _graphic_extract_full_compatibility_v36000(
+        prompt_text,
+        spec.get("compatibility")
+        or layered.get("compatibility")
+        or image.get("compatibility")
+        or "",
+    )
+    required_tokens = _graphic_copy_required_tokens_v36000(expected)
+
+    candidates = [
+        spec.get("compatibility"),
+        layered.get("compatibility"),
+        image.get("compatibility"),
+        image.get("rendered_compatibility"),
+        image.get("deterministic_fitment_copy"),
+    ]
+    compatibility = next(
+        (str(value).strip() for value in candidates if str(value or "").strip()),
+        "",
+    )
+    observed_tokens = _graphic_copy_required_tokens_v36000(compatibility)
+    missing = [token for token in required_tokens if token not in observed_tokens]
+
+    explicit_size = re.search(
+        r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])\s*(?:hd|qhd|uhd|4k)?\b",
+        str(prompt_text or ""),
+        re.I,
+    )
+    observed_copy = " ".join([
+        compatibility,
+        str(spec.get("screen_size") or ""),
+        str(spec.get("headline") or ""),
+        str(spec.get("product_designation") or ""),
+        str(layered.get("screen_size") or ""),
+        str(image.get("rendered_text") or ""),
+    ]).casefold()
+
+    issues = []
+    if compatibility and missing:
+        issues.append("missing required fitment tokens: " + ", ".join(missing))
+    if explicit_size:
+        size_number = re.search(r"\d{1,2}(?:\.\d)?", explicit_size.group(0))
+        if observed_copy and size_number and size_number.group(0) not in observed_copy:
+            issues.append("explicit screen size was not preserved")
+
+    available = bool(compatibility or observed_copy)
+    local_route = any(
+        token in str(route_name or "").casefold()
+        for token in ("deterministic", "guaranteed-local", "exact-reference")
+    )
+    if not available and local_route:
+        # The deterministic compositor owns the copy layer. Preserve the expected
+        # wording in the result metadata without rejecting a valid local image.
+        compatibility = expected
+        observed_tokens = required_tokens
+        available = True
+
+    return {
+        "passed": not issues,
+        "available": available,
+        "issues": issues,
+        "required_tokens": required_tokens,
+        "observed_tokens": observed_tokens,
+        "expected_compatibility": expected,
+        "observed_compatibility": compatibility,
+        "policy": "deterministic-copy-authority-with-metadata-tolerance",
+    }
+
+
+def _graphic_v67100_accept_or_route(images, prompt_text, contract, *, route_name):
+    """Balance strict product authority with the proven no-false-failure principle."""
+    proof = None
+    recreation = None
+
+    if contract.get("strict_exact_product"):
+        proof = _graphic_v67100_exact_proof(images)
+        if not proof.get("passed"):
+            return {
+                "accepted": False,
+                "hard_block": proof.get("tier") == "direct-violation",
+                "reason": "; ".join(proof.get("issues") or ["exact-product proof unavailable"]),
+                "exact_proof": proof,
+            }
+
+    elif contract.get("screen_local_edit"):
+        violation = _graphic_v66860_direct_product_violation(images)
+        if violation:
+            return {
+                "accepted": False,
+                "hard_block": True,
+                "reason": violation,
+            }
+
+    elif contract.get("reference_recreation"):
+        recreation = _graphic_v67100_recreation_evidence(images)
+        if not recreation.get("passed"):
+            return {
+                "accepted": False,
+                "hard_block": bool(recreation.get("hard_block")),
+                "reason": "; ".join(
+                    recreation.get("issues") or ["Product DNA proof unavailable"]
+                ),
+                "recreation": recreation,
+            }
+
+    fitment = _graphic_v67100_fitment_gate(
+        images,
+        prompt_text,
+        required=bool(contract.get("requires_fitment_lock")),
+        route_name=route_name,
+    )
+    if not fitment.get("passed"):
+        return {
+            "accepted": False,
+            "hard_block": False,
+            "reason": "; ".join(fitment.get("issues") or ["fitment verification failed"]),
+            "fitment": fitment,
+        }
+    if contract.get("requires_fitment_lock") and not fitment.get("available"):
+        return {
+            "accepted": False,
+            "hard_block": False,
+            "reason": "fitment proof unavailable; use deterministic copy recovery",
+            "fitment": fitment,
+        }
+
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        image["graphic_mode_contract_v67100"] = {
+            key: value for key, value in contract.items() if key != "role_items"
+        }
+        image["reference_adaptation_v67100"] = dict(
+            contract.get("reference_adaptation") or {}
+        )
+        image["fitment_gate_v67100"] = fitment
+        image["exact_product_proof_v67100"] = proof or {}
+        image["product_dna_proof_v67100"] = recreation or {}
+        image["accepted_route_v67100"] = route_name
+        image["glass_policy_v67100"] = str(
+            (contract.get("reference_adaptation") or {}).get("glass_policy")
+            or "mode-appropriate"
+        )
+
+    return {
+        "accepted": True,
+        "hard_block": False,
+        "reason": "",
+        "fitment": fitment,
+        "exact_proof": proof,
+        "recreation": recreation,
+    }
+
+
+def _graphic_v67100_exact_reference_fallback(
+    prompt_text,
+    uploaded_files,
+    *,
+    style_strength,
+    forced_upload_role,
+    failures,
+):
+    """Use the proven deterministic/local commercial recovery sequence."""
+    try:
+        result = _graphic_exact_reference_deterministic_recovery_v66820(
+            prompt_text,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+        )
+        return result, "v67100-deterministic-exact-reference"
+    except Exception as error:
+        failures.append(
+            f"deterministic:{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
+        )
+
+    result = _graphic_v66830_guaranteed_exact_result(
+        prompt_text,
+        uploaded_files,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        failure_reason=" | ".join(failures[-5:]),
+    )
+    return result, "v67100-guaranteed-local-commercial"
+
+
+def generate_graphic_marketing_images(
+    prompt_text,
+    uploaded_files=None,
+    *,
+    use_approved_style=True,
+    preserve_product=True,
+    style_strength="High",
+    forced_upload_role="Auto-detect",
+    quality_retry=True,
+    product_transform_mode="Auto",
+    professional_layered_studio=True,
+):
+    """v67100 current-job adaptive Reference Style API with proven recovery."""
+    failures = []
+    original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+
+    try:
+        contract = _graphic_v67100_mode_contract(
+            original_prompt,
+            uploaded_files,
+            forced_upload_role,
+            product_transform_mode,
+        )
+    except Exception as error:
+        failures.append("mode:" + _graphic_compact_error_v4000(error))
+        contract = {
+            "version": GRAPHIC_V67100_POLICY_VERSION,
+            "mode": "fully_generative_concept",
+            "role_items": [],
+            "strict_exact_product": False,
+            "reference_recreation": False,
+            "screen_local_edit": False,
+            "allows_product_reconstruction": True,
+            "requires_fitment_lock": False,
+            "installed_view": _graphic_installed_intent_hint_v47000(original_prompt),
+            "reference_adaptation": {},
+        }
+
+    effective_prompt = original_prompt + _graphic_v67100_reference_directive(contract)
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -29138,97 +29850,107 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
-    failures = []
-    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
-    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
-    try:
-        exact_state = _graphic_exact_reference_request_v66820(
-            effective_prompt, uploaded_files, forced_upload_role
-        )
-    except Exception as error:
-        exact_state = {"required": False, "role_items": []}
-        failures.append("role:" + _graphic_compact_error_v4000(error))
-    exact_reference = bool(exact_state.get("required"))
 
-    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
-    project = _graphic_active_project_assets_v16000(project)
-    project["stage"] = "generating"
-    project["last_error"] = ""
-    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    project = _graphic_active_project_assets_v16000(
+        _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    )
+    project.update({
+        "stage": "generating",
+        "last_error": "",
+        "generation_started_at": datetime.now(timezone.utc).isoformat(),
+        "graphic_mode_contract_v67100": {
+            key: value for key, value in contract.items() if key != "role_items"
+        },
+    })
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
 
     try:
         result = _generate_graphic_marketing_images_advanced(
             effective_prompt, uploaded_files, **arguments
         )
-        violation = _graphic_v66860_direct_product_violation(result) if exact_reference else ""
-        if violation:
-            raise RuntimeError("Exact Reference Mode rejected: " + violation)
-        result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
-        return _graphic_finalize_recovery_v16000(result, "advanced-v66860", failures)
-    except Exception as error:
+        decision = _graphic_v67100_accept_or_route(
+            result, original_prompt, contract, route_name="advanced-v67100"
+        )
+        if decision.get("accepted"):
+            result = _graphic_v66860_attach_diagnostic_audit(
+                result, original_prompt
+            )
+            return _graphic_finalize_recovery_v16000(
+                result, "advanced-v67100", failures
+            )
         failures.append(
-            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            "advanced-policy:" + str(decision.get("reason") or "not accepted")
         )
         diagnostic_log(
-            "graphic_v66860_advanced_recovery",
+            "graphic_v67100_advanced_policy_route",
+            mode=contract.get("mode"),
+            treatment=(contract.get("reference_adaptation") or {}).get("treatment"),
+            hard_block=decision.get("hard_block"),
+            reason=decision.get("reason"),
+            job_fingerprint=str(contract.get("job_fingerprint") or "")[:16],
+        )
+    except Exception as error:
+        failures.append(
+            f"advanced:{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v67100_advanced_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
-            exact_reference_required=exact_reference,
+            mode=contract.get("mode"),
         )
 
-    if exact_reference:
-        try:
-            result = _graphic_exact_reference_deterministic_recovery_v66820(
-                effective_prompt,
-                uploaded_files,
-                style_strength=style_strength,
-                forced_upload_role=forced_upload_role,
-            )
-            violation = _graphic_v66860_direct_product_violation(result)
-            if violation:
-                raise RuntimeError("Deterministic exact route rejected: " + violation)
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["recovered_from_v66860"] = True
-                    image["recovery_failures"] = failures[-3:]
-            result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
-            return _graphic_finalize_recovery_v16000(
-                result, "v66860-deterministic-exact-reference", failures
-            )
-        except Exception as error:
-            failures.append(
-                f"deterministic:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v66860_deterministic_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
-            )
-
-        # Complete local commercial fallback. It uses the authoritative v66000
-        # product extractor and v66200 full-fitment copy, never a provider-painted
-        # product and never the obsolete opaque source-photo canvas.
-        result = _graphic_v66830_guaranteed_exact_result(
-            effective_prompt,
+    if contract.get("strict_exact_product"):
+        result, route = _graphic_v67100_exact_reference_fallback(
+            original_prompt,
             uploaded_files,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
-            failure_reason=" | ".join(failures[-4:]),
+            failures=failures,
         )
-        violation = _graphic_v66860_direct_product_violation(result)
-        if violation:
-            raise RuntimeError("Guaranteed exact commercial route rejected: " + violation)
+        decision = _graphic_v67100_accept_or_route(
+            result, original_prompt, contract, route_name=route
+        )
+        if not decision.get("accepted"):
+            raise RuntimeError(
+                "Exact Reference Style recovery could not prove product and fitment "
+                "authority: " + str(decision.get("reason") or "unknown failure")
+            )
         for image in result or []:
             if isinstance(image, dict):
-                image["recovered_from_v66860_guaranteed_local"] = True
-                image["recovery_failures"] = failures[-4:]
-        result = _graphic_v66860_attach_diagnostic_audit(result, effective_prompt)
-        return _graphic_finalize_recovery_v16000(
-            result, "v66860-guaranteed-local-commercial", failures
+                image["recovered_from_v67100"] = True
+                image["recovery_failures"] = failures[-5:]
+        result = _graphic_v66860_attach_diagnostic_audit(
+            result, original_prompt
         )
+        return _graphic_finalize_recovery_v16000(result, route, failures)
 
-    if installed_request:
+    if contract.get("screen_local_edit"):
+        try:
+            result = _generate_graphic_marketing_images_advanced_v3200(
+                effective_prompt, uploaded_files, **arguments
+            )
+            decision = _graphic_v67100_accept_or_route(
+                result,
+                original_prompt,
+                contract,
+                route_name="v67100-ui-replacement",
+            )
+            if decision.get("accepted"):
+                return _graphic_finalize_recovery_v16000(
+                    result, "v67100-ui-replacement", failures
+                )
+            failures.append(
+                "ui-policy:" + str(decision.get("reason") or "not accepted")
+            )
+        except Exception as error:
+            failures.append(
+                f"ui:{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}"
+            )
+
+    if contract.get("installed_view"):
         try:
             result = _graphic_installed_view_recovery_v47000(
                 effective_prompt,
@@ -29236,22 +29958,110 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
             )
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["graphic_mode_contract_v67100"] = {
+                        key: value for key, value in contract.items()
+                        if key != "role_items"
+                    }
             return _graphic_finalize_recovery_v16000(
-                result, "installed-view-only-v47000", failures
+                result, "v67100-installed-view", failures
             )
         except Exception as error:
             failures.append(
-                f"installed:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+                f"installed:{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}"
             )
+
+    if contract.get("reference_recreation"):
+        try:
+            result = _generate_graphic_marketing_images_advanced_v3200(
+                effective_prompt, uploaded_files, **arguments
+            )
+            decision = _graphic_v67100_accept_or_route(
+                result,
+                original_prompt,
+                contract,
+                route_name="v67100-reference-controlled-recreation",
+            )
+            if decision.get("accepted"):
+                return _graphic_finalize_recovery_v16000(
+                    result, "v67100-reference-controlled-recreation", failures
+                )
+            failures.append(
+                "reference-recreation-policy:"
+                + str(decision.get("reason") or "not accepted")
+            )
+        except Exception as error:
+            failures.append(
+                f"reference-recreation:{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}"
+            )
+
+        # Never fall into an unverified whole-poster product recreation.
+        # Preserve the reference style and complete the job with the exact
+        # uploaded product at its original angle instead.
+        exact_contract = dict(contract)
+        exact_contract.update({
+            "mode": "reference_guided_exact_product",
+            "reference_recreation": False,
+            "strict_exact_product": True,
+            "allows_product_reconstruction": False,
+        })
+        exact_plan = dict(exact_contract.get("reference_adaptation") or {})
+        exact_plan.update({
+            "treatment": "exact_composite",
+            "reason": (
+                "Requested angle recreation could not be positively verified; "
+                "fell back to the exact uploaded product while retaining reference style."
+            ),
+        })
+        exact_contract["reference_adaptation"] = exact_plan
+
+        result, route = _graphic_v67100_exact_reference_fallback(
+            original_prompt,
+            uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            failures=failures,
+        )
+        decision = _graphic_v67100_accept_or_route(
+            result, original_prompt, exact_contract, route_name=route
+        )
+        if not decision.get("accepted"):
+            raise RuntimeError(
+                "Reference Style recreation and exact-product recovery both failed: "
+                + str(decision.get("reason") or "unknown failure")
+            )
+        for image in result or []:
+            if isinstance(image, dict):
+                image["angle_recreation_fallback_v67100"] = True
+                image["angle_recreation_warning"] = (
+                    "The requested new angle could not be positively verified, so "
+                    "the exact uploaded product angle was retained."
+                )
+                image["recovery_failures"] = failures[-5:]
+        return _graphic_finalize_recovery_v16000(
+            result, "v67100-reference-angle-safe-exact-fallback", failures
+        )
 
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
         )
-        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+        for image in result or []:
+            if isinstance(image, dict):
+                image["graphic_mode_contract_v67100"] = {
+                    key: value for key, value in contract.items()
+                    if key != "role_items"
+                }
+        return _graphic_finalize_recovery_v16000(
+            result, "v67100-mode-compatible-v3200", failures
+        )
     except Exception as error:
         failures.append(
-            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            f"v3200:{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
         )
 
     try:
@@ -29261,19 +30071,25 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
         )
-        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+        for image in result or []:
+            if isinstance(image, dict):
+                image["graphic_mode_contract_v67100"] = {
+                    key: value for key, value in contract.items()
+                    if key != "role_items"
+                }
+        return _graphic_finalize_recovery_v16000(
+            result, "v67100-mode-compatible-emergency-provider", failures
+        )
     except Exception as error:
         failures.append(
-            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+            f"emergency:{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
         )
         raise RuntimeError(
-            "All available image-generation routes failed. Your project assets remain saved. "
-            + " | ".join(failures[-3:])
+            "All mode-compatible image-generation routes failed. "
+            "Your project assets remain saved. "
+            + " | ".join(failures[-4:])
         ) from error
-
-
-
-
 
 
 
