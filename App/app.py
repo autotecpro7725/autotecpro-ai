@@ -46,7 +46,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v61000 LTS
+# AutoTecPro AI performance/stability revision: v63000 LTS — Final Bezel Authority
+# v63000 Final Bezel Authority Engine built directly from v62000 LTS.
+# Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
+# First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
+# the immutable product; replaces aggressive GrabCut/component growth with border-connected studio-background isolation,
+# adds a wide product guard band, and keeps the exact uploaded product as the final authoritative layer.
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
@@ -17970,7 +17975,7 @@ def _graphic_vehicle_profile_text(profile):
     return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
-GRAPHIC_V56000_CACHE_EPOCH = "v59000-connected-component-bottom-housing-authority-2026-07-26-1"
+GRAPHIC_V56000_CACHE_EPOCH = "v63000-final-bezel-authority-2026-07-27-1"
 
 
 def _graphic_apply_v56000_cache_epoch():
@@ -18088,7 +18093,7 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
     The function fails closed when the requested region cannot be fully covered.
     """
     if Image is None or canvas is None or product is None:
-        return canvas, {"applied": False, "reason": "image unavailable", "engine": "protected-product-zone-v57000"}
+        return canvas, {"applied": False, "reason": "image unavailable", "engine": "protected-product-zone-v62000"}
     try:
         import cv2
         import numpy as np
@@ -18098,15 +18103,15 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
         product_rgba = product.convert("RGBA")
         alpha = np.asarray(product_rgba.getchannel("A"), dtype=np.uint8)
         if alpha.size == 0 or int((alpha >= 8).sum()) == 0:
-            return canvas, {"applied": False, "reason": "empty authoritative product alpha", "engine": "protected-product-zone-v57000"}
+            return canvas, {"applied": False, "reason": "empty authoritative product alpha", "engine": "protected-product-zone-v62000"}
 
         # Asymmetric authority margins. The lower apron is intentionally large because
         # the observed Toyota failure was a provider-generated mounting frame extending
         # below the true product. Side/top margins remain conservative to protect layout.
-        side_margin = max(12, int(round(product.width * 0.055)))
-        top_margin = max(10, int(round(product.height * 0.035)))
-        bottom_apron = max(28, int(round(product.height * 0.20)))
-        alpha_halo = max(10, int(round(max(product.size) * 0.022)))
+        side_margin = max(28, int(round(product.width * 0.24)))
+        top_margin = max(16, int(round(product.height * 0.08)))
+        bottom_apron = max(36, int(round(product.height * 0.26)))
+        alpha_halo = max(16, int(round(max(product.size) * 0.05)))
 
         mask = np.zeros((base.height, base.width), dtype=np.uint8)
 
@@ -18116,7 +18121,7 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
         rx1 = min(base.width, int(x) + product.width + side_margin)
         ry1 = min(base.height, int(y) + product.height + bottom_apron)
         if rx1 <= rx0 or ry1 <= ry0:
-            return canvas, {"applied": False, "reason": "reserved region outside canvas", "engine": "protected-product-zone-v57000"}
+            return canvas, {"applied": False, "reason": "reserved region outside canvas", "engine": "protected-product-zone-v62000"}
         mask[ry0:ry1, rx0:rx1] = 255
 
         # 2) Geometry-aware alpha dilation catches unusual side ears and protrusions.
@@ -18133,13 +18138,13 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
 
         requested_pixels = int((mask > 0).sum())
         if requested_pixels <= 0:
-            return canvas, {"applied": False, "reason": "empty protected mask", "engine": "protected-product-zone-v57000"}
+            return canvas, {"applied": False, "reason": "empty protected mask", "engine": "protected-product-zone-v62000"}
 
         rgb = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
         radius = max(5, min(19, int(round(max(product.size) * 0.012))))
         cleaned = cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
         if cleaned is None or cleaned.shape[:2] != rgb.shape[:2]:
-            return canvas, {"applied": False, "reason": "inpainting returned invalid canvas", "engine": "protected-product-zone-v57000"}
+            return canvas, {"applied": False, "reason": "inpainting returned invalid canvas", "engine": "protected-product-zone-v62000"}
 
         # Coverage is deterministic because the exact mask is known. Fail closed if any
         # requested pixel was lost through clipping or conversion.
@@ -18151,13 +18156,13 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
                 "applied": False,
                 "reason": "protected rectangle coverage incomplete",
                 "coverage_ratio": round(coverage_ratio, 6),
-                "engine": "protected-product-zone-v57000",
+                "engine": "protected-product-zone-v62000",
             }
 
         out = np.dstack([cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB), rgba[:, :, 3]])
         return Image.fromarray(out.astype(np.uint8), "RGBA"), {
             "applied": True,
-            "engine": "protected-product-zone-v57000",
+            "engine": "protected-product-zone-v62000",
             "mask_pixels": requested_pixels,
             "coverage_ratio": round(coverage_ratio, 6),
             "reserved_rect": [rx0, ry0, rx1, ry1],
@@ -18172,31 +18177,22 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
             "fail_closed": True,
         }
     except Exception as error:
-        diagnostic_log("graphic_v57000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
-        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v57000", "fail_closed": True}
+        diagnostic_log("graphic_v62000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
+        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v62000", "fail_closed": True}
 
 
+# v64000 LTS — Conservative Universal Product Geometry Authority
+# Reference Style Mode uses the proven v47000 border-connected background-removal
+# philosophy. It intentionally forbids geometric-cliff/baseline cutting, dominant-
+# component authority, silhouette filling, and selective mechanical-tail recovery.
 def _graphic_extract_product_cutout(uploaded_file):
-    _graphic_apply_v56000_cache_epoch()
-    """Extract the authoritative product while preserving its exact silhouette.
+    """Extract the uploaded product without redesigning mechanical geometry.
 
-    v54000 strengthens the v53000 cutout path in the two areas that still caused
-    visible product drift in Reference Style campaigns:
-
-    1. nearby disconnected studio marks were allowed to survive as apparent tabs;
-    2. a soft floor/contact shadow could remain connected to the lower housing and
-       become a false lower lip, mounting ear, circular hole, or widened base.
-
-    The new implementation remains conservative and never synthesizes product RGB:
-      * uploaded alpha remains authoritative;
-      * only border-connected neutral background is removed;
-      * only the dominant central component is accepted as product geometry;
-      * disconnected components are retained only when they physically touch the
-        dominant component after a one-pixel bridge and have strong material evidence;
-      * soft, low-detail studio-floor shadow below the material core is removed;
-      * the lower 28% silhouette is profiled and rejected when it contains implausible
-        appendages, excessive width growth, or isolated circular/rectangular islands;
-      * no mesh warp, local expansion, content-aware fill, or generative repair occurs.
+    v39000 uses an edge-aware, border-connected background model. Only pixels that
+    are both background-like and connected to the outer canvas are removed. Dark
+    mounting tabs, clips, holes, screw bosses, lower brackets, glossy black trim,
+    and thin engineering edges are therefore retained as first-class product pixels.
+    The source RGB is never synthesized or repainted.
     """
     if Image is None:
         return None
@@ -18208,8 +18204,7 @@ def _graphic_extract_product_cutout(uploaded_file):
         import numpy as np
         with Image.open(io.BytesIO(raw)) as source:
             image = ImageOps.exif_transpose(source).convert("RGBA")
-    except Exception as error:
-        diagnostic_log("graphic_v54000_cutout_open_failed", error_type=type(error).__name__, error=str(error))
+    except Exception:
         return None
 
     image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
@@ -18217,23 +18212,6 @@ def _graphic_extract_product_cutout(uploaded_file):
     extrema = existing_alpha.getextrema()
     if extrema and extrema[0] < 250:
         bbox = existing_alpha.getbbox()
-        report = {
-            "engine": "exact-silhouette-v54000",
-            "source_alpha_preserved": True,
-            "background_removed": False,
-            "mask_source": "uploaded_alpha",
-            "bbox": list(bbox or (0, 0, image.width, image.height)),
-            "lower_housing_lock": True,
-            "passed": True,
-        }
-        try:
-            state = get_graphic_project_state()
-            state["last_product_cutout_report_v53000"] = dict(report)
-            state["last_product_cutout_report_v54000"] = dict(report)
-            state["last_product_cutout_report_v55000"] = dict(report)
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        except Exception:
-            pass
         return image.crop(bbox) if bbox else image
 
     rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
@@ -18241,214 +18219,70 @@ def _graphic_extract_product_cutout(uploaded_file):
     if w < 24 or h < 24:
         return image
 
-    border = max(5, min(w, h) // 70)
+    border = max(4, min(w, h) // 80)
     border_pixels = np.concatenate([
         rgb[:border].reshape(-1, 3), rgb[-border:].reshape(-1, 3),
         rgb[:, :border].reshape(-1, 3), rgb[:, -border:].reshape(-1, 3),
     ], axis=0)
     bg = np.median(border_pixels, axis=0).astype(np.float32)
-    border_distance = np.linalg.norm(border_pixels.astype(np.float32) - bg, axis=1)
-    border_spread = float(np.percentile(border_distance, 90))
-    neutral = float(bg.max() - bg.min()) < 48
-    bright = float(bg.mean()) > 160
-    if not (neutral and bright and border_spread < 92):
-        diagnostic_log("graphic_v54000_cutout_skipped", reason="background_not_safely_uniform", bg=bg.tolist(), spread=border_spread)
+    border_spread = float(np.percentile(np.linalg.norm(border_pixels.astype(np.float32)-bg, axis=1), 90))
+    neutral = float(bg.max()-bg.min()) < 42
+    bright = float(bg.mean()) > 165
+    if not (neutral and bright and border_spread < 85):
         return image
 
     arr = rgb.astype(np.float32)
-    distance = np.linalg.norm(arr - bg[None, None, :], axis=2)
+    distance = np.linalg.norm(arr-bg[None,None,:], axis=2)
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    saturation = hsv[:, :, 1].astype(np.float32)
     gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    edge = cv2.GaussianBlur(cv2.magnitude(gx, gy), (3, 3), 0)
+    edge = cv2.magnitude(gx, gy)
+    edge = cv2.GaussianBlur(edge, (3,3), 0)
+    saturation = rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
 
-    distance_limit = float(max(30.0, min(58.0, 24.0 + border_spread * 0.55)))
-    traversable = ((distance <= distance_limit) & (saturation <= 52) & (gray >= 145)).astype(np.uint8)
-    _, bg_labels = cv2.connectedComponents(traversable, connectivity=8)
-    edge_labels = np.unique(np.concatenate([
-        bg_labels[:border, :].ravel(), bg_labels[-border:, :].ravel(),
-        bg_labels[:, :border].ravel(), bg_labels[:, -border:].ravel(),
-    ]))
-    edge_labels = edge_labels[edge_labels != 0]
-    connected_bg = np.isin(bg_labels, edge_labels)
+    # Background may only propagate through smooth pixels close to the sampled
+    # border color. Engineering edges form barriers, protecting thin brackets.
+    traversable = ((distance < 48) & (edge < 34) & (saturation < 34)).astype(np.uint8)
+    seeds = np.zeros((h, w), np.uint8)
+    seeds[:border, :] = traversable[:border, :]
+    seeds[-border:, :] = traversable[-border:, :]
+    seeds[:, :border] = np.maximum(seeds[:, :border], traversable[:, :border])
+    seeds[:, -border:] = np.maximum(seeds[:, -border:], traversable[:, -border:])
+    n, labels = cv2.connectedComponents(traversable, connectivity=8)
+    seed_labels = np.unique(labels[seeds.astype(bool)])
+    connected_bg = np.isin(labels, seed_labels[seed_labels != 0])
 
-    # Two confidence levels: broad foreground for silhouette continuity and a stricter
-    # material core used to identify where the real product ends and floor shadow begins.
-    strong_material = (distance >= max(distance_limit + 10.0, 48.0)) | (saturation >= 60) | (gray <= 205)
-    strong_edge_material = (edge >= 58) & ((distance >= 28) | (gray <= 222) | (saturation >= 35))
-    initial_fg = ((~connected_bg) & (strong_material | strong_edge_material)).astype(np.uint8)
-    initial_fg = cv2.morphologyEx(initial_fg, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+    # Strong foreground evidence always wins, especially in the lower mechanical
+    # region where tabs, holes and brackets are frequently small and dark.
+    foreground_evidence = (distance > 30) | (edge > 42) | (gray < 232) | (saturation > 28)
+    foreground = (~connected_bg) | foreground_evidence
 
-    material_core = ((~connected_bg) & ((distance >= 78) | (saturation >= 72) | (gray <= 165) | ((edge >= 72) & (distance >= 42)))).astype(np.uint8)
-    material_core = cv2.morphologyEx(material_core, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
-
-    count, labels, stats, centroids = cv2.connectedComponentsWithStats(initial_fg, connectivity=8)
-    if count <= 1:
-        diagnostic_log("graphic_v54000_cutout_skipped", reason="no_foreground_component")
-        return image
-
-    image_area = float(w * h)
-    cx0, cx1 = w * 0.18, w * 0.82
-    cy0, cy1 = h * 0.06, h * 0.97
-    candidates = []
+    # Keep only meaningful components, but use a very small threshold so screws,
+    # mounting ears and clips are not discarded.
+    fg_u8 = foreground.astype(np.uint8)
+    count, comp, stats, _ = cv2.connectedComponentsWithStats(fg_u8, connectivity=8)
+    keep = np.zeros_like(fg_u8)
+    min_area = max(6, int(w*h*0.000004))
     for idx in range(1, count):
-        x, y, cw, ch, area = [int(v) for v in stats[idx]]
-        central_overlap = max(0, min(x + cw, cx1) - max(x, cx0)) * max(0, min(y + ch, cy1) - max(y, cy0))
-        overlap_ratio = central_overlap / max(1.0, float(cw * ch))
-        score = float(area) * (1.0 + min(1.0, overlap_ratio))
-        if x <= w * 0.58 <= x + cw or x <= w * 0.42 <= x + cw:
-            score *= 1.25
-        if y < h * 0.45 and y + ch > h * 0.58:
-            score *= 1.25
-        if area >= image_area * 0.012:
-            candidates.append((score, idx, x, y, cw, ch, area))
-    if not candidates:
-        diagnostic_log("graphic_v54000_cutout_skipped", reason="no_dominant_central_component")
-        return image
+        x, y, cw, ch, area = stats[idx]
+        central = (x < w*0.78 and x+cw > w*0.22 and y < h*0.98 and y+ch > h*0.04)
+        lower_mechanical = y+ch > h*0.68 and area >= max(3, min_area//2)
+        if area >= min_area and (central or lower_mechanical):
+            keep[comp == idx] = 255
 
-    candidates.sort(reverse=True)
-    _, main_idx, mx, my, mw, mh, main_area = candidates[0]
-    main = labels == main_idx
-
-    # v54000: do not keep merely "nearby" disconnected objects. A legitimate separate
-    # screw/knob must nearly touch the main component and carry strong material evidence.
-    keep = main.copy()
-    dilated_main = cv2.dilate(main.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=1).astype(bool)
-    for idx in range(1, count):
-        if idx == main_idx:
-            continue
-        component = labels == idx
-        x, y, cw, ch, area = [int(v) for v in stats[idx]]
-        nearly_touching = bool(np.any(cv2.dilate(component.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=1).astype(bool) & dilated_main))
-        evidence_ratio = float(material_core[component].mean()) if np.any(component) else 0.0
-        meaningful = area >= max(12, int(main_area * 0.00018))
-        compact = (cw * ch) <= max(area * 8, 64)
-        if nearly_touching and meaningful and compact and evidence_ratio >= 0.32:
-            keep |= component
-
-    # Remove low-detail floor/contact shadow that remains attached below the true material
-    # core. For each column, pixels materially below the last strong core pixel are not
-    # allowed unless they themselves have strong product evidence.
-    core_in_main = material_core.astype(bool) & keep
-    cleaned = keep.copy()
-    global_core_rows = np.where(core_in_main.any(axis=1))[0]
-    if global_core_rows.size:
-        global_core_bottom = int(global_core_rows.max())
-    else:
-        global_core_bottom = my + mh - 1
-    allowance = max(3, int(h * 0.0045))
-    for x in range(w):
-        ys = np.where(core_in_main[:, x])[0]
-        if ys.size:
-            column_bottom = int(ys.max()) + allowance
-            below = np.arange(h) > column_bottom
-            weak_shadow = (distance[:, x] < 104) & (saturation[:, x] < 48) & (edge[:, x] < 46) & (gray[:, x] > 92)
-            cleaned[:, x] &= ~(below & weak_shadow)
-        else:
-            # Outside any proven material column, do not allow a soft appendage below
-            # the global material bottom.
-            below = np.arange(h) > global_core_bottom + allowance
-            weak_shadow = (distance[:, x] < 118) & (saturation[:, x] < 55) & (edge[:, x] < 52)
-            cleaned[:, x] &= ~(below & weak_shadow)
-
-    # Keep the dominant component again after shadow removal, preventing detached blobs
-    # from surviving as false lower mounting ears.
-    cleaned_u8 = cleaned.astype(np.uint8)
-    n2, l2, s2, c2 = cv2.connectedComponentsWithStats(cleaned_u8, connectivity=8)
-    if n2 > 1:
-        center = np.array([w * 0.5, h * 0.52])
-        best = None
-        for idx in range(1, n2):
-            area = int(s2[idx, cv2.CC_STAT_AREA])
-            centroid = c2[idx]
-            dist_center = float(np.linalg.norm((centroid - center) / np.array([max(1, w), max(1, h)])))
-            score = area * (1.0 + max(0.0, 0.8 - dist_center))
-            if best is None or score > best[0]:
-                best = (score, idx)
-        cleaned = l2 == best[1]
-
-    mask_u8 = cleaned.astype(np.uint8) * 255
-    hard_bbox = Image.fromarray(mask_u8, mode="L").getbbox()
-    if not hard_bbox:
-        return image
-    x0, y0, x1, y1 = hard_bbox
-
-    # Lower-housing silhouette audit. A studio shadow typically creates a sudden width
-    # expansion or isolated islands in the final quarter of the mask. Reject rather than
-    # publish if the profile is implausible.
-    crop_mask = mask_u8[y0:y1, x0:x1] > 0
-    ch, cw = crop_mask.shape
-    row_widths = crop_mask.sum(axis=1).astype(np.float32)
-    lower_start = max(0, int(ch * 0.72))
-    upper_reference = row_widths[max(0, int(ch * 0.55)):max(lower_start, int(ch * 0.72))]
-    lower_rows = row_widths[lower_start:]
-    reference_width = float(np.percentile(upper_reference[upper_reference > 0], 85)) if np.any(upper_reference > 0) else float(cw)
-    lower_max = float(lower_rows.max()) if lower_rows.size else 0.0
-    lower_width_growth = lower_max / max(1.0, reference_width)
-    lower_component_count_max = 0
-    for yy in range(lower_start, ch):
-        row = crop_mask[yy].astype(np.uint8)
-        transitions = np.diff(np.pad(row, (1, 1)))
-        lower_component_count_max = max(lower_component_count_max, int((transitions == 1).sum()))
-
-    touches = sum((x0 <= 1, y0 <= 1, x1 >= w - 1, y1 >= h - 1))
-    bbox_area_ratio = ((x1 - x0) * (y1 - y0)) / image_area
-    foreground_ratio = float((mask_u8 > 0).mean())
-    lower_profile_ok = lower_width_growth <= 1.20 and lower_component_count_max <= 14
-    sane = touches <= 1 and 0.035 <= foreground_ratio <= 0.90 and bbox_area_ratio <= 0.94 and lower_profile_ok
-
-    # Fill only microscopic pinholes. Real vents/openings and lower cutouts remain intact.
-    inv = 255 - mask_u8
-    holes_n, holes_l, holes_s, _ = cv2.connectedComponentsWithStats((inv > 0).astype(np.uint8), connectivity=8)
-    for idx in range(1, holes_n):
-        hx, hy, hcw, hch, area = [int(v) for v in holes_s[idx]]
-        touches_edge = hx == 0 or hy == 0 or hx + hcw >= w or hy + hch >= h
-        if not touches_edge and area <= max(5, int(main_area * 0.000018)):
-            mask_u8[holes_l == idx] = 255
-
-    soft = cv2.GaussianBlur(mask_u8, (3, 3), 0.34)
-    soft[mask_u8 == 255] = np.maximum(soft[mask_u8 == 255], 249)
-    soft[mask_u8 == 0] = np.minimum(soft[mask_u8 == 0], 6)
+    kernel = np.ones((3,3), np.uint8)
+    keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # Feather only one pixel; broad feathering visually changes bezel thickness.
+    soft = cv2.GaussianBlur(keep, (3,3), 0.45)
+    soft[keep == 255] = np.maximum(soft[keep == 255], 245)
     mask = Image.fromarray(soft.astype(np.uint8), mode="L")
-
-    report = {
-        "engine": "exact-silhouette-v54000",
-        "source_alpha_preserved": False,
-        "background_removed": bool(sane),
-        "mask_source": "dominant-central-material-core",
-        "background_rgb": [round(float(v), 2) for v in bg],
-        "border_spread": round(border_spread, 3),
-        "distance_limit": round(distance_limit, 3),
-        "foreground_ratio": round(foreground_ratio, 6),
-        "bbox_area_ratio": round(bbox_area_ratio, 6),
-        "edge_contacts": int(touches),
-        "main_component_area": int(main_area),
-        "lower_width_growth": round(lower_width_growth, 6),
-        "lower_component_count_max": int(lower_component_count_max),
-        "lower_housing_lock": True,
-        "disconnected_nearby_components_allowed": False,
-        "soft_floor_shadow_removed": True,
-        "bbox": [int(v) for v in hard_bbox],
-        "passed": bool(sane),
-    }
-    try:
-        state = get_graphic_project_state()
-        state["last_product_cutout_report_v53000"] = dict(report)
-        state["last_product_cutout_report_v54000"] = dict(report)
-        state["last_product_cutout_report_v55000"] = dict(report)
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    except Exception:
-        pass
-    diagnostic_log("graphic_v54000_cutout_integrity", **report)
-    if not sane:
-        return image
-
     image.putalpha(mask)
-    pad = max(2, min(w, h) // 260)
-    crop_box = (max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad))
-    return image.crop(crop_box)
+    bbox = mask.point(lambda a: 255 if a >= 8 else 0).getbbox()
+    if not bbox:
+        return image
+    pad = max(2, min(w,h)//220)
+    bbox = (max(0,bbox[0]-pad), max(0,bbox[1]-pad), min(w,bbox[2]+pad), min(h,bbox[3]+pad))
+    return image.crop(bbox)
 
 def _graphic_font(size, bold=False):
     candidates = [
@@ -20153,7 +19987,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v61000"
+GRAPHIC_ENGINE_VERSION = "v63000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -24902,7 +24736,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v60000-photoreal-glass-lighting",
+        "engine": "autotecpro-commercial-composer-v64000-conservative-universal-product-geometry-authority",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
         "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
@@ -24910,6 +24744,9 @@ def _graphic_compose_reference_campaign_v3200(
         "graphic_cache_epoch_v57000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v59000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v60000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v63000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v64000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v62000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
@@ -24919,6 +24756,12 @@ def _graphic_compose_reference_campaign_v3200(
         "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),  # compatibility alias
         "provider_product_exclusion_v56000": bool(protected_product_zone_v55000.get("applied")),
         "provider_product_exclusion_v57000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v63000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v62000": bool(protected_product_zone_v55000.get("applied")),
+        "final_bezel_authority_v63000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
+        "conservative_universal_product_geometry_authority_v64000": True,
+        "reference_style_mask_authority_v64000": "v47000_border_connected_background_removal",
+        "bezel_absolute_isolation_v62000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_bezel_absolute_authority_v57000": bool(protected_product_zone_v55000.get("bottom_bezel_provider_exclusion")) and bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_apron_authority_v57000": protected_product_zone_v55000,
         "exact_product_asset_mode": True,
@@ -25412,8 +25255,8 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "v59000-mask-connected-component-physical-baseline-authority-1"
-GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v59000-product-authority-binary-geometry-master-1"
+GRAPHIC_MASK_CACHE_VERSION = "v63000-mask-geometric-cliff-mechanical-tail-authority-1"
+GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v63000-product-authority-final-bezel-master-1"
 
 
 def _graphic_progress_v3300(label):
@@ -25486,183 +25329,121 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Return a binary-geometry product matte with physical-baseline shadow rejection.
+    """Return a contour-safe alpha matte while preserving the uploaded RGB exactly.
 
-    v59000 removes the v58000 broad edge and row-span rescue that promoted studio-floor
-    shadow and JPEG texture into product geometry. The new path uses conservative
-    GrabCut seeding, dominant connected-component recovery, outer-silhouette completion,
-    and a lower physical-baseline gate. Source RGB is never changed.
+    v32000 treats the product photo as an immutable engineering asset. The function
+    classifies only neutral studio background, connects it to an artificial outside
+    border, and removes only the region reachable from that border. Dark bezel,
+    metallic trim, controls, screen pixels, mounting tabs and reflections are never
+    repainted or geometrically modified. Internal openings remain transparent when
+    their studio background is physically connected to the outside scene.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
-        import cv2
         import numpy as np
+        from PIL import ImageDraw, ImageFilter
 
         source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
         rgb_image = source.convert("RGB")
-        rgb = np.asarray(rgb_image, dtype=np.uint8)
+        rgb = np.asarray(rgb_image, dtype=np.int16)
         height, width = rgb.shape[:2]
-        if width < 16 or height < 16:
+        if width < 3 or height < 3:
             return b""
 
-        rgbf = rgb.astype(np.float32)
-        band = max(5, min(width, height) // 50)
+        # Robustly estimate the studio backdrop from a thin border ring. Prefer
+        # bright, low-chroma samples, but gracefully fall back to all border pixels.
+        band = max(2, min(width, height) // 80)
         border = np.concatenate([
-            rgbf[:band].reshape(-1, 3), rgbf[-band:].reshape(-1, 3),
-            rgbf[:, :band].reshape(-1, 3), rgbf[:, -band:].reshape(-1, 3),
+            rgb[:band, :, :].reshape(-1, 3),
+            rgb[-band:, :, :].reshape(-1, 3),
+            rgb[:, :band, :].reshape(-1, 3),
+            rgb[:, -band:, :].reshape(-1, 3),
         ], axis=0)
         border_brightness = border.mean(axis=1)
         border_chroma = border.max(axis=1) - border.min(axis=1)
-        neutral = border[(border_brightness >= 185) & (border_chroma <= 50)]
-        bg = np.median(neutral if len(neutral) >= 32 else border, axis=0)
+        neutral = border[(border_brightness >= 190) & (border_chroma <= 46)]
+        samples = neutral if len(neutral) >= 32 else border
+        bg = np.median(samples, axis=0).astype(np.float32)
 
+        rgbf = rgb.astype(np.float32)
         brightness = rgbf.mean(axis=2)
         chroma = rgbf.max(axis=2) - rgbf.min(axis=2)
         distance = np.sqrt(((rgbf - bg.reshape(1, 1, 3)) ** 2).sum(axis=2))
 
-        # Strong foreground seeds. Keep them away from the outer border so floor noise
-        # and image-edge responses cannot establish the authoritative component.
-        sure_fg = ((brightness <= 212) | (chroma >= 45) | (distance >= 62))
-        roi = np.zeros((height, width), dtype=bool)
-        roi[int(height * 0.04):int(height * 0.95), int(width * 0.05):int(width * 0.95)] = True
-        sure_fg &= roi
-        sure_fg_u8 = (sure_fg.astype(np.uint8) * 255)
-        sure_fg_u8 = cv2.morphologyEx(sure_fg_u8, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        # Adaptive studio-background candidate. It intentionally tolerates mild
+        # illumination gradients and JPEG noise while excluding coloured UI pixels,
+        # dark bezel plastic and strongly differentiated metallic structure.
+        candidate = (
+            (brightness >= 186)
+            & (chroma <= 52)
+            & (
+                ((brightness >= 244) & (distance <= 82))
+                | ((brightness >= 226) & (distance <= 58))
+                | ((brightness >= 208) & (distance <= 38))
+                | ((brightness >= 186) & (distance <= 23))
+            )
+        )
 
-        # Keep meaningful central seed components only.
-        count, labels, stats, centroids = cv2.connectedComponentsWithStats((sure_fg_u8 > 0).astype(np.uint8), 8)
-        seed = np.zeros((height, width), dtype=np.uint8)
-        min_seed_area = max(32, int(height * width * 0.0012))
-        for idx in range(1, count):
-            x, y, ww, hh, area = [int(v) for v in stats[idx]]
-            cx, cy = centroids[idx]
-            if area >= min_seed_area and 0.08 * width <= cx <= 0.92 * width and 0.03 * height <= cy <= 0.93 * height:
-                seed[labels == idx] = 255
-        if int(np.count_nonzero(seed)) < min_seed_area:
-            diagnostic_log("graphic_v59000_mask_rejected", reason="insufficient foreground seed")
+        # Unquestionable product pixels seed a one-pixel protection band. This
+        # protects antialiased glossy/silver edges without the broad multi-pixel
+        # expansion that previously retained white studio background around holes.
+        hard_foreground = (
+            (brightness <= 202)
+            | (chroma >= 50)
+            | (distance >= 78)
+        )
+        hard_img = Image.fromarray((hard_foreground.astype(np.uint8) * 255), mode="L")
+        protected = np.asarray(hard_img.filter(ImageFilter.MaxFilter(3))) > 0
+        candidate &= ~protected
+
+        # Add an artificial outside frame so every legitimate border-connected
+        # background region is joined, then flood once from the outer corner.
+        padded = Image.new("L", (width + 2, height + 2), 255)
+        candidate_img = Image.fromarray((candidate.astype(np.uint8) * 255), mode="L")
+        padded.paste(candidate_img, (1, 1))
+        ImageDraw.floodfill(padded, (0, 0), 128, thresh=0)
+        flood = np.asarray(padded, dtype=np.uint8)[1:-1, 1:-1]
+        background = flood == 128
+
+        # Build alpha without modifying source RGB. Fully connected background is
+        # transparent. Only a one-pixel neutral fringe receives partial alpha to
+        # suppress white halos; real product structure remains fully opaque.
+        alpha = np.full((height, width), 255, dtype=np.uint8)
+        alpha[background] = 0
+
+        bg_img = Image.fromarray((background.astype(np.uint8) * 255), mode="L")
+        adjacent = (np.asarray(bg_img.filter(ImageFilter.MaxFilter(3))) > 0) & ~background
+        neutral_edge = adjacent & ~protected & (chroma <= 38) & (brightness >= 205)
+        # More background-like pixels get lower alpha. The range never reaches zero
+        # outside the confirmed border-connected background, preserving contour mass.
+        edge_strength = np.clip((distance - 8.0) / 42.0, 0.0, 1.0)
+        edge_alpha = (56 + edge_strength * 199).astype(np.uint8)
+        alpha[neutral_edge] = np.minimum(alpha[neutral_edge], edge_alpha[neutral_edge])
+
+        # Safety checks: reject a matte that removes too much or too little. A failed
+        # mask falls back to the untouched studio card instead of altering geometry.
+        foreground_ratio = float(np.count_nonzero(alpha >= 16)) / float(width * height)
+        transparent_ratio = float(np.count_nonzero(alpha == 0)) / float(width * height)
+        if foreground_ratio < 0.08 or transparent_ratio < 0.05 or transparent_ratio > 0.94:
+            diagnostic_log(
+                "graphic_v32000_mask_rejected",
+                foreground_ratio=round(foreground_ratio, 4),
+                transparent_ratio=round(transparent_ratio, 4),
+            )
             return b""
-
-        # GrabCut is initialized with definite exterior background and conservative
-        # product seeds. It is used only to estimate the outer physical silhouette.
-        gc_mask = np.full((height, width), cv2.GC_PR_BGD, dtype=np.uint8)
-        gc_mask[:band, :] = cv2.GC_BGD; gc_mask[-band:, :] = cv2.GC_BGD
-        gc_mask[:, :band] = cv2.GC_BGD; gc_mask[:, -band:] = cv2.GC_BGD
-        gc_mask[seed > 0] = cv2.GC_FGD
-        bg_model = np.zeros((1, 65), np.float64)
-        fg_model = np.zeros((1, 65), np.float64)
-        cv2.grabCut(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), gc_mask, None, bg_model, fg_model, 5, cv2.GC_INIT_WITH_MASK)
-        segmented = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
-
-        # Select the dominant central component. Detached floor/shadow fragments and
-        # thin horizontal JPEG streaks are discarded before silhouette completion.
-        count, labels, stats, centroids = cv2.connectedComponentsWithStats(segmented, 8)
-        candidates = []
-        for idx in range(1, count):
-            x, y, ww, hh, area = [int(v) for v in stats[idx]]
-            cx, cy = centroids[idx]
-            if area < max(64, int(height * width * 0.001)):
-                continue
-            centrality = 1.0 - min(1.0, abs(cx - width / 2) / max(1.0, width / 2))
-            score = area * (0.65 + 0.35 * centrality)
-            candidates.append((score, idx))
-        if not candidates:
-            diagnostic_log("graphic_v59000_mask_rejected", reason="no dominant product component")
-            return b""
-        _, main_idx = max(candidates)
-        main = (labels == main_idx).astype(np.uint8)
-
-        # Complete the outer silhouette so bright screen/UI and light housing pixels
-        # inside the physical frame remain authoritative. This does not invent an outer
-        # contour; it fills only the largest external contour detected from source.
-        contours, _ = cv2.findContours(main, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            return b""
-        outer = max(contours, key=cv2.contourArea)
-        geometry = np.zeros_like(main)
-        cv2.drawContours(geometry, [outer], -1, 1, cv2.FILLED)
-        close_k = max(3, min(9, (min(width, height) // 400) * 2 + 3))
-        if close_k % 2 == 0:
-            close_k += 1
-        geometry = cv2.morphologyEx(geometry, cv2.MORPH_CLOSE, np.ones((close_k, close_k), np.uint8))
-
-        # Physical-baseline detection: studio contact shadow produces a broad,
-        # progressively narrowing tail below the real housing. Find the first sustained
-        # width collapse in the lower 22% and remove only weak/background-like pixels
-        # below that line; strong dark/coloured connected mounting structure survives.
-        ys, xs = np.where(geometry > 0)
-        if xs.size == 0:
-            return b""
-        x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
-        row_width = geometry[:, x0:x1].sum(axis=1).astype(np.float32)
-        search_start = max(y0, int(round(y0 + (y1 - y0) * 0.76)))
-        reference_width = float(np.median(row_width[max(y0, search_start - max(8, (y1-y0)//12)):search_start + 1]))
-        baseline = y1
-        if reference_width > 0:
-            collapse = row_width < reference_width * 0.82
-            run = max(3, int(round((y1 - y0) * 0.008)))
-            for yy in range(search_start, max(search_start, y1 - run)):
-                if bool(np.all(collapse[yy:yy + run])):
-                    baseline = yy
-                    break
-        if baseline < y1:
-            below = np.zeros_like(geometry, dtype=bool)
-            below[baseline:y1, :] = True
-            strong_below = below & ((brightness <= 205) | (chroma >= 42) | (distance >= 60))
-            strong_below_u8 = (strong_below.astype(np.uint8) * 255)
-            strong_below_u8 = cv2.morphologyEx(strong_below_u8, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-            # Keep only strong below-baseline pixels directly connected to geometry above.
-            anchor = np.zeros_like(geometry, dtype=np.uint8)
-            anchor[max(y0, baseline - 3):baseline + 1, :] = geometry[max(y0, baseline - 3):baseline + 1, :]
-            candidate_below = ((strong_below_u8 > 0) | (anchor > 0)).astype(np.uint8)
-            num, lab, st, _ = cv2.connectedComponentsWithStats(candidate_below, 8)
-            retained_below = np.zeros_like(geometry)
-            anchor_labels = set(np.unique(lab[anchor > 0]).tolist()) - {0}
-            for idx in anchor_labels:
-                if int(st[idx, cv2.CC_STAT_AREA]) >= 8:
-                    retained_below[lab == idx] = 1
-            geometry[baseline:, :] = retained_below[baseline:, :]
-
-        # Remove detached micro-components after baseline cleanup.
-        num, lab, st, _ = cv2.connectedComponentsWithStats(geometry, 8)
-        final_geometry = np.zeros_like(geometry)
-        areas = [(int(st[i, cv2.CC_STAT_AREA]), i) for i in range(1, num)]
-        if not areas:
-            return b""
-        _, dominant = max(areas)
-        final_geometry[lab == dominant] = 1
-
-        # Engineering QA before any resize or trim.
-        fys, fxs = np.where(final_geometry > 0)
-        if fxs.size == 0:
-            return b""
-        fx0, fx1, fy0, fy1 = int(fxs.min()), int(fxs.max()) + 1, int(fys.min()), int(fys.max()) + 1
-        fg_ratio = float(final_geometry.mean())
-        bbox_ratio = ((fx1 - fx0) * (fy1 - fy0)) / float(width * height)
-        lower_band = final_geometry[max(fy0, int(fy0 + (fy1-fy0)*0.78)):fy1, fx0:fx1]
-        lower_row_counts = lower_band.sum(axis=1) if lower_band.size else np.array([], dtype=np.int32)
-        abrupt = 0.0
-        if lower_row_counts.size > 2 and float(lower_row_counts.max()) > 0:
-            abrupt = float(np.max(np.abs(np.diff(lower_row_counts.astype(np.float32))))) / float(lower_row_counts.max())
-        if fg_ratio < 0.06 or bbox_ratio > 0.80 or abrupt > 0.48:
-            diagnostic_log("graphic_v59000_mask_rejected", reason="geometry QA", foreground_ratio=round(fg_ratio,4), bbox_ratio=round(bbox_ratio,4), lower_abruptness=round(abrupt,4), baseline=int(baseline))
-            return b""
-
-        # Binary engineering alpha plus a one-pixel visual antialias fringe. Geometry
-        # measurements must use alpha>=128; no broad feathering or floor shadow is kept.
-        alpha = (final_geometry * 255).astype(np.uint8)
-        eroded = cv2.erode(final_geometry, np.ones((3, 3), np.uint8), iterations=1)
-        edge_ring = (final_geometry > 0) & (eroded == 0)
-        alpha[edge_ring] = 224
 
         result = source.copy()
         result.putalpha(Image.fromarray(alpha, mode="L"))
         buffer = io.BytesIO()
         result.save(buffer, format="PNG", optimize=True)
-        diagnostic_log("graphic_v59000_mask_accepted", bbox=[fx0, fy0, fx1, fy1], baseline=int(baseline), foreground_ratio=round(fg_ratio,4), lower_abruptness=round(abrupt,4))
         return buffer.getvalue()
     except Exception as error:
-        diagnostic_log("graphic_v59000_connected_component_mask_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log(
+            "graphic_v32000_contour_safe_mask_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
         return b""
 
 
