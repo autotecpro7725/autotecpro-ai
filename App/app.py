@@ -55,6 +55,11 @@ except Exception:
 #   Supabase/history/product-library/WooCommerce integrations, mobile interface and downloads.
 # - v66000 multi-candidate extraction, source-to-cutout geometry verification, confidence selection,
 #   immutable local product compositing and fail-closed untouched-card authority.
+# AutoTecPro AI performance/stability revision: v66800 LTS — v66200 Exact Product Aspect and Bezel Authority
+# v66800 is built directly from the verified working v66200 source. It does not inherit
+# v66400/v66700/v66710 hero-box or product-layout authority. Reference Mode uses only
+# uniform product scaling and hard source-to-render aspect verification so the screen,
+# bezel, housing, buttons and mounting geometry cannot be widened independently.
 # v63000 Final Bezel Authority Engine built directly from v62000 LTS.
 # Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
 # First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
@@ -24510,6 +24515,48 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
+
+
+def _graphic_v66800_exact_aspect_guard(source_image, rendered_image, *, stage="render"):
+    """Fail closed if any Reference Mode transform widens or narrows the product.
+
+    The uploaded product may undergo only one isotropic scale and integer translation.
+    Independent X/Y resizing, perspective warp, mesh warp, screen-only fitting and
+    post-layout geometry optimization are prohibited. A small tolerance is allowed only
+    for integer rounding when converting the uniformly scaled size to output pixels.
+    """
+    if Image is None or source_image is None or rendered_image is None:
+        return {"passed": False, "stage": stage, "reason": "image unavailable", "fail_closed": True}
+    sw, sh = [max(1, int(v)) for v in source_image.size]
+    rw, rh = [max(1, int(v)) for v in rendered_image.size]
+    source_aspect = sw / sh
+    rendered_aspect = rw / rh
+    relative_error = abs(rendered_aspect - source_aspect) / max(source_aspect, 1e-9)
+    # Integer rounding of a single uniform scale should remain far below 0.25%.
+    tolerance = 0.0025
+    passed = relative_error <= tolerance
+    report = {
+        "passed": bool(passed),
+        "stage": str(stage),
+        "source_size": [sw, sh],
+        "rendered_size": [rw, rh],
+        "source_aspect": round(source_aspect, 10),
+        "rendered_aspect": round(rendered_aspect, 10),
+        "relative_error": round(relative_error, 10),
+        "tolerance": tolerance,
+        "uniform_scale_only": True,
+        "independent_xy_scale_prohibited": True,
+        "perspective_warp_prohibited": True,
+        "screen_only_resize_prohibited": True,
+        "fail_closed": True,
+    }
+    if not passed:
+        raise RuntimeError(
+            "Reference Mode exact-product aspect guard rejected a non-uniform product transform "
+            f"at {stage}: source={sw}x{sh}, rendered={rw}x{rh}, error={relative_error:.6f}."
+        )
+    return report
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -24626,6 +24673,9 @@ def _graphic_compose_reference_campaign_v3200(
         product,
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
     )
+    exact_aspect_guard_v66800 = _graphic_v66800_exact_aspect_guard(
+        authoritative_pre_resize_v61000, product, stage="uniform-product-resize"
+    )
     if source_aspect < 0.90:
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
@@ -24718,6 +24768,9 @@ def _graphic_compose_reference_campaign_v3200(
     for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
+    exact_post_effect_aspect_guard_v66800 = _graphic_v66800_exact_aspect_guard(
+        authoritative_pre_resize_v61000, product, stage="post-lighting-glass-and-ui-restoration"
+    )
     final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
         product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
@@ -24931,6 +24984,10 @@ def _graphic_compose_reference_campaign_v3200(
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
+        "exact_product_aspect_guard_v66800": exact_aspect_guard_v66800,
+        "post_effect_aspect_guard_v66800": exact_post_effect_aspect_guard_v66800,
+        "v66200_product_geometry_baseline": True,
+        "v66400_v66700_v66710_hero_box_authority_removed": True,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
         "bottom_bezel_pixel_lock_v56000": bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_bezel_pixel_lock_v57000": bool(lower_housing_fidelity_v55000.get("passed")) and bool(protected_product_zone_v55000.get("applied")),
