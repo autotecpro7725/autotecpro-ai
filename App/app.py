@@ -29778,6 +29778,631 @@ def _graphic_v67100_accept_or_route(images, prompt_text, contract, *, route_name
 
 
 
+
+GRAPHIC_V67400_POLICY_VERSION = "v67400-three-level-reference-style-authority"
+GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES = 15.0
+GRAPHIC_V67400_MAX_SINGLE_VIEW_RECONSTRUCTION_DEGREES = 30.0
+
+
+def _graphic_v67400_requested_angle(prompt_text):
+    """Parse an explicit product-angle request without confusing layout placement.
+
+    Returns a normalized request:
+    - `none`: no angle request;
+    - `rotate_2d`: complete-layer clockwise/counter-clockwise rotation;
+    - `viewpoint_3d`: physical left/right/three-quarter perspective recreation.
+    """
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = text.casefold()
+
+    degree_match = re.search(
+        r"(?P<degrees>\d{1,3}(?:\.\d+)?)\s*(?:°|degrees?|deg)\b",
+        lower,
+        re.I,
+    )
+    degrees = float(degree_match.group("degrees")) if degree_match else None
+
+    direction = ""
+    if re.search(r"\b(?:clockwise|cw)\b", lower):
+        direction = "clockwise"
+    elif re.search(r"\b(?:counter[- ]?clockwise|anticlockwise|ccw)\b", lower):
+        direction = "counterclockwise"
+    elif re.search(r"\b(?:to the |toward the |towards the )?right\b", lower):
+        direction = "right"
+    elif re.search(r"\b(?:to the |toward the |towards the )?left\b", lower):
+        direction = "left"
+    elif re.search(r"\bthree[- ]?quarter\b|\b3\s*/\s*4\b", lower):
+        direction = "three-quarter"
+    elif re.search(r"\bside view\b", lower):
+        direction = "side"
+    elif re.search(r"\brear view\b", lower):
+        direction = "rear"
+    elif re.search(r"\btop view\b|\boverhead\b", lower):
+        direction = "top"
+
+    explicit_no_change = bool(re.search(
+        r"\b(?:do not|don't|never)\s+(?:change|adjust|rotate|turn)\s+"
+        r"(?:the\s+)?(?:unit|product|device|screen|head unit|cluster)?\s*angle\b"
+        r"|\b(?:same|original|uploaded)\s+angle\b"
+        r"|\bfront view only\b",
+        lower,
+        re.I,
+    ))
+    if explicit_no_change:
+        return {
+            "kind": "none",
+            "requested": False,
+            "degrees": 0.0,
+            "direction": "",
+            "explicit_original_angle": True,
+            "source_text": text,
+        }
+
+    angle_intent = bool(re.search(
+        r"\b(?:rotate|turn|angle|perspective|viewpoint|three[- ]?quarter|"
+        r"3\s*/\s*4|side view|rear view|top view|overhead)\b",
+        lower,
+        re.I,
+    ))
+    if not angle_intent:
+        return {
+            "kind": "none",
+            "requested": False,
+            "degrees": 0.0,
+            "direction": "",
+            "explicit_original_angle": False,
+            "source_text": text,
+        }
+
+    # Clockwise/counter-clockwise language means a flat complete-layer rotation.
+    if direction in {"clockwise", "counterclockwise"}:
+        return {
+            "kind": "rotate_2d",
+            "requested": True,
+            "degrees": float(degrees or 8.0),
+            "direction": direction,
+            "explicit_original_angle": False,
+            "source_text": text,
+        }
+
+    # "Tilt slightly" without a left/right physical viewpoint is also a 2D change.
+    if re.search(r"\b(?:tilt|slightly rotate|small rotation|minor rotation)\b", lower) and direction not in {
+        "left", "right", "three-quarter", "side", "rear", "top"
+    }:
+        return {
+            "kind": "rotate_2d",
+            "requested": True,
+            "degrees": float(degrees or 8.0),
+            "direction": direction or "clockwise",
+            "explicit_original_angle": False,
+            "source_text": text,
+        }
+
+    # Left/right and named viewpoints require hidden-surface reconstruction.
+    return {
+        "kind": "viewpoint_3d",
+        "requested": True,
+        "degrees": float(degrees or (25.0 if direction in {"left", "right"} else 30.0)),
+        "direction": direction or "unspecified",
+        "explicit_original_angle": False,
+        "source_text": text,
+    }
+
+
+def _graphic_v67400_requested_uniform_scale(prompt_text):
+    """Extract an optional displayed-size request; never create X/Y stretching."""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = text.casefold()
+
+    percent = re.search(
+        r"\b(?:make|resize|scale|enlarge|increase|reduce|shrink)\b.{0,45}?"
+        r"(?P<percent>\d{1,3}(?:\.\d+)?)\s*%",
+        lower,
+        re.I,
+    )
+    if percent:
+        value = float(percent.group("percent"))
+        if re.search(r"\b(?:reduce|smaller|shrink|decrease)\b", lower):
+            factor = max(0.25, 1.0 - value / 100.0)
+        else:
+            factor = min(3.0, 1.0 + value / 100.0)
+        return {
+            "requested": True,
+            "factor": round(factor, 4),
+            "source": "explicit-percentage",
+            "uniform_only": True,
+        }
+
+    relative = ""
+    if re.search(r"\b(?:much|significantly)\s+larger\b|\bmake .{0,30}\blarger\b", lower):
+        relative = "larger"
+        factor = 1.20
+    elif re.search(r"\b(?:slightly|a little)\s+larger\b", lower):
+        relative = "slightly-larger"
+        factor = 1.10
+    elif re.search(r"\b(?:much|significantly)\s+smaller\b|\bmake .{0,30}\bsmaller\b", lower):
+        relative = "smaller"
+        factor = 0.80
+    elif re.search(r"\b(?:slightly|a little)\s+smaller\b", lower):
+        relative = "slightly-smaller"
+        factor = 0.90
+    else:
+        return {
+            "requested": False,
+            "factor": None,
+            "source": "",
+            "uniform_only": True,
+        }
+
+    return {
+        "requested": True,
+        "factor": factor,
+        "source": relative,
+        "uniform_only": True,
+    }
+
+
+def _graphic_v67400_reference_adaptation_plan(prompt_text, role_items, base_mode):
+    """Resolve the three Reference Style product treatments.
+
+    Treatment order:
+    1. exact composite;
+    2. exact complete-layer 2D adaptation;
+    3. verified Product-DNA viewpoint reconstruction.
+    """
+    prompt = str(prompt_text or "")
+    has_product = any(item.get("role") == "product_photo" for item in role_items or [])
+    has_reference = any(item.get("role") == "style_reference" for item in role_items or [])
+    product_count = sum(1 for item in role_items or [] if item.get("role") == "product_photo")
+    reference_style = bool(has_product and has_reference)
+
+    angle = _graphic_v67400_requested_angle(prompt)
+    scale = _graphic_v67400_requested_uniform_scale(prompt)
+    reference_angle, blueprint, blueprint_binding = _graphic_v67100_reference_blueprint_angle(role_items)
+
+    treatment = "not_reference_style"
+    level = "not-reference-style"
+    reason = "No simultaneous authoritative product and style reference."
+    requires_product_dna = False
+    max_angle_change = "mode-defined"
+
+    if reference_style:
+        treatment = "exact_composite"
+        level = "reference-exact"
+        reason = "Use the immutable uploaded product with uniform scale and placement."
+        max_angle_change = "none"
+
+        if angle.get("explicit_original_angle"):
+            treatment = "exact_composite"
+            level = "reference-exact"
+            reason = "The user explicitly requested the uploaded product angle."
+        elif angle.get("kind") == "rotate_2d":
+            degrees = abs(float(angle.get("degrees") or 0.0))
+            if degrees <= GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES:
+                treatment = "exact_2d_adaptation"
+                level = "reference-adaptive"
+                reason = (
+                    "The request can be satisfied by rotating the complete immutable "
+                    "product layer without reconstructing hidden surfaces."
+                )
+                max_angle_change = f"{degrees:g}-degree-complete-layer-2d"
+            else:
+                treatment = "verified_product_dna_reconstruction"
+                level = "reference-reconstruction"
+                reason = (
+                    "The requested flat rotation exceeds the safe 2D threshold and "
+                    "requires verified Product-DNA reconstruction."
+                )
+                requires_product_dna = True
+                max_angle_change = f"{degrees:g}-degree-verified-reconstruction"
+        elif angle.get("kind") == "viewpoint_3d":
+            treatment = "verified_product_dna_reconstruction"
+            level = "reference-reconstruction"
+            reason = (
+                "A physical left/right or perspective viewpoint reveals hidden surfaces "
+                "and therefore requires positive Product-DNA validation."
+            )
+            requires_product_dna = True
+            max_angle_change = (
+                f"{float(angle.get('degrees') or 0.0):g}-degree-"
+                f"{str(angle.get('direction') or 'viewpoint')}"
+            )
+        elif (
+            blueprint_binding.get("matched_current_reference")
+            and reference_angle.get("class") == "modest"
+        ):
+            treatment = "exact_2d_adaptation"
+            level = "reference-adaptive"
+            reason = (
+                "The fingerprint-matched current reference requires only a modest "
+                "complete-layer orientation adjustment."
+            )
+            max_angle_change = "maximum-15-degree-complete-layer-2d"
+        elif (
+            blueprint_binding.get("matched_current_reference")
+            and reference_angle.get("class") == "reconstructed"
+        ):
+            # A reference alone may not silently authorize product recreation.
+            treatment = "exact_composite"
+            level = "reference-exact"
+            reason = (
+                "The reference suggests another viewpoint, but the uploaded exact product "
+                "is retained because the user did not explicitly authorize reconstruction."
+            )
+
+    return {
+        "version": GRAPHIC_V67400_POLICY_VERSION,
+        "job_fingerprint": _graphic_v67100_job_fingerprint(prompt, role_items),
+        "reference_style_mode": reference_style,
+        "reference_level": level,
+        "treatment": treatment,
+        "reason": reason,
+        "product_view_count": product_count,
+        "angle_request": angle,
+        "scale_request": scale,
+        "requires_positive_product_dna": requires_product_dna,
+        "single_view_reconstruction_limit_degrees": (
+            GRAPHIC_V67400_MAX_SINGLE_VIEW_RECONSTRUCTION_DEGREES
+        ),
+        "safe_2d_rotation_limit_degrees": (
+            GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES
+        ),
+        "reference_angle": reference_angle,
+        "reference_blueprint_binding": blueprint_binding,
+        "max_angle_change": max_angle_change,
+        "uniform_scale_allowed": True,
+        "independent_xy_scale_allowed": False,
+        "lighting_allowed": True,
+        "shadow_allowed": True,
+        "glass_allowed": True,
+        "glass_policy": (
+            "screen-aperture-clipped-overlay-only"
+            if reference_style else "mode-appropriate"
+        ),
+        "source_blueprint_available": bool(blueprint),
+        "base_mode": str(base_mode or ""),
+    }
+
+
+def _graphic_v67400_mode_contract(
+    prompt_text,
+    uploaded_files=None,
+    forced_upload_role="Auto-detect",
+    product_transform_mode="Auto",
+):
+    """Resolve mode while preserving Reference Style across all three levels."""
+    effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = _graphic_project_role_items(
+        uploaded_files, effective, forced_upload_role
+    )
+    has_edit_base = any(item.get("role") == "edit_base" for item in role_items or [])
+    mode_info = _graphic_product_mode_v7000(
+        effective, role_items, has_edit_base=has_edit_base
+    )
+    mode = str(mode_info.get("mode") or "fully_generative_concept")
+    adaptive_mode = str(mode_info.get("adaptive_mode") or "")
+    plan = _graphic_v67400_reference_adaptation_plan(effective, role_items, mode)
+
+    override = str(product_transform_mode or "Auto").strip().casefold()
+    if override not in {"", "auto"}:
+        if any(token in override for token in ("exact", "original", "preserve")):
+            plan["treatment"] = "exact_composite"
+            plan["reference_level"] = "reference-exact"
+            plan["reason"] = "Exact Original Product override selected."
+            plan["requires_positive_product_dna"] = False
+        elif any(token in override for token in ("recreate", "angle", "perspective")):
+            plan["treatment"] = "verified_product_dna_reconstruction"
+            plan["reference_level"] = "reference-reconstruction"
+            plan["reason"] = "Verified Product Recreation override selected."
+            plan["requires_positive_product_dna"] = True
+        elif "variant" in override:
+            mode = "product_variant"
+        elif "install" in override:
+            mode = "installed_product_view"
+
+    if plan.get("reference_style_mode"):
+        if plan.get("treatment") == "verified_product_dna_reconstruction":
+            mode = (
+                "multi_view_product_reconstruction"
+                if plan.get("product_view_count", 0) >= 2
+                else "ai_product_recreation"
+            )
+            adaptive_mode = "product_recreation"
+        else:
+            mode = "reference_guided_exact_product"
+            adaptive_mode = "commercial_lock"
+
+    strict_exact = bool(
+        plan.get("reference_style_mode")
+        and plan.get("treatment") in {"exact_composite", "exact_2d_adaptation"}
+    )
+    reference_recreation = bool(
+        plan.get("reference_style_mode")
+        and plan.get("treatment") == "verified_product_dna_reconstruction"
+    )
+    screen_local = mode == "ui_replacement"
+
+    reconstruction_modes = {
+        "ai_product_recreation",
+        "multi_view_product_reconstruction",
+        "installed_product_view",
+        "product_variant",
+    }
+
+    return {
+        "version": GRAPHIC_V67400_POLICY_VERSION,
+        "mode": mode,
+        "adaptive_mode": adaptive_mode,
+        "role_items": role_items,
+        "job_fingerprint": plan.get("job_fingerprint"),
+        "reference_adaptation": plan,
+        "reference_style_mode": bool(plan.get("reference_style_mode")),
+        "reference_level": plan.get("reference_level"),
+        "reference_recreation": reference_recreation,
+        "strict_exact_product": strict_exact,
+        "screen_local_edit": screen_local,
+        "allows_product_reconstruction": bool(
+            reference_recreation
+            or mode in reconstruction_modes
+            or mode == "fully_generative_concept"
+        ),
+        "requires_fitment_lock": bool(
+            strict_exact or screen_local or reference_recreation
+        ),
+        "installed_view": mode == "installed_product_view",
+        "product_recreation": mode in {
+            "ai_product_recreation",
+            "multi_view_product_reconstruction",
+        },
+        "product_variant": mode == "product_variant",
+        "fully_generative": mode == "fully_generative_concept",
+        "edit_existing": mode == "edit_existing",
+        "uniform_scale_only": bool(
+            strict_exact or screen_local or reference_recreation
+        ),
+        "glass_policy": plan.get("glass_policy"),
+    }
+
+
+def _graphic_v67400_reference_directive(contract):
+    plan = dict(contract.get("reference_adaptation") or {})
+    if not plan.get("reference_style_mode"):
+        return ""
+
+    scale = dict(plan.get("scale_request") or {})
+    angle = dict(plan.get("angle_request") or {})
+    scale_instruction = ""
+    if scale.get("requested") and scale.get("factor"):
+        scale_instruction = (
+            f" Display the complete product at approximately {float(scale['factor']):.3f} "
+            "times its normal campaign scale, using the same factor for width and height."
+        )
+
+    common = (
+        "\n\nV67400 THREE-LEVEL REFERENCE STYLE AUTHORITY:\n"
+        "Keep the supplied reference's commercial composition, visual hierarchy, "
+        "background treatment, typography, banners, icons, vehicle relationship and "
+        "overall campaign style. Preserve the complete user-stated fitment wording; "
+        "the representative background vehicle must never narrow compatibility. "
+        "Product resizing is allowed only through one uniform scale factor. "
+        "Independent X/Y scaling, screen widening and local geometry warping are prohibited."
+        + scale_instruction +
+        " Lighting, body highlights, contact shadows and environmental integration are allowed. "
+        "Glass enhancement must be clipped strictly inside the detected screen aperture and "
+        "must not change the aperture boundary, screen ratio, bezel, controls, housing or silhouette. "
+    )
+
+    treatment = plan.get("treatment")
+    if treatment == "verified_product_dna_reconstruction":
+        degrees = float(angle.get("degrees") or 0.0)
+        direction = str(angle.get("direction") or "requested viewpoint")
+        return common + (
+            f"The user explicitly requested a physical viewpoint change of approximately "
+            f"{degrees:g} degrees toward {direction}. Keep Reference Style Mode active, but "
+            "reconstruct only the viewpoint. Positive Product-DNA validation is mandatory for "
+            "screen aspect ratio, bezel-to-screen ratio, button and knob positions, lower housing, "
+            "side panels, mounting structures, openings, seams, trim materials and OEM identity. "
+            "With one product view, do not exceed the supported modest reconstruction envelope and "
+            "do not invent unsupported hidden brackets or housing. With multiple product views, use "
+            "all views as geometry evidence. If positive validation is unavailable, retain the exact "
+            "uploaded angle instead of returning an unverified product."
+        )
+    if treatment == "exact_2d_adaptation":
+        degrees = min(
+            abs(float(angle.get("degrees") or GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES)),
+            GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES,
+        )
+        direction = str(angle.get("direction") or "clockwise")
+        return common + (
+            f"Use the exact uploaded product layer and apply only translation, uniform scaling "
+            f"and a complete-layer 2D rotation of up to {degrees:g} degrees {direction}. "
+            "Do not use perspective warping, redraw product details or reconstruct hidden surfaces."
+        )
+    return common + (
+        "Use the exact uploaded product layer. Permit translation and uniform scaling only. "
+        "Do not perspective-warp, locally deform, redraw, widen, narrow or reconstruct the unit."
+    )
+
+
+def _graphic_v67400_recreation_evidence(images, contract):
+    """Require positive, relevant Product-DNA proof for Reference reconstruction."""
+    if not isinstance(images, (list, tuple)) or not images or not isinstance(images[0], dict):
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": True,
+            "issues": ["missing generated image"],
+        }
+
+    image = images[0]
+    layered = dict(image.get("layered_metadata") or {})
+    candidates = [
+        image.get("product_structure_validation"),
+        image.get("product_dna_validation"),
+        image.get("engineering_validation"),
+        layered.get("product_structure_validation"),
+        layered.get("product_dna_validation"),
+    ]
+    failures = []
+    positive = []
+
+    for report in candidates:
+        if not isinstance(report, dict) or report.get("available") is False:
+            continue
+        if report.get("passed") is False:
+            failures.extend(
+                report.get("failed_categories")
+                or report.get("issues")
+                or ["Product DNA validation failed"]
+            )
+        elif report.get("passed") is True:
+            positive.append(report)
+
+    if failures:
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": True,
+            "issues": [str(item) for item in failures],
+        }
+    if not positive:
+        return {
+            "passed": False,
+            "available": False,
+            "hard_block": False,
+            "issues": ["positive Product DNA validation is unavailable"],
+        }
+
+    plan = dict(contract.get("reference_adaptation") or {})
+    angle = dict(plan.get("angle_request") or {})
+    requested_degrees = abs(float(angle.get("degrees") or 0.0))
+    product_views = int(plan.get("product_view_count") or 0)
+
+    if (
+        product_views < 2
+        and requested_degrees
+        > GRAPHIC_V67400_MAX_SINGLE_VIEW_RECONSTRUCTION_DEGREES
+    ):
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": False,
+            "issues": [
+                "requested angle exceeds the single-view verified reconstruction limit"
+            ],
+        }
+
+    required_categories = {
+        "screen_aspect_ratio",
+        "bezel_to_screen_ratio",
+        "control_layout",
+        "lower_housing",
+        "mounting_structures",
+        "overall_silhouette",
+    }
+    confirmed = set()
+    for report in positive:
+        for key in (
+            "passed_categories",
+            "confirmed_categories",
+            "validated_categories",
+        ):
+            values = report.get(key) or []
+            if isinstance(values, str):
+                values = [values]
+            confirmed.update(
+                re.sub(r"[^a-z0-9]+", "_", str(value).casefold()).strip("_")
+                for value in values
+            )
+
+    # Some existing validators provide only passed=True. Accept that report as
+    # positive proof, but explicitly mark detailed category coverage unavailable.
+    detailed_coverage = bool(confirmed)
+    missing_categories = sorted(required_categories - confirmed) if detailed_coverage else []
+
+    if missing_categories:
+        return {
+            "passed": False,
+            "available": True,
+            "hard_block": False,
+            "issues": [
+                "Product DNA validation did not confirm: "
+                + ", ".join(missing_categories)
+            ],
+        }
+
+    return {
+        "passed": True,
+        "available": True,
+        "hard_block": False,
+        "issues": [],
+        "requested_degrees": requested_degrees,
+        "product_view_count": product_views,
+        "detailed_category_coverage": detailed_coverage,
+    }
+
+
+def _graphic_v67400_accept_or_route(images, prompt_text, contract, *, route_name):
+    """Use v67310 exact authority and v67400 reconstruction authority."""
+    if contract.get("reference_recreation"):
+        recreation = _graphic_v67400_recreation_evidence(images, contract)
+        if not recreation.get("passed"):
+            return {
+                "accepted": False,
+                "hard_block": bool(recreation.get("hard_block")),
+                "reason": "; ".join(
+                    recreation.get("issues") or ["Product DNA proof unavailable"]
+                ),
+                "recreation": recreation,
+            }
+
+        fitment = _graphic_v67100_fitment_gate(
+            images,
+            prompt_text,
+            required=True,
+            route_name=route_name,
+        )
+        if not fitment.get("passed") or not fitment.get("available"):
+            return {
+                "accepted": False,
+                "hard_block": False,
+                "reason": "; ".join(
+                    fitment.get("issues")
+                    or ["fitment proof unavailable; use deterministic copy recovery"]
+                ),
+                "fitment": fitment,
+                "recreation": recreation,
+            }
+
+        for image in images or []:
+            if not isinstance(image, dict):
+                continue
+            image["graphic_mode_contract_v67400"] = {
+                key: value for key, value in contract.items() if key != "role_items"
+            }
+            image["reference_adaptation_v67400"] = dict(
+                contract.get("reference_adaptation") or {}
+            )
+            image["product_dna_proof_v67400"] = recreation
+            image["fitment_gate_v67400"] = fitment
+            image["accepted_route_v67400"] = route_name
+            image["graphic_policy_version"] = GRAPHIC_V67400_POLICY_VERSION
+        return {
+            "accepted": True,
+            "hard_block": False,
+            "reason": "",
+            "fitment": fitment,
+            "recreation": recreation,
+        }
+
+    return _graphic_v67100_accept_or_route(
+        images,
+        prompt_text,
+        contract,
+        route_name=route_name,
+    )
+
+
 GRAPHIC_V67310_POLICY_VERSION = "v67310-non-terminating-exact-recovery-with-v67200-cache"
 
 def _graphic_v67300_has_rendered_image(images):
@@ -30196,12 +30821,12 @@ def generate_graphic_marketing_images(
     product_transform_mode="Auto",
     professional_layered_studio=True,
 ):
-    """v67310 public API with non-terminating exact recovery and v67200 caches."""
+    """v67400 public API with three-level Reference Style authority."""
     failures = []
     original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
 
     try:
-        contract = _graphic_v67100_mode_contract(
+        contract = _graphic_v67400_mode_contract(
             original_prompt,
             uploaded_files,
             forced_upload_role,
@@ -30210,7 +30835,7 @@ def generate_graphic_marketing_images(
     except Exception as error:
         failures.append("mode:" + _graphic_compact_error_v4000(error))
         contract = {
-            "version": GRAPHIC_V67310_POLICY_VERSION,
+            "version": GRAPHIC_V67400_POLICY_VERSION,
             "mode": "fully_generative_concept",
             "role_items": [],
             "strict_exact_product": False,
@@ -30225,7 +30850,7 @@ def generate_graphic_marketing_images(
         }
 
     effective_prompt = (
-        original_prompt + _graphic_v67100_reference_directive(contract)
+        original_prompt + _graphic_v67400_reference_directive(contract)
     )
     arguments = dict(
         use_approved_style=use_approved_style,
@@ -30247,8 +30872,8 @@ def generate_graphic_marketing_images(
             "stage": "generating",
             "last_error": "",
             "generation_started_at": datetime.now(timezone.utc).isoformat(),
-            "graphic_policy_version": GRAPHIC_V67310_POLICY_VERSION,
-            "graphic_mode_contract_v67300": {
+            "graphic_policy_version": GRAPHIC_V67400_POLICY_VERSION,
+            "graphic_mode_contract_v67400": {
                 key: value
                 for key, value in contract.items()
                 if key != "role_items"
@@ -30263,11 +30888,11 @@ def generate_graphic_marketing_images(
             uploaded_files,
             **arguments,
         )
-        decision = _graphic_v67100_accept_or_route(
+        decision = _graphic_v67400_accept_or_route(
             result,
             original_prompt,
             contract,
-            route_name="advanced-v67300",
+            route_name="advanced-v67400",
         )
         if decision.get("accepted"):
             result = _graphic_v66860_attach_diagnostic_audit(
@@ -30277,11 +30902,11 @@ def generate_graphic_marketing_images(
             for image in result or []:
                 if isinstance(image, dict):
                     image["graphic_policy_version"] = (
-                        GRAPHIC_V67310_POLICY_VERSION
+                        GRAPHIC_V67400_POLICY_VERSION
                     )
             return _graphic_finalize_recovery_v16000(
                 result,
-                "advanced-v67300",
+                "advanced-v67400",
                 failures,
             )
 
@@ -30290,7 +30915,7 @@ def generate_graphic_marketing_images(
             + str(decision.get("reason") or "not accepted")
         )
         diagnostic_log(
-            "graphic_v67300_advanced_policy_route",
+            "graphic_v67400_advanced_policy_route",
             mode=contract.get("mode"),
             treatment=(
                 contract.get("reference_adaptation") or {}
@@ -30301,7 +30926,7 @@ def generate_graphic_marketing_images(
     except Exception as error:
         _graphic_v67300_route_failure(
             failures,
-            "advanced-v67300",
+            "advanced-v67400",
             error,
         )
 
@@ -30320,9 +30945,9 @@ def generate_graphic_marketing_images(
         )
         for image in result or []:
             if isinstance(image, dict):
-                image["exact_recovery_attempts_v67300"] = attempts
+                image["exact_recovery_attempts_v67400"] = attempts
                 image["graphic_policy_version"] = (
-                    GRAPHIC_V67310_POLICY_VERSION
+                    GRAPHIC_V67400_POLICY_VERSION
                 )
         return _graphic_finalize_recovery_v16000(
             result,
@@ -30337,16 +30962,16 @@ def generate_graphic_marketing_images(
                 uploaded_files,
                 **arguments,
             )
-            decision = _graphic_v67100_accept_or_route(
+            decision = _graphic_v67400_accept_or_route(
                 result,
                 original_prompt,
                 contract,
-                route_name="v67300-ui-replacement",
+                route_name="v67400-ui-replacement",
             )
             if decision.get("accepted"):
                 return _graphic_finalize_recovery_v16000(
                     result,
-                    "v67300-ui-replacement",
+                    "v67400-ui-replacement",
                     failures,
                 )
             failures.append(
@@ -30356,7 +30981,7 @@ def generate_graphic_marketing_images(
         except Exception as error:
             _graphic_v67300_route_failure(
                 failures,
-                "v67300-ui-replacement",
+                "v67400-ui-replacement",
                 error,
             )
 
@@ -30370,13 +30995,13 @@ def generate_graphic_marketing_images(
             )
             return _graphic_finalize_recovery_v16000(
                 result,
-                "v67300-installed-view",
+                "v67400-installed-view",
                 failures,
             )
         except Exception as error:
             _graphic_v67300_route_failure(
                 failures,
-                "v67300-installed-view",
+                "v67400-installed-view",
                 error,
             )
 
@@ -30387,16 +31012,16 @@ def generate_graphic_marketing_images(
                 uploaded_files,
                 **arguments,
             )
-            decision = _graphic_v67100_accept_or_route(
+            decision = _graphic_v67400_accept_or_route(
                 result,
                 original_prompt,
                 contract,
-                route_name="v67300-reference-controlled-recreation",
+                route_name="v67400-reference-verified-reconstruction",
             )
             if decision.get("accepted"):
                 return _graphic_finalize_recovery_v16000(
                     result,
-                    "v67300-reference-controlled-recreation",
+                    "v67400-reference-verified-reconstruction",
                     failures,
                 )
             failures.append(
@@ -30406,7 +31031,7 @@ def generate_graphic_marketing_images(
         except Exception as error:
             _graphic_v67300_route_failure(
                 failures,
-                "v67300-reference-controlled-recreation",
+                "v67400-reference-verified-reconstruction",
                 error,
             )
 
@@ -30431,15 +31056,15 @@ def generate_graphic_marketing_images(
         )
         for image in result or []:
             if isinstance(image, dict):
-                image["angle_recreation_fallback_v67300"] = True
+                image["angle_reconstruction_fallback_v67400"] = True
                 image["angle_recreation_warning"] = (
-                    "The requested new angle could not be positively verified, "
+                    "The requested angle reconstruction could not be positively verified, "
                     "so the exact uploaded product angle was retained."
                 )
-                image["exact_recovery_attempts_v67300"] = attempts
+                image["exact_recovery_attempts_v67400"] = attempts
         return _graphic_finalize_recovery_v16000(
             result,
-            "v67300-reference-angle-safe-exact-fallback",
+            "v67400-reference-angle-safe-exact-fallback",
             failures,
         )
 
@@ -30451,13 +31076,13 @@ def generate_graphic_marketing_images(
         )
         return _graphic_finalize_recovery_v16000(
             result,
-            "v67300-mode-compatible-v3200",
+            "v67400-mode-compatible-v3200",
             failures,
         )
     except Exception as error:
         _graphic_v67300_route_failure(
             failures,
-            "v67300-mode-compatible-v3200",
+            "v67400-mode-compatible-v3200",
             error,
         )
 
@@ -30470,13 +31095,13 @@ def generate_graphic_marketing_images(
         )
         return _graphic_finalize_recovery_v16000(
             result,
-            "v67300-mode-compatible-emergency-provider",
+            "v67400-mode-compatible-emergency-provider",
             failures,
         )
     except Exception as error:
         _graphic_v67300_route_failure(
             failures,
-            "v67300-mode-compatible-emergency-provider",
+            "v67400-mode-compatible-emergency-provider",
             error,
         )
         raise RuntimeError(
