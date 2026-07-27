@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v67500 LTS — Isolated Final Local Recovery & Result Normalization
+# AutoTecPro AI Graphic Marketing Engine v67510 LTS — Feature-Preserving Isolated Fallback with Optional Nonblocking Enrichment
 # v67500 preserves three-level Reference Style Authority and adds an isolated dependency-free exact-product fallback.
 
 # v66000 LTS clean architectural merge:
@@ -30404,7 +30404,138 @@ def _graphic_v67400_accept_or_route(images, prompt_text, contract, *, route_name
 
 
 
-GRAPHIC_V67500_POLICY_VERSION = "v67500-isolated-final-local-recovery"
+
+GRAPHIC_V67510_POLICY_VERSION = "v67510-feature-preserving-isolated-fallback"
+
+
+def _graphic_v67510_optional_enrichment(prompt_text, role_items):
+    """Collect already-available enhancement data without making it a dependency.
+
+    Every lookup is isolated. Failure returns a smaller enrichment payload rather
+    than raising, preserving the guaranteed local fallback.
+    """
+    enrichment = {
+        "reference_blueprint": {},
+        "vehicle_profile": {},
+        "reference_style_available": False,
+        "vehicle_profile_available": False,
+        "feature_copy": [],
+        "warnings": [],
+    }
+
+    try:
+        state = dict(get_graphic_project_state() or {})
+    except Exception as error:
+        state = {}
+        enrichment["warnings"].append(
+            f"project-state:{type(error).__name__}"
+        )
+
+    style_item = next(
+        (item for item in role_items or [] if item.get("role") == "style_reference"),
+        None,
+    )
+    current_reference_sha = ""
+    if style_item:
+        try:
+            raw = _graphic_v67100_item_bytes(style_item)
+            if raw:
+                current_reference_sha = hashlib.sha256(raw).hexdigest()
+        except Exception:
+            current_reference_sha = ""
+
+    try:
+        blueprint = dict(state.get("last_reference_blueprint") or {})
+        stored_sha = str(
+            blueprint.get("style_reference_sha256")
+            or blueprint.get("source_sha256")
+            or blueprint.get("reference_sha256")
+            or state.get("last_reference_blueprint_sha256")
+            or state.get("active_style_reference_sha256")
+            or ""
+        ).strip()
+        if (
+            blueprint
+            and current_reference_sha
+            and stored_sha
+            and current_reference_sha == stored_sha
+        ):
+            enrichment["reference_blueprint"] = blueprint
+            enrichment["reference_style_available"] = True
+    except Exception as error:
+        enrichment["warnings"].append(
+            f"reference-blueprint:{type(error).__name__}"
+        )
+
+    try:
+        vehicle = dict(
+            state.get("last_vehicle_profile")
+            or state.get("vehicle_profile")
+            or {}
+        )
+        if vehicle:
+            enrichment["vehicle_profile"] = vehicle
+            enrichment["vehicle_profile_available"] = True
+    except Exception as error:
+        enrichment["warnings"].append(
+            f"vehicle-profile:{type(error).__name__}"
+        )
+
+    try:
+        spec = dict(_graphic_extract_campaign_spec(prompt_text) or {})
+        features = spec.get("features") or spec.get("feature_matrix") or []
+        if isinstance(features, str):
+            features = [part.strip() for part in re.split(r"[,;|]", features) if part.strip()]
+        if isinstance(features, (list, tuple)):
+            enrichment["feature_copy"] = [str(item).strip() for item in features if str(item).strip()][:8]
+    except Exception as error:
+        enrichment["warnings"].append(
+            f"campaign-copy:{type(error).__name__}"
+        )
+
+    return enrichment
+
+
+def _graphic_v67510_blueprint_box(blueprint, key, default):
+    """Read one normalized reference box safely; fall back without raising."""
+    try:
+        boxes = dict((blueprint or {}).get("normalized_boxes") or {})
+        value = boxes.get(key)
+        if not (isinstance(value, (list, tuple)) and len(value) == 4):
+            return tuple(default)
+        x, y, w, h = [float(part) for part in value]
+        if w <= 0 or h <= 0:
+            return tuple(default)
+        return (
+            max(0.0, min(1.0, x)),
+            max(0.0, min(1.0, y)),
+            max(0.02, min(1.0, w)),
+            max(0.02, min(1.0, h)),
+        )
+    except Exception:
+        return tuple(default)
+
+
+def _graphic_v67510_optional_feature_pairs(enrichment, default_pairs):
+    """Use cached/structured feature copy only when it is already available."""
+    values = list((enrichment or {}).get("feature_copy") or [])
+    if not values:
+        return list(default_pairs)
+    pairs = []
+    for value in values[:6]:
+        text = re.sub(r"\s+", " ", str(value)).strip()
+        if not text:
+            continue
+        words = text.split()
+        if len(words) <= 2:
+            pairs.append((text, ""))
+        else:
+            split = max(1, len(words) // 2)
+            pairs.append((" ".join(words[:split]), " ".join(words[split:])))
+    return pairs or list(default_pairs)
+
+
+GRAPHIC_V67500_POLICY_VERSION = "v67510-feature-preserving-isolated-fallback"
 
 
 def _graphic_v67500_normalize_results(value):
@@ -30542,10 +30673,11 @@ def _graphic_v67500_isolated_local_commercial(
     forced_upload_role="Auto-detect",
     failure_reason="",
 ):
-    """Final exact-product fallback with no remote or high-level shared dependencies.
+    """Feature-preserving isolated fallback.
 
-    This route intentionally does not call OpenAI, web research, Supabase cache,
-    reference analysis, vehicle research, campaign QA, or the advanced compositor.
+    The exact product and local commercial rendering remain dependency-free.
+    Already-available reference/vehicle/campaign facts may enrich the result,
+    but every enrichment is optional and nonblocking.
     """
     if Image is None:
         raise RuntimeError("Pillow is unavailable for isolated local recovery.")
@@ -30566,8 +30698,6 @@ def _graphic_v67500_isolated_local_commercial(
         None,
     )
     if product_item is None:
-        # Use the current project state only as a file source, never for mode or QA.
-        state = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
         project_items = _graphic_project_role_items(
             [],
             effective,
@@ -30593,17 +30723,51 @@ def _graphic_v67500_isolated_local_commercial(
             "Exact product transparency could not be proven; isolated recovery failed closed."
         )
 
+    # Optional enrichment is collected only after exact-product authority is proven.
+    # Any failure produces defaults instead of terminating the fallback.
+    try:
+        enrichment = _graphic_v67510_optional_enrichment(effective, role_items)
+    except Exception:
+        enrichment = {
+            "reference_blueprint": {},
+            "vehicle_profile": {},
+            "reference_style_available": False,
+            "vehicle_profile_available": False,
+            "feature_copy": [],
+            "warnings": ["optional-enrichment-unavailable"],
+        }
+
+    blueprint = dict(enrichment.get("reference_blueprint") or {})
     width, height = 1536, 1024
     canvas = Image.new("RGB", (width, height), (229, 239, 248))
     pixels = canvas.load()
+
+    # Deterministic outdoor plate. Reference lighting hints can alter only the
+    # background palette; they never touch product RGB or alpha.
+    lighting_text = " ".join(
+        str(blueprint.get(key) or "")
+        for key in ("lighting", "mood", "color_palette", "scene_description")
+    ).casefold()
+    warm_scene = any(token in lighting_text for token in ("warm", "sunset", "golden", "orange"))
+    cool_scene = any(token in lighting_text for token in ("cool", "blue", "night", "overcast"))
+
     for y in range(height):
         vertical = y / max(1, height - 1)
         for x in range(width):
             horizontal = x / max(1, width - 1)
             warm = max(0.0, horizontal - 0.60) * (1.0 - vertical * 0.55)
-            r = int(225 + 22 * warm - 22 * vertical)
-            g = int(237 + 11 * warm - 29 * vertical)
-            b = int(248 - 24 * warm - 34 * vertical)
+            if warm_scene:
+                r = int(230 + 28 * warm - 20 * vertical)
+                g = int(235 + 13 * warm - 30 * vertical)
+                b = int(243 - 35 * warm - 32 * vertical)
+            elif cool_scene:
+                r = int(214 + 12 * warm - 20 * vertical)
+                g = int(230 + 10 * warm - 25 * vertical)
+                b = int(250 - 10 * warm - 28 * vertical)
+            else:
+                r = int(225 + 22 * warm - 22 * vertical)
+                g = int(237 + 11 * warm - 29 * vertical)
+                b = int(248 - 24 * warm - 34 * vertical)
             pixels[x, y] = (
                 max(0, min(255, r)),
                 max(0, min(255, g)),
@@ -30611,7 +30775,6 @@ def _graphic_v67500_isolated_local_commercial(
             )
 
     draw = ImageDraw.Draw(canvas, "RGBA")
-    # Mountain/terrain silhouettes.
     draw.polygon(
         [(0, 610), (170, 470), (330, 590), (520, 430), (720, 610), (900, 490),
          (1080, 600), (1280, 450), (1536, 600), (1536, 1024), (0, 1024)],
@@ -30622,7 +30785,7 @@ def _graphic_v67500_isolated_local_commercial(
          (1250, 700), (1450, 610), (1536, 670), (1536, 1024), (0, 1024)],
         fill=(54, 62, 67, 205),
     )
-    # Sun and atmospheric glow.
+
     glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow, "RGBA")
     for radius in range(210, 10, -12):
@@ -30631,61 +30794,99 @@ def _graphic_v67500_isolated_local_commercial(
             (1335 - radius, 365 - radius, 1335 + radius, 365 + radius),
             fill=(255, 204, 112, alpha),
         )
-    glow = glow.filter(ImageFilter.GaussianBlur(18))
-    canvas = Image.alpha_composite(canvas.convert("RGBA"), glow)
+    canvas = Image.alpha_composite(
+        canvas.convert("RGBA"),
+        glow.filter(ImageFilter.GaussianBlur(18)),
+    )
 
     copy = _graphic_v67500_safe_campaign_copy(effective)
     draw = ImageDraw.Draw(canvas, "RGBA")
 
-    # Branding: use official local logo when available; otherwise deterministic text.
+    # Use matched reference geometry when available; otherwise deterministic defaults.
+    logo_box = _graphic_v67510_blueprint_box(
+        blueprint, "logo_box", (0.022, 0.025, 0.22, 0.10)
+    )
+    headline_box = _graphic_v67510_blueprint_box(
+        blueprint, "headline_box", (0.022, 0.13, 0.52, 0.10)
+    )
+    compatibility_box = _graphic_v67510_blueprint_box(
+        blueprint, "compatibility_box", (0.022, 0.23, 0.46, 0.065)
+    )
+    tagline_box = _graphic_v67510_blueprint_box(
+        blueprint, "tagline_box", (0.022, 0.30, 0.50, 0.05)
+    )
+    hero_box = _graphic_v67510_blueprint_box(
+        blueprint, "hero_product_box", (0.045, 0.35, 0.50, 0.53)
+    )
+    feature_box = _graphic_v67510_blueprint_box(
+        blueprint, "feature_matrix_box", (0.58, 0.08, 0.39, 0.27)
+    )
+    bottom_box = _graphic_v67510_blueprint_box(
+        blueprint, "bottom_bar_box", (0.022, 0.89, 0.956, 0.09)
+    )
+
+    def px(box):
+        return (
+            int(box[0] * width),
+            int(box[1] * height),
+            int(box[2] * width),
+            int(box[3] * height),
+        )
+
+    logo_x, logo_y, logo_w, logo_h = px(logo_box)
     logo_applied = False
     try:
         if AUTOTECPRO_BRAND_LOGO_FILE.exists():
             with Image.open(AUTOTECPRO_BRAND_LOGO_FILE) as logo_img:
                 logo = ImageOps.exif_transpose(logo_img).convert("RGBA")
-            logo.thumbnail((330, 105), Image.Resampling.LANCZOS)
-            canvas.alpha_composite(logo, (32, 26))
+            logo.thumbnail((max(120, logo_w), max(50, logo_h)), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(logo, (logo_x, logo_y))
             logo_applied = True
     except Exception:
         logo_applied = False
     if not logo_applied:
-        font_logo = _graphic_v67500_safe_font(58, bold=True)
-        draw.text((35, 24), "AutoTecPro", font=font_logo, fill=(10, 30, 58, 255))
+        font_logo = _graphic_v67500_safe_font(max(30, min(58, logo_h)), bold=True)
+        draw.text((logo_x, logo_y), "AutoTecPro", font=font_logo, fill=(10, 30, 58, 255))
 
+    hx, hy, hw, hh = px(headline_box)
     headline_font = _graphic_v67500_fit_text(
-        draw, copy["headline"], 790, 74, bold=True, minimum=38
+        draw, copy["headline"], max(360, hw), max(42, min(74, hh)), bold=True, minimum=34
     )
-    draw.text((34, 135), copy["headline"], font=headline_font, fill=(8, 34, 70, 255))
+    draw.text((hx, hy), copy["headline"], font=headline_font, fill=(8, 34, 70, 255))
 
+    cx, cy, cw, ch = px(compatibility_box)
     compatibility_font = _graphic_v67500_fit_text(
-        draw, copy["compatibility"], 680, 38, bold=True, minimum=24
+        draw, copy["compatibility"], max(360, cw - 40), max(25, min(38, ch - 8)),
+        bold=True, minimum=21
     )
-    comp_box = draw.textbbox((0, 0), copy["compatibility"], font=compatibility_font)
-    comp_w = min(740, max(430, comp_box[2] - comp_box[0] + 55))
     draw.polygon(
-        [(32, 235), (32 + comp_w, 235), (32 + comp_w - 24, 294), (22, 294)],
+        [(cx, cy), (cx + cw, cy), (cx + cw - 24, cy + ch), (cx - 10, cy + ch)],
         fill=(190, 18, 20, 250),
     )
     draw.text(
-        (55, 245),
+        (cx + 22, cy + max(6, int(ch * 0.18))),
         copy["compatibility"],
         font=compatibility_font,
         fill=(255, 255, 255, 255),
     )
 
+    tx, ty, tw, th = px(tagline_box)
     tagline_font = _graphic_v67500_fit_text(
-        draw, copy["tagline"], 760, 31, italic=True, minimum=22
+        draw, copy["tagline"], max(360, tw), max(22, min(31, th)), italic=True, minimum=20
     )
-    draw.text((34, 310), copy["tagline"], font=tagline_font, fill=(12, 37, 69, 255))
+    draw.text((tx, ty), copy["tagline"], font=tagline_font, fill=(12, 37, 69, 255))
 
-    # Product scale is always uniform and derived from its alpha envelope.
     alpha = product_layer.getchannel("A")
     bbox = alpha.getbbox()
     if not bbox:
         raise RuntimeError("The authoritative product layer has no visible alpha envelope.")
     product_crop = product_layer.crop(bbox)
-    target_w, target_h = 760, 600
-    factor = min(target_w / product_crop.width, target_h / product_crop.height)
+
+    px0, py0, pw, ph = px(hero_box)
+    factor = min(
+        max(120, pw) / product_crop.width,
+        max(120, ph) / product_crop.height,
+    )
     scale_request = _graphic_v67400_requested_uniform_scale(effective)
     if scale_request.get("requested") and scale_request.get("factor"):
         factor *= max(0.65, min(1.45, float(scale_request["factor"])))
@@ -30695,7 +30896,6 @@ def _graphic_v67500_isolated_local_commercial(
     )
     product_crop = product_crop.resize(new_size, Image.Resampling.LANCZOS)
 
-    # Only safe 2D rotation is permitted in this exact local route.
     angle = _graphic_v67400_requested_angle(effective)
     if angle.get("kind") == "rotate_2d":
         degrees = min(
@@ -30709,9 +30909,9 @@ def _graphic_v67500_isolated_local_commercial(
             expand=True,
         )
 
-    product_x = 80
-    product_y = max(350, 930 - product_crop.height)
-    # Contact shadow only; product RGB remains untouched.
+    product_x = px0 + max(0, int((pw - product_crop.width) * 0.10))
+    product_y = py0 + max(0, ph - product_crop.height)
+
     shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow, "RGBA")
     sd.ellipse(
@@ -30723,15 +30923,14 @@ def _graphic_v67500_isolated_local_commercial(
         ),
         fill=(0, 0, 0, 105),
     )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(22))
-    canvas = Image.alpha_composite(canvas, shadow)
+    canvas = Image.alpha_composite(
+        canvas,
+        shadow.filter(ImageFilter.GaussianBlur(22)),
+    )
     canvas.alpha_composite(product_crop, (product_x, product_y))
 
-    # Right-side feature matrix.
     draw = ImageDraw.Draw(canvas, "RGBA")
-    feature_title = _graphic_v67500_safe_font(25, bold=True)
-    feature_body = _graphic_v67500_safe_font(21, bold=False)
-    features = [
+    default_features = [
         ("Large Screen", copy.get("screen_size") or "HD Display"),
         ("Wireless CarPlay", "Smart Connectivity"),
         ("Navigation", "Ready"),
@@ -30739,31 +30938,42 @@ def _graphic_v67500_isolated_local_commercial(
         ("OEM Fit", "& Finish"),
         ("High Brightness", "IPS Screen"),
     ]
-    grid_x, grid_y, cell_w, cell_h = 905, 115, 195, 115
-    for index, (title, body) in enumerate(features):
-        row, col = divmod(index, 3)
-        x = grid_x + col * cell_w
-        y = grid_y + row * cell_h
+    features = _graphic_v67510_optional_feature_pairs(
+        enrichment,
+        default_features,
+    )
+
+    fx, fy, fw, fh = px(feature_box)
+    columns = 3
+    rows = 2
+    cell_w = max(120, fw // columns)
+    cell_h = max(82, fh // rows)
+    feature_title = _graphic_v67500_safe_font(max(18, min(25, cell_h // 4)), bold=True)
+    feature_body = _graphic_v67500_safe_font(max(16, min(21, cell_h // 5)), bold=False)
+
+    for index, (title, body) in enumerate(features[:6]):
+        row, col = divmod(index, columns)
+        x = fx + col * cell_w
+        y = fy + row * cell_h
         draw.rounded_rectangle(
-            (x, y, x + 174, y + 94),
+            (x, y, x + cell_w - 18, y + cell_h - 18),
             radius=15,
             fill=(255, 255, 255, 118),
             outline=(15, 43, 78, 90),
             width=2,
         )
-        draw.text((x + 14, y + 16), title, font=feature_title, fill=(9, 35, 68, 255))
-        draw.text((x + 14, y + 52), body, font=feature_body, fill=(20, 53, 83, 255))
+        draw.text((x + 12, y + 14), title, font=feature_title, fill=(9, 35, 68, 255))
+        if body:
+            draw.text((x + 12, y + 48), body, font=feature_body, fill=(20, 53, 83, 255))
 
-    # Bottom feature bar overlays the product as requested in earlier workflows.
-    bar_y = 912
+    bx, by, bw, bh = px(bottom_box)
     draw.rounded_rectangle(
-        (34, bar_y, 1502, 1005),
+        (bx, by, bx + bw, min(height - 8, by + bh)),
         radius=18,
         fill=(10, 16, 23, 238),
         outline=(255, 255, 255, 95),
         width=2,
     )
-    bottom_font = _graphic_v67500_safe_font(25, bold=False)
     labels = [
         "Plug & Play",
         "GPS Navigation",
@@ -30771,17 +30981,22 @@ def _graphic_v67500_isolated_local_commercial(
         "OEM Fit & Finish",
         "High Brightness IPS",
     ]
-    segment = (1502 - 34) / len(labels)
+    segment = bw / len(labels)
     for i, label in enumerate(labels):
-        x = 34 + int(i * segment)
+        x = bx + int(i * segment)
         if i:
-            draw.line((x, bar_y + 16, x, 988), fill=(255, 255, 255, 130), width=2)
+            draw.line(
+                (x, by + 12, x, min(height - 15, by + bh - 12)),
+                fill=(255, 255, 255, 130),
+                width=2,
+            )
         font = _graphic_v67500_fit_text(
-            draw, label, int(segment - 34), 25, minimum=18
+            draw, label, int(segment - 26), max(18, min(25, bh // 3)), minimum=16
         )
         box = draw.textbbox((0, 0), label, font=font)
         text_x = x + int((segment - (box[2] - box[0])) / 2)
-        draw.text((text_x, bar_y + 31), label, font=font, fill=(255, 255, 255, 255))
+        text_y = by + max(12, int((bh - (box[3] - box[1])) / 2))
+        draw.text((text_x, text_y), label, font=font, fill=(255, 255, 255, 255))
 
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
@@ -30799,25 +31014,28 @@ def _graphic_v67500_isolated_local_commercial(
         "size": f"{width}x{height}",
         "resolution": f"{width}x{height}",
         "created_at": created.isoformat(),
-        "model": "local-v67500-isolated-commercial",
-        "provider_route": "v67500-isolated-final-local-commercial",
-        "recovery_route": "v67500-isolated-final-local-commercial",
+        "model": "local-v67510-feature-preserving-commercial",
+        "provider_route": "v67510-feature-preserving-isolated-fallback",
+        "recovery_route": "v67510-feature-preserving-isolated-fallback",
         "provider_fallback_used": True,
         "product_layer_immutable": True,
         "product_geometry_provider_generated": False,
         "ai_product_recreated": False,
         "strict_product_identity_lock": True,
         "product_transform_mode": "Exact Original Product",
-        "product_identity_method": "v66000-authoritative-mask-isolated-local-commercial",
-        "output_status": "completed_exact_local_commercial_v67500",
+        "product_identity_method": "v66000-authoritative-mask-feature-preserving-local-commercial",
+        "output_status": "completed_exact_local_commercial_v67510",
         "verification_status": "verified_local_exact",
         "campaign_spec": copy,
         "compatibility": copy["compatibility"],
         "deterministic_fitment_copy": copy["compatibility"],
         "official_brand_logo_applied": logo_applied,
+        "reference_enrichment_used": bool(enrichment.get("reference_style_available")),
+        "vehicle_enrichment_available": bool(enrichment.get("vehicle_profile_available")),
+        "optional_enrichment_warnings": list(enrichment.get("warnings") or []),
         "failure_context": str(failure_reason or "")[-1200:],
         "layered_metadata": {
-            "engine": "v67500-isolated-final-local-recovery",
+            "engine": "v67510-feature-preserving-isolated-fallback",
             "exact_product_asset_mode": True,
             "product_pixels_provider_generated": False,
             "ai_product_recreated": False,
@@ -30825,7 +31043,9 @@ def _graphic_v67500_isolated_local_commercial(
             "compatibility": copy["compatibility"],
             "compatibility_required_tokens": copy["compatibility_required_tokens"],
             "optional_metadata_missing_is_not_failure": True,
-            "remote_dependencies_used": False,
+            "remote_dependencies_required": False,
+            "optional_reference_enrichment": bool(enrichment.get("reference_style_available")),
+            "optional_vehicle_enrichment": bool(enrichment.get("vehicle_profile_available")),
         },
     }
     _graphic_save_latest_project_result(result)
