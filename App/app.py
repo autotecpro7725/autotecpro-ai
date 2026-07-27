@@ -46,12 +46,14 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v58000
+# AutoTecPro AI performance/stability revision: v59000
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
 # v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
-# v58000 Light-Housing-Safe Mask Authority Engine built directly from v57000.
+# v59000 Connected-Component Bottom-Housing Authority Engine built directly from v58000.
+# Replaces broad structural-edge/row-span rescue with dominant-component silhouette recovery, physical-baseline shadow rejection,
+# binary engineering geometry, single-pass premultiplied product resize, and fresh source-mask validation.
 # Fixes the root bottom-bezel defect by preventing bright neutral silver/white housing pixels from being classified as studio background.
 # Adds structural-edge rescue, lower-housing span protection, source-mask integrity rejection, and a fresh cache epoch.
 # v57000 Bottom-Bezel Absolute Authority & Provider Exclusion Engine built directly from v56000.
@@ -17962,7 +17964,7 @@ def _graphic_vehicle_profile_text(profile):
     return "\n".join(f"{key.replace('_', ' ').title()}: {profile.get(key)}" for key in keys if profile.get(key) not in (None, "", [], {}))
 
 
-GRAPHIC_V56000_CACHE_EPOCH = "v58000-light-housing-mask-authority-2026-07-26-1"
+GRAPHIC_V56000_CACHE_EPOCH = "v59000-connected-component-bottom-housing-authority-2026-07-26-1"
 
 
 def _graphic_apply_v56000_cache_epoch():
@@ -17990,10 +17992,10 @@ def _graphic_apply_v56000_cache_epoch():
         state["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
         state["graphic_adaptive_engine_version"] = GRAPHIC_ADAPTIVE_ENGINE_VERSION
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        diagnostic_log("graphic_v58000_cache_epoch_applied", epoch=GRAPHIC_V56000_CACHE_EPOCH)
+        diagnostic_log("graphic_v59000_cache_epoch_applied", epoch=GRAPHIC_V56000_CACHE_EPOCH)
         return state
     except Exception as error:
-        diagnostic_log("graphic_v58000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
+        diagnostic_log("graphic_v59000_cache_epoch_failed", error_type=type(error).__name__, error=str(error))
         return {}
 
 
@@ -20145,7 +20147,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v58000"
+GRAPHIC_ENGINE_VERSION = "v59000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -24039,10 +24041,11 @@ def _graphic_stage5_execute_v43000(
 
 
 def _graphic_supersampled_product_resize_v56000(image, target_size):
-    """Resize an immutable product through a 2x intermediate for cleaner small UI.
+    """v59000 single-pass immutable product resize.
 
-    This is deterministic local resampling only. It never invents pixels with AI and
-    preserves the source alpha/RGB relationship while reducing one-step downscale blur.
+    Reference-product geometry must be resampled only once. Earlier two-stage resizing
+    softened the binary alpha contour and could merge small lower-edge defects. This
+    keeps premultiplied alpha and performs one deterministic LANCZOS transform.
     """
     if Image is None or image is None:
         return image, {"applied": False, "reason": "image unavailable"}
@@ -24050,19 +24053,12 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
     try:
         source = image.convert("RGBA")
         if source.size == (tw, th):
-            return source.copy(), {"applied": False, "reason": "already target size", "factor": 1}
-        # Only use the intermediate when downscaling. Upscaling cannot recover source detail.
-        if tw < source.width or th < source.height:
-            factor = 2
-            iw, ih = max(tw, min(source.width, tw * factor)), max(th, min(source.height, th * factor))
-            intermediate = _graphic_premultiplied_resize_v20000(source, (iw, ih), Image.Resampling.LANCZOS)
-            final = _graphic_premultiplied_resize_v20000(intermediate, (tw, th), Image.Resampling.LANCZOS)
-            return final, {"applied": True, "factor": factor, "intermediate_size": [iw, ih], "engine": "supersampled-product-resize-v56000"}
+            return source.copy(), {"applied": False, "reason": "already target size", "factor": 1, "engine": "single-pass-product-resize-v59000"}
         final = _graphic_premultiplied_resize_v20000(source, (tw, th), Image.Resampling.LANCZOS)
-        return final, {"applied": False, "reason": "upscale or equal", "factor": 1, "engine": "supersampled-product-resize-v56000"}
+        return final, {"applied": True, "factor": 1, "source_size": list(source.size), "target_size": [tw, th], "engine": "single-pass-product-resize-v59000"}
     except Exception as error:
-        diagnostic_log("graphic_v56000_supersampled_resize_failed", error_type=type(error).__name__, error=str(error))
-        return _graphic_premultiplied_resize_v20000(image, (tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300]}
+        diagnostic_log("graphic_v59000_single_pass_resize_failed", error_type=type(error).__name__, error=str(error))
+        return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
 def _graphic_compose_reference_campaign_v3200(
@@ -24461,7 +24457,7 @@ def _graphic_compose_reference_campaign_v3200(
         "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
         "graphic_cache_epoch_v56000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v57000": GRAPHIC_V56000_CACHE_EPOCH,
-        "graphic_cache_epoch_v58000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v59000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
@@ -24944,8 +24940,8 @@ def _graphic_recover_role_items(uploaded_files, prompt_text="", forced_role="Aut
 # ============================================================
 
 GRAPHIC_V3300_ENGINE_VERSION = "v3300"
-GRAPHIC_MASK_CACHE_VERSION = "v58000-mask-light-housing-safe-structural-authority-1"
-GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v58000-product-authority-master-light-housing-safe-1"
+GRAPHIC_MASK_CACHE_VERSION = "v59000-mask-connected-component-physical-baseline-authority-1"
+GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION = "v59000-product-authority-binary-geometry-master-1"
 
 
 def _graphic_progress_v3300(label):
@@ -25018,203 +25014,184 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Return a light-housing-safe authoritative alpha matte with untouched source RGB.
+    """Return a binary-geometry product matte with physical-baseline shadow rejection.
 
-    v58000 fixes the root cause of the Toyota lower-bezel failure. Earlier versions
-    classified bright, low-chroma silver/white housing pixels as border-connected
-    studio background. The resulting holes became visible after the provider zone was
-    cleared. This implementation keeps the conservative border flood, but adds a
-    structural authority layer derived from source edges, connected housing spans and
-    lower-housing continuity before any pixel can become transparent.
+    v59000 removes the v58000 broad edge and row-span rescue that promoted studio-floor
+    shadow and JPEG texture into product geometry. The new path uses conservative
+    GrabCut seeding, dominant connected-component recovery, outer-silhouette completion,
+    and a lower physical-baseline gate. Source RGB is never changed.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
+        import cv2
         import numpy as np
-        from PIL import ImageDraw, ImageFilter
 
         source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
         rgb_image = source.convert("RGB")
-        rgb = np.asarray(rgb_image, dtype=np.int16)
+        rgb = np.asarray(rgb_image, dtype=np.uint8)
         height, width = rgb.shape[:2]
-        if width < 8 or height < 8:
+        if width < 16 or height < 16:
             return b""
 
-        # Estimate the studio backdrop from the outer border. Prefer bright neutral
-        # samples so mild JPEG noise or a warm studio gradient does not bias the model.
-        band = max(2, min(width, height) // 80)
+        rgbf = rgb.astype(np.float32)
+        band = max(5, min(width, height) // 50)
         border = np.concatenate([
-            rgb[:band, :, :].reshape(-1, 3),
-            rgb[-band:, :, :].reshape(-1, 3),
-            rgb[:, :band, :].reshape(-1, 3),
-            rgb[:, -band:, :].reshape(-1, 3),
+            rgbf[:band].reshape(-1, 3), rgbf[-band:].reshape(-1, 3),
+            rgbf[:, :band].reshape(-1, 3), rgbf[:, -band:].reshape(-1, 3),
         ], axis=0)
         border_brightness = border.mean(axis=1)
         border_chroma = border.max(axis=1) - border.min(axis=1)
-        neutral = border[(border_brightness >= 190) & (border_chroma <= 46)]
-        samples = neutral if len(neutral) >= 32 else border
-        bg = np.median(samples, axis=0).astype(np.float32)
+        neutral = border[(border_brightness >= 185) & (border_chroma <= 50)]
+        bg = np.median(neutral if len(neutral) >= 32 else border, axis=0)
 
-        rgbf = rgb.astype(np.float32)
         brightness = rgbf.mean(axis=2)
         chroma = rgbf.max(axis=2) - rgbf.min(axis=2)
         distance = np.sqrt(((rgbf - bg.reshape(1, 1, 3)) ** 2).sum(axis=2))
 
-        # Initial conservative background candidate. This is intentionally similar to
-        # v57000; the important change is that structural product evidence below can
-        # veto removal even when a genuine light-silver part resembles the backdrop.
-        candidate = (
-            (brightness >= 186)
-            & (chroma <= 52)
-            & (
-                ((brightness >= 244) & (distance <= 82))
-                | ((brightness >= 226) & (distance <= 58))
-                | ((brightness >= 208) & (distance <= 38))
-                | ((brightness >= 186) & (distance <= 23))
-            )
-        )
+        # Strong foreground seeds. Keep them away from the outer border so floor noise
+        # and image-edge responses cannot establish the authoritative component.
+        sure_fg = ((brightness <= 212) | (chroma >= 45) | (distance >= 62))
+        roi = np.zeros((height, width), dtype=bool)
+        roi[int(height * 0.04):int(height * 0.95), int(width * 0.05):int(width * 0.95)] = True
+        sure_fg &= roi
+        sure_fg_u8 = (sure_fg.astype(np.uint8) * 255)
+        sure_fg_u8 = cv2.morphologyEx(sure_fg_u8, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
-        # Definite foreground colour/tonality evidence.
-        hard_foreground = (
-            (brightness <= 202)
-            | (chroma >= 50)
-            | (distance >= 78)
-        )
-
-        # Structural source evidence. Silver housings often have low chroma and high
-        # brightness, but their edges, seams and local gradients distinguish them from
-        # a flat studio backdrop. FIND_EDGES is deterministic and operates on source
-        # pixels only; it never synthesizes geometry.
-        gray = rgb_image.convert("L")
-        edge = np.asarray(gray.filter(ImageFilter.FIND_EDGES), dtype=np.uint8)
-
-        # Establish the principal product bounds from definite foreground only. Edge
-        # filters naturally respond at the image border and to JPEG texture in a white
-        # backdrop, so they must never be allowed to define the product envelope.
-        min_col = max(4, int(round(height * 0.006)))
-        min_row = max(4, int(round(width * 0.006)))
-        hard_cols = np.flatnonzero(hard_foreground.sum(axis=0) >= min_col)
-        hard_rows = np.flatnonzero(hard_foreground.sum(axis=1) >= min_row)
-        product_bbox = None
-        product_roi = np.zeros((height, width), dtype=bool)
-        if hard_cols.size and hard_rows.size:
-            bx0, by0, bx1, by1 = int(hard_cols[0]), int(hard_rows[0]), int(hard_cols[-1]) + 1, int(hard_rows[-1]) + 1
-            pad_x = max(3, int(round((bx1 - bx0) * 0.025)))
-            pad_y = max(3, int(round((by1 - by0) * 0.025)))
-            bx0, by0 = max(0, bx0 - pad_x), max(0, by0 - pad_y)
-            bx1, by1 = min(width, bx1 + pad_x), min(height, by1 + pad_y)
-            product_bbox = (bx0, by0, bx1, by1)
-            product_roi[by0:by1, bx0:bx1] = True
-
-        structural_edge = (edge >= 12) & product_roi
-        structural_seed = hard_foreground | structural_edge
-
-        # Connect nearby structural evidence into continuous housing surfaces. Closing
-        # bridges the bright neutral areas between dark seams/edges without expanding
-        # the authority far into the exterior background.
-        structural_img = Image.fromarray((structural_seed.astype(np.uint8) * 255), mode="L")
-        close_size = max(3, min(11, (min(width, height) // 180) * 2 + 3))
-        if close_size % 2 == 0:
-            close_size += 1
-        structural_closed = structural_img.filter(ImageFilter.MaxFilter(close_size)).filter(ImageFilter.MinFilter(close_size))
-        structural_closed_np = np.asarray(structural_closed, dtype=np.uint8) > 0
-
-        protected = np.asarray(
-            Image.fromarray((hard_foreground.astype(np.uint8) * 255), mode="L").filter(ImageFilter.MaxFilter(3)),
-            dtype=np.uint8,
-        ) > 0
-        protected |= structural_closed_np & (distance >= 5.0)
-
-        # Lower-housing span authority. For each row in the lower 38% of the detected
-        # product, preserve bright neutral pixels between the leftmost and rightmost
-        # structural evidence when they are not virtually identical to the backdrop.
-        # This specifically protects continuous silver crossbars and bottom bezels.
-        lower_rescued = np.zeros((height, width), dtype=bool)
-        if product_bbox:
-            bx0, by0, bx1, by1 = product_bbox
-            bh = max(1, by1 - by0)
-            lower_start = max(by0, int(round(by0 + bh * 0.62)))
-            x_pad = max(1, int(round((bx1 - bx0) * 0.008)))
-            for yy in range(lower_start, by1):
-                xs = np.flatnonzero(structural_seed[yy, bx0:bx1])
-                if xs.size < 2:
-                    continue
-                left = max(bx0, bx0 + int(xs[0]) - x_pad)
-                right = min(bx1, bx0 + int(xs[-1]) + x_pad + 1)
-                if right <= left:
-                    continue
-                row_light_housing = (
-                    (brightness[yy, left:right] < 251)
-                    | (distance[yy, left:right] > 6.0)
-                    | structural_closed_np[yy, left:right]
-                )
-                lower_rescued[yy, left:right] = row_light_housing
-            protected |= lower_rescued
-
-        # Product authority always wins over background similarity.
-        candidate &= ~protected
-
-        # Flood only through confirmed candidate background connected to the exterior.
-        padded = Image.new("L", (width + 2, height + 2), 255)
-        candidate_img = Image.fromarray((candidate.astype(np.uint8) * 255), mode="L")
-        padded.paste(candidate_img, (1, 1))
-        ImageDraw.floodfill(padded, (0, 0), 128, thresh=0)
-        flood = np.asarray(padded, dtype=np.uint8)[1:-1, 1:-1]
-        background = flood == 128
-
-        # Source-mask integrity gate: no meaningful structural source evidence may be
-        # erased. If classification remains uncertain, fail closed and let the caller
-        # use the untouched studio card instead of publishing altered product geometry.
-        integrity_scope = structural_seed & product_roi
-        structural_total = int(np.count_nonzero(integrity_scope))
-        structural_removed = int(np.count_nonzero(background & integrity_scope))
-        removed_ratio = structural_removed / max(1, structural_total)
-        lower_removed = int(np.count_nonzero(background & lower_rescued))
-        if removed_ratio > 0.0025 or lower_removed > 0:
-            diagnostic_log(
-                "graphic_v58000_source_mask_integrity_rejected",
-                structural_removed_ratio=round(removed_ratio, 6),
-                lower_rescued_removed=lower_removed,
-                product_bbox=product_bbox,
-            )
+        # Keep meaningful central seed components only.
+        count, labels, stats, centroids = cv2.connectedComponentsWithStats((sure_fg_u8 > 0).astype(np.uint8), 8)
+        seed = np.zeros((height, width), dtype=np.uint8)
+        min_seed_area = max(32, int(height * width * 0.0012))
+        for idx in range(1, count):
+            x, y, ww, hh, area = [int(v) for v in stats[idx]]
+            cx, cy = centroids[idx]
+            if area >= min_seed_area and 0.08 * width <= cx <= 0.92 * width and 0.03 * height <= cy <= 0.93 * height:
+                seed[labels == idx] = 255
+        if int(np.count_nonzero(seed)) < min_seed_area:
+            diagnostic_log("graphic_v59000_mask_rejected", reason="insufficient foreground seed")
             return b""
 
-        alpha = np.full((height, width), 255, dtype=np.uint8)
-        alpha[background] = 0
+        # GrabCut is initialized with definite exterior background and conservative
+        # product seeds. It is used only to estimate the outer physical silhouette.
+        gc_mask = np.full((height, width), cv2.GC_PR_BGD, dtype=np.uint8)
+        gc_mask[:band, :] = cv2.GC_BGD; gc_mask[-band:, :] = cv2.GC_BGD
+        gc_mask[:, :band] = cv2.GC_BGD; gc_mask[:, -band:] = cv2.GC_BGD
+        gc_mask[seed > 0] = cv2.GC_FGD
+        bg_model = np.zeros((1, 65), np.float64)
+        fg_model = np.zeros((1, 65), np.float64)
+        cv2.grabCut(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), gc_mask, None, bg_model, fg_model, 5, cv2.GC_INIT_WITH_MASK)
+        segmented = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
 
-        # A single neutral fringe pixel may be partially transparent for halo control,
-        # but never where structural or lower-housing authority exists.
-        bg_img = Image.fromarray((background.astype(np.uint8) * 255), mode="L")
-        adjacent = (np.asarray(bg_img.filter(ImageFilter.MaxFilter(3))) > 0) & ~background
-        neutral_edge = adjacent & ~protected & (chroma <= 34) & (brightness >= 215)
-        edge_strength = np.clip((distance - 6.0) / 46.0, 0.0, 1.0)
-        edge_alpha = (72 + edge_strength * 183).astype(np.uint8)
-        alpha[neutral_edge] = np.minimum(alpha[neutral_edge], edge_alpha[neutral_edge])
-
-        foreground_ratio = float(np.count_nonzero(alpha >= 16)) / float(width * height)
-        transparent_ratio = float(np.count_nonzero(alpha == 0)) / float(width * height)
-        if foreground_ratio < 0.08 or transparent_ratio < 0.05 or transparent_ratio > 0.94:
-            diagnostic_log(
-                "graphic_v58000_mask_rejected",
-                foreground_ratio=round(foreground_ratio, 4),
-                transparent_ratio=round(transparent_ratio, 4),
-                product_bbox=product_bbox,
-            )
+        # Select the dominant central component. Detached floor/shadow fragments and
+        # thin horizontal JPEG streaks are discarded before silhouette completion.
+        count, labels, stats, centroids = cv2.connectedComponentsWithStats(segmented, 8)
+        candidates = []
+        for idx in range(1, count):
+            x, y, ww, hh, area = [int(v) for v in stats[idx]]
+            cx, cy = centroids[idx]
+            if area < max(64, int(height * width * 0.001)):
+                continue
+            centrality = 1.0 - min(1.0, abs(cx - width / 2) / max(1.0, width / 2))
+            score = area * (0.65 + 0.35 * centrality)
+            candidates.append((score, idx))
+        if not candidates:
+            diagnostic_log("graphic_v59000_mask_rejected", reason="no dominant product component")
             return b""
+        _, main_idx = max(candidates)
+        main = (labels == main_idx).astype(np.uint8)
+
+        # Complete the outer silhouette so bright screen/UI and light housing pixels
+        # inside the physical frame remain authoritative. This does not invent an outer
+        # contour; it fills only the largest external contour detected from source.
+        contours, _ = cv2.findContours(main, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return b""
+        outer = max(contours, key=cv2.contourArea)
+        geometry = np.zeros_like(main)
+        cv2.drawContours(geometry, [outer], -1, 1, cv2.FILLED)
+        close_k = max(3, min(9, (min(width, height) // 400) * 2 + 3))
+        if close_k % 2 == 0:
+            close_k += 1
+        geometry = cv2.morphologyEx(geometry, cv2.MORPH_CLOSE, np.ones((close_k, close_k), np.uint8))
+
+        # Physical-baseline detection: studio contact shadow produces a broad,
+        # progressively narrowing tail below the real housing. Find the first sustained
+        # width collapse in the lower 22% and remove only weak/background-like pixels
+        # below that line; strong dark/coloured connected mounting structure survives.
+        ys, xs = np.where(geometry > 0)
+        if xs.size == 0:
+            return b""
+        x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+        row_width = geometry[:, x0:x1].sum(axis=1).astype(np.float32)
+        search_start = max(y0, int(round(y0 + (y1 - y0) * 0.76)))
+        reference_width = float(np.median(row_width[max(y0, search_start - max(8, (y1-y0)//12)):search_start + 1]))
+        baseline = y1
+        if reference_width > 0:
+            collapse = row_width < reference_width * 0.82
+            run = max(3, int(round((y1 - y0) * 0.008)))
+            for yy in range(search_start, max(search_start, y1 - run)):
+                if bool(np.all(collapse[yy:yy + run])):
+                    baseline = yy
+                    break
+        if baseline < y1:
+            below = np.zeros_like(geometry, dtype=bool)
+            below[baseline:y1, :] = True
+            strong_below = below & ((brightness <= 205) | (chroma >= 42) | (distance >= 60))
+            strong_below_u8 = (strong_below.astype(np.uint8) * 255)
+            strong_below_u8 = cv2.morphologyEx(strong_below_u8, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+            # Keep only strong below-baseline pixels directly connected to geometry above.
+            anchor = np.zeros_like(geometry, dtype=np.uint8)
+            anchor[max(y0, baseline - 3):baseline + 1, :] = geometry[max(y0, baseline - 3):baseline + 1, :]
+            candidate_below = ((strong_below_u8 > 0) | (anchor > 0)).astype(np.uint8)
+            num, lab, st, _ = cv2.connectedComponentsWithStats(candidate_below, 8)
+            retained_below = np.zeros_like(geometry)
+            anchor_labels = set(np.unique(lab[anchor > 0]).tolist()) - {0}
+            for idx in anchor_labels:
+                if int(st[idx, cv2.CC_STAT_AREA]) >= 8:
+                    retained_below[lab == idx] = 1
+            geometry[baseline:, :] = retained_below[baseline:, :]
+
+        # Remove detached micro-components after baseline cleanup.
+        num, lab, st, _ = cv2.connectedComponentsWithStats(geometry, 8)
+        final_geometry = np.zeros_like(geometry)
+        areas = [(int(st[i, cv2.CC_STAT_AREA]), i) for i in range(1, num)]
+        if not areas:
+            return b""
+        _, dominant = max(areas)
+        final_geometry[lab == dominant] = 1
+
+        # Engineering QA before any resize or trim.
+        fys, fxs = np.where(final_geometry > 0)
+        if fxs.size == 0:
+            return b""
+        fx0, fx1, fy0, fy1 = int(fxs.min()), int(fxs.max()) + 1, int(fys.min()), int(fys.max()) + 1
+        fg_ratio = float(final_geometry.mean())
+        bbox_ratio = ((fx1 - fx0) * (fy1 - fy0)) / float(width * height)
+        lower_band = final_geometry[max(fy0, int(fy0 + (fy1-fy0)*0.78)):fy1, fx0:fx1]
+        lower_row_counts = lower_band.sum(axis=1) if lower_band.size else np.array([], dtype=np.int32)
+        abrupt = 0.0
+        if lower_row_counts.size > 2 and float(lower_row_counts.max()) > 0:
+            abrupt = float(np.max(np.abs(np.diff(lower_row_counts.astype(np.float32))))) / float(lower_row_counts.max())
+        if fg_ratio < 0.06 or bbox_ratio > 0.80 or abrupt > 0.48:
+            diagnostic_log("graphic_v59000_mask_rejected", reason="geometry QA", foreground_ratio=round(fg_ratio,4), bbox_ratio=round(bbox_ratio,4), lower_abruptness=round(abrupt,4), baseline=int(baseline))
+            return b""
+
+        # Binary engineering alpha plus a one-pixel visual antialias fringe. Geometry
+        # measurements must use alpha>=128; no broad feathering or floor shadow is kept.
+        alpha = (final_geometry * 255).astype(np.uint8)
+        eroded = cv2.erode(final_geometry, np.ones((3, 3), np.uint8), iterations=1)
+        edge_ring = (final_geometry > 0) & (eroded == 0)
+        alpha[edge_ring] = 224
 
         result = source.copy()
         result.putalpha(Image.fromarray(alpha, mode="L"))
         buffer = io.BytesIO()
         result.save(buffer, format="PNG", optimize=True)
+        diagnostic_log("graphic_v59000_mask_accepted", bbox=[fx0, fy0, fx1, fy1], baseline=int(baseline), foreground_ratio=round(fg_ratio,4), lower_abruptness=round(abrupt,4))
         return buffer.getvalue()
     except Exception as error:
-        diagnostic_log(
-            "graphic_v58000_light_housing_mask_failed",
-            error_type=type(error).__name__,
-            error=str(error),
-        )
+        diagnostic_log("graphic_v59000_connected_component_mask_failed", error_type=type(error).__name__, error=str(error))
         return b""
-
 
 
 # v23000: restored v20100 visual-baseline behavior for _graphic_open_product_layer_v3300.
@@ -25295,7 +25272,7 @@ def _graphic_open_product_layer_v3300(uploaded_file):
             reports = dict(state.get("product_bezel_master_reports") or {})
             reports[cache_key] = {
                 "applied": True,
-                "mode": "exact_product_asset_v58000_light_housing_safe_rgb_locked",
+                "mode": "exact_product_asset_v59000_connected_component_binary_geometry_rgb_locked",
                 "mask_method": mask_method,
                 "master_rgb_sha256": digest,
                 "rgb_pixels_regenerated": False,
@@ -25766,7 +25743,7 @@ _generate_graphic_marketing_images_v3200 = _generate_graphic_marketing_images_ad
 # Five task modes + fourteen connected production subsystems.
 # ============================================================
 
-GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v58000-light-housing-mask-authority-engine"
+GRAPHIC_ADAPTIVE_ENGINE_VERSION = "v59000-connected-component-bottom-housing-authority-engine"
 
 
 
