@@ -46,8 +46,8 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v67510 LTS — Feature-Preserving Isolated Fallback with Optional Nonblocking Enrichment
-# v67500 preserves three-level Reference Style Authority and adds an isolated dependency-free exact-product fallback.
+# AutoTecPro AI Graphic Marketing Engine v67610 LTS — State-Machine v66200 Return Path with Reference Transform Compatibility
+# v67610 restores the proven v66200 public return contract and v3200 compatibility path while retaining newer nonblocking Reference transformations.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -25479,31 +25479,23 @@ def _generate_graphic_marketing_images_advanced_v3200(prompt_text, uploaded_file
         style=has_style,
         edit_base=has_edit_base,
     )
-    prep_started = time.perf_counter()
-    prepared_facts = _graphic_v67200_prepare_locked_facts(
-        role_items,
-        prompt_text,
-        style_strength,
-        has_style=has_style,
-        has_product=has_product,
-    )
-    reference_blueprint = (
-        _graphic_safe_reference_blueprint_v16000(prepared_facts.get("reference_blueprint") or {})
-        if has_style else {}
-    )
+    reference_blueprint = _graphic_safe_optional_call(
+        "graphic_v3000_reference_analysis_failed_open",
+        lambda: analyze_graphic_reference_blueprint(
+            role_items, prompt_text=prompt_text, style_strength=style_strength
+        ),
+        {},
+    ) if has_style else {}
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint) if has_style else {}
     if has_style:
         _graphic_project_style_dna_v16000(reference_blueprint)
-    vehicle_profile = (
-        _graphic_resolve_vehicle_lock(prompt_text, prepared_facts.get("vehicle_profile") or {})
-        if has_product else {}
-    )
-    _graphic_v67200_record_stage(
-        "locked-reference-geometry-and-verified-product-facts",
-        prep_started,
-        parallel=bool(prepared_facts.get("parallel")),
-        reference_cache_hit=bool(reference_blueprint.get("cache_hit_v67200")),
-        vehicle_cache_hit=bool(vehicle_profile.get("cache_hit_v67200")),
-    )
+    vehicle_profile = _graphic_safe_optional_call(
+        "graphic_v3100_vehicle_research_failed_open",
+        lambda: research_graphic_vehicle_profile(role_items, prompt_text),
+        {},
+    ) if has_product else {}
+    # Explicit user statements persisted from earlier turns always override visual guesses.
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     rejected_guidance = _graphic_safe_optional_call(
         "graphic_v3000_rejection_guidance_failed_open",
         _graphic_session_rejection_guidance,
@@ -31471,37 +31463,13 @@ def generate_graphic_marketing_images(
     product_transform_mode="Auto",
     professional_layered_studio=True,
 ):
-    """v67500 public API with isolated final local recovery."""
-    failures = []
-    original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    """v67610 state-machine public API using the proven v66200 return contract.
 
-    try:
-        contract = _graphic_v67400_mode_contract(
-            original_prompt,
-            uploaded_files,
-            forced_upload_role,
-            product_transform_mode,
-        )
-    except Exception as error:
-        failures.append("mode:" + _graphic_compact_error_v4000(error))
-        contract = {
-            "version": GRAPHIC_V67500_POLICY_VERSION,
-            "mode": "fully_generative_concept",
-            "role_items": [],
-            "strict_exact_product": False,
-            "reference_recreation": False,
-            "screen_local_edit": False,
-            "allows_product_reconstruction": True,
-            "requires_fitment_lock": False,
-            "installed_view": _graphic_installed_intent_hint_v47000(
-                original_prompt
-            ),
-            "reference_adaptation": {},
-        }
-
-    effective_prompt = (
-        original_prompt + _graphic_v67400_reference_directive(contract)
-    )
+    Expected route failures are represented as stage outcomes instead of being
+    used as fatal control flow. Newer Reference resize/angle instructions may
+    enrich the advanced prompt, but later metadata/policy wrappers cannot block
+    a usable generated result.
+    """
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -31511,272 +31479,178 @@ def generate_graphic_marketing_images(
         product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
+    failures = []
+    original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    effective_prompt = original_prompt
+    contract = None
 
-    project = _graphic_active_project_assets_v16000(
-        _graphic_repair_project_asset_roles_v15000(
-            get_graphic_project_state()
-        )
-    )
-    project.update(
-        {
-            "stage": "generating",
-            "last_error": "",
-            "generation_started_at": datetime.now(timezone.utc).isoformat(),
-            "graphic_policy_version": GRAPHIC_V67500_POLICY_VERSION,
-            "graphic_mode_contract_v67400": {
-                key: value
-                for key, value in contract.items()
-                if key != "role_items"
-            },
-        }
-    )
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-
+    # Reference transformation parsing is optional enrichment only. It must not
+    # become a gate around the known-good image return path.
     try:
-        result = _generate_graphic_marketing_images_advanced(
-            effective_prompt,
-            uploaded_files,
-            **arguments,
-        )
-        result = _graphic_v67500_normalize_results(result)
-        decision = _graphic_v67400_accept_or_route(
-            result,
+        contract = _graphic_v67400_mode_contract(
             original_prompt,
-            contract,
-            route_name="advanced-v67400",
+            uploaded_files,
+            forced_upload_role,
+            product_transform_mode,
         )
-        if decision.get("accepted"):
-            result = _graphic_v66860_attach_diagnostic_audit(
-                result,
-                original_prompt,
-            )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["graphic_policy_version"] = (
-                        GRAPHIC_V67500_POLICY_VERSION
-                    )
-            return _graphic_finalize_recovery_v16000(
-                result,
-                "advanced-v67400",
-                failures,
-            )
-
+        directive = _graphic_v67400_reference_directive(contract)
+        if directive:
+            effective_prompt = original_prompt + directive
+    except Exception as error:
         failures.append(
-            "advanced-policy:"
-            + str(decision.get("reason") or "not accepted")
+            f"reference-plan:{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v67400_advanced_policy_route",
-            mode=contract.get("mode"),
-            treatment=(
-                contract.get("reference_adaptation") or {}
-            ).get("treatment"),
-            hard_block=decision.get("hard_block"),
-            reason=decision.get("reason"),
-        )
-    except Exception as error:
-        _graphic_v67300_route_failure(
-            failures,
-            "advanced-v67400",
-            error,
+            "graphic_v67610_reference_plan_unavailable",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
         )
 
-    if contract.get("strict_exact_product"):
-        try:
-            result, route, attempts = _graphic_v67300_exact_recovery_ladder(
-                original_prompt,
-                uploaded_files,
-                contract,
-                style_strength=style_strength,
-                forced_upload_role=forced_upload_role,
-                failures=failures,
-            )
-            result = _graphic_v66860_attach_diagnostic_audit(
-                result,
-                original_prompt,
-            )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["exact_recovery_attempts_v67500"] = attempts
-                    image["graphic_policy_version"] = (
-                        GRAPHIC_V67500_POLICY_VERSION
-                    )
-            return _graphic_finalize_recovery_v16000(
-                result,
-                route,
-                failures,
-            )
-        except Exception as error:
-            _graphic_v67300_route_failure(
-                failures,
-                "v67500-complete-exact-ladder",
-                error,
-            )
-            diagnostic_log(
-                "graphic_v67500_exact_ladder_exhausted",
-                mode=contract.get("mode"),
-                failures=" | ".join(failures[-10:]),
-            )
-            raise
+    installed_request = _graphic_installed_intent_hint_v47000(original_prompt)
+    if isinstance(contract, dict):
+        installed_request = bool(contract.get("installed_view") or installed_request)
 
-    if contract.get("screen_local_edit"):
+    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    project = _graphic_active_project_assets_v16000(project)
+    project.update({
+        "stage": "generating",
+        "last_error": "",
+        "generation_started_at": datetime.now(timezone.utc).isoformat(),
+        "graphic_policy_version": "v67610-v66200-return-contract",
+    })
+    if isinstance(contract, dict):
+        project["graphic_mode_contract_v67400"] = {
+            key: value for key, value in contract.items() if key != "role_items"
+        }
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+
+    def run_stage(route_name, runner):
+        started = time.perf_counter()
         try:
-            result = _generate_graphic_marketing_images_advanced_v3200(
-                effective_prompt,
-                uploaded_files,
-                **arguments,
-            )
-            result = _graphic_v67500_normalize_results(result)
-            decision = _graphic_v67400_accept_or_route(
-                result,
-                original_prompt,
-                contract,
-                route_name="v67400-ui-replacement",
-            )
-            if decision.get("accepted"):
-                return _graphic_finalize_recovery_v16000(
-                    result,
-                    "v67400-ui-replacement",
-                    failures,
+            raw = runner()
+            images = _graphic_v67500_normalize_results(raw)
+            if not images:
+                reason = "route returned no rendered image"
+                failures.append(f"{route_name}:EmptyResult:{reason}")
+                diagnostic_log(
+                    "graphic_v67610_stage_result",
+                    route=route_name,
+                    success=False,
+                    duration_seconds=round(time.perf_counter() - started, 3),
+                    error_type="EmptyResult",
+                    error=reason,
                 )
-            failures.append(
-                "ui-policy:"
-                + str(decision.get("reason") or "not accepted")
-            )
-        except Exception as error:
-            _graphic_v67300_route_failure(
-                failures,
-                "v67400-ui-replacement",
-                error,
-            )
+                return {"success": False, "images": [], "reason": reason}
 
-    if contract.get("installed_view"):
-        try:
-            result = _graphic_installed_view_recovery_v47000(
-                effective_prompt,
+            # Only direct, affirmative product-geometry evidence may reject a
+            # strict Reference result. Missing optional metadata is never proof
+            # of distortion and therefore cannot discard the image.
+            if isinstance(contract, dict) and contract.get("strict_exact_product"):
+                violation = _graphic_v66860_direct_product_violation(images)
+                if violation:
+                    reason = str(violation)
+                    failures.append(f"{route_name}:DirectGeometryViolation:{reason}")
+                    diagnostic_log(
+                        "graphic_v67610_stage_result",
+                        route=route_name,
+                        success=False,
+                        duration_seconds=round(time.perf_counter() - started, 3),
+                        error_type="DirectGeometryViolation",
+                        error=reason,
+                    )
+                    return {"success": False, "images": images, "reason": reason}
+
+            for image in images:
+                if isinstance(image, dict):
+                    image["graphic_policy_version"] = "v67610-v66200-return-contract"
+                    image["accepted_route_v67610"] = route_name
+                    image["recovery_failures"] = failures[-6:]
+                    image["optional_metadata_missing_is_not_failure"] = True
+            diagnostic_log(
+                "graphic_v67610_stage_result",
+                route=route_name,
+                success=True,
+                duration_seconds=round(time.perf_counter() - started, 3),
+                image_count=len(images),
+            )
+            return {"success": True, "images": images, "reason": ""}
+        except Exception as error:
+            compact = _graphic_compact_error_v4000(error)
+            failures.append(f"{route_name}:{type(error).__name__}:{compact}")
+            diagnostic_log(
+                "graphic_v67610_stage_result",
+                route=route_name,
+                success=False,
+                duration_seconds=round(time.perf_counter() - started, 3),
+                error_type=type(error).__name__,
+                error=compact,
+            )
+            return {"success": False, "images": [], "reason": compact}
+
+    stages = [
+        (
+            "advanced-v67610",
+            lambda: _generate_graphic_marketing_images_advanced(
+                effective_prompt, uploaded_files, **arguments
+            ),
+        ),
+    ]
+
+    # Installed View remains fail-closed to an interior-only route. A poster is
+    # never substituted for an explicitly requested installed dashboard view.
+    if installed_request:
+        stages.append((
+            "installed-view-only-v47000",
+            lambda: _graphic_installed_view_recovery_v47000(
+                original_prompt,
                 uploaded_files,
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
-            )
+            ),
+        ))
+    else:
+        stages.extend([
+            (
+                "v3200-compatibility-v66200",
+                lambda: _generate_graphic_marketing_images_advanced_v3200(
+                    effective_prompt, uploaded_files, **arguments
+                ),
+            ),
+            (
+                "emergency-provider-v66200",
+                lambda: _graphic_emergency_provider_result_v15000(
+                    effective_prompt,
+                    uploaded_files,
+                    style_strength=style_strength,
+                    forced_upload_role=forced_upload_role,
+                ),
+            ),
+        ])
+
+    for route_name, runner in stages:
+        outcome = run_stage(route_name, runner)
+        if outcome.get("success"):
             return _graphic_finalize_recovery_v16000(
-                result,
-                "v67400-installed-view",
-                failures,
-            )
-        except Exception as error:
-            _graphic_v67300_route_failure(
-                failures,
-                "v67400-installed-view",
-                error,
+                outcome["images"], route_name, failures
             )
 
-    if contract.get("reference_recreation"):
-        try:
-            result = _generate_graphic_marketing_images_advanced_v3200(
-                effective_prompt,
-                uploaded_files,
-                **arguments,
-            )
-            result = _graphic_v67500_normalize_results(result)
-            decision = _graphic_v67400_accept_or_route(
-                result,
-                original_prompt,
-                contract,
-                route_name="v67400-reference-verified-reconstruction",
-            )
-            if decision.get("accepted"):
-                return _graphic_finalize_recovery_v16000(
-                    result,
-                    "v67400-reference-verified-reconstruction",
-                    failures,
-                )
-            failures.append(
-                "reference-recreation-policy:"
-                + str(decision.get("reason") or "not accepted")
-            )
-        except Exception as error:
-            _graphic_v67300_route_failure(
-                failures,
-                "v67400-reference-verified-reconstruction",
-                error,
-            )
-
-        # Keep the style but safely retain the exact uploaded angle when
-        # Product-DNA recreation cannot be positively verified.
-        exact_contract = dict(contract)
-        exact_contract.update(
-            {
-                "mode": "reference_guided_exact_product",
-                "reference_recreation": False,
-                "strict_exact_product": True,
-                "allows_product_reconstruction": False,
-            }
-        )
-        result, route, attempts = _graphic_v67300_exact_recovery_ladder(
-            original_prompt,
-            uploaded_files,
-            exact_contract,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-            failures=failures,
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["angle_reconstruction_fallback_v67400"] = True
-                image["angle_recreation_warning"] = (
-                    "The requested angle reconstruction could not be positively verified, "
-                    "so the exact uploaded product angle was retained."
-                )
-                image["exact_recovery_attempts_v67400"] = attempts
-        return _graphic_finalize_recovery_v16000(
-            result,
-            "v67400-reference-angle-safe-exact-fallback",
-            failures,
-        )
-
-    try:
-        result = _generate_graphic_marketing_images_advanced_v3200(
-            effective_prompt,
-            uploaded_files,
-            **arguments,
-        )
-        result = _graphic_v67500_normalize_results(result)
-        return _graphic_finalize_recovery_v16000(
-            result,
-            "v67500-mode-compatible-v3200",
-            failures,
-        )
-    except Exception as error:
-        _graphic_v67300_route_failure(
-            failures,
-            "v67400-mode-compatible-v3200",
-            error,
-        )
-
-    try:
-        result = _graphic_emergency_provider_result_v15000(
-            effective_prompt,
-            uploaded_files,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-        )
-        result = _graphic_v67500_normalize_results(result)
-        return _graphic_finalize_recovery_v16000(
-            result,
-            "v67500-mode-compatible-emergency-provider",
-            failures,
-        )
-    except Exception as error:
-        _graphic_v67300_route_failure(
-            failures,
-            "v67400-mode-compatible-emergency-provider",
-            error,
-        )
-        raise RuntimeError(
-            "All mode-compatible image-generation routes failed. "
-            "Your project assets remain saved. "
-            + " | ".join(failures[-8:])
-        ) from error
+    state = get_graphic_project_state()
+    state["stage"] = "ready_to_generate"
+    state["last_error"] = " | ".join(failures[-8:])[:3000]
+    state["last_failed_stage"] = "all_generation_routes"
+    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log(
+        "graphic_v67610_all_routes_failed",
+        failures=" | ".join(failures[-8:]),
+    )
+    raise RuntimeError(
+        "All established image-generation routes failed. "
+        "Your reference and product assets remain saved. "
+        + " | ".join(failures[-6:])
+    )
 
 
 
