@@ -47,6 +47,14 @@ except Exception:
     create_supabase_client = None
 
 # AutoTecPro AI performance/stability revision: v63000 LTS — Final Bezel Authority
+
+# v66000 LTS clean architectural merge:
+# - v40100 exact-source composition and intact-source fallback.
+# - v47000 conservative border-connected masking and untouched source RGB.
+# - v64000 rendering, advanced glass/HDR lighting, five-layer shadows, provider routing, QA, timing,
+#   Supabase/history/product-library/WooCommerce integrations, mobile interface and downloads.
+# - v66000 multi-candidate extraction, source-to-cutout geometry verification, confidence selection,
+#   immutable local product compositing and fail-closed untouched-card authority.
 # v63000 Final Bezel Authority Engine built directly from v62000 LTS.
 # Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
 # First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
@@ -18185,104 +18193,205 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
 # Reference Style Mode uses the proven v47000 border-connected background-removal
 # philosophy. It intentionally forbids geometric-cliff/baseline cutting, dominant-
 # component authority, silhouette filling, and selective mechanical-tail recovery.
-def _graphic_extract_product_cutout(uploaded_file):
-    """Extract the uploaded product without redesigning mechanical geometry.
 
-    v39000 uses an edge-aware, border-connected background model. Only pixels that
-    are both background-like and connected to the outer canvas are removed. Dark
-    mounting tabs, clips, holes, screw bosses, lower brackets, glossy black trim,
-    and thin engineering edges are therefore retained as first-class product pixels.
-    The source RGB is never synthesized or repainted.
+# ============================================================
+# v66000 LTS — Universal Fail-Closed Exact Geometry Authority
+# ============================================================
+def _graphic_v66000_flood_connected_background(candidate):
+    """Return only candidate background connected to the outside canvas."""
+    import numpy as np
+    from PIL import ImageDraw
+    height, width = candidate.shape
+    padded = Image.new("L", (width + 2, height + 2), 255)
+    padded.paste(Image.fromarray((candidate.astype(np.uint8) * 255), mode="L"), (1, 1))
+    ImageDraw.floodfill(padded, (0, 0), 128, thresh=0)
+    return np.asarray(padded, dtype=np.uint8)[1:-1, 1:-1] == 128
+
+
+def _graphic_v66000_source_geometry_evidence(rgb, bg):
+    """Build a conservative source-side structural evidence map.
+
+    This map is not used as a cutout. It exists only to veto masks that remove
+    source-supported bezels, lower housings, brackets, tabs or mounting ears.
     """
-    if Image is None:
+    import numpy as np
+    from PIL import ImageFilter
+    rgbf = rgb.astype(np.float32)
+    brightness = rgbf.mean(axis=2)
+    chroma = rgbf.max(axis=2) - rgbf.min(axis=2)
+    distance = np.sqrt(((rgbf - bg.reshape(1, 1, 3)) ** 2).sum(axis=2))
+    # Evidence deliberately includes weak neutral structure. A small edge expansion
+    # makes thin mounting ears and antialiased bezel boundaries first-class geometry.
+    evidence = (brightness <= 228) | (chroma >= 24) | (distance >= 24)
+    ev_img = Image.fromarray((evidence.astype(np.uint8) * 255), mode="L")
+    evidence = np.asarray(ev_img.filter(ImageFilter.MaxFilter(3)), dtype=np.uint8) > 0
+    return evidence, brightness, chroma, distance
+
+
+def _graphic_v66000_geometry_report(source_evidence, alpha, candidate_name=""):
+    """Validate source-to-cutout geometry and return a fail-closed scorecard."""
+    import numpy as np
+    height, width = source_evidence.shape
+    kept = alpha >= 16
+    opaque = alpha >= 220
+    total = max(1, width * height)
+    src_count = int(source_evidence.sum())
+    retained = int((source_evidence & kept).sum())
+    retention = retained / max(1, src_count)
+    transparent_ratio = float((alpha == 0).sum()) / total
+    foreground_ratio = float(kept.sum()) / total
+
+    ys, xs = np.where(source_evidence)
+    kys, kxs = np.where(source_evidence & kept)
+    failures=[]
+    metrics={
+        "candidate": candidate_name,
+        "source_evidence_pixels": src_count,
+        "source_evidence_retention": round(retention, 6),
+        "foreground_ratio": round(foreground_ratio, 6),
+        "transparent_ratio": round(transparent_ratio, 6),
+    }
+    if src_count < max(24, int(total * 0.01)):
+        failures.append("insufficient_source_geometry_evidence")
+    if foreground_ratio < 0.08 or transparent_ratio < 0.05 or transparent_ratio > 0.94:
+        failures.append("global_area_guard")
+    if retention < 0.985:
+        failures.append("source_geometry_retention")
+
+    if len(xs) and len(kxs):
+        src_box=(int(xs.min()),int(ys.min()),int(xs.max())+1,int(ys.max())+1)
+        kept_box=(int(kxs.min()),int(kys.min()),int(kxs.max())+1,int(kys.max())+1)
+        metrics["source_evidence_bbox"]=list(src_box)
+        metrics["retained_evidence_bbox"]=list(kept_box)
+        sw=max(1,src_box[2]-src_box[0]); sh=max(1,src_box[3]-src_box[1])
+        extent_losses={
+            "left": max(0, kept_box[0]-src_box[0])/sw,
+            "right": max(0, src_box[2]-kept_box[2])/sw,
+            "top": max(0, kept_box[1]-src_box[1])/sh,
+            "bottom": max(0, src_box[3]-kept_box[3])/sh,
+        }
+        metrics["extent_losses"]={k:round(v,6) for k,v in extent_losses.items()}
+        if extent_losses["left"] > 0.018: failures.append("left_extent_loss")
+        if extent_losses["right"] > 0.018: failures.append("right_extent_loss")
+        if extent_losses["bottom"] > 0.012: failures.append("lower_housing_extent_loss")
+        if extent_losses["top"] > 0.025: failures.append("top_mount_extent_loss")
+
+        # Region gates are relative to the source-supported product envelope.
+        x0,y0,x1,y1=src_box
+        regions={
+            "left_bezel": (x0,y0,x0+max(1,int(sw*.18)),y1),
+            "right_bezel": (x1-max(1,int(sw*.18)),y0,x1,y1),
+            "lower_housing": (x0,y1-max(1,int(sh*.28)),x1,y1),
+            "bottom_left_mount": (x0,y1-max(1,int(sh*.34)),x0+max(1,int(sw*.34)),y1),
+            "bottom_right_mount": (x1-max(1,int(sw*.34)),y1-max(1,int(sh*.34)),x1,y1),
+            "upper_left_ear": (x0,y0,x0+max(1,int(sw*.28)),y0+max(1,int(sh*.30))),
+            "upper_right_ear": (x1-max(1,int(sw*.28)),y0,x1,y0+max(1,int(sh*.30))),
+        }
+        region_scores={}
+        for name,(rx0,ry0,rx1,ry1) in regions.items():
+            src=source_evidence[ry0:ry1,rx0:rx1]
+            denominator=int(src.sum())
+            if denominator < max(6,int(src.size*.008)):
+                region_scores[name]=None
+                continue
+            score=float((src & kept[ry0:ry1,rx0:rx1]).sum())/denominator
+            region_scores[name]=round(score,6)
+            limit=0.975 if name in {"lower_housing","bottom_left_mount","bottom_right_mount"} else 0.965
+            if score < limit:
+                failures.append(f"{name}_retention")
+        metrics["regional_retention"]=region_scores
+    else:
+        failures.append("empty_retained_geometry")
+
+    # Confidence rewards verified source retention, useful background removal, and
+    # opaque support. Any hard failure makes the candidate ineligible regardless.
+    opaque_support=float((source_evidence & opaque).sum())/max(1,src_count)
+    removal_quality=max(0.0,1.0-abs(transparent_ratio-0.45)/0.55)
+    confidence=max(0.0,min(1.0,0.72*retention+0.18*opaque_support+0.10*removal_quality))
+    metrics["opaque_source_support"]=round(opaque_support,6)
+    metrics["confidence"]=round(confidence,6)
+    metrics["failures"]=list(dict.fromkeys(failures))
+    metrics["passed"]=not failures and confidence >= 0.94
+    return metrics
+
+
+def _graphic_v66000_build_candidate(rgb, bg, protected, profile):
+    """Create one conservative border-connected matte candidate."""
+    import numpy as np
+    from PIL import ImageFilter
+    rgbf=rgb.astype(np.float32)
+    brightness=rgbf.mean(axis=2)
+    chroma=rgbf.max(axis=2)-rgbf.min(axis=2)
+    distance=np.sqrt(((rgbf-bg.reshape(1,1,3))**2).sum(axis=2))
+    candidate=(brightness>=profile["brightness"]) & (chroma<=profile["chroma"]) & (distance<=profile["distance"])
+    candidate &= ~protected
+    background=_graphic_v66000_flood_connected_background(candidate)
+    alpha=np.full(background.shape,255,dtype=np.uint8)
+    alpha[background]=0
+    bg_img=Image.fromarray((background.astype(np.uint8)*255),mode="L")
+    adjacent=(np.asarray(bg_img.filter(ImageFilter.MaxFilter(3)),dtype=np.uint8)>0)&~background
+    neutral_edge=adjacent & ~protected & (chroma<=profile["edge_chroma"]) & (brightness>=profile["edge_brightness"])
+    strength=np.clip((distance-8.0)/max(1.0,profile["distance"]),0.0,1.0)
+    edge_alpha=(72+strength*183).astype(np.uint8)
+    alpha[neutral_edge]=np.minimum(alpha[neutral_edge],edge_alpha[neutral_edge])
+    return alpha
+
+
+def _graphic_v66000_select_exact_geometry_alpha(raw_bytes):
+    """Select the highest-confidence eligible mask; otherwise fail closed."""
+    import numpy as np
+    from PIL import ImageFilter
+    source=ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
+    rgb=np.asarray(source.convert("RGB"),dtype=np.int16)
+    height,width=rgb.shape[:2]
+    if width<3 or height<3:
+        return None,{"passed":False,"fallback":"untouched_master_card","reason":"image_too_small"}
+    band=max(2,min(width,height)//80)
+    border=np.concatenate([rgb[:band].reshape(-1,3),rgb[-band:].reshape(-1,3),rgb[:,:band].reshape(-1,3),rgb[:,-band:].reshape(-1,3)],axis=0)
+    bbright=border.mean(axis=1); bchroma=border.max(axis=1)-border.min(axis=1)
+    neutral=border[(bbright>=190)&(bchroma<=46)]
+    samples=neutral if len(neutral)>=32 else border
+    bg=np.median(samples,axis=0).astype(np.float32)
+    evidence,brightness,chroma,distance=_graphic_v66000_source_geometry_evidence(rgb,bg)
+    hard=(brightness<=202)|(chroma>=50)|(distance>=78)
+    protected=np.asarray(Image.fromarray((hard.astype(np.uint8)*255),mode="L").filter(ImageFilter.MaxFilter(3)),dtype=np.uint8)>0
+    profiles=[
+        ("precision",{"brightness":198,"chroma":30,"distance":26,"edge_chroma":28,"edge_brightness":218}),
+        ("conservative",{"brightness":208,"chroma":38,"distance":34,"edge_chroma":34,"edge_brightness":212}),
+        ("balanced",{"brightness":220,"chroma":46,"distance":44,"edge_chroma":38,"edge_brightness":205}),
+        ("v47000_compatible",{"brightness":186,"chroma":52,"distance":58,"edge_chroma":38,"edge_brightness":205}),
+    ]
+    reports=[]; eligible=[]
+    for name,profile in profiles:
+        alpha=_graphic_v66000_build_candidate(rgb,bg,protected,profile)
+        report=_graphic_v66000_geometry_report(evidence,alpha,name)
+        reports.append(report)
+        if report.get("passed"):
+            eligible.append((float(report["confidence"]),float(report["transparent_ratio"]),name,alpha,report))
+    if not eligible:
+        return None,{"passed":False,"fallback":"untouched_master_card","reason":"no_geometry_proven_candidate","candidates":reports,"fail_closed":True}
+    # Highest confidence first; transparency is only a secondary preference.
+    eligible.sort(key=lambda item:(item[0],item[1]),reverse=True)
+    confidence,_,name,alpha,report=eligible[0]
+    return alpha,{"passed":True,"selected":name,"confidence":confidence,"selected_report":report,"candidates":reports,"fail_closed":True}
+
+
+
+def _graphic_extract_product_cutout(uploaded_file):
+    """v66000 public extraction path backed by the single geometry authority."""
+    layer,transparent=_graphic_open_product_layer_v3300(uploaded_file)
+    if layer is None:
         return None
-    raw = _graphic_uploaded_file_bytes(uploaded_file)
-    if not raw:
-        return None
-    try:
-        import cv2
-        import numpy as np
-        with Image.open(io.BytesIO(raw)) as source:
-            image = ImageOps.exif_transpose(source).convert("RGBA")
-    except Exception:
-        return None
-
-    image.thumbnail((2800, 2800), Image.Resampling.LANCZOS)
-    existing_alpha = image.getchannel("A")
-    extrema = existing_alpha.getextrema()
-    if extrema and extrema[0] < 250:
-        bbox = existing_alpha.getbbox()
-        return image.crop(bbox) if bbox else image
-
-    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    h, w = rgb.shape[:2]
-    if w < 24 or h < 24:
-        return image
-
-    border = max(4, min(w, h) // 80)
-    border_pixels = np.concatenate([
-        rgb[:border].reshape(-1, 3), rgb[-border:].reshape(-1, 3),
-        rgb[:, :border].reshape(-1, 3), rgb[:, -border:].reshape(-1, 3),
-    ], axis=0)
-    bg = np.median(border_pixels, axis=0).astype(np.float32)
-    border_spread = float(np.percentile(np.linalg.norm(border_pixels.astype(np.float32)-bg, axis=1), 90))
-    neutral = float(bg.max()-bg.min()) < 42
-    bright = float(bg.mean()) > 165
-    if not (neutral and bright and border_spread < 85):
-        return image
-
-    arr = rgb.astype(np.float32)
-    distance = np.linalg.norm(arr-bg[None,None,:], axis=2)
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    edge = cv2.magnitude(gx, gy)
-    edge = cv2.GaussianBlur(edge, (3,3), 0)
-    saturation = rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
-
-    # Background may only propagate through smooth pixels close to the sampled
-    # border color. Engineering edges form barriers, protecting thin brackets.
-    traversable = ((distance < 48) & (edge < 34) & (saturation < 34)).astype(np.uint8)
-    seeds = np.zeros((h, w), np.uint8)
-    seeds[:border, :] = traversable[:border, :]
-    seeds[-border:, :] = traversable[-border:, :]
-    seeds[:, :border] = np.maximum(seeds[:, :border], traversable[:, :border])
-    seeds[:, -border:] = np.maximum(seeds[:, -border:], traversable[:, -border:])
-    n, labels = cv2.connectedComponents(traversable, connectivity=8)
-    seed_labels = np.unique(labels[seeds.astype(bool)])
-    connected_bg = np.isin(labels, seed_labels[seed_labels != 0])
-
-    # Strong foreground evidence always wins, especially in the lower mechanical
-    # region where tabs, holes and brackets are frequently small and dark.
-    foreground_evidence = (distance > 30) | (edge > 42) | (gray < 232) | (saturation > 28)
-    foreground = (~connected_bg) | foreground_evidence
-
-    # Keep only meaningful components, but use a very small threshold so screws,
-    # mounting ears and clips are not discarded.
-    fg_u8 = foreground.astype(np.uint8)
-    count, comp, stats, _ = cv2.connectedComponentsWithStats(fg_u8, connectivity=8)
-    keep = np.zeros_like(fg_u8)
-    min_area = max(6, int(w*h*0.000004))
-    for idx in range(1, count):
-        x, y, cw, ch, area = stats[idx]
-        central = (x < w*0.78 and x+cw > w*0.22 and y < h*0.98 and y+ch > h*0.04)
-        lower_mechanical = y+ch > h*0.68 and area >= max(3, min_area//2)
-        if area >= min_area and (central or lower_mechanical):
-            keep[comp == idx] = 255
-
-    kernel = np.ones((3,3), np.uint8)
-    keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, kernel, iterations=1)
-    # Feather only one pixel; broad feathering visually changes bezel thickness.
-    soft = cv2.GaussianBlur(keep, (3,3), 0.45)
-    soft[keep == 255] = np.maximum(soft[keep == 255], 245)
-    mask = Image.fromarray(soft.astype(np.uint8), mode="L")
-    image.putalpha(mask)
-    bbox = mask.point(lambda a: 255 if a >= 8 else 0).getbbox()
+    if not transparent:
+        return layer
+    alpha=layer.getchannel("A")
+    bbox=alpha.point(lambda a:255 if a>=8 else 0).getbbox()
     if not bbox:
-        return image
-    pad = max(2, min(w,h)//220)
-    bbox = (max(0,bbox[0]-pad), max(0,bbox[1]-pad), min(w,bbox[2]+pad), min(h,bbox[3]+pad))
-    return image.crop(bbox)
+        return layer
+    pad=max(2,min(layer.size)//220)
+    bbox=(max(0,bbox[0]-pad),max(0,bbox[1]-pad),min(layer.width,bbox[2]+pad),min(layer.height,bbox[3]+pad))
+    return layer.crop(bbox)
+
 
 def _graphic_font(size, bold=False):
     candidates = [
@@ -24736,7 +24845,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v64000-conservative-universal-product-geometry-authority",
+        "engine": "autotecpro-commercial-composer-v66000-universal-fail-closed-exact-geometry-authority",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
         "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
@@ -24760,7 +24869,9 @@ def _graphic_compose_reference_campaign_v3200(
         "provider_product_exclusion_v62000": bool(protected_product_zone_v55000.get("applied")),
         "final_bezel_authority_v63000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
         "conservative_universal_product_geometry_authority_v64000": True,
+        "universal_fail_closed_exact_geometry_authority_v66000": True,
         "reference_style_mask_authority_v64000": "v47000_border_connected_background_removal",
+        "reference_style_mask_authority_v66000": "multi_candidate_source_geometry_verified_fail_closed",
         "bezel_absolute_isolation_v62000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_bezel_absolute_authority_v57000": bool(protected_product_zone_v55000.get("bottom_bezel_provider_exclusion")) and bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_apron_authority_v57000": protected_product_zone_v55000,
@@ -25328,217 +25439,77 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
 
 # v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
 @st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
-def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
-    """Return a contour-safe alpha matte while preserving the uploaded RGB exactly.
 
-    v32000 treats the product photo as an immutable engineering asset. The function
-    classifies only neutral studio background, connects it to an artificial outside
-    border, and removes only the region reachable from that border. Dark bezel,
-    metallic trim, controls, screen pixels, mounting tabs and reflections are never
-    repainted or geometrically modified. Internal openings remain transparent when
-    their studio background is physically connected to the outside scene.
+@st.cache_data(ttl=86400, max_entries=96, show_spinner=False)
+def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
+    """v66000 multi-candidate, fail-closed exact-geometry background removal.
+
+    Every candidate uses v47000-style outside-connected background propagation.
+    Approval requires source-to-cutout preservation of product extents and regional
+    support. The uploaded RGB is copied unchanged; only verified alpha is applied.
     """
     if Image is None or not raw_bytes:
         return b""
     try:
-        import numpy as np
-        from PIL import ImageDraw, ImageFilter
-
-        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
-        rgb_image = source.convert("RGB")
-        rgb = np.asarray(rgb_image, dtype=np.int16)
-        height, width = rgb.shape[:2]
-        if width < 3 or height < 3:
+        alpha,selection=_graphic_v66000_select_exact_geometry_alpha(raw_bytes)
+        if alpha is None:
+            diagnostic_log("graphic_v66000_mask_fail_closed", **selection)
             return b""
-
-        # Robustly estimate the studio backdrop from a thin border ring. Prefer
-        # bright, low-chroma samples, but gracefully fall back to all border pixels.
-        band = max(2, min(width, height) // 80)
-        border = np.concatenate([
-            rgb[:band, :, :].reshape(-1, 3),
-            rgb[-band:, :, :].reshape(-1, 3),
-            rgb[:, :band, :].reshape(-1, 3),
-            rgb[:, -band:, :].reshape(-1, 3),
-        ], axis=0)
-        border_brightness = border.mean(axis=1)
-        border_chroma = border.max(axis=1) - border.min(axis=1)
-        neutral = border[(border_brightness >= 190) & (border_chroma <= 46)]
-        samples = neutral if len(neutral) >= 32 else border
-        bg = np.median(samples, axis=0).astype(np.float32)
-
-        rgbf = rgb.astype(np.float32)
-        brightness = rgbf.mean(axis=2)
-        chroma = rgbf.max(axis=2) - rgbf.min(axis=2)
-        distance = np.sqrt(((rgbf - bg.reshape(1, 1, 3)) ** 2).sum(axis=2))
-
-        # Adaptive studio-background candidate. It intentionally tolerates mild
-        # illumination gradients and JPEG noise while excluding coloured UI pixels,
-        # dark bezel plastic and strongly differentiated metallic structure.
-        candidate = (
-            (brightness >= 186)
-            & (chroma <= 52)
-            & (
-                ((brightness >= 244) & (distance <= 82))
-                | ((brightness >= 226) & (distance <= 58))
-                | ((brightness >= 208) & (distance <= 38))
-                | ((brightness >= 186) & (distance <= 23))
-            )
-        )
-
-        # Unquestionable product pixels seed a one-pixel protection band. This
-        # protects antialiased glossy/silver edges without the broad multi-pixel
-        # expansion that previously retained white studio background around holes.
-        hard_foreground = (
-            (brightness <= 202)
-            | (chroma >= 50)
-            | (distance >= 78)
-        )
-        hard_img = Image.fromarray((hard_foreground.astype(np.uint8) * 255), mode="L")
-        protected = np.asarray(hard_img.filter(ImageFilter.MaxFilter(3))) > 0
-        candidate &= ~protected
-
-        # Add an artificial outside frame so every legitimate border-connected
-        # background region is joined, then flood once from the outer corner.
-        padded = Image.new("L", (width + 2, height + 2), 255)
-        candidate_img = Image.fromarray((candidate.astype(np.uint8) * 255), mode="L")
-        padded.paste(candidate_img, (1, 1))
-        ImageDraw.floodfill(padded, (0, 0), 128, thresh=0)
-        flood = np.asarray(padded, dtype=np.uint8)[1:-1, 1:-1]
-        background = flood == 128
-
-        # Build alpha without modifying source RGB. Fully connected background is
-        # transparent. Only a one-pixel neutral fringe receives partial alpha to
-        # suppress white halos; real product structure remains fully opaque.
-        alpha = np.full((height, width), 255, dtype=np.uint8)
-        alpha[background] = 0
-
-        bg_img = Image.fromarray((background.astype(np.uint8) * 255), mode="L")
-        adjacent = (np.asarray(bg_img.filter(ImageFilter.MaxFilter(3))) > 0) & ~background
-        neutral_edge = adjacent & ~protected & (chroma <= 38) & (brightness >= 205)
-        # More background-like pixels get lower alpha. The range never reaches zero
-        # outside the confirmed border-connected background, preserving contour mass.
-        edge_strength = np.clip((distance - 8.0) / 42.0, 0.0, 1.0)
-        edge_alpha = (56 + edge_strength * 199).astype(np.uint8)
-        alpha[neutral_edge] = np.minimum(alpha[neutral_edge], edge_alpha[neutral_edge])
-
-        # Safety checks: reject a matte that removes too much or too little. A failed
-        # mask falls back to the untouched studio card instead of altering geometry.
-        foreground_ratio = float(np.count_nonzero(alpha >= 16)) / float(width * height)
-        transparent_ratio = float(np.count_nonzero(alpha == 0)) / float(width * height)
-        if foreground_ratio < 0.08 or transparent_ratio < 0.05 or transparent_ratio > 0.94:
-            diagnostic_log(
-                "graphic_v32000_mask_rejected",
-                foreground_ratio=round(foreground_ratio, 4),
-                transparent_ratio=round(transparent_ratio, 4),
-            )
-            return b""
-
-        result = source.copy()
-        result.putalpha(Image.fromarray(alpha, mode="L"))
-        buffer = io.BytesIO()
-        result.save(buffer, format="PNG", optimize=True)
+        source=ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
+        result=source.copy()
+        result.putalpha(Image.fromarray(alpha.astype("uint8"),mode="L"))
+        buffer=io.BytesIO(); result.save(buffer,format="PNG",optimize=True)
+        diagnostic_log("graphic_v66000_mask_selected", selected=selection.get("selected"), confidence=selection.get("confidence"))
         return buffer.getvalue()
     except Exception as error:
-        diagnostic_log(
-            "graphic_v32000_contour_safe_mask_failed",
-            error_type=type(error).__name__,
-            error=str(error),
-        )
+        diagnostic_log("graphic_v66000_mask_failed",error_type=type(error).__name__,error=str(error))
         return b""
 
 
+
 # v23000: restored v20100 visual-baseline behavior for _graphic_open_product_layer_v3300.
+
 def _graphic_open_product_layer_v3300(uploaded_file):
-    """Open a protected exact-product asset for deterministic composition.
+    """Open the immutable v66000 exact-product authority layer.
 
-    Graphic Engine 8.0 never uses the legacy soft-distance cutout as the authority
-    for opaque studio product photos. The untouched upload supplies every RGB pixel.
-    Only an alpha mask derived from border-connected neutral background is applied.
-    This prevents bezel, screen, housing, buttons, knobs and UI pixels from being
-    softened, recolored, reconstructed or replaced before composition.
+    Source alpha is authoritative. Opaque sources use only a v66000 geometry-proven
+    alpha. Any uncertainty returns the complete untouched source card. Source RGB is
+    never generated, repainted, relit, decontaminated, warped or selectively repaired.
     """
-    raw = _graphic_uploaded_file_bytes(uploaded_file)
+    raw=_graphic_uploaded_file_bytes(uploaded_file)
     if not raw or Image is None:
-        return None, False
-    digest = hashlib.sha256(raw).hexdigest()
-    state = get_graphic_project_state()
-    cache = dict(state.get("product_mask_cache") or {})
-    cache_key = f"{GRAPHIC_PRODUCT_AUTHORITY_CACHE_VERSION}:{GRAPHIC_MASK_CACHE_VERSION}:{digest}"
-    # v56000 never trusts a cached cutout as the validation baseline. The source
-    # image is decoded and its authoritative alpha is freshly regenerated below.
-    # Cached entries are retained only as diagnostics/performance evidence and are
-    # overwritten after the fresh source-derived master passes validation.
-    cached = cache.get(cache_key)
-
+        return None,False
+    digest=hashlib.sha256(raw).hexdigest()
     try:
         with Image.open(io.BytesIO(raw)) as source_image:
-            master = ImageOps.exif_transpose(source_image).convert("RGBA")
+            master=ImageOps.exif_transpose(source_image).convert("RGBA")
     except Exception as error:
-        diagnostic_log(
-            "graphic_v20100_master_product_open_failed",
-            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-        )
-        return None, False
-
-    # A genuine source alpha channel is already authoritative. Preserve it exactly.
-    source_alpha = master.getchannel("A")
-    alpha_extrema = source_alpha.getextrema()
-    if alpha_extrema and alpha_extrema[0] < 250:
-        layer = master.copy()
-        transparent = True
-        mask_method = "authoritative_source_alpha"
+        diagnostic_log("graphic_v66000_master_open_failed",error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
+        return None,False
+    source_alpha=master.getchannel("A"); extrema=source_alpha.getextrema()
+    selection={"passed":True,"selected":"authoritative_source_alpha","confidence":1.0,"fail_closed":True}
+    if extrema and extrema[0]<250:
+        layer=master.copy(); transparent=True; mask_method="authoritative_source_alpha"
     else:
-        # For opaque studio photos, calculate transparency separately, then restore
-        # the untouched master RGB across the complete canvas. No RGB decontamination,
-        # blur, erosion, dilation or legacy distance-matte result is permitted.
-        strict_cutout_bytes = _graphic_white_background_mask_v3300(raw)
-        if strict_cutout_bytes:
-            try:
-                with Image.open(io.BytesIO(strict_cutout_bytes)) as masked_image:
-                    masked = ImageOps.exif_transpose(masked_image).convert("RGBA")
-                if masked.size != master.size:
-                    raise ValueError("strict mask coordinate mismatch")
-                alpha = masked.getchannel("A")
-                layer = master.copy()
-                layer.putalpha(alpha)
-                extrema = alpha.getextrema()
-                transparent = bool(extrema and extrema[0] < 32 and extrema[1] > 220)
-                mask_method = "border_connected_alpha_with_untouched_master_rgb"
-            except Exception as error:
-                diagnostic_log(
-                    "graphic_v20100_strict_mask_apply_failed",
-                    error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-                )
-                layer, transparent = master.copy(), False
-                mask_method = "untouched_master_card_fallback"
-        else:
-            layer, transparent = master.copy(), False
-            mask_method = "untouched_master_card_fallback"
-
-    # Cache only the protected master-RGB asset, never a legacy soft cutout.
-    if transparent:
         try:
-            buffer = io.BytesIO()
-            layer.save(buffer, format="PNG", optimize=True)
-            cache[cache_key] = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
-            state["product_mask_cache"] = {k: v for k, v in list(cache.items())[-12:]}
-            reports = dict(state.get("product_bezel_master_reports") or {})
-            reports[cache_key] = {
-                "applied": True,
-                "mode": "exact_product_asset_v59000_connected_component_binary_geometry_rgb_locked",
-                "mask_method": mask_method,
-                "master_rgb_sha256": digest,
-                "rgb_pixels_regenerated": False,
-                "product_pixels_provider_generated": False,
-            }
-            state["product_bezel_master_reports"] = {k: v for k, v in list(reports.items())[-12:]}
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+            alpha,selection=_graphic_v66000_select_exact_geometry_alpha(raw)
         except Exception as error:
-            diagnostic_log(
-                "graphic_v20100_exact_asset_cache_failed",
-                error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
-            )
-    return layer, transparent
+            alpha=None; selection={"passed":False,"reason":str(error)[:300],"fail_closed":True}
+        if alpha is not None and selection.get("passed"):
+            layer=master.copy(); layer.putalpha(Image.fromarray(alpha.astype("uint8"),mode="L"))
+            transparent=True; mask_method=f"v66000_geometry_proven_{selection.get('selected','candidate')}"
+        else:
+            layer=master.copy(); transparent=False; mask_method="v66000_untouched_master_card_fallback"
+    state=get_graphic_project_state(); reports=dict(state.get("product_bezel_master_reports") or {})
+    reports[digest]={
+        "applied":bool(transparent),"mode":"v66000_universal_fail_closed_exact_geometry_authority",
+        "mask_method":mask_method,"master_rgb_sha256":digest,"selection":selection,
+        "source_rgb_untouched":True,"immutable_product_compositing":True,"fail_closed":True,
+    }
+    state["product_bezel_master_reports"]={k:v for k,v in list(reports.items())[-12:]}
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+    return layer,transparent
+
 
 
 
