@@ -46,11 +46,11 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v66300 LTS — Universal Regression and Production Guard
-# Built directly from verified v66200. v66000 exact-geometry/bezel authority and v66200 full-fitment
-# authority remain unchanged. Adds a vehicle-agnostic/product-agnostic deterministic regression suite,
-# release gate, provider-route/cache fallback tests, and optional startup self-check without adding
-# provider calls or altering normal image-generation behavior.
+# AutoTecPro AI performance/stability revision: v66600 LTS — Working Recovery Orchestration and Layout Guard
+# Built from v66500 with the complete known-good v66200 public generation/recovery orchestration restored.
+# Preserves v66000 exact-geometry/bezel authority, v66200 full-fitment authority, v66300 universal regression
+# coverage, and the deterministic v66400 layout compositor. Removes the v66400/v66500 hard metadata-gate
+# interception that caused valid product + style-reference requests to terminate before normal recovery.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -29048,9 +29048,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     failures = []
     effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
-    exact_reference_guard_v66400 = _graphic_reference_exact_request_v66400(
-        effective_prompt, uploaded_files, forced_upload_role
-    )
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
@@ -29058,22 +29055,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
-        advanced_result_v66400 = _generate_graphic_marketing_images_advanced(
+        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
             effective_prompt, uploaded_files, **arguments
-        )
-        advanced_guard_v66400 = _graphic_reference_exact_result_guard_v66400(
-            advanced_result_v66400, exact_reference_guard_v66400
-        )
-        if not advanced_guard_v66400.get("passed"):
-            raise RuntimeError(
-                "v66500 exact-result contract rejected the advanced product/style result: "
-                + str(advanced_guard_v66400.get("reason") or "exact-product guard failed")
-            )
-        for image in advanced_result_v66400 or []:
-            if isinstance(image, dict):
-                image["reference_exact_guard_v66400"] = advanced_guard_v66400
-                image["reference_exact_guard_v66500"] = advanced_guard_v66400
-        return _graphic_finalize_recovery_v16000(advanced_result_v66400, "advanced", failures)
+        ), "advanced", failures)
     except Exception as error:
         failures.append(
             f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
@@ -29122,20 +29106,10 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         result = _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
         )
-        compatibility_guard_v66400 = _graphic_reference_exact_result_guard_v66400(
-            result, exact_reference_guard_v66400
-        )
-        if not compatibility_guard_v66400.get("passed"):
-            raise RuntimeError(
-                "v66500 exact-result contract rejected the deterministic compatibility result: "
-                + str(compatibility_guard_v66400.get("reason") or "exact-product guard failed")
-            )
         for image in result or []:
             if isinstance(image, dict):
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
-                image["reference_exact_guard_v66400"] = compatibility_guard_v66400
-                image["reference_exact_guard_v66500"] = compatibility_guard_v66400
         return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
     except Exception as error:
         failures.append(
@@ -29145,18 +29119,6 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "graphic_v15000_v3200_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
-        )
-
-    if exact_reference_guard_v66400.get("active"):
-        state = get_graphic_project_state()
-        state["stage"] = "ready_to_generate"
-        state["last_error"] = " | ".join(failures[-4:])[:1800]
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        raise RuntimeError(
-            "Exact product/reference commercial generation failed safely. "
-            "v66500 did not substitute a provider-generated poster because that could redraw the product, "
-            "drop feature zones, shift the tagline, or alter bezel and upper-corner geometry. "
-            + " | ".join(failures[-3:])
         )
 
     try:
@@ -29189,6 +29151,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
             + " | ".join(failures[-3:])
         ) from error
+
 
 
 
