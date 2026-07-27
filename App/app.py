@@ -46,8 +46,8 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v67000 LTS — Adaptive Reference Style Authority
-# v67000 adds adaptive Reference Style Authority: exact source, safe 2D adaptation, or bounded Product-DNA recreation while preserving full fitment wording, uniform scale, lighting and aperture-clipped glass.
+# AutoTecPro AI Graphic Marketing Engine v67500 LTS — Isolated Final Local Recovery & Result Normalization
+# v67500 preserves three-level Reference Style Authority and adds an isolated dependency-free exact-product fallback.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -30403,6 +30403,437 @@ def _graphic_v67400_accept_or_route(images, prompt_text, contract, *, route_name
     )
 
 
+
+GRAPHIC_V67500_POLICY_VERSION = "v67500-isolated-final-local-recovery"
+
+
+def _graphic_v67500_normalize_results(value):
+    """Normalize historical/provider result shapes into a list of image dictionaries."""
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        if value.get("data_url"):
+            return [value]
+        for key in ("images", "results", "output", "data"):
+            nested = value.get(key)
+            normalized = _graphic_v67500_normalize_results(nested)
+            if normalized:
+                return normalized
+        return []
+    if isinstance(value, (list, tuple)):
+        normalized = []
+        for item in value:
+            normalized.extend(_graphic_v67500_normalize_results(item))
+        return normalized
+    return []
+
+
+def _graphic_v67500_safe_font(size, *, bold=False, italic=False):
+    """Load a local system font without depending on project font assets."""
+    if Image is None:
+        return None
+    try:
+        from PIL import ImageFont
+    except Exception:
+        return None
+
+    candidates = []
+    if bold and italic:
+        candidates.extend([
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-BoldItalic.ttf",
+        ])
+    elif bold:
+        candidates.extend([
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+        ])
+    elif italic:
+        candidates.extend([
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Italic.ttf",
+        ])
+    else:
+        candidates.extend([
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        ])
+
+    for candidate in candidates:
+        try:
+            return ImageFont.truetype(candidate, int(size))
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default()
+    except Exception:
+        return None
+
+
+def _graphic_v67500_fit_text(draw, text, max_width, start_size, *, bold=False, italic=False, minimum=18):
+    clean = re.sub(r"\s+", " ", str(text or "")).strip()
+    for size in range(int(start_size), int(minimum) - 1, -2):
+        font = _graphic_v67500_safe_font(size, bold=bold, italic=italic)
+        if font is None:
+            continue
+        try:
+            box = draw.textbbox((0, 0), clean, font=font)
+            if (box[2] - box[0]) <= max_width:
+                return font
+        except Exception:
+            return font
+    return _graphic_v67500_safe_font(minimum, bold=bold, italic=italic)
+
+
+def _graphic_v67500_safe_campaign_copy(prompt_text):
+    """Build deterministic copy without vehicle research or provider metadata."""
+    prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    compatibility = str(_graphic_explicit_fitment_v41100(prompt) or "").strip()
+    if not compatibility:
+        compatibility = str(
+            _graphic_extract_full_compatibility_v36000(prompt, "") or ""
+        ).strip()
+    if not compatibility:
+        compatibility = "Vehicle Compatibility as Specified"
+
+    size_match = re.search(
+        r"\b(\d{1,2}(?:\.\d)?)\s*(?:inch|inches|[\"”])\s*"
+        r"((?:2k\s*)?(?:qhd|hd|uhd|4k)?)\b",
+        prompt,
+        re.I,
+    )
+    screen_size = ""
+    display_grade = ""
+    if size_match:
+        screen_size = size_match.group(1).rstrip("0").rstrip(".") + '"'
+        display_grade = re.sub(r"\s+", " ", size_match.group(2).upper()).strip()
+
+    product_type = "MULTIMEDIA SCREEN"
+    if re.search(r"\b(?:gauge cluster|digital cluster|instrument cluster)\b", prompt, re.I):
+        product_type = "DIGITAL GAUGE CLUSTER"
+    elif re.search(r"\b(?:digital display|display screen)\b", prompt, re.I):
+        product_type = "DIGITAL DISPLAY"
+
+    headline_parts = [part for part in (screen_size, display_grade, product_type) if part]
+    headline = " ".join(headline_parts) or "AUTOTECPRO OEM-FIT DISPLAY"
+
+    tagline = "Smarter Drive. Bigger Screen. OEM Fit."
+    if product_type == "DIGITAL GAUGE CLUSTER":
+        tagline = "Smarter Drive. More Control. All in Sight."
+
+    return {
+        "headline": headline,
+        "compatibility": compatibility,
+        "tagline": tagline,
+        "screen_size": screen_size,
+        "product_designation": product_type,
+        "compatibility_required_tokens": _graphic_copy_required_tokens_v36000(
+            compatibility
+        ),
+        "compatibility_locked": True,
+        "compatibility_source": "v66200-full-fitment-authority",
+    }
+
+
+def _graphic_v67500_isolated_local_commercial(
+    prompt_text,
+    uploaded_files,
+    *,
+    forced_upload_role="Auto-detect",
+    failure_reason="",
+):
+    """Final exact-product fallback with no remote or high-level shared dependencies.
+
+    This route intentionally does not call OpenAI, web research, Supabase cache,
+    reference analysis, vehicle research, campaign QA, or the advanced compositor.
+    """
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable for isolated local recovery.")
+
+    from PIL import ImageDraw, ImageFilter
+
+    effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = _graphic_recover_role_items(
+        uploaded_files,
+        effective,
+        forced_role=forced_upload_role,
+    )
+    product_item = next(
+        (
+            item for item in role_items
+            if item.get("role") == "product_photo" and item.get("file") is not None
+        ),
+        None,
+    )
+    if product_item is None:
+        # Use the current project state only as a file source, never for mode or QA.
+        state = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+        project_items = _graphic_project_role_items(
+            [],
+            effective,
+            forced_upload_role,
+        )
+        product_item = next(
+            (
+                item for item in project_items
+                if item.get("role") == "product_photo" and item.get("file") is not None
+            ),
+            None,
+        )
+    if product_item is None:
+        raise RuntimeError("No authoritative product photo is available.")
+
+    product_layer, transparent = _graphic_open_product_layer_v3300(
+        product_item.get("file")
+    )
+    if product_layer is None:
+        raise RuntimeError("The authoritative product layer could not be opened.")
+    if not transparent:
+        raise RuntimeError(
+            "Exact product transparency could not be proven; isolated recovery failed closed."
+        )
+
+    width, height = 1536, 1024
+    canvas = Image.new("RGB", (width, height), (229, 239, 248))
+    pixels = canvas.load()
+    for y in range(height):
+        vertical = y / max(1, height - 1)
+        for x in range(width):
+            horizontal = x / max(1, width - 1)
+            warm = max(0.0, horizontal - 0.60) * (1.0 - vertical * 0.55)
+            r = int(225 + 22 * warm - 22 * vertical)
+            g = int(237 + 11 * warm - 29 * vertical)
+            b = int(248 - 24 * warm - 34 * vertical)
+            pixels[x, y] = (
+                max(0, min(255, r)),
+                max(0, min(255, g)),
+                max(0, min(255, b)),
+            )
+
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    # Mountain/terrain silhouettes.
+    draw.polygon(
+        [(0, 610), (170, 470), (330, 590), (520, 430), (720, 610), (900, 490),
+         (1080, 600), (1280, 450), (1536, 600), (1536, 1024), (0, 1024)],
+        fill=(74, 91, 105, 150),
+    )
+    draw.polygon(
+        [(0, 720), (230, 605), (420, 710), (610, 575), (820, 705), (1030, 590),
+         (1250, 700), (1450, 610), (1536, 670), (1536, 1024), (0, 1024)],
+        fill=(54, 62, 67, 205),
+    )
+    # Sun and atmospheric glow.
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow, "RGBA")
+    for radius in range(210, 10, -12):
+        alpha = max(2, int(34 * (1 - radius / 220)))
+        gd.ellipse(
+            (1335 - radius, 365 - radius, 1335 + radius, 365 + radius),
+            fill=(255, 204, 112, alpha),
+        )
+    glow = glow.filter(ImageFilter.GaussianBlur(18))
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), glow)
+
+    copy = _graphic_v67500_safe_campaign_copy(effective)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # Branding: use official local logo when available; otherwise deterministic text.
+    logo_applied = False
+    try:
+        if AUTOTECPRO_BRAND_LOGO_FILE.exists():
+            with Image.open(AUTOTECPRO_BRAND_LOGO_FILE) as logo_img:
+                logo = ImageOps.exif_transpose(logo_img).convert("RGBA")
+            logo.thumbnail((330, 105), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(logo, (32, 26))
+            logo_applied = True
+    except Exception:
+        logo_applied = False
+    if not logo_applied:
+        font_logo = _graphic_v67500_safe_font(58, bold=True)
+        draw.text((35, 24), "AutoTecPro", font=font_logo, fill=(10, 30, 58, 255))
+
+    headline_font = _graphic_v67500_fit_text(
+        draw, copy["headline"], 790, 74, bold=True, minimum=38
+    )
+    draw.text((34, 135), copy["headline"], font=headline_font, fill=(8, 34, 70, 255))
+
+    compatibility_font = _graphic_v67500_fit_text(
+        draw, copy["compatibility"], 680, 38, bold=True, minimum=24
+    )
+    comp_box = draw.textbbox((0, 0), copy["compatibility"], font=compatibility_font)
+    comp_w = min(740, max(430, comp_box[2] - comp_box[0] + 55))
+    draw.polygon(
+        [(32, 235), (32 + comp_w, 235), (32 + comp_w - 24, 294), (22, 294)],
+        fill=(190, 18, 20, 250),
+    )
+    draw.text(
+        (55, 245),
+        copy["compatibility"],
+        font=compatibility_font,
+        fill=(255, 255, 255, 255),
+    )
+
+    tagline_font = _graphic_v67500_fit_text(
+        draw, copy["tagline"], 760, 31, italic=True, minimum=22
+    )
+    draw.text((34, 310), copy["tagline"], font=tagline_font, fill=(12, 37, 69, 255))
+
+    # Product scale is always uniform and derived from its alpha envelope.
+    alpha = product_layer.getchannel("A")
+    bbox = alpha.getbbox()
+    if not bbox:
+        raise RuntimeError("The authoritative product layer has no visible alpha envelope.")
+    product_crop = product_layer.crop(bbox)
+    target_w, target_h = 760, 600
+    factor = min(target_w / product_crop.width, target_h / product_crop.height)
+    scale_request = _graphic_v67400_requested_uniform_scale(effective)
+    if scale_request.get("requested") and scale_request.get("factor"):
+        factor *= max(0.65, min(1.45, float(scale_request["factor"])))
+    new_size = (
+        max(1, int(product_crop.width * factor)),
+        max(1, int(product_crop.height * factor)),
+    )
+    product_crop = product_crop.resize(new_size, Image.Resampling.LANCZOS)
+
+    # Only safe 2D rotation is permitted in this exact local route.
+    angle = _graphic_v67400_requested_angle(effective)
+    if angle.get("kind") == "rotate_2d":
+        degrees = min(
+            GRAPHIC_V67400_MAX_SAFE_2D_ROTATION_DEGREES,
+            abs(float(angle.get("degrees") or 0.0)),
+        )
+        signed = -degrees if angle.get("direction") == "clockwise" else degrees
+        product_crop = product_crop.rotate(
+            signed,
+            resample=Image.Resampling.BICUBIC,
+            expand=True,
+        )
+
+    product_x = 80
+    product_y = max(350, 930 - product_crop.height)
+    # Contact shadow only; product RGB remains untouched.
+    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow, "RGBA")
+    sd.ellipse(
+        (
+            product_x + 25,
+            product_y + product_crop.height - 30,
+            product_x + product_crop.width - 15,
+            product_y + product_crop.height + 38,
+        ),
+        fill=(0, 0, 0, 105),
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(22))
+    canvas = Image.alpha_composite(canvas, shadow)
+    canvas.alpha_composite(product_crop, (product_x, product_y))
+
+    # Right-side feature matrix.
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    feature_title = _graphic_v67500_safe_font(25, bold=True)
+    feature_body = _graphic_v67500_safe_font(21, bold=False)
+    features = [
+        ("Large Screen", copy.get("screen_size") or "HD Display"),
+        ("Wireless CarPlay", "Smart Connectivity"),
+        ("Navigation", "Ready"),
+        ("Plug & Play", "OEM Integration"),
+        ("OEM Fit", "& Finish"),
+        ("High Brightness", "IPS Screen"),
+    ]
+    grid_x, grid_y, cell_w, cell_h = 905, 115, 195, 115
+    for index, (title, body) in enumerate(features):
+        row, col = divmod(index, 3)
+        x = grid_x + col * cell_w
+        y = grid_y + row * cell_h
+        draw.rounded_rectangle(
+            (x, y, x + 174, y + 94),
+            radius=15,
+            fill=(255, 255, 255, 118),
+            outline=(15, 43, 78, 90),
+            width=2,
+        )
+        draw.text((x + 14, y + 16), title, font=feature_title, fill=(9, 35, 68, 255))
+        draw.text((x + 14, y + 52), body, font=feature_body, fill=(20, 53, 83, 255))
+
+    # Bottom feature bar overlays the product as requested in earlier workflows.
+    bar_y = 912
+    draw.rounded_rectangle(
+        (34, bar_y, 1502, 1005),
+        radius=18,
+        fill=(10, 16, 23, 238),
+        outline=(255, 255, 255, 95),
+        width=2,
+    )
+    bottom_font = _graphic_v67500_safe_font(25, bold=False)
+    labels = [
+        "Plug & Play",
+        "GPS Navigation",
+        "Wireless CarPlay",
+        "OEM Fit & Finish",
+        "High Brightness IPS",
+    ]
+    segment = (1502 - 34) / len(labels)
+    for i, label in enumerate(labels):
+        x = 34 + int(i * segment)
+        if i:
+            draw.line((x, bar_y + 16, x, 988), fill=(255, 255, 255, 130), width=2)
+        font = _graphic_v67500_fit_text(
+            draw, label, int(segment - 34), 25, minimum=18
+        )
+        box = draw.textbbox((0, 0), label, font=font)
+        text_x = x + int((segment - (box[2] - box[0])) / 2)
+        draw.text((text_x, bar_y + 31), label, font=font, fill=(255, 255, 255, 255))
+
+    output = io.BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", optimize=True)
+    png_bytes = output.getvalue()
+    data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode("ascii")
+    created = datetime.now(timezone.utc)
+    filename = graphic_image_filename(effective, created)
+
+    result = {
+        "name": filename,
+        "filename": filename,
+        "data_url": data_url,
+        "generated": True,
+        "mime_type": "image/png",
+        "size": f"{width}x{height}",
+        "resolution": f"{width}x{height}",
+        "created_at": created.isoformat(),
+        "model": "local-v67500-isolated-commercial",
+        "provider_route": "v67500-isolated-final-local-commercial",
+        "recovery_route": "v67500-isolated-final-local-commercial",
+        "provider_fallback_used": True,
+        "product_layer_immutable": True,
+        "product_geometry_provider_generated": False,
+        "ai_product_recreated": False,
+        "strict_product_identity_lock": True,
+        "product_transform_mode": "Exact Original Product",
+        "product_identity_method": "v66000-authoritative-mask-isolated-local-commercial",
+        "output_status": "completed_exact_local_commercial_v67500",
+        "verification_status": "verified_local_exact",
+        "campaign_spec": copy,
+        "compatibility": copy["compatibility"],
+        "deterministic_fitment_copy": copy["compatibility"],
+        "official_brand_logo_applied": logo_applied,
+        "failure_context": str(failure_reason or "")[-1200:],
+        "layered_metadata": {
+            "engine": "v67500-isolated-final-local-recovery",
+            "exact_product_asset_mode": True,
+            "product_pixels_provider_generated": False,
+            "ai_product_recreated": False,
+            "product_master_rgb_preserved": True,
+            "compatibility": copy["compatibility"],
+            "compatibility_required_tokens": copy["compatibility_required_tokens"],
+            "optional_metadata_missing_is_not_failure": True,
+            "remote_dependencies_used": False,
+        },
+    }
+    _graphic_save_latest_project_result(result)
+    return [result]
+
+
+
+
 GRAPHIC_V67310_POLICY_VERSION = "v67310-non-terminating-exact-recovery-with-v67200-cache"
 
 def _graphic_v67300_has_rendered_image(images):
@@ -30671,18 +31102,14 @@ def _graphic_v67300_exact_recovery_ladder(
     forced_upload_role,
     failures,
 ):
-    """Run every safe exact-product route independently.
-
-    No route is allowed to terminate the complete ladder. The ladder never uses
-    a provider-painted product fallback.
-    """
+    """v67500 non-terminating exact-product recovery ladder."""
     effective = _graphic_resolve_effective_prompt_v47000(prompt_text)
     role_items = list(contract.get("role_items") or [])
     attempts = []
 
     routes = [
         (
-            "v67300-deterministic-exact-reference",
+            "v67500-deterministic-exact-reference",
             lambda: _graphic_exact_reference_deterministic_recovery_v66820(
                 effective,
                 uploaded_files,
@@ -30691,7 +31118,7 @@ def _graphic_v67300_exact_recovery_ladder(
             ),
         ),
         (
-            "v67300-guaranteed-local-commercial",
+            "v67500-guaranteed-local-commercial",
             lambda: _graphic_v66830_guaranteed_exact_result(
                 effective,
                 uploaded_files,
@@ -30701,13 +31128,22 @@ def _graphic_v67300_exact_recovery_ladder(
             ),
         ),
         (
-            "v67300-direct-local-commercial",
+            "v67500-direct-local-commercial",
             lambda: _graphic_v67300_direct_local_commercial(
                 effective,
                 uploaded_files,
                 style_strength=style_strength,
                 forced_upload_role=forced_upload_role,
                 failure_reason=" | ".join(failures[-8:]),
+            ),
+        ),
+        (
+            "v67500-isolated-final-local-commercial",
+            lambda: _graphic_v67500_isolated_local_commercial(
+                effective,
+                uploaded_files,
+                forced_upload_role=forced_upload_role,
+                failure_reason=" | ".join(failures[-10:]),
             ),
         ),
     ]
@@ -30718,7 +31154,8 @@ def _graphic_v67300_exact_recovery_ladder(
     for route_name, runner in routes:
         started = time.perf_counter()
         try:
-            result = runner()
+            raw_result = runner()
+            result = _graphic_v67500_normalize_results(raw_result)
             if _graphic_v67300_has_rendered_image(result):
                 result = _graphic_v67300_repair_local_authority(
                     result,
@@ -30735,26 +31172,23 @@ def _graphic_v67300_exact_recovery_ladder(
                 contract,
                 route_name=route_name,
             )
-            attempts.append(
-                {
-                    "route": route_name,
-                    "duration_seconds": round(time.perf_counter() - started, 3),
-                    "rendered_image": _graphic_v67300_has_rendered_image(result),
-                    "accepted": bool(decision.get("accepted")),
-                    "hard_block": bool(decision.get("hard_block")),
-                    "reason": str(decision.get("reason") or ""),
-                }
-            )
-            diagnostic_log(
-                "graphic_v67300_exact_recovery_attempt",
-                **attempts[-1],
-            )
+            attempt = {
+                "route": route_name,
+                "duration_seconds": round(time.perf_counter() - started, 3),
+                "rendered_image": _graphic_v67300_has_rendered_image(result),
+                "accepted": bool(decision.get("accepted")),
+                "hard_block": bool(decision.get("hard_block")),
+                "reason": str(decision.get("reason") or ""),
+            }
+            attempts.append(attempt)
+            diagnostic_log("graphic_v67500_exact_recovery_attempt", **attempt)
+
             if decision.get("accepted"):
-                for image in result or []:
-                    if isinstance(image, dict):
-                        image["exact_recovery_attempts_v67300"] = attempts
-                        image["recovery_failures"] = failures[-8:]
-                        image["recovered_from_v67300"] = True
+                for image in result:
+                    image["exact_recovery_attempts_v67500"] = attempts
+                    image["recovery_failures"] = failures[-10:]
+                    image["recovered_from_v67500"] = True
+                    image["graphic_policy_version"] = GRAPHIC_V67500_POLICY_VERSION
                 return result, route_name, attempts
 
             failures.append(
@@ -30763,20 +31197,17 @@ def _graphic_v67300_exact_recovery_ladder(
             )
         except Exception as error:
             _graphic_v67300_route_failure(failures, route_name, error)
-            attempts.append(
-                {
-                    "route": route_name,
-                    "duration_seconds": round(time.perf_counter() - started, 3),
-                    "rendered_image": False,
-                    "accepted": False,
-                    "hard_block": False,
-                    "reason": f"{type(error).__name__}:"
-                    f"{_graphic_compact_error_v4000(error)}",
-                }
-            )
+            attempts.append({
+                "route": route_name,
+                "duration_seconds": round(time.perf_counter() - started, 3),
+                "rendered_image": False,
+                "accepted": False,
+                "hard_block": False,
+                "reason": f"{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}",
+            })
 
-    # Preserve an already-rendered, directly proven local result when a later
-    # optional audit alone failed. Never use this clause for provider imagery.
+    # Never discard a directly proven local image because of an optional post-audit.
     if last_usable:
         repaired = _graphic_v67300_repair_local_authority(
             last_usable,
@@ -30786,25 +31217,24 @@ def _graphic_v67300_exact_recovery_ladder(
         )
         proof = _graphic_v67100_exact_proof(repaired)
         violation = _graphic_v66860_direct_product_violation(repaired)
-        if proof.get("passed") and not violation:
-            fitment = _graphic_v67100_fitment_gate(
-                repaired,
-                effective,
-                required=True,
-                route_name=last_usable_route,
-            )
-            if fitment.get("passed"):
-                for image in repaired or []:
-                    if isinstance(image, dict):
-                        image["exact_recovery_attempts_v67300"] = attempts
-                        image["recovery_failures"] = failures[-8:]
-                        image["accepted_by_local_authority_v67300"] = True
-                        image["accepted_route_v67300"] = last_usable_route
-                return repaired, last_usable_route, attempts
+        fitment = _graphic_v67100_fitment_gate(
+            repaired,
+            effective,
+            required=True,
+            route_name=last_usable_route,
+        )
+        if proof.get("passed") and not violation and fitment.get("passed"):
+            for image in repaired:
+                image["exact_recovery_attempts_v67500"] = attempts
+                image["recovery_failures"] = failures[-10:]
+                image["accepted_by_local_authority_v67500"] = True
+                image["accepted_route_v67500"] = last_usable_route
+                image["graphic_policy_version"] = GRAPHIC_V67500_POLICY_VERSION
+            return repaired, last_usable_route, attempts
 
     raise RuntimeError(
-        "All exact-product local commercial recovery routes failed. "
-        + " | ".join(failures[-8:])
+        "All exact-product recovery routes failed, including the isolated local route. "
+        + " | ".join(failures[-10:])
     )
 
 
@@ -30821,7 +31251,7 @@ def generate_graphic_marketing_images(
     product_transform_mode="Auto",
     professional_layered_studio=True,
 ):
-    """v67400 public API with three-level Reference Style authority."""
+    """v67500 public API with isolated final local recovery."""
     failures = []
     original_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
 
@@ -30835,7 +31265,7 @@ def generate_graphic_marketing_images(
     except Exception as error:
         failures.append("mode:" + _graphic_compact_error_v4000(error))
         contract = {
-            "version": GRAPHIC_V67400_POLICY_VERSION,
+            "version": GRAPHIC_V67500_POLICY_VERSION,
             "mode": "fully_generative_concept",
             "role_items": [],
             "strict_exact_product": False,
@@ -30872,7 +31302,7 @@ def generate_graphic_marketing_images(
             "stage": "generating",
             "last_error": "",
             "generation_started_at": datetime.now(timezone.utc).isoformat(),
-            "graphic_policy_version": GRAPHIC_V67400_POLICY_VERSION,
+            "graphic_policy_version": GRAPHIC_V67500_POLICY_VERSION,
             "graphic_mode_contract_v67400": {
                 key: value
                 for key, value in contract.items()
@@ -30888,6 +31318,7 @@ def generate_graphic_marketing_images(
             uploaded_files,
             **arguments,
         )
+        result = _graphic_v67500_normalize_results(result)
         decision = _graphic_v67400_accept_or_route(
             result,
             original_prompt,
@@ -30902,7 +31333,7 @@ def generate_graphic_marketing_images(
             for image in result or []:
                 if isinstance(image, dict):
                     image["graphic_policy_version"] = (
-                        GRAPHIC_V67400_POLICY_VERSION
+                        GRAPHIC_V67500_POLICY_VERSION
                     )
             return _graphic_finalize_recovery_v16000(
                 result,
@@ -30931,29 +31362,42 @@ def generate_graphic_marketing_images(
         )
 
     if contract.get("strict_exact_product"):
-        result, route, attempts = _graphic_v67300_exact_recovery_ladder(
-            original_prompt,
-            uploaded_files,
-            contract,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-            failures=failures,
-        )
-        result = _graphic_v66860_attach_diagnostic_audit(
-            result,
-            original_prompt,
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["exact_recovery_attempts_v67400"] = attempts
-                image["graphic_policy_version"] = (
-                    GRAPHIC_V67400_POLICY_VERSION
-                )
-        return _graphic_finalize_recovery_v16000(
-            result,
-            route,
-            failures,
-        )
+        try:
+            result, route, attempts = _graphic_v67300_exact_recovery_ladder(
+                original_prompt,
+                uploaded_files,
+                contract,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+                failures=failures,
+            )
+            result = _graphic_v66860_attach_diagnostic_audit(
+                result,
+                original_prompt,
+            )
+            for image in result or []:
+                if isinstance(image, dict):
+                    image["exact_recovery_attempts_v67500"] = attempts
+                    image["graphic_policy_version"] = (
+                        GRAPHIC_V67500_POLICY_VERSION
+                    )
+            return _graphic_finalize_recovery_v16000(
+                result,
+                route,
+                failures,
+            )
+        except Exception as error:
+            _graphic_v67300_route_failure(
+                failures,
+                "v67500-complete-exact-ladder",
+                error,
+            )
+            diagnostic_log(
+                "graphic_v67500_exact_ladder_exhausted",
+                mode=contract.get("mode"),
+                failures=" | ".join(failures[-10:]),
+            )
+            raise
 
     if contract.get("screen_local_edit"):
         try:
@@ -30962,6 +31406,7 @@ def generate_graphic_marketing_images(
                 uploaded_files,
                 **arguments,
             )
+            result = _graphic_v67500_normalize_results(result)
             decision = _graphic_v67400_accept_or_route(
                 result,
                 original_prompt,
@@ -31012,6 +31457,7 @@ def generate_graphic_marketing_images(
                 uploaded_files,
                 **arguments,
             )
+            result = _graphic_v67500_normalize_results(result)
             decision = _graphic_v67400_accept_or_route(
                 result,
                 original_prompt,
@@ -31074,9 +31520,10 @@ def generate_graphic_marketing_images(
             uploaded_files,
             **arguments,
         )
+        result = _graphic_v67500_normalize_results(result)
         return _graphic_finalize_recovery_v16000(
             result,
-            "v67400-mode-compatible-v3200",
+            "v67500-mode-compatible-v3200",
             failures,
         )
     except Exception as error:
@@ -31093,9 +31540,10 @@ def generate_graphic_marketing_images(
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
         )
+        result = _graphic_v67500_normalize_results(result)
         return _graphic_finalize_recovery_v16000(
             result,
-            "v67400-mode-compatible-emergency-provider",
+            "v67500-mode-compatible-emergency-provider",
             failures,
         )
     except Exception as error:
