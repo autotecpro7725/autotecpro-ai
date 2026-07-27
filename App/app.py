@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v67800 LTS — Final v66200 Reference Compositor, Official Logo, HD Copy & Locked Footer
+# AutoTecPro AI Graphic Marketing Engine v67900 LTS — Reference Content Isolation, Opaque Copy Zones & Touchscreen Authority
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -16781,9 +16781,208 @@ def _graphic_explicit_fitment_v41100(text):
 GRAPHIC_V67800_POLICY_VERSION = "v67800-v66200-reference-compositor-authority"
 
 
+
+GRAPHIC_V67900_POLICY_VERSION = "v67900-reference-content-isolation"
+
+
+def _graphic_v67900_prompt_product_designation(prompt_text):
+    """Resolve the advertised product from the current command only.
+
+    The style-reference product category is never allowed to leak into the new
+    campaign. An unspecified 12.1-inch infotainment-style screen defaults to
+    TOUCHSCREEN, not DIGITAL GAUGE CLUSTER.
+    """
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = text.casefold()
+
+    explicit_patterns = [
+        (r"\bdigital\s+gauge\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
+        (r"\binstrument\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
+        (r"\bdigital\s+display\b", "DIGITAL DISPLAY"),
+        (r"\btouch\s*screen\b|\btouchscreen\b", "TOUCHSCREEN"),
+        (r"\binfotainment\s+(?:system|screen|display)\b", "INFOTAINMENT SYSTEM"),
+        (r"\bhead\s*unit\b", "INFOTAINMENT SYSTEM"),
+        (r"\bradio\s+(?:screen|system)\b", "INFOTAINMENT SYSTEM"),
+        (r"\bmultimedia\s+(?:screen|system|display)\b", "MULTIMEDIA SCREEN"),
+    ]
+    for pattern, label in explicit_patterns:
+        if re.search(pattern, lower, re.I):
+            return {
+                "designation": label,
+                "source": "explicit-current-command",
+                "explicit": True,
+            }
+
+    # A screen-size command paired with an uploaded center-stack product is an
+    # infotainment/touchscreen campaign unless the current command says cluster.
+    if re.search(
+        r"\b\d{1,2}(?:\.\d+)?\s*(?:inch|inches|[\"”])",
+        text,
+        re.I,
+    ):
+        return {
+            "designation": "TOUCHSCREEN",
+            "source": "current-screen-command-default",
+            "explicit": False,
+        }
+
+    return {
+        "designation": "DIGITAL DISPLAY",
+        "source": "neutral-current-command-default",
+        "explicit": False,
+    }
+
+
+def _graphic_v67900_normalize_compatibility(text):
+    """Normalize only punctuation while preserving every fitment token."""
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    value = re.sub(
+        r"\(\s*((?:19|20)\d{2})\s*[/\\-]\s*((?:19|20)\d{2})\s*\)",
+        lambda m: f"({m.group(1)}–{m.group(2)})",
+        value,
+    )
+    value = re.sub(
+        r"\b((?:19|20)\d{2})\s*[/\\-]\s*((?:19|20)\d{2})\b",
+        lambda m: f"{m.group(1)}–{m.group(2)}",
+        value,
+    )
+    return value
+
+
+def _graphic_v67900_clean_feature_plan(spec, prompt_text):
+    """Return exactly eight unique labels from the current product category."""
+    designation = str(
+        spec.get("product_designation")
+        or _graphic_v67900_prompt_product_designation(prompt_text).get("designation")
+        or "TOUCHSCREEN"
+    ).strip().upper()
+    size = str(spec.get("screen_size") or "").strip()
+    grade = str(spec.get("display_grade") or "").strip()
+
+    if designation == "DIGITAL GAUGE CLUSTER":
+        candidates = [
+            f"{size} {grade} Large Screen".strip(),
+            "Multiple Display Styles",
+            "Real-Time Vehicle Data",
+            "Fuel Level Display",
+            "Outdoor Temperature",
+            "Off-Road Information",
+            "Dual Travel Mileage",
+            "Hill Descent Assist",
+        ]
+    else:
+        candidates = [
+            f"{size} {grade} Large Screen".strip(),
+            "Wireless CarPlay",
+            "Android Auto",
+            "Bluetooth",
+            "GPS Navigation",
+            "OEM Controls",
+            "Plug & Play",
+            "Backup Camera",
+        ]
+
+    result = []
+    seen = set()
+    for item in candidates:
+        label = re.sub(r"\s+", " ", str(item or "")).strip()
+        key = re.sub(r"[^a-z0-9]+", "", label.casefold())
+        if label and key and key not in seen:
+            seen.add(key)
+            result.append(label)
+    return result[:8]
+
+
+def _graphic_v67900_footer_plan(spec, prompt_text):
+    designation = str(
+        spec.get("product_designation")
+        or _graphic_v67900_prompt_product_designation(prompt_text).get("designation")
+        or "TOUCHSCREEN"
+    ).strip().upper()
+    if designation == "DIGITAL GAUGE CLUSTER":
+        return [
+            "Plug and Play",
+            "Off-Road Information",
+            "Multiple Display Styles",
+            "OEM Fit & Finish",
+            "High Brightness IPS Screen",
+        ]
+    return [
+        "Plug and Play",
+        "GPS Navigation",
+        "Wireless CarPlay",
+        "OEM Fit & Finish",
+        "High Brightness IPS Screen",
+    ]
+
+
+def _graphic_v67900_clear_deterministic_zones(canvas, layout_bp):
+    """Erase provider-created copy/icons before deterministic rendering.
+
+    The background provider may occasionally paint text despite instructions.
+    These opaque, reference-aligned panels guarantee that no duplicate, misspelled
+    or reference-product wording survives beneath the local renderer.
+    """
+    if Image is None or canvas is None:
+        return canvas, {"applied": False}
+
+    from PIL import ImageDraw
+
+    out = canvas.convert("RGBA")
+    W, H = out.size
+    layer = Image.new("RGBA", out.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer, "RGBA")
+
+    def rect(box, fill, padding=(0, 0, 0, 0)):
+        x = int(W * box[0]) - int(padding[0])
+        y = int(H * box[1]) - int(padding[1])
+        w = int(W * box[2]) + int(padding[0]) + int(padding[2])
+        h = int(H * box[3]) + int(padding[1]) + int(padding[3])
+        draw.rectangle(
+            (
+                max(0, x),
+                max(0, y),
+                min(W, x + w),
+                min(H, y + h),
+            ),
+            fill=fill,
+        )
+
+    pale = (239, 246, 252, 252)
+    # Clear a unified upper copy field first, then reinforce exact zones.
+    upper_end = max(
+        layout_bp["tagline_box"][1] + layout_bp["tagline_box"][3],
+        layout_bp["feature_matrix_box"][1] + layout_bp["feature_matrix_box"][3],
+    )
+    draw.rectangle((0, 0, W, int(H * upper_end) + 10), fill=pale)
+
+    rect(layout_bp["logo_box"], pale, (8, 8, 12, 8))
+    rect(layout_bp["headline_box"], pale, (8, 8, 12, 8))
+    rect(layout_bp["compatibility_box"], pale, (8, 6, 12, 6))
+    rect(layout_bp["tagline_box"], pale, (8, 6, 12, 8))
+    rect(layout_bp["feature_matrix_box"], pale, (10, 8, 10, 8))
+
+    # Footer is drawn after the product, but pre-clear its full footprint to avoid
+    # any provider-created text or symbols around the rounded corners.
+    rect(layout_bp["bottom_bar_box"], (8, 18, 31, 255), (5, 5, 5, 5))
+
+    return Image.alpha_composite(out, layer), {
+        "applied": True,
+        "policy": GRAPHIC_V67900_POLICY_VERSION,
+        "provider_copy_removed": True,
+        "cleared_zones": [
+            "logo",
+            "headline",
+            "compatibility",
+            "tagline",
+            "feature_matrix",
+            "bottom_bar",
+        ],
+    }
+
+
 def _graphic_v67800_current_display_facts(text):
     value = re.sub(r"\s+", " ", str(text or "")).strip()
-    lower = value.casefold()
     size_match = re.search(
         r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|inches|[\"”])"
         r"(?:\s*[,;:\-]?\s*(2k\s*qhd|qhd|full\s*hd|fhd|hd|uhd|4k))?\b",
@@ -16794,26 +16993,19 @@ def _graphic_v67800_current_display_facts(text):
     display_grade = ""
     if size_match:
         screen_size = size_match.group(1).rstrip("0").rstrip(".") + '"'
-        display_grade = re.sub(r"\s+", " ", str(size_match.group(2) or "")).strip().upper()
+        display_grade = re.sub(
+            r"\s+", " ", str(size_match.group(2) or "")
+        ).strip().upper()
 
-    designation = ""
-    for pattern, label in [
-        (r"\bdigital\s+gauge\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
-        (r"\binstrument\s+cluster\b", "DIGITAL GAUGE CLUSTER"),
-        (r"\bdigital\s+display\b", "DIGITAL DISPLAY"),
-        (r"\btouchscreen\b", "TOUCHSCREEN"),
-        (r"\binfotainment\s+(?:system|screen|display)\b", "INFOTAINMENT SYSTEM"),
-        (r"\bhead\s*unit\b", "INFOTAINMENT SYSTEM"),
-        (r"\bradio\s+screen\b", "INFOTAINMENT SYSTEM"),
-    ]:
-        if re.search(pattern, lower, re.I):
-            designation = label
-            break
+    designation_info = _graphic_v67900_prompt_product_designation(value)
+    designation = str(designation_info.get("designation") or "").strip()
 
     return {
         "screen_size": screen_size,
         "display_grade": display_grade,
         "product_designation": designation,
+        "product_designation_source": designation_info.get("source"),
+        "product_designation_explicit": bool(designation_info.get("explicit")),
         "has_current_size": bool(screen_size),
         "has_current_grade": bool(display_grade),
         "has_current_designation": bool(designation),
@@ -16839,53 +17031,11 @@ def _graphic_v67800_build_authoritative_headline(spec, prompt_text):
 
 
 def _graphic_v67800_reference_features(spec, prompt_text):
-    result=[]; seen=set()
-    category=" ".join([
-        str(spec.get("product_designation") or ""),
-        str(spec.get("product_category") or ""),
-        str(prompt_text or ""),
-    ]).casefold()
-    size=str(spec.get("screen_size") or "").strip()
-    grade=str(spec.get("display_grade") or "").strip()
-    if "gauge cluster" in category or "instrument cluster" in category:
-        defaults=[
-            f"{size} {grade} Large Screen".strip(),
-            "Multiple Display Styles","Real-Time Vehicle Data","Fuel Level Display",
-            "Outdoor Temperature","Off-Road Information","Dual Travel Mileage",
-            "Hill Descent Assist",
-        ]
-    else:
-        defaults=[
-            f"{size} {grade} Large Screen".strip(),
-            "Wireless CarPlay","Android Auto","Bluetooth","Navigation",
-            "OEM Controls","Plug & Play","Backup Camera",
-        ]
-    # Current verified/default feature plan is preferred over stale arbitrary copy.
-    for item in defaults:
-        label=re.sub(r"\s+"," ",str(item or "")).strip()
-        key=re.sub(r"[^a-z0-9]+","",label.casefold())
-        if label and key and key not in seen:
-            seen.add(key); result.append(label)
-    return result[:8]
+    return _graphic_v67900_clean_feature_plan(spec, prompt_text)
 
 
 def _graphic_v67800_bottom_benefits(spec, prompt_text):
-    category=" ".join([
-        str(spec.get("product_designation") or ""),
-        str(spec.get("product_category") or ""),
-        str(prompt_text or ""),
-    ]).casefold()
-    if "gauge cluster" in category or "instrument cluster" in category:
-        defaults=[
-            "Plug and Play","Off-Road Information","Multiple Display Styles",
-            "OEM Fit & Finish","High-Brightness IPS Screen",
-        ]
-    else:
-        defaults=[
-            "Plug and Play","GPS Navigation","Wireless CarPlay",
-            "OEM Fit & Finish","High-Brightness IPS Screen",
-        ]
-    return defaults
+    return _graphic_v67900_footer_plan(spec, prompt_text)
 
 
 def _graphic_v67800_locked_reference_boxes(layout_bp):
@@ -16930,6 +17080,7 @@ def _graphic_extract_campaign_spec(text, existing=None):
         if display_name and not explicit_fitment and not existing.get("compatibility"):
             existing["compatibility"]=display_name
     if explicit_fitment:
+        explicit_fitment = _graphic_v67900_normalize_compatibility(explicit_fitment)
         existing["compatibility"]=explicit_fitment
         existing["compatibility_source"]="current_user_prompt_v41100"
         existing["compatibility_locked"]=True
@@ -16938,9 +17089,11 @@ def _graphic_extract_campaign_spec(text, existing=None):
         existing["screen_size"]=facts["screen_size"]
     if facts["display_grade"]:
         existing["display_grade"]=facts["display_grade"]
-    if facts["product_designation"]:
-        existing["product_designation"]=facts["product_designation"]
-        existing["product_category"]=facts["product_designation"]
+    # Current product identity is authoritative. Never inherit the reference
+    # product's category (for example, DIGITAL GAUGE CLUSTER) into this campaign.
+    existing["product_designation"] = facts["product_designation"]
+    existing["product_category"] = facts["product_designation"]
+    existing["product_designation_source"] = facts.get("product_designation_source")
 
     labelled={
         "headline":r"(?i)\bheadline\s*[:\-]\s*([^|;]{4,120})",
@@ -16971,7 +17124,7 @@ def _graphic_extract_campaign_spec(text, existing=None):
 
     existing.setdefault("website","www.AutoTecPro.com")
     existing.setdefault("tagline","Smarter Drive. More Control. All in Sight.")
-    existing.setdefault("product_category","DIGITAL DISPLAY")
+    existing.setdefault("product_category", facts["product_designation"] or "TOUCHSCREEN")
 
     if not explicit_headline and any([
         facts["has_current_size"],facts["has_current_grade"],facts["has_current_designation"]
@@ -25018,6 +25171,10 @@ def _graphic_compose_reference_campaign_v3200(
         y = header_h + step
         od.line((0, y, W, y), fill=(244, 248, 253, alpha))
     canvas = Image.alpha_composite(canvas, overlay)
+    canvas, deterministic_zone_clear_v67900 = _graphic_v67900_clear_deterministic_zones(
+        canvas,
+        layout_bp,
+    )
 
     # Keep exact source pixels. When cutout confidence is low, use a tightly cropped
     # neutral card rather than corrupting physical geometry.
@@ -25303,7 +25460,7 @@ def _graphic_compose_reference_campaign_v3200(
     draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
 
     # Compact, reference-faithful 4x2 feature matrix.
-    features = list(campaign_spec.get("feature_labels") or [])[:8]
+    features = _graphic_v67900_clean_feature_plan(campaign_spec, prompt_text)
     feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
     defaults = [
         "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
@@ -25337,7 +25494,7 @@ def _graphic_compose_reference_campaign_v3200(
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
             ty += int(H * 0.0225)
 
-    benefits = _graphic_v67800_bottom_benefits(campaign_spec, prompt_text)
+    benefits = _graphic_v67900_footer_plan(campaign_spec, prompt_text)
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
@@ -25398,6 +25555,9 @@ def _graphic_compose_reference_campaign_v3200(
         "product_pixels_provider_generated": False,
         "product_ai_reconstruction_prohibited": True,
         "deterministic_typography": True,
+        "provider_copy_exclusion_v67900": deterministic_zone_clear_v67900,
+        "reference_content_isolation_v67900": True,
+        "current_product_designation_v67900": str(campaign_spec.get("product_designation") or ""),
         "fixed_production_geometry": True,
         "official_brand_logo_applied": logo_applied,
         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
@@ -26212,6 +26372,13 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
             "Vehicle-Specific Installation", "Factory Integration", "Smart Connectivity",
             "OEM Fit & Finish", "High-Brightness Display",
         ]
+    # Reference image and cached product data may supply layout/style, but never
+    # overwrite the current command's advertised product category.
+    spec["product_designation"] = current_display_facts_v67800.get("product_designation") or "TOUCHSCREEN"
+    spec["product_category"] = spec["product_designation"]
+    spec["product_designation_source"] = current_display_facts_v67800.get("product_designation_source")
+    if spec.get("compatibility"):
+        spec["compatibility"] = _graphic_v67900_normalize_compatibility(spec["compatibility"])
     if any([current_display_facts_v67800.get("has_current_size"), current_display_facts_v67800.get("has_current_grade"), current_display_facts_v67800.get("has_current_designation")]):
         spec["headline"] = _graphic_v67800_build_authoritative_headline(spec, prompt_text)
         spec["headline_source"] = "current_command_display_authority_v67800"
