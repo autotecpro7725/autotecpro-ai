@@ -55,11 +55,6 @@ except Exception:
 #   Supabase/history/product-library/WooCommerce integrations, mobile interface and downloads.
 # - v66000 multi-candidate extraction, source-to-cutout geometry verification, confidence selection,
 #   immutable local product compositing and fail-closed untouched-card authority.
-# AutoTecPro AI performance/stability revision: v66800 LTS — v66200 Exact Product Aspect and Bezel Authority
-# v66800 is built directly from the verified working v66200 source. It does not inherit
-# v66400/v66700/v66710 hero-box or product-layout authority. Reference Mode uses only
-# uniform product scaling and hard source-to-render aspect verification so the screen,
-# bezel, housing, buttons and mounting geometry cannot be widened independently.
 # v63000 Final Bezel Authority Engine built directly from v62000 LTS.
 # Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
 # First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
@@ -24515,48 +24510,6 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
-
-
-def _graphic_v66800_exact_aspect_guard(source_image, rendered_image, *, stage="render"):
-    """Fail closed if any Reference Mode transform widens or narrows the product.
-
-    The uploaded product may undergo only one isotropic scale and integer translation.
-    Independent X/Y resizing, perspective warp, mesh warp, screen-only fitting and
-    post-layout geometry optimization are prohibited. A small tolerance is allowed only
-    for integer rounding when converting the uniformly scaled size to output pixels.
-    """
-    if Image is None or source_image is None or rendered_image is None:
-        return {"passed": False, "stage": stage, "reason": "image unavailable", "fail_closed": True}
-    sw, sh = [max(1, int(v)) for v in source_image.size]
-    rw, rh = [max(1, int(v)) for v in rendered_image.size]
-    source_aspect = sw / sh
-    rendered_aspect = rw / rh
-    relative_error = abs(rendered_aspect - source_aspect) / max(source_aspect, 1e-9)
-    # Integer rounding of a single uniform scale should remain far below 0.25%.
-    tolerance = 0.0025
-    passed = relative_error <= tolerance
-    report = {
-        "passed": bool(passed),
-        "stage": str(stage),
-        "source_size": [sw, sh],
-        "rendered_size": [rw, rh],
-        "source_aspect": round(source_aspect, 10),
-        "rendered_aspect": round(rendered_aspect, 10),
-        "relative_error": round(relative_error, 10),
-        "tolerance": tolerance,
-        "uniform_scale_only": True,
-        "independent_xy_scale_prohibited": True,
-        "perspective_warp_prohibited": True,
-        "screen_only_resize_prohibited": True,
-        "fail_closed": True,
-    }
-    if not passed:
-        raise RuntimeError(
-            "Reference Mode exact-product aspect guard rejected a non-uniform product transform "
-            f"at {stage}: source={sw}x{sh}, rendered={rw}x{rh}, error={relative_error:.6f}."
-        )
-    return report
-
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -24673,9 +24626,6 @@ def _graphic_compose_reference_campaign_v3200(
         product,
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
     )
-    exact_aspect_guard_v66800 = _graphic_v66800_exact_aspect_guard(
-        authoritative_pre_resize_v61000, product, stage="uniform-product-resize"
-    )
     if source_aspect < 0.90:
         px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
     else:
@@ -24768,9 +24718,6 @@ def _graphic_compose_reference_campaign_v3200(
     for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
-    exact_post_effect_aspect_guard_v66800 = _graphic_v66800_exact_aspect_guard(
-        authoritative_pre_resize_v61000, product, stage="post-lighting-glass-and-ui-restoration"
-    )
     final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
         product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
@@ -24984,10 +24931,6 @@ def _graphic_compose_reference_campaign_v3200(
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
-        "exact_product_aspect_guard_v66800": exact_aspect_guard_v66800,
-        "post_effect_aspect_guard_v66800": exact_post_effect_aspect_guard_v66800,
-        "v66200_product_geometry_baseline": True,
-        "v66400_v66700_v66710_hero_box_authority_removed": True,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
         "bottom_bezel_pixel_lock_v56000": bool(lower_housing_fidelity_v55000.get("passed")),
         "bottom_bezel_pixel_lock_v57000": bool(lower_housing_fidelity_v55000.get("passed")) and bool(protected_product_zone_v55000.get("applied")),
@@ -28754,11 +28697,158 @@ def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, outp
     return [result]
 
 
+
+def _graphic_exact_reference_request_v66820(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
+    """Return role state for Reference Mode jobs that require immutable uploaded-product pixels."""
+    role_items = _graphic_project_role_items(
+        uploaded_files,
+        _graphic_resolve_effective_prompt_v47000(prompt_text),
+        forced_upload_role,
+    )
+    has_product = any(item.get("role") == "product_photo" for item in role_items or [])
+    has_style = any(item.get("role") == "style_reference" for item in role_items or [])
+    return {
+        "required": bool(has_product and has_style),
+        "role_items": role_items,
+        "has_product": has_product,
+        "has_style": has_style,
+    }
+
+
+def _graphic_exact_reference_result_safe_v66820(images):
+    """Accept only results whose metadata proves local immutable-product composition."""
+    if not isinstance(images, (list, tuple)) or not images:
+        return False
+    image = images[0] if isinstance(images[0], dict) else {}
+    metadata = dict(image.get("layered_metadata") or {})
+    exact_pixels = bool(
+        metadata.get("exact_product_pixels")
+        or metadata.get("exact_product_asset_mode")
+        or image.get("strict_product_identity_lock")
+        or image.get("product_layer_immutable")
+    )
+    source_rgb = bool(
+        metadata.get("product_master_rgb_preserved")
+        or metadata.get("v55000_product_pixel_authority")
+        or image.get("product_layer_immutable")
+    )
+    provider_generated = metadata.get("product_pixels_provider_generated")
+    if provider_generated is None:
+        provider_generated = image.get("product_geometry_provider_generated")
+    ai_recreated = bool(
+        image.get("ai_product_recreated")
+        or metadata.get("ai_product_recreated")
+    )
+    return bool(
+        exact_pixels
+        and source_rgb
+        and provider_generated is False
+        and not ai_recreated
+    )
+
+
+def _graphic_exact_reference_deterministic_recovery_v66820(
+    prompt_text,
+    uploaded_files=None,
+    *,
+    style_strength="High",
+    forced_upload_role="Auto-detect",
+):
+    """Rebuild a Reference Mode commercial through the local exact-product compositor only."""
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_state = _graphic_exact_reference_request_v66820(
+        effective_prompt, uploaded_files, forced_upload_role
+    )
+    role_items = list(role_state.get("role_items") or [])
+    if not role_state.get("required"):
+        raise RuntimeError(
+            "Deterministic Reference Mode recovery requires both a Product Photo and a Style Reference."
+        )
+
+    integrity = _graphic_role_integrity_v8300(role_items)
+    if not integrity.get("passed"):
+        raise RuntimeError(
+            "The product and reference images could not be separated safely: "
+            + str(integrity.get("reason") or "role integrity failed")
+        )
+
+    output_size = _graphic_normalize_output_size_v4000(
+        choose_graphic_image_size(effective_prompt)
+    )
+    state = get_graphic_project_state()
+    reference_blueprint = dict(state.get("last_reference_blueprint") or {})
+    if not reference_blueprint:
+        reference_blueprint, _cached = _graphic_cached_reference_blueprint_v8200(
+            role_items, effective_prompt, style_strength
+        )
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(
+        reference_blueprint
+    )
+
+    vehicle_profile = dict(state.get("last_vehicle_profile") or {})
+    explicit_vehicle = _graphic_extract_explicit_vehicle(effective_prompt)
+    if explicit_vehicle or not vehicle_profile:
+        vehicle_profile, _cached = _graphic_cached_vehicle_profile_v8200(
+            role_items, effective_prompt
+        )
+    vehicle_profile = _graphic_resolve_vehicle_lock(
+        effective_prompt, vehicle_profile
+    )
+
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        effective_prompt,
+        role_items,
+        output_size,
+        reference_blueprint,
+        vehicle_profile,
+    )
+    result["recovery_route"] = "v66820-deterministic-exact-reference"
+    result["product_layer_immutable"] = True
+    result["product_geometry_provider_generated"] = False
+    result["ai_product_recreated"] = False
+
+    validation = _graphic_exact_result_validation_v7100(
+        result, role_items, effective_prompt, vehicle_profile
+    )
+    source_gate = _graphic_exact_product_quality_gate_v9000(
+        result, role_items, vehicle_profile
+    )
+    provenance = _graphic_product_provenance_gate_v52000(result, role_items)
+    result["deterministic_verification_v66820"] = validation
+    result["source_fidelity_gate_v66820"] = source_gate
+    result["product_provenance_v66820"] = provenance
+
+    if not validation.get("passed"):
+        raise RuntimeError(
+            "Deterministic Reference Mode recovery failed exact-result validation."
+        )
+    if not source_gate.get("passed"):
+        raise RuntimeError(
+            "Deterministic Reference Mode recovery failed source fidelity: "
+            + "; ".join(source_gate.get("issues") or [])
+        )
+    if not provenance.get("passed"):
+        raise RuntimeError(
+            "Deterministic Reference Mode recovery failed pixel provenance: "
+            + "; ".join(provenance.get("issues") or [])
+        )
+    if not _graphic_exact_reference_result_safe_v66820([result]):
+        raise RuntimeError(
+            "Deterministic Reference Mode recovery did not prove immutable product pixels."
+        )
+
+    result["output_status"] = "verified_exact_reference_v66820"
+    result["verification_status"] = "verified"
+    _graphic_save_latest_project_result(result)
+    return [result]
+
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """Public Graphic API with bounded professional and emergency recovery routes."""
+    """Public Graphic API with fail-closed exact Reference Mode recovery."""
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -28771,28 +28861,95 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     failures = []
     effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
+
+    try:
+        exact_reference_state = _graphic_exact_reference_request_v66820(
+            effective_prompt, uploaded_files, forced_upload_role
+        )
+    except Exception as role_error:
+        exact_reference_state = {"required": False, "role_items": []}
+        diagnostic_log(
+            "graphic_v66820_reference_role_detection_failed",
+            error_type=type(role_error).__name__,
+            error=_graphic_compact_error_v4000(role_error),
+        )
+    exact_reference_required = bool(exact_reference_state.get("required"))
+
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+
+    # First use the complete production pipeline.
     try:
-        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
+        result = _generate_graphic_marketing_images_advanced(
             effective_prompt, uploaded_files, **arguments
-        ), "advanced", failures)
+        )
+        if exact_reference_required and not _graphic_exact_reference_result_safe_v66820(result):
+            raise RuntimeError(
+                "The advanced route did not prove immutable uploaded-product pixels."
+            )
+        return _graphic_finalize_recovery_v16000(result, "advanced", failures)
     except Exception as error:
         failures.append(
             f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v15000_advanced_pipeline_recovery",
+            "graphic_v66820_advanced_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
+            exact_reference_required=exact_reference_required,
         )
 
-    # Installed View must fail closed to an interior-only recovery. Generic legacy
-    # or emergency routes are not allowed to turn it into a commercial poster.
+    # Reference Mode with both a product and style image must never fall through
+    # to provider-painted poster routes. Retry only through the deterministic
+    # background-plus-local-product compositor.
+    if exact_reference_required:
+        for attempt in range(2):
+            try:
+                result = _graphic_exact_reference_deterministic_recovery_v66820(
+                    effective_prompt,
+                    uploaded_files,
+                    style_strength=style_strength,
+                    forced_upload_role=forced_upload_role,
+                )
+                for image in result or []:
+                    if isinstance(image, dict):
+                        image["recovered_from_v66820"] = True
+                        image["deterministic_recovery_attempt"] = attempt + 1
+                        image["recovery_failures"] = failures[-3:]
+                return _graphic_finalize_recovery_v16000(
+                    result, "v66820-deterministic-exact-reference", failures
+                )
+            except Exception as error:
+                failures.append(
+                    f"exact-reference-{attempt + 1}:{type(error).__name__}:"
+                    f"{_graphic_compact_error_v4000(error)}"
+                )
+                diagnostic_log(
+                    "graphic_v66820_exact_reference_recovery_failed",
+                    attempt=attempt + 1,
+                    error_type=type(error).__name__,
+                    error=_graphic_compact_error_v4000(error),
+                )
+
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-5:])[:1800]
+        state["last_failed_stage"] = "exact_reference_fail_closed"
+        state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "Reference Mode stopped safely because the app could not prove that the "
+            "uploaded bezel, screen aperture, housing, buttons, and mounting geometry "
+            "remained immutable. No AI-redrawn product was substituted. "
+            + " | ".join(failures[-3:])
+        )
+
+    # Installed View keeps its dedicated interior-only recovery contract.
     if installed_request:
         try:
             result = _graphic_installed_view_recovery_v47000(
@@ -28804,27 +28961,24 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 if isinstance(image, dict):
                     image["recovered_from_v47000"] = True
                     image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
+            return _graphic_finalize_recovery_v16000(
+                result, "installed-view-only-v47000", failures
+            )
         except Exception as error:
             failures.append(
-                f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v47000_installed_recovery_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
+                f"installed-recovery:{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}"
             )
             state = get_graphic_project_state()
             state["stage"] = "ready_to_generate"
             state["last_error"] = " | ".join(failures[-4:])[:1800]
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             raise RuntimeError(
-                "Installed View generation failed safely. The app did not substitute a commercial poster. "
-                + " | ".join(failures[-3:])
+                "Installed View generation failed safely. The app did not substitute "
+                "a commercial poster. " + " | ".join(failures[-3:])
             ) from error
 
-    # The earlier v3200 path has fewer governance/QA dependencies and is retained
-    # only for non-installed compatibility recovery.
+    # Non-reference jobs retain the proven compatibility and emergency routes.
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
@@ -28833,13 +28987,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             if isinstance(image, dict):
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
-        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+        return _graphic_finalize_recovery_v16000(
+            result, "v3200-compatibility", failures
+        )
     except Exception as error:
         failures.append(
             f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v15000_v3200_pipeline_recovery",
+            "graphic_v66820_v3200_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
         )
@@ -28854,13 +29010,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         for image in result or []:
             if isinstance(image, dict):
                 image["recovery_failures"] = failures[-3:]
-        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+        return _graphic_finalize_recovery_v16000(
+            result, "emergency-provider", failures
+        )
     except Exception as error:
         failures.append(
             f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v15000_all_routes_failed",
+            "graphic_v66820_all_routes_failed",
             failures=failures[-4:],
         )
         state = get_graphic_project_state()
@@ -28871,9 +29029,12 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         raise RuntimeError(
-            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
+            "All available image-generation routes failed. Your reference, product, "
+            "and vehicle information remain saved. "
             + " | ".join(failures[-3:])
         ) from error
+
+
 
 
 
