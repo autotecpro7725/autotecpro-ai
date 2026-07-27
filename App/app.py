@@ -24553,6 +24553,7 @@ def _graphic_compose_reference_campaign_v3200(
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
+    layout_bp = _graphic_layout_authority_v66400(layout_bp, (W, H))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -24629,8 +24630,15 @@ def _graphic_compose_reference_campaign_v3200(
     else:
         px = hero_x0 + max(0, (hero_w - product.width) // 2)
     footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
-    safety_gap_px = max(6, int(H * 0.012))
-    py = min(hero_y1 - product.height, footer_top_px - safety_gap_px - product.height)
+    banner_overlap_requested_v66400 = _graphic_banner_overlap_requested_v66400(prompt_text)
+    banner_overlap_px_v66400 = 0
+    if banner_overlap_requested_v66400:
+        banner_overlap_px_v66400 = max(6, min(int(product.height * 0.035), int(H * 0.025)))
+        desired_product_bottom = footer_top_px + banner_overlap_px_v66400
+    else:
+        safety_gap_px = max(6, int(H * 0.012))
+        desired_product_bottom = footer_top_px - safety_gap_px
+    py = min(hero_y1 - product.height, desired_product_bottom - product.height)
     py = max(hero_y0, py)
 
     state_now = get_graphic_project_state()
@@ -24717,8 +24725,9 @@ def _graphic_compose_reference_campaign_v3200(
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
     final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
+    critical_visibility_footer_v66400 = footer_top_px + banner_overlap_px_v66400 if banner_overlap_requested_v66400 else footer_top_px
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
-        product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
+        product, (px, py), critical_visibility_footer_v66400, (W, H), product_analysis_v41000.get("mechanical")
     )
     if design_mode == "reference_template" and not critical_region_visibility.get("passed"):
         raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
@@ -24841,8 +24850,11 @@ def _graphic_compose_reference_campaign_v3200(
         "ribbon_width_px": ribbon_w,
         "engine": "v36000-flexible-compatibility-copy",
     }
-    tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
-    draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
+    tagline_x = left_x
+    tagline_y = max(int(H * tagline_box[1]), ribbon_y + ribbon_h + int(H * 0.012))
+    tagline_available_w = min(int(W * tagline_box[2]), max(1, int(W * layout_bp["feature_matrix_box"][0]) - int(W * 0.018) - tagline_x))
+    tag_font = fitted_font(tagline, tagline_available_w, H * 0.027, H * 0.018, False)
+    draw.text((tagline_x, tagline_y), tagline, font=tag_font, fill=navy)
 
     # Compact, reference-faithful 4x2 feature matrix.
     features = list(campaign_spec.get("feature_labels") or [])[:8]
@@ -24951,6 +24963,16 @@ def _graphic_compose_reference_campaign_v3200(
         "product_ai_reconstruction_prohibited": True,
         "deterministic_typography": True,
         "fixed_production_geometry": True,
+        "layout_authority_v66400": dict(layout_bp.get("layout_authority_v66400") or {}),
+        "tagline_left_column_lock_v66400": True,
+        "complete_feature_matrix_v66400": len(features) == 8,
+        "banner_overlap_v66400": {
+            "requested": bool(banner_overlap_requested_v66400),
+            "overlap_px": int(banner_overlap_px_v66400),
+            "product_pixels_modified": False,
+            "product_geometry_modified": False,
+            "banner_drawn_after_product": True,
+        },
         "official_brand_logo_applied": logo_applied,
         "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
         "campaign_zones": [
@@ -28706,6 +28728,137 @@ def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, outp
     return [result]
 
 
+
+
+def _graphic_reference_exact_request_v66400(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
+    """Detect product+style commercial work that must never use a generated-poster fallback."""
+    try:
+        role_items = _graphic_project_role_items(uploaded_files, str(prompt_text or ""), forced_upload_role)
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v66400_reference_request_detection_failed",
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        role_items = []
+    has_product = any(isinstance(item, dict) and item.get("role") == "product_photo" for item in role_items)
+    has_style = any(isinstance(item, dict) and item.get("role") == "style_reference" for item in role_items)
+    lower = str(prompt_text or "").casefold()
+    commercial_intent = any(term in lower for term in (
+        "commercial", "advertisement", "advertising", "ad style", "same style",
+        "reference image", "template", "marketing photo", "campaign image",
+    ))
+    return {
+        "active": bool(has_product and has_style and commercial_intent),
+        "has_product": bool(has_product),
+        "has_style": bool(has_style),
+        "commercial_intent": bool(commercial_intent),
+        "role_count": len(role_items),
+        "engine": "reference-exact-request-v66400",
+    }
+
+
+def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
+    """Accept only deterministic exact-product commercial output for guarded requests."""
+    guard = dict(request_guard or {})
+    if not guard.get("active"):
+        return {"passed": True, "guarded": False, "reason": "request not guarded"}
+    if not isinstance(images, (list, tuple)) or not images:
+        return {"passed": False, "guarded": True, "reason": "no result"}
+    result = images[0] if isinstance(images[0], dict) else {}
+    metadata = dict(result.get("metadata") or result.get("generation_metadata") or {})
+    layered_metadata = dict(result.get("layered_metadata") or {})
+    # Exact commercial routes keep deterministic composer facts in layered_metadata.
+    merged = dict(metadata)
+    merged.update(layered_metadata)
+    merged.update({k: v for k, v in result.items() if k not in {"data_url", "image_bytes", "layered_metadata"}})
+    campaign_zones = set(merged.get("campaign_zones") or [])
+    exact_pixels = merged.get("exact_product_pixels") is True
+    source_rgb = merged.get("product_master_rgb_preserved") is True
+    provider_product = merged.get("product_pixels_provider_generated") is True
+    ai_recreated = merged.get("ai_product_recreated") is True
+    deterministic_copy = merged.get("deterministic_typography") is True
+    full_matrix = "feature_matrix" in campaign_zones
+    passed = bool(
+        exact_pixels and source_rgb and not provider_product and not ai_recreated
+        and deterministic_copy and full_matrix
+    )
+    return {
+        "passed": passed,
+        "guarded": True,
+        "exact_product_pixels": exact_pixels,
+        "source_rgb_preserved": source_rgb,
+        "provider_product_pixels": provider_product,
+        "ai_product_recreated": ai_recreated,
+        "deterministic_typography": deterministic_copy,
+        "feature_matrix_present": full_matrix,
+        "reason": "verified deterministic exact-product result" if passed else "result was not deterministic exact-product commercial output",
+        "engine": "reference-exact-result-guard-v66400",
+    }
+
+
+def _graphic_banner_overlap_requested_v66400(prompt_text):
+    """Return a bounded layout-only overlap request; never changes product alpha/RGB."""
+    lower = re.sub(r"\s+", " ", str(prompt_text or "").casefold()).strip()
+    phrases = (
+        "banner in front of the product", "banner in front of the unit",
+        "product behind the bottom banner", "unit behind the bottom banner",
+        "bottom banner overlays the product", "bottom banner overlays the unit",
+        "banner place on top of the unit", "banner on top of the unit",
+        "overlap the lower edge", "overlay the lower edge",
+    )
+    return any(phrase in lower for phrase in phrases)
+
+
+def _graphic_layout_authority_v66400(layout_bp, canvas_size):
+    """Lock the approved copy grid while retaining source-derived product geometry."""
+    solved = dict(layout_bp or {})
+    headline = list(solved.get("headline_box") or [0.03, 0.12, 0.51, 0.105])
+    compatibility = list(solved.get("compatibility_box") or [0.03, 0.235, 0.45, 0.055])
+    tagline = list(solved.get("tagline_box") or [0.03, 0.295, 0.49, 0.045])
+    feature = list(solved.get("feature_matrix_box") or [0.57, 0.035, 0.40, 0.285])
+    hero = list(solved.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
+    footer = list(solved.get("bottom_bar_box") or [0.03, 0.89, 0.94, 0.095])
+
+    # Logo, headline, ribbon and tagline form one immutable left copy column.
+    copy_x = max(0.018, min(0.08, float(headline[0])))
+    headline[0] = copy_x
+    compatibility[0] = copy_x
+    tagline[0] = copy_x
+    tagline[2] = max(float(tagline[2]), min(0.535, float(headline[2])))
+
+    # The approved style is always a complete 4x2 information matrix.
+    feature[2] = max(float(feature[2]), 0.38)
+    feature[3] = max(float(feature[3]), 0.265)
+
+    # Reserve visible air between top copy and product silhouette. The product remains
+    # uniformly scaled and uncropped; only its layout region is adjusted.
+    copy_bottom = max(
+        float(tagline[1]) + float(tagline[3]),
+        float(feature[1]) + float(feature[3]),
+    )
+    minimum_hero_top = min(float(footer[1]) - 0.18, copy_bottom + 0.018)
+    original_bottom = float(hero[1]) + float(hero[3])
+    hero[1] = max(float(hero[1]), minimum_hero_top)
+    hero[3] = max(0.12, min(original_bottom, float(footer[1]) - 0.006) - float(hero[1]))
+
+    solved.update({
+        "headline_box": [round(float(v), 6) for v in headline],
+        "compatibility_box": [round(float(v), 6) for v in compatibility],
+        "tagline_box": [round(float(v), 6) for v in tagline],
+        "feature_matrix_box": [round(float(v), 6) for v in feature],
+        "hero_product_box": [round(float(v), 6) for v in hero],
+        "layout_authority_v66400": {
+            "copy_column_x": round(copy_x, 6),
+            "tagline_left_locked": True,
+            "complete_feature_matrix": True,
+            "minimum_product_top_clearance": round(0.018, 6),
+            "product_geometry_modified": False,
+        },
+    })
+    return solved
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
@@ -28723,6 +28876,9 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     failures = []
     effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
+    exact_reference_guard_v66400 = _graphic_reference_exact_request_v66400(
+        effective_prompt, uploaded_files, forced_upload_role
+    )
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
@@ -28730,9 +28886,21 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
-        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
+        advanced_result_v66400 = _generate_graphic_marketing_images_advanced(
             effective_prompt, uploaded_files, **arguments
-        ), "advanced", failures)
+        )
+        advanced_guard_v66400 = _graphic_reference_exact_result_guard_v66400(
+            advanced_result_v66400, exact_reference_guard_v66400
+        )
+        if not advanced_guard_v66400.get("passed"):
+            raise RuntimeError(
+                "v66400 rejected a non-deterministic product/style result: "
+                + str(advanced_guard_v66400.get("reason") or "exact-product guard failed")
+            )
+        for image in advanced_result_v66400 or []:
+            if isinstance(image, dict):
+                image["reference_exact_guard_v66400"] = advanced_guard_v66400
+        return _graphic_finalize_recovery_v16000(advanced_result_v66400, "advanced", failures)
     except Exception as error:
         failures.append(
             f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
@@ -28781,10 +28949,19 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         result = _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
         )
+        compatibility_guard_v66400 = _graphic_reference_exact_result_guard_v66400(
+            result, exact_reference_guard_v66400
+        )
+        if not compatibility_guard_v66400.get("passed"):
+            raise RuntimeError(
+                "v66400 rejected a non-deterministic v3200 product/style recovery result: "
+                + str(compatibility_guard_v66400.get("reason") or "exact-product guard failed")
+            )
         for image in result or []:
             if isinstance(image, dict):
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
+                image["reference_exact_guard_v66400"] = compatibility_guard_v66400
         return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
     except Exception as error:
         failures.append(
@@ -28794,6 +28971,18 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "graphic_v15000_v3200_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
+        )
+
+    if exact_reference_guard_v66400.get("active"):
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-4:])[:1800]
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "Exact product/reference commercial generation failed safely. "
+            "v66400 did not substitute a provider-generated poster because that could redraw the product, "
+            "drop feature zones, shift the tagline, or alter bezel and upper-corner geometry. "
+            + " | ".join(failures[-3:])
         )
 
     try:
@@ -46607,6 +46796,13 @@ st.markdown(
 
 
 # ============================================================
+# v66400 LTS — Deterministic Layout & Exact-Product Recovery Guard
+# Built directly from verified v66300. Preserves the complete v66000 geometry/mask
+# authority byte-for-byte and the v66200 flexible fitment authority. Adds a fail-closed
+# result guard so product+style commercial jobs can never fall through to a provider-
+# generated poster, locks the tagline to the left copy column, enforces the complete
+# deterministic 4x2 feature matrix, reserves silhouette-aware top clearance, and supports
+# an optional prompt-driven bottom-banner overlap without cropping or modifying product pixels.
 # v66300 LTS — Universal deterministic regression and release guard
 # This suite is deliberately product/make/model agnostic. Toyota is one historical
 # regression fixture, never a hard-coded geometry or catalog assumption.
