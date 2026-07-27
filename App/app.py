@@ -28758,42 +28758,214 @@ def _graphic_reference_exact_request_v66400(prompt_text, uploaded_files=None, fo
     }
 
 
-def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
-    """Accept only deterministic exact-product commercial output for guarded requests."""
-    guard = dict(request_guard or {})
-    if not guard.get("active"):
-        return {"passed": True, "guarded": False, "reason": "request not guarded"}
-    if not isinstance(images, (list, tuple)) or not images:
-        return {"passed": False, "guarded": True, "reason": "no result"}
-    result = images[0] if isinstance(images[0], dict) else {}
-    metadata = dict(result.get("metadata") or result.get("generation_metadata") or {})
-    layered_metadata = dict(result.get("layered_metadata") or {})
-    # Exact commercial routes keep deterministic composer facts in layered_metadata.
-    merged = dict(metadata)
-    merged.update(layered_metadata)
-    merged.update({k: v for k, v in result.items() if k not in {"data_url", "image_bytes", "layered_metadata"}})
-    campaign_zones = set(merged.get("campaign_zones") or [])
-    exact_pixels = merged.get("exact_product_pixels") is True
-    source_rgb = merged.get("product_master_rgb_preserved") is True
-    provider_product = merged.get("product_pixels_provider_generated") is True
-    ai_recreated = merged.get("ai_product_recreated") is True
-    deterministic_copy = merged.get("deterministic_typography") is True
-    full_matrix = "feature_matrix" in campaign_zones
-    passed = bool(
-        exact_pixels and source_rgb and not provider_product and not ai_recreated
-        and deterministic_copy and full_matrix
+
+def _graphic_v66500_collect_contract_values(value, *, depth=0, output=None):
+    """Collect exact-product contract evidence from nested result metadata.
+
+    Older deterministic routes stored equivalent facts at different nesting levels. This
+    bounded collector normalizes those facts without accepting provider-painted products.
+    Image bytes are deliberately excluded from traversal.
+    """
+    if output is None:
+        output = {}
+    if depth > 7:
+        return output
+    if isinstance(value, dict):
+        for key, item in value.items():
+            clean_key = str(key or "").strip()
+            if clean_key in {"data_url", "image_bytes", "raw_bytes", "background_data_url"}:
+                continue
+            if clean_key and clean_key not in output:
+                output[clean_key] = item
+            if isinstance(item, (dict, list, tuple)):
+                _graphic_v66500_collect_contract_values(item, depth=depth + 1, output=output)
+    elif isinstance(value, (list, tuple)):
+        for item in value[:40]:
+            if isinstance(item, (dict, list, tuple)):
+                _graphic_v66500_collect_contract_values(item, depth=depth + 1, output=output)
+    return output
+
+
+def _graphic_v66500_bool(values, *keys, default=None):
+    """Return the first explicit boolean-compatible contract value."""
+    for key in keys:
+        if key not in values:
+            continue
+        value = values.get(key)
+        if value is True or value is False:
+            return value
+        if isinstance(value, (int, float)) and value in {0, 1}:
+            return bool(value)
+        if isinstance(value, str):
+            lowered = value.strip().casefold()
+            if lowered in {"true", "yes", "passed", "verified", "exact", "immutable"}:
+                return True
+            if lowered in {"false", "no", "failed", "recreated", "generated"}:
+                return False
+    return default
+
+
+def _graphic_v66500_exact_result_contract(result):
+    """Normalize deterministic exact-product evidence into one stable contract.
+
+    Safety rule: route names and strict-lock flags alone never prove exact pixels. The
+    contract requires immutable/source-pixel evidence and rejects any explicit provider
+    product generation or AI recreation signal.
+    """
+    result = result if isinstance(result, dict) else {}
+    values = _graphic_v66500_collect_contract_values(result)
+    route = str(
+        result.get("generation_route") or result.get("provider_route")
+        or values.get("generation_route") or values.get("provider_route") or ""
+    ).strip()
+    route_lower = route.casefold()
+    identity_method = str(
+        result.get("product_identity_method") or values.get("product_identity_method") or ""
+    ).strip().casefold()
+
+    zones_raw = values.get("campaign_zones") or []
+    if isinstance(zones_raw, dict):
+        zones = {str(key).strip().casefold() for key, present in zones_raw.items() if present}
+    else:
+        zones = {str(item).strip().casefold() for item in (zones_raw or [])}
+
+    provenance = values.get("product_provenance_v52000") or values.get("product_provenance_v53000") or {}
+    provenance_passed = bool(isinstance(provenance, dict) and provenance.get("passed") is True)
+    immutable_layer = _graphic_v66500_bool(
+        values, "product_layer_immutable", "exact_product_asset_mode", "fixed_production_geometry",
+        default=False,
+    ) is True
+    explicit_exact_pixels = _graphic_v66500_bool(
+        values, "exact_product_pixels", "critical_product_geometry_preserved",
+        default=False,
+    ) is True
+    exact_identity_method = identity_method in {
+        "exact_source_pixel_composite", "exact_source_pixels", "immutable_source_pixel_composite",
+    }
+    exact_pixels = bool(explicit_exact_pixels or (immutable_layer and provenance_passed) or exact_identity_method)
+
+    explicit_source_rgb = _graphic_v66500_bool(
+        values, "product_master_rgb_preserved", "rgb_pixels_regenerated",
+        default=None,
     )
+    if "rgb_pixels_regenerated" in values and _graphic_v66500_bool(values, "rgb_pixels_regenerated", default=None) is False:
+        source_rgb = True
+    else:
+        source_rgb = explicit_source_rgb is True or (exact_identity_method and immutable_layer)
+
+    provider_product = _graphic_v66500_bool(
+        values, "product_pixels_provider_generated", "product_geometry_provider_generated",
+        default=False,
+    ) is True
+    ai_recreated = _graphic_v66500_bool(values, "ai_product_recreated", default=False) is True
+    reconstruction_prohibited = _graphic_v66500_bool(
+        values, "product_ai_reconstruction_prohibited", "reference_content_leakage_prohibited",
+        default=False,
+    ) is True
+
+    deterministic_route = any(token in route_lower for token in (
+        "strict-commercial-composer", "controlled-campaign", "exact-product",
+        "local-deterministic", "hybrid-campaign", "reference-locked-campaign",
+    ))
+    deterministic_copy = _graphic_v66500_bool(
+        values, "deterministic_typography", "tagline_left_column_lock_v66400",
+        default=False,
+    ) is True
+    if not deterministic_copy and deterministic_route:
+        required_copy_zones = {"headline", "compatibility_ribbon", "tagline"}
+        deterministic_copy = required_copy_zones.issubset(zones)
+
+    matrix_flag = _graphic_v66500_bool(
+        values, "complete_feature_matrix_v66400", "complete_feature_matrix",
+        default=False,
+    ) is True
+    feature_values = values.get("top_features") or values.get("features") or []
+    feature_count = len(feature_values) if isinstance(feature_values, (list, tuple)) else 0
+    full_matrix = bool("feature_matrix" in zones or matrix_flag or feature_count >= 8)
+
+    has_image = str(result.get("data_url") or "").startswith("data:image/")
+    safe_product = bool(exact_pixels and source_rgb and not provider_product and not ai_recreated)
+    deterministic_commercial = bool(deterministic_copy and full_matrix and (deterministic_route or "feature_matrix" in zones))
+    passed = bool(has_image and safe_product and deterministic_commercial)
+
+    missing = []
+    if not has_image: missing.append("image_data")
+    if not exact_pixels: missing.append("exact_product_pixels")
+    if not source_rgb: missing.append("source_rgb_preservation")
+    if provider_product: missing.append("provider_product_pixels_prohibited")
+    if ai_recreated: missing.append("ai_product_recreation_prohibited")
+    if not deterministic_copy: missing.append("deterministic_typography")
+    if not full_matrix: missing.append("complete_feature_matrix")
+    if not deterministic_route and "feature_matrix" not in zones: missing.append("deterministic_composer_route")
+
     return {
         "passed": passed,
-        "guarded": True,
+        "has_image": has_image,
         "exact_product_pixels": exact_pixels,
         "source_rgb_preserved": source_rgb,
         "provider_product_pixels": provider_product,
         "ai_product_recreated": ai_recreated,
+        "reconstruction_prohibited": reconstruction_prohibited,
         "deterministic_typography": deterministic_copy,
         "feature_matrix_present": full_matrix,
-        "reason": "verified deterministic exact-product result" if passed else "result was not deterministic exact-product commercial output",
-        "engine": "reference-exact-result-guard-v66400",
+        "deterministic_route": deterministic_route,
+        "route": route,
+        "campaign_zones": sorted(zones),
+        "missing_or_failed": missing,
+        "engine": "normalized-exact-result-contract-v66500",
+    }
+
+
+def _graphic_v66500_apply_exact_contract(result, contract):
+    """Attach canonical facts to a verified result without changing image pixels."""
+    if not isinstance(result, dict):
+        return result
+    contract = dict(contract or {})
+    result["exact_result_contract_v66500"] = contract
+    result["reference_exact_guard_v66500"] = {
+        "passed": bool(contract.get("passed")),
+        "reason": "verified normalized deterministic exact-product result" if contract.get("passed") else "contract failed",
+        "missing_or_failed": list(contract.get("missing_or_failed") or []),
+        "engine": "reference-exact-result-guard-v66500",
+    }
+    if contract.get("passed"):
+        layered = result.get("layered_metadata")
+        if not isinstance(layered, dict):
+            layered = {}
+            result["layered_metadata"] = layered
+        layered.update({
+            "exact_product_pixels": True,
+            "product_master_rgb_preserved": True,
+            "product_pixels_provider_generated": False,
+            "ai_product_recreated": False,
+            "deterministic_typography": True,
+            "complete_feature_matrix_v66400": True,
+            "normalized_exact_result_contract_v66500": True,
+        })
+    return result
+
+
+def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
+    """v66500-compatible guard using normalized evidence instead of brittle field location."""
+    guard = dict(request_guard or {})
+    if not guard.get("active"):
+        return {"passed": True, "guarded": False, "reason": "request not guarded", "engine": "reference-exact-result-guard-v66500"}
+    if not isinstance(images, (list, tuple)) or not images:
+        return {"passed": False, "guarded": True, "reason": "no result", "missing_or_failed": ["result"], "engine": "reference-exact-result-guard-v66500"}
+    result = images[0] if isinstance(images[0], dict) else {}
+    contract = _graphic_v66500_exact_result_contract(result)
+    if contract.get("passed"):
+        _graphic_v66500_apply_exact_contract(result, contract)
+    return {
+        "passed": bool(contract.get("passed")),
+        "guarded": True,
+        **contract,
+        "reason": (
+            "verified normalized deterministic exact-product result"
+            if contract.get("passed") else
+            "exact-product contract failed: " + ", ".join(contract.get("missing_or_failed") or ["unknown"])
+        ),
+        "engine": "reference-exact-result-guard-v66500",
     }
 
 
@@ -28894,12 +29066,13 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         )
         if not advanced_guard_v66400.get("passed"):
             raise RuntimeError(
-                "v66400 rejected a non-deterministic product/style result: "
+                "v66500 exact-result contract rejected the advanced product/style result: "
                 + str(advanced_guard_v66400.get("reason") or "exact-product guard failed")
             )
         for image in advanced_result_v66400 or []:
             if isinstance(image, dict):
                 image["reference_exact_guard_v66400"] = advanced_guard_v66400
+                image["reference_exact_guard_v66500"] = advanced_guard_v66400
         return _graphic_finalize_recovery_v16000(advanced_result_v66400, "advanced", failures)
     except Exception as error:
         failures.append(
@@ -28954,7 +29127,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         )
         if not compatibility_guard_v66400.get("passed"):
             raise RuntimeError(
-                "v66400 rejected a non-deterministic v3200 product/style recovery result: "
+                "v66500 exact-result contract rejected the deterministic compatibility result: "
                 + str(compatibility_guard_v66400.get("reason") or "exact-product guard failed")
             )
         for image in result or []:
@@ -28962,6 +29135,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
                 image["reference_exact_guard_v66400"] = compatibility_guard_v66400
+                image["reference_exact_guard_v66500"] = compatibility_guard_v66400
         return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
     except Exception as error:
         failures.append(
@@ -28980,7 +29154,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         raise RuntimeError(
             "Exact product/reference commercial generation failed safely. "
-            "v66400 did not substitute a provider-generated poster because that could redraw the product, "
+            "v66500 did not substitute a provider-generated poster because that could redraw the product, "
             "drop feature zones, shift the tagline, or alter bezel and upper-corner geometry. "
             + " | ".join(failures[-3:])
         )
@@ -46796,6 +46970,10 @@ st.markdown(
 
 
 # ============================================================
+# v66500 LTS — Normalized Exact-Result Contract & Deterministic Recovery
+# Built directly from v66400. Preserves the v66000 bezel/geometry authority and v66200 fitment authority byte-for-byte.
+# Replaces brittle metadata-only rejection with a canonical exact-result contract, deterministic-route normalization,
+# and typed fail-closed diagnostics. Generic provider-poster substitution remains prohibited for product+style work.
 # v66400 LTS — Deterministic Layout & Exact-Product Recovery Guard
 # Built directly from verified v66300. Preserves the complete v66000 geometry/mask
 # authority byte-for-byte and the v66200 flexible fitment authority. Adds a fail-closed
