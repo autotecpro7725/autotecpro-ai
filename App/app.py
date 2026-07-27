@@ -24508,6 +24508,108 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
+
+def _graphic_layout_authority_v66710(layout_bp, canvas_size):
+    """Improve reference typography rhythm without moving or resizing the product.
+
+    v66710 is intentionally built around the approved v66600 product placement. It may
+    normalize copy and feature/footer spacing, but ``hero_product_box`` is immutable.
+    This prevents layout polish from exposing provider-generated structures behind the
+    exact uploaded product or changing its approved scale and position.
+    """
+    solved = dict(layout_bp or {})
+    W, H = [max(1, int(v)) for v in canvas_size]
+    original_hero = list(solved.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
+
+    logo = list(solved.get("logo_box") or [0.022, 0.025, 0.205, 0.105])
+    headline = list(solved.get("headline_box") or [0.022, 0.145, 0.535, 0.090])
+    compatibility = list(solved.get("compatibility_box") or [0.022, 0.235, 0.435, 0.055])
+    tagline = list(solved.get("tagline_box") or [0.022, 0.300, 0.535, 0.045])
+    feature = list(solved.get("feature_matrix_box") or [0.565, 0.025, 0.410, 0.315])
+    footer = list(solved.get("bottom_bar_box") or [0.035, 0.875, 0.930, 0.110])
+
+    # One left copy rail. This does not influence the product region.
+    copy_x = max(0.018, min(0.035, float(headline[0])))
+    logo[0] = copy_x
+    headline[0] = copy_x
+    compatibility[0] = copy_x
+    tagline[0] = copy_x
+
+    # Reference-style copy rhythm, constrained to the existing v66600 zones.
+    headline[1] = max(0.125, min(0.155, float(headline[1])))
+    headline[2] = max(0.505, min(0.545, float(headline[2])))
+    headline[3] = max(0.082, min(0.102, float(headline[3])))
+    compatibility[1] = max(float(compatibility[1]), headline[1] + headline[3] - 0.004)
+    compatibility[2] = max(0.405, min(0.505, float(compatibility[2])))
+    compatibility[3] = max(0.048, min(0.060, float(compatibility[3])))
+    tagline[1] = max(float(tagline[1]), compatibility[1] + compatibility[3] + 0.010)
+    tagline[2] = max(0.485, min(0.535, float(tagline[2])))
+    tagline[3] = max(0.038, min(0.050, float(tagline[3])))
+
+    # Keep the complete 4x2 feature matrix, but do not let it change the hero box.
+    feature[0] = max(0.555, min(0.585, float(feature[0])))
+    feature[1] = max(0.025, min(0.045, float(feature[1])))
+    feature[2] = max(0.390, min(0.425, float(feature[2])))
+    feature[3] = max(0.295, min(0.325, float(feature[3])))
+
+    # Footer typography area only. Product placement remains the exact v66600 result.
+    footer[0] = max(0.025, min(0.040, float(footer[0])))
+    footer[1] = max(0.870, min(0.895, float(footer[1])))
+    footer[2] = max(0.920, min(0.950, float(footer[2])))
+    footer[3] = max(0.100, min(0.115, float(footer[3])))
+
+    solved.update({
+        "logo_box": [round(float(v), 6) for v in logo],
+        "headline_box": [round(float(v), 6) for v in headline],
+        "compatibility_box": [round(float(v), 6) for v in compatibility],
+        "tagline_box": [round(float(v), 6) for v in tagline],
+        "feature_matrix_box": [round(float(v), 6) for v in feature],
+        "hero_product_box": [round(float(v), 6) for v in original_hero],
+        "bottom_bar_box": [round(float(v), 6) for v in footer],
+        "layout_authority_v66710": {
+            "reference_typography_blueprint": True,
+            "copy_column_x": round(copy_x, 6),
+            "copy_rhythm_locked": True,
+            "feature_matrix_4x2_locked": True,
+            "footer_rhythm_locked": True,
+            "v66600_hero_box_immutable": True,
+            "product_geometry_modified": False,
+            "product_position_modified": False,
+        },
+    })
+    return solved
+
+
+def _graphic_layout_qa_v66710(before_bp, after_bp, canvas_size, product_box=None):
+    """Fail closed if typography polish changes the approved v66600 hero region."""
+    W, H = [max(1, int(v)) for v in canvas_size]
+    before = dict(before_bp or {})
+    after = dict(after_bp or {})
+    before_hero = [round(float(v), 6) for v in (before.get("hero_product_box") or [])]
+    after_hero = [round(float(v), 6) for v in (after.get("hero_product_box") or [])]
+    headline = list(after.get("headline_box") or [0, 0, 0, 0])
+    compatibility = list(after.get("compatibility_box") or [0, 0, 0, 0])
+    tagline = list(after.get("tagline_box") or [0, 0, 0, 0])
+    feature = list(after.get("feature_matrix_box") or [0, 0, 0, 0])
+    footer = list(after.get("bottom_bar_box") or [0, 0, 0, 0])
+    copy_xs = [headline[0], compatibility[0], tagline[0]]
+    checks = {
+        "v66600_hero_box_unchanged": before_hero == after_hero,
+        "copy_column_aligned": (max(copy_xs) - min(copy_xs)) <= 0.002,
+        "tagline_below_ribbon": tagline[1] >= compatibility[1] + compatibility[3] + 0.007,
+        "feature_matrix_complete_space": feature[2] >= 0.39 and feature[3] >= 0.295,
+        "footer_reference_proportion": 0.095 <= footer[3] <= 0.118,
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "before_hero_product_box": before_hero,
+        "after_hero_product_box": after_hero,
+        "engine": "typography-layout-qa-v66710",
+        "product_box": list(product_box or []),
+    }
+
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -24554,7 +24656,8 @@ def _graphic_compose_reference_campaign_v3200(
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
     layout_bp = _graphic_layout_authority_v66400(layout_bp, (W, H))
-    layout_bp = _graphic_layout_authority_v66700(layout_bp, (W, H))
+    layout_bp_v66600_product_authority = dict(layout_bp)
+    layout_bp = _graphic_layout_authority_v66710(layout_bp, (W, H))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -24922,9 +25025,13 @@ def _graphic_compose_reference_campaign_v3200(
             ty += int(H * 0.0225)
 
     product_box = [px, py, product.width, product.height]
-    layout_qa_v66700 = _graphic_layout_qa_v66700(layout_bp, (W, H), product_box)
-    if not layout_qa_v66700.get("passed"):
-        raise RuntimeError("v66700 rejected the commercial layout because reference spacing QA failed.")
+    layout_qa_v66710 = _graphic_layout_qa_v66710(
+        layout_bp_v66600_product_authority, layout_bp, (W, H), product_box
+    )
+    if not layout_qa_v66710.get("passed"):
+        raise RuntimeError(
+            "v66710 rejected typography layout because the approved v66600 product region changed."
+        )
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", compress_level=5)
     rendered_aspect = product.width / max(1, product.height)
@@ -24968,10 +25075,11 @@ def _graphic_compose_reference_campaign_v3200(
         "deterministic_typography": True,
         "fixed_production_geometry": True,
         "layout_authority_v66400": dict(layout_bp.get("layout_authority_v66400") or {}),
-        "layout_authority_v66700": dict(layout_bp.get("layout_authority_v66700") or {}),
-        "reference_layout_qa_v66700": layout_qa_v66700,
-        "reference_style_fidelity_target_v66700": 0.95,
-        "typography_layout_fidelity_target_v66700": 0.95,
+        "layout_authority_v66710": dict(layout_bp.get("layout_authority_v66710") or {}),
+        "reference_layout_qa_v66710": layout_qa_v66710,
+        "v66600_product_placement_authority": True,
+        "reference_style_fidelity_target_v66710": 0.95,
+        "typography_layout_fidelity_target_v66710": 0.95,
         "tagline_left_column_lock_v66400": True,
         "complete_feature_matrix_v66400": len(features) == 8,
         "banner_overlap_v66400": {
@@ -28974,120 +29082,6 @@ def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
             "exact-product contract failed: " + ", ".join(contract.get("missing_or_failed") or ["unknown"])
         ),
         "engine": "reference-exact-result-guard-v66500",
-    }
-
-
-
-
-def _graphic_layout_authority_v66700(layout_bp, canvas_size):
-    """Reference-locked layout rhythm without changing product pixels or geometry.
-
-    The approved campaign reference is treated as a spacing blueprint. This function
-    normalizes only commercial zones: copy rhythm, feature-grid breathing room, hero
-    top clearance, and footer proportions. Product scaling remains uniform and uncropped.
-    """
-    solved = dict(layout_bp or {})
-    W, H = [max(1, int(v)) for v in canvas_size]
-    logo = list(solved.get("logo_box") or [0.022, 0.025, 0.205, 0.105])
-    headline = list(solved.get("headline_box") or [0.022, 0.145, 0.535, 0.090])
-    compatibility = list(solved.get("compatibility_box") or [0.022, 0.235, 0.435, 0.055])
-    tagline = list(solved.get("tagline_box") or [0.022, 0.300, 0.535, 0.045])
-    feature = list(solved.get("feature_matrix_box") or [0.565, 0.025, 0.410, 0.315])
-    hero = list(solved.get("hero_product_box") or [0.018, 0.305, 0.682, 0.575])
-    footer = list(solved.get("bottom_bar_box") or [0.035, 0.875, 0.930, 0.110])
-
-    # One immutable left copy rail, matching the approved reference hierarchy.
-    copy_x = max(0.018, min(0.035, float(headline[0])))
-    logo[0] = copy_x
-    headline[0] = copy_x
-    compatibility[0] = copy_x
-    tagline[0] = copy_x
-
-    # Keep text block proportions close to the approved artwork regardless of title length.
-    headline[1] = max(0.125, min(0.155, float(headline[1])))
-    headline[2] = max(0.505, min(0.545, float(headline[2])))
-    headline[3] = max(0.082, min(0.102, float(headline[3])))
-    compatibility[1] = max(float(compatibility[1]), headline[1] + headline[3] - 0.004)
-    compatibility[2] = max(0.405, min(0.505, float(compatibility[2])))
-    compatibility[3] = max(0.048, min(0.060, float(compatibility[3])))
-    tagline[1] = max(float(tagline[1]), compatibility[1] + compatibility[3] + 0.010)
-    tagline[2] = max(0.485, min(0.535, float(tagline[2])))
-    tagline[3] = max(0.038, min(0.050, float(tagline[3])))
-
-    # Complete 4x2 grid with the same open, premium rhythm as the reference.
-    feature[0] = max(0.555, min(0.585, float(feature[0])))
-    feature[1] = max(0.025, min(0.045, float(feature[1])))
-    feature[2] = max(0.390, min(0.425, float(feature[2])))
-    feature[3] = max(0.295, min(0.325, float(feature[3])))
-
-    # Product begins below both copy and feature blocks. Extra clearance protects glossy
-    # shoulders and protrusions from visually merging with the bright upper background.
-    copy_bottom = max(tagline[1] + tagline[3], feature[1] + feature[3])
-    clearance = max(0.026, 26.0 / H)
-    hero_bottom = min(float(footer[1]) + 0.006, float(hero[1]) + float(hero[3]))
-    hero[1] = max(float(hero[1]), copy_bottom + clearance)
-    hero[3] = max(0.12, hero_bottom - hero[1])
-    hero[0] = min(float(hero[0]), 0.025)
-    hero[2] = max(float(hero[2]), 0.665)
-
-    # Footer proportions and interior padding are locked to the reference family.
-    footer[0] = max(0.025, min(0.040, float(footer[0])))
-    footer[1] = max(0.870, min(0.895, float(footer[1])))
-    footer[2] = max(0.920, min(0.950, float(footer[2])))
-    footer[3] = max(0.100, min(0.115, float(footer[3])))
-
-    solved.update({
-        "logo_box": [round(float(v), 6) for v in logo],
-        "headline_box": [round(float(v), 6) for v in headline],
-        "compatibility_box": [round(float(v), 6) for v in compatibility],
-        "tagline_box": [round(float(v), 6) for v in tagline],
-        "feature_matrix_box": [round(float(v), 6) for v in feature],
-        "hero_product_box": [round(float(v), 6) for v in hero],
-        "bottom_bar_box": [round(float(v), 6) for v in footer],
-        "layout_authority_v66700": {
-            "reference_spacing_blueprint": True,
-            "copy_column_x": round(copy_x, 6),
-            "copy_rhythm_locked": True,
-            "feature_matrix_4x2_locked": True,
-            "minimum_product_top_clearance": round(clearance, 6),
-            "adaptive_lower_hero_anchor": True,
-            "footer_rhythm_locked": True,
-            "product_geometry_modified": False,
-        },
-    })
-    return solved
-
-
-def _graphic_layout_qa_v66700(layout_bp, canvas_size, product_box=None):
-    """Deterministic layout QA for reference-style spacing and typography zones."""
-    W, H = [max(1, int(v)) for v in canvas_size]
-    bp = dict(layout_bp or {})
-    headline = list(bp.get("headline_box") or [0, 0, 0, 0])
-    compatibility = list(bp.get("compatibility_box") or [0, 0, 0, 0])
-    tagline = list(bp.get("tagline_box") or [0, 0, 0, 0])
-    feature = list(bp.get("feature_matrix_box") or [0, 0, 0, 0])
-    footer = list(bp.get("bottom_bar_box") or [0, 0, 0, 0])
-    hero = list(bp.get("hero_product_box") or [0, 0, 0, 0])
-    copy_xs = [headline[0], compatibility[0], tagline[0]]
-    copy_alignment_error = max(copy_xs) - min(copy_xs)
-    feature_bottom = feature[1] + feature[3]
-    tagline_bottom = tagline[1] + tagline[3]
-    hero_clearance = hero[1] - max(feature_bottom, tagline_bottom)
-    checks = {
-        "copy_column_aligned": copy_alignment_error <= 0.002,
-        "tagline_below_ribbon": tagline[1] >= compatibility[1] + compatibility[3] + 0.007,
-        "feature_matrix_complete_space": feature[2] >= 0.39 and feature[3] >= 0.295,
-        "hero_top_clearance": hero_clearance >= max(0.024, 24.0 / H),
-        "footer_reference_proportion": 0.095 <= footer[3] <= 0.118,
-        "hero_above_footer": hero[1] + hero[3] <= footer[1] + 0.010,
-    }
-    return {
-        "passed": all(checks.values()),
-        "checks": checks,
-        "copy_alignment_error": round(copy_alignment_error, 6),
-        "hero_top_clearance": round(hero_clearance, 6),
-        "engine": "reference-layout-qa-v66700",
-        "product_box": list(product_box or []),
     }
 
 
