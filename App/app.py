@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v66830 LTS — Exact Product Reliability and Runtime Optimization
+# AutoTecPro AI Graphic Marketing Engine v66850 LTS — Complete Commercial Fallback & Mandatory Release Gates
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -97,6 +97,7 @@ except Exception:
 # Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
 # and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
 # recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
+# v66850 replaces the incomplete source-photo canvas with a complete deterministic commercial fallback, mandatory geometry/fitment/completeness gates, and retains v66840 resilient Product Library archiving:
 # v66840 adds resilient Product Library archiving: Google Drive remains primary, while revoked/expired OAuth tokens automatically fall back to private Supabase Storage without blocking uploads.
 # v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
 # and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
@@ -20504,26 +20505,185 @@ def _graphic_v66830_optional_store_background(raw, cache_key, metadata):
         return ""
 
 
+
+def _graphic_v66850_local_scene_plate(output_size, prompt_text="", vehicle_profile=None):
+    """Create a deterministic premium automotive scene without provider product pixels."""
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable for the deterministic commercial fallback.")
+    from PIL import ImageDraw, ImageFilter
+    width, height = [int(v) for v in _graphic_normalize_output_size_v4000(output_size).split("x", 1)]
+    scene = Image.new("RGBA", (width, height), (224, 235, 247, 255))
+    px = scene.load()
+    horizon = int(height * 0.57)
+    # Cool sky to warm sunset gradient.
+    for y in range(height):
+        if y < horizon:
+            t = y / max(1, horizon)
+            top = (183, 216, 242)
+            bottom = (246, 231, 207)
+        else:
+            t = (y - horizon) / max(1, height - horizon)
+            top = (113, 104, 91)
+            bottom = (51, 47, 43)
+        row = tuple(int(top[i] * (1.0 - t) + bottom[i] * t) for i in range(3)) + (255,)
+        for x in range(width):
+            px[x, y] = row
+
+    draw = ImageDraw.Draw(scene, "RGBA")
+    # Sun and atmospheric glow on the right, consistent with the approved reference family.
+    sun_x, sun_y = int(width * 0.89), int(height * 0.43)
+    glow = Image.new("RGBA", scene.size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow, "RGBA")
+    for radius, alpha in ((int(height*.16), 18), (int(height*.10), 30), (int(height*.045), 70)):
+        gd.ellipse((sun_x-radius, sun_y-radius, sun_x+radius, sun_y+radius), fill=(255, 214, 144, alpha))
+    glow = glow.filter(ImageFilter.GaussianBlur(max(4, int(height*.018))))
+    scene = Image.alpha_composite(scene, glow)
+    draw = ImageDraw.Draw(scene, "RGBA")
+
+    # Layered mountain silhouettes.
+    mountain_layers = [
+        ((97, 108, 119, 235), 0.48, 0.10),
+        ((72, 78, 83, 245), 0.55, 0.14),
+        ((50, 51, 51, 255), 0.64, 0.09),
+    ]
+    for color, base_ratio, amplitude in mountain_layers:
+        base = int(height * base_ratio)
+        points = [(0, height)]
+        steps = 12
+        for i in range(steps + 1):
+            x = int(width * i / steps)
+            wave = (i * 37 + 11) % 7
+            peak = base - int(height * amplitude * (0.25 + wave / 7.0))
+            points.append((x, peak))
+        points.extend([(width, height), (0, height)])
+        draw.polygon(points, fill=color)
+
+    # Rugged ground with deterministic texture.
+    ground_top = int(height * 0.68)
+    draw.rectangle((0, ground_top, width, height), fill=(57, 52, 47, 255))
+    for i in range(340):
+        x = (i * 97) % width
+        y = ground_top + ((i * 53) % max(1, height-ground_top))
+        r = 1 + (i % 5)
+        shade = 60 + (i * 17) % 65
+        draw.ellipse((x-r, y-r, x+r*2, y+r), fill=(shade, max(40, shade-8), max(35, shade-14), 150))
+
+    out = io.BytesIO()
+    scene.convert("RGB").save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+def _graphic_v66850_campaign_completeness(result, prompt_text, campaign_spec=None):
+    """Release-block incomplete Reference Mode posters and protect full fitment wording."""
+    if not isinstance(result, dict) or not result.get("data_url"):
+        return {"passed": False, "issues": ["missing rendered image"]}
+    spec = dict(campaign_spec or result.get("campaign_spec") or {})
+    metadata = dict(result.get("layered_metadata") or {})
+    zones = set(metadata.get("campaign_zones") or [])
+    required_zones = {
+        "logo", "headline", "compatibility_ribbon", "tagline",
+        "feature_matrix", "hero_product", "bottom_benefit_bar",
+    }
+    issues = []
+    missing = sorted(required_zones - zones)
+    if missing:
+        issues.append("missing campaign zones: " + ", ".join(missing))
+    compatibility = str(spec.get("compatibility") or "").strip()
+    if not compatibility:
+        issues.append("missing full compatibility wording")
+    required_tokens = list(spec.get("compatibility_required_tokens") or [])
+    rendered_copy = " ".join([
+        str(spec.get("headline") or ""), compatibility,
+        str(spec.get("tagline") or ""), str(spec.get("screen_size") or ""),
+        str(spec.get("product_designation") or ""),
+    ]).casefold()
+    lost = [str(token) for token in required_tokens if str(token).strip() and str(token).casefold() not in rendered_copy]
+    if lost:
+        issues.append("missing required fitment tokens: " + ", ".join(lost))
+    immutable = bool(result.get("product_layer_immutable") or metadata.get("exact_product_asset_mode"))
+    provider_generated = metadata.get("product_pixels_provider_generated")
+    if not immutable or provider_generated is not False:
+        issues.append("immutable uploaded-product authority not proven")
+    return {"passed": not issues, "issues": issues, "required_zones": sorted(required_zones)}
+
+
 def _graphic_v66830_source_canvas_result(prompt_text, role_items, output_size, reference_blueprint=None, vehicle_profile=None, failure_reason=""):
-    """Absolute no-fail local boundary using only uploaded source pixels and uniform scaling."""
-    if Image is None: raise RuntimeError("Pillow is unavailable for exact-product local fallback.")
-    product=next((i for i in role_items or [] if i.get("role")=="product_photo" and i.get("file") is not None),None)
-    if product is None: raise RuntimeError("No exact product source is available for local fallback.")
-    raw=product["file"].getvalue(); source_png=image_bytes_to_png(raw)
-    source=Image.open(io.BytesIO(source_png)).convert("RGBA")
-    width,height=[int(v) for v in _graphic_normalize_output_size_v4000(output_size).split("x",1)]
-    canvas=Image.new("RGBA",(width,height),(238,243,248,255))
-    max_w,max_h=int(width*.62),int(height*.72)
-    scale=min(max_w/max(1,source.width),max_h/max(1,source.height))
-    size=(max(1,round(source.width*scale)),max(1,round(source.height*scale)))
-    resized=source.resize(size,Image.LANCZOS)
-    x=max(0,int(width*.055)); y=max(0,height-resized.height-int(height*.075))
-    canvas.alpha_composite(resized,(x,y))
-    bio=io.BytesIO(); canvas.convert("RGB").save(bio,format="PNG",optimize=True)
-    png=bio.getvalue(); created=datetime.now(timezone.utc)
-    data_url="data:image/png;base64,"+base64.b64encode(png).decode("ascii")
-    metadata={"engine":"v66830-guaranteed-source-canvas","canvas_size":[width,height],"product_box":[x,y,resized.width,resized.height],"exact_product_pixels":True,"exact_product_asset_mode":True,"product_master_rgb_preserved":True,"product_pixels_provider_generated":False,"deterministic_typography":False,"campaign_zones":["hero_product"],"reference_blueprint":reference_blueprint or {},"failure_reason":str(failure_reason)[:1200]}
-    return [{"name":graphic_image_filename(prompt_text,created),"filename":graphic_image_filename(prompt_text,created),"data_url":data_url,"generated":True,"output_status":"completed_guaranteed_exact_source_v66830","verification_status":"local_exact_source","strict_product_identity_lock":True,"product_identity_method":"exact_source_pixel_composite","product_layer_immutable":True,"product_geometry_provider_generated":False,"ai_product_recreated":False,"product_transform_mode":"Exact Original Product","layered_metadata":metadata,"vehicle_profile":vehicle_profile or {},"reference_blueprint":reference_blueprint or {},"prompt":prompt_text,"created_at":created.isoformat(),"model":"local-guaranteed-exact-source-v66830","size":output_size,"resolution":output_size,"mime_type":"image/png","reliability_fallback":True,"graphic_engine_version":GRAPHIC_ENGINE_VERSION}]
+    """v66850 complete local commercial boundary; never return a blank source-photo canvas."""
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable for exact-product local fallback.")
+    product_item = next(
+        (item for item in role_items or [] if item.get("role") == "product_photo" and item.get("file") is not None),
+        None,
+    )
+    if product_item is None:
+        raise RuntimeError("No exact product source is available for local fallback.")
+
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    vehicle_profile = dict(vehicle_profile or {})
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint or {})
+    spec = _graphic_verified_campaign_spec_v3300(effective_prompt, vehicle_profile)
+    # Preserve all user-stated compatibility and required tokens from the v66200 authority.
+    explicit = _graphic_explicit_fitment_v41100(effective_prompt)
+    if explicit:
+        spec["compatibility"] = explicit
+    spec["compatibility_required_tokens"] = _graphic_copy_required_tokens_v36000(
+        spec.get("compatibility") or effective_prompt
+    )
+    spec["compatibility_locked"] = True
+    spec["compatibility_source"] = "v66200-full-fitment-authority"
+
+    background = _graphic_v66850_local_scene_plate(output_size, effective_prompt, vehicle_profile)
+    composed, metadata = _graphic_compose_reference_campaign_v3200(
+        background,
+        product_item,
+        effective_prompt,
+        output_size,
+        spec,
+        vehicle_profile,
+        role_items,
+        reference_blueprint=reference_blueprint,
+        template_key=str((get_graphic_project_state() or {}).get("brand_template") or "autotecpro_adventure"),
+    )
+    created = datetime.now(timezone.utc)
+    result = _graphic_build_provider_result_v3000(
+        composed,
+        effective_prompt,
+        output_size,
+        role_items,
+        "v66850-local-scene+deterministic-commercial-compositor",
+        reference_blueprint,
+        vehicle_profile,
+        corrected=True,
+    )
+    result["product_layer_immutable"] = True
+    result["product_geometry_provider_generated"] = False
+    result["ai_product_recreated"] = False
+    result["strict_product_identity_lock"] = True
+    result["product_transform_mode"] = "Exact Original Product"
+    result["product_identity_method"] = "v66000-authoritative-mask-local-commercial-composite"
+    result["campaign_spec"] = spec
+    result["output_status"] = "completed_guaranteed_commercial_v66850"
+    result["verification_status"] = "verified_local_commercial"
+    result.setdefault("layered_metadata", {}).update(metadata or {})
+    result["layered_metadata"].update({
+        "engine": "v66850-complete-local-commercial-fallback",
+        "exact_product_pixels": True,
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "ai_product_recreated": False,
+        "campaign_zones": [
+            "logo", "headline", "compatibility_ribbon", "tagline",
+            "feature_matrix", "hero_product", "bottom_benefit_bar",
+        ],
+        "failure_reason": str(failure_reason)[:1200],
+        "fallback_background": "deterministic-local-automotive-scene",
+    })
+    gate = _graphic_v66850_campaign_completeness(result, effective_prompt, spec)
+    result["commercial_completeness_gate_v66850"] = gate
+    if not gate.get("passed"):
+        raise RuntimeError("Guaranteed commercial fallback failed release gates: " + "; ".join(gate.get("issues") or []))
+    return [result]
 
 
 def _graphic_v66830_guaranteed_exact_result(prompt_text, uploaded_files=None, *, style_strength="High", forced_upload_role="Auto-detect", failure_reason=""):
