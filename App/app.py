@@ -46,7 +46,11 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v63000 LTS — Final Bezel Authority
+# AutoTecPro AI performance/stability revision: v66300 LTS — Universal Regression and Production Guard
+# Built directly from verified v66200. v66000 exact-geometry/bezel authority and v66200 full-fitment
+# authority remain unchanged. Adds a vehicle-agnostic/product-agnostic deterministic regression suite,
+# release gate, provider-route/cache fallback tests, and optional startup self-check without adding
+# provider calls or altering normal image-generation behavior.
 
 # v66000 LTS clean architectural merge:
 # - v40100 exact-source composition and intact-source fallback.
@@ -16660,114 +16664,108 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
 
 
 def _graphic_explicit_fitment_v41100(text):
-    """Return authoritative flexible full fitment from the current user message.
+    """Return authoritative full fitment from flexible, catalog-neutral wording.
 
-    v66200 restores the proven v40100 Full Fitment Copy Fidelity behavior and
-    expands it to common punctuation and wording variants. Product compatibility
-    remains independent from the single representative vehicle used in the scene.
-    The style reference is never allowed to replace user-stated make/model/year
-    coverage.
+    v66300 preserves the v66200 rule that explicit product compatibility outranks
+    the representative scene vehicle, but removes the closed make/model whitelist.
+    Unknown and future makes, models, chassis codes and generations are retained
+    rather than discarded. Numbers such as screen sizes are never treated as years.
     """
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     if not value:
         return ""
 
-    # Prefer explicitly labelled compatibility, otherwise inspect the leading
-    # product-identification sentence. Stop before visual/design instructions.
-    labelled = re.search(
-        r"(?i)\b(?:compatibility|compatible\s+with|fits?|fitment|vehicles?|for)\s*[:\-]?\s*([^.;]{3,320})",
+    # Use the product-identification sentence as the model authority. A labelled
+    # compatibility clause is preferred only when it contains alphabetic model text.
+    leading = re.split(r"[;\n]", value, maxsplit=1)[0].strip()
+    labelled_match = re.search(
+        r"(?i)\b(?:compatibility|compatible\s+with|fits?|fitment|vehicles?)\s*[:\-]?\s*([^.;]{3,360})",
         value,
     )
-    leading = re.split(r"[.;\n]", value, maxsplit=1)[0].strip()
-    candidates = []
-    if labelled:
-        candidates.append(labelled.group(1))
-    candidates.append(leading)
+    labelled = labelled_match.group(1).strip() if labelled_match else ""
+    candidates = [labelled, leading]
 
-    model_token = re.compile(
-        r"(?i)\b(?:"
-        r"(?:ford\s+)?f\s*[- ]?\s*(?:150|250|350|450|550)|"
-        r"(?:chevrolet\s+|chevy\s+)?silverado|(?:gmc\s+)?sierra|"
-        r"(?:dodge\s+|ram\s+)?ram(?:\s+(?:1500|2500|3500))?|"
-        r"(?:chevrolet\s+)?tahoe|(?:chevrolet\s+)?suburban|"
-        r"(?:gmc\s+)?yukon|(?:cadillac\s+)?escalade|"
-        r"(?:toyota\s+)?tundra|(?:toyota\s+)?tacoma|"
-        r"(?:jeep\s+)?wrangler|(?:jeep\s+)?gladiator|"
-        r"(?:infiniti\s+)?q50|(?:infiniti\s+)?q60"
-        r")\b"
+    instruction_cut = re.compile(
+        r"(?i)\s+(?:screen\s*size|display\s*size|screen\b|resolution|create|make|design|"
+        r"with\s+the\s+same\s+style|please\s+use|commercial\s+photo|reference\s+image)\s*[:\-]?"
     )
-
-    def canonical_model(raw):
-        token = re.sub(r"\s+", " ", str(raw or "")).strip()
-        low = token.casefold()
-        f_match = re.search(r"f\s*[- ]?\s*(150|250|350|450|550)", low)
-        if f_match:
-            return "F-" + f_match.group(1)
-        if "silverado" in low:
-            return "Chevrolet Silverado"
-        if "sierra" in low:
-            return "GMC Sierra"
-        ram_match = re.search(r"\bram(?:\s+(1500|2500|3500))?\b", low)
-        if ram_match:
-            return "RAM" + (" " + ram_match.group(1) if ram_match.group(1) else "")
-        names = {
-            "tahoe": "Chevrolet Tahoe", "suburban": "Chevrolet Suburban",
-            "yukon": "GMC Yukon", "escalade": "Cadillac Escalade",
-            "tundra": "Toyota Tundra", "tacoma": "Toyota Tacoma",
-            "wrangler": "Jeep Wrangler", "gladiator": "Jeep Gladiator",
-            "q50": "Infiniti Q50", "q60": "Infiniti Q60",
-        }
-        for key, name in names.items():
-            if re.search(rf"\b{re.escape(key)}\b", low):
-                return name
-        return token
-
-    year_range_patterns = [
+    year_range_re = re.compile(
         r"\(?\s*((?:19|20)\d{2})\s*(?:[–—-]|\bto\b|\bthrough\b)\s*((?:19|20)\d{2})\s*\)?",
-        r"\(?\s*((?:19|20)\d{2})\s*[/\\]\s*((?:19|20)\d{2})\s*\)?",
-    ]
+        re.I,
+    )
+    year_plus_re = re.compile(r"\b((?:19|20)\d{2})\s*\+")
+    single_year_re = re.compile(r"\b((?:19|20)\d{2})\b")
+
+    # Year authority may appear later in the same message after a screen-size phrase.
+    range_match = year_range_re.search(value)
+    plus_match = year_plus_re.search(value) if not range_match else None
+    single_matches = single_year_re.findall(value) if not range_match and not plus_match else []
+    if range_match:
+        start, end = range_match.group(1), range_match.group(2)
+        year_text = f" ({min(int(start), int(end))}–{max(int(start), int(end))})"
+    elif plus_match:
+        year_text = f" ({plus_match.group(1)}+)"
+    elif len(single_matches) == 1:
+        year_text = f" ({single_matches[0]})"
+    else:
+        year_text = ""
+
+    casing = {
+        "bmw": "BMW", "gmc": "GMC", "ram": "RAM", "vw": "VW", "mini": "MINI",
+        "audi": "Audi", "ford": "Ford", "toyota": "Toyota", "lexus": "Lexus",
+        "chevrolet": "Chevrolet", "chevy": "Chevrolet", "dodge": "Dodge",
+        "jeep": "Jeep", "infiniti": "Infiniti", "nissan": "Nissan", "honda": "Honda",
+        "acura": "Acura", "porsche": "Porsche", "volkswagen": "Volkswagen",
+        "mercedes": "Mercedes", "benz": "Benz", "cadillac": "Cadillac",
+        "buick": "Buick", "lincoln": "Lincoln", "subaru": "Subaru", "mazda": "Mazda",
+        "hyundai": "Hyundai", "kia": "Kia", "volvo": "Volvo", "tesla": "Tesla",
+        "land": "Land", "rover": "Rover", "range": "Range", "mitsubishi": "Mitsubishi",
+    }
+
+    def smart_case(phrase):
+        parts = re.split(r"(\s+|/|,)", phrase)
+        output = []
+        for part in parts:
+            low = part.casefold()
+            if low in casing:
+                output.append(casing[low])
+            elif re.fullmatch(r"[a-z]+\d+[a-z0-9.]*", low):
+                output.append(part.upper() if len(re.match(r"[a-z]+", low).group(0)) <= 3 else part)
+            elif part.islower() and part.isalpha():
+                output.append(part.title())
+            else:
+                output.append(part)
+        return "".join(output)
 
     for raw in candidates:
-        candidate = re.sub(r"(?i)^\s*(?:this\s+is|these\s+are)\s+", "", str(raw or "")).strip(" ,:;.-")
+        candidate = re.sub(r"(?i)^\s*(?:this\s+is|these\s+are|for|fits?|compatible\s+with)\s+", "", str(raw or "")).strip(" ,:;.-")
+        if not candidate:
+            continue
+        candidate = instruction_cut.split(candidate, maxsplit=1)[0].strip()
+        candidate = re.sub(r"(?i)\b\d{1,2}(?:\.\d+)?\s*(?:inch|inches|[\"”])\s*$", "", candidate).strip()
+        # Remove year notation while retaining chassis/generation codes such as W205,
+        # G30, 958.2, B9 and F10.
+        candidate = year_range_re.sub(" ", candidate)
+        candidate = year_plus_re.sub(" ", candidate)
+        candidate = re.sub(r"\(\s*\)", " ", candidate)
+        # Product-type wording is not part of the fitment model identity.
         candidate = re.split(
-            r"(?i)\s+(?:screen\s*size|display\s*size|resolution|create|make|design|with\s+the\s+same\s+style|please\s+use)\s*[:\-]?",
+            r"(?i)\s+\b(?:head\s*unit|radio|infotainment|navigation|digital\s+cluster|gauge\s+cluster|screen)\b",
             candidate,
             maxsplit=1,
-        )[0].strip()
-
-        models=[]
-        for match in model_token.finditer(candidate):
-            model=canonical_model(match.group(0))
-            if model and model not in models:
-                models.append(model)
-        if not models:
+        )[0]
+        candidate = re.sub(r"(?i)^\s*(?:compatibility|fitment|vehicles?)\s*[:\-]?\s*", "", candidate)
+        candidate = re.sub(r"\s*(?:,|\band\b)\s*", " / ", candidate, flags=re.I)
+        candidate = re.sub(r"\s*/\s*", " / ", candidate)
+        candidate = re.sub(r"\s+", " ", candidate).strip(" /,;:-")
+        if not candidate or not re.search(r"[A-Za-z]", candidate):
             continue
-
-        if all(re.fullmatch(r"F-(?:150|250|350|450|550)", m) for m in models):
-            model_text="Ford " + " / ".join(models)
-        else:
-            model_text=" / ".join(models)
-
-        year_text=""
-        for pattern in year_range_patterns:
-            yr=re.search(pattern,candidate,flags=re.I)
-            if yr:
-                start,end=yr.group(1),yr.group(2)
-                if int(start) <= int(end):
-                    year_text=f" ({start}–{end})"
-                else:
-                    year_text=f" ({end}–{start})"
-                break
-        if not year_text:
-            plus=re.search(r"\b((?:19|20)\d{2})\s*\+",candidate)
-            if plus:
-                year_text=f" ({plus.group(1)}+)"
-            else:
-                single=re.search(r"\b((?:19|20)\d{2})\b",candidate)
-                if single:
-                    year_text=f" ({single.group(1)})"
-        return "For " + model_text + year_text
+        # Canonicalize F-series typography without limiting acceptance to Ford.
+        candidate = re.sub(r"(?i)\bF\s*[- ]?\s*(150|250|350|450|550)\b", lambda m: "F-" + m.group(1), candidate)
+        candidate = smart_case(candidate)
+        return "For " + candidate + year_text
     return ""
+
 
 
 
@@ -20161,7 +20159,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v63000"
+GRAPHIC_ENGINE_VERSION = "v66300"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -25633,20 +25631,31 @@ def _graphic_extract_full_compatibility_v36000(prompt_text, fallback=""):
 
 
 def _graphic_copy_required_tokens_v36000(text):
-    """Return every make, model, and year token that must survive rendering."""
+    """Return catalog-neutral make/model/year tokens that must survive rendering.
+
+    The validator no longer uses a closed vehicle-brand list. Every meaningful
+    alphanumeric token in the authoritative fitment is protected, including future
+    makes, chassis codes and model designations.
+    """
     value = str(text or "")
+    stop = {"for", "and", "to", "through", "from", "the", "vehicle", "vehicles", "fits", "fitment"}
     tokens = []
-    pattern = (
-        r"(?i)\b(?:toyota|tundra|tacoma|chevrolet|chevy|silverado|gmc|sierra|"
-        r"ford|f\s*[\- ]?\s*(?:150|250|350|450|550)|dodge|ram|"
-        r"tahoe|suburban|yukon|cadillac|escalade|jeep|wrangler|gladiator|"
-        r"infiniti|q50|q60|(?:19|20)\d{2})\b"
-    )
-    for token in re.findall(pattern, value):
-        clean = re.sub(r"[^a-z0-9]+", "", str(token).casefold())
-        if clean and clean not in tokens:
+    for raw in re.findall(r"[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?", value):
+        clean = re.sub(r"[^a-z0-9]+", "", raw.casefold())
+        if not clean or clean in stop:
+            continue
+        # Single-letter chassis/model prefixes are retained together with their
+        # adjacent number by also adding a compact phrase below.
+        if len(clean) >= 2 and clean not in tokens:
+            tokens.append(clean)
+    compact = re.sub(r"[^a-z0-9]+", "", value.casefold())
+    # Protect common letter-number model pairs generically (X5, G30, W205, F-150).
+    for pair in re.findall(r"(?i)\b([A-Z]{1,4})\s*[- ]?\s*(\d{1,4}(?:\.\d+)?)\b", value):
+        clean = re.sub(r"[^a-z0-9]+", "", "".join(pair).casefold())
+        if clean and clean not in tokens and clean in compact:
             tokens.append(clean)
     return tokens
+
 
 
 
@@ -46593,6 +46602,333 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+
+
+# ============================================================
+# v66300 LTS — Universal deterministic regression and release guard
+# This suite is deliberately product/make/model agnostic. Toyota is one historical
+# regression fixture, never a hard-coded geometry or catalog assumption.
+# It performs no provider calls and does not alter production generation state.
+# ============================================================
+GRAPHIC_V66300_REGRESSION_VERSION = "v66300-universal-regression-1"
+GRAPHIC_V66300_REQUIRED_GEOMETRY_FUNCTIONS = (
+    "_graphic_v66000_flood_connected_background",
+    "_graphic_v66000_source_geometry_evidence",
+    "_graphic_v66000_geometry_report",
+    "_graphic_v66000_build_candidate",
+    "_graphic_v66000_select_exact_geometry_alpha",
+    "_graphic_white_background_mask_v3300",
+    "_graphic_open_product_layer_v3300",
+)
+
+
+def _graphic_v66300_result(name, passed, **details):
+    return {"name": str(name), "passed": bool(passed), **details}
+
+
+def _graphic_v66300_synthetic_product_bytes(
+    *,
+    body_rgb=(205, 205, 200),
+    background_rgb=(255, 255, 255),
+    asymmetric=False,
+    include_lower_housing=True,
+    include_mounting_ears=True,
+):
+    """Build a generic product fixture without assuming any vehicle or bezel layout."""
+    if Image is None:
+        raise RuntimeError("Pillow is required for v66300 regression fixtures.")
+    from PIL import ImageDraw
+    canvas = Image.new("RGB", (520, 420), tuple(background_rgb))
+    draw = ImageDraw.Draw(canvas)
+    outline = (42, 42, 44)
+    left, top, right, bottom = (84, 62, 424, 304)
+    draw.rounded_rectangle((left, top, right, bottom), radius=22, fill=tuple(body_rgb), outline=outline, width=4)
+    # Interior opening is intentionally asymmetric when requested. The suite must not
+    # assume equal side bezels or a rectangular Toyota-specific housing.
+    aperture_left = 130 if not asymmetric else 116
+    aperture_right = 376 if not asymmetric else 388
+    draw.rounded_rectangle((aperture_left, 94, aperture_right, 254), radius=8, fill=(14, 17, 20), outline=(5, 5, 5), width=2)
+    # Generic controls/features produce source evidence on both sides.
+    for y in (108, 148, 188, 228):
+        draw.ellipse((96, y, 116, y + 20), fill=(35, 35, 38), outline=(10, 10, 10))
+    for y in (112, 158, 204):
+        x0 = 394 if not asymmetric else 402
+        draw.rectangle((x0, y, x0 + 16, y + 24), fill=(38, 38, 40), outline=(10, 10, 10))
+    if include_lower_housing:
+        draw.polygon(((102, 300), (408, 300), (374, 354), (132, 354)), fill=tuple(body_rgb), outline=outline)
+        draw.rectangle((184, 309, 330, 337), fill=(52, 52, 54), outline=(15, 15, 15))
+    if include_mounting_ears:
+        # Deliberately different ear shapes and positions; these are source-derived
+        # structural components, not brand-specific expectations.
+        draw.polygon(((58, 116), (86, 106), (88, 164), (60, 158)), fill=tuple(body_rgb), outline=outline)
+        draw.polygon(((424, 202), (462, 192), (468, 242), (424, 234)), fill=tuple(body_rgb), outline=outline)
+        if asymmetric:
+            draw.rectangle((218, 48, 252, 65), fill=tuple(body_rgb), outline=outline)
+    output = io.BytesIO()
+    canvas.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _graphic_v66300_source_evidence_from_bytes(raw_bytes):
+    """Reproduce the v66000 source-evidence setup for deterministic damage tests."""
+    import numpy as np
+    source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw_bytes))).convert("RGBA")
+    rgb = np.asarray(source.convert("RGB"), dtype=np.int16)
+    height, width = rgb.shape[:2]
+    band = max(2, min(width, height) // 80)
+    border = np.concatenate(
+        [
+            rgb[:band].reshape(-1, 3),
+            rgb[-band:].reshape(-1, 3),
+            rgb[:, :band].reshape(-1, 3),
+            rgb[:, -band:].reshape(-1, 3),
+        ],
+        axis=0,
+    )
+    bbright = border.mean(axis=1)
+    bchroma = border.max(axis=1) - border.min(axis=1)
+    neutral = border[(bbright >= 190) & (bchroma <= 46)]
+    samples = neutral if len(neutral) >= 32 else border
+    bg = np.median(samples, axis=0).astype(np.float32)
+    evidence, _, _, _ = _graphic_v66000_source_geometry_evidence(rgb, bg)
+    return evidence
+
+
+def _graphic_v66300_damage_alpha(alpha, region):
+    import numpy as np
+    damaged = np.asarray(alpha, dtype=np.uint8).copy()
+    h, w = damaged.shape[:2]
+    x0, y0, x1, y1 = region
+    x0, x1 = max(0, int(x0 * w)), min(w, int(x1 * w))
+    y0, y1 = max(0, int(y0 * h)), min(h, int(y1 * h))
+    damaged[y0:y1, x0:x1] = 0
+    return damaged
+
+
+def _graphic_v66300_geometry_regressions():
+    """Universal source-relative geometry tests for bezel, housing and thin structures."""
+    results = []
+    fixtures = (
+        ("bright_neutral_asymmetric", dict(body_rgb=(208, 208, 202), asymmetric=True)),
+        ("dark_horizontal", dict(body_rgb=(34, 35, 38), asymmetric=False)),
+        ("warm_metallic", dict(body_rgb=(186, 174, 157), asymmetric=True)),
+    )
+    for fixture_name, kwargs in fixtures:
+        raw = _graphic_v66300_synthetic_product_bytes(**kwargs)
+        alpha, selection = _graphic_v66000_select_exact_geometry_alpha(raw)
+        results.append(_graphic_v66300_result(
+            f"geometry_candidate_{fixture_name}",
+            alpha is not None and selection.get("passed") is True,
+            selected=selection.get("selected"),
+            confidence=selection.get("confidence"),
+            reason=selection.get("reason", ""),
+        ))
+        if alpha is None:
+            continue
+        evidence = _graphic_v66300_source_evidence_from_bytes(raw)
+        # Damage zones intentionally represent generic side structure, lower housing,
+        # and isolated mounting projections. The report must reject each damaged matte.
+        damage_cases = (
+            ("side_structure", (0.08, 0.23, 0.24, 0.72)),
+            ("lower_housing", (0.18, 0.70, 0.82, 0.89)),
+            ("mounting_projection", (0.78, 0.42, 0.94, 0.64)),
+        )
+        for damage_name, region in damage_cases:
+            damaged = _graphic_v66300_damage_alpha(alpha, region)
+            report = _graphic_v66000_geometry_report(evidence, damaged, f"v66300_{damage_name}")
+            results.append(_graphic_v66300_result(
+                f"reject_{fixture_name}_{damage_name}",
+                report.get("passed") is False,
+                confidence=report.get("confidence"),
+                failed=list(report.get("failed") or []),
+            ))
+    return results
+
+
+def _graphic_v66300_fitment_regressions():
+    """Catalog-neutral wording tests, including but not limited to Toyota."""
+    cases = (
+        ("Toyota Tundra (2014-2022)", "For Toyota Tundra (2014–2022)"),
+        ("Ford F150 / F250 / F350 (2015-2021)", "For Ford F-150 / F-250 / F-350 (2015–2021)"),
+        ("Chevrolet Silverado, GMC Sierra 2014-2019", "For Chevrolet Silverado / GMC Sierra (2014–2019)"),
+        ("BMW X5 / X6 (2014-2018)", "For BMW X5 / X6 (2014–2018)"),
+        ("Audi A4 / S4 2009 to 2016", "For Audi A4 / S4 (2009–2016)"),
+        ("Mercedes-Benz C-Class W205 2015 through 2021", "For Mercedes-Benz C-Class W205 (2015–2021)"),
+        ("Porsche Cayenne 958.2 (2015-2018)", "For Porsche Cayenne 958.2 (2015–2018)"),
+        ("Jeep Wrangler / Gladiator 2018+", "For Jeep Wrangler / Gladiator (2018+)"),
+    )
+    results = []
+    for prompt, expected in cases:
+        actual = _graphic_extract_full_compatibility_v36000(prompt, "")
+        results.append(_graphic_v66300_result(
+            "fitment_" + hashlib.sha256(prompt.encode()).hexdigest()[:10],
+            actual == expected,
+            prompt=prompt,
+            expected=expected,
+            actual=actual,
+        ))
+    # Ensure screen/chassis numbers are not collapsed into a year lock.
+    non_year_prompt = 'BMW G30 12.3" screen, compatible with 2017-2023'
+    actual = _graphic_extract_full_compatibility_v36000(non_year_prompt, "")
+    results.append(_graphic_v66300_result(
+        "fitment_non_year_number_protection",
+        "2017–2023" in actual and "12.3" not in actual,
+        actual=actual,
+    ))
+    return results
+
+
+def _graphic_v66300_cache_regressions():
+    """Verify session fallback without requiring or mutating production Supabase data."""
+    key = "v66300-regression:" + hashlib.sha256(str(time.time_ns()).encode()).hexdigest()
+    payload = {"value": "session-fallback", "version": GRAPHIC_V66300_REGRESSION_VERSION}
+    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    before = session.get(key, None)
+    had_key = key in session
+    results = []
+    try:
+        # Directly seed the documented fallback layer. This test intentionally avoids
+        # a remote database write and proves that cache_get remains available when the
+        # persistent backend is absent or denied.
+        session[key] = payload
+        loaded = _graphic_v66100_cache_get(key)
+        results.append(_graphic_v66300_result(
+            "cache_session_fallback",
+            loaded == payload,
+            loaded=loaded,
+        ))
+        missing_key = key + ":missing"
+        results.append(_graphic_v66300_result(
+            "cache_missing_key_safe",
+            _graphic_v66100_cache_get(missing_key) in (None, {}),
+        ))
+    finally:
+        if had_key:
+            session[key] = before
+        else:
+            session.pop(key, None)
+        session.pop(key + ":missing", None)
+    return results
+
+
+def _graphic_v66300_provider_route_regressions():
+    """Verify route fingerprint separation and preferred-route ordering state."""
+    results = []
+    cases = (
+        ("generate", "1536x1024", False),
+        ("edit", "1536x1024", True),
+        ("generate", "1024x1024", False),
+    )
+    fingerprints = [_graphic_v66100_route_fingerprint(*case) for case in cases]
+    results.append(_graphic_v66300_result(
+        "provider_route_fingerprint_separation",
+        len(set(fingerprints)) == len(fingerprints),
+        fingerprints=fingerprints,
+    ))
+    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    action, size, has_images = cases[1]
+    key = GRAPHIC_V66100_ROUTE_CACHE_KEY + ":" + _graphic_v66100_route_fingerprint(action, size, has_images)
+    old = session.get(key)
+    had_key = key in session
+    route = "responses-image-tool-v4100-regression-model-2"
+    try:
+        session[key] = {"route": route, "updated_at": datetime.now(timezone.utc).isoformat()}
+        results.append(_graphic_v66300_result(
+            "provider_preferred_route_retrieval",
+            _graphic_v66100_preferred_route(action, size, has_images) == route,
+        ))
+        results.append(_graphic_v66300_result(
+            "provider_route_scope_isolation",
+            _graphic_v66100_preferred_route("generate", size, False) != route,
+        ))
+    finally:
+        if had_key:
+            session[key] = old
+        else:
+            session.pop(key, None)
+    return results
+
+
+def run_graphic_regression_suite_v66300(*, include_geometry=True):
+    """Run the deterministic release suite. No OpenAI, WooCommerce or network calls."""
+    started = time.perf_counter()
+    sections = {}
+    required_missing = [name for name in GRAPHIC_V66300_REQUIRED_GEOMETRY_FUNCTIONS if not callable(globals().get(name))]
+    sections["authority_presence"] = [
+        _graphic_v66300_result("v66000_geometry_authority_present", not required_missing, missing=required_missing),
+        _graphic_v66300_result(
+            "v66200_fitment_authority_present",
+            callable(globals().get("_graphic_extract_full_compatibility_v36000"))
+            and callable(globals().get("_graphic_copy_required_tokens_v36000")),
+        ),
+    ]
+    if include_geometry and not required_missing:
+        try:
+            sections["geometry"] = _graphic_v66300_geometry_regressions()
+        except Exception as error:
+            sections["geometry"] = [_graphic_v66300_result(
+                "geometry_suite_execution", False, error=f"{type(error).__name__}: {error}"
+            )]
+    try:
+        sections["fitment"] = _graphic_v66300_fitment_regressions()
+    except Exception as error:
+        sections["fitment"] = [_graphic_v66300_result(
+            "fitment_suite_execution", False, error=f"{type(error).__name__}: {error}"
+        )]
+    try:
+        sections["cache"] = _graphic_v66300_cache_regressions()
+    except Exception as error:
+        sections["cache"] = [_graphic_v66300_result(
+            "cache_suite_execution", False, error=f"{type(error).__name__}: {error}"
+        )]
+    try:
+        sections["provider_routing"] = _graphic_v66300_provider_route_regressions()
+    except Exception as error:
+        sections["provider_routing"] = [_graphic_v66300_result(
+            "provider_route_suite_execution", False, error=f"{type(error).__name__}: {error}"
+        )]
+    all_results = [row for rows in sections.values() for row in rows]
+    failed = [row for row in all_results if not row.get("passed")]
+    report = {
+        "suite": GRAPHIC_V66300_REGRESSION_VERSION,
+        "engine": GRAPHIC_ENGINE_VERSION,
+        "passed": not failed,
+        "test_count": len(all_results),
+        "failed_count": len(failed),
+        "duration_ms": round((time.perf_counter() - started) * 1000.0, 2),
+        "sections": sections,
+        "failed": failed,
+        "network_calls": 0,
+        "universal": True,
+    }
+    return report
+
+
+def _graphic_v66300_optional_startup_self_check():
+    """Run once only when explicitly enabled; normal production startup is unchanged."""
+    enabled = str(os.getenv("GRAPHIC_V66300_RUN_REGRESSION_ON_STARTUP", "")).strip().lower() in {"1", "true", "yes", "on"}
+    try:
+        enabled = enabled or bool(st.secrets.get("GRAPHIC_V66300_RUN_REGRESSION_ON_STARTUP", False))
+    except Exception:
+        pass
+    if not enabled or st.session_state.get("graphic_v66300_regression_completed"):
+        return None
+    report = run_graphic_regression_suite_v66300(include_geometry=True)
+    st.session_state["graphic_v66300_regression_completed"] = True
+    st.session_state["graphic_v66300_regression_report"] = report
+    diagnostic_log(
+        "graphic_v66300_regression_suite",
+        passed=report.get("passed"),
+        test_count=report.get("test_count"),
+        failed_count=report.get("failed_count"),
+        duration_ms=report.get("duration_ms"),
+    )
+    return report
+
+
+_graphic_v66300_optional_startup_self_check()
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
