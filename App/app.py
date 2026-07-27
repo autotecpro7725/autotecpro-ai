@@ -24554,6 +24554,7 @@ def _graphic_compose_reference_campaign_v3200(
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
     layout_bp = _graphic_layout_authority_v66400(layout_bp, (W, H))
+    layout_bp = _graphic_layout_authority_v66700(layout_bp, (W, H))
 
     # Reference-faithful production grid. The approved artwork uses the scenery as the
     # entire background; the top is merely calmed for copy, never replaced by a large
@@ -24791,12 +24792,12 @@ def _graphic_compose_reference_campaign_v3200(
     headline_y = int(H * headline_box[1])
     headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.054, True)
     headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
-    line_step = int(H * 0.068)
+    line_step = int(H * 0.064)
     for line in headline_lines:
         draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
         headline_y += line_step
 
-    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.004))
+    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.006))
     ribbon_h = int(H * compatibility_box[3])
     ribbon_w = int(W * compatibility_box[2])
     ribbon_fit = _graphic_fit_ribbon_copy_v36000(
@@ -24851,7 +24852,7 @@ def _graphic_compose_reference_campaign_v3200(
         "engine": "v36000-flexible-compatibility-copy",
     }
     tagline_x = left_x
-    tagline_y = max(int(H * tagline_box[1]), ribbon_y + ribbon_h + int(H * 0.012))
+    tagline_y = max(int(H * tagline_box[1]), ribbon_y + ribbon_h + int(H * 0.014))
     tagline_available_w = min(int(W * tagline_box[2]), max(1, int(W * layout_bp["feature_matrix_box"][0]) - int(W * 0.018) - tagline_x))
     tag_font = fitted_font(tagline, tagline_available_w, H * 0.027, H * 0.018, False)
     draw.text((tagline_x, tagline_y), tagline, font=tag_font, fill=navy)
@@ -24870,7 +24871,7 @@ def _graphic_compose_reference_campaign_v3200(
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
     grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
     cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
-    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
+    feature_font = _graphic_font(max(17, int(H * 0.0208)), False)
     for idx, label in enumerate(features):
         row, col = divmod(idx, 4)
         x0 = int(grid_x + col * cell_w)
@@ -24880,16 +24881,16 @@ def _graphic_compose_reference_campaign_v3200(
         if row:
             draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
         icon_box = (
-            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
-            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
+            int(x0 + cell_w * 0.30), int(y0 + cell_h * 0.045),
+            int(x0 + cell_w * 0.70), int(y0 + cell_h * 0.395),
         )
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
-        ty = int(y0 + cell_h * 0.57)
+        ty = int(y0 + cell_h * 0.545)
         for line in lines:
             tw = text_width(line, feature_font)
             draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
-            ty += int(H * 0.0225)
+            ty += int(H * 0.0215)
 
     vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
     vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
@@ -24907,22 +24908,25 @@ def _graphic_compose_reference_campaign_v3200(
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
-    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
+    bottom_font = _graphic_font(max(17, int(H * 0.0208)), False)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
             draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
-        icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
+        icon_box = (int(x0 + cell * 0.070), int(by + bh * 0.17), int(x0 + cell * 0.285), int(by + bh * 0.75))
         _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
         lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
         ty = int(by + bh * 0.25)
         for line in lines:
-            draw.text((int(x0 + cell * 0.34), ty), line, font=bottom_font, fill=white)
-            ty += int(H * 0.024)
+            draw.text((int(x0 + cell * 0.325), ty), line, font=bottom_font, fill=white)
+            ty += int(H * 0.0225)
 
+    product_box = [px, py, product.width, product.height]
+    layout_qa_v66700 = _graphic_layout_qa_v66700(layout_bp, (W, H), product_box)
+    if not layout_qa_v66700.get("passed"):
+        raise RuntimeError("v66700 rejected the commercial layout because reference spacing QA failed.")
     output = io.BytesIO()
     canvas.convert("RGB").save(output, format="PNG", compress_level=5)
-    product_box = [px, py, product.width, product.height]
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
@@ -24964,6 +24968,10 @@ def _graphic_compose_reference_campaign_v3200(
         "deterministic_typography": True,
         "fixed_production_geometry": True,
         "layout_authority_v66400": dict(layout_bp.get("layout_authority_v66400") or {}),
+        "layout_authority_v66700": dict(layout_bp.get("layout_authority_v66700") or {}),
+        "reference_layout_qa_v66700": layout_qa_v66700,
+        "reference_style_fidelity_target_v66700": 0.95,
+        "typography_layout_fidelity_target_v66700": 0.95,
         "tagline_left_column_lock_v66400": True,
         "complete_feature_matrix_v66400": len(features) == 8,
         "banner_overlap_v66400": {
@@ -28966,6 +28974,120 @@ def _graphic_reference_exact_result_guard_v66400(images, request_guard=None):
             "exact-product contract failed: " + ", ".join(contract.get("missing_or_failed") or ["unknown"])
         ),
         "engine": "reference-exact-result-guard-v66500",
+    }
+
+
+
+
+def _graphic_layout_authority_v66700(layout_bp, canvas_size):
+    """Reference-locked layout rhythm without changing product pixels or geometry.
+
+    The approved campaign reference is treated as a spacing blueprint. This function
+    normalizes only commercial zones: copy rhythm, feature-grid breathing room, hero
+    top clearance, and footer proportions. Product scaling remains uniform and uncropped.
+    """
+    solved = dict(layout_bp or {})
+    W, H = [max(1, int(v)) for v in canvas_size]
+    logo = list(solved.get("logo_box") or [0.022, 0.025, 0.205, 0.105])
+    headline = list(solved.get("headline_box") or [0.022, 0.145, 0.535, 0.090])
+    compatibility = list(solved.get("compatibility_box") or [0.022, 0.235, 0.435, 0.055])
+    tagline = list(solved.get("tagline_box") or [0.022, 0.300, 0.535, 0.045])
+    feature = list(solved.get("feature_matrix_box") or [0.565, 0.025, 0.410, 0.315])
+    hero = list(solved.get("hero_product_box") or [0.018, 0.305, 0.682, 0.575])
+    footer = list(solved.get("bottom_bar_box") or [0.035, 0.875, 0.930, 0.110])
+
+    # One immutable left copy rail, matching the approved reference hierarchy.
+    copy_x = max(0.018, min(0.035, float(headline[0])))
+    logo[0] = copy_x
+    headline[0] = copy_x
+    compatibility[0] = copy_x
+    tagline[0] = copy_x
+
+    # Keep text block proportions close to the approved artwork regardless of title length.
+    headline[1] = max(0.125, min(0.155, float(headline[1])))
+    headline[2] = max(0.505, min(0.545, float(headline[2])))
+    headline[3] = max(0.082, min(0.102, float(headline[3])))
+    compatibility[1] = max(float(compatibility[1]), headline[1] + headline[3] - 0.004)
+    compatibility[2] = max(0.405, min(0.505, float(compatibility[2])))
+    compatibility[3] = max(0.048, min(0.060, float(compatibility[3])))
+    tagline[1] = max(float(tagline[1]), compatibility[1] + compatibility[3] + 0.010)
+    tagline[2] = max(0.485, min(0.535, float(tagline[2])))
+    tagline[3] = max(0.038, min(0.050, float(tagline[3])))
+
+    # Complete 4x2 grid with the same open, premium rhythm as the reference.
+    feature[0] = max(0.555, min(0.585, float(feature[0])))
+    feature[1] = max(0.025, min(0.045, float(feature[1])))
+    feature[2] = max(0.390, min(0.425, float(feature[2])))
+    feature[3] = max(0.295, min(0.325, float(feature[3])))
+
+    # Product begins below both copy and feature blocks. Extra clearance protects glossy
+    # shoulders and protrusions from visually merging with the bright upper background.
+    copy_bottom = max(tagline[1] + tagline[3], feature[1] + feature[3])
+    clearance = max(0.026, 26.0 / H)
+    hero_bottom = min(float(footer[1]) + 0.006, float(hero[1]) + float(hero[3]))
+    hero[1] = max(float(hero[1]), copy_bottom + clearance)
+    hero[3] = max(0.12, hero_bottom - hero[1])
+    hero[0] = min(float(hero[0]), 0.025)
+    hero[2] = max(float(hero[2]), 0.665)
+
+    # Footer proportions and interior padding are locked to the reference family.
+    footer[0] = max(0.025, min(0.040, float(footer[0])))
+    footer[1] = max(0.870, min(0.895, float(footer[1])))
+    footer[2] = max(0.920, min(0.950, float(footer[2])))
+    footer[3] = max(0.100, min(0.115, float(footer[3])))
+
+    solved.update({
+        "logo_box": [round(float(v), 6) for v in logo],
+        "headline_box": [round(float(v), 6) for v in headline],
+        "compatibility_box": [round(float(v), 6) for v in compatibility],
+        "tagline_box": [round(float(v), 6) for v in tagline],
+        "feature_matrix_box": [round(float(v), 6) for v in feature],
+        "hero_product_box": [round(float(v), 6) for v in hero],
+        "bottom_bar_box": [round(float(v), 6) for v in footer],
+        "layout_authority_v66700": {
+            "reference_spacing_blueprint": True,
+            "copy_column_x": round(copy_x, 6),
+            "copy_rhythm_locked": True,
+            "feature_matrix_4x2_locked": True,
+            "minimum_product_top_clearance": round(clearance, 6),
+            "adaptive_lower_hero_anchor": True,
+            "footer_rhythm_locked": True,
+            "product_geometry_modified": False,
+        },
+    })
+    return solved
+
+
+def _graphic_layout_qa_v66700(layout_bp, canvas_size, product_box=None):
+    """Deterministic layout QA for reference-style spacing and typography zones."""
+    W, H = [max(1, int(v)) for v in canvas_size]
+    bp = dict(layout_bp or {})
+    headline = list(bp.get("headline_box") or [0, 0, 0, 0])
+    compatibility = list(bp.get("compatibility_box") or [0, 0, 0, 0])
+    tagline = list(bp.get("tagline_box") or [0, 0, 0, 0])
+    feature = list(bp.get("feature_matrix_box") or [0, 0, 0, 0])
+    footer = list(bp.get("bottom_bar_box") or [0, 0, 0, 0])
+    hero = list(bp.get("hero_product_box") or [0, 0, 0, 0])
+    copy_xs = [headline[0], compatibility[0], tagline[0]]
+    copy_alignment_error = max(copy_xs) - min(copy_xs)
+    feature_bottom = feature[1] + feature[3]
+    tagline_bottom = tagline[1] + tagline[3]
+    hero_clearance = hero[1] - max(feature_bottom, tagline_bottom)
+    checks = {
+        "copy_column_aligned": copy_alignment_error <= 0.002,
+        "tagline_below_ribbon": tagline[1] >= compatibility[1] + compatibility[3] + 0.007,
+        "feature_matrix_complete_space": feature[2] >= 0.39 and feature[3] >= 0.295,
+        "hero_top_clearance": hero_clearance >= max(0.024, 24.0 / H),
+        "footer_reference_proportion": 0.095 <= footer[3] <= 0.118,
+        "hero_above_footer": hero[1] + hero[3] <= footer[1] + 0.010,
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "copy_alignment_error": round(copy_alignment_error, 6),
+        "hero_top_clearance": round(hero_clearance, 6),
+        "engine": "reference-layout-qa-v66700",
+        "product_box": list(product_box or []),
     }
 
 
