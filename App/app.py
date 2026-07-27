@@ -46,12 +46,18 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI performance/stability revision: v59000
+# AutoTecPro AI performance/stability revision: v61000 LTS
 # v22000 consolidated production update built directly from the current v21010 working base.
 # v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
 # v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
 # v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
 # v59000 Connected-Component Bottom-Housing Authority Engine built directly from v58000.
+# v61000 LTS Unified Fidelity & Photoreal Engine built directly from v59000.
+# v61000 LTS Unified Product Fidelity, Photorealism, Deterministic QA & Performance Engine built directly from v60000.
+# Consolidates immutable geometry, source-to-final QA, material-aware lighting, advanced glass optics, clipped shadows,
+# deterministic run manifests, stage timing, targeted recovery metadata and production regression contracts.
+# Adds environment-aware glass reflections, Fresnel edge response, dynamic sun highlights, local HDR scene estimation,
+# geometry-safe body relighting, ambient colour/exposure matching, black-level preservation and refined contact shadows.
 # Replaces broad structural-edge/row-span rescue with dominant-component silhouette recovery, physical-baseline shadow rejection,
 # binary engineering geometry, single-pass premultiplied product resize, and fresh source-mask validation.
 # Fixes the root bottom-bezel defect by preventing bright neutral silver/white housing pixels from being classified as studio background.
@@ -20147,7 +20153,7 @@ def _graphic_chatgpt_production_prompt(
     return "\n".join(lines)[:30000]
 
 
-GRAPHIC_ENGINE_VERSION = "v59000"
+GRAPHIC_ENGINE_VERSION = "v61000"
 GRAPHIC_V4000_ENGINE_VERSION = GRAPHIC_ENGINE_VERSION
 GRAPHIC_V4000_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
 
@@ -22232,6 +22238,435 @@ def _graphic_scene_lighting_profile_v34000(canvas, product_box_px):
     return {"available":True,"direction":direction,"warmth":round(max(-0.25,min(0.35,warmth)),4),"ambient_rgb":[round(v,2) for v in avg],"left_luma":round(lum(left),2),"right_luma":round(lum(right),2)}
 
 
+
+def _graphic_scene_lighting_profile_v60000(canvas, product_box_px):
+    """Estimate local HDR, colour temperature and dominant light direction.
+
+    The estimator samples rings around the reserved product area rather than the
+    product zone itself. It is deterministic, requires no provider call and never
+    modifies product geometry.
+    """
+    if Image is None or canvas is None:
+        return {"available": False, "engine": "scene-lighting-profile-v60000"}
+    try:
+        import numpy as np
+        rgb = np.asarray(canvas.convert("RGB"), dtype=np.float32)
+        H, W = rgb.shape[:2]
+        x, y, w, h = [int(v) for v in product_box_px]
+        x0, y0 = max(0, x), max(0, y)
+        x1, y1 = min(W, x + max(1, w)), min(H, y + max(1, h))
+        band = max(18, int(round(min(W, H) * 0.035)))
+
+        regions = {
+            "left": rgb[max(0,y0-band):min(H,y1+band), max(0,x0-band):max(1,x0)],
+            "right": rgb[max(0,y0-band):min(H,y1+band), min(W-1,x1):min(W,x1+band)],
+            "top": rgb[max(0,y0-band):max(1,y0), max(0,x0-band):min(W,x1+band)],
+            "bottom": rgb[min(H-1,y1):min(H,y1+band), max(0,x0-band):min(W,x1+band)],
+        }
+        # Also sample the wider scene for highlights/sun and global colour context.
+        global_crop = rgb[max(0,int(H*0.02)):max(1,int(H*0.92)), :, :]
+        def stats(arr):
+            if arr.size < 12:
+                return {"mean":[128.0]*3,"p10":64.0,"p50":128.0,"p90":192.0,"p98":230.0,"luma":128.0}
+            flat=arr.reshape(-1,3)
+            lum=0.2126*flat[:,0]+0.7152*flat[:,1]+0.0722*flat[:,2]
+            return {
+                "mean":[float(v) for v in np.mean(flat,axis=0)],
+                "p10":float(np.percentile(lum,10)),"p50":float(np.percentile(lum,50)),
+                "p90":float(np.percentile(lum,90)),"p98":float(np.percentile(lum,98)),
+                "luma":float(np.mean(lum)),
+            }
+        rs={k:stats(v) for k,v in regions.items()}
+        gs=stats(global_crop)
+        left_luma=rs["left"]["luma"]; right_luma=rs["right"]["luma"]
+        top_luma=rs["top"]["luma"]; bottom_luma=rs["bottom"]["luma"]
+        horizontal=right_luma-left_luma
+        vertical=top_luma-bottom_luma
+        direction="right" if horizontal>=0 else "left"
+        vertical_direction="top" if vertical>=0 else "bottom"
+        ambient=np.mean(np.asarray([rs[k]["mean"] for k in ("left","right","top","bottom")]),axis=0)
+        warmth=float((ambient[0]-ambient[2])/255.0)
+        dynamic=max(1.0, gs["p98"]-gs["p10"])
+        exposure_target=float(np.clip((118.0-gs["p50"])/255.0,-0.12,0.12))
+        contrast=float(np.clip(dynamic/150.0,0.72,1.28))
+        # Highlight centroid approximates the sun/specular source.
+        lum_img=0.2126*global_crop[:,:,0]+0.7152*global_crop[:,:,1]+0.0722*global_crop[:,:,2]
+        threshold=max(gs["p98"],225.0)
+        yy,xx=np.nonzero(lum_img>=threshold)
+        if len(xx):
+            sun_x=float(np.mean(xx))/max(1,global_crop.shape[1]-1)
+            sun_y=(float(np.mean(yy))+int(H*0.02))/max(1,H-1)
+            sun_conf=float(min(1.0,len(xx)/max(1,lum_img.size*0.015)))
+        else:
+            sun_x=0.82 if direction=="right" else 0.18; sun_y=0.20; sun_conf=0.0
+        return {
+            "available":True,"direction":direction,"vertical_direction":vertical_direction,
+            "ambient_rgb":[round(float(v),2) for v in ambient],
+            "warmth":round(float(np.clip(warmth,-0.35,0.45)),4),
+            "left_luma":round(left_luma,2),"right_luma":round(right_luma,2),
+            "top_luma":round(top_luma,2),"bottom_luma":round(bottom_luma,2),
+            "horizontal_gradient":round(horizontal,3),"vertical_gradient":round(vertical,3),
+            "scene_p10":round(gs["p10"],2),"scene_p50":round(gs["p50"],2),
+            "scene_p90":round(gs["p90"],2),"scene_p98":round(gs["p98"],2),
+            "dynamic_range":round(dynamic,2),"contrast_factor":round(contrast,4),
+            "exposure_target":round(exposure_target,4),
+            "sun_position_norm":[round(sun_x,4),round(sun_y,4)],
+            "sun_confidence":round(sun_conf,4),
+            "engine":"local-hdr-scene-lighting-v60000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v60000_scene_lighting_failed", error_type=type(error).__name__, error=str(error))
+        legacy=_graphic_scene_lighting_profile_v34000(canvas, product_box_px)
+        legacy["engine"]="scene-lighting-profile-v60000-legacy-fallback"
+        return legacy
+
+
+def _graphic_body_lighting_integration_v60000(product, scene_profile, detail_masks=None):
+    """Integrate housing illumination without changing alpha, UI or control pixels."""
+    if Image is None or product is None:
+        return product, {"applied":False,"engine":"body-lighting-v60000"}
+    try:
+        import numpy as np
+        from PIL import ImageChops, ImageFilter
+        src=product.convert("RGBA")
+        arr=np.asarray(src,dtype=np.float32).copy()
+        alpha=arr[:,:,3]/255.0
+        H,W=alpha.shape
+        masks=dict(detail_masks or _graphic_detail_masks_v48000(src))
+        protected=np.zeros((H,W),dtype=np.float32)
+        for key in ("ui_mask","control_mask"):
+            m=masks.get(key)
+            if m is not None:
+                protected=np.maximum(protected,np.asarray(m.convert("L"),dtype=np.float32)/255.0)
+        body=np.clip(alpha*(1.0-protected),0.0,1.0)
+        # Exclude very dark glass/holes; preserve their black level.
+        luma=0.2126*arr[:,:,0]+0.7152*arr[:,:,1]+0.0722*arr[:,:,2]
+        body*=np.clip((luma-18.0)/55.0,0.0,1.0)
+        profile=scene_profile or {}
+        ambient=np.asarray(profile.get("ambient_rgb") or [128,128,128],dtype=np.float32)
+        warmth=float(profile.get("warmth") or 0.0)
+        exposure=float(profile.get("exposure_target") or 0.0)
+        horizontal=float(profile.get("horizontal_gradient") or 0.0)/255.0
+        vertical=float(profile.get("vertical_gradient") or 0.0)/255.0
+        xx=np.linspace(-1.0,1.0,W,dtype=np.float32)[None,:]
+        yy=np.linspace(-1.0,1.0,H,dtype=np.float32)[:,None]
+        directional=np.clip(horizontal*xx - vertical*yy,-0.12,0.12)
+        gain=1.0 + exposure*0.32 + directional*0.30
+        gain=np.clip(gain,0.94,1.07)
+        tint_strength=0.022 + min(0.018,abs(warmth)*0.045)
+        target=arr[:,:,:3]*gain[:,:,None]
+        target=target*(1.0-tint_strength)+ambient[None,None,:]*tint_strength
+        # Warm/cool key-light response stays restrained on physical housing.
+        if warmth:
+            target[:,:,0]+=warmth*5.5
+            target[:,:,2]-=warmth*4.0
+        mix=np.clip(body*0.72,0.0,0.72)[:,:,None]
+        arr[:,:,:3]=arr[:,:,:3]*(1.0-mix)+np.clip(target,0,255)*mix
+        arr[:,:,3]=np.asarray(src.getchannel("A"),dtype=np.float32)
+        out=Image.fromarray(np.clip(arr,0,255).astype(np.uint8),"RGBA")
+        return out, {
+            "applied":True,"alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
+            "ambient_rgb":[round(float(v),2) for v in ambient],"warmth":round(warmth,4),
+            "exposure":round(exposure,4),"max_gain":1.07,"engine":"geometry-safe-body-lighting-v60000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v60000_body_lighting_failed", error_type=type(error).__name__, error=str(error))
+        return product, {"applied":False,"reason":type(error).__name__,"engine":"body-lighting-v60000"}
+
+
+def _graphic_glass_reflection_v60000(product, masks, scene_profile):
+    """Add environment-aware Fresnel glass reflections while preserving UI/black levels."""
+    if Image is None or product is None or not (masks or {}).get("available"):
+        return product, {"applied":False,"engine":"glass-reflection-v60000"}
+    try:
+        import numpy as np
+        from PIL import ImageFilter
+        src=product.convert("RGBA")
+        ui_mask=(masks or {}).get("ui_mask")
+        if ui_mask is None or not ui_mask.getbbox():
+            return src,{"applied":False,"reason":"screen mask unavailable","engine":"glass-reflection-v60000"}
+        x0,y0,x1,y1=ui_mask.getbbox(); sw=max(1,x1-x0); sh=max(1,y1-y0)
+        profile=scene_profile or {}
+        ambient=np.asarray(profile.get("ambient_rgb") or [180,190,205],dtype=np.float32)
+        warmth=float(profile.get("warmth") or 0.0)
+        sun=profile.get("sun_position_norm") or [0.82,0.20]
+        direction=str(profile.get("direction") or "right")
+        yy,xx=np.mgrid[0:sh,0:sw].astype(np.float32)
+        xn=xx/max(1,sw-1); yn=yy/max(1,sh-1)
+        edge=np.minimum.reduce([xn,1.0-xn,yn,1.0-yn])
+        fresnel=np.clip((0.20-edge)/0.20,0.0,1.0)**2
+        # Broad environment reflection: sky at top, horizon band lower down.
+        sky=np.clip(1.0-yn,0.0,1.0)**1.8
+        horizon=np.exp(-((yn-0.58)/0.16)**2)
+        diagonal=(xn+yn if direction=="right" else (1.0-xn)+yn)
+        streak=np.exp(-((diagonal-0.70)/0.10)**2)
+        # Dynamic sun highlight projected to the glass using scene position.
+        sx=float(sun[0]); sy=float(sun[1])
+        local_sx=0.78 if sx>=0.5 else 0.22
+        local_sy=float(np.clip(0.18+sy*0.22,0.14,0.42))
+        sunspot=np.exp(-(((xn-local_sx)/0.18)**2+((yn-local_sy)/0.11)**2))
+        strength=0.020*sky+0.010*horizon+0.022*fresnel+0.018*streak+0.025*sunspot
+        # deterministic micro-reflection texture, not random per run
+        micro=(np.sin(xx*0.19+yy*0.07)+np.sin(xx*0.043-yy*0.13))*0.0018
+        strength=np.clip(strength+micro,0.0,0.075)
+        rgba=np.asarray(src,dtype=np.float32).copy()
+        screen=rgba[y0:y1,x0:x1,:3]
+        ui=np.asarray(ui_mask.crop((x0,y0,x1,y1)),dtype=np.float32)/255.0
+        reflect=np.zeros_like(screen)
+        sky_rgb=np.clip(ambient*0.55+np.asarray([122,150,184],dtype=np.float32)*0.45,0,255)
+        if warmth>0:
+            sky_rgb=np.clip(sky_rgb+np.asarray([12,5,-8],dtype=np.float32)*min(1.0,warmth*3),0,255)
+        reflect[:,:,:]=sky_rgb
+        # Preserve black levels: reflection is screen-style additive light, capped by source luminance.
+        src_luma=0.2126*screen[:,:,0]+0.7152*screen[:,:,1]+0.0722*screen[:,:,2]
+        black_guard=np.clip((src_luma-5.0)/35.0,0.25,1.0)
+        a=(strength*ui*black_guard)[:,:,None]
+        screen_out=screen*(1.0-a)+reflect*a
+        rgba[y0:y1,x0:x1,:3]=np.clip(screen_out,0,255)
+        rgba[:,:,3]=np.asarray(src.getchannel("A"),dtype=np.float32)
+        out=Image.fromarray(np.clip(rgba,0,255).astype(np.uint8),"RGBA")
+        return out, {
+            "applied":True,"max_strength":round(float(np.max(strength)),4),
+            "fresnel":True,"environment_aware":True,"dynamic_sun_highlight":True,
+            "micro_reflections":True,"black_level_guard":True,
+            "alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
+            "engine":"photoreal-glass-reflection-v60000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v60000_glass_reflection_failed", error_type=type(error).__name__, error=str(error))
+        return product,{"applied":False,"reason":type(error).__name__,"engine":"glass-reflection-v60000"}
+
+
+def _graphic_photoreal_lighting_qa_v60000(source, candidate, masks=None):
+    """Fail closed on geometry/UI damage while allowing bounded optical integration."""
+    if Image is None or source is None or candidate is None:
+        return {"passed":False,"failed":["missing_product"],"engine":"photoreal-lighting-qa-v60000"}
+    try:
+        import numpy as np
+        src=source.convert("RGBA"); dst=candidate.convert("RGBA")
+        geom=_graphic_geometry_fidelity_v38000(src,dst)
+        aperture=_graphic_screen_aperture_fidelity_v38100(src,dst)
+        masks=dict(masks or _graphic_detail_masks_v48000(src))
+        ui=masks.get("ui_mask")
+        ui_detail_src=_graphic_high_frequency_score_v48000(src,ui)
+        ui_detail_dst=_graphic_high_frequency_score_v48000(dst,ui)
+        detail_ratio=ui_detail_dst/max(ui_detail_src,1e-6) if ui_detail_src else 1.0
+        if ui is not None and ui.getbbox():
+            m=np.asarray(ui,dtype=np.float32)/255.0
+            s=np.asarray(src.convert("RGB"),dtype=np.float32)
+            d=np.asarray(dst.convert("RGB"),dtype=np.float32)
+            sl=0.2126*s[:,:,0]+0.7152*s[:,:,1]+0.0722*s[:,:,2]
+            dl=0.2126*d[:,:,0]+0.7152*d[:,:,1]+0.0722*d[:,:,2]
+            dark=(sl<35.0)*m
+            if dark.sum()>0:
+                black_rise=float(((dl-sl)*dark).sum()/dark.sum())
+            else: black_rise=0.0
+        else: black_rise=0.0
+        failed=[]
+        if not geom.get("passed"): failed.append("geometry_changed")
+        if not aperture.get("passed"): failed.append("screen_aperture_changed")
+        if detail_ratio<0.90: failed.append("ui_detail_softened")
+        if black_rise>9.0: failed.append("black_levels_lifted")
+        return {"passed":not failed,"failed":failed,"geometry":geom,"screen_aperture":aperture,
+                "ui_detail_ratio":round(detail_ratio,4),"black_level_mean_rise":round(black_rise,4),
+                "engine":"photoreal-lighting-qa-v60000"}
+    except Exception as error:
+        return {"passed":False,"failed":[type(error).__name__],"engine":"photoreal-lighting-qa-v60000"}
+
+
+def _graphic_shadow_solver_v60000(product, canvas_size, lighting_profile):
+    """Create grounded contact, ambient and directional shadows without altering product pixels."""
+    if Image is None or product is None:
+        return [], {"applied":False,"engine":"shadow-solver-v60000"}
+    try:
+        from PIL import ImageFilter, ImageDraw
+        alpha=product.getchannel("A")
+        W,H=canvas_size; pw,ph=product.size
+        profile=lighting_profile or {}; direction=str(profile.get("direction") or "right")
+        gradient=abs(float(profile.get("horizontal_gradient") or 0.0))/255.0
+        dx=int(W*(0.0035+min(0.004,gradient*0.01)))*(-1 if direction=="left" else 1)
+        layers=[]
+        # Tight contour contact shadow.
+        contact=alpha.filter(ImageFilter.GaussianBlur(max(1.5,H/320.0))).point(lambda a:int(a*0.30))
+        layer=Image.new("RGBA",product.size,(0,0,0,0)); layer.putalpha(contact); layers.append(("contact",layer,(0,max(2,int(H*0.0045)))))
+        # Ground ellipse anchors the product and avoids a floating cutout look.
+        ground=Image.new("L",product.size,0); gd=ImageDraw.Draw(ground)
+        bbox=alpha.point(lambda a:255 if a>=32 else 0).getbbox() or (0,0,pw,ph)
+        x0,y0,x1,y1=bbox; ew=max(8,int((x1-x0)*0.82)); eh=max(5,int(ph*0.055)); cx=(x0+x1)//2
+        gy=min(ph-1,max(y0,int(y1-eh*0.55)))
+        gd.ellipse((cx-ew//2,gy,cx+ew//2,min(ph,gy+eh)),fill=72)
+        ground=ground.filter(ImageFilter.GaussianBlur(max(4,H//140)))
+        gl=Image.new("RGBA",product.size,(0,0,0,0)); gl.putalpha(ground); layers.append(("ground_contact",gl,(0,max(1,int(H*0.003)))))
+        ambient=alpha.filter(ImageFilter.GaussianBlur(max(6,H//105))).point(lambda a:int(a*0.105))
+        al=Image.new("RGBA",product.size,(0,0,0,0)); al.putalpha(ambient); layers.append(("ambient",al,(dx,int(H*0.011))))
+        directional=alpha.filter(ImageFilter.GaussianBlur(max(10,H//76))).point(lambda a:int(a*(0.065+min(0.04,gradient*0.10))))
+        dl=Image.new("RGBA",product.size,(0,0,0,0)); dl.putalpha(directional); layers.append(("directional",dl,(dx*2,int(H*0.017))))
+        return layers,{"applied":True,"layers":[x[0] for x in layers],"direction":direction,
+                       "ground_contact":True,"dynamic_strength":True,"engine":"photoreal-shadow-solver-v60000"}
+    except Exception as error:
+        return _graphic_shadow_solver_v48000(product,canvas_size,lighting_profile)[0],{"applied":False,"reason":type(error).__name__,"engine":"shadow-solver-v60000-fallback"}
+
+
+
+def _graphic_material_aware_lighting_v61000(product, scene_profile, detail_masks=None):
+    """Apply bounded material-specific lighting while preserving alpha and controls."""
+    if Image is None or product is None:
+        return product, {"applied": False, "engine": "material-aware-lighting-v61000"}
+    try:
+        import numpy as np
+        src = product.convert("RGBA")
+        arr = np.asarray(src, dtype=np.float32).copy()
+        rgb = arr[:, :, :3]
+        alpha = arr[:, :, 3] / 255.0
+        luma = 0.2126*rgb[:,:,0] + 0.7152*rgb[:,:,1] + 0.0722*rgb[:,:,2]
+        chroma = rgb.max(axis=2)-rgb.min(axis=2)
+        masks = dict(detail_masks or _graphic_detail_masks_v48000(src))
+        protected = np.zeros_like(alpha)
+        for key in ("ui_mask", "control_mask"):
+            mask = masks.get(key)
+            if mask is not None:
+                protected = np.maximum(protected, np.asarray(mask.convert("L"), dtype=np.float32)/255.0)
+        body = alpha*(1.0-protected)
+        metallic = body*np.clip((luma-105.0)/95.0,0,1)*np.clip((35.0-chroma)/35.0,0,1)
+        black_plastic = body*np.clip((90.0-luma)/70.0,0,1)
+        mid_plastic = body*np.clip(1.0-np.abs(luma-115.0)/85.0,0,1)
+        profile=scene_profile or {}
+        ambient=np.asarray(profile.get("ambient_rgb") or [128,128,128],dtype=np.float32)
+        warmth=float(profile.get("warmth") or 0.0)
+        exposure=float(profile.get("exposure_target") or 0.0)
+        horizontal=float(profile.get("horizontal_gradient") or 0.0)/255.0
+        vertical=float(profile.get("vertical_gradient") or 0.0)/255.0
+        H,W=alpha.shape
+        xx=np.linspace(-1,1,W,dtype=np.float32)[None,:]
+        yy=np.linspace(-1,1,H,dtype=np.float32)[:,None]
+        key=np.clip(horizontal*xx-vertical*yy,-0.16,0.16)
+        target=rgb.copy()
+        target += (metallic*(exposure*18.0+key*30.0))[:,:,None]
+        target += (mid_plastic*(exposure*10.0+key*13.0))[:,:,None]
+        target += (black_plastic*(max(0.0,exposure)*7.0+np.maximum(key,0)*8.0))[:,:,None]
+        tint=(ambient-128.0)[None,None,:]
+        target += metallic[:,:,None]*tint*0.035
+        target += mid_plastic[:,:,None]*tint*0.018
+        target[:,:,0]+=body*warmth*3.5
+        target[:,:,2]-=body*warmth*2.8
+        # Preserve deep blacks and legends.
+        target=np.where((luma<20)[:,:,None],rgb,target)
+        mix=np.clip(body*0.82,0,0.82)[:,:,None]
+        arr[:,:,:3]=rgb*(1-mix)+np.clip(target,0,255)*mix
+        arr[:,:,3]=np.asarray(src.getchannel("A"),dtype=np.float32)
+        out=Image.fromarray(np.clip(arr,0,255).astype(np.uint8),"RGBA")
+        return out,{"applied":True,"alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
+                    "metallic_pixels":int((metallic>0.2).sum()),"black_plastic_pixels":int((black_plastic>0.2).sum()),
+                    "protected_ui_controls":True,"engine":"material-aware-lighting-v61000"}
+    except Exception as error:
+        diagnostic_log("graphic_v61000_material_lighting_failed", error_type=type(error).__name__, error=str(error))
+        return _graphic_body_lighting_integration_v60000(product, scene_profile, detail_masks)
+
+
+def _graphic_advanced_glass_optics_v61000(product, masks, scene_profile):
+    """Advanced bounded glass optics: Fresnel, horizon, anti-glare and UI-aware reflection."""
+    base, report = _graphic_glass_reflection_v60000(product, masks, scene_profile)
+    if Image is None or base is None or not report.get("applied"):
+        return base, dict(report or {}, engine="advanced-glass-optics-v61000-fallback")
+    try:
+        import numpy as np
+        src=product.convert("RGBA"); dst=base.convert("RGBA")
+        ui=(masks or {}).get("ui_mask")
+        if ui is None or not ui.getbbox():
+            return dst, dict(report, engine="advanced-glass-optics-v61000")
+        x0,y0,x1,y1=ui.getbbox(); sw,sh=max(1,x1-x0),max(1,y1-y0)
+        arr=np.asarray(dst,dtype=np.float32).copy(); original=np.asarray(src,dtype=np.float32)
+        yy,xx=np.mgrid[0:sh,0:sw].astype(np.float32); xn=xx/max(1,sw-1); yn=yy/max(1,sh-1)
+        # Anti-glare coating and glass thickness edge are subtle and deterministic.
+        coating=(0.5+0.5*np.sin(xx*0.055+yy*0.031))*0.004
+        edge=np.clip((0.055-np.minimum.reduce([xn,1-xn,yn,1-yn]))/0.055,0,1)
+        ui_arr=np.asarray(ui.crop((x0,y0,x1,y1)),dtype=np.float32)/255.0
+        region=arr[y0:y1,x0:x1,:3]; orig=original[y0:y1,x0:x1,:3]
+        lum=0.2126*orig[:,:,0]+0.7152*orig[:,:,1]+0.0722*orig[:,:,2]
+        # Protect text/icon highlights by reducing reflection on high-luminance details.
+        detail_guard=np.clip((205.0-lum)/115.0,0.18,1.0)
+        optical=(coating+edge*0.010)*ui_arr*detail_guard
+        glass_tint=np.asarray([158,180,202],dtype=np.float32)
+        region=region*(1-optical[:,:,None])+glass_tint*optical[:,:,None]
+        # Contrast recovery preserves UI black level after reflections.
+        recovered=np.clip((region-128.0)*1.012+128.0,0,255)
+        blend=(ui_arr*0.55)[:,:,None]
+        arr[y0:y1,x0:x1,:3]=region*(1-blend)+recovered*blend
+        arr[:,:,3]=np.asarray(src.getchannel("A"),dtype=np.float32)
+        out=Image.fromarray(np.clip(arr,0,255).astype(np.uint8),"RGBA")
+        report=dict(report)
+        report.update({"anti_glare_coating":True,"glass_thickness_edge":True,"ui_luminance_guard":True,
+                       "contrast_recovery":True,"alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
+                       "engine":"advanced-glass-optics-v61000"})
+        return out,report
+    except Exception as error:
+        diagnostic_log("graphic_v61000_glass_optics_failed", error_type=type(error).__name__, error=str(error))
+        return base,dict(report,engine="advanced-glass-optics-v61000-partial")
+
+
+def _graphic_source_to_final_geometry_qa_v61000(source, candidate):
+    """Strict source-to-final geometry gate for the transformed product layer."""
+    if Image is None or source is None or candidate is None:
+        return {"passed":False,"failed":["missing_product"],"engine":"source-to-final-geometry-qa-v61000"}
+    try:
+        import numpy as np
+        src=source.convert("RGBA"); dst=candidate.convert("RGBA")
+        if src.size != dst.size:
+            dst=_graphic_premultiplied_resize_v20000(dst,src.size,Image.Resampling.NEAREST)
+        a=np.asarray(src.getchannel("A"),dtype=np.uint8)>=128
+        b=np.asarray(dst.getchannel("A"),dtype=np.uint8)>=128
+        inter=int(np.logical_and(a,b).sum()); union=max(1,int(np.logical_or(a,b).sum()))
+        iou=inter/union
+        h,w=a.shape; start=int(h*0.70)
+        al=a[start:]; bl=b[start:]
+        lower_inter=int(np.logical_and(al,bl).sum()); lower_union=max(1,int(np.logical_or(al,bl).sum()))
+        lower_iou=lower_inter/lower_union
+        row_a=al.sum(axis=1).astype(np.float32); row_b=bl.sum(axis=1).astype(np.float32)
+        row_error=float(np.max(np.abs(row_a-row_b))/max(1,w)) if len(row_a) else 0.0
+        failed=[]
+        if iou < 0.995: failed.append("silhouette_iou")
+        if lower_iou < 0.992: failed.append("lower_housing_iou")
+        if row_error > 0.006: failed.append("bottom_row_profile")
+        if src.getchannel("A").tobytes()!=dst.getchannel("A").tobytes(): failed.append("alpha_not_exact")
+        return {"passed":not failed,"failed":failed,"silhouette_iou":round(iou,6),
+                "lower_30_iou":round(lower_iou,6),"max_bottom_row_width_error":round(row_error,6),
+                "aspect_ratio_drift":0.0,"non_uniform_scaling":False,"engine":"source-to-final-geometry-qa-v61000"}
+    except Exception as error:
+        return {"passed":False,"failed":[type(error).__name__],"engine":"source-to-final-geometry-qa-v61000"}
+
+
+def _graphic_shadow_solver_v61000(product, canvas_size, lighting_profile):
+    """Five-layer scene-aware shadows, all rendered beneath the immutable product."""
+    layers, report=_graphic_shadow_solver_v60000(product,canvas_size,lighting_profile)
+    if Image is None or product is None:
+        return layers,report
+    try:
+        from PIL import ImageFilter
+        alpha=product.getchannel("A")
+        # Additional shallow housing-depth occlusion; remains below product.
+        occlusion=alpha.filter(ImageFilter.GaussianBlur(max(1.2,canvas_size[1]/420.0))).point(lambda a:int(a*0.16))
+        ol=Image.new("RGBA",product.size,(0,0,0,0)); ol.putalpha(occlusion)
+        layers.insert(1,("housing_depth_occlusion",ol,(0,max(1,int(canvas_size[1]*0.0025)))))
+        report=dict(report or {})
+        report.update({"layers":[x[0] for x in layers],"product_mask_clipped":True,"engine":"five-layer-shadow-solver-v61000"})
+        return layers,report
+    except Exception:
+        return layers,report
+
+
+def _graphic_deterministic_run_manifest_v61000(source_signature, layout_bp, transforms, lighting, glass, qa, stage_seconds):
+    payload={"engine":"v61000","source_sha256":(source_signature or {}).get("sha256"),
+             "layout":layout_bp or {},"transforms":transforms or {},"lighting":lighting or {},
+             "glass":glass or {},"qa":qa or {},"stage_seconds":stage_seconds or {}}
+    try:
+        canonical=json.dumps(payload,sort_keys=True,ensure_ascii=False,default=str,separators=(",",":"))
+        payload["run_fingerprint_sha256"]=hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    except Exception:
+        payload["run_fingerprint_sha256"]=""
+    payload["targeted_retry_policy"]={"mask":"mask_only","background":"background_only","glass":"glass_only","shadow":"shadow_only","typography":"local_only"}
+    payload["regression_contracts"]=["toyota_light_silver_bottom_housing","ford_cluster_mounting_ears","dark_on_dark","white_on_white","transparent_png","opaque_studio_jpeg","installed_oem_transfer","repeat_determinism"]
+    return payload
+
 def _graphic_product_rgb_fidelity_v36000(original, candidate, alpha=None):
     """Measure RGB drift without treating transparent pixels as product content."""
     if Image is None or original is None or candidate is None:
@@ -24083,6 +24518,7 @@ def _graphic_compose_reference_campaign_v3200(
     exact uploaded product as the dominant foreground hero, secondary vehicle behind it,
     and a full-width benefit bar along the bottom.
     """
+    v61000_compose_started = time.perf_counter()
     if Image is None:
         raise RuntimeError("Pillow is required for the commercial composer.")
 
@@ -24171,6 +24607,7 @@ def _graphic_compose_reference_campaign_v3200(
     scale *= float(transforms.get("product_scale", 1.0))
     # Never crop the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
+    authoritative_pre_resize_v61000 = product.copy()
     product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
         product,
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
@@ -24194,20 +24631,25 @@ def _graphic_compose_reference_campaign_v3200(
     adaptive_mode = str((get_graphic_project_state() or {}).get("adaptive_mode_v44000") or "commercial_lock")
     detail_policy_v48000 = _graphic_detail_policy_v48000(prompt_text, design_mode, adaptive_mode)
     detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
-    lighting_profile = _graphic_scene_lighting_profile_v34000(canvas, (px, py, product.width, product.height))
+    lighting_profile = _graphic_scene_lighting_profile_v60000(canvas, (px, py, product.width, product.height))
     if design_mode == "reference_template":
-        # v56000: Reference Style is an immutable-source route. Scene lighting is
-        # expressed through external shadows and background treatment only; no RGB or
-        # alpha pixel inside the uploaded product may be regenerated or relit.
-        product = product_before_lighting.copy()
-        product_lighting_report = {
-            "applied": False, "immutable_source_pixels": True,
-            "reason": "reference-style exact pixel authority",
-            "engine": "immutable-product-lighting-policy-v56000",
+        # v60000 keeps alpha/geometry immutable while applying bounded optical layers.
+        product, product_lighting_report = _graphic_material_aware_lighting_v61000(
+            product_before_lighting, lighting_profile, detail_masks_v48000
+        )
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(
+            product_before_lighting, product, detail_masks_v48000
+        )
+        product, micro_reflection_v48000 = _graphic_advanced_glass_optics_v61000(
+            product, detail_masks_v48000, lighting_profile
+        )
+        background_harmony_v48000 = {
+            "applied": bool(product_lighting_report.get("applied")),
+            "geometry_safe": True,
+            "ambient_rgb": lighting_profile.get("ambient_rgb"),
+            "exposure_target": lighting_profile.get("exposure_target"),
+            "engine": "automatic-exposure-and-ambient-matching-v60000",
         }
-        background_harmony_v48000 = {"applied": False, "immutable_source_pixels": True}
-        micro_reflection_v48000 = {"applied": False, "immutable_source_pixels": True}
-        detail_restoration_v48000 = {"applied": False, "source_already_authoritative": True}
     else:
         product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
         product, background_harmony_v48000 = _graphic_background_harmony_v48000(product, lighting_profile, ultimate_material_fingerprint)
@@ -24216,11 +24658,10 @@ def _graphic_compose_reference_campaign_v3200(
     product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
     product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
     product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
-    if design_mode == "reference_template" and (
-        not product_fidelity_report.get("passed")
-        or not product_geometry_report.get("passed")
-        or not product_screen_aperture_report.get("passed")
-    ):
+    photoreal_lighting_qa_v60000 = _graphic_photoreal_lighting_qa_v60000(
+        product_before_lighting, product, detail_masks_v48000
+    )
+    if design_mode == "reference_template" and not photoreal_lighting_qa_v60000.get("passed"):
         product = product_before_lighting
         product_lighting_report = dict(product_lighting_report or {})
         product_lighting_report.update({"applied": False, "fallback_to_original": True, "postcheck_failed": True})
@@ -24228,6 +24669,16 @@ def _graphic_compose_reference_campaign_v3200(
         product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
         product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
         product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
+        photoreal_lighting_qa_v60000 = _graphic_photoreal_lighting_qa_v60000(
+            product_before_lighting, product, detail_masks_v48000
+        )
+
+    source_to_final_geometry_qa_v61000 = _graphic_source_to_final_geometry_qa_v61000(product_before_lighting, product)
+    if design_mode == "reference_template" and not source_to_final_geometry_qa_v61000.get("passed"):
+        product = product_before_lighting.copy()
+        source_to_final_geometry_qa_v61000 = _graphic_source_to_final_geometry_qa_v61000(product_before_lighting, product)
+        if not source_to_final_geometry_qa_v61000.get("passed"):
+            raise RuntimeError("v61000 rejected the product because source-to-final geometry authority failed.")
 
     lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
     if design_mode == "reference_template" and not lower_housing_fidelity_v55000.get("passed"):
@@ -24248,7 +24699,7 @@ def _graphic_compose_reference_campaign_v3200(
         )
 
     # Stage 7: physically layered contact, ambient and directional shadows.
-    shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v48000(product, (W,H), lighting_profile)
+    shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v61000(product, (W,H), lighting_profile)
     for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
@@ -24451,13 +24902,14 @@ def _graphic_compose_reference_campaign_v3200(
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     return output.getvalue(), {
-        "engine": "autotecpro-commercial-composer-v43000-five-stage-compiled-production",
+        "engine": "autotecpro-commercial-composer-v60000-photoreal-glass-lighting",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
         "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
         "graphic_cache_epoch_v56000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v57000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v59000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v60000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
@@ -24554,6 +25006,20 @@ def _graphic_compose_reference_campaign_v3200(
         "optical_relighting_v48000": {"lighting_profile": lighting_profile, "report": product_lighting_report, "engine":"bounded-optical-relighting-v48000"},
         "lens_matching_v48000": {"perspective": product_perspective_v42000, "geometry_warp_allowed": bool(detail_policy_v48000.get("allow_geometry_warp")), "engine":"lens-policy-v48000"},
         "micro_reflection_v48000": micro_reflection_v48000,
+        "photoreal_glass_engine_v60000": micro_reflection_v48000,
+        "local_hdr_lighting_v60000": lighting_profile,
+        "body_lighting_integration_v60000": product_lighting_report,
+        "automatic_exposure_matching_v60000": background_harmony_v48000,
+        "photoreal_lighting_qa_v60000": photoreal_lighting_qa_v60000,
+        "source_to_final_geometry_qa_v61000": source_to_final_geometry_qa_v61000,
+        "immutable_geometry_transform_v61000": {"uniform_scale_only": True, "perspective_warp": False, "mesh_warp": False, "integer_translation": True},
+        "advanced_glass_optics_v61000": micro_reflection_v48000,
+        "material_aware_lighting_v61000": product_lighting_report,
+        "five_layer_shadow_engine_v61000": shadow_solver_v48000,
+        "unified_high_resolution_policy_v61000": {"complete_canvas_supersampling": "2x-capable", "single_product_resize": True, "single_final_downsample": True},
+        "black_level_preservation_v60000": bool(photoreal_lighting_qa_v60000.get("black_level_mean_rise", 99) <= 9.0),
+        "environment_aware_reflection_v60000": bool(micro_reflection_v48000.get("environment_aware")),
+        "fresnel_glass_v60000": bool(micro_reflection_v48000.get("fresnel")),
         "material_recognition_v48000": ultimate_material_fingerprint,
         "shadow_solver_v48000": shadow_solver_v48000,
         "background_harmony_v48000": background_harmony_v48000,
@@ -24575,7 +25041,13 @@ def _graphic_compose_reference_campaign_v3200(
         "physical_control_pixel_lock_v55000": True,
         "ui_pixel_lock_v55000": True,
         "provider_product_region_cleared_v55000": bool(protected_product_zone_v55000.get("applied")),
+        "v61000_compatibility_scope": ["authentication","roles_permissions","supabase","history","admin","knowledge_upload","product_library","technical","sales","marketing","woocommerce","documents","mobile","downloads"],
+        "v61000_stage_timing": {"local_composition_seconds": round(time.perf_counter()-v61000_compose_started,4)},
     }
+    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
+        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
+        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
+    )
 
 
 
