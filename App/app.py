@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68810 FINAL LTS — v66200 Authority, Composition-Aware AI Art Director, Hard Bezel Recovery and Nonblocking Generation
+# AutoTecPro AI Graphic Marketing Engine v68820 FINAL LTS — v66200 Authority, Upload-State Repair, Composition-Aware AI Art Director, Hard Bezel Recovery and Nonblocking Generation
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18854,28 +18854,78 @@ def _graphic_project_context_text():
     return " | ".join(history[-6:])[:5000]
 
 
-def _infer_graphic_asset_role(prompt_text, state):
+def _infer_graphic_asset_role(prompt_text, state, uploaded=None):
+    """Infer one Graphic asset role without allowing internal prompts to pollute it.
+
+    Explicit user wording wins. With no explicit wording, the conversation-scoped
+    workflow assigns the first authoritative image as reference and the next as
+    product. A role attached to a materialized project upload is always preserved.
+    """
+    existing_role = str(
+        getattr(uploaded, "graphic_project_role", "")
+        or getattr(uploaded, "project_role", "")
+        or ""
+    ).strip().casefold()
+    if existing_role in {
+        "reference", "style_reference", "product", "product_photo",
+        "logo", "supporting",
+    }:
+        return existing_role
+
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
-        return "reference"
-    if any(term in text for term in ("logo", "brand mark")):
+    explicit_reference = any(term in text for term in (
+        "reference image", "reference photo", "reference advertisement",
+        "reference ad", "sample image", "sample photo", "template image",
+        "inspiration image", "use this as a template", "use this as reference",
+        "analyze this style", "analyse this style",
+    ))
+    explicit_product = any(term in text for term in (
+        "product image", "product photo", "product picture", "product source",
+        "exact product", "uploaded product", "this is the product",
+        "this is my product", "head unit photo", "screen photo", "unit photo",
+        "cluster photo", "radio photo",
+    ))
+    explicit_logo = any(term in text for term in (
+        "logo image", "brand logo", "brand mark",
+    ))
+
+    if explicit_logo:
         return "logo"
-    if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
+    if explicit_product and not explicit_reference:
         return "product"
-    stage = str((state or {}).get("stage") or "planning")
-    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
+    if explicit_reference and not explicit_product:
         return "reference"
-    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
+
+    assets = [
+        item for item in ((state or {}).get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ]
+    roles = {
+        str(item.get("role") or "").strip().casefold()
+        for item in assets
+    }
+    has_reference = bool({"reference", "style_reference"} & roles)
+    has_product = bool({"product", "product_photo"} & roles)
+
+    if not has_reference:
+        return "reference"
+    if not has_product:
         return "product"
     return "supporting"
 
 
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist image bytes and explicit project facts across Graphic turns."""
+    """Persist Graphic image bytes with sequential, state-aware role assignment.
+
+    The prompt passed here must be visible user wording only. File-only internal
+    analysis instructions are deliberately excluded because they contain generic
+    words such as "reference" that previously reclassified every product upload.
+    """
     state = _graphic_update_project_brief(prompt_text)
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
     added = []
+
     for uploaded in uploaded_files or []:
         mime = str(getattr(uploaded, "type", "") or "").casefold()
         if not mime.startswith("image/"):
@@ -18884,10 +18934,17 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             data = uploaded.getvalue()
         except Exception:
             continue
+        if not data:
+            continue
         digest = hashlib.sha256(data).hexdigest()
         if digest in known:
             continue
-        role = _infer_graphic_asset_role(prompt_text, state)
+
+        # Classify against the working state including every earlier image from
+        # this same upload batch.
+        working_state = dict(state)
+        working_state["assets"] = assets
+        role = _infer_graphic_asset_role(prompt_text, working_state, uploaded)
         record = {
             "id": digest,
             "name": str(getattr(uploaded, "name", "image")),
@@ -18895,22 +18952,44 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             "data": data,
             "role": role,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "classification_source_v68820": (
+                "preserved_role"
+                if str(
+                    getattr(uploaded, "graphic_project_role", "")
+                    or getattr(uploaded, "project_role", "")
+                    or ""
+                ).strip()
+                else "visible_user_prompt_or_state_sequence"
+            ),
         }
         assets.append(record)
         added.append(record)
         known.add(digest)
+
     if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
         assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
     state["assets"] = assets
+
+    # Repair legacy sessions created by the earlier attachment-only bug.
+    state = _graphic_repair_project_asset_roles_v68820(state)
+
     if added:
-        roles = {item.get("role") for item in added}
-        if "reference" in roles:
-            state["stage"] = "awaiting_product"
-        elif "product" in roles:
+        roles = {
+            str(item.get("role") or "").strip().casefold()
+            for item in (state.get("assets") or [])
+            if isinstance(item, dict)
+        }
+        if (
+            {"reference", "style_reference"} & roles
+            and {"product", "product_photo"} & roles
+        ):
             state["stage"] = "ready_to_generate"
+        elif {"reference", "style_reference"} & roles:
+            state["stage"] = "awaiting_product"
         else:
             state["stage"] = "assets_received"
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
+
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     _graphic_active_project_assets_v16000(state)
     _graphic_persist_project_v68400(state)
@@ -19172,9 +19251,63 @@ def _graphic_project_is_ready(state=None):
     return bool({"reference", "style_reference"} & roles) and bool({"product", "product_photo"} & roles)
 
 
+
+GRAPHIC_V68820_RELEASE = "v68820-upload-state-repair"
+
+
+def _graphic_repair_project_asset_roles_v68820(state=None):
+    """Repair sessions where attachment-only prompts marked every image reference."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    assets = [
+        item for item in (project.get("assets") or [])
+        if isinstance(item, dict)
+    ]
+    images = [
+        item for item in assets
+        if bytes(item.get("data") or b"")
+        and str(item.get("type") or "").casefold().startswith("image/")
+    ]
+    roles = {
+        str(item.get("role") or "").strip().casefold()
+        for item in images
+    }
+    has_reference = bool({"reference", "style_reference"} & roles)
+    has_product = bool({"product", "product_photo"} & roles)
+    changed = False
+
+    if len(images) >= 2 and has_reference and not has_product:
+        # Preserve the oldest reference and make the newest additional image the
+        # authoritative product. This exactly matches the guided reference-then-
+        # product workflow shown in the reported failure.
+        reference_kept = False
+        for item in images:
+            role = str(item.get("role") or "").strip().casefold()
+            if role in {"reference", "style_reference"} and not reference_kept:
+                item["role"] = "reference"
+                reference_kept = True
+                continue
+            item["role"] = "supporting"
+        images[-1]["role"] = "product"
+        images[-1]["role_repaired_v68820"] = True
+        changed = True
+
+    if changed:
+        project["assets"] = assets
+        project["stage"] = "ready_to_generate"
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+        diagnostic_log(
+            "graphic_v68820_attachment_role_repaired",
+            roles=[str(item.get("role") or "") for item in images],
+        )
+    return project
+
+
 def _graphic_repair_project_asset_roles_v15000(state=None):
     """Repair the common two-upload reference/product sequence without losing bytes."""
-    project = state if isinstance(state, dict) else get_graphic_project_state()
+    project = _graphic_repair_project_asset_roles_v68820(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
     assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
     image_assets = [item for item in assets if bytes(item.get("data") or b"")]
     roles = _graphic_project_role_set(project)
@@ -19363,15 +19496,31 @@ def _graphic_project_direct_action(prompt_text, state=None):
 
 
 def _graphic_project_ready_message(state=None):
-    """Return a concise deterministic acknowledgement instead of campaign copy."""
-    project = state if isinstance(state, dict) else get_graphic_project_state()
-    products = [str(i.get("name") or "product image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"product", "product_photo"}]
-    references = [str(i.get("name") or "reference image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"reference", "style_reference"}]
-    return (
-        f"Product received: {products[-1] if products else 'the product photo'}. "
-        f"Reference locked: {references[-1] if references else 'the reference style'}. "
-        "The project is ready. Type ‘Create it’ to generate the commercial image."
+    """Acknowledge that both required images are saved and generation is ready."""
+    project = _graphic_repair_project_asset_roles_v68820(
+        state if isinstance(state, dict) else get_graphic_project_state()
     )
+    products = [
+        str(i.get("name") or "product image")
+        for i in (project.get("assets") or [])
+        if isinstance(i, dict)
+        and str(i.get("role") or "").casefold() in {"product", "product_photo"}
+    ]
+    references = [
+        str(i.get("name") or "reference image")
+        for i in (project.get("assets") or [])
+        if isinstance(i, dict)
+        and str(i.get("role") or "").casefold() in {"reference", "style_reference"}
+    ]
+    if references and products:
+        return (
+            "Reference and product images are saved. I’m ready to create the new "
+            "marketing image using the reference style while preserving the exact "
+            "uploaded product. Send the design instructions or say “Create it.”"
+        )
+    if references:
+        return "The reference image is saved. Please upload the exact product photo."
+    return "Please upload the reference advertisement and the exact product photo."
 
 
 def build_graphic_conversation_guardrail(intent, has_uploaded_images=False):
@@ -50527,7 +50676,15 @@ else:
             st.stop()
 
         if assistant == "🎨 Graphic Marketing":
-            remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
+            graphic_asset_role_prompt_v68820 = (
+                ""
+                if attachment_only_mode
+                else interaction_prompt
+            )
+            remember_graphic_project_assets(
+                effective_uploaded_files,
+                graphic_asset_role_prompt_v68820,
+            )
         graphic_generation_files = (
             graphic_project_uploaded_files(effective_uploaded_files)
             if assistant == "🎨 Graphic Marketing"
@@ -50686,6 +50843,12 @@ else:
             and isinstance(active_structured_tool, dict)
             and isinstance(active_structured_tool.get("graphic_options"), dict)
         )
+        if assistant == "🎨 Graphic Marketing":
+            repaired_graphic_project_v68820 = _graphic_repair_project_asset_roles_v68820(
+                get_graphic_project_state()
+            )
+            _graphic_active_project_assets_v16000(repaired_graphic_project_v68820)
+
         graphic_chat_intent = (
             classify_graphic_chat_intent(
                 interaction_prompt,
