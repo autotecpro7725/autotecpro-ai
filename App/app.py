@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68820 FINAL LTS — v66200 Authority, Upload-State Repair, Composition-Aware AI Art Director, Hard Bezel Recovery and Nonblocking Generation
+# AutoTecPro AI Graphic Marketing Engine v68830 FINAL LTS — v66200 Authority, Deterministic Upload Routing, Composition-Aware AI Art Director, Hard Bezel Recovery and Nonblocking Generation
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18862,7 +18862,8 @@ def _infer_graphic_asset_role(prompt_text, state, uploaded=None):
     product. A role attached to a materialized project upload is always preserved.
     """
     existing_role = str(
-        getattr(uploaded, "graphic_project_role", "")
+        getattr(uploaded, "graphic_role", "")
+        or getattr(uploaded, "graphic_project_role", "")
         or getattr(uploaded, "project_role", "")
         or ""
     ).strip().casefold()
@@ -18891,10 +18892,6 @@ def _infer_graphic_asset_role(prompt_text, state, uploaded=None):
 
     if explicit_logo:
         return "logo"
-    if explicit_product and not explicit_reference:
-        return "product"
-    if explicit_reference and not explicit_product:
-        return "reference"
 
     assets = [
         item for item in ((state or {}).get("assets") or [])
@@ -18906,7 +18903,31 @@ def _infer_graphic_asset_role(prompt_text, state, uploaded=None):
     }
     has_reference = bool({"reference", "style_reference"} & roles)
     has_product = bool({"product", "product_photo"} & roles)
+    explicit_reference_replacement = any(term in text for term in (
+        "replace the reference", "new reference image", "new reference photo",
+        "update the reference", "change the reference", "another reference image",
+    ))
+    explicit_product_replacement = any(term in text for term in (
+        "replace the product", "new product image", "new product photo",
+        "update the product", "change the product", "another product photo",
+    ))
 
+    if explicit_product and not explicit_reference:
+        return "product"
+    if explicit_reference and not explicit_product:
+        if not has_reference or explicit_reference_replacement:
+            return "reference"
+        if not has_product:
+            # In the guided reference-then-product workflow, generic phrases such
+            # as "match this reference style" often remain in the product-upload
+            # message. The second authoritative image must therefore become product
+            # unless the user explicitly says it replaces the reference.
+            return "product"
+        return "reference"
+    if explicit_product_replacement:
+        return "product"
+    if explicit_reference_replacement:
+        return "reference"
     if not has_reference:
         return "reference"
     if not has_product:
@@ -19493,6 +19514,88 @@ def _graphic_project_direct_action(prompt_text, state=None):
     ):
         return "generate"
     return ""
+
+
+
+GRAPHIC_V68830_RELEASE = "v68830-deterministic-upload-routing"
+
+
+def _graphic_attachment_state_message_v68830(state=None, added_assets=None):
+    """Return a deterministic upload acknowledgement for Graphic Marketing.
+
+    Attachment receipt and project readiness are application facts, not creative
+    language tasks. Keeping this outside the chat model prevents repeated requests
+    for files that were already received.
+    """
+    project = _graphic_repair_project_asset_roles_v15000(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
+    project = _graphic_active_project_assets_v16000(project)
+    assets = [
+        item for item in (project.get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ]
+    active_reference = [
+        item for item in assets
+        if str(item.get("role") or "").strip().casefold()
+        in {"reference", "style_reference"}
+        and bool(item.get("active_for_generation", True))
+    ]
+    active_product = [
+        item for item in assets
+        if str(item.get("role") or "").strip().casefold()
+        in {"product", "product_photo"}
+        and bool(item.get("active_for_generation", True))
+    ]
+    added_count = len([
+        item for item in (added_assets or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ])
+
+    if active_reference and active_product:
+        project["stage"] = "ready_to_generate"
+        message = (
+            "Reference and product images are saved. I’m ready to create the new "
+            "marketing image using the reference style while preserving the exact "
+            "uploaded product. Send the design instructions or say “Create it.”"
+        )
+    elif active_reference:
+        project["stage"] = "awaiting_product"
+        message = (
+            "The reference image is saved. Please upload the exact product photo "
+            "you want used in the new design."
+        )
+    elif active_product:
+        project["stage"] = "awaiting_reference"
+        message = (
+            "The product image is saved. Please upload the reference advertisement "
+            "or template whose style you want to follow."
+        )
+    elif added_count:
+        project["stage"] = "assets_received"
+        message = (
+            "The image was received, but I could not assign it safely as the "
+            "reference or product. Please label it as “reference image” or "
+            "“product photo” in your next message."
+        )
+    else:
+        project["stage"] = "planning"
+        message = (
+            "No usable image was received. Please upload a JPG, JPEG, PNG, or WEBP "
+            "reference image and product photo."
+        )
+
+    project["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+    _graphic_persist_project_v68400(project)
+    diagnostic_log(
+        "graphic_v68830_attachment_ack",
+        stage=project.get("stage"),
+        reference_count=len(active_reference),
+        product_count=len(active_product),
+        added_count=added_count,
+    )
+    return message
 
 
 def _graphic_project_ready_message(state=None):
@@ -50675,13 +50778,14 @@ else:
             st.error(f"ZIP analysis was stopped: {error}")
             st.stop()
 
+        graphic_assets_added_v68830 = []
         if assistant == "🎨 Graphic Marketing":
             graphic_asset_role_prompt_v68820 = (
                 ""
                 if attachment_only_mode
                 else interaction_prompt
             )
-            remember_graphic_project_assets(
+            graphic_assets_added_v68830 = remember_graphic_project_assets(
                 effective_uploaded_files,
                 graphic_asset_role_prompt_v68820,
             )
@@ -50872,9 +50976,13 @@ else:
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
         )
-        is_graphic_project_ready_ack = bool(
+        is_graphic_attachment_ack_v68830 = bool(
             assistant == "🎨 Graphic Marketing"
             and attachment_only_mode
+            and bool(effective_uploaded_files)
+        )
+        is_graphic_project_ready_ack = bool(
+            is_graphic_attachment_ack_v68830
             and _graphic_project_is_ready(get_graphic_project_state())
         )
         is_graphic_reference_learning = (
@@ -50990,19 +51098,34 @@ else:
                 answer,
                 message_index=len(st.session_state.messages),
             )
-        elif is_graphic_project_ready_ack:
+        elif is_graphic_attachment_ack_v68830:
             response_start_time = time.time()
-            graphic_project = get_graphic_project_state()
-            graphic_project["stage"] = "ready_to_generate"
-            graphic_project["reference_blueprint_locked"] = bool(graphic_project.get("last_reference_blueprint"))
-            graphic_project["product_dna_locked"] = bool(graphic_project.get("active_product_dna"))
-            graphic_project["vehicle_profile_locked"] = bool((graphic_project.get("last_vehicle_profile") or {}).get("hard_vehicle_lock"))
-            graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
-            answer = _graphic_project_ready_message(graphic_project)
+            graphic_project = _graphic_repair_project_asset_roles_v15000(
+                get_graphic_project_state()
+            )
+            if _graphic_project_is_ready(graphic_project):
+                graphic_project["reference_blueprint_locked"] = bool(
+                    graphic_project.get("last_reference_blueprint")
+                )
+                graphic_project["product_dna_locked"] = bool(
+                    graphic_project.get("active_product_dna")
+                )
+                graphic_project["vehicle_profile_locked"] = bool(
+                    (graphic_project.get("last_vehicle_profile") or {}).get(
+                        "hard_vehicle_lock"
+                    )
+                )
+            answer = _graphic_attachment_state_message_v68830(
+                graphic_project,
+                graphic_assets_added_v68830,
+            )
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
-            render_chat_message("assistant", answer, message_index=len(st.session_state.messages))
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
