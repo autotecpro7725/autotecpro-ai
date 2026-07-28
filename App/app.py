@@ -10,7 +10,7 @@ from document_generator import (
     serialize_documents_marker,
 )
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image, ImageOps, ImageChops
 except Exception:
     Image = None
 import base64
@@ -36,6 +36,7 @@ import csv
 import inspect
 import math
 from difflib import SequenceMatcher
+from functools import lru_cache
 try:
     from openpyxl import load_workbook
 except Exception:
@@ -46,9 +47,10 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68300 FINAL LTS — True v66200 Graphic Pipeline Rollback with Latest App Shell
+# AutoTecPro AI Graphic Marketing Engine v68400 FINAL LTS — v68300 Stable Authority, Isolated Recovery, Glass/Shadow and Performance Upgrade
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
+GRAPHIC_V68400_RELEASE = "v68400-v68300-stable-authority-isolated-recovery-visual-performance"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -23239,15 +23241,25 @@ def _graphic_glass_reflection_v60000(product, masks, scene_profile):
         horizon=np.exp(-((yn-0.58)/0.16)**2)
         diagonal=(xn+yn if direction=="right" else (1.0-xn)+yn)
         streak=np.exp(-((diagonal-0.70)/0.10)**2)
+        secondary_streak=np.exp(-((diagonal-1.16)/0.075)**2)
         # Dynamic sun highlight projected to the glass using scene position.
         sx=float(sun[0]); sy=float(sun[1])
         local_sx=0.78 if sx>=0.5 else 0.22
         local_sy=float(np.clip(0.18+sy*0.22,0.14,0.42))
         sunspot=np.exp(-(((xn-local_sx)/0.18)**2+((yn-local_sy)/0.11)**2))
-        strength=0.020*sky+0.010*horizon+0.022*fresnel+0.018*streak+0.025*sunspot
-        # deterministic micro-reflection texture, not random per run
-        micro=(np.sin(xx*0.19+yy*0.07)+np.sin(xx*0.043-yy*0.13))*0.0018
-        strength=np.clip(strength+micro,0.0,0.075)
+        # v68400 remains deliberately bounded. Every optical contribution is clipped
+        # to the validated UI/glass mask and cannot alter product alpha or geometry.
+        strength=(
+            0.021*sky
+            +0.011*horizon
+            +0.024*fresnel
+            +0.019*streak
+            +0.009*secondary_streak
+            +0.027*sunspot
+        )
+        # deterministic micro-reflection texture, never random per run
+        micro=(np.sin(xx*0.19+yy*0.07)+np.sin(xx*0.043-yy*0.13))*0.0019
+        strength=np.clip(strength+micro,0.0,0.085)
         rgba=np.asarray(src,dtype=np.float32).copy()
         screen=rgba[y0:y1,x0:x1,:3]
         ui=np.asarray(ui_mask.crop((x0,y0,x1,y1)),dtype=np.float32)/255.0
@@ -23267,9 +23279,10 @@ def _graphic_glass_reflection_v60000(product, masks, scene_profile):
         return out, {
             "applied":True,"max_strength":round(float(np.max(strength)),4),
             "fresnel":True,"environment_aware":True,"dynamic_sun_highlight":True,
-            "micro_reflections":True,"black_level_guard":True,
+            "micro_reflections":True,"secondary_environment_streak":True,"black_level_guard":True,
+            "geometry_immutable":True,"screen_mask_clipped":True,
             "alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
-            "engine":"photoreal-glass-reflection-v60000",
+            "engine":"photoreal-glass-reflection-v68400",
         }
     except Exception as error:
         diagnostic_log("graphic_v60000_glass_reflection_failed", error_type=type(error).__name__, error=str(error))
@@ -23340,8 +23353,22 @@ def _graphic_shadow_solver_v60000(product, canvas_size, lighting_profile):
         al=Image.new("RGBA",product.size,(0,0,0,0)); al.putalpha(ambient); layers.append(("ambient",al,(dx,int(H*0.011))))
         directional=alpha.filter(ImageFilter.GaussianBlur(max(10,H//76))).point(lambda a:int(a*(0.065+min(0.04,gradient*0.10))))
         dl=Image.new("RGBA",product.size,(0,0,0,0)); dl.putalpha(directional); layers.append(("directional",dl,(dx*2,int(H*0.017))))
+        # Subtle floor reflection. It is generated only from the immutable alpha,
+        # placed below the product and never composited over product pixels.
+        reflected=alpha.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        reflected=reflected.resize((pw,max(1,int(ph*0.22))),Image.Resampling.BILINEAR)
+        fade=Image.new("L",reflected.size,0)
+        fd=ImageDraw.Draw(fade)
+        for row in range(reflected.height):
+            opacity=max(0,int(34*(1.0-row/max(1,reflected.height-1))**1.8))
+            fd.line((0,row,reflected.width,row),fill=opacity)
+        reflected=ImageChops.multiply(reflected,fade).filter(ImageFilter.GaussianBlur(max(3,H//180)))
+        reflection_layer=Image.new("RGBA",(pw,reflected.height),(0,0,0,0))
+        reflection_layer.putalpha(reflected)
+        layers.append(("floor_reflection",reflection_layer,(0,max(2,int(H*0.012)))))
         return layers,{"applied":True,"layers":[x[0] for x in layers],"direction":direction,
-                       "ground_contact":True,"dynamic_strength":True,"engine":"photoreal-shadow-solver-v60000"}
+                       "ground_contact":True,"floor_reflection":True,"product_pixels_untouched":True,
+                       "dynamic_strength":True,"engine":"photoreal-shadow-solver-v68400"}
     except Exception as error:
         return _graphic_shadow_solver_v48000(product,canvas_size,lighting_profile)[0],{"applied":False,"reason":type(error).__name__,"engine":"shadow-solver-v60000-fallback"}
 
@@ -32032,6 +32059,7 @@ def _graphic_v67300_exact_recovery_ladder(
 GRAPHIC_V68200_POLICY_VERSION = "v68200-dual-exact-local-routes"
 
 
+@lru_cache(maxsize=96)
 def _graphic_v68200_font(size, bold=False, italic=False):
     from PIL import ImageFont
     candidates=[]
@@ -32205,11 +32233,192 @@ def _graphic_v68200_guaranteed_exact_local_commercial(prompt_text, uploaded_file
     }]
 
 
+
+# ============================================================
+# v68400 FINAL LTS — Stable Authority and Isolated Recovery
+# ============================================================
+GRAPHIC_V68400_POLICY_VERSION = "v68400-stable-authority-isolated-recovery"
+GRAPHIC_V68400_GEOMETRY_RELEASE_BLOCKERS = (
+    "bezel",
+    "screen aperture",
+    "screen aspect ratio",
+    "screen-to-bezel ratio",
+    "buttons",
+    "knobs",
+    "lower housing",
+    "mounting ears / brackets",
+    "side panels",
+    "trim texture",
+    "overall product silhouette",
+)
+GRAPHIC_V68400_FITMENT_RELEASE_BLOCKERS = (
+    "full year ranges",
+    "all compatible brands",
+    "all compatible models",
+    "trims",
+    "screen size",
+    "product designation",
+)
+
+
+def _graphic_v68400_usable_images(value):
+    """Return defensive image records containing publishable image bytes."""
+    return [
+        dict(item)
+        for item in (value or [])
+        if isinstance(item, dict) and str(item.get("data_url") or "").strip()
+    ]
+
+
+def _graphic_v68400_required_fitment(prompt_text):
+    """Return True only when the user supplied concrete compatibility authority."""
+    expected = _graphic_extract_full_compatibility_v36000(prompt_text, "")
+    tokens = _graphic_copy_required_tokens_v36000(expected)
+    return bool(str(expected or "").strip() and tokens), expected, tokens
+
+
+def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
+    """Evaluate only affirmative geometry or fitment violations.
+
+    Missing optional metadata, campaign zones, proof manifests, or validator
+    availability are diagnostics. They are never treated as evidence that a usable
+    image is wrong.
+    """
+    normalized = _graphic_v68400_usable_images(images)
+    if not normalized:
+        return {
+            "blocked": True,
+            "reason": "route returned no usable image",
+            "direct_geometry_violation": "",
+            "direct_fitment_violation": "",
+            "diagnostics": ["missing image bytes"],
+        }
+
+    geometry_violation = _graphic_v66860_direct_product_violation(normalized)
+    required, expected, required_tokens = _graphic_v68400_required_fitment(prompt_text)
+    fitment = _graphic_v67100_fitment_gate(
+        normalized,
+        prompt_text,
+        required=required,
+        route_name=route_name,
+    )
+
+    # A fitment failure is a hard release blocker only when observable copy exists
+    # and directly omits or narrows required user-supplied compatibility.
+    fitment_available = bool(fitment.get("available"))
+    fitment_issues = [str(x) for x in (fitment.get("issues") or []) if str(x).strip()]
+    fitment_violation = "; ".join(fitment_issues) if fitment_available and fitment_issues else ""
+
+    diagnostics = []
+    if not fitment_available and required:
+        diagnostics.append("fitment proof metadata unavailable; expected wording retained diagnostically")
+    proof = _graphic_v67100_exact_proof(normalized)
+    if not proof.get("passed") and proof.get("tier") != "direct-violation":
+        diagnostics.extend(str(x) for x in (proof.get("issues") or []))
+
+    return {
+        "blocked": bool(geometry_violation or fitment_violation),
+        "reason": geometry_violation or fitment_violation,
+        "direct_geometry_violation": str(geometry_violation or ""),
+        "direct_fitment_violation": fitment_violation,
+        "fitment": fitment,
+        "expected_compatibility": expected,
+        "required_tokens": required_tokens,
+        "exact_product_proof": proof,
+        "diagnostics": diagnostics,
+    }
+
+
+def _graphic_v68400_finalize_route(images, prompt_text, route_name, failures=None):
+    """Return a usable route immediately unless direct release evidence blocks it."""
+    normalized = _graphic_v68400_usable_images(images)
+    evidence = _graphic_v68400_direct_release_evidence(
+        normalized,
+        prompt_text,
+        route_name,
+    )
+    if evidence.get("blocked"):
+        raise RuntimeError(
+            "Direct release-blocking evidence: " + str(evidence.get("reason") or "unknown violation")
+        )
+
+    created_at = datetime.now(timezone.utc).isoformat()
+    for image in normalized:
+        image["graphic_engine_version"] = GRAPHIC_V68400_RELEASE
+        image["generation_route_v68400"] = route_name
+        image["release_authority_v68400"] = {
+            "product_geometry": "immutable-source-of-truth",
+            "fitment_wording": "full-user-and-verified-data-authority",
+            "verification_wrappers": "diagnostic-unless-direct-violation",
+            "geometry_release_blockers": list(GRAPHIC_V68400_GEOMETRY_RELEASE_BLOCKERS),
+            "fitment_release_blockers": list(GRAPHIC_V68400_FITMENT_RELEASE_BLOCKERS),
+        }
+        image["release_evidence_v68400"] = evidence
+        image["recovery_failures"] = list(failures or [])[-6:]
+        image["completed_at_v68400"] = created_at
+        image.setdefault("optional_metadata_missing_is_not_failure", True)
+        image.setdefault("product_geometry_provider_generated", False if "local" in route_name else image.get("product_geometry_provider_generated"))
+        if evidence.get("expected_compatibility"):
+            image.setdefault("compatibility", evidence["expected_compatibility"])
+            image.setdefault("deterministic_fitment_copy", evidence["expected_compatibility"])
+
+    if not normalized:
+        raise RuntimeError(f"{route_name} returned no usable image result.")
+    return normalized
+
+
+def _graphic_v68400_run_route(route_name, callback, prompt_text, failures):
+    """Execute one route without allowing its exception to terminate later routes."""
+    started = time.perf_counter()
+    try:
+        raw = callback()
+        result = _graphic_v68400_finalize_route(
+            raw,
+            prompt_text,
+            route_name,
+            failures,
+        )
+        diagnostic_log(
+            "graphic_v68400_route_success",
+            route=route_name,
+            image_count=len(result),
+            elapsed_seconds=round(time.perf_counter()-started, 3),
+        )
+        return {
+            "success": True,
+            "images": result,
+            "reason": "",
+            "route": route_name,
+        }
+    except Exception as error:
+        reason = f"{route_name}:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        failures.append(reason)
+        diagnostic_log(
+            "graphic_v68400_route_failed",
+            route=route_name,
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+            elapsed_seconds=round(time.perf_counter()-started, 3),
+        )
+        return {
+            "success": False,
+            "images": [],
+            "reason": reason,
+            "route": route_name,
+        }
+
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """Public Graphic API with bounded professional and emergency recovery routes."""
+    """v68400 public Graphic API.
+
+    A usable image returns immediately unless direct affirmative evidence proves
+    product-geometry alteration or fitment narrowing. Every recovery route is
+    isolated, so one failure never prevents the next safe route from running.
+    """
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -32227,104 +32436,100 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    project["generation_policy"] = GRAPHIC_V68400_POLICY_VERSION
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-    try:
-        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
-            effective_prompt, uploaded_files, **arguments
-        ), "advanced", failures)
-    except Exception as error:
-        failures.append(
-            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_advanced_pipeline_recovery",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
 
-    # Installed View must fail closed to an interior-only recovery. Generic legacy
-    # or emergency routes are not allowed to turn it into a commercial poster.
+    # 1. Proven v68300 advanced path. Return immediately when usable.
+    stage = _graphic_v68400_run_route(
+        "advanced-v68300",
+        lambda: _generate_graphic_marketing_images_advanced(
+            effective_prompt, uploaded_files, **arguments
+        ),
+        effective_prompt,
+        failures,
+    )
+    if stage["success"]:
+        return stage["images"]
+
+    # 2. Installed View must stay interior-only and must not become a poster.
     if installed_request:
-        try:
-            result = _graphic_installed_view_recovery_v47000(
-                effective_prompt, uploaded_files,
+        stage = _graphic_v68400_run_route(
+            "installed-view-only-v47000",
+            lambda: _graphic_installed_view_recovery_v47000(
+                effective_prompt,
+                uploaded_files,
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
-            )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["recovered_from_v47000"] = True
-                    image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
-        except Exception as error:
-            failures.append(
-                f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v47000_installed_recovery_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
-            )
-            state = get_graphic_project_state()
-            state["stage"] = "ready_to_generate"
-            state["last_error"] = " | ".join(failures[-4:])[:1800]
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-            raise RuntimeError(
-                "Installed View generation failed safely. The app did not substitute a commercial poster. "
-                + " | ".join(failures[-3:])
-            ) from error
+            ),
+            effective_prompt,
+            failures,
+        )
+        if stage["success"]:
+            return stage["images"]
 
-    # The earlier v3200 path has fewer governance/QA dependencies and is retained
-    # only for non-installed compatibility recovery.
-    try:
-        result = _generate_graphic_marketing_images_advanced_v3200(
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-6:])[:1800]
+        state["last_failed_stage"] = "installed_view_routes"
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "Installed View generation failed safely. No commercial-poster substitute was returned. "
+            + " | ".join(failures[-4:])
+        )
+
+    # 3. Proven v66200-compatible public generation path.
+    stage = _graphic_v68400_run_route(
+        "v3200-v66200-compatibility",
+        lambda: _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["recovered_from_v15000"] = True
-                image["recovery_failures"] = failures[-2:]
-        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
-    except Exception as error:
-        failures.append(
-            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_v3200_pipeline_recovery",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
+        ),
+        effective_prompt,
+        failures,
+    )
+    if stage["success"]:
+        return stage["images"]
 
-    try:
-        result = _graphic_emergency_provider_result_v15000(
+    # 4. Guaranteed exact local commercial route. Provider never draws product.
+    stage = _graphic_v68400_run_route(
+        "v68200-guaranteed-exact-local",
+        lambda: _graphic_v68200_guaranteed_exact_local_commercial(
+            effective_prompt,
+            uploaded_files,
+            forced_upload_role=forced_upload_role,
+        ),
+        effective_prompt,
+        failures,
+    )
+    if stage["success"]:
+        return stage["images"]
+
+    # 5. Last-resort provider route. Still subject to direct violation blockers.
+    stage = _graphic_v68400_run_route(
+        "emergency-provider-v15000",
+        lambda: _graphic_emergency_provider_result_v15000(
             effective_prompt,
             uploaded_files,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["recovery_failures"] = failures[-3:]
-        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
-    except Exception as error:
-        failures.append(
-            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_all_routes_failed",
-            failures=failures[-4:],
-        )
-        state = get_graphic_project_state()
-        state["stage"] = "ready_to_generate"
-        state["last_error"] = " | ".join(failures[-4:])[:1800]
-        state["last_failed_stage"] = "all_generation_routes"
-        state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        raise RuntimeError(
-            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
-            + " | ".join(failures[-3:])
-        ) from error
+        ),
+        effective_prompt,
+        failures,
+    )
+    if stage["success"]:
+        return stage["images"]
+
+    state = get_graphic_project_state()
+    state["stage"] = "ready_to_generate"
+    state["last_error"] = " | ".join(failures[-6:])[:1800]
+    state["last_failed_stage"] = "all_generation_routes"
+    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log("graphic_v68400_all_routes_failed", failures=failures[-6:])
+    raise RuntimeError(
+        "All established image-generation routes failed. The project assets remain saved for Retry. "
+        + " | ".join(failures[-4:])
+    )
 
 
 
