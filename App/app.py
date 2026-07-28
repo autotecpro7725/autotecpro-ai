@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68690 FINAL LTS — v67610 State Machine, v66200 Return Path, and Upload Idempotency
+# AutoTecPro AI Graphic Marketing Engine v68700 FINAL LTS — Manual Attachment Send, v67610 State Machine, and v66200 Return Path
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -50023,16 +50023,15 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
+    # v68700: selecting files only stages them in the managed uploader.
+    # An attachment-only turn is submitted only when the user explicitly clicks
+    # the native chat send arrow, which returns the hidden zero-width sentinel.
+    # A normal Streamlit rerun with prompt=None must never auto-post the files.
     native_attachment_only_submit = bool(
         uploaded_files
         and active_structured_tool is None
-        and (
-            not str(prompt or "").strip()
-            or (
-                isinstance(prompt, str)
-                and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
-            )
-        )
+        and isinstance(prompt, str)
+        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
     )
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
