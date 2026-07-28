@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v69020 FINAL LTS — Authoritative Upload Handoff, Missing-Upload Loop Guard, v66200 Authority and Hard Bezel Recovery
+# AutoTecPro AI Graphic Marketing Engine v69030 FINAL LTS — v66200 Stable Chat Pipeline Restore, Deterministic Upload Authority, v66200 Fitment Copy Authority, AI Art Director and Hard Bezel Recovery
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -19496,7 +19496,7 @@ def _graphic_project_direct_action(prompt_text, state=None):
 
 
 
-GRAPHIC_V69020_RELEASE = "v69020-upload-handoff-and-loop-guard"
+GRAPHIC_V69030_RELEASE = "v69030-v66200-stable-chat-pipeline-restore"
 
 
 def _graphic_prompt_claims_attached_image_v69020(prompt):
@@ -50673,22 +50673,22 @@ else:
         "jpg", "jpeg", "png", "webp", "pdf", "txt",
         "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
     ]
-    uploaded_files = managed_file_uploader(
+    # v69030: Use the proven v66200 uploader core directly for the main chat.
+    # Do not place the chat transport behind a fragment boundary: file selection,
+    # persistent upload records, chat submission and message serialization now
+    # share one full Streamlit execution lifecycle.
+    uploaded_files = _managed_file_uploader_core(
         storage_key="chat_managed_uploads",
         generation_key="chat_managed_upload_generation",
         widget_prefix="chat_files",
         accepted_types=chat_accepted_types,
         heading="📎 Attach files or photos",
     )
-    # v69020: The fragment-scoped uploader can rerun independently from the
-    # full chat script. Its Python return value is therefore not the authority
-    # for a later chat submission. Rebuild the upload objects from persistent
-    # session state on every full script pass so the send action always receives
-    # the same files shown in the managed preview cards.
+    # Snapshot from the same persistent records rendered by the uploader.
     uploaded_files = _managed_upload_objects(
         list(st.session_state.get("chat_managed_uploads") or [])
     )
-    st.session_state["chat_submission_upload_count_v69020"] = len(uploaded_files)
+    st.session_state["chat_submission_upload_count_v69030"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
@@ -50730,16 +50730,6 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
-    graphic_mobile_resume_v68400 = False
-    if assistant == "🎨 Graphic Marketing" and not prompt:
-        pending_job_v68400 = _graphic_pending_mobile_job_v68400(allow_processing_resume=True)
-        if pending_job_v68400:
-            prompt = pending_job_v68400.get("prompt") or ""
-            if prompt:
-                uploaded_files = _graphic_upload_objects_v68400(pending_job_v68400.get("uploads") or []) or uploaded_files
-                graphic_mobile_resume_v68400 = True
-                diagnostic_log("graphic_mobile_job_resumed_v68400", job_id=pending_job_v68400.get("job_id"))
-
     native_attachment_only_submit = bool(
         uploaded_files
         and active_structured_tool is None
@@ -50767,25 +50757,12 @@ else:
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
         diagnostic_log(
-            "graphic_upload_handoff_v69020",
+            "graphic_upload_transport_v69030",
             workspace=str(assistant),
             managed_record_count=len(st.session_state.get("chat_managed_uploads") or []),
             submission_upload_count=len(uploaded_files or []),
             attachment_only=attachment_only_mode,
         )
-
-        if (
-            assistant == "🎨 Graphic Marketing"
-            and not graphic_mobile_resume_v68400
-            and not uploaded_files
-            and not attachment_only_mode
-            and not _graphic_prompt_claims_attached_image_v69020(interaction_prompt)
-        ):
-            _graphic_queue_mobile_job_v68400(
-                interaction_prompt,
-                uploaded_files,
-                structured_options=(active_structured_tool or {}).get("graphic_options", {}) if isinstance(active_structured_tool, dict) else {},
-            )
 
         # Defer every Product Library side effect until attachments are normalized
         # and the final Graphic intent has been resolved exactly once.
@@ -50804,14 +50781,12 @@ else:
             st.stop()
 
         if assistant == "🎨 Graphic Marketing":
-            graphic_asset_role_prompt_v68820 = (
-                ""
-                if attachment_only_mode
-                else interaction_prompt
+            graphic_asset_role_prompt_v69030 = (
+                "" if attachment_only_mode else interaction_prompt
             )
             remember_graphic_project_assets(
                 effective_uploaded_files,
-                graphic_asset_role_prompt_v68820,
+                graphic_asset_role_prompt_v69030,
             )
         graphic_generation_files = (
             graphic_project_uploaded_files(effective_uploaded_files)
@@ -50882,36 +50857,28 @@ else:
                 st.error(f"Could not create chat history case: {e}")
                 st.session_state.conversation_id = None
 
-        if not graphic_mobile_resume_v68400:
-            st.session_state.messages.append({
-                "role": "user",
-                "content": user_content_to_save
-            })
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_content_to_save
+        })
 
-            if history_is_enabled():
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "user",
-                        user_content_to_save,
-                    )
-                except Exception as e:
-                    st.warning(f"User message was not saved to history: {e}")
+        if history_is_enabled():
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "user",
+                    user_content_to_save,
+                )
+            except Exception as e:
+                st.warning(f"User message was not saved to history: {e}")
 
-            render_chat_message("user", user_display, uploaded_image_previews)
+        render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = list(product_library_images)
         generated_documents = []
         has_uploaded_images = any(
             str(getattr(item, "type", "") or "").startswith("image/")
             for item in effective_uploaded_files
-        )
-        is_graphic_missing_upload_guard = bool(
-            assistant == "🎨 Graphic Marketing"
-            and not has_uploaded_images
-            and not effective_uploaded_files
-            and _graphic_prompt_claims_attached_image_v69020(interaction_prompt)
-            and active_structured_tool is None
         )
         execution_plan = detect_prompt_execution_plan(
             prompt,
@@ -50978,12 +50945,6 @@ else:
             and isinstance(active_structured_tool, dict)
             and isinstance(active_structured_tool.get("graphic_options"), dict)
         )
-        if assistant == "🎨 Graphic Marketing":
-            repaired_graphic_project_v68820 = _graphic_repair_project_asset_roles_v68820(
-                get_graphic_project_state()
-            )
-            _graphic_active_project_assets_v16000(repaired_graphic_project_v68820)
-
         graphic_chat_intent = (
             classify_graphic_chat_intent(
                 interaction_prompt,
@@ -50994,7 +50955,7 @@ else:
             else "conversation"
         )
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
-            graphic_chat_intent = "attachment_ack"
+            graphic_chat_intent = "analyze"
         if assistant == "🎨 Graphic Marketing" and not attachment_only_mode:
             # v8400: contextual create/edit consent outranks ordinary conversation
             # and campaign-copy drafting once reference + product are ready.
@@ -51015,10 +50976,9 @@ else:
                 explicit_learning=explicit_learning_requested,
             )
         )
-        # v69010: Every image-bearing Graphic turn is owned by the deterministic
-        # project-state router unless the same turn explicitly requests generation,
-        # editing, or reference-style learning. This covers both blank uploads and
-        # uploads accompanied by text such as "this is the reference/product".
+        # v69030: any successfully received image-bearing turn is acknowledged
+        # directly from project state unless it is an explicit generation/edit/
+        # style-learning command. The language model cannot request the same upload.
         is_graphic_upload_state_turn = bool(
             assistant == "🎨 Graphic Marketing"
             and has_uploaded_images
@@ -51027,10 +50987,17 @@ else:
             and not explicit_learning_requested
             and not is_structured_graphic_request
         )
-        is_graphic_attachment_ack = is_graphic_upload_state_turn
         is_graphic_project_ready_ack = bool(
             is_graphic_upload_state_turn
             and _graphic_project_is_ready(get_graphic_project_state())
+        )
+        is_graphic_missing_upload = bool(
+            assistant == "🎨 Graphic Marketing"
+            and not has_uploaded_images
+            and not (get_graphic_project_state().get("assets") or [])
+            and _graphic_prompt_claims_attached_image_v69020(interaction_prompt)
+            and not is_graphic_generation
+            and not is_graphic_reference_learning
         )
         if is_graphic_reference_learning:
             # Learning uploaded references must never be misrouted to Image Edit.
@@ -51085,9 +51052,11 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if is_graphic_missing_upload_guard:
+        if is_graphic_upload_state_turn:
             response_start_time = time.time()
-            answer = _graphic_missing_upload_message_v69020()
+            answer = _graphic_upload_state_message_v69010(
+                get_graphic_project_state()
+            )
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
             render_chat_message(
@@ -51095,10 +51064,9 @@ else:
                 answer,
                 message_index=len(st.session_state.messages),
             )
-        elif is_graphic_attachment_ack:
+        elif is_graphic_missing_upload:
             response_start_time = time.time()
-            graphic_project = get_graphic_project_state()
-            answer = _graphic_upload_state_message_v69010(graphic_project)
+            answer = _graphic_missing_upload_message_v69020()
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
             render_chat_message(
@@ -51158,19 +51126,6 @@ else:
                 answer,
                 message_index=len(st.session_state.messages),
             )
-        elif is_graphic_project_ready_ack:
-            response_start_time = time.time()
-            graphic_project = get_graphic_project_state()
-            graphic_project["stage"] = "ready_to_generate"
-            graphic_project["reference_blueprint_locked"] = bool(graphic_project.get("last_reference_blueprint"))
-            graphic_project["product_dna_locked"] = bool(graphic_project.get("active_product_dna"))
-            graphic_project["vehicle_profile_locked"] = bool((graphic_project.get("last_vehicle_profile") or {}).get("hard_vehicle_lock"))
-            graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
-            answer = _graphic_project_ready_message(graphic_project)
-            response_time = round(time.time() - response_start_time, 2)
-            tokens_used = None
-            render_chat_message("assistant", answer, message_index=len(st.session_state.messages))
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
@@ -51195,8 +51150,6 @@ else:
             )
         elif is_graphic_generation:
             response_start_time = time.time()
-            _graphic_mark_mobile_job_v68400("processing")
-            _graphic_persist_project_v68400(get_graphic_project_state())
             try:
                 with st.spinner("Creating your image..."):
                     graphic_options = (
@@ -51222,8 +51175,6 @@ else:
                 graphic_project["stage"] = "generated"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
-                _graphic_persist_project_v68400(graphic_project)
-                _graphic_mark_mobile_job_v68400("completed")
             except Exception as error:
                 generated_images = []
                 diagnostic_id = hashlib.sha256(
@@ -51243,8 +51194,6 @@ else:
                 graphic_project["stage"] = "ready_to_generate"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
-                _graphic_persist_project_v68400(graphic_project)
-                _graphic_mark_mobile_job_v68400("retryable", error=str(error))
 
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
@@ -51653,8 +51602,8 @@ else:
         if (
             not is_woocommerce_request
             and not is_graphic_reference_learning
-            and not is_graphic_attachment_ack
-            and not is_graphic_missing_upload_guard
+            and not is_graphic_upload_state_turn
+            and not is_graphic_missing_upload
         ):
             queue_ai_postprocess(
                 interaction_prompt,
