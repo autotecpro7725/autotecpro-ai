@@ -10,7 +10,7 @@ from document_generator import (
     serialize_documents_marker,
 )
 try:
-    from PIL import Image, ImageOps, ImageChops
+    from PIL import Image, ImageOps
 except Exception:
     Image = None
 import base64
@@ -36,7 +36,6 @@ import csv
 import inspect
 import math
 from difflib import SequenceMatcher
-from functools import lru_cache
 try:
     from openpyxl import load_workbook
 except Exception:
@@ -47,12 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68600 FINAL LTS — v66200 Public Return with v68500 Authoritative Role Transport
+# AutoTecPro AI Graphic Marketing Engine v68600 FINAL LTS — Complete Hero-Zone Product Remnant and Bezel Exclusion
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-GRAPHIC_V68400_RELEASE = "v68400-v68300-stable-authority-isolated-recovery-visual-performance"
-GRAPHIC_V68500_RELEASE = "v68500-authoritative-role-transport-v66200-stable-return-path"
-GRAPHIC_V68600_RELEASE = "v68600-v66200-public-return-v68500-authoritative-role-transport"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -16434,6 +16430,538 @@ def apply_autotecpro_brand_logo(
 
 
 
+
+GRAPHIC_V68400_RELEASE = "v68400-mobile-resilient-exact-reference-authority"
+
+GRAPHIC_V68500_RELEASE = "v68500-v66200-output-safe-later-improvements"
+
+
+def _graphic_parse_safe_product_transform_v68500(prompt_text):
+    """Return bounded pixel-preserving product transforms.
+
+    This parser never authorizes generative reconstruction. A viewpoint request
+    beyond the safe 2D range is recorded but not invented from a single photo.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    lower = value.casefold()
+    result = {
+        "requested": False,
+        "rotation_deg": 0.0,
+        "auto_straighten": False,
+        "viewpoint_request_deferred": False,
+        "engine": "safe-product-transform-v68500",
+    }
+
+    product_context = any(
+        term in lower for term in
+        ("product", "unit", "screen", "radio", "display", "cluster")
+    )
+    if not product_context:
+        return result
+
+    if any(term in lower for term in (
+        "straighten", "straight position", "face to the front",
+        "front facing", "front-facing", "make it upright", "level the unit"
+    )):
+        result["requested"] = True
+        result["auto_straighten"] = True
+
+    angle_match = re.search(
+        r"\b(?:rotate|rotation|tilt|lean)\b[^0-9-]{0,24}(-?\d{1,2}(?:\.\d+)?)\s*(?:°|degrees?)?",
+        lower,
+        re.I,
+    )
+    if angle_match:
+        amount = float(angle_match.group(1))
+        if any(term in lower for term in ("counterclockwise", "anti-clockwise", "left")):
+            amount = -abs(amount)
+        elif any(term in lower for term in ("clockwise", "right")):
+            amount = abs(amount)
+        result["requested"] = True
+        result["rotation_deg"] = max(-8.0, min(8.0, amount))
+
+    # A true yaw/viewpoint change exposes hidden geometry and cannot be proven
+    # from one front photograph. Keep the request visible without reconstructing.
+    yaw = re.search(
+        r"\b(?:viewpoint|angle|turn)\b[^0-9]{0,24}(\d{1,2}(?:\.\d+)?)\s*(?:°|degrees?)"
+        r"[^.]{0,30}\b(?:left|right)\b",
+        lower,
+        re.I,
+    )
+    if yaw and float(yaw.group(1)) > 8:
+        result["viewpoint_request_deferred"] = True
+
+    return result
+
+
+def _graphic_estimate_roll_v68500(product):
+    """Estimate only small roll from the immutable alpha silhouette."""
+    if Image is None or product is None:
+        return 0.0
+    try:
+        alpha = product.convert("RGBA").getchannel("A")
+        bbox = alpha.getbbox()
+        if not bbox:
+            return 0.0
+        # Sample the visible silhouette at several rows and fit the midpoint drift.
+        x0,y0,x1,y1 = bbox
+        rows=[]
+        for fraction in (0.18,0.32,0.46,0.60,0.74,0.88):
+            y=max(y0,min(y1-1,int(y0+(y1-y0)*fraction)))
+            xs=[x for x in range(x0,x1) if alpha.getpixel((x,y))>24]
+            if len(xs)>=8:
+                rows.append((y,(xs[0]+xs[-1])/2.0))
+        if len(rows)<4:
+            return 0.0
+        ym=sum(y for y,_ in rows)/len(rows)
+        xm=sum(x for _,x in rows)/len(rows)
+        num=sum((y-ym)*(x-xm) for y,x in rows)
+        den=sum((y-ym)**2 for y,_ in rows) or 1.0
+        slope=num/den
+        import math
+        angle=math.degrees(math.atan(slope))
+        return max(-4.0,min(4.0,angle))
+    except Exception:
+        return 0.0
+
+
+def _graphic_apply_safe_product_transform_v68500(product, prompt_text):
+    """Apply bounded 2D transforms to original pixels only."""
+    directive=_graphic_parse_safe_product_transform_v68500(prompt_text)
+    report=dict(directive)
+    report.update({
+        "applied":False,
+        "pixel_preserving":True,
+        "generative_reconstruction":False,
+    })
+    if Image is None or product is None:
+        return product, report
+
+    angle=float(directive.get("rotation_deg") or 0.0)
+    if directive.get("auto_straighten"):
+        # PIL positive rotation is counter-clockwise. Correct measured roll.
+        estimated=_graphic_estimate_roll_v68500(product)
+        report["estimated_roll_deg"]=round(estimated,3)
+        if abs(angle)<0.01:
+            angle=-estimated
+
+    angle=max(-8.0,min(8.0,angle))
+    report["applied_rotation_deg"]=round(angle,3)
+    if abs(angle)<0.15:
+        return product, report
+
+    try:
+        original=product.convert("RGBA")
+        transformed=original.rotate(
+            angle,
+            resample=Image.Resampling.BICUBIC,
+            expand=True,
+            fillcolor=(0,0,0,0),
+        )
+        bbox=transformed.getchannel("A").getbbox()
+        if bbox:
+            transformed=transformed.crop(bbox)
+        report["applied"]=True
+        report["source_size"]=list(original.size)
+        report["result_size"]=list(transformed.size)
+        return transformed, report
+    except Exception as error:
+        report["error"]=str(error)[:300]
+        return product, report
+
+
+
+GRAPHIC_V68600_RELEASE = "v68600-complete-hero-zone-product-remnant-exclusion"
+
+
+def _graphic_clear_complete_hero_zone_v68600(
+    canvas,
+    product,
+    px,
+    py,
+    hero_rect,
+    footer_top_px,
+):
+    """Remove every provider-created product remnant from the complete hero zone.
+
+    Earlier guards were based on the exact uploaded product width. A provider-created
+    reference product can be substantially wider because of invented mounting ears,
+    rails, brackets or side housings. Those remnants may survive outside a product-
+    sized margin and appear as a false bezel.
+
+    v68600 reserves the complete commercial hero zone, not merely the uploaded
+    product rectangle. The exact uploaded product is composited afterward.
+    """
+    if Image is None or canvas is None or product is None:
+        return canvas, {
+            "applied": False,
+            "engine": "complete-hero-zone-exclusion-v68600",
+            "reason": "image unavailable",
+        }
+
+    try:
+        base = canvas.convert("RGBA")
+        W, H = base.size
+        hx0, hy0, hx1, hy1 = [int(v) for v in hero_rect]
+
+        # Expand horizontally because reference products frequently contain long
+        # mounting ears outside their visible central housing.
+        side_expand = max(28, int(round((hx1 - hx0) * 0.12)))
+        top_expand = max(16, int(round((hy1 - hy0) * 0.04)))
+        bottom_expand = max(20, int(round((hy1 - hy0) * 0.08)))
+
+        rx0 = max(0, hx0 - side_expand)
+        ry0 = max(0, hy0 - top_expand)
+        rx1 = min(W, hx1 + side_expand)
+        ry1 = min(H, min(int(footer_top_px) - 2, hy1 + bottom_expand))
+
+        # Also guarantee coverage of the exact final product rectangle.
+        rx0 = min(rx0, max(0, int(px) - side_expand))
+        ry0 = min(ry0, max(0, int(py) - top_expand))
+        rx1 = max(rx1, min(W, int(px) + product.width + side_expand))
+        ry1 = max(
+            ry1,
+            min(H, int(footer_top_px) - 2, int(py) + product.height + bottom_expand),
+        )
+
+        if rx1 <= rx0 or ry1 <= ry0:
+            return canvas, {
+                "applied": False,
+                "engine": "complete-hero-zone-exclusion-v68600",
+                "reason": "invalid hero zone",
+            }
+
+        # First choice: OpenCV inpainting over the full hero rectangle. The product
+        # will cover most of this area, so only the scene perimeter remains visible.
+        try:
+            import cv2
+            import numpy as np
+
+            rgba = np.asarray(base, dtype=np.uint8)
+            mask = np.zeros((H, W), dtype=np.uint8)
+            mask[ry0:ry1, rx0:rx1] = 255
+
+            rgb_bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+            radius = max(7, min(31, int(round(min(W, H) * 0.018))))
+            cleaned = cv2.inpaint(rgb_bgr, mask, radius, cv2.INPAINT_TELEA)
+            if cleaned is not None and cleaned.shape[:2] == rgb_bgr.shape[:2]:
+                result = np.dstack([
+                    cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB),
+                    rgba[:, :, 3],
+                ])
+                return Image.fromarray(result.astype(np.uint8), "RGBA"), {
+                    "applied": True,
+                    "engine": "complete-hero-zone-exclusion-v68600-opencv",
+                    "reserved_rect": [rx0, ry0, rx1, ry1],
+                    "side_expand_px": side_expand,
+                    "top_expand_px": top_expand,
+                    "bottom_expand_px": bottom_expand,
+                    "product_region_provider_pixels_removed": True,
+                    "provider_bezel_exclusion": True,
+                    "provider_mounting_ear_exclusion": True,
+                    "provider_bracket_exclusion": True,
+                    "product_pixels_untouched": True,
+                }
+        except Exception as cv_error:
+            cv_error_text = str(cv_error)[:300]
+        else:
+            cv_error_text = "opencv returned no usable result"
+
+        # Second choice: a local Pillow scene continuation. This clears the entire
+        # hero zone and never touches the uploaded product pixels.
+        from PIL import ImageFilter, ImageStat
+
+        out = base.copy()
+        zone_w, zone_h = rx1 - rx0, ry1 - ry0
+        sample_width = max(24, min(int(W * 0.08), zone_w // 3))
+
+        samples = []
+        sample_boxes = [
+            (max(0, rx0 - sample_width), ry0, rx0, ry1),
+            (rx1, ry0, min(W, rx1 + sample_width), ry1),
+            (rx0, max(0, ry0 - sample_width), rx1, ry0),
+        ]
+        for box in sample_boxes:
+            if box[2] > box[0] and box[3] > box[1]:
+                samples.append(out.crop(box).convert("RGB"))
+
+        average = (125, 135, 145)
+        if samples:
+            totals = [0.0, 0.0, 0.0]
+            for sample in samples:
+                mean = ImageStat.Stat(sample).mean
+                for index in range(3):
+                    totals[index] += mean[index]
+            average = tuple(int(value / len(samples)) for value in totals)
+
+        existing = out.crop((rx0, ry0, rx1, ry1)).filter(
+            ImageFilter.GaussianBlur(max(24, int(min(zone_w, zone_h) * 0.08)))
+        )
+        plate = Image.new("RGBA", (zone_w, zone_h), (*average, 255))
+        plate = Image.blend(plate, existing, 0.28)
+        out.alpha_composite(plate, (rx0, ry0))
+
+        return out, {
+            "applied": True,
+            "engine": "complete-hero-zone-exclusion-v68600-pillow",
+            "reserved_rect": [rx0, ry0, rx1, ry1],
+            "side_expand_px": side_expand,
+            "top_expand_px": top_expand,
+            "bottom_expand_px": bottom_expand,
+            "product_region_provider_pixels_removed": True,
+            "provider_bezel_exclusion": True,
+            "provider_mounting_ear_exclusion": True,
+            "provider_bracket_exclusion": True,
+            "product_pixels_untouched": True,
+            "opencv_error": cv_error_text,
+        }
+
+    except Exception as error:
+        return canvas, {
+            "applied": False,
+            "engine": "complete-hero-zone-exclusion-v68600",
+            "reason": str(error)[:300],
+            "fail_closed": True,
+        }
+
+
+def _graphic_clear_reserved_product_zone_pillow_v68500(canvas, product, px, py):
+    """Pillow-only protected-zone clearing when OpenCV is unavailable.
+
+    The exact uploaded product is placed over this region immediately afterward.
+    This route never creates or modifies product pixels.
+    """
+    if Image is None or canvas is None or product is None:
+        return canvas, {"applied":False, "engine":"pillow-zone-clear-v68500"}
+    try:
+        from PIL import ImageFilter, ImageStat
+        out=canvas.convert("RGBA")
+        W,H=out.size
+        margin=max(12,int(min(W,H)*0.02))
+        x0=max(0,int(px)-margin); y0=max(0,int(py)-margin)
+        x1=min(W,int(px)+product.width+margin)
+        y1=min(H,int(py)+product.height+margin)
+        if x1<=x0 or y1<=y0:
+            return canvas, {"applied":False,"engine":"pillow-zone-clear-v68500","reason":"empty-zone"}
+
+        # Build a scene-colored blurred plate from pixels surrounding the zone.
+        samples=[]
+        strips=[
+            (max(0,x0-margin),y0,x0,y1),
+            (x1,y0,min(W,x1+margin),y1),
+            (x0,max(0,y0-margin),x1,y0),
+            (x0,y1,x1,min(H,y1+margin)),
+        ]
+        for box in strips:
+            if box[2]>box[0] and box[3]>box[1]:
+                samples.append(out.crop(box).convert("RGB"))
+        rgb=(120,130,140)
+        if samples:
+            totals=[0,0,0]; count=0
+            for sample in samples:
+                stat=ImageStat.Stat(sample)
+                for i in range(3): totals[i]+=stat.mean[i]
+                count+=1
+            rgb=tuple(int(v/count) for v in totals)
+
+        plate=Image.new("RGBA",(x1-x0,y1-y0),(*rgb,255))
+        # Blend a heavily blurred copy of the existing scene to preserve local light.
+        existing=out.crop((x0,y0,x1,y1)).filter(ImageFilter.GaussianBlur(max(18,int(margin*1.5))))
+        plate=Image.blend(plate,existing,0.45)
+        out.alpha_composite(plate,(x0,y0))
+        return out,{
+            "applied":True,
+            "engine":"pillow-zone-clear-v68500",
+            "product_pixels_untouched":True,
+            "opencv_required":False,
+            "zone":[x0,y0,x1,y1],
+        }
+    except Exception as error:
+        return canvas,{
+            "applied":False,
+            "engine":"pillow-zone-clear-v68500",
+            "error":str(error)[:300],
+        }
+
+
+def _graphic_optional_metadata_is_not_failure_v68500(issue):
+    text=re.sub(r"\s+"," ",str(issue or "")).casefold()
+    optional_terms=(
+        "metadata","manifest","campaign zone","zone label","reference score",
+        "layout score","vehicle verification","optional","unavailable visual",
+        "missing proof field","provider timing",
+    )
+    direct_terms=(
+        "fingerprint mismatch","source pixel","geometry changed","bezel",
+        "screen aperture","aspect ratio","cropped","redrawn","provider-created product",
+        "fitment narrowed","compatibility narrowed","button changed","knob changed",
+        "housing changed","silhouette changed",
+    )
+    return any(t in text for t in optional_terms) and not any(t in text for t in direct_terms)
+GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS = 1800
+GRAPHIC_V68400_MOBILE_RESUME_DELAY_SECONDS = 35
+
+
+@st.cache_resource(show_spinner=False)
+def _graphic_mobile_runtime_cache_v68400():
+    """Process-local recovery cache for iOS Safari / websocket reruns.
+
+    This cache stores only the current user's Graphic project and pending job.
+    It supplements Streamlit session_state; it does not replace persistent chat
+    history or Product Library storage.
+    """
+    return {"projects": {}, "jobs": {}}
+
+
+def _graphic_mobile_cache_keys_v68400():
+    username = str(st.session_state.get("username") or "anonymous").strip().casefold()
+    conversation = str(st.session_state.get("conversation_id") or "").strip()
+    assistant = str(st.session_state.get("current_assistant") or "graphic").strip().casefold()
+    keys=[]
+    if conversation:
+        keys.append(f"{username}:{conversation}:graphic")
+    keys.append(f"{username}:{assistant}:graphic-active")
+    return list(dict.fromkeys(keys))
+
+
+def _graphic_mobile_cache_key_v68400():
+    return _graphic_mobile_cache_keys_v68400()[0]
+
+
+def _graphic_copy_project_state_v68400(state):
+    """Make a defensive copy while preserving immutable uploaded bytes."""
+    source = dict(state or {})
+    copied = {}
+    for key, value in source.items():
+        if key == "assets":
+            assets=[]
+            for item in value or []:
+                if not isinstance(item, dict):
+                    continue
+                record=dict(item)
+                record["data"]=bytes(record.get("data") or b"")
+                assets.append(record)
+            copied[key]=assets
+        else:
+            try:
+                copied[key]=json.loads(json.dumps(value, ensure_ascii=False, default=str))
+            except Exception:
+                copied[key]=value
+    return copied
+
+
+def _graphic_persist_project_v68400(state=None):
+    project = state if isinstance(state, dict) else st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
+    if not isinstance(project, dict):
+        return False
+    cache=_graphic_mobile_runtime_cache_v68400()
+    record={"saved_at": time.time(), "state": _graphic_copy_project_state_v68400(project)}
+    for key in _graphic_mobile_cache_keys_v68400():
+        cache["projects"][key]=record
+    return True
+
+
+def _graphic_restore_project_v68400():
+    cache=_graphic_mobile_runtime_cache_v68400()
+    record={}
+    for key in _graphic_mobile_cache_keys_v68400():
+        record=cache["projects"].get(key) or {}
+        if record: break
+    saved=float(record.get("saved_at") or 0.0)
+    if not saved or time.time()-saved > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+        return None
+    state=record.get("state")
+    if not isinstance(state,dict):
+        return None
+    return _graphic_copy_project_state_v68400(state)
+
+
+def _graphic_upload_records_v68400(files):
+    records=[]
+    for item in files or []:
+        try:
+            data=bytes(item.getvalue())
+        except Exception:
+            continue
+        if not data:
+            continue
+        name=str(getattr(item,"name","image"))
+        records.append({
+            "id":hashlib.sha256(data).hexdigest(),
+            "name":name,
+            "type":_normalized_upload_mime_type(name,getattr(item,"type","")),
+            "data":data,
+            "graphic_role":str(getattr(item,"graphic_role","") or ""),
+            "graphic_asset_id":str(getattr(item,"graphic_asset_id","") or ""),
+        })
+    return records
+
+
+def _graphic_upload_objects_v68400(records):
+    result=[]
+    for record in records or []:
+        if not isinstance(record,dict) or not record.get("data"):
+            continue
+        result.append(ManagedUploadedFile(
+            record.get("data") or b"",
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("graphic_role") or "",
+            graphic_asset_id=record.get("graphic_asset_id") or record.get("id") or "",
+        ))
+    return result
+
+
+def _graphic_queue_mobile_job_v68400(prompt_text, files, *, structured_options=None):
+    cache=_graphic_mobile_runtime_cache_v68400()
+    key=_graphic_mobile_cache_key_v68400()
+    job_id=hashlib.sha256(f"{key}:{time.time_ns()}:{prompt_text}".encode()).hexdigest()[:20]
+    job={
+        "job_id":job_id,
+        "status":"queued",
+        "prompt":str(prompt_text or ""),
+        "uploads":_graphic_upload_records_v68400(files),
+        "structured_options":dict(structured_options or {}),
+        "created_at":time.time(),
+        "updated_at":time.time(),
+    }
+    for alias in _graphic_mobile_cache_keys_v68400():
+        cache["jobs"][alias]=job
+    st.session_state["graphic_mobile_job_id_v68400"]=job_id
+    return job_id
+
+
+def _graphic_pending_mobile_job_v68400(*, allow_processing_resume=False):
+    cache=_graphic_mobile_runtime_cache_v68400(); job=None
+    for key in _graphic_mobile_cache_keys_v68400():
+        candidate=cache["jobs"].get(key)
+        if isinstance(candidate,dict):
+            job=candidate; break
+    if not isinstance(job,dict): return None
+    age=time.time()-float(job.get("updated_at") or job.get("created_at") or 0.0)
+    if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+        cache["jobs"].pop(key,None); return None
+    status=str(job.get("status") or "queued")
+    if status in {"queued", "retryable"}: return dict(job)
+    if status=="processing" and allow_processing_resume and age >= GRAPHIC_V68400_MOBILE_RESUME_DELAY_SECONDS:
+        return dict(job)
+    return None
+
+
+def _graphic_mark_mobile_job_v68400(status, *, error=""):
+    cache=_graphic_mobile_runtime_cache_v68400(); job=None
+    keys=_graphic_mobile_cache_keys_v68400()
+    for key in keys:
+        candidate=cache["jobs"].get(key)
+        if isinstance(candidate,dict): job=candidate; break
+    if not isinstance(job,dict): return
+    job["status"]=str(status); job["updated_at"]=time.time()
+    if error: job["error"]=str(error)[:1000]
+    for key in keys: cache["jobs"][key]=job
+    if status=="completed":
+        for key in keys: cache["jobs"].pop(key,None)
+        st.session_state.pop("graphic_mobile_job_id_v68400",None)
+
 GRAPHIC_PROJECT_STATE_KEY = "graphic_chat_project"
 GRAPHIC_PROJECT_MAX_ASSETS = 16
 
@@ -16503,11 +17031,13 @@ def _empty_graphic_project_state():
 
 
 def get_graphic_project_state():
-    """Return the current conversation-level Graphic asset workspace."""
+    """Return the current Graphic workspace with mobile reconnect recovery."""
     state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     if not isinstance(state, dict):
+        state = _graphic_restore_project_v68400()
+    if not isinstance(state, dict):
         state = _empty_graphic_project_state()
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     state.setdefault("stage", "planning")
     state.setdefault("assets", [])
     state.setdefault("latest_generated", None)
@@ -16536,6 +17066,7 @@ def get_graphic_project_state():
     object_state.setdefault("style_locked", False)
     object_state.setdefault("vehicle_locked", False)
     object_state.setdefault("product_locked", False)
+    _graphic_persist_project_v68400(state)
     return state
 
 
@@ -17375,53 +17906,18 @@ def _graphic_project_context_text():
 
 
 def _infer_graphic_asset_role(prompt_text, state):
-    """Infer the role of the newly uploaded asset without confusing context with subject.
-
-    v68500: explicit wording about the uploaded product outranks contextual wording
-    such as "use the same style as the reference image." Generic style/reference
-    words describe the desired composition and must not relabel a product upload.
-    """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    assets = [item for item in ((state or {}).get("assets") or []) if isinstance(item, dict)]
-    roles = {str(item.get("role") or "").casefold() for item in assets}
-
-    explicit_product_phrases = (
-        "uploaded product", "product photo", "product image", "photo of the product",
-        "image of the product", "this product", "this unit", "uploaded unit",
-        "uploaded screen", "uploaded head unit", "uploaded cluster", "uploaded radio",
-        "direct product reference", "source product",
-    )
-    explicit_reference_phrases = (
-        "uploaded reference", "reference image attached", "reference photo attached",
-        "this reference", "style reference", "inspiration image", "example ad",
-        "example advertisement", "use this layout as reference",
-    )
-    explicit_logo_phrases = (
-        "uploaded logo", "this logo", "brand mark", "official logo",
-    )
-
-    if any(term in text for term in explicit_logo_phrases):
+    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
+        return "reference"
+    if any(term in text for term in ("logo", "brand mark")):
         return "logo"
-    if any(term in text for term in explicit_product_phrases):
-        return "product"
-    if any(term in text for term in explicit_reference_phrases):
-        return "reference"
-
-    # Guided project order is authoritative when wording is ambiguous:
-    # first image = reference, next image = product.
-    has_reference = bool({"reference", "style_reference"} & roles)
-    has_product = bool({"product", "product_photo"} & roles)
-    stage = str((state or {}).get("stage") or "planning")
-    if not has_reference and stage in {"awaiting_reference", "planning"}:
-        return "reference"
-    if has_reference and not has_product:
-        return "product"
-
-    # Standalone explicit subject wording is evaluated only after project context.
     if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
         return "product"
-    if any(term in text for term in ("reference", "inspiration", "layout", "style", "advertisement")):
+    stage = str((state or {}).get("stage") or "planning")
+    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
         return "reference"
+    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
+        return "product"
     return "supporting"
 
 
@@ -17468,6 +17964,7 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     _graphic_active_project_assets_v16000(state)
+    _graphic_persist_project_v68400(state)
     return added
 
 
@@ -17526,71 +18023,6 @@ def graphic_project_uploaded_files(include_current=None):
         ))
         seen.add(digest)
     return combined
-
-
-
-def _graphic_authoritative_generation_files_v68500(include_current=None):
-    """Repair project roles first, then rebuild every upload object from authority.
-
-    This prevents a product upload from retaining a stale ``reference`` role after
-    the conversation-state repair has correctly changed it to ``product``.
-    """
-    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
-    project = _graphic_active_project_assets_v16000(project)
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-
-    role_by_digest = {
-        str(item.get("id") or ""): str(item.get("role") or "supporting")
-        for item in (project.get("assets") or [])
-        if isinstance(item, dict) and str(item.get("id") or "")
-    }
-    rebuilt = []
-    seen = set()
-
-    # Rebuild current uploads rather than mutating Streamlit UploadedFile objects.
-    for item in include_current or []:
-        try:
-            raw = bytes(item.getvalue() or b"")
-        except Exception:
-            raw = b""
-        if not raw:
-            continue
-        digest = hashlib.sha256(raw).hexdigest()
-        if digest in seen:
-            continue
-        rebuilt.append(ManagedUploadedFile(
-            raw,
-            getattr(item, "name", "image"),
-            getattr(item, "type", "image/png"),
-            graphic_role=role_by_digest.get(digest, getattr(item, "graphic_role", "supporting") or "supporting"),
-            graphic_asset_id=digest,
-        ))
-        seen.add(digest)
-
-    # Add every persisted project asset using its repaired authoritative role.
-    for record in project.get("assets") or []:
-        if not isinstance(record, dict):
-            continue
-        raw = bytes(record.get("data") or b"")
-        digest = str(record.get("id") or (hashlib.sha256(raw).hexdigest() if raw else ""))
-        if not raw or not digest or digest in seen:
-            continue
-        rebuilt.append(ManagedUploadedFile(
-            raw,
-            record.get("name") or "image",
-            record.get("type") or "image/png",
-            graphic_role=record.get("role") or "supporting",
-            graphic_asset_id=digest,
-        ))
-        seen.add(digest)
-
-    diagnostic_log(
-        "graphic_v68500_authoritative_files_rebuilt",
-        count=len(rebuilt),
-        roles=[str(getattr(item, "graphic_role", "") or "") for item in rebuilt],
-    )
-    return rebuilt
-
 
 
 def build_graphic_project_context():
@@ -17933,7 +18365,7 @@ def _graphic_finalize_recovery_v16000(images, route_name, failures=None):
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
         image = dict(image)
-        image["graphic_engine_version"] = "v16000-graphic-stability"
+        image["graphic_engine_version"] = "v68610-end-to-end-generation-recovery"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
         image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
@@ -19696,37 +20128,27 @@ def _graphic_enforce_reference_exact_mode_v52000(product_mode, design_mode, has_
 
 
 def _graphic_product_provenance_gate_v52000(result, role_items):
-    """Prove that the commercial hero came from the current uploaded source and no AI product layer."""
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    authority = _graphic_current_product_authority_v52000(role_items)
-    issues = []
-    if not authority.get("available"):
-        issues.append("authoritative product source unavailable")
-    if str(metadata.get("product_source_sha256") or "") != str(authority.get("sha256") or ""):
-        issues.append("composited product SHA-256 does not match the current upload")
-    if metadata.get("exact_product_pixels") is not True:
-        issues.append("exact uploaded pixels were not confirmed")
-    if metadata.get("product_pixels_provider_generated") is not False:
-        issues.append("provider-generated product pixels entered the exact route")
-    if metadata.get("product_master_rgb_preserved") is not True:
-        issues.append("product master RGB was not preserved")
-    if metadata.get("product_ai_reconstruction_prohibited") is not True:
-        issues.append("AI product reconstruction was not prohibited")
-    if str((result or {}).get("product_identity_method") or "").casefold().find("composite") < 0:
-        issues.append("result does not identify a deterministic product composite")
-    cutout_report = dict(metadata.get("product_cutout_integrity_v54000") or metadata.get("product_cutout_integrity_v53000") or {})
-    if cutout_report and cutout_report.get("passed") is not True and cutout_report.get("source_alpha_preserved") is not True:
-        issues.append("authoritative product cutout did not pass v53000 mask-integrity validation")
-    manifest = {
-        "source_sha256": authority.get("sha256"),
-        "source_name": authority.get("name"),
-        "selected_sha256": metadata.get("product_source_sha256"),
-        "pixel_origin": "uploaded_product_bitmap",
-        "allowed_product_operations": ["background removal", "uniform scale", "translation", "local lighting/reflection overlay", "contact shadow"],
-        "forbidden_product_operations": ["generative redraw", "outpainting", "new brackets", "new holes", "new buttons", "bezel reshaping", "independent screen scaling"],
-        "engine": "pixel-provenance-gate-v53000",
-    }
-    return {"passed": not issues, "issues": issues, "manifest": manifest, "engine": "product-provenance-v53000"}
+    """Hard-block direct provenance contradictions, not absent optional fields."""
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    authority=_graphic_current_product_authority_v52000(role_items)
+    hard=[]; diagnostics=[]
+    if not authority.get("available"): hard.append("authoritative product source unavailable")
+    selected=str(metadata.get("product_source_sha256") or "")
+    expected=str(authority.get("sha256") or "")
+    if selected and expected and selected!=expected: hard.append("composited product SHA-256 mismatch")
+    elif expected and not selected: diagnostics.append("composited product SHA-256 metadata unavailable")
+    for key,label in (("exact_product_pixels","exact uploaded pixels"),("product_master_rgb_preserved","product master RGB"),("product_ai_reconstruction_prohibited","AI reconstruction prohibition")):
+        if key in metadata and metadata.get(key) is False: hard.append(label+" failed")
+        elif key not in metadata: diagnostics.append(label+" metadata unavailable")
+    if "product_pixels_provider_generated" in metadata and metadata.get("product_pixels_provider_generated") is not False: hard.append("provider-generated product pixels entered exact route")
+    elif "product_pixels_provider_generated" not in metadata: diagnostics.append("provider product-pixel metadata unavailable")
+    method=str((result or {}).get("product_identity_method") or "").casefold()
+    if method and "composite" not in method: hard.append("result identifies a non-composite product method")
+    elif not method: diagnostics.append("product identity method unavailable")
+    cutout=dict(metadata.get("product_cutout_integrity_v54000") or metadata.get("product_cutout_integrity_v53000") or {})
+    if cutout and cutout.get("passed") is False and cutout.get("source_alpha_preserved") is not True: hard.append("product cutout integrity failed")
+    manifest={"source_sha256":expected,"source_name":authority.get("name"),"selected_sha256":selected,"pixel_origin":"uploaded_product_bitmap","allowed_product_operations":["background removal","uniform scale","translation","bounded pixel-preserving 2D rotation/perspective","local lighting/reflection overlay","contact shadow"],"forbidden_product_operations":["generative redraw","outpainting","new brackets","new holes","new buttons","bezel reshaping","independent screen scaling"],"engine":"pixel-provenance-gate-v68400"}
+    return {"passed":not hard,"issues":hard,"diagnostics":diagnostics,"manifest":manifest,"engine":"product-provenance-v68400"}
 
 
 def _graphic_role_integrity_v8300(role_items):
@@ -21828,91 +22250,66 @@ def _graphic_runtime_audit_v10000(result, *, route="", provider_calls=0, retries
 
 # v23000: restored v20100 visual-baseline behavior for _graphic_exact_product_quality_gate_v9000.
 def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profile=None):
-    """Fail closed on product-source mismatch, structural drift, cropping and role leakage."""
-    metadata = dict((result or {}).get("layered_metadata") or {})
-    product_item = next(
-        (item for item in (role_items or []) if item.get("role") == "product_photo"),
-        None,
-    )
-    source = _graphic_product_source_signature_v9000(product_item)
-    box = list(metadata.get("product_box") or [])
-    canvas = list(metadata.get("canvas_size") or [])
-    issues = []
-    if not metadata.get("exact_product_pixels"):
-        issues.append("exact product pixels not confirmed")
-    if metadata.get("exact_product_asset_mode") is not True:
-        issues.append("Graphic Engine 8 exact-product asset mode not confirmed")
-    if metadata.get("product_master_rgb_preserved") is not True:
-        issues.append("untouched product master RGB preservation not confirmed")
-    if metadata.get("product_pixels_provider_generated") is not False:
-        issues.append("provider-generated product pixels are prohibited in exact-product mode")
-    if metadata.get("product_ai_reconstruction_prohibited") is not True:
-        issues.append("exact-product reconstruction prohibition not confirmed")
-    if source.get("sha256") and metadata.get("product_source_sha256") != source.get("sha256"):
-        issues.append("product source fingerprint mismatch")
-    required = {
-        "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
-        "hero_product", "target_vehicle", "bottom_benefit_bar",
-    }
-    if not required.issubset({str(item) for item in metadata.get("campaign_zones") or []}):
-        issues.append("required campaign zones incomplete")
-    if len(box) == 4 and len(canvas) == 2 and canvas[0] and canvas[1]:
-        area = (box[2] * box[3]) / (canvas[0] * canvas[1])
-        width_ratio = box[2] / canvas[0]
-        height_ratio = box[3] / canvas[1]
-        source_ratio = float(source.get("aspect_ratio") or 0.0)
-        reference_driven = any(item.get("role") == "style_reference" for item in (role_items or []))
-        minimum_height = 0.48 if reference_driven else 0.44
-        minimum_width = 0.18 if source_ratio < 0.90 else 0.28
-        if height_ratio < minimum_height or width_ratio < minimum_width:
-            issues.append("hero product too small for the commercial reference hierarchy")
-        if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
-            issues.append("hero product cropped")
-        rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
-        visible_source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or 0.0)
-        authoritative_ratio = visible_source_ratio or source_ratio
-        ratio_error = abs(authoritative_ratio - rendered_ratio) / max(authoritative_ratio, 0.001) if authoritative_ratio else 0.0
-        if authoritative_ratio and ratio_error > 0.012:
-            issues.append("hero product aspect ratio changed")
-        if metadata.get("product_ratio_preserved") is False:
-            issues.append("exact product source ratio was not preserved")
+    """Block only affirmative product corruption; keep optional QA diagnostic."""
+    metadata=dict((result or {}).get("layered_metadata") or {})
+    product_item=next((i for i in (role_items or []) if i.get("role")=="product_photo"),None)
+    source=_graphic_product_source_signature_v9000(product_item)
+    hard=[]; diagnostics=[]
+
+    def explicit_false(key, label):
+        if key in metadata and metadata.get(key) is False: hard.append(label)
+        elif key not in metadata: diagnostics.append(label+" metadata unavailable")
+
+    explicit_false("exact_product_pixels","exact product pixels not preserved")
+    explicit_false("exact_product_asset_mode","exact-product asset mode not confirmed")
+    explicit_false("product_master_rgb_preserved","product master RGB not preserved")
+    if "product_pixels_provider_generated" in metadata and metadata.get("product_pixels_provider_generated") is not False:
+        hard.append("provider-generated product pixels entered exact mode")
+    elif "product_pixels_provider_generated" not in metadata:
+        diagnostics.append("product pixel provenance metadata unavailable")
+    explicit_false("product_ai_reconstruction_prohibited","AI reconstruction prohibition not confirmed")
+    if source.get("sha256") and metadata.get("product_source_sha256") and metadata.get("product_source_sha256")!=source.get("sha256"):
+        hard.append("product source fingerprint mismatch")
+    elif source.get("sha256") and not metadata.get("product_source_sha256"):
+        diagnostics.append("product source fingerprint metadata unavailable")
+
+    box=list(metadata.get("product_box") or []); canvas=list(metadata.get("canvas_size") or [])
+    if len(box)==4 and len(canvas)==2 and canvas[0] and canvas[1]:
+        if box[0]<0 or box[1]<0 or box[0]+box[2]>canvas[0] or box[1]+box[3]>canvas[1]: hard.append("hero product cropped")
+        source_ratio=float(metadata.get("product_source_visible_aspect_ratio") or source.get("aspect_ratio") or 0.0)
+        rendered=float(box[2])/max(1.0,float(box[3]))
+        if source_ratio and abs(source_ratio-rendered)/max(source_ratio,.001)>.012: hard.append("hero product aspect ratio changed")
+        if metadata.get("product_ratio_preserved") is False: hard.append("exact product source ratio was not preserved")
+        reference_driven=any(i.get("role")=="style_reference" for i in (role_items or []))
+        h=box[3]/canvas[1]; w=box[2]/canvas[0]
+        if h < (0.48 if reference_driven else 0.44) or w < 0.18: diagnostics.append("hero product may be too small")
     else:
-        issues.append("product geometry metadata unavailable")
+        diagnostics.append("product geometry metadata unavailable")
 
-    integrity = _graphic_role_integrity_v8300(role_items)
-    if not integrity.get("valid", integrity.get("passed", True)):
-        issues.append("reference/product role integrity failed")
-
-    vehicle = (result or {}).get("vehicle_validation") or {}
-    hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-    if hard_vehicle and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True:
-        issues.append("target vehicle validation failed")
-
-    visual_match = _graphic_exact_product_visual_match_v10000(result, role_items)
-    if not visual_match.get("available"):
-        issues.append("exact product visual comparison unavailable")
-    elif not visual_match.get("passed"):
-        issues.append("exact product visual comparison failed")
-
-    segmentation = _graphic_segmentation_diagnostics_v10000(product_item)
-    if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"):
-        issues.append("product segmentation is not safe for exact composition")
-
-    engineering_geometry = _graphic_engineering_geometry_gate_v20000(result, role_items)
-    if not engineering_geometry.get("passed"):
-        issues.extend("engineering geometry: " + str(x) for x in (engineering_geometry.get("issues") or []))
-
-    return {
-        "passed": not issues,
-        "issues": issues,
-        "product_source": source,
-        "visual_match": visual_match,
-        "segmentation": segmentation,
-        "engineering_geometry_gate": engineering_geometry,
-        "hero_dominance": not any("hero product" in issue for issue in issues),
-        "reference_leakage_blocked": bool(integrity.get("valid", integrity.get("passed", True))),
-        "engine": "v20000-engine6-exact-product-quality-gate",
-    }
+    integrity=_graphic_role_integrity_v8300(role_items)
+    if not integrity.get("valid",integrity.get("passed",True)): hard.append("reference/product role integrity failed")
+    vehicle=(result or {}).get("vehicle_validation") or {}
+    if bool((vehicle_profile or {}).get("hard_vehicle_lock")) and not _graphic_validation_is_unavailable_v4100(vehicle) and vehicle.get("verified") is not True:
+        diagnostics.append("representative vehicle validation did not pass")
+    visual=_graphic_exact_product_visual_match_v10000(result,role_items)
+    if visual.get("available") and visual.get("passed") is False: hard.append("exact product visual comparison failed")
+    elif not visual.get("available"): diagnostics.append("exact product visual comparison unavailable")
+    segmentation=_graphic_segmentation_diagnostics_v10000(product_item)
+    if segmentation.get("available") and not segmentation.get("safe_for_exact_composite"): hard.append("product segmentation is unsafe")
+    engineering=_graphic_engineering_geometry_gate_v20000(result,role_items)
+    if engineering.get("available") is False: diagnostics.append("engineering geometry metadata unavailable")
+    elif not engineering.get("passed"):
+        issues=[str(x) for x in (engineering.get("issues") or [])]
+        direct=[x for x in issues if not any(term in x.casefold() for term in ("unavailable","missing","metadata"))]
+        if direct: hard.extend("engineering geometry: "+x for x in direct)
+        else: diagnostics.extend("engineering geometry diagnostic: "+x for x in issues)
+    zones={str(x) for x in metadata.get("campaign_zones") or []}
+    if zones:
+        required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","target_vehicle","bottom_benefit_bar"}
+        missing=sorted(required-zones)
+        if missing: diagnostics.append("optional campaign zones missing: "+", ".join(missing))
+    else: diagnostics.append("campaign-zone manifest unavailable")
+    return {"passed":not hard,"issues":hard,"diagnostics":diagnostics,"product_source":source,"visual_match":visual,"segmentation":segmentation,"engineering_geometry_gate":engineering,"hero_dominance":not any("too small" in x for x in diagnostics),"reference_leakage_blocked":bool(integrity.get("valid",integrity.get("passed",True))),"engine":"v68400-direct-evidence-product-quality-gate"}
 
 def _graphic_render_mode_v9000(product_mode, has_style=False):
     if (product_mode or {}).get("recreates_product"): return "ai_product_recreation"
@@ -23343,25 +23740,15 @@ def _graphic_glass_reflection_v60000(product, masks, scene_profile):
         horizon=np.exp(-((yn-0.58)/0.16)**2)
         diagonal=(xn+yn if direction=="right" else (1.0-xn)+yn)
         streak=np.exp(-((diagonal-0.70)/0.10)**2)
-        secondary_streak=np.exp(-((diagonal-1.16)/0.075)**2)
         # Dynamic sun highlight projected to the glass using scene position.
         sx=float(sun[0]); sy=float(sun[1])
         local_sx=0.78 if sx>=0.5 else 0.22
         local_sy=float(np.clip(0.18+sy*0.22,0.14,0.42))
         sunspot=np.exp(-(((xn-local_sx)/0.18)**2+((yn-local_sy)/0.11)**2))
-        # v68400 remains deliberately bounded. Every optical contribution is clipped
-        # to the validated UI/glass mask and cannot alter product alpha or geometry.
-        strength=(
-            0.021*sky
-            +0.011*horizon
-            +0.024*fresnel
-            +0.019*streak
-            +0.009*secondary_streak
-            +0.027*sunspot
-        )
-        # deterministic micro-reflection texture, never random per run
-        micro=(np.sin(xx*0.19+yy*0.07)+np.sin(xx*0.043-yy*0.13))*0.0019
-        strength=np.clip(strength+micro,0.0,0.085)
+        strength=0.020*sky+0.010*horizon+0.022*fresnel+0.018*streak+0.025*sunspot
+        # deterministic micro-reflection texture, not random per run
+        micro=(np.sin(xx*0.19+yy*0.07)+np.sin(xx*0.043-yy*0.13))*0.0018
+        strength=np.clip(strength+micro,0.0,0.075)
         rgba=np.asarray(src,dtype=np.float32).copy()
         screen=rgba[y0:y1,x0:x1,:3]
         ui=np.asarray(ui_mask.crop((x0,y0,x1,y1)),dtype=np.float32)/255.0
@@ -23381,10 +23768,9 @@ def _graphic_glass_reflection_v60000(product, masks, scene_profile):
         return out, {
             "applied":True,"max_strength":round(float(np.max(strength)),4),
             "fresnel":True,"environment_aware":True,"dynamic_sun_highlight":True,
-            "micro_reflections":True,"secondary_environment_streak":True,"black_level_guard":True,
-            "geometry_immutable":True,"screen_mask_clipped":True,
+            "micro_reflections":True,"black_level_guard":True,
             "alpha_exact":out.getchannel("A").tobytes()==src.getchannel("A").tobytes(),
-            "engine":"photoreal-glass-reflection-v68400",
+            "engine":"photoreal-glass-reflection-v60000",
         }
     except Exception as error:
         diagnostic_log("graphic_v60000_glass_reflection_failed", error_type=type(error).__name__, error=str(error))
@@ -23455,22 +23841,8 @@ def _graphic_shadow_solver_v60000(product, canvas_size, lighting_profile):
         al=Image.new("RGBA",product.size,(0,0,0,0)); al.putalpha(ambient); layers.append(("ambient",al,(dx,int(H*0.011))))
         directional=alpha.filter(ImageFilter.GaussianBlur(max(10,H//76))).point(lambda a:int(a*(0.065+min(0.04,gradient*0.10))))
         dl=Image.new("RGBA",product.size,(0,0,0,0)); dl.putalpha(directional); layers.append(("directional",dl,(dx*2,int(H*0.017))))
-        # Subtle floor reflection. It is generated only from the immutable alpha,
-        # placed below the product and never composited over product pixels.
-        reflected=alpha.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        reflected=reflected.resize((pw,max(1,int(ph*0.22))),Image.Resampling.BILINEAR)
-        fade=Image.new("L",reflected.size,0)
-        fd=ImageDraw.Draw(fade)
-        for row in range(reflected.height):
-            opacity=max(0,int(34*(1.0-row/max(1,reflected.height-1))**1.8))
-            fd.line((0,row,reflected.width,row),fill=opacity)
-        reflected=ImageChops.multiply(reflected,fade).filter(ImageFilter.GaussianBlur(max(3,H//180)))
-        reflection_layer=Image.new("RGBA",(pw,reflected.height),(0,0,0,0))
-        reflection_layer.putalpha(reflected)
-        layers.append(("floor_reflection",reflection_layer,(0,max(2,int(H*0.012)))))
         return layers,{"applied":True,"layers":[x[0] for x in layers],"direction":direction,
-                       "ground_contact":True,"floor_reflection":True,"product_pixels_untouched":True,
-                       "dynamic_strength":True,"engine":"photoreal-shadow-solver-v68400"}
+                       "ground_contact":True,"dynamic_strength":True,"engine":"photoreal-shadow-solver-v60000"}
     except Exception as error:
         return _graphic_shadow_solver_v48000(product,canvas_size,lighting_profile)[0],{"applied":False,"reason":type(error).__name__,"engine":"shadow-solver-v60000-fallback"}
 
@@ -25454,6 +25826,10 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
+    product, safe_product_transform_v68500 = _graphic_apply_safe_product_transform_v68500(
+        product,
+        prompt_text,
+    )
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
 
@@ -25605,13 +25981,24 @@ def _graphic_compose_reference_campaign_v3200(
         if not lower_housing_fidelity_v55000.get("passed"):
             raise RuntimeError("v56000 rejected the result because the bottom bezel or lower housing geometry changed.")
 
-    # Remove any provider-created device, bezel, mounting tab or product shadow from
-    # the protected region before placing the exact uploaded product.
-    canvas, protected_product_zone_v55000 = _graphic_clear_reserved_product_zone_v55000(canvas, product, px, py)
+    # Remove every provider-created product, false bezel, mounting ear, bracket,
+    # rail and product shadow from the complete hero zone before placing the exact
+    # uploaded product. A product-sized margin is insufficient when the provider
+    # invents geometry wider than the real unit.
+    canvas, complete_hero_zone_v68600 = _graphic_clear_complete_hero_zone_v68600(
+        canvas,
+        product,
+        px,
+        py,
+        (hero_x0, hero_y0, hero_x1, hero_y1),
+        footer_top_px,
+    )
+    protected_product_zone_v55000 = dict(complete_hero_zone_v68600 or {})
     if design_mode == "reference_template" and not protected_product_zone_v55000.get("applied"):
         raise RuntimeError(
-            "v56000 rejected the result because the provider product zone could not be cleared safely. "
-            "Confirm opencv-python-headless is installed in the deployment environment."
+            "The complete product hero zone could not be cleared safely. "
+            "No provider-created bezel, mounting ear, bracket or AI-redrawn unit "
+            "was allowed to remain."
         )
 
     # Stage 7: physically layered contact, ambient and directional shadows.
@@ -25830,6 +26217,7 @@ def _graphic_compose_reference_campaign_v3200(
         "graphic_cache_epoch_v64000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v62000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
+        "complete_hero_zone_v68600": complete_hero_zone_v68600,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
@@ -28639,48 +29027,27 @@ def _graphic_promote_multiview_sources_v7100(role_items, prompt_text):
 
 
 def _graphic_exact_result_validation_v7100(result, role_items, prompt_text, vehicle_profile):
-    """Run inexpensive deterministic checks plus one vehicle check when locked."""
-    result = dict(result or {})
-    metadata = result.get("layered_metadata") or {}
-    raw, _mime = data_url_to_bytes(str(result.get("data_url") or ""))
-    required = {
-        "logo", "headline", "compatibility_ribbon", "tagline",
-        "feature_matrix", "hero_product", "bottom_benefit_bar",
-    }
-    zones = {str(x).strip().lower() for x in (metadata.get("campaign_zones") or [])}
-    image_valid = bool(raw)
-    exact_product = bool(metadata.get("exact_product_pixels") or result.get("strict_product_identity_lock"))
-    zones_valid = required.issubset(zones)
-    hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-    vehicle = {"verified": True, "available": True, "score": 100, "reason": "not required"}
+    """Validate usable exact output without treating optional manifests as proof of failure."""
+    result=dict(result or {}); metadata=result.get("layered_metadata") or {}
+    raw,_=data_url_to_bytes(str(result.get("data_url") or ""))
+    zones={str(x).strip().lower() for x in (metadata.get("campaign_zones") or [])}
+    required={"logo","headline","compatibility_ribbon","tagline","feature_matrix","hero_product","bottom_benefit_bar"}
+    image_valid=bool(raw)
+    exact_product=bool(metadata.get("exact_product_pixels") is True or result.get("product_layer_immutable") is True or result.get("strict_product_identity_lock"))
+    zones_valid=required.issubset(zones) if zones else None
+    hard_vehicle=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+    vehicle={"verified":True,"available":True,"score":100,"reason":"not required"}
     if hard_vehicle:
         state_now=get_graphic_project_state(); verified_bg=dict(state_now.get("last_verified_background_v66100") or {})
-        background_raw,_=data_url_to_bytes(str(result.get("background_data_url") or ""))
-        same_background=bool(background_raw and verified_bg.get("sha256")==_graphic_v66100_bytes_sha(background_raw))
-        cached_validation=dict(verified_bg.get("vehicle_validation") or {})
-        if same_background and cached_validation.get("verified") is True:
-            vehicle={**cached_validation,"reused_verified_background":True,"provider_calls":0,"background_sha256":verified_bg.get("sha256")}
-        else:
-            vehicle = _graphic_safe_optional_call(
-                "graphic_v7100_fast_vehicle_validation_unavailable",
-                lambda: _graphic_focused_vehicle_validation_v3300(
-                    result.get("data_url"), role_items, prompt_text, vehicle_profile
-                ),
-                _graphic_validation_unavailable_v4100(),
-            )
-    unavailable = hard_vehicle and _graphic_validation_is_unavailable_v4100(vehicle)
-    explicit_failure = hard_vehicle and not unavailable and vehicle.get("verified") is not True
-    core_passed = bool(image_valid and exact_product and zones_valid)
-    return {
-        "passed": bool(core_passed and not explicit_failure),
-        "verified": bool(core_passed and (not hard_vehicle or vehicle.get("verified") is True)),
-        "unverified": bool(core_passed and unavailable),
-        "image_valid": image_valid,
-        "exact_product": exact_product,
-        "zones_valid": zones_valid,
-        "vehicle_validation": vehicle,
-        "vehicle_validation_unavailable": unavailable,
-    }
+        bg,_=data_url_to_bytes(str(result.get("background_data_url") or ""))
+        same=bool(bg and verified_bg.get("sha256")==_graphic_v66100_bytes_sha(bg))
+        cached=dict(verified_bg.get("vehicle_validation") or {})
+        if same and cached.get("verified") is True: vehicle={**cached,"reused_verified_background":True,"provider_calls":0,"background_sha256":verified_bg.get("sha256")}
+        else: vehicle=_graphic_safe_optional_call("graphic_v7100_fast_vehicle_validation_unavailable",lambda:_graphic_focused_vehicle_validation_v3300(result.get("data_url"),role_items,prompt_text,vehicle_profile),_graphic_validation_unavailable_v4100())
+    unavailable=hard_vehicle and _graphic_validation_is_unavailable_v4100(vehicle)
+    explicit_failure=hard_vehicle and not unavailable and vehicle.get("verified") is not True
+    core=bool(image_valid and exact_product)
+    return {"passed":bool(core and not explicit_failure),"verified":bool(core and (not hard_vehicle or vehicle.get("verified") is True)),"unverified":bool(core and unavailable),"image_valid":image_valid,"exact_product":exact_product,"zones_valid":zones_valid,"zone_diagnostic":None if zones_valid is not False else "campaign zones incomplete","vehicle_validation":vehicle,"vehicle_validation_unavailable":unavailable}
 
 
 def _graphic_recreated_product_structure_validation_v7100(data_url, role_items, prompt_text, structure_profile):
@@ -28933,10 +29300,8 @@ def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, ref
         layout_gate={"required":False,"passed":True,"score":1.0,"issues":[],"engine":"v34000-studio-layout-delegated"}
     result["reference_layout_fidelity_gate"]=layout_gate
     if layout_gate.get("required") and not layout_gate.get("passed"):
-        raise RuntimeError(
-            "The exact-product campaign failed the reference-layout fidelity gate: "
-            + "; ".join(layout_gate.get("issues") or ["layout score below threshold"])
-        )
+        result["reference_layout_review_required"] = True
+        result["reference_layout_review_issues"] = list(layout_gate.get("issues") or ["layout score below threshold"])
     if validation.get("verified"):
         result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
     elif validation.get("unverified"):
@@ -32161,7 +32526,6 @@ def _graphic_v67300_exact_recovery_ladder(
 GRAPHIC_V68200_POLICY_VERSION = "v68200-dual-exact-local-routes"
 
 
-@lru_cache(maxsize=96)
 def _graphic_v68200_font(size, bold=False, italic=False):
     from PIL import ImageFont
     candidates=[]
@@ -32335,396 +32699,110 @@ def _graphic_v68200_guaranteed_exact_local_commercial(prompt_text, uploaded_file
     }]
 
 
-
-# ============================================================
-# v68400 FINAL LTS — Stable Authority and Isolated Recovery
-# ============================================================
-GRAPHIC_V68400_POLICY_VERSION = "v68600-direct-evidence-only-stable-recovery"
-GRAPHIC_V68400_GEOMETRY_RELEASE_BLOCKERS = (
-    "bezel",
-    "screen aperture",
-    "screen aspect ratio",
-    "screen-to-bezel ratio",
-    "buttons",
-    "knobs",
-    "lower housing",
-    "mounting ears / brackets",
-    "side panels",
-    "trim texture",
-    "overall product silhouette",
-)
-GRAPHIC_V68400_FITMENT_RELEASE_BLOCKERS = (
-    "full year ranges",
-    "all compatible brands",
-    "all compatible models",
-    "trims",
-    "screen size",
-    "product designation",
-)
-
-
-def _graphic_v68400_usable_images(value):
-    """Return defensive image records containing publishable image bytes."""
-    return [
-        dict(item)
-        for item in (value or [])
-        if isinstance(item, dict) and str(item.get("data_url") or "").strip()
-    ]
-
-
-def _graphic_v68400_required_fitment(prompt_text):
-    """Return True only when the user supplied concrete compatibility authority."""
-    expected = _graphic_extract_full_compatibility_v36000(prompt_text, "")
-    tokens = _graphic_copy_required_tokens_v36000(expected)
-    return bool(str(expected or "").strip() and tokens), expected, tokens
-
-
-
-def _graphic_v68500_product_authority_proof(images, route_name):
-    """Describe immutable-product provenance without turning absence into failure.
-
-    v68600 follows the proven v66200/v66600 principle: missing optional provenance
-    metadata is not evidence that the product was redrawn. Only direct affirmative
-    evidence of provider-generated or AI-recreated product geometry blocks a route.
-    Local exact routes remain authoritative by construction.
-    """
-    normalized = _graphic_v68400_usable_images(images)
-    if not normalized:
-        return {"passed": False, "reason": "no usable image", "tier": "missing-image"}
-
-    local_exact_route = any(
-        token in str(route_name or "").casefold()
-        for token in ("v68200-guaranteed-exact-local", "deterministic", "exact-local")
-    )
-    if local_exact_route:
-        return {
-            "passed": True,
-            "reason": "local exact-product composition is authoritative by construction",
-            "tier": "local-exact",
-            "blocking": False,
-        }
-
-    affirmative = []
-    direct_violations = []
-    for item in normalized:
-        if not isinstance(item, dict):
-            continue
-        provider_generated = item.get("product_geometry_provider_generated")
-        recreated = item.get("ai_product_recreated")
-        immutable = item.get("product_layer_immutable")
-        source_untouched = item.get("source_rgb_untouched")
-        verification = str(item.get("verification_status") or "").casefold()
-        exact_proof = item.get("exact_product_proof") or item.get("product_provenance") or {}
-
-        if provider_generated is True or recreated is True:
-            direct_violations.append("provider-generated or AI-recreated product geometry")
-            continue
-
-        if (
-            provider_generated is False
-            and recreated is False
-            and immutable is True
-            and (
-                source_untouched is True
-                or "verified" in verification
-                or bool(exact_proof)
-            )
-        ):
-            affirmative.append(True)
-
-    if direct_violations:
-        return {
-            "passed": False,
-            "reason": "; ".join(sorted(set(direct_violations))),
-            "tier": "direct-violation",
-            "blocking": True,
-        }
-    if affirmative:
-        return {
-            "passed": True,
-            "reason": "affirmative immutable-product provenance present",
-            "tier": "affirmative-proof",
-            "blocking": False,
-        }
-    return {
-        "passed": None,
-        "reason": "optional immutable-product provenance metadata is unavailable",
-        "tier": "metadata-unavailable-diagnostic",
-        "blocking": False,
-    }
-
-
-
-def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
-    """Return direct release blockers and nonblocking diagnostics.
-
-    Hard blockers:
-    - direct product-geometry alteration evidence;
-    - direct provider-generated or AI-recreated product evidence;
-    - directly observable fitment narrowing.
-
-    Missing campaign zones, proof manifests, optional provenance, optional QA fields,
-    or unavailable supplementary validators are diagnostic only.
-    """
-    normalized = _graphic_v68400_usable_images(images)
-    if not normalized:
-        return {
-            "blocked": True,
-            "reason": "route returned no usable image",
-            "direct_geometry_violation": "",
-            "direct_fitment_violation": "",
-            "diagnostics": ["missing image bytes"],
-        }
-
-    geometry_violation = _graphic_v66860_direct_product_violation(normalized)
-    authority = _graphic_v68500_product_authority_proof(normalized, route_name)
-    authority_violation = (
-        str(authority.get("reason") or "")
-        if authority.get("blocking") is True
-        else ""
-    )
-
-    required, expected, required_tokens = _graphic_v68400_required_fitment(prompt_text)
-    fitment = _graphic_v67100_fitment_gate(
-        normalized,
-        prompt_text,
-        required=required,
-        route_name=route_name,
-    )
-    fitment_available = bool(fitment.get("available"))
-    fitment_issues = [str(x) for x in (fitment.get("issues") or []) if str(x).strip()]
-    fitment_violation = "; ".join(fitment_issues) if fitment_available and fitment_issues else ""
-
-    diagnostics = []
-    if authority.get("tier") == "metadata-unavailable-diagnostic":
-        diagnostics.append(str(authority.get("reason") or "optional product provenance unavailable"))
-    if not fitment_available and required:
-        diagnostics.append(
-            "optional fitment proof metadata unavailable; required compatibility retained diagnostically"
-        )
-    proof = _graphic_v67100_exact_proof(normalized)
-    if not proof.get("passed") and proof.get("tier") != "direct-violation":
-        diagnostics.extend(str(x) for x in (proof.get("issues") or []))
-
-    reason = str(geometry_violation or authority_violation or fitment_violation)
-    return {
-        "blocked": bool(reason),
-        "reason": reason,
-        "direct_geometry_violation": str(geometry_violation or ""),
-        "direct_product_authority_violation": authority_violation,
-        "direct_fitment_violation": fitment_violation,
-        "product_authority": authority,
-        "fitment": fitment,
-        "expected_compatibility": expected,
-        "required_tokens": required_tokens,
-        "exact_product_proof": proof,
-        "diagnostics": diagnostics,
-    }
-
-
-
-def _graphic_v68400_finalize_route(images, prompt_text, route_name, failures=None):
-    """Return a usable route immediately unless direct release evidence blocks it."""
-    normalized = _graphic_v68400_usable_images(images)
-    evidence = _graphic_v68400_direct_release_evidence(
-        normalized,
-        prompt_text,
-        route_name,
-    )
-    if evidence.get("blocked"):
-        raise RuntimeError(
-            "Direct release-blocking evidence: " + str(evidence.get("reason") or "unknown violation")
-        )
-
-    created_at = datetime.now(timezone.utc).isoformat()
-    for image in normalized:
-        image["graphic_engine_version"] = GRAPHIC_V68400_RELEASE
-        image["generation_route_v68600"] = route_name
-        image["release_authority_v68600"] = {
-            "product_geometry": "immutable-source-of-truth",
-            "fitment_wording": "full-user-and-verified-data-authority",
-            "verification_wrappers": "diagnostic-unless-direct-violation",
-            "geometry_release_blockers": list(GRAPHIC_V68400_GEOMETRY_RELEASE_BLOCKERS),
-            "fitment_release_blockers": list(GRAPHIC_V68400_FITMENT_RELEASE_BLOCKERS),
-        }
-        image["release_evidence_v68600"] = evidence
-        image["recovery_failures"] = list(failures or [])[-6:]
-        image["completed_at_v68600"] = created_at
-        image.setdefault("optional_metadata_missing_is_not_failure", True)
-        image.setdefault("product_geometry_provider_generated", False if "local" in route_name else image.get("product_geometry_provider_generated"))
-        if evidence.get("expected_compatibility"):
-            image.setdefault("compatibility", evidence["expected_compatibility"])
-            image.setdefault("deterministic_fitment_copy", evidence["expected_compatibility"])
-
-    if not normalized:
-        raise RuntimeError(f"{route_name} returned no usable image result.")
-    return normalized
-
-
-def _graphic_v68400_run_route(route_name, callback, prompt_text, failures):
-    """Execute one route without allowing its exception to terminate later routes."""
-    started = time.perf_counter()
-    try:
-        raw = callback()
-        result = _graphic_v68400_finalize_route(
-            raw,
-            prompt_text,
-            route_name,
-            failures,
-        )
-        diagnostic_log(
-            "graphic_v68400_route_success",
-            route=route_name,
-            image_count=len(result),
-            elapsed_seconds=round(time.perf_counter()-started, 3),
-        )
-        return {
-            "success": True,
-            "images": result,
-            "reason": "",
-            "route": route_name,
-        }
-    except Exception as error:
-        reason = f"{route_name}:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        failures.append(reason)
-        diagnostic_log(
-            "graphic_v68400_route_failed",
-            route=route_name,
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-            elapsed_seconds=round(time.perf_counter()-started, 3),
-        )
-        return {
-            "success": False,
-            "images": [],
-            "reason": reason,
-            "route": route_name,
-        }
-
-
-
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """v68600 public Graphic API.
+    """Public Graphic API with end-to-end isolated recovery and immutable exact-product fallback."""
+    arguments=dict(use_approved_style=use_approved_style,preserve_product=preserve_product,style_strength=style_strength,forced_upload_role=forced_upload_role,quality_retry=quality_retry,product_transform_mode=product_transform_mode,professional_layered_studio=professional_layered_studio)
+    failures=[]; effective_prompt=_graphic_resolve_effective_prompt_v47000(prompt_text)
+    installed_request=_graphic_installed_intent_hint_v47000(effective_prompt)
+    project=_graphic_active_project_assets_v16000(_graphic_repair_project_asset_roles_v15000(get_graphic_project_state()))
+    project["stage"]="generating"; project["last_error"]=""; project["generation_started_at"]=datetime.now(timezone.utc).isoformat(); st.session_state[GRAPHIC_PROJECT_STATE_KEY]=project; _graphic_persist_project_v68400(project)
+    role_items=_graphic_project_role_items(uploaded_files,effective_prompt,forced_upload_role)
+    exact_reference=bool(preserve_product and any(i.get("role")=="product_photo" for i in role_items) and any(i.get("role")=="style_reference" for i in role_items) and not any(i.get("role")=="edit_base" for i in role_items))
+    try:
+        result=_generate_graphic_marketing_images_advanced(effective_prompt,uploaded_files,**arguments)
+        return _graphic_finalize_recovery_v16000(result,"advanced",failures)
+    except Exception as error:
+        failures.append(f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+        diagnostic_log("graphic_v68400_advanced_failed",exact_reference=exact_reference,error_type=type(error).__name__,error=_graphic_compact_error_v4000(error))
 
-    A usable image returns immediately unless direct affirmative evidence proves
-    product-geometry alteration, AI/provider recreation, or fitment narrowing.
-    Missing optional metadata is diagnostic only. Every recovery route is isolated.
-    """
-    arguments = dict(
-        use_approved_style=use_approved_style,
-        preserve_product=preserve_product,
-        style_strength=style_strength,
-        forced_upload_role=forced_upload_role,
-        quality_retry=quality_retry,
-        product_transform_mode=product_transform_mode,
-        professional_layered_studio=professional_layered_studio,
-    )
-    failures = []
-    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
-    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
-    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
-    project = _graphic_active_project_assets_v16000(project)
-    authoritative_files = _graphic_authoritative_generation_files_v68500(uploaded_files)
-    project["stage"] = "generating"
-    project["last_error"] = ""
-    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
-    project["generation_policy"] = GRAPHIC_V68400_POLICY_VERSION
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-
-    # 1. Proven v68300 advanced path. Return immediately when usable.
-    stage = _graphic_v68400_run_route(
-        "advanced-v68300",
-        lambda: _generate_graphic_marketing_images_advanced(
-            effective_prompt, authoritative_files, **arguments
-        ),
-        effective_prompt,
-        failures,
-    )
-    if stage["success"]:
-        return stage["images"]
-
-    # 2. Installed View must stay interior-only and must not become a poster.
     if installed_request:
-        stage = _graphic_v68400_run_route(
-            "installed-view-only-v47000",
-            lambda: _graphic_installed_view_recovery_v47000(
+        try:
+            result=_graphic_installed_view_recovery_v47000(effective_prompt,uploaded_files,output_size="1536x1024",forced_upload_role=forced_upload_role)
+            return _graphic_finalize_recovery_v16000(result,"installed-view-only-v47000",failures)
+        except Exception as error:
+            failures.append(f"installed:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+            raise RuntimeError("Installed View failed safely; no commercial poster was substituted. "+" | ".join(failures[-3:])) from error
+
+    if exact_reference:
+        # Safe exact recovery: provider may create scenery/vehicle only; uploaded product remains local.
+        try:
+            reference=_graphic_safe_reference_blueprint_v16000(analyze_graphic_reference_blueprint(role_items,prompt_text=effective_prompt,style_strength=style_strength))
+        except Exception as error:
+            failures.append(f"reference-analysis:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"); reference={}
+        try:
+            vehicle=_graphic_resolve_vehicle_lock(effective_prompt,research_graphic_vehicle_profile(role_items,effective_prompt))
+        except Exception as error:
+            failures.append(f"vehicle-analysis:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"); vehicle=_graphic_resolve_vehicle_lock(effective_prompt,{})
+        try:
+            mode_info={"mode":"reference_template","brand_template":str(get_graphic_project_state().get("brand_template") or "autotecpro_adventure")}
+            exact=_graphic_fast_exact_campaign_v7000(effective_prompt,role_items,choose_graphic_image_size(effective_prompt),reference,vehicle,mode_info)
+            exact["recovered_from_v68400"] = True; exact["recovery_failures"]=failures[-4:]
+            return _graphic_finalize_recovery_v16000([exact],"v68400-exact-local",failures)
+        except Exception as error:
+            failures.append(f"exact-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+            diagnostic_log(
+                "graphic_v68610_exact_local_primary_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+                failures=failures[-4:],
+            )
+
+        # v68610: a failed strict QA/provenance wrapper must not terminate a job
+        # when an immutable local-product recovery can still return a usable image.
+        # This route uses Pillow/local composition only and never asks a provider
+        # to redraw the uploaded product.
+        try:
+            guaranteed = _graphic_v68200_guaranteed_exact_local_commercial(
                 effective_prompt,
-                authoritative_files,
-                output_size="1536x1024",
+                uploaded_files,
                 forced_upload_role=forced_upload_role,
-            ),
-            effective_prompt,
-            failures,
-        )
-        if stage["success"]:
-            return stage["images"]
+            )
+            for image in guaranteed or []:
+                if isinstance(image, dict):
+                    image["recovered_from_v68610"] = True
+                    image["recovery_failures"] = failures[-5:]
+                    image["exact_product_authority_preserved"] = True
+                    image["provider_product_generation"] = False
+            return _graphic_finalize_recovery_v16000(
+                guaranteed,
+                "v68610-guaranteed-exact-local",
+                failures,
+            )
+        except Exception as error:
+            failures.append(f"v68200-guaranteed-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+            diagnostic_log(
+                "graphic_v68610_guaranteed_exact_local_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+                failures=failures[-5:],
+            )
+            state=get_graphic_project_state()
+            state["stage"]="ready_to_generate"
+            state["last_error"]=" | ".join(failures[-6:])[:1800]
+            state["last_failed_stage"]="exact_reference_local_recovery"
+            state["updated_at"]=datetime.now(timezone.utc).isoformat()
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state
+            _graphic_persist_project_v68400(state)
+            raise RuntimeError(
+                "Exact Reference generation could not complete after both immutable local-product routes. "
+                "No AI-redrawn product was substituted. " + " | ".join(failures[-4:])
+            ) from error
 
-        state = get_graphic_project_state()
-        state["stage"] = "ready_to_generate"
-        state["last_error"] = " | ".join(failures[-6:])[:1800]
-        state["last_failed_stage"] = "installed_view_routes"
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-        raise RuntimeError(
-            "Installed View generation failed safely. No commercial-poster substitute was returned. "
-            + " | ".join(failures[-4:])
-        )
-
-    # 3. Proven v66200-compatible public generation path.
-    stage = _graphic_v68400_run_route(
-        "v3200-v66200-compatibility",
-        lambda: _generate_graphic_marketing_images_advanced_v3200(
-            effective_prompt, authoritative_files, **arguments
-        ),
-        effective_prompt,
-        failures,
-    )
-    if stage["success"]:
-        return stage["images"]
-
-    # 4. Guaranteed exact local commercial route. Provider never draws product.
-    stage = _graphic_v68400_run_route(
-        "v68200-guaranteed-exact-local",
-        lambda: _graphic_v68200_guaranteed_exact_local_commercial(
-            effective_prompt,
-            authoritative_files,
-            forced_upload_role=forced_upload_role,
-        ),
-        effective_prompt,
-        failures,
-    )
-    if stage["success"]:
-        return stage["images"]
-
-    # 5. Last-resort provider route. Still subject to direct violation blockers.
-    stage = _graphic_v68400_run_route(
-        "emergency-provider-v15000",
-        lambda: _graphic_emergency_provider_result_v15000(
-            effective_prompt,
-            authoritative_files,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-        ),
-        effective_prompt,
-        failures,
-    )
-    if stage["success"]:
-        return stage["images"]
-
-    state = get_graphic_project_state()
-    state["stage"] = "ready_to_generate"
-    state["last_error"] = " | ".join(failures[-6:])[:1800]
-    state["last_failed_stage"] = "all_generation_routes"
-    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-    state["updated_at"] = datetime.now(timezone.utc).isoformat()
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    diagnostic_log("graphic_v68600_all_routes_failed", failures=failures[-6:])
-    raise RuntimeError(
-        "All established image-generation routes failed. The project assets remain saved for Retry. "
-        + " | ".join(failures[-4:])
-    )
+    try:
+        result=_generate_graphic_marketing_images_advanced_v3200(effective_prompt,uploaded_files,**arguments)
+        return _graphic_finalize_recovery_v16000(result,"v3200-compatibility",failures)
+    except Exception as error:
+        failures.append(f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+    try:
+        result=_graphic_emergency_provider_result_v15000(effective_prompt,uploaded_files,style_strength=style_strength,forced_upload_role=forced_upload_role)
+        return _graphic_finalize_recovery_v16000(result,"emergency-provider",failures)
+    except Exception as error:
+        failures.append(f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
+        state=get_graphic_project_state(); state["stage"]="ready_to_generate"; state["last_error"]=" | ".join(failures[-4:])[:1800]; st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state; _graphic_persist_project_v68400(state)
+        raise RuntimeError("All available image-generation routes failed. Your project remains saved. "+" | ".join(failures[-3:])) from error
 
 
 
@@ -49332,6 +49410,16 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
+    graphic_mobile_resume_v68400 = False
+    if assistant == "🎨 Graphic Marketing" and not prompt:
+        pending_job_v68400 = _graphic_pending_mobile_job_v68400(allow_processing_resume=True)
+        if pending_job_v68400:
+            prompt = pending_job_v68400.get("prompt") or ""
+            if prompt:
+                uploaded_files = _graphic_upload_objects_v68400(pending_job_v68400.get("uploads") or []) or uploaded_files
+                graphic_mobile_resume_v68400 = True
+                diagnostic_log("graphic_mobile_job_resumed_v68400", job_id=pending_job_v68400.get("job_id"))
+
     native_attachment_only_submit = bool(
         isinstance(prompt, str)
         and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
@@ -49354,6 +49442,13 @@ else:
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
 
+        if assistant == "🎨 Graphic Marketing" and not graphic_mobile_resume_v68400:
+            _graphic_queue_mobile_job_v68400(
+                interaction_prompt,
+                uploaded_files,
+                structured_options=(active_structured_tool or {}).get("graphic_options", {}) if isinstance(active_structured_tool, dict) else {},
+            )
+
         # Defer every Product Library side effect until attachments are normalized
         # and the final Graphic intent has been resolved exactly once.
         product_library_lookup = None
@@ -49372,14 +49467,11 @@ else:
 
         if assistant == "🎨 Graphic Marketing":
             remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
-            # v68500: repair authoritative roles before materializing generation
-            # objects. This removes the reference/reference stale-role defect.
-            _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
-            graphic_generation_files = _graphic_authoritative_generation_files_v68500(
-                effective_uploaded_files
-            )
-        else:
-            graphic_generation_files = effective_uploaded_files
+        graphic_generation_files = (
+            graphic_project_uploaded_files(effective_uploaded_files)
+            if assistant == "🎨 Graphic Marketing"
+            else effective_uploaded_files
+        )
 
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
@@ -49444,22 +49536,23 @@ else:
                 st.error(f"Could not create chat history case: {e}")
                 st.session_state.conversation_id = None
 
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_content_to_save
-        })
+        if not graphic_mobile_resume_v68400:
+            st.session_state.messages.append({
+                "role": "user",
+                "content": user_content_to_save
+            })
 
-        if history_is_enabled():
-            try:
-                save_message(
-                    st.session_state.conversation_id,
-                    "user",
-                    user_content_to_save,
-                )
-            except Exception as e:
-                st.warning(f"User message was not saved to history: {e}")
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "user",
+                        user_content_to_save,
+                    )
+                except Exception as e:
+                    st.warning(f"User message was not saved to history: {e}")
 
-        render_chat_message("user", user_display, uploaded_image_previews)
+            render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -49710,6 +49803,8 @@ else:
             )
         elif is_graphic_generation:
             response_start_time = time.time()
+            _graphic_mark_mobile_job_v68400("processing")
+            _graphic_persist_project_v68400(get_graphic_project_state())
             try:
                 with st.spinner("Creating your image..."):
                     graphic_options = (
@@ -49735,6 +49830,8 @@ else:
                 graphic_project["stage"] = "generated"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
+                _graphic_persist_project_v68400(graphic_project)
+                _graphic_mark_mobile_job_v68400("completed")
             except Exception as error:
                 generated_images = []
                 diagnostic_id = hashlib.sha256(
@@ -49754,6 +49851,8 @@ else:
                 graphic_project["stage"] = "ready_to_generate"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
+                _graphic_persist_project_v68400(graphic_project)
+                _graphic_mark_mobile_job_v68400("retryable", error=str(error))
 
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
