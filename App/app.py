@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68700 FINAL LTS — Manual Attachment Send, v67610 State Machine, and v66200 Return Path
+# AutoTecPro AI Graphic Marketing Engine v68710 FINAL LTS — Direct-Evidence Fitment Gate, Manual Attachment Send, and v67610 State Machine
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -31057,90 +31057,136 @@ def _graphic_v67100_recreation_evidence(images):
     }
 
 
+
 def _graphic_v67100_fitment_gate(images, prompt_text, *, required, route_name=""):
-    """Preserve full fitment without turning absent optional metadata into a false failure."""
+    """Block only direct affirmative fitment narrowing.
+
+    Missing copy metadata, missing rendered-text manifests, and unavailable OCR are
+    diagnostics only. They are not proof that the final artwork removed or changed
+    user-authoritative compatibility.
+    """
     if not required:
         return {
-            "passed": True, "available": True, "issues": [],
-            "required_tokens": [], "observed_tokens": [],
+            "passed": True,
+            "available": True,
+            "issues": [],
+            "diagnostics": [],
+            "required_tokens": [],
+            "observed_tokens": [],
         }
-    if not isinstance(images, (list, tuple)) or not images or not isinstance(images[0], dict):
+
+    if (
+        not isinstance(images, (list, tuple))
+        or not images
+        or not isinstance(images[0], dict)
+    ):
         return {
-            "passed": False, "available": True,
+            "passed": False,
+            "available": True,
             "issues": ["missing generated image"],
-            "required_tokens": [], "observed_tokens": [],
+            "diagnostics": [],
+            "required_tokens": [],
+            "observed_tokens": [],
         }
 
     image = images[0]
     spec = dict(image.get("campaign_spec") or {})
     layered = dict(image.get("layered_metadata") or {})
+
     expected = _graphic_extract_full_compatibility_v36000(
         prompt_text,
-        spec.get("compatibility")
-        or layered.get("compatibility")
-        or image.get("compatibility")
-        or "",
+        "",
     )
     required_tokens = _graphic_copy_required_tokens_v36000(expected)
 
-    candidates = [
+    compatibility_candidates = [
+        image.get("rendered_compatibility"),
+        image.get("deterministic_fitment_copy"),
         spec.get("compatibility"),
         layered.get("compatibility"),
         image.get("compatibility"),
-        image.get("rendered_compatibility"),
-        image.get("deterministic_fitment_copy"),
     ]
     compatibility = next(
-        (str(value).strip() for value in candidates if str(value or "").strip()),
+        (
+            str(value).strip()
+            for value in compatibility_candidates
+            if str(value or "").strip()
+        ),
         "",
     )
     observed_tokens = _graphic_copy_required_tokens_v36000(compatibility)
-    missing = [token for token in required_tokens if token not in observed_tokens]
+
+    issues = []
+    diagnostics = []
+
+    # Direct narrowing exists only when actual observed compatibility copy is
+    # available and omits user-required tokens or year ranges.
+    if compatibility:
+        missing = [
+            token for token in required_tokens
+            if token not in observed_tokens
+        ]
+        if missing:
+            issues.append(
+                "missing required fitment tokens: " + ", ".join(missing)
+            )
+    elif required_tokens:
+        diagnostics.append(
+            "rendered compatibility metadata unavailable; not treated as narrowing"
+        )
 
     explicit_size = re.search(
-        r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])\s*(?:hd|qhd|uhd|4k)?\b",
+        r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])"
+        r"\s*(?:hd|qhd|uhd|4k)?\b",
         str(prompt_text or ""),
         re.I,
     )
-    observed_copy = " ".join([
-        compatibility,
+
+    observed_size_text = " ".join([
         str(spec.get("screen_size") or ""),
-        str(spec.get("headline") or ""),
-        str(spec.get("product_designation") or ""),
         str(layered.get("screen_size") or ""),
-        str(image.get("rendered_text") or ""),
-    ]).casefold()
+        str(image.get("rendered_screen_size") or ""),
+        str(image.get("deterministic_screen_size_copy") or ""),
+    ]).strip()
 
-    issues = []
-    if compatibility and missing:
-        issues.append("missing required fitment tokens: " + ", ".join(missing))
+    # A screen-size blocker requires an actual conflicting observed size.
+    # Absence of optional size metadata is diagnostic only.
     if explicit_size:
-        size_number = re.search(r"\d{1,2}(?:\.\d)?", explicit_size.group(0))
-        if observed_copy and size_number and size_number.group(0) not in observed_copy:
-            issues.append("explicit screen size was not preserved")
-
-    available = bool(compatibility or observed_copy)
-    local_route = any(
-        token in str(route_name or "").casefold()
-        for token in ("deterministic", "guaranteed-local", "exact-reference")
-    )
-    if not available and local_route:
-        # The deterministic compositor owns the copy layer. Preserve the expected
-        # wording in the result metadata without rejecting a valid local image.
-        compatibility = expected
-        observed_tokens = required_tokens
-        available = True
+        expected_number_match = re.search(
+            r"\d{1,2}(?:\.\d)?",
+            explicit_size.group(0),
+        )
+        observed_numbers = re.findall(
+            r"\b\d{1,2}(?:\.\d)?\b",
+            observed_size_text,
+        )
+        if observed_size_text and expected_number_match:
+            expected_number = expected_number_match.group(0)
+            if observed_numbers and expected_number not in observed_numbers:
+                issues.append(
+                    "explicit screen size was changed from "
+                    + expected_number
+                    + " to "
+                    + ", ".join(observed_numbers)
+                )
+        elif not observed_size_text:
+            diagnostics.append(
+                "screen-size metadata unavailable; not treated as removal"
+            )
 
     return {
         "passed": not issues,
-        "available": available,
+        "available": bool(compatibility or observed_size_text),
         "issues": issues,
+        "diagnostics": diagnostics,
         "required_tokens": required_tokens,
         "observed_tokens": observed_tokens,
         "expected_compatibility": expected,
         "observed_compatibility": compatibility,
-        "policy": "deterministic-copy-authority-with-metadata-tolerance",
+        "observed_screen_size": observed_size_text,
+        "policy": "v68710-direct-affirmative-fitment-narrowing-only",
     }
+
 
 
 def _graphic_v67100_accept_or_route(images, prompt_text, contract, *, route_name):
