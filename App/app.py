@@ -18365,7 +18365,7 @@ def _graphic_finalize_recovery_v16000(images, route_name, failures=None):
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
         image = dict(image)
-        image["graphic_engine_version"] = "v68610-end-to-end-generation-recovery"
+        image["graphic_engine_version"] = "v68620-end-to-end-generation-recovery"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
         image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
@@ -32744,13 +32744,13 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         except Exception as error:
             failures.append(f"exact-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
             diagnostic_log(
-                "graphic_v68610_exact_local_primary_failed",
+                "graphic_v68620_exact_local_primary_failed",
                 error_type=type(error).__name__,
                 error=_graphic_compact_error_v4000(error),
                 failures=failures[-4:],
             )
 
-        # v68610: a failed strict QA/provenance wrapper must not terminate a job
+        # v68620: a failed strict QA/provenance wrapper must not terminate a job
         # when an immutable local-product recovery can still return a usable image.
         # This route uses Pillow/local composition only and never asks a provider
         # to redraw the uploaded product.
@@ -32762,19 +32762,19 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             )
             for image in guaranteed or []:
                 if isinstance(image, dict):
-                    image["recovered_from_v68610"] = True
+                    image["recovered_from_v68620"] = True
                     image["recovery_failures"] = failures[-5:]
                     image["exact_product_authority_preserved"] = True
                     image["provider_product_generation"] = False
             return _graphic_finalize_recovery_v16000(
                 guaranteed,
-                "v68610-guaranteed-exact-local",
+                "v68620-guaranteed-exact-local",
                 failures,
             )
         except Exception as error:
             failures.append(f"v68200-guaranteed-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}")
             diagnostic_log(
-                "graphic_v68610_guaranteed_exact_local_failed",
+                "graphic_v68620_guaranteed_exact_local_failed",
                 error_type=type(error).__name__,
                 error=_graphic_compact_error_v4000(error),
                 failures=failures[-5:],
@@ -49362,13 +49362,20 @@ else:
         "jpg", "jpeg", "png", "webp", "pdf", "txt",
         "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
     ]
-    uploaded_files = managed_file_uploader(
+    # v68620: keep the main chat upload, submission, and serialization inside
+    # one full Streamlit execution lifecycle. The fragment wrapper previously
+    # allowed the same Graphic Marketing turn to be replayed on a later rerun.
+    uploaded_files = _managed_file_uploader_core(
         storage_key="chat_managed_uploads",
         generation_key="chat_managed_upload_generation",
         widget_prefix="chat_files",
         accepted_types=chat_accepted_types,
         heading="📎 Attach files or photos",
     )
+    uploaded_files = _managed_upload_objects(
+        list(st.session_state.get("chat_managed_uploads") or [])
+    )
+    st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
@@ -49410,21 +49417,16 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
-    graphic_mobile_resume_v68400 = False
-    if assistant == "🎨 Graphic Marketing" and not prompt:
-        pending_job_v68400 = _graphic_pending_mobile_job_v68400(allow_processing_resume=True)
-        if pending_job_v68400:
-            prompt = pending_job_v68400.get("prompt") or ""
-            if prompt:
-                uploaded_files = _graphic_upload_objects_v68400(pending_job_v68400.get("uploads") or []) or uploaded_files
-                graphic_mobile_resume_v68400 = True
-                diagnostic_log("graphic_mobile_job_resumed_v68400", job_id=pending_job_v68400.get("job_id"))
-
     native_attachment_only_submit = bool(
-        isinstance(prompt, str)
-        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
-        and uploaded_files
+        uploaded_files
         and active_structured_tool is None
+        and (
+            not str(prompt or "").strip()
+            or (
+                isinstance(prompt, str)
+                and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
+            )
+        )
     )
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
@@ -49442,12 +49444,13 @@ else:
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
 
-        if assistant == "🎨 Graphic Marketing" and not graphic_mobile_resume_v68400:
-            _graphic_queue_mobile_job_v68400(
-                interaction_prompt,
-                uploaded_files,
-                structured_options=(active_structured_tool or {}).get("graphic_options", {}) if isinstance(active_structured_tool, dict) else {},
-            )
+        diagnostic_log(
+            "graphic_upload_transport_v68620",
+            workspace=str(assistant),
+            managed_record_count=len(st.session_state.get("chat_managed_uploads") or []),
+            submission_upload_count=len(uploaded_files or []),
+            attachment_only=attachment_only_mode,
+        )
 
         # Defer every Product Library side effect until attachments are normalized
         # and the final Graphic intent has been resolved exactly once.
@@ -49466,7 +49469,13 @@ else:
             st.stop()
 
         if assistant == "🎨 Graphic Marketing":
-            remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
+            graphic_asset_role_prompt_v68620 = (
+                "" if attachment_only_mode else interaction_prompt
+            )
+            remember_graphic_project_assets(
+                effective_uploaded_files,
+                graphic_asset_role_prompt_v68620,
+            )
         graphic_generation_files = (
             graphic_project_uploaded_files(effective_uploaded_files)
             if assistant == "🎨 Graphic Marketing"
@@ -49536,23 +49545,24 @@ else:
                 st.error(f"Could not create chat history case: {e}")
                 st.session_state.conversation_id = None
 
-        if not graphic_mobile_resume_v68400:
-            st.session_state.messages.append({
-                "role": "user",
-                "content": user_content_to_save
-            })
+        # This turn is committed exactly once. No background/mobile replay path
+        # is allowed to append the same user message on a later Streamlit rerun.
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_content_to_save
+        })
 
-            if history_is_enabled():
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "user",
-                        user_content_to_save,
-                    )
-                except Exception as e:
-                    st.warning(f"User message was not saved to history: {e}")
+        if history_is_enabled():
+            try:
+                save_message(
+                    st.session_state.conversation_id,
+                    "user",
+                    user_content_to_save,
+                )
+            except Exception as e:
+                st.warning(f"User message was not saved to history: {e}")
 
-            render_chat_message("user", user_display, uploaded_image_previews)
+        render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -49803,7 +49813,6 @@ else:
             )
         elif is_graphic_generation:
             response_start_time = time.time()
-            _graphic_mark_mobile_job_v68400("processing")
             _graphic_persist_project_v68400(get_graphic_project_state())
             try:
                 with st.spinner("Creating your image..."):
@@ -49831,7 +49840,6 @@ else:
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
                 _graphic_persist_project_v68400(graphic_project)
-                _graphic_mark_mobile_job_v68400("completed")
             except Exception as error:
                 generated_images = []
                 diagnostic_id = hashlib.sha256(
@@ -49852,7 +49860,6 @@ else:
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
                 _graphic_persist_project_v68400(graphic_project)
-                _graphic_mark_mobile_job_v68400("retryable", error=str(error))
 
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
