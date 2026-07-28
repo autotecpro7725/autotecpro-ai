@@ -46,9 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68300 FINAL LTS — True v66200 Graphic Pipeline Rollback with Latest App Shell
+# AutoTecPro AI Graphic Marketing Engine v69040 FINAL LTS — v68300 Stable Base with Persistent Graphic Upload Transport
 
-GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
+GRAPHIC_V69040_RELEASE = "v69040-v68300-stable-base-persistent-upload-transport"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -4495,6 +4495,121 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
         height=0,
         width=0,
     )
+
+
+
+def _graphic_chat_uploader_v69040(
+    *,
+    storage_key,
+    generation_key,
+    widget_prefix,
+    accepted_types,
+    heading,
+):
+    """Stable full-app Graphic Marketing uploader.
+
+    Unlike the fragment-scoped shared uploader, this transport keeps one native
+    widget key for the entire pending turn. The key changes only after the
+    message has been processed and ``clear_managed_uploads`` is called.
+    """
+    install_gpt_uploader_css()
+
+    if storage_key not in st.session_state:
+        st.session_state[storage_key] = []
+    if generation_key not in st.session_state:
+        st.session_state[generation_key] = 0
+
+    records = list(st.session_state.get(storage_key) or [])
+    shell_key = f"atp_upload_shell_{widget_prefix}_v69040"
+
+    with st.container(key=shell_key):
+        st.markdown(
+            f'<div class="atp-upload-heading">{html.escape(heading)}</div>',
+            unsafe_allow_html=True,
+        )
+
+        if records:
+            cards_per_row = 5
+            for row_start in range(0, len(records), cards_per_row):
+                row_records = records[row_start:row_start + cards_per_row]
+                with st.container(
+                    key=f"atp_preview_grid_{widget_prefix}_v69040_{row_start}"
+                ):
+                    preview_columns = st.columns(
+                        len(row_records),
+                        gap="small",
+                        vertical_alignment="top",
+                    )
+                    for column, record in zip(preview_columns, row_records):
+                        record_id = record["id"]
+
+                        def delete_record(record_id=record_id):
+                            st.session_state[storage_key] = [
+                                item
+                                for item in st.session_state.get(storage_key, [])
+                                if item.get("id") != record_id
+                            ]
+
+                        with column:
+                            render_managed_upload_preview(
+                                record,
+                                delete_key=(
+                                    f"atp_delete_btn_{widget_prefix}_v69040_"
+                                    f"{record_id[:16]}"
+                                ),
+                                on_delete=delete_record,
+                            )
+
+            st.markdown(
+                '<div class="atp-add-file-label">＋ Add another file</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Critical v69040 rule: keep this key stable while files are pending.
+        # Do not increment generation or force a fragment rerun after selection.
+        incoming_files = st.file_uploader(
+            "Upload files",
+            type=accepted_types,
+            accept_multiple_files=True,
+            key=f"{widget_prefix}_v69040_{st.session_state[generation_key]}",
+            label_visibility="collapsed",
+        )
+
+    if incoming_files:
+        existing_ids = {item.get("id") for item in records}
+        oversized_names = []
+        changed = False
+
+        for uploaded_file in incoming_files:
+            record = _managed_upload_record(uploaded_file)
+            if record["size"] > MAX_UPLOAD_BYTES:
+                oversized_names.append(record["name"])
+                continue
+            if record["id"] not in existing_ids:
+                records.append(record)
+                existing_ids.add(record["id"])
+                changed = True
+
+        if changed:
+            st.session_state[storage_key] = records
+
+        if oversized_names:
+            st.error(
+                f"These files exceed the {MAX_UPLOAD_SIZE_MB} MB limit: "
+                + ", ".join(oversized_names)
+            )
+
+    committed_records = list(st.session_state.get(storage_key) or [])
+    _sync_native_chat_send_arrow_for_attachments(bool(committed_records))
+
+    diagnostic_log(
+        "graphic_upload_transport_v69040",
+        widget_file_count=len(incoming_files or []),
+        committed_record_count=len(committed_records),
+        generation=int(st.session_state.get(generation_key, 0)),
+    )
+
+    return _managed_upload_objects(committed_records)
 
 
 def _managed_file_uploader_core(
@@ -48884,13 +48999,22 @@ else:
         "jpg", "jpeg", "png", "webp", "pdf", "txt",
         "doc", "docx", "xls", "xlsx", "xlsm", "xlsb", "csv", "ppt", "pptx", "zip",
     ]
-    uploaded_files = managed_file_uploader(
-        storage_key="chat_managed_uploads",
-        generation_key="chat_managed_upload_generation",
-        widget_prefix="chat_files",
-        accepted_types=chat_accepted_types,
-        heading="📎 Attach files or photos",
-    )
+    if assistant == "🎨 Graphic Marketing":
+        uploaded_files = _graphic_chat_uploader_v69040(
+            storage_key="chat_managed_uploads",
+            generation_key="chat_managed_upload_generation",
+            widget_prefix="graphic_chat_files",
+            accepted_types=chat_accepted_types,
+            heading="📎 Attach files or photos",
+        )
+    else:
+        uploaded_files = managed_file_uploader(
+            storage_key="chat_managed_uploads",
+            generation_key="chat_managed_upload_generation",
+            widget_prefix="chat_files",
+            accepted_types=chat_accepted_types,
+            heading="📎 Attach files or photos",
+        )
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
@@ -48958,6 +49082,23 @@ else:
         # and the final Graphic intent has been resolved exactly once.
         product_library_lookup = None
         product_library_images = []
+
+        # v69040: Graphic Marketing reconstructs every submitted attachment from
+        # the immutable committed records. This protects the Send rerun from a
+        # transient/stale uploader return value.
+        if assistant == "🎨 Graphic Marketing":
+            committed_graphic_uploads_v69040 = _managed_upload_objects(
+                st.session_state.get("chat_managed_uploads") or []
+            )
+            if committed_graphic_uploads_v69040:
+                uploaded_files = committed_graphic_uploads_v69040
+            diagnostic_log(
+                "graphic_upload_submit_v69040",
+                committed_record_count=len(
+                    st.session_state.get("chat_managed_uploads") or []
+                ),
+                submission_upload_count=len(uploaded_files or []),
+            )
 
         # Managed uploads are SHA-256 deduplicated and are cleared
         # immediately after this message is completed. ZIP attachments are safely
