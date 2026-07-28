@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68710 FINAL LTS — Direct-Evidence Fitment Gate, Manual Attachment Send, and v67610 State Machine
+# AutoTecPro AI Graphic Marketing Engine v68720 FINAL LTS — Reference Analysis Intent Lock, Manual Attachment Send, and v67610 State Machine
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18721,18 +18721,32 @@ def _graphic_finalize_recovery_v16000(
     return normalized
 
 
+
 def _graphic_project_direct_action(prompt_text, state=None):
-    """Give contextual create/edit commands priority over planning responses."""
+    """Recognize only explicit create/edit consent after project readiness.
+
+    Analysis, review, template study, style extraction, and upload-preparation
+    prompts must never be upgraded to image generation merely because they contain
+    words such as "create", "product", "reference", or "same style".
+    """
     project = _graphic_repair_project_asset_roles_v15000(
         state if isinstance(state, dict) else get_graphic_project_state()
     )
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return ""
-    if any(term in text for term in (
+
+    non_generation_terms = (
+        "analyze", "analyse", "review", "inspect", "study", "evaluate",
+        "describe", "break down", "extract the style", "use this as a template",
+        "use this as reference", "use this as a reference",
+        "i need to use this image as a reference",
+        "create my other product with this style",
+        "upload the other product", "send the other product",
         "do not create", "don't create", "do not generate", "don't generate",
         "not ready", "hold on", "before you create", "before creating",
-    )):
+    )
+    if any(term in text for term in non_generation_terms):
         return ""
 
     ready = _graphic_project_is_ready(project)
@@ -18742,21 +18756,29 @@ def _graphic_project_direct_action(prompt_text, state=None):
     )
     contextual_create = _graphic_generation_command_v16000(text)
 
-    # A contextual create command can include vehicle facts in the same sentence,
-    # e.g. "this is 2020 Nissan Titan, create it". Do not require a second turn.
     if contextual_create and (ready or image_count >= 2):
         return "generate"
     if not ready:
         return ""
-    if re.search(r"\b(?:edit|modify|revise|update|change|replace|remove|add|move|resize|reposition|regenerate)\b", text):
-        return "edit"
-    if (
-        re.search(r"\b(?:please\s+)?(?:create|generate|make|produce|render|design|build)\s+(?:it|this|the\s+(?:image|photo|ad|advertisement|commercial|campaign))\b", text)
-        or re.search(r"\b(?:create|generate|make|produce|render|design|build)\b", text)
-        or text in {"go ahead", "proceed", "do it", "retry", "try again"}
+
+    if re.search(
+        r"\b(?:edit|modify|revise|update|change|replace|remove|add|move|resize|reposition|regenerate)\b",
+        text,
     ):
+        return "edit"
+
+    # Do not use a generic "contains create" test. Require a concrete command
+    # addressed to the current ready project.
+    explicit_create_patterns = (
+        r"^(?:please\s+)?(?:create|generate|make|produce|render|design|build)\s+(?:it|this|the\s+(?:image|photo|ad|advertisement|commercial|campaign))(?:\s+now)?[.!]?$",
+        r"^(?:please\s+)?(?:go ahead|proceed|do it|retry|try again|create it|generate it)(?:\s+now)?[.!]?$",
+        r"\b(?:create|generate|make|produce|render|design|build)\s+(?:the|this|my|our)\s+(?:final\s+)?(?:image|photo|ad|advertisement|commercial|campaign)\b",
+    )
+    if any(re.search(pattern, text) for pattern in explicit_create_patterns):
         return "generate"
+
     return ""
+
 
 
 def _graphic_project_ready_message(state=None):
@@ -50323,9 +50345,14 @@ else:
         )
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
             graphic_chat_intent = "analyze"
-        if assistant == "🎨 Graphic Marketing" and not attachment_only_mode:
-            # v8400: contextual create/edit consent outranks ordinary conversation
-            # and campaign-copy drafting once reference + product are ready.
+        if (
+            assistant == "🎨 Graphic Marketing"
+            and not attachment_only_mode
+            and graphic_chat_intent not in {"analyze", "planning", "learn"}
+        ):
+            # Contextual create/edit consent may resolve an otherwise conversational
+            # follow-up, but it must never override an explicit analysis, planning,
+            # or reference-learning classification.
             direct_project_action = _graphic_project_direct_action(
                 interaction_prompt, get_graphic_project_state()
             )
