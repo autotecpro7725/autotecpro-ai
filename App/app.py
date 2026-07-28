@@ -47,10 +47,11 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68400 FINAL LTS — v68300 Stable Authority, Isolated Recovery, Glass/Shadow and Performance Upgrade
+# AutoTecPro AI Graphic Marketing Engine v68500 FINAL LTS — v68400 Authoritative Role Transport with v66200 Stable Return Path
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 GRAPHIC_V68400_RELEASE = "v68400-v68300-stable-authority-isolated-recovery-visual-performance"
+GRAPHIC_V68500_RELEASE = "v68500-authoritative-role-transport-v66200-stable-return-path"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -17373,18 +17374,53 @@ def _graphic_project_context_text():
 
 
 def _infer_graphic_asset_role(prompt_text, state):
+    """Infer the role of the newly uploaded asset without confusing context with subject.
+
+    v68500: explicit wording about the uploaded product outranks contextual wording
+    such as "use the same style as the reference image." Generic style/reference
+    words describe the desired composition and must not relabel a product upload.
+    """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
-        return "reference"
-    if any(term in text for term in ("logo", "brand mark")):
+    assets = [item for item in ((state or {}).get("assets") or []) if isinstance(item, dict)]
+    roles = {str(item.get("role") or "").casefold() for item in assets}
+
+    explicit_product_phrases = (
+        "uploaded product", "product photo", "product image", "photo of the product",
+        "image of the product", "this product", "this unit", "uploaded unit",
+        "uploaded screen", "uploaded head unit", "uploaded cluster", "uploaded radio",
+        "direct product reference", "source product",
+    )
+    explicit_reference_phrases = (
+        "uploaded reference", "reference image attached", "reference photo attached",
+        "this reference", "style reference", "inspiration image", "example ad",
+        "example advertisement", "use this layout as reference",
+    )
+    explicit_logo_phrases = (
+        "uploaded logo", "this logo", "brand mark", "official logo",
+    )
+
+    if any(term in text for term in explicit_logo_phrases):
         return "logo"
+    if any(term in text for term in explicit_product_phrases):
+        return "product"
+    if any(term in text for term in explicit_reference_phrases):
+        return "reference"
+
+    # Guided project order is authoritative when wording is ambiguous:
+    # first image = reference, next image = product.
+    has_reference = bool({"reference", "style_reference"} & roles)
+    has_product = bool({"product", "product_photo"} & roles)
+    stage = str((state or {}).get("stage") or "planning")
+    if not has_reference and stage in {"awaiting_reference", "planning"}:
+        return "reference"
+    if has_reference and not has_product:
+        return "product"
+
+    # Standalone explicit subject wording is evaluated only after project context.
     if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
         return "product"
-    stage = str((state or {}).get("stage") or "planning")
-    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
+    if any(term in text for term in ("reference", "inspiration", "layout", "style", "advertisement")):
         return "reference"
-    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
-        return "product"
     return "supporting"
 
 
@@ -17489,6 +17525,71 @@ def graphic_project_uploaded_files(include_current=None):
         ))
         seen.add(digest)
     return combined
+
+
+
+def _graphic_authoritative_generation_files_v68500(include_current=None):
+    """Repair project roles first, then rebuild every upload object from authority.
+
+    This prevents a product upload from retaining a stale ``reference`` role after
+    the conversation-state repair has correctly changed it to ``product``.
+    """
+    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    project = _graphic_active_project_assets_v16000(project)
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+
+    role_by_digest = {
+        str(item.get("id") or ""): str(item.get("role") or "supporting")
+        for item in (project.get("assets") or [])
+        if isinstance(item, dict) and str(item.get("id") or "")
+    }
+    rebuilt = []
+    seen = set()
+
+    # Rebuild current uploads rather than mutating Streamlit UploadedFile objects.
+    for item in include_current or []:
+        try:
+            raw = bytes(item.getvalue() or b"")
+        except Exception:
+            raw = b""
+        if not raw:
+            continue
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest in seen:
+            continue
+        rebuilt.append(ManagedUploadedFile(
+            raw,
+            getattr(item, "name", "image"),
+            getattr(item, "type", "image/png"),
+            graphic_role=role_by_digest.get(digest, getattr(item, "graphic_role", "supporting") or "supporting"),
+            graphic_asset_id=digest,
+        ))
+        seen.add(digest)
+
+    # Add every persisted project asset using its repaired authoritative role.
+    for record in project.get("assets") or []:
+        if not isinstance(record, dict):
+            continue
+        raw = bytes(record.get("data") or b"")
+        digest = str(record.get("id") or (hashlib.sha256(raw).hexdigest() if raw else ""))
+        if not raw or not digest or digest in seen:
+            continue
+        rebuilt.append(ManagedUploadedFile(
+            raw,
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("role") or "supporting",
+            graphic_asset_id=digest,
+        ))
+        seen.add(digest)
+
+    diagnostic_log(
+        "graphic_v68500_authoritative_files_rebuilt",
+        count=len(rebuilt),
+        roles=[str(getattr(item, "graphic_role", "") or "") for item in rebuilt],
+    )
+    return rebuilt
+
 
 
 def build_graphic_project_context():
@@ -32237,7 +32338,7 @@ def _graphic_v68200_guaranteed_exact_local_commercial(prompt_text, uploaded_file
 # ============================================================
 # v68400 FINAL LTS — Stable Authority and Isolated Recovery
 # ============================================================
-GRAPHIC_V68400_POLICY_VERSION = "v68400-stable-authority-isolated-recovery"
+GRAPHIC_V68400_POLICY_VERSION = "v68500-authoritative-role-transport-stable-recovery"
 GRAPHIC_V68400_GEOMETRY_RELEASE_BLOCKERS = (
     "bezel",
     "screen aperture",
@@ -32277,12 +32378,82 @@ def _graphic_v68400_required_fitment(prompt_text):
     return bool(str(expected or "").strip() and tokens), expected, tokens
 
 
-def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
-    """Evaluate only affirmative geometry or fitment violations.
 
-    Missing optional metadata, campaign zones, proof manifests, or validator
-    availability are diagnostics. They are never treated as evidence that a usable
-    image is wrong.
+def _graphic_v68500_product_authority_proof(images, route_name):
+    """Require core immutable-product proof while keeping optional metadata diagnostic.
+
+    Local exact routes are authoritative by construction. Provider-capable routes
+    must contain affirmative evidence that the provider did not redraw the product.
+    """
+    normalized = _graphic_v68400_usable_images(images)
+    if not normalized:
+        return {"passed": False, "reason": "no usable image", "tier": "missing-image"}
+
+    local_exact_route = any(
+        token in str(route_name or "").casefold()
+        for token in ("v68200-guaranteed-exact-local", "deterministic", "exact-local")
+    )
+    if local_exact_route:
+        return {
+            "passed": True,
+            "reason": "local exact-product composition is authoritative by construction",
+            "tier": "local-exact",
+        }
+
+    affirmative = []
+    direct_violations = []
+    for item in normalized:
+        if not isinstance(item, dict):
+            continue
+        provider_generated = item.get("product_geometry_provider_generated")
+        recreated = item.get("ai_product_recreated")
+        immutable = item.get("product_layer_immutable")
+        source_untouched = item.get("source_rgb_untouched")
+        verification = str(item.get("verification_status") or "").casefold()
+        exact_proof = item.get("exact_product_proof") or item.get("product_provenance") or {}
+
+        if provider_generated is True or recreated is True:
+            direct_violations.append("provider-generated or AI-recreated product geometry")
+            continue
+
+        if (
+            provider_generated is False
+            and recreated is False
+            and immutable is True
+            and (
+                source_untouched is True
+                or "verified" in verification
+                or bool(exact_proof)
+            )
+        ):
+            affirmative.append(True)
+
+    if direct_violations:
+        return {
+            "passed": False,
+            "reason": "; ".join(sorted(set(direct_violations))),
+            "tier": "direct-violation",
+        }
+    if affirmative:
+        return {
+            "passed": True,
+            "reason": "affirmative immutable-product provenance present",
+            "tier": "affirmative-proof",
+        }
+    return {
+        "passed": False,
+        "reason": "core immutable-product provenance is unavailable for this provider-capable route",
+        "tier": "core-proof-unavailable",
+    }
+
+
+
+def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
+    """Evaluate release blockers without allowing optional metadata to stop recovery.
+
+    Direct geometry/fitment violations block the route. Core immutable-product
+    provenance is mandatory for provider-capable results. Optional campaign zones,
+    manifests and supplementary proof fields remain diagnostic only.
     """
     normalized = _graphic_v68400_usable_images(images)
     if not normalized:
@@ -32295,6 +32466,7 @@ def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
         }
 
     geometry_violation = _graphic_v66860_direct_product_violation(normalized)
+    authority = _graphic_v68500_product_authority_proof(normalized, route_name)
     required, expected, required_tokens = _graphic_v68400_required_fitment(prompt_text)
     fitment = _graphic_v67100_fitment_gate(
         normalized,
@@ -32303,30 +32475,34 @@ def _graphic_v68400_direct_release_evidence(images, prompt_text, route_name):
         route_name=route_name,
     )
 
-    # A fitment failure is a hard release blocker only when observable copy exists
-    # and directly omits or narrows required user-supplied compatibility.
     fitment_available = bool(fitment.get("available"))
     fitment_issues = [str(x) for x in (fitment.get("issues") or []) if str(x).strip()]
     fitment_violation = "; ".join(fitment_issues) if fitment_available and fitment_issues else ""
 
     diagnostics = []
     if not fitment_available and required:
-        diagnostics.append("fitment proof metadata unavailable; expected wording retained diagnostically")
+        diagnostics.append("optional fitment proof metadata unavailable; required wording retained diagnostically")
     proof = _graphic_v67100_exact_proof(normalized)
     if not proof.get("passed") and proof.get("tier") != "direct-violation":
         diagnostics.extend(str(x) for x in (proof.get("issues") or []))
+    if not authority.get("passed"):
+        diagnostics.append(str(authority.get("reason") or "core product-authority proof unavailable"))
 
+    authority_failure = "" if authority.get("passed") else str(authority.get("reason") or "")
+    reason = str(geometry_violation or fitment_violation or authority_failure)
     return {
-        "blocked": bool(geometry_violation or fitment_violation),
-        "reason": geometry_violation or fitment_violation,
+        "blocked": bool(reason),
+        "reason": reason,
         "direct_geometry_violation": str(geometry_violation or ""),
         "direct_fitment_violation": fitment_violation,
+        "product_authority": authority,
         "fitment": fitment,
         "expected_compatibility": expected,
         "required_tokens": required_tokens,
         "exact_product_proof": proof,
         "diagnostics": diagnostics,
     }
+
 
 
 def _graphic_v68400_finalize_route(images, prompt_text, route_name, failures=None):
@@ -32433,6 +32609,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
+    authoritative_files = _graphic_authoritative_generation_files_v68500(uploaded_files)
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
@@ -32443,7 +32620,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     stage = _graphic_v68400_run_route(
         "advanced-v68300",
         lambda: _generate_graphic_marketing_images_advanced(
-            effective_prompt, uploaded_files, **arguments
+            effective_prompt, authoritative_files, **arguments
         ),
         effective_prompt,
         failures,
@@ -32457,7 +32634,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             "installed-view-only-v47000",
             lambda: _graphic_installed_view_recovery_v47000(
                 effective_prompt,
-                uploaded_files,
+                authoritative_files,
                 output_size="1536x1024",
                 forced_upload_role=forced_upload_role,
             ),
@@ -32481,7 +32658,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     stage = _graphic_v68400_run_route(
         "v3200-v66200-compatibility",
         lambda: _generate_graphic_marketing_images_advanced_v3200(
-            effective_prompt, uploaded_files, **arguments
+            effective_prompt, authoritative_files, **arguments
         ),
         effective_prompt,
         failures,
@@ -32494,7 +32671,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         "v68200-guaranteed-exact-local",
         lambda: _graphic_v68200_guaranteed_exact_local_commercial(
             effective_prompt,
-            uploaded_files,
+            authoritative_files,
             forced_upload_role=forced_upload_role,
         ),
         effective_prompt,
@@ -32508,7 +32685,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         "emergency-provider-v15000",
         lambda: _graphic_emergency_provider_result_v15000(
             effective_prompt,
-            uploaded_files,
+            authoritative_files,
             style_strength=style_strength,
             forced_upload_role=forced_upload_role,
         ),
@@ -49177,11 +49354,14 @@ else:
 
         if assistant == "🎨 Graphic Marketing":
             remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
-        graphic_generation_files = (
-            graphic_project_uploaded_files(effective_uploaded_files)
-            if assistant == "🎨 Graphic Marketing"
-            else effective_uploaded_files
-        )
+            # v68500: repair authoritative roles before materializing generation
+            # objects. This removes the reference/reference stale-role defect.
+            _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+            graphic_generation_files = _graphic_authoritative_generation_files_v68500(
+                effective_uploaded_files
+            )
+        else:
+            graphic_generation_files = effective_uploaded_files
 
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
