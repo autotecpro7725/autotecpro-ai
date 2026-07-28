@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68800 FINAL LTS — v66200 Authority, AI Art Director, Zero-Bezel Protection and Nonblocking Generation
+# AutoTecPro AI Graphic Marketing Engine v69010 FINAL LTS — Upload Loop Router Fix, v66200 Authority, Deterministic Project State, Composition-Aware AI Art Director and Hard Bezel Recovery
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -16635,6 +16635,139 @@ def _graphic_deterministic_art_direction_v68800(scene_profile=None):
     }
 
 
+
+GRAPHIC_V68810_RELEASE = "v68810-v66200-composition-aware-ai-art-director-hard-bezel-recovery"
+
+
+def _graphic_art_direction_preview_v68810(canvas, product, layout_bp):
+    """Create a non-authoritative preview so AI sees the proposed final composition."""
+    report = {
+        "applied": False,
+        "engine": "composition-preview-v68810",
+        "product_pixels_authoritative": False,
+    }
+    if Image is None or canvas is None or product is None:
+        report["reason"] = "image unavailable"
+        return canvas, report
+    try:
+        preview = canvas.convert("RGBA").copy()
+        W, H = preview.size
+        hero = list((layout_bp or {}).get("hero_product_box") or [0.26, 0.22, 0.48, 0.58])
+        x0 = int(W * float(hero[0]))
+        y0 = int(H * float(hero[1]))
+        x1 = int(W * float(hero[0] + hero[2]))
+        y1 = int(H * float(hero[1] + hero[3]))
+        box_w = max(1, x1 - x0)
+        box_h = max(1, y1 - y0)
+        scale = min(box_w / max(1, product.width), box_h / max(1, product.height))
+        scale = max(0.01, min(scale, 1.8))
+        preview_product = product.convert("RGBA").resize(
+            (
+                max(1, int(round(product.width * scale))),
+                max(1, int(round(product.height * scale))),
+            ),
+            getattr(getattr(Image, "Resampling", Image), "LANCZOS"),
+        )
+        px = x0 + max(0, (box_w - preview_product.width) // 2)
+        py = y0 + max(0, (box_h - preview_product.height) // 2)
+        preview.alpha_composite(preview_product, (px, py))
+        report.update({
+            "applied": True,
+            "hero_box_px": [x0, y0, x1, y1],
+            "preview_product_box_px": [px, py, preview_product.width, preview_product.height],
+            "preview_only": True,
+        })
+        return preview, report
+    except Exception as error:
+        report["reason"] = f"{type(error).__name__}: {error}"[:500]
+        return canvas, report
+
+
+def _graphic_hard_clear_hero_zone_v68810(
+    canvas,
+    hero_box_px,
+    footer_top_px,
+    scene_profile=None,
+):
+    """Last-resort deterministic clear that cannot preserve foreign product pixels.
+
+    This may simplify scenery inside the reserved product zone, but it guarantees
+    that no provider-created bezel, bracket, rail or duplicate product silhouette
+    is released behind the exact uploaded product.
+    """
+    report = {
+        "applied": False,
+        "engine": "hard-deterministic-hero-clear-v68810",
+        "provider_product_pixels_retained": True,
+    }
+    if Image is None or canvas is None:
+        report["reason"] = "image unavailable"
+        return canvas, report
+    try:
+        from PIL import ImageDraw, ImageFilter
+        base = canvas.convert("RGBA").copy()
+        W, H = base.size
+        x0, y0, x1, y1 = [int(v) for v in hero_box_px]
+        margin_x = max(10, int(W * 0.018))
+        margin_y = max(10, int(H * 0.018))
+        x0 = max(0, x0 - margin_x)
+        x1 = min(W, x1 + margin_x)
+        y0 = max(0, y0 - margin_y)
+        y1 = min(min(H, int(footer_top_px)), y1 + margin_y)
+        if x1 <= x0 or y1 <= y0:
+            report["reason"] = "invalid hero bounds"
+            return canvas, report
+
+        # Derive a calm scene-compatible fill from pixels immediately around the zone.
+        samples = []
+        rgb = base.convert("RGB")
+        sample_points = [
+            (max(0, x0 - 2), max(0, min(H - 1, (y0 + y1) // 2))),
+            (min(W - 1, x1 + 1), max(0, min(H - 1, (y0 + y1) // 2))),
+            (max(0, min(W - 1, (x0 + x1) // 2)), max(0, y0 - 2)),
+        ]
+        for sx, sy in sample_points:
+            try:
+                samples.append(rgb.getpixel((sx, sy)))
+            except Exception:
+                pass
+        if samples:
+            fill_rgb = tuple(int(sum(v[i] for v in samples) / len(samples)) for i in range(3))
+        else:
+            fill_rgb = (224, 229, 235)
+
+        patch = Image.new("RGBA", (x1 - x0, y1 - y0), (*fill_rgb, 255))
+        # Add a very gentle vertical luminance transition so the emergency clear
+        # does not appear as a flat rectangular card.
+        pd = ImageDraw.Draw(patch, "RGBA")
+        ph = max(1, patch.height)
+        for yy in range(ph):
+            delta = int(10 * (0.5 - yy / ph))
+            tone = tuple(max(0, min(255, c + delta)) for c in fill_rgb)
+            pd.line((0, yy, patch.width, yy), fill=(*tone, 255))
+        patch = patch.filter(ImageFilter.GaussianBlur(max(2.0, min(W, H) / 420.0)))
+
+        feather = Image.new("L", patch.size, 255)
+        edge = max(6, int(min(patch.size) * 0.045))
+        fd = ImageDraw.Draw(feather)
+        for i in range(edge):
+            alpha = int(255 * (i + 1) / edge)
+            fd.rectangle((i, i, patch.width - 1 - i, patch.height - 1 - i), outline=alpha)
+        patch.putalpha(feather)
+        base.alpha_composite(patch, (x0, y0))
+        report.update({
+            "applied": True,
+            "provider_product_pixels_retained": False,
+            "zone_px": [x0, y0, x1, y1],
+            "fill_rgb": list(fill_rgb),
+            "scene_preservation_priority": "secondary-to-product-authority",
+        })
+        return base, report
+    except Exception as error:
+        report["reason"] = f"{type(error).__name__}: {error}"[:500]
+        return canvas, report
+
+
 def _graphic_ai_art_direction_v68800(
     canvas,
     product,
@@ -18721,28 +18854,78 @@ def _graphic_project_context_text():
     return " | ".join(history[-6:])[:5000]
 
 
-def _infer_graphic_asset_role(prompt_text, state):
+def _infer_graphic_asset_role(prompt_text, state, uploaded=None):
+    """Infer one Graphic asset role without allowing internal prompts to pollute it.
+
+    Explicit user wording wins. With no explicit wording, the conversation-scoped
+    workflow assigns the first authoritative image as reference and the next as
+    product. A role attached to a materialized project upload is always preserved.
+    """
+    existing_role = str(
+        getattr(uploaded, "graphic_project_role", "")
+        or getattr(uploaded, "project_role", "")
+        or ""
+    ).strip().casefold()
+    if existing_role in {
+        "reference", "style_reference", "product", "product_photo",
+        "logo", "supporting",
+    }:
+        return existing_role
+
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
-        return "reference"
-    if any(term in text for term in ("logo", "brand mark")):
+    explicit_reference = any(term in text for term in (
+        "reference image", "reference photo", "reference advertisement",
+        "reference ad", "sample image", "sample photo", "template image",
+        "inspiration image", "use this as a template", "use this as reference",
+        "analyze this style", "analyse this style",
+    ))
+    explicit_product = any(term in text for term in (
+        "product image", "product photo", "product picture", "product source",
+        "exact product", "uploaded product", "this is the product",
+        "this is my product", "head unit photo", "screen photo", "unit photo",
+        "cluster photo", "radio photo",
+    ))
+    explicit_logo = any(term in text for term in (
+        "logo image", "brand logo", "brand mark",
+    ))
+
+    if explicit_logo:
         return "logo"
-    if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
+    if explicit_product and not explicit_reference:
         return "product"
-    stage = str((state or {}).get("stage") or "planning")
-    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
+    if explicit_reference and not explicit_product:
         return "reference"
-    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
+
+    assets = [
+        item for item in ((state or {}).get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ]
+    roles = {
+        str(item.get("role") or "").strip().casefold()
+        for item in assets
+    }
+    has_reference = bool({"reference", "style_reference"} & roles)
+    has_product = bool({"product", "product_photo"} & roles)
+
+    if not has_reference:
+        return "reference"
+    if not has_product:
         return "product"
     return "supporting"
 
 
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist image bytes and explicit project facts across Graphic turns."""
+    """Persist Graphic image bytes with sequential, state-aware role assignment.
+
+    The prompt passed here must be visible user wording only. File-only internal
+    analysis instructions are deliberately excluded because they contain generic
+    words such as "reference" that previously reclassified every product upload.
+    """
     state = _graphic_update_project_brief(prompt_text)
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
     added = []
+
     for uploaded in uploaded_files or []:
         mime = str(getattr(uploaded, "type", "") or "").casefold()
         if not mime.startswith("image/"):
@@ -18751,10 +18934,17 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             data = uploaded.getvalue()
         except Exception:
             continue
+        if not data:
+            continue
         digest = hashlib.sha256(data).hexdigest()
         if digest in known:
             continue
-        role = _infer_graphic_asset_role(prompt_text, state)
+
+        # Classify against the working state including every earlier image from
+        # this same upload batch.
+        working_state = dict(state)
+        working_state["assets"] = assets
+        role = _infer_graphic_asset_role(prompt_text, working_state, uploaded)
         record = {
             "id": digest,
             "name": str(getattr(uploaded, "name", "image")),
@@ -18762,22 +18952,44 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             "data": data,
             "role": role,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "classification_source_v68820": (
+                "preserved_role"
+                if str(
+                    getattr(uploaded, "graphic_project_role", "")
+                    or getattr(uploaded, "project_role", "")
+                    or ""
+                ).strip()
+                else "visible_user_prompt_or_state_sequence"
+            ),
         }
         assets.append(record)
         added.append(record)
         known.add(digest)
+
     if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
         assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
     state["assets"] = assets
+
+    # Repair legacy sessions created by the earlier attachment-only bug.
+    state = _graphic_repair_project_asset_roles_v68820(state)
+
     if added:
-        roles = {item.get("role") for item in added}
-        if "reference" in roles:
-            state["stage"] = "awaiting_product"
-        elif "product" in roles:
+        roles = {
+            str(item.get("role") or "").strip().casefold()
+            for item in (state.get("assets") or [])
+            if isinstance(item, dict)
+        }
+        if (
+            {"reference", "style_reference"} & roles
+            and {"product", "product_photo"} & roles
+        ):
             state["stage"] = "ready_to_generate"
+        elif {"reference", "style_reference"} & roles:
+            state["stage"] = "awaiting_product"
         else:
             state["stage"] = "assets_received"
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
+
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     _graphic_active_project_assets_v16000(state)
     _graphic_persist_project_v68400(state)
@@ -19039,9 +19251,63 @@ def _graphic_project_is_ready(state=None):
     return bool({"reference", "style_reference"} & roles) and bool({"product", "product_photo"} & roles)
 
 
+
+GRAPHIC_V68820_RELEASE = "v68820-upload-state-repair"
+
+
+def _graphic_repair_project_asset_roles_v68820(state=None):
+    """Repair sessions where attachment-only prompts marked every image reference."""
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    assets = [
+        item for item in (project.get("assets") or [])
+        if isinstance(item, dict)
+    ]
+    images = [
+        item for item in assets
+        if bytes(item.get("data") or b"")
+        and str(item.get("type") or "").casefold().startswith("image/")
+    ]
+    roles = {
+        str(item.get("role") or "").strip().casefold()
+        for item in images
+    }
+    has_reference = bool({"reference", "style_reference"} & roles)
+    has_product = bool({"product", "product_photo"} & roles)
+    changed = False
+
+    if len(images) >= 2 and has_reference and not has_product:
+        # Preserve the oldest reference and make the newest additional image the
+        # authoritative product. This exactly matches the guided reference-then-
+        # product workflow shown in the reported failure.
+        reference_kept = False
+        for item in images:
+            role = str(item.get("role") or "").strip().casefold()
+            if role in {"reference", "style_reference"} and not reference_kept:
+                item["role"] = "reference"
+                reference_kept = True
+                continue
+            item["role"] = "supporting"
+        images[-1]["role"] = "product"
+        images[-1]["role_repaired_v68820"] = True
+        changed = True
+
+    if changed:
+        project["assets"] = assets
+        project["stage"] = "ready_to_generate"
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+        diagnostic_log(
+            "graphic_v68820_attachment_role_repaired",
+            roles=[str(item.get("role") or "") for item in images],
+        )
+    return project
+
+
 def _graphic_repair_project_asset_roles_v15000(state=None):
     """Repair the common two-upload reference/product sequence without losing bytes."""
-    project = state if isinstance(state, dict) else get_graphic_project_state()
+    project = _graphic_repair_project_asset_roles_v68820(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
     assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
     image_assets = [item for item in assets if bytes(item.get("data") or b"")]
     roles = _graphic_project_role_set(project)
@@ -19229,16 +19495,108 @@ def _graphic_project_direct_action(prompt_text, state=None):
     return ""
 
 
-def _graphic_project_ready_message(state=None):
-    """Return a concise deterministic acknowledgement instead of campaign copy."""
-    project = state if isinstance(state, dict) else get_graphic_project_state()
-    products = [str(i.get("name") or "product image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"product", "product_photo"}]
-    references = [str(i.get("name") or "reference image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"reference", "style_reference"}]
-    return (
-        f"Product received: {products[-1] if products else 'the product photo'}. "
-        f"Reference locked: {references[-1] if references else 'the reference style'}. "
-        "The project is ready. Type ‘Create it’ to generate the commercial image."
+
+GRAPHIC_V69010_RELEASE = "v69010-upload-loop-router-fix"
+
+
+def _graphic_upload_state_message_v69010(state=None):
+    """Return a deterministic upload acknowledgement.
+
+    This function is the only response authority for image-bearing Graphic
+    Marketing upload-state turns. It never calls the language model and never infers upload
+    receipt from generated text.
+    """
+    project = _graphic_repair_project_asset_roles_v68820(
+        state if isinstance(state, dict) else get_graphic_project_state()
     )
+    assets = [
+        item for item in (project.get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ]
+    reference_items = [
+        item for item in assets
+        if str(item.get("role") or "").strip().casefold()
+        in {"reference", "style_reference"}
+    ]
+    product_items = [
+        item for item in assets
+        if str(item.get("role") or "").strip().casefold()
+        in {"product", "product_photo"}
+    ]
+
+    if reference_items and product_items:
+        project["stage"] = "ready_to_generate"
+        message = (
+            "Reference and product images are saved. I’m ready to create the new "
+            "marketing image using the reference style while preserving the exact "
+            "uploaded product. Send the design instructions or say “Create it.”"
+        )
+    elif reference_items:
+        project["stage"] = "awaiting_product"
+        message = (
+            "The reference image is saved. Please upload the exact product photo "
+            "you want used in the new marketing image."
+        )
+    elif product_items:
+        project["stage"] = "awaiting_reference"
+        message = (
+            "The product image is saved. Please upload the reference advertisement "
+            "or style image you want me to follow."
+        )
+    elif assets:
+        project["stage"] = "assets_received"
+        message = (
+            "The image is saved, but its role is not clear. Please say whether it "
+            "is the reference image or the exact product image."
+        )
+    else:
+        project["stage"] = "awaiting_reference"
+        message = (
+            "No usable image was received. Please upload the reference advertisement "
+            "and the exact product photo."
+        )
+
+    project["last_intent"] = "attachment_ack"
+    project["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+    _graphic_active_project_assets_v16000(project)
+    _graphic_persist_project_v68400(project)
+    diagnostic_log(
+        "graphic_upload_state_ack_v69010",
+        stage=project.get("stage"),
+        reference_count=len(reference_items),
+        product_count=len(product_items),
+        asset_count=len(assets),
+    )
+    return message
+
+
+def _graphic_project_ready_message(state=None):
+    """Acknowledge that both required images are saved and generation is ready."""
+    project = _graphic_repair_project_asset_roles_v68820(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
+    products = [
+        str(i.get("name") or "product image")
+        for i in (project.get("assets") or [])
+        if isinstance(i, dict)
+        and str(i.get("role") or "").casefold() in {"product", "product_photo"}
+    ]
+    references = [
+        str(i.get("name") or "reference image")
+        for i in (project.get("assets") or [])
+        if isinstance(i, dict)
+        and str(i.get("role") or "").casefold() in {"reference", "style_reference"}
+    ]
+    if references and products:
+        return (
+            "Reference and product images are saved. I’m ready to create the new "
+            "marketing image using the reference style while preserving the exact "
+            "uploaded product. Send the design instructions or say “Create it.”"
+        )
+    if references:
+        return "The reference image is saved. Please upload the exact product photo."
+    return "Please upload the reference advertisement and the exact product photo."
 
 
 def build_graphic_conversation_guardrail(intent, has_uploaded_images=False):
@@ -26646,37 +27004,6 @@ def _graphic_compose_reference_campaign_v3200(
         product,
         prompt_text,
     )
-    preliminary_scene_profile_v68800 = _graphic_scene_lighting_profile_v60000(
-        canvas,
-        (0, 0, max(1, product.width), max(1, product.height)),
-    )
-    ai_art_direction_v68800 = _graphic_ai_art_direction_v68800(
-        canvas,
-        product,
-        prompt_text,
-        campaign_spec,
-        preliminary_scene_profile_v68800,
-    )
-    product, ai_rotation_v68800 = _graphic_apply_ai_rotation_v68800(
-        product,
-        ai_art_direction_v68800,
-    )
-    transforms = dict(transforms or {})
-    transforms["product_scale"] = float(transforms.get("product_scale", 1.0)) * (
-        1.0 + _graphic_clamp_float_v68800(
-            ai_art_direction_v68800.get("scale_boost"), 0.0, 0.06, 0.025
-        )
-    )
-    transforms["product_dx"] = float(transforms.get("product_dx", 0.0)) + (
-        _graphic_clamp_float_v68800(
-            ai_art_direction_v68800.get("position_dx"), -0.018, 0.018, 0.0
-        )
-    )
-    transforms["product_dy"] = float(transforms.get("product_dy", 0.0)) + (
-        _graphic_clamp_float_v68800(
-            ai_art_direction_v68800.get("position_dy"), -0.018, 0.018, 0.0
-        )
-    )
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
 
@@ -26711,6 +27038,43 @@ def _graphic_compose_reference_campaign_v3200(
         # Do not run a second raw alpha getbbox(), which can either retain stray edge
         # pixels or re-crop delicate mounting details. Product geometry is now locked.
         pass
+
+    # v68810 gives the art director a preview of the proposed hero placement.
+    # The preview is advisory only; the exact uploaded product remains authoritative.
+    art_direction_preview_v68810, art_direction_preview_report_v68810 = (
+        _graphic_art_direction_preview_v68810(canvas, product, layout_bp)
+    )
+    preliminary_scene_profile_v68800 = _graphic_scene_lighting_profile_v60000(
+        canvas,
+        (0, 0, max(1, product.width), max(1, product.height)),
+    )
+    ai_art_direction_v68800 = _graphic_ai_art_direction_v68800(
+        art_direction_preview_v68810,
+        product,
+        prompt_text,
+        campaign_spec,
+        preliminary_scene_profile_v68800,
+    )
+    product, ai_rotation_v68800 = _graphic_apply_ai_rotation_v68800(
+        product,
+        ai_art_direction_v68800,
+    )
+    transforms = dict(transforms or {})
+    transforms["product_scale"] = float(transforms.get("product_scale", 1.0)) * (
+        1.0 + _graphic_clamp_float_v68800(
+            ai_art_direction_v68800.get("scale_boost"), 0.0, 0.06, 0.025
+        )
+    )
+    transforms["product_dx"] = float(transforms.get("product_dx", 0.0)) + (
+        _graphic_clamp_float_v68800(
+            ai_art_direction_v68800.get("position_dx"), -0.018, 0.018, 0.0
+        )
+    )
+    transforms["product_dy"] = float(transforms.get("product_dy", 0.0)) + (
+        _graphic_clamp_float_v68800(
+            ai_art_direction_v68800.get("position_dy"), -0.018, 0.018, 0.0
+        )
+    )
 
     # Reference-locked hero geometry. The analyzed product zone is authoritative;
     # aspect ratio is preserved and the exact product is never cropped or distorted.
@@ -26868,6 +27232,12 @@ def _graphic_compose_reference_campaign_v3200(
         "engine": "guaranteed-hero-zone-recovery-v68710",
         "reason": "primary hero-zone cleanup succeeded",
     }
+    hard_hero_clear_v68810 = {
+        "applied": False,
+        "engine": "hard-deterministic-hero-clear-v68810",
+        "reason": "not required",
+        "provider_product_pixels_retained": False,
+    }
     if design_mode == "reference_template" and not protected_product_zone_v55000.get("applied"):
         canvas, guaranteed_hero_zone_recovery_v68710 = (
             _graphic_guaranteed_hero_zone_recovery_v68710(
@@ -26887,13 +27257,30 @@ def _graphic_compose_reference_campaign_v3200(
             guaranteed_hero_zone_recovery_v68710.get("applied")
         )
         if not protected_product_zone_v55000.get("applied"):
-            # Do not substitute an AI-redrawn product. Record the diagnostic and
-            # continue with the exact product; the product itself covers the centre.
+            # v68810 never releases a reference-template image with an uncleared
+            # provider product zone. Replace that reserved zone deterministically,
+            # then continue with the exact uploaded product.
+            canvas, hard_hero_clear_v68810 = _graphic_hard_clear_hero_zone_v68810(
+                canvas,
+                (hero_x0, hero_y0, hero_x1, hero_y1),
+                footer_top_px,
+                lighting_profile,
+            )
             protected_product_zone_v55000.update({
-                "generation_continued": True,
+                "hard_hero_clear_v68810": hard_hero_clear_v68810,
+                "applied": bool(hard_hero_clear_v68810.get("applied")),
+                "generation_continued": bool(hard_hero_clear_v68810.get("applied")),
                 "enhancement_failure_nonblocking": True,
                 "exact_product_still_used": True,
+                "provider_product_pixels_retained": bool(
+                    hard_hero_clear_v68810.get("provider_product_pixels_retained", True)
+                ),
             })
+            if not protected_product_zone_v55000.get("applied"):
+                raise RuntimeError(
+                    "v68810 could not establish a clean product hero zone; "
+                    "the image was blocked to prevent false bezel or bracket release."
+                )
 
     # Stage 7: physically layered contact, ambient and directional shadows.
     shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v61000(product, (W,H), lighting_profile)
@@ -27157,6 +27544,8 @@ def _graphic_compose_reference_campaign_v3200(
         "protected_product_zone_v55000": protected_product_zone_v55000,
         "complete_hero_zone_v68600": complete_hero_zone_v68600,
         "guaranteed_hero_zone_recovery_v68710": guaranteed_hero_zone_recovery_v68710,
+        "hard_hero_clear_v68810": hard_hero_clear_v68810,
+        "art_direction_preview_v68810": art_direction_preview_report_v68810,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
@@ -50318,10 +50707,15 @@ else:
                 diagnostic_log("graphic_mobile_job_resumed_v68400", job_id=pending_job_v68400.get("job_id"))
 
     native_attachment_only_submit = bool(
-        isinstance(prompt, str)
-        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
-        and uploaded_files
+        uploaded_files
         and active_structured_tool is None
+        and (
+            not str(prompt or "").strip()
+            or (
+                isinstance(prompt, str)
+                and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
+            )
+        )
     )
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
@@ -50339,7 +50733,12 @@ else:
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
 
-        if assistant == "🎨 Graphic Marketing" and not graphic_mobile_resume_v68400:
+        if (
+            assistant == "🎨 Graphic Marketing"
+            and not graphic_mobile_resume_v68400
+            and not uploaded_files
+            and not attachment_only_mode
+        ):
             _graphic_queue_mobile_job_v68400(
                 interaction_prompt,
                 uploaded_files,
@@ -50363,7 +50762,15 @@ else:
             st.stop()
 
         if assistant == "🎨 Graphic Marketing":
-            remember_graphic_project_assets(effective_uploaded_files, interaction_prompt)
+            graphic_asset_role_prompt_v68820 = (
+                ""
+                if attachment_only_mode
+                else interaction_prompt
+            )
+            remember_graphic_project_assets(
+                effective_uploaded_files,
+                graphic_asset_role_prompt_v68820,
+            )
         graphic_generation_files = (
             graphic_project_uploaded_files(effective_uploaded_files)
             if assistant == "🎨 Graphic Marketing"
@@ -50522,6 +50929,12 @@ else:
             and isinstance(active_structured_tool, dict)
             and isinstance(active_structured_tool.get("graphic_options"), dict)
         )
+        if assistant == "🎨 Graphic Marketing":
+            repaired_graphic_project_v68820 = _graphic_repair_project_asset_roles_v68820(
+                get_graphic_project_state()
+            )
+            _graphic_active_project_assets_v16000(repaired_graphic_project_v68820)
+
         graphic_chat_intent = (
             classify_graphic_chat_intent(
                 interaction_prompt,
@@ -50532,7 +50945,7 @@ else:
             else "conversation"
         )
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
-            graphic_chat_intent = "analyze"
+            graphic_chat_intent = "attachment_ack"
         if assistant == "🎨 Graphic Marketing" and not attachment_only_mode:
             # v8400: contextual create/edit consent outranks ordinary conversation
             # and campaign-copy drafting once reference + product are ready.
@@ -50545,11 +50958,6 @@ else:
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
         )
-        is_graphic_project_ready_ack = bool(
-            assistant == "🎨 Graphic Marketing"
-            and attachment_only_mode
-            and _graphic_project_is_ready(get_graphic_project_state())
-        )
         is_graphic_reference_learning = (
             is_graphic_reference_style_learning_request(
                 assistant,
@@ -50557,6 +50965,23 @@ else:
                 effective_uploaded_files,
                 explicit_learning=explicit_learning_requested,
             )
+        )
+        # v69010: Every image-bearing Graphic turn is owned by the deterministic
+        # project-state router unless the same turn explicitly requests generation,
+        # editing, or reference-style learning. This covers both blank uploads and
+        # uploads accompanied by text such as "this is the reference/product".
+        is_graphic_upload_state_turn = bool(
+            assistant == "🎨 Graphic Marketing"
+            and has_uploaded_images
+            and not is_graphic_generation
+            and not is_graphic_reference_learning
+            and not explicit_learning_requested
+            and not is_structured_graphic_request
+        )
+        is_graphic_attachment_ack = is_graphic_upload_state_turn
+        is_graphic_project_ready_ack = bool(
+            is_graphic_upload_state_turn
+            and _graphic_project_is_ready(get_graphic_project_state())
         )
         if is_graphic_reference_learning:
             # Learning uploaded references must never be misrouted to Image Edit.
@@ -50611,7 +51036,18 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if is_graphic_reference_learning:
+        if is_graphic_attachment_ack:
+            response_start_time = time.time()
+            graphic_project = get_graphic_project_state()
+            answer = _graphic_upload_state_message_v69010(graphic_project)
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif is_graphic_reference_learning:
             response_start_time = time.time()
             try:
                 with st.spinner("Analyzing and saving reference style..."):
@@ -51155,7 +51591,11 @@ else:
             and graphic_tool_request.get("prompt")
         )
 
-        if not is_woocommerce_request and not is_graphic_reference_learning:
+        if (
+            not is_woocommerce_request
+            and not is_graphic_reference_learning
+            and not is_graphic_attachment_ack
+        ):
             queue_ai_postprocess(
                 interaction_prompt,
                 answer,
