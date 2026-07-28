@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68640 FINAL LTS — Mandatory Product Geometry and Flexible Fitment Release Gates
+# AutoTecPro AI Graphic Marketing Engine v68670 FINAL LTS — Current-Prompt Authority and Release-Gate Correction
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18396,63 +18396,50 @@ def _graphic_v68640_copy_components(value):
 
 
 
-def _graphic_v68640_expected_copy_authority(prompt_text):
-    """Resolve immutable copy only from explicit user/product facts, never style-template copy."""
-    state = get_graphic_project_state()
-    spec = dict(state.get("campaign_spec") or {})
-    history_items = [str(x or "") for x in (state.get("project_brief_history") or [])[-8:]]
-    history = " ".join(history_items)
-    prompt = str(prompt_text or "")
 
-    explicit_fitment = _graphic_explicit_fitment_v41100(prompt)
-    compatibility = _graphic_extract_full_compatibility_v36000(
-        prompt if explicit_fitment else " ".join([prompt, history]),
-        spec.get("compatibility") or "",
-    )
+def _graphic_v68640_expected_copy_authority(prompt_text):
+    """Resolve mandatory copy only from the current user instruction.
+
+    Style-reference analysis and older project brief history are visual guidance,
+    not product identity. They must never create mandatory product wording for the
+    current product.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+
+    # Compatibility is authoritative only when present in the current instruction.
+    # The existing v66200 extractor preserves multi-model and full year-range copy.
+    compatibility = _graphic_extract_full_compatibility_v36000(prompt, "")
 
     explicit_size = re.search(
-        r"\b\d{1,2}(?:\.\d)?\s*(?:inch(?:es)?|[\"”])(?:\s*(?:hd|qhd|uhd|4k))?\b",
+        r"\b\d{1,2}(?:\.\d)?\s*(?:inch(?:es)?|[\"”])"
+        r"(?:\s*(?:hd|qhd|uhd|4k))?\b",
         prompt,
         re.I,
     )
     screen_size = explicit_size.group(0) if explicit_size else ""
 
-    # Product designation is mandatory only when the user or verified product facts
-    # actually supplied one. Never inherit the style reference's product title.
+    # Product designation is mandatory only when the current user instruction
+    # explicitly supplies it. Never scan project history because that history can
+    # contain the style reference's title, such as "digital gauge cluster".
     designation_patterns = (
         r"\b(?:digital\s+gauge\s+cluster|instrument\s+cluster)\b",
-        r"\b(?:multimedia\s+screen|infotainment\s+system|head\s+unit)\b",
+        r"\b(?:multimedia\s+screen|touchscreen\s+upgrade|infotainment\s+system|head\s+unit)\b",
         r"\b(?:android\s+radio|navigation\s+system|stereo\s+system)\b",
     )
     product_designation = ""
-    prompt_and_history = " ".join([prompt, history])
     for pattern in designation_patterns:
-        match = re.search(pattern, prompt_and_history, re.I)
+        match = re.search(pattern, prompt, re.I)
         if match:
             product_designation = match.group(0)
             break
-
-    # A verified product designation may be used only when it is also present in
-    # user/product history. This prevents a gauge-cluster style reference from
-    # forcing its title onto a Toyota multimedia-screen advertisement.
-    if not product_designation:
-        candidate = str(
-            spec.get("product_designation")
-            or spec.get("product_category")
-            or ""
-        ).strip()
-        candidate_tokens = _graphic_v68640_copy_components(candidate).get("tokens") or []
-        history_tokens = set(
-            _graphic_v68640_copy_components(prompt_and_history).get("tokens") or []
-        )
-        if candidate_tokens and all(token in history_tokens for token in candidate_tokens):
-            product_designation = candidate
 
     return {
         "compatibility": compatibility,
         "screen_size": screen_size,
         "product_designation": product_designation,
+        "authority_source": "current-user-instruction-only",
     }
+
 
 
 
@@ -18485,8 +18472,9 @@ def _graphic_v68640_observed_copy_authority(image):
     return {"compatibility": compatibility, "all_copy": observed_all}
 
 
+
 def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
-    """Fail closed when full fitment, size or product designation is narrowed."""
+    """Fail closed only on copy that the current user explicitly supplied."""
     expected = _graphic_v68640_expected_copy_authority(prompt_text)
     observed = _graphic_v68640_observed_copy_authority(image)
     expected_fit = _graphic_v68640_copy_components(expected.get("compatibility"))
@@ -18498,40 +18486,57 @@ def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
         if not observed_fit["canonical"]:
             issues.append("rendered compatibility evidence is unavailable")
         else:
-            missing_tokens = [x for x in expected_fit["tokens"] if x not in observed_fit["tokens"]]
+            missing_tokens = [
+                token for token in expected_fit["tokens"]
+                if token not in observed_fit["tokens"]
+            ]
             if missing_tokens:
-                issues.append("compatibility wording was narrowed; missing: " + ", ".join(missing_tokens))
+                issues.append(
+                    "compatibility wording was narrowed; missing: "
+                    + ", ".join(missing_tokens)
+                )
             for year_range in expected_fit["year_ranges"]:
                 if year_range not in observed_fit["year_ranges"]:
-                    issues.append("full year range was not preserved: " + "-".join(year_range))
+                    issues.append(
+                        "full year range was not preserved: "
+                        + "–".join(year_range)
+                    )
             for year in expected_fit["years"]:
                 if year not in observed_fit["years"]:
-                    issues.append("compatibility year was not preserved: " + year)
+                    issues.append(
+                        "compatibility year was not preserved: " + year
+                    )
 
-    expected_all = _graphic_v68640_copy_components(" ".join([
-        expected.get("screen_size") or "",
-        expected.get("product_designation") or "",
-    ]))
-    for size in expected_all["screen_sizes"]:
+    # Screen size and product designation are release blockers only when they were
+    # explicitly present in this current instruction.
+    explicit_size = _graphic_v68640_copy_components(
+        expected.get("screen_size") or ""
+    )
+    for size in explicit_size["screen_sizes"]:
         if size not in observed_all["screen_sizes"]:
             issues.append("screen size was not preserved: " + size)
 
-    designation_tokens = [
-        token for token in expected_all["tokens"]
-        if token not in set(expected_all["years"])
-        and not re.fullmatch(r"\d{1,2}(?:\.\d)?", token)
+    explicit_designation = _graphic_v68640_copy_components(
+        expected.get("product_designation") or ""
+    )
+    missing_designation = [
+        token for token in explicit_designation["tokens"]
+        if token not in observed_all["tokens"]
     ]
-    missing_designation = [token for token in designation_tokens if token not in observed_all["tokens"]]
     if missing_designation:
-        issues.append("product designation was narrowed; missing: " + ", ".join(missing_designation))
+        issues.append(
+            "product designation was narrowed; missing: "
+            + ", ".join(missing_designation)
+        )
 
     return {
         "passed": not issues,
         "issues": issues,
         "expected": expected,
         "observed": observed,
-        "policy": "v68640-flexible-fitment-wording-authority",
+        "policy": "v68670-current-prompt-flexible-fitment-authority",
     }
+
 
 
 
@@ -18638,26 +18643,34 @@ def _graphic_v68640_mandatory_release_gate(
             "typography", "lighting", "glass", "shadows", "performance",
             "caching", "provider_routing",
         ],
-        "policy": "v68650-permanent-production-release-gates",
+        "policy": "v68670-permanent-production-release-gates",
     }
     return report
+
 
 
 def _graphic_finalize_recovery_v16000(
     images, route_name, failures=None, *, prompt_text="", uploaded_files=None,
     forced_upload_role="Auto-detect", preserve_product=True,
 ):
-    """Normalize results and enforce mandatory geometry/fitment release blockers."""
+    """Normalize results and enforce geometry/fitment blockers without schema drift."""
     normalized = []
     rejected = []
+
     for image in images or []:
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
+
         image = dict(image)
-        image["graphic_engine_version"] = "v68650-positive-proof-authority-gates"
+        image["graphic_engine_version"] = "v68670-current-prompt-authority"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
-        image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
+        image.setdefault(
+            "verification_status",
+            "unverified" if route_name != "advanced"
+            else image.get("verification_status"),
+        )
+
         gate = _graphic_v68640_mandatory_release_gate(
             image,
             prompt_text,
@@ -18667,23 +18680,43 @@ def _graphic_finalize_recovery_v16000(
             route_name=route_name,
         )
         image["mandatory_release_gate_v68640"] = gate
+
         if not gate.get("passed"):
-            rejected.extend(gate.get("issues") or ["mandatory release gate failed"])
+            route_issues = [
+                f"{route_name}: {issue}"
+                for issue in (gate.get("issues") or ["mandatory release gate failed"])
+            ]
+            rejected.extend(route_issues)
             diagnostic_log(
-                "graphic_v68640_release_blocked",
+                "graphic_v68670_release_blocked",
                 route=route_name,
+                reference_mode=gate.get("reference_mode"),
                 issues=gate.get("issues") or [],
+                geometry_tier=(
+                    ((gate.get("geometry") or {}).get("proof") or {}).get("tier")
+                ),
+                expected_copy=(gate.get("fitment") or {}).get("expected"),
+                observed_copy=(gate.get("fitment") or {}).get("observed"),
             )
             continue
-        image["verification_status"] = "verified-v68640-release-gates"
+
+        image["verification_status"] = "verified-v68670-release-gates"
         normalized.append(image)
+
     if not normalized:
-        detail = " | ".join(list(dict.fromkeys(str(x) for x in rejected))[:8])
+        detail = " | ".join(
+            list(dict.fromkeys(str(item) for item in rejected))[:10]
+        )
         raise RuntimeError(
             f"{route_name} returned no releasable image result. "
-            + (detail or "Mandatory product-geometry or fitment proof was unavailable.")
+            + (
+                detail
+                or "Mandatory product-geometry or fitment proof was unavailable."
+            )
         )
+
     return normalized
+
 
 
 def _graphic_project_direct_action(prompt_text, state=None):
