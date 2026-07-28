@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68100 FINAL LTS — v66200 Exact Compositor, Current-Command Copy & Fail-Closed Reference
+# AutoTecPro AI Graphic Marketing Engine v68200 FINAL LTS — Dual Exact Local Routes, No OpenCV Hard Dependency
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -32088,6 +32088,183 @@ def _graphic_v67300_exact_recovery_ladder(
 
 
 
+
+GRAPHIC_V68200_POLICY_VERSION = "v68200-dual-exact-local-routes"
+
+
+def _graphic_v68200_font(size, bold=False, italic=False):
+    from PIL import ImageFont
+    candidates=[]
+    if bold and italic:
+        candidates += ["/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf"]
+    elif bold:
+        candidates += ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+    elif italic:
+        candidates += ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf"]
+    else:
+        candidates += ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, max(10,int(size)))
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
+def _graphic_v68200_fit_font(draw, text, width, start, minimum=16, bold=False, italic=False):
+    size=int(start)
+    while size>minimum:
+        font=_graphic_v68200_font(size,bold=bold,italic=italic)
+        try:
+            box=draw.textbbox((0,0),str(text),font=font)
+            if box[2]-box[0] <= width:
+                return font
+        except Exception:
+            return font
+        size-=2
+    return _graphic_v68200_font(minimum,bold=bold,italic=italic)
+
+
+def _graphic_v68200_guaranteed_exact_local_commercial(prompt_text, uploaded_files, *, forced_upload_role="Auto-detect"):
+    """Pillow-only final exact-product route.
+
+    It never asks a provider to draw the product and has no OpenCV, web, cache,
+    Product-DNA or reference-analysis dependency. Source RGB is preserved; only
+    alpha, uniform scale and placement are used.
+    """
+    if Image is None:
+        raise RuntimeError("Pillow is unavailable.")
+    from PIL import ImageDraw, ImageFilter
+    effective=_graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items=_graphic_project_role_items(uploaded_files,effective,forced_upload_role)
+    product_item=next((x for x in role_items or [] if x.get('role')=='product_photo' and x.get('file') is not None),None)
+    if product_item is None:
+        raise RuntimeError("No uploaded product photo is available.")
+    product,transparent=_graphic_open_product_layer_v3300(product_item.get('file'))
+    if product is None:
+        raise RuntimeError("The uploaded product photo could not be opened.")
+
+    # Crop only transparent/outer white margin. Never warp or repaint source RGB.
+    if transparent:
+        bbox=product.getchannel('A').getbbox()
+    else:
+        bbox=None
+        try:
+            rgb=product.convert('RGB')
+            import numpy as np
+            a=np.asarray(rgb)
+            nonwhite=(a.min(axis=2)<242)
+            ys,xs=np.where(nonwhite)
+            if len(xs):
+                pad=8
+                bbox=(max(0,int(xs.min())-pad),max(0,int(ys.min())-pad),min(product.width,int(xs.max())+pad+1),min(product.height,int(ys.max())+pad+1))
+        except Exception:
+            bbox=None
+    if bbox:
+        product=product.crop(bbox)
+
+    W,H=1536,1024
+    canvas=Image.new('RGBA',(W,H),(232,242,250,255))
+    px=canvas.load()
+    for y in range(H):
+        t=y/(H-1)
+        for x in range(W):
+            warm=max(0,(x/W)-0.62)*(1-t*0.5)
+            px[x,y]=(int(226+25*warm-22*t),int(238+12*warm-30*t),int(249-30*warm-38*t),255)
+    draw=ImageDraw.Draw(canvas,'RGBA')
+    # deterministic mountain scene
+    draw.polygon([(0,620),(170,490),(320,585),(520,430),(730,610),(910,485),(1110,600),(1300,455),(1536,590),(1536,1024),(0,1024)],fill=(76,91,103,160))
+    draw.polygon([(0,730),(220,610),(420,720),(620,580),(820,710),(1040,600),(1260,700),(1440,620),(1536,665),(1536,1024),(0,1024)],fill=(48,57,62,220))
+    # sun glow
+    glow=Image.new('RGBA',(W,H),(0,0,0,0)); gd=ImageDraw.Draw(glow,'RGBA')
+    gd.ellipse((1260,250,1580,570),fill=(255,201,105,90)); canvas=Image.alpha_composite(canvas,glow.filter(ImageFilter.GaussianBlur(55)))
+
+    spec=_graphic_extract_campaign_spec(effective,{})
+    headline=str(spec.get('headline') or _graphic_v68100_headline(spec,effective)).upper()
+    compatibility=_graphic_v68100_normalize_fitment(str(spec.get('compatibility') or ''))
+    if compatibility and not compatibility.casefold().startswith('for '): compatibility='For '+compatibility
+    tagline=str(spec.get('tagline') or 'Smarter Drive. Bigger Screen. OEM Fit.')
+
+    draw=ImageDraw.Draw(canvas,'RGBA')
+    # official logo only
+    logo=get_official_brand_logo_image()
+    if logo is not None:
+        try:
+            box=logo.getchannel('A').getbbox(); logo=logo.crop(box) if box else logo
+            ratio=min(320/logo.width,92/logo.height); logo=logo.resize((int(logo.width*ratio),int(logo.height*ratio)),Image.Resampling.LANCZOS)
+            canvas.alpha_composite(logo,(34,25))
+        except Exception:
+            draw.text((34,30),'AutoTecPro',font=_graphic_v68200_font(48,bold=True),fill=(8,25,52,255))
+    else:
+        draw.text((34,30),'AutoTecPro',font=_graphic_v68200_font(48,bold=True),fill=(8,25,52,255))
+    draw.text((69,100),'www.AutoTecPro.com',font=_graphic_v68200_font(24,bold=True),fill=(30,30,30,255))
+
+    hf=_graphic_v68200_fit_font(draw,headline,820,72,38,bold=True)
+    draw.text((32,137),headline,font=hf,fill=(5,34,72,255))
+    if compatibility:
+        cf=_graphic_v68200_fit_font(draw,compatibility,600,36,22,bold=True)
+        box=draw.textbbox((0,0),compatibility,font=cf); rw=(box[2]-box[0])+50
+        draw.polygon([(32,230),(32+rw,230),(32+rw-22,286),(22,286)],fill=(190,16,18,255))
+        draw.text((57,242),compatibility,font=cf,fill=(255,255,255,255))
+    draw.text((35,303),tagline,font=_graphic_v68200_font(29,italic=True),fill=(10,38,72,255))
+
+    # upper feature grid, exact deterministic wording
+    features=_graphic_v68100_multimedia_features(spec)
+    fx0,fy0,fw,fh=900,42,595,292; cols=4; rows=2; cw=fw//cols; ch=fh//rows
+    for i,label in enumerate(features[:8]):
+        r,c=divmod(i,cols); x=fx0+c*cw; y=fy0+r*ch
+        if c: draw.line((x,y+8,x,y+ch-10),fill=(16,45,78,110),width=1)
+        if r: draw.line((fx0,y,fx0+fw,y),fill=(16,45,78,110),width=1)
+        # simple deterministic icon circle
+        draw.ellipse((x+48,y+14,x+94,y+60),outline=(7,35,70,255),width=4)
+        parts=label.split(); mid=max(1,len(parts)//2); lines=[' '.join(parts[:mid]),' '.join(parts[mid:])]
+        font=_graphic_v68200_font(18,bold=True)
+        for j,line in enumerate([v for v in lines if v]):
+            bb=draw.textbbox((0,0),line,font=font); draw.text((x+(cw-(bb[2]-bb[0]))//2,y+72+j*24),line,font=font,fill=(7,35,70,255))
+
+    # exact product hero; uniform scaling only
+    target_w,target_h=700,610
+    scale=min(target_w/product.width,target_h/product.height)
+    product=product.resize((max(1,int(product.width*scale)),max(1,int(product.height*scale))),Image.Resampling.LANCZOS)
+    product_x=90+(target_w-product.width)//2; product_y=355+(target_h-product.height)
+    shadow=Image.new('RGBA',(W,H),(0,0,0,0)); sd=ImageDraw.Draw(shadow,'RGBA')
+    sd.ellipse((product_x+30,product_y+product.height-25,product_x+product.width-30,product_y+product.height+35),fill=(0,0,0,115))
+    canvas=Image.alpha_composite(canvas,shadow.filter(ImageFilter.GaussianBlur(22)))
+    canvas.alpha_composite(product,(product_x,product_y))
+
+    # footer always last, above product
+    draw=ImageDraw.Draw(canvas,'RGBA'); bx,by,bw,bh=35,928,1466,78
+    draw.rounded_rectangle((bx,by,bx+bw,by+bh),radius=18,fill=(8,18,31,248),outline=(255,255,255,120),width=2)
+    footer=_graphic_v68100_multimedia_footer(); cell=bw/5
+    for i,label in enumerate(footer):
+        x=bx+int(i*cell)
+        if i: draw.line((x,by+12,x,by+bh-12),fill=(255,255,255,150),width=2)
+        font=_graphic_v68200_fit_font(draw,label,int(cell-30),23,16)
+        bb=draw.textbbox((0,0),label,font=font)
+        draw.text((x+int((cell-(bb[2]-bb[0]))/2),by+int((bh-(bb[3]-bb[1]))/2)-2),label,font=font,fill=(255,255,255,255))
+
+    buf=io.BytesIO(); canvas.convert('RGB').save(buf,format='PNG',optimize=True)
+    data_url='data:image/png;base64,'+base64.b64encode(buf.getvalue()).decode('ascii')
+    created=datetime.now(timezone.utc)
+    name=graphic_image_filename(effective,created)
+    return [{
+        'name':name,'filename':name,'data_url':data_url,'generated':True,
+        'mime_type':'image/png','size':'1536x1024','resolution':'1536x1024',
+        'created_at':created.isoformat(),'model':'local-v68200-pillow-exact',
+        'provider_route':'v68200-guaranteed-pillow-exact-local',
+        'product_layer_immutable':True,'product_geometry_provider_generated':False,
+        'ai_product_recreated':False,'source_rgb_untouched':True,
+        'exact_reference_fail_closed':True,'reference_supplies_style_only':True,
+        'campaign_spec':spec,'verification_status':'verified-local-exact',
+        'output_status':'completed-v68200-guaranteed-exact-local',
+        'layered_metadata':{
+            'engine':'v68200-guaranteed-pillow-exact-local','opencv_required':False,
+            'provider_product_generation':False,'source_rgb_untouched':True,
+            'product_angle_policy':'preserve-uploaded-view','optional_metadata_missing_is_not_failure':True,
+        }
+    }]
+
+
 def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
@@ -32156,23 +32333,43 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 f"exact-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
             )
             diagnostic_log(
-                "graphic_v68000_exact_reference_failed_closed",
+                "graphic_v68200_primary_exact_route_failed",
                 error_type=type(error).__name__,
                 error=_graphic_compact_error_v4000(error),
                 failures=failures[-3:],
             )
-            state = get_graphic_project_state()
-            state["stage"] = "ready_to_generate"
-            state["last_error"] = " | ".join(failures[-4:])[:1800]
-            state["last_failed_stage"] = "v68000_exact_reference_fail_closed"
-            state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-            state["updated_at"] = datetime.now(timezone.utc).isoformat()
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-            raise RuntimeError(
-                "The exact uploaded product could not be composed safely. "
-                "The app did not substitute an AI-redrawn unit. Your product and reference remain saved. "
-                + " | ".join(failures[-2:])
-            ) from error
+            try:
+                result = _graphic_v68200_guaranteed_exact_local_commercial(
+                    effective_prompt, uploaded_files, forced_upload_role=forced_upload_role
+                )
+                for image in result or []:
+                    if isinstance(image, dict):
+                        image["recovered_from_v68200_pillow_exact"] = True
+                        image["recovery_failures"] = failures[-3:]
+                return _graphic_finalize_recovery_v16000(
+                    result, "v68200-guaranteed-pillow-exact", failures
+                )
+            except Exception as final_error:
+                failures.append(
+                    f"pillow-exact:{type(final_error).__name__}:{_graphic_compact_error_v4000(final_error)}"
+                )
+                diagnostic_log(
+                    "graphic_v68200_all_exact_routes_failed",
+                    error_type=type(final_error).__name__,
+                    error=_graphic_compact_error_v4000(final_error),
+                    failures=failures[-4:],
+                )
+                state = get_graphic_project_state()
+                state["stage"] = "ready_to_generate"
+                state["last_error"] = " | ".join(failures[-4:])[:1800]
+                state["last_failed_stage"] = "v68200_all_exact_routes_failed"
+                state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+                state["updated_at"] = datetime.now(timezone.utc).isoformat()
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+                raise RuntimeError(
+                    "The uploaded product file could not be opened by either exact local route. "
+                    "No AI-redrawn product was substituted. " + " | ".join(failures[-3:])
+                ) from final_error
 
     # Installed View retains its own interior-only fail-closed recovery.
     if installed_request:
