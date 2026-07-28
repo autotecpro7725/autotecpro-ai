@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68670 FINAL LTS — Current-Prompt Authority and Release-Gate Correction
+# AutoTecPro AI Graphic Marketing Engine v68690 FINAL LTS — v67610 State Machine, v66200 Return Path, and Upload Idempotency
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -4430,6 +4430,59 @@ def render_managed_upload_preview(record, delete_key, on_delete):
             on_click=on_delete,
         )
 
+
+
+def _chat_submission_fingerprint_v68690(
+    assistant, prompt_text, upload_records, generation_number,
+    *, attachment_only=False, conversation_id=None,
+):
+    """Create a stable fingerprint for one browser submission lifecycle."""
+    upload_ids = sorted(
+        str(record.get("id") or "")
+        for record in (upload_records or [])
+        if isinstance(record, dict) and str(record.get("id") or "")
+    )
+    payload = {
+        "assistant": str(assistant or ""),
+        "conversation_id": str(conversation_id or ""),
+        "prompt": str(prompt_text or "").strip(),
+        "upload_ids": upload_ids,
+        "upload_generation": int(generation_number or 0),
+        "attachment_only": bool(attachment_only),
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _chat_submission_is_duplicate_v68690(fingerprint):
+    """Reject the same attachment submission replayed by a Streamlit rerun."""
+    value = str(fingerprint or "")
+    if not value:
+        return False
+    return value in {
+        str(st.session_state.get("_atp_active_submission_v68690") or ""),
+        str(st.session_state.get("_atp_last_completed_submission_v68690") or ""),
+    }
+
+
+def _chat_submission_begin_v68690(fingerprint):
+    value = str(fingerprint or "")
+    if value:
+        st.session_state["_atp_active_submission_v68690"] = value
+
+
+def _chat_submission_complete_v68690(fingerprint):
+    value = str(fingerprint or "")
+    if value:
+        st.session_state["_atp_last_completed_submission_v68690"] = value
+    if str(st.session_state.get("_atp_active_submission_v68690") or "") == value:
+        st.session_state.pop("_atp_active_submission_v68690", None)
 
 ATTACHMENT_ONLY_CHAT_SENTINEL = "\u200b"
 
@@ -18398,16 +18451,14 @@ def _graphic_v68640_copy_components(value):
 
 
 def _graphic_v68640_expected_copy_authority(prompt_text):
-    """Resolve mandatory copy only from the current user instruction.
+    """Resolve mandatory product copy only from the current user instruction.
 
-    Style-reference analysis and older project brief history are visual guidance,
-    not product identity. They must never create mandatory product wording for the
-    current product.
+    Reference analysis, campaign templates, representative vehicles, and prior
+    project history are visual guidance only. They cannot create mandatory wording
+    for a different product.
     """
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
 
-    # Compatibility is authoritative only when present in the current instruction.
-    # The existing v66200 extractor preserves multi-model and full year-range copy.
     compatibility = _graphic_extract_full_compatibility_v36000(prompt, "")
 
     explicit_size = re.search(
@@ -18418,9 +18469,6 @@ def _graphic_v68640_expected_copy_authority(prompt_text):
     )
     screen_size = explicit_size.group(0) if explicit_size else ""
 
-    # Product designation is mandatory only when the current user instruction
-    # explicitly supplies it. Never scan project history because that history can
-    # contain the style reference's title, such as "digital gauge cluster".
     designation_patterns = (
         r"\b(?:digital\s+gauge\s+cluster|instrument\s+cluster)\b",
         r"\b(?:multimedia\s+screen|touchscreen\s+upgrade|infotainment\s+system|head\s+unit)\b",
@@ -18472,9 +18520,8 @@ def _graphic_v68640_observed_copy_authority(image):
     return {"compatibility": compatibility, "all_copy": observed_all}
 
 
-
 def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
-    """Fail closed only on copy that the current user explicitly supplied."""
+    """Fail closed when full fitment, size or product designation is narrowed."""
     expected = _graphic_v68640_expected_copy_authority(prompt_text)
     observed = _graphic_v68640_observed_copy_authority(image)
     expected_fit = _graphic_v68640_copy_components(expected.get("compatibility"))
@@ -18486,57 +18533,40 @@ def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
         if not observed_fit["canonical"]:
             issues.append("rendered compatibility evidence is unavailable")
         else:
-            missing_tokens = [
-                token for token in expected_fit["tokens"]
-                if token not in observed_fit["tokens"]
-            ]
+            missing_tokens = [x for x in expected_fit["tokens"] if x not in observed_fit["tokens"]]
             if missing_tokens:
-                issues.append(
-                    "compatibility wording was narrowed; missing: "
-                    + ", ".join(missing_tokens)
-                )
+                issues.append("compatibility wording was narrowed; missing: " + ", ".join(missing_tokens))
             for year_range in expected_fit["year_ranges"]:
                 if year_range not in observed_fit["year_ranges"]:
-                    issues.append(
-                        "full year range was not preserved: "
-                        + "–".join(year_range)
-                    )
+                    issues.append("full year range was not preserved: " + "-".join(year_range))
             for year in expected_fit["years"]:
                 if year not in observed_fit["years"]:
-                    issues.append(
-                        "compatibility year was not preserved: " + year
-                    )
+                    issues.append("compatibility year was not preserved: " + year)
 
-    # Screen size and product designation are release blockers only when they were
-    # explicitly present in this current instruction.
-    explicit_size = _graphic_v68640_copy_components(
-        expected.get("screen_size") or ""
-    )
-    for size in explicit_size["screen_sizes"]:
+    expected_all = _graphic_v68640_copy_components(" ".join([
+        expected.get("screen_size") or "",
+        expected.get("product_designation") or "",
+    ]))
+    for size in expected_all["screen_sizes"]:
         if size not in observed_all["screen_sizes"]:
             issues.append("screen size was not preserved: " + size)
 
-    explicit_designation = _graphic_v68640_copy_components(
-        expected.get("product_designation") or ""
-    )
-    missing_designation = [
-        token for token in explicit_designation["tokens"]
-        if token not in observed_all["tokens"]
+    designation_tokens = [
+        token for token in expected_all["tokens"]
+        if token not in set(expected_all["years"])
+        and not re.fullmatch(r"\d{1,2}(?:\.\d)?", token)
     ]
+    missing_designation = [token for token in designation_tokens if token not in observed_all["tokens"]]
     if missing_designation:
-        issues.append(
-            "product designation was narrowed; missing: "
-            + ", ".join(missing_designation)
-        )
+        issues.append("product designation was narrowed; missing: " + ", ".join(missing_designation))
 
     return {
         "passed": not issues,
         "issues": issues,
         "expected": expected,
         "observed": observed,
-        "policy": "v68670-current-prompt-flexible-fitment-authority",
+        "policy": "v68640-flexible-fitment-wording-authority",
     }
-
 
 
 
@@ -18643,34 +18673,26 @@ def _graphic_v68640_mandatory_release_gate(
             "typography", "lighting", "glass", "shadows", "performance",
             "caching", "provider_routing",
         ],
-        "policy": "v68670-permanent-production-release-gates",
+        "policy": "v68650-permanent-production-release-gates",
     }
     return report
-
 
 
 def _graphic_finalize_recovery_v16000(
     images, route_name, failures=None, *, prompt_text="", uploaded_files=None,
     forced_upload_role="Auto-detect", preserve_product=True,
 ):
-    """Normalize results and enforce geometry/fitment blockers without schema drift."""
+    """Normalize results and enforce mandatory geometry/fitment release blockers."""
     normalized = []
     rejected = []
-
     for image in images or []:
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
-
         image = dict(image)
-        image["graphic_engine_version"] = "v68670-current-prompt-authority"
+        image["graphic_engine_version"] = "v68650-positive-proof-authority-gates"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
-        image.setdefault(
-            "verification_status",
-            "unverified" if route_name != "advanced"
-            else image.get("verification_status"),
-        )
-
+        image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
         gate = _graphic_v68640_mandatory_release_gate(
             image,
             prompt_text,
@@ -18680,43 +18702,23 @@ def _graphic_finalize_recovery_v16000(
             route_name=route_name,
         )
         image["mandatory_release_gate_v68640"] = gate
-
         if not gate.get("passed"):
-            route_issues = [
-                f"{route_name}: {issue}"
-                for issue in (gate.get("issues") or ["mandatory release gate failed"])
-            ]
-            rejected.extend(route_issues)
+            rejected.extend(gate.get("issues") or ["mandatory release gate failed"])
             diagnostic_log(
-                "graphic_v68670_release_blocked",
+                "graphic_v68640_release_blocked",
                 route=route_name,
-                reference_mode=gate.get("reference_mode"),
                 issues=gate.get("issues") or [],
-                geometry_tier=(
-                    ((gate.get("geometry") or {}).get("proof") or {}).get("tier")
-                ),
-                expected_copy=(gate.get("fitment") or {}).get("expected"),
-                observed_copy=(gate.get("fitment") or {}).get("observed"),
             )
             continue
-
-        image["verification_status"] = "verified-v68670-release-gates"
+        image["verification_status"] = "verified-v68640-release-gates"
         normalized.append(image)
-
     if not normalized:
-        detail = " | ".join(
-            list(dict.fromkeys(str(item) for item in rejected))[:10]
-        )
+        detail = " | ".join(list(dict.fromkeys(str(x) for x in rejected))[:8])
         raise RuntimeError(
             f"{route_name} returned no releasable image result. "
-            + (
-                detail
-                or "Mandatory product-geometry or fitment proof was unavailable."
-            )
+            + (detail or "Mandatory product-geometry or fitment proof was unavailable.")
         )
-
     return normalized
-
 
 
 def _graphic_project_direct_action(prompt_text, state=None):
@@ -33085,11 +33087,181 @@ def _graphic_v68200_guaranteed_exact_local_commercial(prompt_text, uploaded_file
     }]
 
 
-def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True,
-                                      preserve_product=True, style_strength="High",
-                                      forced_upload_role="Auto-detect", quality_retry=True,
-                                      product_transform_mode="Auto", professional_layered_studio=True):
-    """Public Graphic API with bounded professional and emergency recovery routes."""
+
+def _graphic_v68680_normalize_usable_images(images, route_name, failures=None):
+    """Return usable image dictionaries without running metadata proof wrappers."""
+    normalized = []
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        if not str(image.get("data_url") or "").strip():
+            continue
+        item = dict(image)
+        item["graphic_engine_version"] = "v68680-v67610-state-machine"
+        item["generation_route_v68680"] = route_name
+        item["recovery_failures"] = list(failures or [])[-4:]
+        normalized.append(item)
+    return normalized
+
+
+def _graphic_v68680_direct_release_blockers(
+    images, prompt_text, uploaded_files, *, forced_upload_role="Auto-detect",
+    preserve_product=True, route_name="",
+):
+    """Block only direct geometry corruption or direct fitment narrowing.
+
+    Missing optional metadata, proof-schema fields, campaign-zone manifests, and
+    provider diagnostics are never treated as affirmative evidence that the image
+    is wrong.
+    """
+    images = list(images or [])
+    role_items = _graphic_project_role_items(
+        uploaded_files, prompt_text, forced_upload_role
+    )
+    has_product = any(
+        item.get("role") == "product_photo" for item in role_items or []
+    )
+    has_style = any(
+        item.get("role") == "style_reference" for item in role_items or []
+    )
+    reference_mode = bool(preserve_product and has_product and has_style)
+
+    issues = []
+    diagnostics = []
+
+    if reference_mode:
+        violation = _graphic_v66860_direct_product_violation(images)
+        if violation and violation != "missing generated image":
+            issues.append("geometry: " + violation)
+
+        proof = _graphic_v67100_exact_proof(images)
+        if not proof.get("passed"):
+            diagnostics.extend(proof.get("issues") or [])
+        else:
+            diagnostics.append(
+                "geometry proof tier: " + str(proof.get("tier") or "unknown")
+            )
+
+    fitment = _graphic_v67100_fitment_gate(
+        images,
+        prompt_text,
+        required=bool(reference_mode),
+        route_name=route_name,
+    )
+    # A fitment gate blocks only when it has actual observed copy and proves
+    # narrowing. Unavailable optional metadata remains diagnostic.
+    if fitment.get("available") and not fitment.get("passed"):
+        issues.extend(
+            "fitment: " + str(item)
+            for item in (fitment.get("issues") or [])
+        )
+    elif not fitment.get("available"):
+        diagnostics.append("fitment metadata unavailable; not treated as narrowing")
+
+    primitive = any(
+        "v68200-guaranteed-pillow" in str(image.get("provider_route") or "").casefold()
+        or "local-v68200-pillow" in str(image.get("model") or "").casefold()
+        for image in images if isinstance(image, dict)
+    )
+    if primitive:
+        issues.append(
+            "quality: primitive Pillow draft fallback is not a production result"
+        )
+
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "diagnostics": diagnostics,
+        "reference_mode": reference_mode,
+        "fitment": fitment,
+        "route": route_name,
+        "policy": "v68680-direct-evidence-only-release-blockers",
+    }
+
+
+def _graphic_v68680_stage_result(
+    route_name, runner, *, prompt_text, uploaded_files,
+    forced_upload_role="Auto-detect", preserve_product=True, failures=None,
+):
+    """Execute one route in isolation and return a structured stage result."""
+    try:
+        raw_images = runner()
+    except Exception as error:
+        reason = (
+            f"{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v68680_stage_exception",
+            route=route_name,
+            reason=reason,
+        )
+        return {
+            "success": False,
+            "images": [],
+            "reason": reason,
+            "route": route_name,
+            "blocked": False,
+            "blockers": {},
+        }
+
+    images = _graphic_v68680_normalize_usable_images(
+        raw_images, route_name, failures
+    )
+    if not images:
+        return {
+            "success": False,
+            "images": [],
+            "reason": "route returned no usable image",
+            "route": route_name,
+            "blocked": False,
+            "blockers": {},
+        }
+
+    blockers = _graphic_v68680_direct_release_blockers(
+        images,
+        prompt_text,
+        uploaded_files,
+        forced_upload_role=forced_upload_role,
+        preserve_product=preserve_product,
+        route_name=route_name,
+    )
+    for image in images:
+        image["direct_release_blockers_v68680"] = blockers
+
+    if not blockers.get("passed"):
+        reason = "; ".join(blockers.get("issues") or ["direct release blocker"])
+        diagnostic_log(
+            "graphic_v68680_stage_blocked",
+            route=route_name,
+            reason=reason,
+        )
+        return {
+            "success": False,
+            "images": [],
+            "reason": reason,
+            "route": route_name,
+            "blocked": True,
+            "blockers": blockers,
+        }
+
+    return {
+        "success": True,
+        "images": images,
+        "reason": "",
+        "route": route_name,
+        "blocked": False,
+        "blockers": blockers,
+    }
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v67610-style public state machine with the proven v66200 return path."""
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -33099,144 +33271,144 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
-    failures = []
     effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
-    project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+    failures = []
+
+    project = _graphic_repair_project_asset_roles_v15000(
+        get_graphic_project_state()
+    )
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-    try:
-        return _graphic_finalize_recovery_v16000(
-            _generate_graphic_marketing_images_advanced(
-                effective_prompt, uploaded_files, **arguments
-            ),
-            "advanced",
-            failures,
-            prompt_text=effective_prompt,
-            uploaded_files=uploaded_files,
-            forced_upload_role=forced_upload_role,
-            preserve_product=preserve_product,
-        )
-    except Exception as error:
-        failures.append(
-            f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_advanced_pipeline_recovery",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
 
-    # Installed View must fail closed to an interior-only recovery. Generic legacy
-    # or emergency routes are not allowed to turn it into a commercial poster.
-    if installed_request:
-        try:
-            result = _graphic_installed_view_recovery_v47000(
-                effective_prompt, uploaded_files,
-                output_size="1536x1024",
-                forced_upload_role=forced_upload_role,
-            )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["recovered_from_v47000"] = True
-                    image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(
-                result,
-                "installed-view-only-v47000",
-                failures,
-                prompt_text=effective_prompt,
-                uploaded_files=uploaded_files,
-                forced_upload_role=forced_upload_role,
-                preserve_product=preserve_product,
-            )
-        except Exception as error:
-            failures.append(
-                f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v47000_installed_recovery_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
-            )
-            state = get_graphic_project_state()
-            state["stage"] = "ready_to_generate"
-            state["last_error"] = " | ".join(failures[-4:])[:1800]
-            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-            raise RuntimeError(
-                "Installed View generation failed safely. The app did not substitute a commercial poster. "
-                + " | ".join(failures[-3:])
-            ) from error
+    stages = []
 
-    # The earlier v3200 path has fewer governance/QA dependencies and is retained
-    # only for non-installed compatibility recovery.
-    try:
-        result = _generate_graphic_marketing_images_advanced_v3200(
-            effective_prompt, uploaded_files, **arguments
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["recovered_from_v15000"] = True
-                image["recovery_failures"] = failures[-2:]
-        return _graphic_finalize_recovery_v16000(
-            result,
-            "v3200-compatibility",
-            failures,
-            prompt_text=effective_prompt,
-            uploaded_files=uploaded_files,
-            forced_upload_role=forced_upload_role,
-            preserve_product=preserve_product,
-        )
-    except Exception as error:
-        failures.append(
-            f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_v3200_pipeline_recovery",
-            error_type=type(error).__name__,
-            error=_graphic_compact_error_v4000(error),
-        )
-
-    try:
-        result = _graphic_emergency_provider_result_v15000(
+    # Stage 1 — proven public behavior:
+    # a usable advanced image returns immediately unless direct affirmative
+    # geometry corruption or fitment narrowing is detected.
+    stages.append((
+        "advanced",
+        lambda: _generate_graphic_marketing_images_advanced(
             effective_prompt,
             uploaded_files,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
-        )
-        for image in result or []:
-            if isinstance(image, dict):
-                image["recovery_failures"] = failures[-3:]
-        return _graphic_finalize_recovery_v16000(
-            result,
+            **arguments,
+        ),
+    ))
+
+    # Installed View remains interior-only and must never become a poster.
+    if installed_request:
+        stages.append((
+            "installed-view-only-v47000",
+            lambda: _graphic_installed_view_recovery_v47000(
+                effective_prompt,
+                uploaded_files,
+                output_size="1536x1024",
+                forced_upload_role=forced_upload_role,
+            ),
+        ))
+    else:
+        # The complete v66200 compatibility route remains the first recovery.
+        stages.append((
+            "v3200-compatibility",
+            lambda: _generate_graphic_marketing_images_advanced_v3200(
+                effective_prompt,
+                uploaded_files,
+                **arguments,
+            ),
+        ))
+        stages.append((
             "emergency-provider",
-            failures,
+            lambda: _graphic_emergency_provider_result_v15000(
+                effective_prompt,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+            ),
+        ))
+
+    stage_results = []
+    for route_name, runner in stages:
+        result = _graphic_v68680_stage_result(
+            route_name,
+            runner,
             prompt_text=effective_prompt,
             uploaded_files=uploaded_files,
             forced_upload_role=forced_upload_role,
             preserve_product=preserve_product,
+            failures=failures,
         )
-    except Exception as error:
-        failures.append(
-            f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-        )
-        diagnostic_log(
-            "graphic_v15000_all_routes_failed",
-            failures=failures[-4:],
-        )
-        state = get_graphic_project_state()
-        state["stage"] = "ready_to_generate"
-        state["last_error"] = " | ".join(failures[-4:])[:1800]
-        state["last_failed_stage"] = "all_generation_routes"
-        state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        stage_results.append(result)
+
+        if result.get("success") and result.get("images"):
+            images = result["images"]
+            for image in images:
+                image["generation_state_machine_v68680"] = {
+                    "success": True,
+                    "accepted_route": route_name,
+                    "attempts": [
+                        {
+                            "route": item.get("route"),
+                            "success": bool(item.get("success")),
+                            "blocked": bool(item.get("blocked")),
+                            "reason": str(item.get("reason") or "")[:500],
+                        }
+                        for item in stage_results
+                    ],
+                }
+            diagnostic_log(
+                "graphic_v68680_stage_accepted",
+                route=route_name,
+                attempts=len(stage_results),
+            )
+            return images
+
+        reason = str(result.get("reason") or "route failed")
+        failures.append(f"{route_name}:{reason}")
+
+        # Installed View intentionally stops after its dedicated safe recovery.
+        if installed_request and route_name == "installed-view-only-v47000":
+            break
+
+    state = get_graphic_project_state()
+    state["stage"] = "ready_to_generate"
+    state["last_error"] = " | ".join(failures[-6:])[:1800]
+    state["last_failed_stage"] = (
+        "installed_view_routes"
+        if installed_request
+        else "all_generation_routes"
+    )
+    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+    diagnostic_log(
+        "graphic_v68680_all_stages_failed",
+        attempts=[
+            {
+                "route": item.get("route"),
+                "blocked": bool(item.get("blocked")),
+                "reason": str(item.get("reason") or "")[:300],
+            }
+            for item in stage_results
+        ],
+    )
+
+    if installed_request:
         raise RuntimeError(
-            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
+            "Installed View failed safely after all dedicated interior routes. "
+            "No commercial poster was substituted. "
             + " | ".join(failures[-3:])
-        ) from error
+        )
+
+    raise RuntimeError(
+        "All established image-generation routes failed or had a direct "
+        "product-geometry/fitment violation. Your project remains saved. "
+        + " | ".join(failures[-4:])
+    )
+
 
 
 
@@ -49866,6 +50038,32 @@ else:
     if attachment_only_mode:
         prompt = build_attachment_only_chat_prompt(assistant)
 
+    submission_fingerprint_v68690 = ""
+    if prompt and uploaded_files:
+        submission_fingerprint_v68690 = _chat_submission_fingerprint_v68690(
+            assistant,
+            prompt,
+            list(st.session_state.get("chat_managed_uploads") or []),
+            st.session_state.get("chat_managed_upload_generation", 0),
+            attachment_only=attachment_only_mode,
+            conversation_id=st.session_state.get("conversation_id"),
+        )
+        if _chat_submission_is_duplicate_v68690(
+            submission_fingerprint_v68690
+        ):
+            diagnostic_log(
+                "chat_duplicate_upload_submission_blocked_v68690",
+                assistant=str(assistant),
+                attachment_only=attachment_only_mode,
+                upload_count=len(uploaded_files or []),
+                fingerprint=submission_fingerprint_v68690[:16],
+            )
+            prompt = None
+        else:
+            _chat_submission_begin_v68690(
+                submission_fingerprint_v68690
+            )
+
     if prompt:
         user_display = (
             ""
@@ -50713,6 +50911,13 @@ else:
                 explicit_learning=explicit_learning_requested,
                 learning_context=learning_context_snapshot,
             )
+
+        # Complete the idempotent submission lifecycle before clearing uploads.
+        # A browser/fragment rerun carrying the same upload generation cannot append
+        # the same image turn again.
+        _chat_submission_complete_v68690(
+            submission_fingerprint_v68690
+        )
 
         # Clear only the transient composer upload selection. Graphic image bytes
         # remain in the conversation-scoped Graphic Project until New Case is used.
