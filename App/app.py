@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68630 FINAL LTS — v66200 Commercial Output Restored with v68620 Duplicate Message Fix
+# AutoTecPro AI Graphic Marketing Engine v68640 FINAL LTS — Mandatory Product Geometry and Flexible Fitment Release Gates
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18358,20 +18358,273 @@ def _graphic_safe_reference_blueprint_v16000(blueprint=None):
     return bp
 
 
-def _graphic_finalize_recovery_v16000(images, route_name, failures=None):
-    """Normalize recovery results and preserve honest, actionable metadata."""
+def _graphic_v68640_canonical_authority_text(value):
+    """Normalize copy for authority comparison without narrowing its meaning."""
+    value = html.unescape(str(value or ""))
+    value = value.replace("–", "-").replace("—", "-").replace("−", "-")
+    value = value.casefold()
+    value = re.sub(r"\bfor\b", " ", value)
+    value = re.sub(r"[^a-z0-9.]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _graphic_v68640_copy_components(value):
+    """Return release-blocking fitment, size, model and designation components."""
+    raw = html.unescape(str(value or ""))
+    canonical = _graphic_v68640_canonical_authority_text(raw)
+    years = [
+        (str(a), str(b))
+        for a, b in re.findall(r"\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})\b", raw)
+    ]
+    standalone_years = re.findall(r"\b(?:19|20)\d{2}\b", raw)
+    sizes = [
+        re.sub(r"\s+", "", x.casefold()).replace("inches", '"').replace("inch", '"')
+        for x in re.findall(r"\b\d{1,2}(?:\.\d)?\s*(?:inch(?:es)?|[\"”])", raw, re.I)
+    ]
+    stop = {
+        "for", "and", "or", "the", "with", "from", "to", "of", "a", "an",
+        "compatible", "compatibility", "fits", "fit", "vehicle", "vehicles",
+    }
+    tokens = [token for token in canonical.split() if token not in stop]
+    return {
+        "canonical": canonical,
+        "year_ranges": years,
+        "years": standalone_years,
+        "screen_sizes": sizes,
+        "tokens": tokens,
+    }
+
+
+def _graphic_v68640_expected_copy_authority(prompt_text):
+    """Resolve immutable fitment/product copy from the current command and project facts."""
+    state = get_graphic_project_state()
+    spec = dict(state.get("campaign_spec") or {})
+    history = " ".join(str(x or "") for x in (state.get("project_brief_history") or [])[-8:])
+    prompt = str(prompt_text or "")
+    explicit = _graphic_explicit_fitment_v41100(prompt)
+    compatibility = _graphic_extract_full_compatibility_v36000(
+        prompt if explicit else " ".join([prompt, history]),
+        spec.get("compatibility") or "",
+    )
+    screen_size = str(spec.get("screen_size") or "").strip()
+    product_designation = str(
+        spec.get("product_designation")
+        or spec.get("product_category")
+        or spec.get("headline")
+        or ""
+    ).strip()
+    explicit_size = re.search(
+        r"\b\d{1,2}(?:\.\d)?\s*(?:inch(?:es)?|[\"”])(?:\s*(?:hd|qhd|uhd|4k))?\b",
+        prompt,
+        re.I,
+    )
+    if explicit_size:
+        screen_size = explicit_size.group(0)
+    return {
+        "compatibility": compatibility,
+        "screen_size": screen_size,
+        "product_designation": product_designation,
+    }
+
+
+def _graphic_v68640_observed_copy_authority(image):
+    """Collect deterministic copy evidence carried by a generated result."""
+    image = dict(image or {})
+    spec = dict(image.get("campaign_spec") or {})
+    layered = dict(image.get("layered_metadata") or {})
+    compatibility = next((
+        re.sub(r"\s+", " ", str(value)).strip()
+        for value in (
+            image.get("rendered_compatibility"),
+            image.get("deterministic_fitment_copy"),
+            spec.get("compatibility"),
+            layered.get("compatibility"),
+            image.get("compatibility"),
+        )
+        if str(value or "").strip()
+    ), "")
+    observed_all = " ".join(str(x or "") for x in (
+        compatibility,
+        spec.get("screen_size"),
+        spec.get("product_designation"),
+        spec.get("product_category"),
+        spec.get("headline"),
+        layered.get("screen_size"),
+        layered.get("product_designation"),
+        image.get("rendered_text"),
+    ))
+    return {"compatibility": compatibility, "all_copy": observed_all}
+
+
+def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
+    """Fail closed when full fitment, size or product designation is narrowed."""
+    expected = _graphic_v68640_expected_copy_authority(prompt_text)
+    observed = _graphic_v68640_observed_copy_authority(image)
+    expected_fit = _graphic_v68640_copy_components(expected.get("compatibility"))
+    observed_fit = _graphic_v68640_copy_components(observed.get("compatibility"))
+    observed_all = _graphic_v68640_copy_components(observed.get("all_copy"))
+    issues = []
+
+    if expected_fit["canonical"]:
+        if not observed_fit["canonical"]:
+            issues.append("rendered compatibility evidence is unavailable")
+        else:
+            missing_tokens = [x for x in expected_fit["tokens"] if x not in observed_fit["tokens"]]
+            if missing_tokens:
+                issues.append("compatibility wording was narrowed; missing: " + ", ".join(missing_tokens))
+            for year_range in expected_fit["year_ranges"]:
+                if year_range not in observed_fit["year_ranges"]:
+                    issues.append("full year range was not preserved: " + "-".join(year_range))
+            for year in expected_fit["years"]:
+                if year not in observed_fit["years"]:
+                    issues.append("compatibility year was not preserved: " + year)
+
+    expected_all = _graphic_v68640_copy_components(" ".join([
+        expected.get("screen_size") or "",
+        expected.get("product_designation") or "",
+    ]))
+    for size in expected_all["screen_sizes"]:
+        if size not in observed_all["screen_sizes"]:
+            issues.append("screen size was not preserved: " + size)
+
+    designation_tokens = [
+        token for token in expected_all["tokens"]
+        if token not in set(expected_all["years"])
+        and not re.fullmatch(r"\d{1,2}(?:\.\d)?", token)
+    ]
+    missing_designation = [token for token in designation_tokens if token not in observed_all["tokens"]]
+    if missing_designation:
+        issues.append("product designation was narrowed; missing: " + ", ".join(missing_designation))
+
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "expected": expected,
+        "observed": observed,
+        "policy": "v68640-flexible-fitment-wording-authority",
+    }
+
+
+def _graphic_v68640_geometry_release_gate(image, role_items, *, required):
+    """Require positive immutable-product proof in Reference Mode."""
+    if not required:
+        return {"passed": True, "issues": [], "required": False}
+    image = dict(image or {})
+    layered = dict(image.get("layered_metadata") or {})
+    issues = []
+    proof = _graphic_v67100_exact_proof([image])
+    if not proof.get("passed"):
+        issues.extend(str(x) for x in (proof.get("issues") or ["immutable-product proof unavailable"]))
+
+    if layered.get("product_pixels_provider_generated") is not False:
+        issues.append("provider-generated product pixels were not explicitly excluded")
+    if layered.get("product_ai_reconstruction_prohibited") is not True:
+        issues.append("AI product reconstruction prohibition was not proven")
+    if image.get("product_geometry_provider_generated") is True or image.get("ai_product_recreated") is True:
+        issues.append("direct evidence indicates an AI-redrawn product")
+
+    # Where the deterministic compositor provides a complete provenance manifest,
+    # enforce its stronger source-hash and source-RGB checks too.
+    provenance_available = bool(layered.get("product_source_sha256"))
+    provenance = {}
+    if provenance_available:
+        provenance = _graphic_product_provenance_gate_v52000(image, role_items)
+        if not provenance.get("passed"):
+            issues.extend(str(x) for x in (provenance.get("issues") or []))
+
+    return {
+        "passed": not issues,
+        "issues": list(dict.fromkeys(issues)),
+        "required": True,
+        "proof": proof,
+        "provenance": provenance,
+        "policy": "v68640-reference-mode-product-geometry-authority",
+    }
+
+
+def _graphic_v68640_mandatory_release_gate(
+    image, prompt_text, uploaded_files, *, forced_upload_role="Auto-detect",
+    preserve_product=True, route_name="",
+):
+    """Apply the two permanent release blockers before any image can be returned."""
+    role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
+    has_product = any(item.get("role") == "product_photo" for item in role_items or [])
+    has_style = any(item.get("role") == "style_reference" for item in role_items or [])
+    reference_mode = bool(preserve_product and has_product and has_style)
+
+    geometry = _graphic_v68640_geometry_release_gate(
+        image, role_items, required=reference_mode,
+    )
+    fitment = _graphic_v68640_flexible_fitment_release_gate(image, prompt_text)
+    primitive = (
+        "v68200-guaranteed-pillow" in str(image.get("provider_route") or "").casefold()
+        or "local-v68200-pillow" in str(image.get("model") or "").casefold()
+    )
+    issues = []
+    if not geometry.get("passed"):
+        issues.extend("geometry: " + str(x) for x in geometry.get("issues") or [])
+    if not fitment.get("passed"):
+        issues.extend("fitment: " + str(x) for x in fitment.get("issues") or [])
+    if primitive:
+        issues.append("primitive draft fallback is prohibited as a production commercial result")
+
+    report = {
+        "passed": not issues,
+        "issues": issues,
+        "reference_mode": reference_mode,
+        "geometry": geometry,
+        "fitment": fitment,
+        "route": route_name,
+        "priority_order": [
+            "product_geometry", "flexible_fitment_wording", "reference_layout",
+            "typography", "lighting", "glass", "shadows", "performance",
+            "caching", "provider_routing",
+        ],
+        "policy": "v68640-permanent-production-release-gates",
+    }
+    return report
+
+
+def _graphic_finalize_recovery_v16000(
+    images, route_name, failures=None, *, prompt_text="", uploaded_files=None,
+    forced_upload_role="Auto-detect", preserve_product=True,
+):
+    """Normalize results and enforce mandatory geometry/fitment release blockers."""
     normalized = []
+    rejected = []
     for image in images or []:
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
         image = dict(image)
-        image["graphic_engine_version"] = "v16000-graphic-stability"
+        image["graphic_engine_version"] = "v68640-mandatory-authority-gates"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
         image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
+        gate = _graphic_v68640_mandatory_release_gate(
+            image,
+            prompt_text,
+            uploaded_files,
+            forced_upload_role=forced_upload_role,
+            preserve_product=preserve_product,
+            route_name=route_name,
+        )
+        image["mandatory_release_gate_v68640"] = gate
+        if not gate.get("passed"):
+            rejected.extend(gate.get("issues") or ["mandatory release gate failed"])
+            diagnostic_log(
+                "graphic_v68640_release_blocked",
+                route=route_name,
+                issues=gate.get("issues") or [],
+            )
+            continue
+        image["verification_status"] = "verified-v68640-release-gates"
         normalized.append(image)
     if not normalized:
-        raise RuntimeError(f"{route_name} returned no usable image result.")
+        detail = " | ".join(list(dict.fromkeys(str(x) for x in rejected))[:8])
+        raise RuntimeError(
+            f"{route_name} returned no releasable image result. "
+            + (detail or "Mandatory product-geometry or fitment proof was unavailable.")
+        )
     return normalized
 
 
@@ -32765,9 +33018,17 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     try:
-        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
-            effective_prompt, uploaded_files, **arguments
-        ), "advanced", failures)
+        return _graphic_finalize_recovery_v16000(
+            _generate_graphic_marketing_images_advanced(
+                effective_prompt, uploaded_files, **arguments
+            ),
+            "advanced",
+            failures,
+            prompt_text=effective_prompt,
+            uploaded_files=uploaded_files,
+            forced_upload_role=forced_upload_role,
+            preserve_product=preserve_product,
+        )
     except Exception as error:
         failures.append(
             f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
@@ -32791,7 +33052,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 if isinstance(image, dict):
                     image["recovered_from_v47000"] = True
                     image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
+            return _graphic_finalize_recovery_v16000(
+                result,
+                "installed-view-only-v47000",
+                failures,
+                prompt_text=effective_prompt,
+                uploaded_files=uploaded_files,
+                forced_upload_role=forced_upload_role,
+                preserve_product=preserve_product,
+            )
         except Exception as error:
             failures.append(
                 f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
@@ -32820,7 +33089,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             if isinstance(image, dict):
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
-        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
+        return _graphic_finalize_recovery_v16000(
+            result,
+            "v3200-compatibility",
+            failures,
+            prompt_text=effective_prompt,
+            uploaded_files=uploaded_files,
+            forced_upload_role=forced_upload_role,
+            preserve_product=preserve_product,
+        )
     except Exception as error:
         failures.append(
             f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
@@ -32841,7 +33118,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         for image in result or []:
             if isinstance(image, dict):
                 image["recovery_failures"] = failures[-3:]
-        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
+        return _graphic_finalize_recovery_v16000(
+            result,
+            "emergency-provider",
+            failures,
+            prompt_text=effective_prompt,
+            uploaded_files=uploaded_files,
+            forced_upload_role=forced_upload_role,
+            preserve_product=preserve_product,
+        )
     except Exception as error:
         failures.append(
             f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
