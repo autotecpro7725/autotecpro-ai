@@ -46,7 +46,9 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68200 FINAL LTS — Dual Exact Local Routes, No OpenCV Hard Dependency
+# AutoTecPro AI Graphic Marketing Engine v68300 FINAL LTS — True v66200 Graphic Pipeline Rollback with Latest App Shell
+
+GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -17190,15 +17192,16 @@ def _graphic_v68100_multimedia_footer():
 
 
 def _graphic_extract_campaign_spec(text, existing=None):
-    """Extract commercial facts with current-command authority and v66200 fitment."""
+    """Extract durable commercial copy facts and object-level follow-up edits."""
     existing = dict(existing or {})
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     if not value:
         return existing
-
     lower = value.casefold()
-    facts = _graphic_v68100_current_product_facts(value)
 
+    # Parse complete product fitment before resolving the one representative scene
+    # vehicle. A scene vehicle must never collapse F-150/F-250/F-350 fitment into
+    # only F-150.
     explicit_fitment = _graphic_explicit_fitment_v41100(value)
     vehicle = _graphic_extract_explicit_vehicle(value)
     if vehicle:
@@ -17206,24 +17209,14 @@ def _graphic_extract_campaign_spec(text, existing=None):
         display_name = str(vehicle.get("display_name") or "").strip()
         if display_name and not explicit_fitment and not existing.get("compatibility"):
             existing["compatibility"] = display_name
-
     if explicit_fitment:
-        existing["compatibility"] = _graphic_v68100_normalize_fitment(
-            explicit_fitment
-        )
-        existing["compatibility_source"] = "current_user_prompt_v68100"
+        existing["compatibility"] = explicit_fitment
+        existing["compatibility_source"] = "current_user_prompt_v41100"
         existing["compatibility_locked"] = True
 
-    if facts.get("screen_size"):
-        existing["screen_size"] = facts["screen_size"]
-    if facts.get("display_grade"):
-        existing["display_grade"] = facts["display_grade"]
-
-    # The current request determines product identity. The style reference never
-    # supplies its gauge-cluster category to a multimedia-screen campaign.
-    existing["product_designation"] = facts["product_designation"]
-    existing["product_category"] = facts["product_designation"]
-    existing["product_designation_source"] = "current_job_v68100"
+    size_match = re.search(r"\b(\d{1,2}(?:\.\d)?)\s*(?:inch|inches|[\"”])\b", value, re.I)
+    if size_match:
+        existing["screen_size"] = size_match.group(1) + '\"'
 
     labelled = {
         "headline": r"(?i)\bheadline\s*[:\-]\s*([^|;]{4,120})",
@@ -17232,47 +17225,49 @@ def _graphic_extract_campaign_spec(text, existing=None):
         "website": r"(?i)\bwebsite\s*[:\-]\s*([^|;\s]{4,100})",
         "product_category": r"(?i)\b(?:product category|product name|category)\s*[:\-]\s*([^|;]{3,120})",
     }
-    explicit_headline = False
     for key, pattern in labelled.items():
         match = re.search(pattern, value)
-        if not match:
-            continue
-        candidate = re.sub(r"\s+", " ", match.group(1)).strip(" .")
-        if key == "compatibility":
-            candidate = _graphic_extract_full_compatibility_v36000(
-                candidate, candidate
-            )
-            candidate = _graphic_v68100_normalize_fitment(candidate)
-            if not existing.get("compatibility_locked"):
+        if match:
+            candidate = re.sub(r"\s+", " ", match.group(1)).strip(" .")
+            if key == "compatibility":
+                candidate = _graphic_extract_full_compatibility_v36000(candidate, candidate)
+                if not existing.get("compatibility_locked"):
+                    existing[key] = candidate
+            else:
                 existing[key] = candidate
-        else:
-            existing[key] = candidate
-            if key == "headline":
-                explicit_headline = True
 
     quoted = re.findall(r'["“]([^"”]{4,140})["”]', value)
-    if quoted and any(
-        term in lower for term in ("headline", "title", "say", "write", "text")
-    ):
+    if quoted and any(term in lower for term in ("headline", "title", "say", "write", "text")):
         existing["headline"] = quoted[0].strip()
-        explicit_headline = True
 
     edit = _graphic_parse_followup_edit_v4200(value, existing)
     for key, val in (edit.get("copy_updates") or {}).items():
         if str(val).strip():
             existing[key] = str(val).strip()
-            if key == "headline":
-                explicit_headline = True
 
+    if "silverado" in lower:
+        existing["vehicle_label"] = "CHEVROLET SILVERADO"
+    elif re.search(r"\bf[\s-]?150\b", lower):
+        existing["vehicle_label"] = "FORD F-150"
+
+    # Do not invent universal product facts. Preserve legacy values only when they
+    # already exist; otherwise use neutral wording until the user/Product Library
+    # supplies a verified category and size.
     existing.setdefault("website", "www.AutoTecPro.com")
-    existing.setdefault("tagline", "Smarter Drive. Bigger Screen. OEM Fit.")
-
-    if not explicit_headline:
-        existing["headline"] = _graphic_v68100_headline(existing, value)
-        existing["headline_source"] = "current_command_v68100"
-
-    existing["feature_labels"] = _graphic_v68100_multimedia_features(existing)
-    existing["bottom_benefits"] = _graphic_v68100_multimedia_footer()
+    existing.setdefault("tagline", "Smarter Drive. More Control. All in Sight.")
+    existing.setdefault("product_category", "PREMIUM INFOTAINMENT SYSTEM")
+    existing.setdefault("feature_labels", [
+        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data",
+        "Integrated Climate Control", "Multimedia Interface", "Vehicle Information",
+        "OEM-Style Integration", "High-Brightness Display",
+    ])
+    existing.setdefault("bottom_benefits", [
+        "Plug and Play", "Vehicle Information", "Multiple Display Styles",
+        "OEM Fit & Finish", "High-Brightness Screen",
+    ])
+    if not existing.get("headline"):
+        size = str(existing.get("screen_size") or "").strip()
+        existing["headline"] = f"{size} {existing['product_category']}".strip().upper()
     return existing
 
 
@@ -21177,9 +21172,10 @@ def _graphic_v66830_guaranteed_exact_result(prompt_text, uploaded_files=None, *,
 
 
 def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
-    """v66830 Responses route: remembered success, route health, full attempt timing, short probes."""
-    capabilities=_graphic_sdk_capabilities_v4100()
-    if not capabilities.get("responses"): raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
+    """Responses route with remembered-success fast path and bounded fallback ladder."""
+    capabilities = _graphic_sdk_capabilities_v4100()
+    if not capabilities.get("responses"):
+        raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
     content=[{"type":"input_text","text":str(production_prompt or "")[:30000]}]
     labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRODUCT SOURCE — preserve this exact product identity","style_reference":"STYLE REFERENCE — copy design language only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
     usable=0
@@ -21187,30 +21183,32 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
         url=_graphic_role_data_url(item)
         if not url: continue
         usable+=1; content += [{"type":"input_text","text":f"{labels.get(item.get('provider_role') or item.get('role'),'REFERENCE IMAGE')}: {item.get('name') or 'image'}"},{"type":"input_image","image_url":url,"detail":"high"}]
-    action="edit" if usable else "generate"; variants=_graphic_responses_tool_variants_v4000(action,output_size,bool(usable))[:3]; models=list(_graphic_responses_model_candidates_v4100())
-    preferred=_graphic_v66100_preferred_route(action,output_size,bool(usable)); ordered=[]; m=re.match(r"responses-image-tool-v4100-(.+)-(\d+)$",preferred)
+    action="edit" if usable else "generate"
+    variants=_graphic_responses_tool_variants_v4000(action,output_size,bool(usable))[:3]
+    models=list(_graphic_responses_model_candidates_v4100())
+    preferred=_graphic_v66100_preferred_route(action,output_size,bool(usable))
+    ordered=[]
+    m=re.match(r"responses-image-tool-v4100-(.+)-(\d+)$",preferred)
     if m:
         model=m.group(1); idx=int(m.group(2))
         if model in models and 1<=idx<=len(variants): ordered.append((model,idx,variants[idx-1],True))
     ordered += [(model,idx,tool,False) for model in models for idx,tool in enumerate(variants,1) if not any(x[0]==model and x[1]==idx for x in ordered)]
-    errors=[]
+    errors=[]; response_client=client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,max_retries=0)
     for model,idx,tool,fast in ordered:
-        route=f"responses-image-tool-v4100-{model}-{idx}"
-        if not fast and _graphic_v66830_route_is_blocked(route):
-            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=0,success=False,skipped_negative_cache=True,validation_purpose="generation"); continue
-        timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS if fast else min(GRAPHIC_IMAGE_TIMEOUT_SECONDS,GRAPHIC_V66830_PROBE_TIMEOUT_SECONDS)
-        response_client=client.with_options(timeout=timeout,max_retries=0)
         request={"model":model,"input":[{"role":"user","content":content}],"tools":[tool],"max_output_tokens":1200}
         if idx==1: request["tool_choice"]={"type":"image_generation"}
         started=time.perf_counter()
         try:
             response=response_client.responses.create(**request); images=_graphic_response_image_bytes_v4000(response)
-            _graphic_v66830_remote_record("generation",route,started,bool(images),model=model,schema_variant=idx,preferred_fast_path=fast,timeout_seconds=timeout)
-            _graphic_v66830_route_health_update(route,bool(images),"no-image" if not images else "")
-            if images: _graphic_v66100_remember_route(action,output_size,bool(usable),route); return images,route
+            duration=time.perf_counter()-started
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=bool(images),preferred_fast_path=fast,validation_purpose="generation")
+            if images:
+                route=f"responses-image-tool-v4100-{model}-{idx}"; _graphic_v66100_remember_route(action,output_size,bool(usable),route); return images,route
             errors.append(f"{model}/variant-{idx}:no-image")
         except Exception as error:
-            compact=_graphic_compact_error_v4000(error); _graphic_v66830_remote_record("generation",route,started,False,model=model,schema_variant=idx,error_class=type(error).__name__,error=compact,preferred_fast_path=fast,timeout_seconds=timeout); _graphic_v66830_route_health_update(route,False,type(error).__name__); errors.append(f"{model}/variant-{idx}:{type(error).__name__}:{compact}")
+            duration=time.perf_counter()-started; compact=_graphic_compact_error_v4000(error)
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=False,error_class=type(error).__name__,error=compact,preferred_fast_path=fast,validation_purpose="generation")
+            errors.append(f"{model}/variant-{idx}:{type(error).__name__}:{compact}")
     raise RuntimeError("Responses image generation failed: "+" | ".join(errors[-4:]))
 
 
@@ -21218,40 +21216,85 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
 
 
 def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size):
-    """v66830 Images API fallback with complete timing and route health."""
-    capabilities=_graphic_sdk_capabilities_v4100(); size=_graphic_normalize_output_size_v4000(output_size); errors=[]
-    product_files=[i.get("file") for i in role_items or [] if i.get("role")=="product_photo" and i.get("file") is not None]; style_files=[i.get("file") for i in role_items or [] if i.get("role")=="style_reference" and i.get("file") is not None]; edit_files=[i.get("file") for i in role_items or [] if i.get("role")=="edit_base" and i.get("file") is not None]; other_files=[i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo","style_reference","edit_base"}]
-    groups=[]
-    for label,fg in (("all",edit_files[:1]+product_files[:1]+style_files[:2]+other_files[:1]),("product-plus-style",product_files[:1]+style_files[:1]),("product-only",product_files[:1]),("edit-only",edit_files[:1])):
-        clean=[f for f in fg if f is not None]; sig=tuple(id(f) for f in clean)
-        if clean and sig not in {x[2] for x in groups}: groups.append((label,clean,sig))
+    """Images API fallback with bounded multi-image and single-image routes."""
+    capabilities = _graphic_sdk_capabilities_v4100()
+    image_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
+    size = _graphic_normalize_output_size_v4000(output_size)
+    errors = []
+
+    product_files = [i.get("file") for i in role_items or [] if i.get("role") == "product_photo" and i.get("file") is not None]
+    style_files = [i.get("file") for i in role_items or [] if i.get("role") == "style_reference" and i.get("file") is not None]
+    edit_files = [i.get("file") for i in role_items or [] if i.get("role") == "edit_base" and i.get("file") is not None]
+    other_files = [i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo", "style_reference", "edit_base"}]
+
+    groups = []
+    for label, files_group in (
+        ("all", edit_files[:1] + product_files[:1] + style_files[:2] + other_files[:1]),
+        ("product-plus-style", product_files[:1] + style_files[:1]),
+        ("product-only", product_files[:1]),
+        ("edit-only", edit_files[:1]),
+    ):
+        clean = [f for f in files_group if f is not None]
+        signature = tuple(id(f) for f in clean)
+        if clean and signature not in {sig for _, _, sig in groups}:
+            groups.append((label, clean, signature))
+
     if capabilities.get("images_edit"):
-        for label,fg,_ in groups[:4]:
-            refs=prepare_graphic_reference_images(fg)
-            if not refs: continue
-            image_input=refs if len(refs)>1 else refs[0]
-            for index,extras in enumerate(({"input_fidelity":"high","quality":"high"},{}),1):
-                route=f"images-edit-api-v4100-{label}-{index}"
-                if _graphic_v66830_route_is_blocked(route): continue
-                started=time.perf_counter()
+        for label, files_group, _ in groups[:4]:
+            references = prepare_graphic_reference_images(files_group)
+            if not references:
+                continue
+            image_input = references if len(references) > 1 else references[0]
+            for index, extras in enumerate((
+                {"input_fidelity": "high", "quality": "high"},
+                {},
+            ), start=1):
                 try:
-                    for ref in refs: ref.seek(0)
-                    image_client=client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,max_retries=0)
-                    result=image_client.images.edit(model=GRAPHIC_IMAGE_MODEL,image=image_input,prompt=str(production_prompt or "")[:32000],n=1,size=size,**extras); images=_graphic_collect_result_bytes(result)
-                    _graphic_v66830_remote_record("images-edit",route,started,bool(images),model=GRAPHIC_IMAGE_MODEL,reference_count=len(refs),variant=index); _graphic_v66830_route_health_update(route,bool(images),"no-image" if not images else "")
-                    if images: return images,route
+                    for reference in references:
+                        reference.seek(0)
+                    diagnostic_log("graphic_v4100_images_edit_attempt", route=label, variant=index, reference_count=len(references), fields=sorted(extras))
+                    result = image_client.images.edit(
+                        model=GRAPHIC_IMAGE_MODEL,
+                        image=image_input,
+                        prompt=str(production_prompt or "")[:32000],
+                        n=1,
+                        size=size,
+                        **extras,
+                    )
+                    images = _graphic_collect_result_bytes(result)
+                    if images:
+                        return images, f"images-edit-api-v4100-{label}-{index}"
+                    errors.append(f"edit/{label}/{index}:no-image")
                 except Exception as error:
-                    compact=_graphic_compact_error_v4000(error); _graphic_v66830_remote_record("images-edit",route,started,False,model=GRAPHIC_IMAGE_MODEL,error_class=type(error).__name__,error=compact,variant=index); _graphic_v66830_route_health_update(route,False,type(error).__name__); errors.append(f"edit/{label}/{index}:{type(error).__name__}:{compact}")
+                    compact = _graphic_compact_error_v4000(error)
+                    errors.append(f"edit/{label}/{index}:{type(error).__name__}:{compact}")
+                    diagnostic_log("graphic_v4100_images_edit_attempt_failed", route=label, variant=index, error_type=type(error).__name__, error=compact)
+
     if capabilities.get("images_generate") and not groups:
-        for index,extras in enumerate(({"quality":"high"},{}),1):
-            route=f"images-generate-api-v4100-{index}"; started=time.perf_counter()
+        for index, extras in enumerate(({"quality": "high"}, {}), start=1):
             try:
-                image_client=client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,max_retries=0); result=image_client.images.generate(model=GRAPHIC_IMAGE_MODEL,prompt=str(production_prompt or "")[:32000],n=1,size=size,**extras); images=_graphic_collect_result_bytes(result)
-                _graphic_v66830_remote_record("images-generate",route,started,bool(images),model=GRAPHIC_IMAGE_MODEL,variant=index); _graphic_v66830_route_health_update(route,bool(images),"no-image" if not images else "")
-                if images: return images,route
+                diagnostic_log("graphic_v4100_images_generate_attempt", variant=index, fields=sorted(extras))
+                result = image_client.images.generate(
+                    model=GRAPHIC_IMAGE_MODEL,
+                    prompt=str(production_prompt or "")[:32000],
+                    n=1,
+                    size=size,
+                    **extras,
+                )
+                images = _graphic_collect_result_bytes(result)
+                if images:
+                    return images, f"images-generate-api-v4100-{index}"
+                errors.append(f"generate/{index}:no-image")
             except Exception as error:
-                compact=_graphic_compact_error_v4000(error); _graphic_v66830_remote_record("images-generate",route,started,False,model=GRAPHIC_IMAGE_MODEL,error_class=type(error).__name__,error=compact,variant=index); _graphic_v66830_route_health_update(route,False,type(error).__name__); errors.append(f"generate/{index}:{type(error).__name__}:{compact}")
-    raise RuntimeError("Images API fallback failed: "+" | ".join(errors[-5:]))
+                compact = _graphic_compact_error_v4000(error)
+                errors.append(f"generate/{index}:{type(error).__name__}:{compact}")
+                diagnostic_log("graphic_v4100_images_generate_attempt_failed", variant=index, error_type=type(error).__name__, error=compact)
+
+    if not capabilities.get("images_edit") and groups:
+        errors.append("installed SDK does not expose images.edit")
+    if not capabilities.get("images_generate") and not groups:
+        errors.append("installed SDK does not expose images.generate")
+    raise RuntimeError("Images API fallback failed: " + " | ".join(errors[-5:]))
 
 
 def _graphic_build_provider_result_v3000(
@@ -24390,12 +24433,8 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
     # but they are never cached. This prevents an uncertain plate from contaminating
     # future projects or being repeatedly labelled as verified.
     if verified:
-        storage_path = _graphic_v66830_optional_store_background(
-            last_raw, key, {"route": last_route, "vehicle_validation": last_validation}
-        )
         cache[key] = {
             "data_url": "data:image/png;base64," + base64.b64encode(last_raw).decode("ascii"),
-            "storage_path": storage_path,
             "route": last_route,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "vehicle_verified": True,
@@ -26429,8 +26468,6 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
     """Build copy from explicit facts and verified Product Library data only."""
     state = get_graphic_project_state()
     spec = _graphic_extract_campaign_spec(prompt_text, state.get("campaign_spec") or {})
-    current_facts_v68100 = _graphic_v68100_current_product_facts(prompt_text)
-    current_display_facts_v67800 = _graphic_v67800_current_display_facts(prompt_text)
     product = _graphic_product_library_grounding_v3300(prompt_text, state)
     explicit_context = " ".join([str(prompt_text or ""), *[str(x) for x in (state.get("project_brief_history") or [])]])
     explicit_size = bool(re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|[\"”])\b", explicit_context, re.I))
@@ -26500,31 +26537,6 @@ def _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile=None):
             "Vehicle-Specific Installation", "Factory Integration", "Smart Connectivity",
             "OEM Fit & Finish", "High-Brightness Display",
         ]
-    # Reference image and cached product data may supply layout/style, but never
-    # overwrite the current command's advertised product category.
-    spec["product_designation"] = current_display_facts_v67800.get("product_designation") or "TOUCHSCREEN"
-    spec["product_category"] = spec["product_designation"]
-    spec["product_designation_source"] = current_display_facts_v67800.get("product_designation_source")
-    if spec.get("compatibility"):
-        spec["compatibility"] = _graphic_v67900_normalize_compatibility(spec["compatibility"])
-    if any([current_display_facts_v67800.get("has_current_size"), current_display_facts_v67800.get("has_current_grade"), current_display_facts_v67800.get("has_current_designation")]):
-        spec["headline"] = _graphic_v67800_build_authoritative_headline(spec, prompt_text)
-        spec["headline_source"] = "current_command_display_authority_v67800"
-    spec["feature_labels"] = _graphic_v67800_reference_features(spec, prompt_text)
-    spec["bottom_benefits"] = _graphic_v67800_bottom_benefits(spec, prompt_text)
-    # Reassert current-job authority after Product Library enrichment.
-    spec["product_designation"] = current_facts_v68100["product_designation"]
-    spec["product_category"] = current_facts_v68100["product_designation"]
-    if current_facts_v68100.get("screen_size"):
-        spec["screen_size"] = current_facts_v68100["screen_size"]
-    if current_facts_v68100.get("display_grade"):
-        spec["display_grade"] = current_facts_v68100["display_grade"]
-    if spec.get("compatibility"):
-        spec["compatibility"] = _graphic_v68100_normalize_fitment(spec["compatibility"])
-    spec["headline"] = _graphic_v68100_headline(spec, prompt_text)
-    spec["headline_source"] = "current_command_v68100"
-    spec["feature_labels"] = _graphic_v68100_multimedia_features(spec)
-    spec["bottom_benefits"] = _graphic_v68100_multimedia_footer()
     spec["product_library_grounded"] = bool(product)
     spec["product_library_code"] = str(product.get("product_code") or product.get("sku") or "")
     state["campaign_spec"] = spec
@@ -28395,10 +28407,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
     exact_gate={"passed":True,"issues":[],"required":False}
     dna_gate={"available":False,"passed":None,"score":None,"reason":"not required"}
     if product_mode.get("exact_product"):
-        cached_inputs = dict((result or {}).get("cached_professional_qa_inputs_v66830") or {})
-        exact_gate = dict(cached_inputs.get("exact_gate") or {})
-        if not exact_gate:
-            exact_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile)
+        exact_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile)
         exact_gate["required"]=True
         checks["product_valid"]=exact_gate.get("passed",False)
         checks["reference_integrity"]=exact_gate.get("reference_leakage_blocked",False)
@@ -28417,8 +28426,7 @@ def _graphic_professional_qa_v8000(result, role_items, prompt_text, vehicle_prof
             hero_area=(float(hero_box[2])*float(hero_box[3]))/(float(canvas[0])*float(canvas[1]))
             checks["hero_dominance"]=hero_area >= 0.13
     hard=bool((vehicle_profile or {}).get("hard_vehicle_lock"))
-    cached_inputs = dict((result or {}).get("cached_professional_qa_inputs_v66830") or {})
-    vehicle=(result or {}).get("vehicle_validation") or cached_inputs.get("vehicle_validation") or {}
+    vehicle=(result or {}).get("vehicle_validation") or {}
     if hard and not vehicle:
         vehicle=_graphic_safe_optional_call("graphic_v9000_vehicle_qa_unavailable",lambda:_graphic_focused_vehicle_validation_v3300((result or {}).get("data_url"),role_items,prompt_text,vehicle_profile),_graphic_validation_unavailable_v4100())
     if hard:
@@ -28781,122 +28789,54 @@ def _graphic_v68000_exact_local_recovery(prompt_text, uploaded_files, *, forced_
 
 
 def _graphic_fast_exact_campaign_v7000(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile, mode_info):
-    """Create an immutable exact-product campaign.
-
-    Source-pixel and provenance violations are release blockers. Layout, typography,
-    campaign-zone and optional verification gaps are diagnostics only and can never
-    redirect Reference Exact jobs to a provider-redrawn product.
-    """
-    result = _graphic_build_hybrid_campaign_result_v3300(
-        prompt_text, role_items, output_size, reference_blueprint or {}, vehicle_profile or {}
-    )
-    validation = _graphic_exact_result_validation_v7100(
-        result, role_items, prompt_text, vehicle_profile or {}
-    )
-    result["deterministic_verification"] = validation
-    result["vehicle_validation"] = validation.get("vehicle_validation") or {}
-
-    source_gate = _graphic_exact_product_quality_gate_v9000(
-        result, role_items, vehicle_profile or {}
-    )
-    result["source_fidelity_gate"] = source_gate
-
-    # Only direct geometry/source evidence may block release. Metadata absence and
-    # broad/legacy score failures are retained as review diagnostics.
-    source_issues = list(source_gate.get("issues") or [])
-    direct_source_issues = []
-    for issue in source_issues:
-        low = str(issue).casefold()
-        if any(token in low for token in (
-            "source pixel", "source rgb", "silhouette", "bezel", "screen aperture",
-            "aspect ratio", "button", "knob", "housing", "bracket", "mounting",
-            "geometry drift", "alpha envelope", "product region replaced",
-        )):
-            direct_source_issues.append(str(issue))
-    if direct_source_issues:
+    """Create a deterministic exact-product campaign and fail closed on product/reference integrity."""
+    result=_graphic_build_hybrid_campaign_result_v3300(prompt_text,role_items,output_size,reference_blueprint or {},vehicle_profile or {})
+    validation=_graphic_exact_result_validation_v7100(result,role_items,prompt_text,vehicle_profile or {})
+    result["deterministic_verification"]=validation; result["vehicle_validation"]=validation.get("vehicle_validation") or {}
+    source_gate=_graphic_exact_product_quality_gate_v9000(result,role_items,vehicle_profile or {})
+    result["source_fidelity_gate"]=source_gate
+    if not source_gate.get("passed"):
+        raise RuntimeError("The exact-product campaign failed the source-fidelity gate: "+"; ".join(source_gate.get("issues") or []))
+    state_now=get_graphic_project_state(); design_mode=str(state_now.get("graphic_design_mode") or ("reference_template" if any(i.get("role")=="style_reference" for i in role_items or []) else "autotecpro_studio"))
+    if design_mode=="reference_template":
+        layout_gate=_graphic_reference_fidelity_qa_v34000(result,role_items)
+    else:
+        layout_gate={"required":False,"passed":True,"score":1.0,"issues":[],"engine":"v34000-studio-layout-delegated"}
+    result["reference_layout_fidelity_gate"]=layout_gate
+    if layout_gate.get("required") and not layout_gate.get("passed"):
         raise RuntimeError(
-            "The exact-product campaign has direct source/geometry violations: "
-            + "; ".join(direct_source_issues)
+            "The exact-product campaign failed the reference-layout fidelity gate: "
+            + "; ".join(layout_gate.get("issues") or ["layout score below threshold"])
         )
-
-    state_now = get_graphic_project_state()
-    design_mode = str(
-        state_now.get("graphic_design_mode")
-        or ("reference_template" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio")
-    )
-    if design_mode == "reference_template":
-        layout_gate = _graphic_reference_fidelity_qa_v34000(result, role_items)
-    else:
-        layout_gate = {
-            "required": False, "passed": True, "score": 1.0, "issues": [],
-            "engine": "v34000-studio-layout-delegated",
-        }
-    layout_gate["release_blocking"] = False
-    layout_gate["v68000_policy"] = "diagnostic-only"
-    result["reference_layout_fidelity_gate"] = layout_gate
-
     if validation.get("verified"):
-        result["output_status"] = "verified_exact_product_v68000"
-        result["verification_status"] = "verified"
-    elif validation.get("passed") or validation.get("unverified"):
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The immutable product is preserved; optional layout, vehicle or metadata verification needs review.",
-            status="completed_exact_product_review_v68000",
-        )
+        result["output_status"]="verified_exact_product_v9000"; result["verification_status"]="verified"
+    elif validation.get("unverified"):
+        result=_graphic_mark_unverified_v4100(result,"The exact product is preserved, but optional vehicle verification was unavailable.",status="completed_exact_product_unverified_v9000")
+    elif validation.get("passed"):
+        result["output_status"]="completed_exact_product_v9000"; result["verification_status"]="completed"
     else:
-        # A failed aggregate validation is not sufficient evidence of product
-        # distortion. Keep the exact local result unless a direct authority fails.
-        result = _graphic_mark_unverified_v4100(
-            result,
-            "The exact local product composite completed, but aggregate verification was inconclusive.",
-            status="completed_exact_product_inconclusive_v68000",
-        )
-
-    result["graphic_engine_version"] = GRAPHIC_ENGINE_VERSION
-    result["source_role_integrity"] = _graphic_role_integrity_v8300(role_items)
-    result["authoritative_product_source"] = str(next(
-        (i.get("name") for i in role_items or [] if i.get("role") == "product_photo"), ""
-    ))
-    result["style_reference_sources"] = [
-        str(i.get("name") or "") for i in role_items or [] if i.get("role") == "style_reference"
-    ][:4]
-    result["reference_content_leakage_prohibited"] = True
-    result["product_render_mode"] = _graphic_render_mode_v9000(
-        mode_info, any(i.get("role") == "style_reference" for i in role_items or [])
-    )
-    result["brand_template"] = str((mode_info or {}).get("brand_template") or "")
-    result["ai_product_recreated"] = False
-    result["speed_optimized"] = True
-    result["project_editable"] = True
-    result["graphic_design_mode"] = design_mode
-
+        raise RuntimeError("The exact-product compositor output failed deterministic validation.")
+    result["graphic_engine_version"]=GRAPHIC_ENGINE_VERSION
+    result["source_role_integrity"]=_graphic_role_integrity_v8300(role_items)
+    result["authoritative_product_source"]=str(next((i.get("name") for i in role_items or [] if i.get("role")=="product_photo"),""))
+    result["style_reference_sources"]=[str(i.get("name") or "") for i in role_items or [] if i.get("role")=="style_reference"][:4]
+    result["reference_content_leakage_prohibited"]=True
+    result["product_render_mode"]=_graphic_render_mode_v9000(mode_info,any(i.get("role")=="style_reference" for i in role_items or []))
+    result["brand_template"]=str((mode_info or {}).get("brand_template") or "")
+    result["ai_product_recreated"]=False; result["speed_optimized"]=True; result["project_editable"]=True
+    result["graphic_design_mode"]=design_mode
     provenance_v52000 = _graphic_product_provenance_gate_v52000(result, role_items)
     result["product_provenance_v52000"] = provenance_v52000
     result["product_provenance_v53000"] = provenance_v52000
     result["pixel_provenance_manifest"] = provenance_v52000.get("manifest") or {}
-    result["authoritative_product_sha256"] = (
-        provenance_v52000.get("manifest") or {}
-    ).get("source_sha256")
+    result["authoritative_product_sha256"] = (provenance_v52000.get("manifest") or {}).get("source_sha256")
     result["product_layer_immutable"] = True
     result["product_geometry_provider_generated"] = False
-
     if not provenance_v52000.get("passed"):
-        raise RuntimeError(
-            "The exact-product campaign failed the pixel-provenance authority: "
-            + "; ".join(provenance_v52000.get("issues") or [])
-        )
-
-    if design_mode == "autotecpro_studio":
-        studio_qa = _graphic_studio_commercial_qa_v34000(
-            result, dict(state_now.get("studio_creative_brief") or {})
-        )
-        studio_qa["release_blocking"] = False
-        result["studio_commercial_qa"] = studio_qa
-
-    result["graphic_v68000_policy"] = GRAPHIC_V68000_POLICY_VERSION
-    result["graphic_v68100_policy"] = GRAPHIC_V68100_POLICY_VERSION
-    result["generic_provider_product_fallback_allowed"] = False
+        raise RuntimeError("The exact-product campaign failed the v52000 pixel-provenance gate: " + "; ".join(provenance_v52000.get("issues") or []))
+    if design_mode=="autotecpro_studio":
+        studio_qa=_graphic_studio_commercial_qa_v34000(result,dict(state_now.get("studio_creative_brief") or {})); result["studio_commercial_qa"]=studio_qa
+        if not studio_qa.get("passed"): raise RuntimeError("The AutoTecPro Studio composition failed commercial QA: "+str(studio_qa.get("checks")))
     return result
 
 
@@ -32269,7 +32209,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                                       preserve_product=True, style_strength="High",
                                       forced_upload_role="Auto-detect", quality_retry=True,
                                       product_transform_mode="Auto", professional_layered_studio=True):
-    """Public Graphic API with exact Reference fail-closed product authority."""
+    """Public Graphic API with bounded professional and emergency recovery routes."""
     arguments = dict(
         use_approved_style=use_approved_style,
         preserve_product=preserve_product,
@@ -32280,98 +32220,30 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         professional_layered_studio=professional_layered_studio,
     )
     failures = []
-    context = _graphic_v68000_exact_reference_context(
-        prompt_text, uploaded_files, forced_upload_role
-    )
-    effective_prompt = context["effective_prompt"]
-    exact_reference = bool(context.get("exact_reference") and preserve_product)
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
     installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
-
     project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     project = _graphic_active_project_assets_v16000(project)
     project["stage"] = "generating"
     project["last_error"] = ""
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
-    project["v68000_exact_reference"] = exact_reference
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
-
     try:
-        result = _generate_graphic_marketing_images_advanced(
+        return _graphic_finalize_recovery_v16000(_generate_graphic_marketing_images_advanced(
             effective_prompt, uploaded_files, **arguments
-        )
-        return _graphic_finalize_recovery_v16000(result, "advanced", failures)
+        ), "advanced", failures)
     except Exception as error:
         failures.append(
             f"advanced:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
         )
         diagnostic_log(
-            "graphic_v68000_advanced_pipeline_recovery",
-            exact_reference=exact_reference,
+            "graphic_v15000_advanced_pipeline_recovery",
             error_type=type(error).__name__,
             error=_graphic_compact_error_v4000(error),
         )
 
-    # Reference + Product must never fall through to a provider-created whole
-    # advertisement. Retry the immutable local compositor once, then fail closed.
-    if exact_reference:
-        try:
-            result = _graphic_v68000_exact_local_recovery(
-                effective_prompt,
-                uploaded_files,
-                forced_upload_role=forced_upload_role,
-                style_strength=style_strength,
-            )
-            for image in result or []:
-                if isinstance(image, dict):
-                    image["recovered_from_v68000_exact_local"] = True
-                    image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(
-                result, "v68000-exact-local-only", failures
-            )
-        except Exception as error:
-            failures.append(
-                f"exact-local:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
-            )
-            diagnostic_log(
-                "graphic_v68200_primary_exact_route_failed",
-                error_type=type(error).__name__,
-                error=_graphic_compact_error_v4000(error),
-                failures=failures[-3:],
-            )
-            try:
-                result = _graphic_v68200_guaranteed_exact_local_commercial(
-                    effective_prompt, uploaded_files, forced_upload_role=forced_upload_role
-                )
-                for image in result or []:
-                    if isinstance(image, dict):
-                        image["recovered_from_v68200_pillow_exact"] = True
-                        image["recovery_failures"] = failures[-3:]
-                return _graphic_finalize_recovery_v16000(
-                    result, "v68200-guaranteed-pillow-exact", failures
-                )
-            except Exception as final_error:
-                failures.append(
-                    f"pillow-exact:{type(final_error).__name__}:{_graphic_compact_error_v4000(final_error)}"
-                )
-                diagnostic_log(
-                    "graphic_v68200_all_exact_routes_failed",
-                    error_type=type(final_error).__name__,
-                    error=_graphic_compact_error_v4000(final_error),
-                    failures=failures[-4:],
-                )
-                state = get_graphic_project_state()
-                state["stage"] = "ready_to_generate"
-                state["last_error"] = " | ".join(failures[-4:])[:1800]
-                state["last_failed_stage"] = "v68200_all_exact_routes_failed"
-                state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
-                state["updated_at"] = datetime.now(timezone.utc).isoformat()
-                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-                raise RuntimeError(
-                    "The uploaded product file could not be opened by either exact local route. "
-                    "No AI-redrawn product was substituted. " + " | ".join(failures[-3:])
-                ) from final_error
-
-    # Installed View retains its own interior-only fail-closed recovery.
+    # Installed View must fail closed to an interior-only recovery. Generic legacy
+    # or emergency routes are not allowed to turn it into a commercial poster.
     if installed_request:
         try:
             result = _graphic_installed_view_recovery_v47000(
@@ -32383,19 +32255,27 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
                 if isinstance(image, dict):
                     image["recovered_from_v47000"] = True
                     image["recovery_failures"] = failures[-2:]
-            return _graphic_finalize_recovery_v16000(
-                result, "installed-view-only-v47000", failures
-            )
+            return _graphic_finalize_recovery_v16000(result, "installed-view-only-v47000", failures)
         except Exception as error:
             failures.append(
                 f"installed-recovery:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
             )
+            diagnostic_log(
+                "graphic_v47000_installed_recovery_failed",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+            state = get_graphic_project_state()
+            state["stage"] = "ready_to_generate"
+            state["last_error"] = " | ".join(failures[-4:])[:1800]
+            st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
             raise RuntimeError(
                 "Installed View generation failed safely. The app did not substitute a commercial poster. "
                 + " | ".join(failures[-3:])
             ) from error
 
-    # Creative/non-exact modes keep the established compatibility and provider routes.
+    # The earlier v3200 path has fewer governance/QA dependencies and is retained
+    # only for non-installed compatibility recovery.
     try:
         result = _generate_graphic_marketing_images_advanced_v3200(
             effective_prompt, uploaded_files, **arguments
@@ -32404,12 +32284,15 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             if isinstance(image, dict):
                 image["recovered_from_v15000"] = True
                 image["recovery_failures"] = failures[-2:]
-        return _graphic_finalize_recovery_v16000(
-            result, "v3200-compatibility", failures
-        )
+        return _graphic_finalize_recovery_v16000(result, "v3200-compatibility", failures)
     except Exception as error:
         failures.append(
             f"v3200:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_v3200_pipeline_recovery",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
         )
 
     try:
@@ -32422,12 +32305,14 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         for image in result or []:
             if isinstance(image, dict):
                 image["recovery_failures"] = failures[-3:]
-        return _graphic_finalize_recovery_v16000(
-            result, "emergency-provider", failures
-        )
+        return _graphic_finalize_recovery_v16000(result, "emergency-provider", failures)
     except Exception as error:
         failures.append(
             f"emergency:{type(error).__name__}:{_graphic_compact_error_v4000(error)}"
+        )
+        diagnostic_log(
+            "graphic_v15000_all_routes_failed",
+            failures=failures[-4:],
         )
         state = get_graphic_project_state()
         state["stage"] = "ready_to_generate"
@@ -32437,7 +32322,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         raise RuntimeError(
-            "All available image-generation routes failed. Your project assets remain saved. "
+            "All available image-generation routes failed. Your reference, product, and vehicle information remain saved. "
             + " | ".join(failures[-3:])
         ) from error
 
@@ -32624,28 +32509,47 @@ def _graphic_v67200_research_vehicle(role_items, prompt_text=""):
 
 
 def _graphic_build_product_dna_v8000(role_items, structure_profile=None):
-    """v67200 persistent Product DNA cache; falls back to the unchanged v8000 builder."""
-    fingerprint = _graphic_v67200_product_fingerprint(role_items, structure_profile)
-    cached = _graphic_v67200_cache_read(
-        "product-dna", fingerprint, GRAPHIC_V67200_PRODUCT_TTL_SECONDS
-    )
-    if cached:
-        cached["cache_hit_v67200"] = True
-        return cached
-
-    started = time.perf_counter()
-    result = _GRAPHIC_V67200_ORIGINAL_BUILD_PRODUCT_DNA(role_items, structure_profile) or {}
-    if isinstance(result, dict):
-        result = dict(result)
-        result["cache_hit_v67200"] = False
-        result["product_source_fingerprint_v67200"] = _graphic_v67200_assets_fingerprint(
-            role_items, {"product_photo"}
-        )
-        _graphic_v67200_cache_write(
-            "product-dna", fingerprint, result,
-            {"duration_seconds": round(time.perf_counter() - started, 3)},
-        )
-    return result
+    """Build flexible Product DNA: preserve identity, not one fixed camera view."""
+    products = [item for item in (role_items or []) if item.get("role") == "product_photo"]
+    signatures = [_graphic_product_source_signature_v9000(item) for item in products[:8]]
+    source_ratios = [float(sig.get("aspect_ratio") or 0.0) for sig in signatures if float(sig.get("aspect_ratio") or 0.0) > 0]
+    dna = {
+        "engine": "v17000-product-dna",
+        "product_view_count": len(products),
+        "source_names": [str(item.get("name") or "") for item in products[:8]],
+        "source_ids": [str(item.get("asset_id") or item.get("id") or "") for item in products[:8]],
+        "identity_policy": "preserve_engineering_identity_allow_camera_scale_perspective",
+        "exact_pixel_default": True,
+        "angle_recreation_allowed_when_explicit": True,
+        "allowed_transformations": [
+            "uniform size change", "camera-angle change", "perspective change",
+            "rotation", "scene relighting", "realistic reflections", "partial artistic crop",
+        ],
+        "invariants": [
+            "recognizable outer silhouette", "whole-unit width-to-height proportion",
+            "visible screen width-to-height proportion", "screen position inside housing",
+            "bezel thickness relationships", "button/knob count and placement",
+            "side brackets and mounting tabs", "open cavities and negative spaces",
+            "lower control-panel geometry", "trim and material identity",
+            "visible screen interface and UI hierarchy",
+        ],
+        "critical_features": [
+            "outer silhouette", "screen aspect ratio and visible UI", "bezel thickness",
+            "gap below screen", "side openings", "climate knobs", "physical buttons",
+            "lower cavities", "mounting tabs", "trim geometry",
+        ],
+        "source_aspect_ratios": source_ratios,
+        "primary_source_aspect_ratio": source_ratios[0] if source_ratios else 0.0,
+        "structure_profile": dict(structure_profile or {}),
+        "multi_view": len(products) >= 2,
+        "segmentation_diagnostics": _graphic_segmentation_diagnostics_v10000(products[0]) if products else {},
+        "source_signatures": signatures,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    state = get_graphic_project_state()
+    state["product_dna"] = dna
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return dna
 
 
 def _graphic_v67200_prepare_locked_facts(role_items, prompt_text, style_strength, *, has_style, has_product):
