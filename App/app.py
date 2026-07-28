@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v69010 FINAL LTS — Upload Loop Router Fix, v66200 Authority, Deterministic Project State, Composition-Aware AI Art Director and Hard Bezel Recovery
+# AutoTecPro AI Graphic Marketing Engine v69020 FINAL LTS — Authoritative Upload Handoff, Missing-Upload Loop Guard, v66200 Authority and Hard Bezel Recovery
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -19496,7 +19496,32 @@ def _graphic_project_direct_action(prompt_text, state=None):
 
 
 
-GRAPHIC_V69010_RELEASE = "v69010-upload-loop-router-fix"
+GRAPHIC_V69020_RELEASE = "v69020-upload-handoff-and-loop-guard"
+
+
+def _graphic_prompt_claims_attached_image_v69020(prompt):
+    """Detect a Graphic turn that refers to an image expected on this turn."""
+    normalized = re.sub(r"\s+", " ", str(prompt or "").strip().casefold())
+    if not normalized:
+        return False
+    phrases = (
+        "this image", "this photo", "this picture", "this template",
+        "use this as", "attached image", "attached photo", "uploaded image",
+        "uploaded photo", "reference image", "reference photo",
+        "product image", "product photo", "analyze this", "analyse this",
+    )
+    return any(phrase in normalized for phrase in phrases)
+
+
+def _graphic_missing_upload_message_v69020():
+    """Return one deterministic message when the claimed upload is absent."""
+    managed_count = len(st.session_state.get("chat_managed_uploads") or [])
+    return (
+        "I didn’t receive an image with this message, so I can’t analyze or save "
+        "the reference yet. The chat uploader currently contains "
+        f"{managed_count} file(s). Please wait until the image preview card appears "
+        "above the chat box, then press Send once."
+    )
 
 
 def _graphic_upload_state_message_v69010(state=None):
@@ -50655,6 +50680,15 @@ else:
         accepted_types=chat_accepted_types,
         heading="📎 Attach files or photos",
     )
+    # v69020: The fragment-scoped uploader can rerun independently from the
+    # full chat script. Its Python return value is therefore not the authority
+    # for a later chat submission. Rebuild the upload objects from persistent
+    # session state on every full script pass so the send action always receives
+    # the same files shown in the managed preview cards.
+    uploaded_files = _managed_upload_objects(
+        list(st.session_state.get("chat_managed_uploads") or [])
+    )
+    st.session_state["chat_submission_upload_count_v69020"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
@@ -50732,12 +50766,20 @@ else:
             )
         )
         interaction_prompt = str(prompt if attachment_only_mode else (user_display or prompt)).strip()
+        diagnostic_log(
+            "graphic_upload_handoff_v69020",
+            workspace=str(assistant),
+            managed_record_count=len(st.session_state.get("chat_managed_uploads") or []),
+            submission_upload_count=len(uploaded_files or []),
+            attachment_only=attachment_only_mode,
+        )
 
         if (
             assistant == "🎨 Graphic Marketing"
             and not graphic_mobile_resume_v68400
             and not uploaded_files
             and not attachment_only_mode
+            and not _graphic_prompt_claims_attached_image_v69020(interaction_prompt)
         ):
             _graphic_queue_mobile_job_v68400(
                 interaction_prompt,
@@ -50863,6 +50905,13 @@ else:
         has_uploaded_images = any(
             str(getattr(item, "type", "") or "").startswith("image/")
             for item in effective_uploaded_files
+        )
+        is_graphic_missing_upload_guard = bool(
+            assistant == "🎨 Graphic Marketing"
+            and not has_uploaded_images
+            and not effective_uploaded_files
+            and _graphic_prompt_claims_attached_image_v69020(interaction_prompt)
+            and active_structured_tool is None
         )
         execution_plan = detect_prompt_execution_plan(
             prompt,
@@ -51036,7 +51085,17 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if is_graphic_attachment_ack:
+        if is_graphic_missing_upload_guard:
+            response_start_time = time.time()
+            answer = _graphic_missing_upload_message_v69020()
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif is_graphic_attachment_ack:
             response_start_time = time.time()
             graphic_project = get_graphic_project_state()
             answer = _graphic_upload_state_message_v69010(graphic_project)
@@ -51595,6 +51654,7 @@ else:
             not is_woocommerce_request
             and not is_graphic_reference_learning
             and not is_graphic_attachment_ack
+            and not is_graphic_missing_upload_guard
         ):
             queue_ai_postprocess(
                 interaction_prompt,
