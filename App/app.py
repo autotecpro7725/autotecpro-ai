@@ -18395,36 +18395,65 @@ def _graphic_v68640_copy_components(value):
     }
 
 
+
 def _graphic_v68640_expected_copy_authority(prompt_text):
-    """Resolve immutable fitment/product copy from the current command and project facts."""
+    """Resolve immutable copy only from explicit user/product facts, never style-template copy."""
     state = get_graphic_project_state()
     spec = dict(state.get("campaign_spec") or {})
-    history = " ".join(str(x or "") for x in (state.get("project_brief_history") or [])[-8:])
+    history_items = [str(x or "") for x in (state.get("project_brief_history") or [])[-8:]]
+    history = " ".join(history_items)
     prompt = str(prompt_text or "")
-    explicit = _graphic_explicit_fitment_v41100(prompt)
+
+    explicit_fitment = _graphic_explicit_fitment_v41100(prompt)
     compatibility = _graphic_extract_full_compatibility_v36000(
-        prompt if explicit else " ".join([prompt, history]),
+        prompt if explicit_fitment else " ".join([prompt, history]),
         spec.get("compatibility") or "",
     )
-    screen_size = str(spec.get("screen_size") or "").strip()
-    product_designation = str(
-        spec.get("product_designation")
-        or spec.get("product_category")
-        or spec.get("headline")
-        or ""
-    ).strip()
+
     explicit_size = re.search(
         r"\b\d{1,2}(?:\.\d)?\s*(?:inch(?:es)?|[\"”])(?:\s*(?:hd|qhd|uhd|4k))?\b",
         prompt,
         re.I,
     )
-    if explicit_size:
-        screen_size = explicit_size.group(0)
+    screen_size = explicit_size.group(0) if explicit_size else ""
+
+    # Product designation is mandatory only when the user or verified product facts
+    # actually supplied one. Never inherit the style reference's product title.
+    designation_patterns = (
+        r"\b(?:digital\s+gauge\s+cluster|instrument\s+cluster)\b",
+        r"\b(?:multimedia\s+screen|infotainment\s+system|head\s+unit)\b",
+        r"\b(?:android\s+radio|navigation\s+system|stereo\s+system)\b",
+    )
+    product_designation = ""
+    prompt_and_history = " ".join([prompt, history])
+    for pattern in designation_patterns:
+        match = re.search(pattern, prompt_and_history, re.I)
+        if match:
+            product_designation = match.group(0)
+            break
+
+    # A verified product designation may be used only when it is also present in
+    # user/product history. This prevents a gauge-cluster style reference from
+    # forcing its title onto a Toyota multimedia-screen advertisement.
+    if not product_designation:
+        candidate = str(
+            spec.get("product_designation")
+            or spec.get("product_category")
+            or ""
+        ).strip()
+        candidate_tokens = _graphic_v68640_copy_components(candidate).get("tokens") or []
+        history_tokens = set(
+            _graphic_v68640_copy_components(prompt_and_history).get("tokens") or []
+        )
+        if candidate_tokens and all(token in history_tokens for token in candidate_tokens):
+            product_designation = candidate
+
     return {
         "compatibility": compatibility,
         "screen_size": screen_size,
         "product_designation": product_designation,
     }
+
 
 
 def _graphic_v68640_observed_copy_authority(image):
@@ -18505,29 +18534,56 @@ def _graphic_v68640_flexible_fitment_release_gate(image, prompt_text):
     }
 
 
+
 def _graphic_v68640_geometry_release_gate(image, role_items, *, required):
-    """Require positive immutable-product proof in Reference Mode."""
+    """Require positive immutable-product proof without rejecting valid legacy proof tiers."""
     if not required:
         return {"passed": True, "issues": [], "required": False}
+
     image = dict(image or {})
     layered = dict(image.get("layered_metadata") or {})
     issues = []
+
+    # This is the authoritative positive-proof decision. It accepts explicit modern
+    # manifests and verified legacy deterministic-compositor lineage, but rejects
+    # missing proof and every direct AI-redraw/provider-product violation.
     proof = _graphic_v67100_exact_proof([image])
     if not proof.get("passed"):
-        issues.extend(str(x) for x in (proof.get("issues") or ["immutable-product proof unavailable"]))
+        issues.extend(
+            str(x)
+            for x in (
+                proof.get("issues")
+                or ["positive immutable-product proof is unavailable"]
+            )
+        )
 
-    if layered.get("product_pixels_provider_generated") is not False:
-        issues.append("provider-generated product pixels were not explicitly excluded")
-    if layered.get("product_ai_reconstruction_prohibited") is not True:
-        issues.append("AI product reconstruction prohibition was not proven")
-    if image.get("product_geometry_provider_generated") is True or image.get("ai_product_recreated") is True:
+    # Explicit contradictory evidence is always a release blocker. Missing optional
+    # schema fields are not contradictions after the positive proof above has passed.
+    if layered.get("product_pixels_provider_generated") is True:
+        issues.append("provider-generated product pixels entered the product layer")
+    if layered.get("product_ai_reconstruction_prohibited") is False:
+        issues.append("AI product reconstruction was explicitly allowed")
+    if layered.get("exact_product_pixels") is False:
+        issues.append("exact uploaded product pixels were explicitly not preserved")
+    if layered.get("product_master_rgb_preserved") is False:
+        issues.append("uploaded product master RGB was explicitly not preserved")
+    if image.get("product_geometry_provider_generated") is True:
+        issues.append("direct evidence indicates provider-generated product geometry")
+    if image.get("ai_product_recreated") is True:
         issues.append("direct evidence indicates an AI-redrawn product")
 
-    # Where the deterministic compositor provides a complete provenance manifest,
-    # enforce its stronger source-hash and source-RGB checks too.
-    provenance_available = bool(layered.get("product_source_sha256"))
+    # Run the strongest source-hash/RGB provenance gate only when its complete
+    # manifest is present. A partial old schema is already evaluated by proof tiers.
+    provenance_fields = (
+        "product_source_sha256",
+        "exact_product_pixels",
+        "product_pixels_provider_generated",
+        "product_master_rgb_preserved",
+        "product_ai_reconstruction_prohibited",
+    )
+    provenance_complete = all(field in layered for field in provenance_fields)
     provenance = {}
-    if provenance_available:
+    if provenance_complete:
         provenance = _graphic_product_provenance_gate_v52000(image, role_items)
         if not provenance.get("passed"):
             issues.extend(str(x) for x in (provenance.get("issues") or []))
@@ -18538,8 +18594,10 @@ def _graphic_v68640_geometry_release_gate(image, role_items, *, required):
         "required": True,
         "proof": proof,
         "provenance": provenance,
-        "policy": "v68640-reference-mode-product-geometry-authority",
+        "provenance_complete": provenance_complete,
+        "policy": "v68650-reference-mode-product-geometry-authority",
     }
+
 
 
 def _graphic_v68640_mandatory_release_gate(
@@ -18580,7 +18638,7 @@ def _graphic_v68640_mandatory_release_gate(
             "typography", "lighting", "glass", "shadows", "performance",
             "caching", "provider_routing",
         ],
-        "policy": "v68640-permanent-production-release-gates",
+        "policy": "v68650-permanent-production-release-gates",
     }
     return report
 
@@ -18596,7 +18654,7 @@ def _graphic_finalize_recovery_v16000(
         if not isinstance(image, dict) or not image.get("data_url"):
             continue
         image = dict(image)
-        image["graphic_engine_version"] = "v68640-mandatory-authority-gates"
+        image["graphic_engine_version"] = "v68650-positive-proof-authority-gates"
         image["generation_route_v16000"] = route_name
         image["recovery_failures"] = list(failures or [])[-4:]
         image.setdefault("verification_status", "unverified" if route_name != "advanced" else image.get("verification_status"))
