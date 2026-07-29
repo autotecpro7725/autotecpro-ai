@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68770 FINAL LTS — Direct v66200 Exact Return without Blocking Wrapper
+# AutoTecPro AI Graphic Marketing Engine v68780 FINAL LTS — Correct Reference Role Resolver Invocation with Direct v66200 Return
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -33366,7 +33366,11 @@ def generate_graphic_marketing_images(
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
 
-    role_items = _graphic_project_role_items(project)
+    role_items = _graphic_project_role_items(
+        uploaded_files,
+        effective_prompt,
+        forced_upload_role,
+    )
     has_style_reference = any(
         isinstance(item, dict) and item.get("role") == "style_reference"
         for item in role_items
