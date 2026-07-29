@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68806 FINAL LTS — Adaptive Rigid Product Fit and Footer Depth, Built Directly from v68805
+# AutoTecPro AI Graphic Marketing Engine v68807 FINAL LTS — Immutable Screen UI Pixel Authority, Built Directly from v68806
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -21635,6 +21635,12 @@ def _graphic_chatgpt_production_prompt(
             "RIGID PRODUCT TRANSFORM LOCK: product fitting may use translation, uniform scaling, and a subtle rotation or conservative perspective correction of the complete product as one rigid object. Width and height must always scale by the same factor. Never stretch, squeeze, widen, narrow, lengthen, shorten, shear, liquify, reshape, or independently transform any product region.",
             "ADAPTIVE COMMERCIAL FIT: automatically evaluate the headline, feature matrix, vehicle, footer and available negative space. When the hero product crowds another element, reduce it only as much as needed—normally about 4–8%—and move it slightly left or right to achieve balanced spacing. For the common product-left / vehicle-right composition, prefer a small leftward adjustment when the product is too close to the vehicle or centerline.",
             "ANGLE CONTROL: keep a naturally front-facing product straight whenever that is strongest. A subtle dynamic tilt is optional only when it improves the composition, normally within ±3 degrees, and must rotate the complete locked product uniformly without changing its proportions, silhouette, screen ratio, buttons, openings or mechanical geometry.",
+            "IMMUTABLE SCREEN-UI PIXEL AUTHORITY: the complete visible screen aperture and every pixel inside it are source-authoritative. Preserve the exact top status bar, upper-left and upper-right corners, Wi-Fi/system/brightness icons, clock, app icons, map, labels, buttons, cards, climate controls, spacing, margins, screen ratio and screen-to-bezel alignment from the PRODUCT SOURCE.",
+            "SCREEN-CORNER LOCK: the four screen corners and all straight screen edges must remain geometrically identical to the source after the same whole-product rigid transform. Never pinch, bow, curve, round, sharpen, clip, darken, brighten, compress, expand or reconstruct any screen corner or edge independently.",
+            "NO UI REGENERATION: do not repaint, regenerate, reinterpret, autocomplete, clean up, sharpen, stylize, replace, move or simplify any screen content. Do not invent missing status icons or redraw tiny text. The source screen must remain a single unchanged pixel layer.",
+            "ONE-TRANSFORM RULE: the screen aperture and screen UI must receive exactly the same uniform scale, translation, optional rotation and conservative perspective transform as the complete physical product. Never apply a second crop, warp, perspective correction, corner correction or independent resize to the screen region.",
+            "PHOTOMETRIC-ONLY GLASS INTEGRATION: environmental lighting, exposure, reflections, glare and glass effects may be added only as a subtle transparent overlay above the unchanged source screen pixels. These effects may alter appearance only; they must never replace, move, erase, blur, bend or geometrically distort any source UI pixel.",
+            "SCREEN-DETAIL FAIL-CLOSED RULE: if the provider cannot preserve the complete source screen faithfully, keep the original screen pixels unchanged and reduce or omit the glass/reflection enhancement rather than reconstructing the UI.",
             "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
             "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 5% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
             "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 5% of the complete product and must never cause the product to appear cut off incorrectly.",
@@ -21674,6 +21680,7 @@ def _graphic_chatgpt_production_prompt(
     if correction_prompt:
         lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
     return "\n".join(lines)[:30000]
+
 
 
 
