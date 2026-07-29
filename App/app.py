@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68805 FINAL LTS — Zero Reference-Hardware Transfer, Built Directly from v68800
+# AutoTecPro AI Graphic Marketing Engine v68806 FINAL LTS — Adaptive Rigid Product Fit and Footer Depth, Built Directly from v68805
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -21632,8 +21632,13 @@ def _graphic_chatgpt_production_prompt(
             "Do not infer hidden installation hardware and do not make the unit look more installation-ready. Empty background immediately beside and below the source silhouette must remain empty background.",
             "The left edge, right edge, top shoulders and bottom housing must terminate exactly where they terminate in the PRODUCT SOURCE. Never borrow the reference product's outer contour, side ears, bottom brackets or mounting frame.",
             "A mild photographic straightening is allowed only through rotation or perspective correction of the complete source product as one rigid plane. Straightening must never synthesize, extend, redraw or complete any hardware.",
+            "RIGID PRODUCT TRANSFORM LOCK: product fitting may use translation, uniform scaling, and a subtle rotation or conservative perspective correction of the complete product as one rigid object. Width and height must always scale by the same factor. Never stretch, squeeze, widen, narrow, lengthen, shorten, shear, liquify, reshape, or independently transform any product region.",
+            "ADAPTIVE COMMERCIAL FIT: automatically evaluate the headline, feature matrix, vehicle, footer and available negative space. When the hero product crowds another element, reduce it only as much as needed—normally about 4–8%—and move it slightly left or right to achieve balanced spacing. For the common product-left / vehicle-right composition, prefer a small leftward adjustment when the product is too close to the vehicle or centerline.",
+            "ANGLE CONTROL: keep a naturally front-facing product straight whenever that is strongest. A subtle dynamic tilt is optional only when it improves the composition, normally within ±3 degrees, and must rotate the complete locked product uniformly without changing its proportions, silhouette, screen ratio, buttons, openings or mechanical geometry.",
             "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
-            "The entire product must remain visible above the bottom benefit bar. Do not crop, cover, or hide the lower frame, gap below the screen, mounting tabs, or bottom openings.",
+            "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 5% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
+            "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 5% of the complete product and must never cause the product to appear cut off incorrectly.",
+            "BOTTOM-BANNER SAFE-ZONE LOCK: every footer icon, separator and wording must remain fully contained, vertically centered and comfortably padded inside the dark banner. Never place, squeeze or drop a benefit label below the banner. Keep all footer groups readable even when the product overlaps behind the banner.",
         ])
         if product_structure_text:
             lines.append("IMMUTABLE PRODUCT STRUCTURE MAP: " + product_structure_text)
@@ -21669,6 +21674,7 @@ def _graphic_chatgpt_production_prompt(
     if correction_prompt:
         lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
     return "\n".join(lines)[:30000]
+
 
 
 
