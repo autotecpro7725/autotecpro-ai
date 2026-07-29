@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68720 FINAL LTS — Reference Analysis Intent Lock, Manual Attachment Send, and v67610 State Machine
+# AutoTecPro AI Graphic Marketing Engine v68730 FINAL LTS — Immutable Lower Bezel and Complete Hero-Zone Protection
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -26186,6 +26186,216 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
+
+def _graphic_complete_hero_zone_clear_v68730(
+    canvas, product, px, py, hero_rect, footer_top_px
+):
+    """Clear the full product zone before exact uploaded-product compositing."""
+    report = {
+        "applied": False,
+        "engine": "complete-hero-zone-clear-v68730",
+        "product_pixels_modified": False,
+        "provider_product_pixels_retained": True,
+    }
+    if Image is None or canvas is None or product is None:
+        report["reason"] = "image unavailable"
+        return canvas, report
+
+    try:
+        from PIL import ImageDraw, ImageFilter, ImageStat
+
+        base = canvas.convert("RGBA").copy()
+        width, height = base.size
+        hx0, hy0, hx1, hy1 = [int(value) for value in hero_rect]
+
+        side_expand = max(24, int(round(product.width * 0.10)))
+        top_expand = max(14, int(round(product.height * 0.035)))
+        bottom_expand = max(26, int(round(product.height * 0.10)))
+
+        x0 = max(0, min(hx0, int(px)) - side_expand)
+        y0 = max(0, min(hy0, int(py)) - top_expand)
+        x1 = min(width, max(hx1, int(px) + product.width) + side_expand)
+        y1 = min(
+            height,
+            int(footer_top_px) - 2,
+            max(hy1, int(py) + product.height) + bottom_expand,
+        )
+
+        if x1 <= x0 or y1 <= y0:
+            report["reason"] = "invalid complete hero bounds"
+            return canvas, report
+
+        cleared, primary = _graphic_clear_reserved_product_zone_v55000(
+            base, product, px, py
+        )
+        if primary.get("applied"):
+            primary = dict(primary)
+            primary.update({
+                "engine": "complete-hero-zone-clear-v68730-primary",
+                "complete_reserved_rect": [x0, y0, x1, y1],
+                "lower_bezel_apron_protected": True,
+                "provider_product_pixels_retained": False,
+                "product_pixels_modified": False,
+            })
+            return cleared, primary
+
+        rgb = base.convert("RGB")
+        sample = []
+        sw = max(18, min(int(width * 0.06), max(18, (x1 - x0) // 4)))
+        boxes = [
+            (max(0, x0 - sw), y0, x0, y1),
+            (x1, y0, min(width, x1 + sw), y1),
+            (x0, max(0, y0 - sw), x1, y0),
+        ]
+        for box in boxes:
+            if box[2] > box[0] and box[3] > box[1]:
+                sample.append(rgb.crop(box))
+
+        fill_rgb = (150, 158, 166)
+        if sample:
+            means = [ImageStat.Stat(item).mean for item in sample]
+            fill_rgb = tuple(
+                int(sum(mean[channel] for mean in means) / len(means))
+                for channel in range(3)
+            )
+
+        zone_w, zone_h = x1 - x0, y1 - y0
+        existing = base.crop((x0, y0, x1, y1)).filter(
+            ImageFilter.GaussianBlur(max(18, int(min(zone_w, zone_h) * 0.075)))
+        )
+        plate = Image.new("RGBA", (zone_w, zone_h), (*fill_rgb, 255))
+        plate = Image.blend(plate, existing, 0.22)
+
+        feather = Image.new("L", (zone_w, zone_h), 255)
+        edge = max(7, int(min(zone_w, zone_h) * 0.035))
+        fd = ImageDraw.Draw(feather)
+        for inset in range(edge):
+            alpha = int(255 * (inset + 1) / edge)
+            fd.rectangle(
+                (
+                    inset,
+                    inset,
+                    zone_w - 1 - inset,
+                    zone_h - 1 - inset,
+                ),
+                outline=alpha,
+            )
+        plate.putalpha(feather)
+        base.alpha_composite(plate, (x0, y0))
+
+        report.update({
+            "applied": True,
+            "engine": "complete-hero-zone-clear-v68730-pillow",
+            "reserved_rect": [x0, y0, x1, y1],
+            "fill_rgb": list(fill_rgb),
+            "lower_bezel_apron_protected": True,
+            "provider_product_pixels_retained": False,
+            "product_pixels_modified": False,
+            "primary_failure": str(primary.get("reason") or "")[:300],
+        })
+        return base, report
+    except Exception as error:
+        report["reason"] = f"{type(error).__name__}: {error}"[:500]
+        return canvas, report
+
+
+def _graphic_lock_authoritative_lower_bezel_v68730(
+    candidate_product, authoritative_product, lower_fraction=0.34
+):
+    """Restore the exact lower bezel, lip, housing, and mounting pixels."""
+    report = {
+        "applied": False,
+        "engine": "authoritative-lower-bezel-lock-v68730",
+        "source_pixels_used": True,
+    }
+    if Image is None or candidate_product is None or authoritative_product is None:
+        report["reason"] = "product layer unavailable"
+        return candidate_product, report
+
+    try:
+        candidate = candidate_product.convert("RGBA").copy()
+        source_master = authoritative_product.convert("RGBA")
+        if candidate.size != source_master.size:
+            report["reason"] = "product size mismatch"
+            return candidate_product, report
+
+        width, height = candidate.size
+        y0 = max(0, min(height - 1, int(round(height * (1.0 - lower_fraction)))))
+        source_crop = source_master.crop((0, y0, width, height))
+        alpha = source_crop.getchannel("A")
+        feather_h = max(4, int(height * 0.012))
+        alpha_values = alpha.load()
+        for yy in range(min(feather_h, alpha.height)):
+            factor = (yy + 1) / feather_h
+            for xx in range(alpha.width):
+                alpha_values[xx, yy] = int(alpha_values[xx, yy] * factor)
+        source_crop.putalpha(alpha)
+        candidate.alpha_composite(source_crop, (0, y0))
+
+        fidelity = _graphic_lower_housing_fidelity_v55000(
+            source_master, candidate
+        )
+        report.update({
+            "applied": bool(fidelity.get("passed")),
+            "lower_region_y": y0,
+            "lower_fraction": lower_fraction,
+            "fidelity": fidelity,
+            "bottom_bezel_exact_alpha": bool(fidelity.get("exact_alpha")),
+            "lower_housing_geometry_preserved": bool(fidelity.get("passed")),
+        })
+        if not fidelity.get("passed"):
+            candidate = source_master.copy()
+            fidelity = _graphic_lower_housing_fidelity_v55000(
+                source_master, candidate
+            )
+            report.update({
+                "applied": bool(fidelity.get("passed")),
+                "fallback_complete_product_restore": True,
+                "fidelity": fidelity,
+                "bottom_bezel_exact_alpha": bool(fidelity.get("exact_alpha")),
+                "lower_housing_geometry_preserved": bool(fidelity.get("passed")),
+            })
+        return candidate, report
+    except Exception as error:
+        report["reason"] = f"{type(error).__name__}: {error}"[:500]
+        return authoritative_product.copy(), report
+
+
+def _graphic_soften_lower_contact_shadow_v68730(
+    shadow_layer, product, footer_top_px, product_y
+):
+    """Prevent a hard shadow rail from looking like a changed bottom bezel."""
+    if Image is None or shadow_layer is None or product is None:
+        return shadow_layer
+    try:
+        from PIL import ImageDraw, ImageFilter, ImageChops
+
+        layer = shadow_layer.convert("RGBA").copy()
+        alpha = layer.getchannel("A")
+        width, height = layer.size
+
+        lower_edge = min(height, product.height)
+        footer_relative = max(0, int(footer_top_px) - int(product_y))
+        fade_start = max(0, min(lower_edge - 2, footer_relative - 18))
+        fade_end = max(fade_start + 1, min(height, footer_relative))
+
+        mask = Image.new("L", (width, height), 255)
+        draw = ImageDraw.Draw(mask)
+        if fade_end > fade_start:
+            for yy in range(fade_start, fade_end):
+                t = (yy - fade_start) / max(1, fade_end - fade_start)
+                value = int(255 * (1.0 - 0.72 * t))
+                draw.line((0, yy, width, yy), fill=value)
+        if fade_end < height:
+            draw.rectangle((0, fade_end, width, height), fill=55)
+
+        mask = mask.filter(ImageFilter.GaussianBlur(max(2, int(height * 0.006))))
+        alpha = ImageChops.multiply(alpha, mask)
+        layer.putalpha(alpha)
+        return layer
+    except Exception:
+        return shadow_layer
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -26380,19 +26590,61 @@ def _graphic_compose_reference_campaign_v3200(
         if not lower_housing_fidelity_v55000.get("passed"):
             raise RuntimeError("v56000 rejected the result because the bottom bezel or lower housing geometry changed.")
 
-    # Remove any provider-created device, bezel, mounting tab or product shadow from
-    # the protected region before placing the exact uploaded product.
-    canvas, protected_product_zone_v55000 = _graphic_clear_reserved_product_zone_v55000(canvas, product, px, py)
-    if design_mode == "reference_template" and not protected_product_zone_v55000.get("applied"):
+    # v68730: restore the exact lower bezel/housing after lighting and glass.
+    product, lower_bezel_authority_v68730 = (
+        _graphic_lock_authoritative_lower_bezel_v68730(
+            product,
+            product_before_lighting,
+        )
+    )
+    if (
+        design_mode == "reference_template"
+        and not lower_bezel_authority_v68730.get(
+            "lower_housing_geometry_preserved"
+        )
+    ):
         raise RuntimeError(
-            "v56000 rejected the result because the provider product zone could not be cleared safely. "
-            "Confirm opencv-python-headless is installed in the deployment environment."
+            "v68730 lower-bezel authority restoration failed."
         )
 
-    # Stage 7: physically layered contact, ambient and directional shadows.
-    shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v61000(product, (W,H), lighting_profile)
-    for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
-        canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
+    # Clear all provider-created product remnants behind and below the exact unit.
+    canvas, protected_product_zone_v55000 = (
+        _graphic_complete_hero_zone_clear_v68730(
+            canvas,
+            product,
+            px,
+            py,
+            (hero_x0, hero_y0, hero_x1, hero_y1),
+            footer_top_px,
+        )
+    )
+    if (
+        design_mode == "reference_template"
+        and not protected_product_zone_v55000.get("applied")
+    ):
+        raise RuntimeError(
+            "v68730 complete hero-zone cleanup failed."
+        )
+
+    # Preserve premium shadows while suppressing any hard false-bezel rail.
+    shadow_layers_v48000, shadow_solver_v48000 = (
+        _graphic_shadow_solver_v61000(
+            product,
+            (W, H),
+            lighting_profile,
+        )
+    )
+    for _shadow_name, _shadow_layer, (_sdx, _sdy) in shadow_layers_v48000:
+        _shadow_layer = _graphic_soften_lower_contact_shadow_v68730(
+            _shadow_layer,
+            product,
+            footer_top_px,
+            py + _sdy,
+        )
+        canvas.alpha_composite(
+            _shadow_layer,
+            (px + _sdx, py + _sdy),
+        )
     canvas.alpha_composite(product, (px, py))
     final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
@@ -26605,6 +26857,8 @@ def _graphic_compose_reference_campaign_v3200(
         "graphic_cache_epoch_v64000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v62000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
+        "complete_hero_zone_protection_v68730": protected_product_zone_v55000,
+        "lower_bezel_authority_v68730": lower_bezel_authority_v68730,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
