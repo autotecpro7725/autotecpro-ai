@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68808 FINAL LTS — Deterministic Product Placement and Screen Fidelity, Built Directly from v68807
+# AutoTecPro AI Graphic Marketing Engine v68809 FINAL LTS — Context-Aware Fuzzy Generation Intent, Built Directly from v68808
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18137,13 +18137,20 @@ def _explicit_product_library_request(prompt_text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
-def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured_request=False):
-    """Classify Graphic Marketing chat intent without spending an extra AI call.
 
-    The router intentionally prefers conversation/analysis when wording is
-    ambiguous. This mirrors ChatGPT image behavior: planning, asking permission
-    to upload, and reference discussion do not create an image. A structured
-    Advanced Designer submission is always an explicit generation request.
+def classify_graphic_chat_intent(
+    prompt_text, uploaded_files=None, *, structured_request=False
+):
+    """Resolve Graphic Marketing intent from wording, uploads and project state.
+
+    v68809 fixes two routing failures:
+    1. short typo commands such as "crest it" were treated as conversation;
+    2. a current product-upload instruction containing both reference/analysis
+       wording and an explicit "create ... now" command was classified as analysis
+       before the generation command could be evaluated.
+
+    Negative/defer instructions remain authoritative, and short consent commands
+    cannot start generation unless the project is ready.
     """
     if structured_request:
         return "generate"
@@ -18158,42 +18165,112 @@ def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured
     ]
     has_images = bool(image_uploads)
 
-    # Questions, future intentions, and upload-preparation statements must never
-    # launch the image API. This gate intentionally runs before every generation
-    # pattern so phrases such as "I want to create... let me send a reference"
-    # remain planning turns even though they contain creation words.
+    try:
+        project = _graphic_repair_project_asset_roles_v15000(
+            get_graphic_project_state()
+        )
+        project_ready = _graphic_project_is_ready(project)
+        project_image_count = sum(
+            1 for item in (project.get("assets") or [])
+            if isinstance(item, dict) and bytes(item.get("data") or b"")
+        )
+    except Exception:
+        project_ready = False
+        project_image_count = 0
+
+    # Hard negative, defer and sequencing language always wins.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
         r"\bshould i (?:send|upload|show|attach|provide)\b",
         r"\b(?:let me|allow me to) (?:send|upload|show|attach|provide)\b",
-        r"\b(?:i am|i'm|im|we are|we're) (?:going to|about to) (?:send|upload|show|attach|provide)\b",
-        r"\b(?:i|we) (?:will|shall|plan to|intend to) (?:send|upload|show|attach|provide)\b",
-        r"\bwait (?:for|until) (?:my|the|another|next) (?:reference|sample|product|photo|image|file|upload)\b",
-        r"\b(?:sample|reference|product) (?:photo|image|file)?\s*(?:first|later|afterwards|next)\b",
-        r"\b(?:send|upload|show|attach|provide) (?:you )?(?:a |an |the |my )?(?:sample|reference|product) (?:photo|image|file)\b.*\b(?:first|next|before|then)\b",
+        r"\b(?:i am|i'm|im|we are|we're) (?:going to|about to) "
+        r"(?:send|upload|show|attach|provide)\b",
+        r"\b(?:i|we) (?:will|shall|plan to|intend to) "
+        r"(?:send|upload|show|attach|provide)\b",
+        r"\bwait (?:for|until) (?:my|the|another|next) "
+        r"(?:reference|sample|product|photo|image|file|upload)\b",
+        r"\b(?:sample|reference|product) (?:photo|image|file)?\s*"
+        r"(?:first|later|afterwards|next)\b",
+        r"\b(?:send|upload|show|attach|provide) (?:you )?"
+        r"(?:a |an |the |my )?(?:sample|reference|product) "
+        r"(?:photo|image|file)\b.*\b(?:first|next|before|then)\b",
         r"\bfor (?:your )?reference\b",
         r"\bcan you (?:first )?(?:look at|review|analy[sz]e|inspect|compare|study)\b",
-        r"\b(?:before|prior to) (?:you )?(?:create|generate|make|design|edit)\b",
-        r"\b(?:reference|product) (?:first|later|afterwards|next)\b",
-        r"\b(?:i want|i would like|i'd like|we want|we would like) to (?:create|make|design|generate)\b.*\b(?:can|may|should|first|before|send|upload|attach|provide|reference|sample)\b",
-        r"\b(?:i want|i would like|i'd like|we want|we would like|planning|thinking) to (?:create|make|design|generate)\b.*\b(?:later|eventually|afterwards|next|soon)\b",
+        r"\b(?:before|prior to) (?:you )?"
+        r"(?:create|generate|make|design|edit)\b",
+        r"\b(?:analy[sz]e|review|inspect|study|compare)\b.*\bfirst\b",
+        r"\bfirst\b.*\b(?:analy[sz]e|review|inspect|study|compare)\b",
+        r"\b(?:i want|i would like|i'd like|we want|we would like) to "
+        r"(?:create|make|design|generate)\b.*"
+        r"\b(?:can|may|should|first|before|send|upload|attach|provide)\b",
+        r"\b(?:i want|i would like|i'd like|we want|we would like|planning|thinking) "
+        r"to (?:create|make|design|generate)\b.*"
+        r"\b(?:later|eventually|afterwards|next|soon)\b",
         r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
         r"\bwhat (?:do you|should i|would you) need\b",
         r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
-        r"\bdo not (?:create|generate|make|edit) (?:it|anything|the image) yet\b",
-        r"\b(?:don't|do not) (?:create|generate|make|edit)\b",
-        r"\bnot ready to (?:create|generate|make|edit)\b",
+        r"\bdo not (?:create|generate|make|edit|render|produce)\b",
+        r"\b(?:don't|do not) (?:create|generate|make|edit|render|produce)\b",
+        r"\bnot ready to (?:create|generate|make|edit|render|produce)\b",
+        r"\bhold (?:on|off)\b",
     )
     if any(re.search(pattern, text) for pattern in defer_patterns):
         return "planning"
 
-    # Explicit learning stays separate from generation.
     if any(phrase in text for phrase in (
         "learn this style", "save this style", "remember this style",
         "store this style", "add this to graphic memory",
     )):
         return "learn"
+
+    # Evaluate the current turn's explicit generation action before generic
+    # analysis vocabulary. This is limited to a real command, not mere future
+    # discussion of creating another product.
+    generation_command = _graphic_generation_command_v16000(text)
+    short_command = bool(re.fullmatch(
+        r"(?:please\s+)?(?:"
+        r"create|creat|crete|crate|craete|crest|generate|genrate|generte|gnerate|"
+        r"make|render|rendar|do"
+        r")\s+(?:it|this|that)(?:\s+now)?[.!]?",
+        text,
+    ) or re.fullmatch(
+        r"(?:please\s+)?(?:go ahead|proceed|start|start now|retry|try again)"
+        r"[.!]?",
+        text,
+    ))
+
+    explicit_now = bool(re.search(
+        r"\b(?:create|generate|make|render|produce|design|build)\b.*"
+        r"\b(?:now|immediately|right now)\b",
+        text,
+    ))
+    concrete_deliverable = bool(
+        re.search(
+            r"\b(?:create|generate|make|render|produce|design|build)\b",
+            text,
+        )
+        and re.search(
+            r"\b(?:commercial|advertisement|ad|campaign|image|photo|graphic|"
+            r"artwork|poster|banner|product shot)\b",
+            text,
+        )
+    )
+
+    if generation_command:
+        # A short typo/consent command is safe only after assets are ready.
+        if not short_command or project_ready or project_image_count >= 2:
+            return "generate"
+
+    # Mixed current-turn requests such as "analyze/use this reference and create
+    # the commercial photo now" should generate once the current upload has made
+    # the project ready. Explicit sequencing such as "analyze first" was already
+    # blocked by the defer gate.
+    if (
+        (explicit_now or concrete_deliverable)
+        and (project_ready or project_image_count >= 2 or has_images)
+    ):
+        return "generate"
 
     analysis_terms = (
         "analyze", "analyse", "review", "inspect", "compare", "describe",
@@ -18203,61 +18280,27 @@ def classify_graphic_chat_intent(prompt_text, uploaded_files=None, *, structured
     if any(term in text for term in analysis_terms):
         return "analyze"
 
-    # Follow-up editing commands are explicit only when an existing/generated
-    # image is referenced by demonstratives or by a concrete visual change.
     edit_patterns = (
-        r"\b(?:edit|modify|retouch|revise|update) (?:this|that|the|my|last|previous) (?:image|photo|graphic|ad|advertisement|design|version)\b",
-        r"\b(?:change|replace|remove|add|move|resize|reposition|brighten|darken|crop) (?:the|this|that|its)\b",
+        r"\b(?:edit|modify|retouch|revise|update) "
+        r"(?:this|that|the|my|last|previous) "
+        r"(?:image|photo|graphic|ad|advertisement|design|version)\b",
+        r"\b(?:change|replace|remove|add|move|resize|reposition|brighten|darken|crop) "
+        r"(?:the|this|that|its)\b",
         r"\bkeep everything else (?:the same|unchanged)\b",
-        r"\bregenerate (?:it|this|that|the image|the ad|the advertisement|the last version)\b",
-        r"\bmake (?:the|this|that) (?:background|headline|product|logo|truck|vehicle|text|lighting)\b",
+        r"\bregenerate (?:it|this|that|the image|the ad|the advertisement|"
+        r"the last version)\b",
+        r"\bmake (?:the|this|that) "
+        r"(?:background|headline|product|logo|truck|vehicle|text|lighting)\b",
     )
     if any(re.search(pattern, text) for pattern in edit_patterns):
         return "edit"
 
-    # Strong direct generation phrases. These can be short contextual commands
-    # such as "generate it" after reference discussion.
-    direct_generation_patterns = (
-        r"^(?:please )?(?:generate|create|make|design|produce|render) (?:it|this|that|the image|the photo|the ad|the advertisement|the graphic|the design)(?: now)?[.!]?$",
-        r"^(?:please )?(?:send|show|give) me (?:the |a |an )?(?:new |final |finished |commercial )*(?:image|photo|picture|graphic|artwork|banner|poster|ad|advertisement)(?: now)?[.!]?$",
-        r"^(?:please )?(?:go ahead|proceed|do it|make it|create it|generate it)(?: now)?[.!]?$",
-        r"\b(?:generate|create|make|design|produce|render) (?:the|a|an|my|our|this|that) (?:new |final |finished |commercial )*(?:image|photo|picture|graphic|artwork|banner|thumbnail|poster|flyer|ad|advertisement|social media post|product shot|render)\b",
-        r"\b(?:use|take) (?:this|that|these|the uploaded|my|our) (?:product|image|photo|images|photos|references|files) (?:and|to) (?:generate|create|make|design|produce|render)\b",
-        r"\b(?:use|take) (?:this|that|the uploaded|my|our) product to create (?:a|an|the) (?:similar |new |commercial )*(?:image|photo|ad|advertisement|graphic)\b",
-        r"\b(?:go ahead|proceed) (?:and )?(?:generate|create|make|design|produce|render)\b",
-        r"\b(?:ready|looks good|that works|perfect)[, ]+(?:generate|create|make|design|produce|render|send|show) (?:it|the image|the photo|the ad|the advertisement|now)\b",
-        r"\bcreate (?:a )?(?:16:9|1:1|9:16|landscape|square|portrait)\b",
-        r"\bturn (?:this|these|the uploaded .+?) into (?:an? )?(?:image|photo|graphic|ad|advertisement|poster|banner)\b",
-    )
-    if any(re.search(pattern, text) for pattern in direct_generation_patterns):
-        return "generate"
-
-    # Commands that mention both a visual deliverable and an unambiguous action
-    # are generation requests, except future/conditional/planning language.
-    visual_nouns = (
-        "image", "photo", "picture", "graphic", "artwork", "banner",
-        "thumbnail", "poster", "flyer", "advertisement", "product shot",
-        "product photography", "social media post", "instagram post",
-        "facebook post", "facebook cover", "youtube cover", "render",
-    )
-    creation_verbs = ("create", "generate", "make", "design", "produce", "render")
-    conditional_terms = (
-        "want to", "would like to", "planning to", "thinking about",
-        "can i", "may i", "should i", "before", "first", "later",
-        "eventually", "when we", "once i", "after i",
-    )
-    if (
-        any(noun in text for noun in visual_nouns)
-        and any(verb in text for verb in creation_verbs)
-        and not any(term in text for term in conditional_terms)
-    ):
-        return "generate"
-
-    # Uploading images alone is evidence for analysis, not consent to generate.
+    # Upload without a current actionable creation command remains analysis.
     if has_images:
         return "analyze"
 
     return "conversation"
+
 
 
 def _graphic_project_role_set(state=None):
@@ -18315,24 +18358,57 @@ def _graphic_repair_project_asset_roles_v15000(state=None):
 
 
 
+
 def _graphic_generation_command_v16000(prompt_text):
-    """Recognize natural create commands anywhere in a contextual sentence."""
+    """Recognize natural and typo-tolerant create commands in the current turn.
+
+    v68809 keeps generation fail-closed: typo-only/short consent commands become
+    actionable only after the Graphic project is ready. Full explicit generation
+    instructions remain actionable when the product/reference assets were attached
+    in the same submitted turn and have already been committed to project state.
+    """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return False
+
     blocked = (
         "do not create", "don't create", "do not generate", "don't generate",
-        "not ready", "hold on", "before you create", "before creating",
-        "can you create", "could you create", "would you create",
+        "not ready", "hold on", "wait", "before you create", "before creating",
+        "analyze first", "analyse first", "review first", "inspect first",
+        "study first", "before generating", "before generation",
     )
     if any(term in text for term in blocked):
         return False
-    patterns = (
-        r"\b(?:create|generate|make|render|produce|design|build)\s+(?:it|this|that|the\s+(?:image|photo|ad|advertisement|commercial|campaign|artwork))\b",
-        r"\b(?:go ahead|proceed|do it|create it|generate it|make it|render it|retry|try again)\b",
-        r"\b(?:create|generate|make|render|produce)\s+(?:the\s+)?(?:commercial|campaign|advertisement|ad|image|artwork)\b",
+
+    # Normalize only highly probable creation-command typos. This deliberately
+    # avoids broad autocorrection of normal conversation.
+    typo_replacements = (
+        (r"\bcrest(?=\s+(?:it|this|that|now)\b)", "create"),
+        (r"\bcreat(?=\s+(?:it|this|that|now|the)\b)", "create"),
+        (r"\bcrete(?=\s+(?:it|this|that|now|the)\b)", "create"),
+        (r"\bcrate(?=\s+(?:it|this|that|now|the)\b)", "create"),
+        (r"\bcraete(?=\s+(?:it|this|that|now|the)\b)", "create"),
+        (r"\bgenrate\b", "generate"),
+        (r"\bgenerte\b", "generate"),
+        (r"\bgnerate\b", "generate"),
+        (r"\brendar\b", "render"),
     )
-    return any(re.search(pattern, text) for pattern in patterns)
+    normalized = text
+    for pattern, replacement in typo_replacements:
+        normalized = re.sub(pattern, replacement, normalized)
+
+    patterns = (
+        r"\b(?:create|generate|make|render|produce|design|build)\s+"
+        r"(?:it|this|that|the\s+(?:image|photo|ad|advertisement|commercial|campaign|artwork))\b",
+        r"\b(?:go ahead|proceed|do it|create it|generate it|make it|render it|"
+        r"retry|try again|start generation|start creating)\b",
+        r"\b(?:create|generate|make|render|produce)\s+(?:the\s+)?"
+        r"(?:commercial|campaign|advertisement|ad|image|artwork|photo)\b",
+        r"\b(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+        r"(?:create|generate|make|render|produce|design)\b",
+    )
+    return any(re.search(pattern, normalized) for pattern in patterns)
+
 
 
 def _graphic_active_project_assets_v16000(state=None):
