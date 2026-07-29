@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68810 FINAL LTS — Active-ID Exact Controlled Compositor, Built from v68800 with v66200/v68720 Geometry Pipeline
+# AutoTecPro AI Graphic Marketing Engine v68805 FINAL LTS — Zero Reference-Hardware Transfer, Built Directly from v68800
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -21627,6 +21627,11 @@ def _graphic_chatgpt_production_prompt(
             "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
             "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity.",
             "Do not redesign, simplify, crop away, or substitute its physical components. Do not use the gauge cluster or hardware shown in a style reference.",
+            "ZERO REFERENCE-HARDWARE TRANSFER: the style reference controls layout, lighting, scenery, typography hierarchy, icon rhythm and campaign polish only. It has absolutely no authority over the product silhouette or mechanical construction.",
+            "SILHOUETTE SUBTRACTION LOCK: any ear, side wing, mounting bracket, rail, tab, flange, screw plate, lower frame, support, handle, extension or protrusion that is not visibly present in the PRODUCT SOURCE is forbidden and must be absent from the output.",
+            "Do not infer hidden installation hardware and do not make the unit look more installation-ready. Empty background immediately beside and below the source silhouette must remain empty background.",
+            "The left edge, right edge, top shoulders and bottom housing must terminate exactly where they terminate in the PRODUCT SOURCE. Never borrow the reference product's outer contour, side ears, bottom brackets or mounting frame.",
+            "A mild photographic straightening is allowed only through rotation or perspective correction of the complete source product as one rigid plane. Straightening must never synthesize, extend, redraw or complete any hardware.",
             "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
             "The entire product must remain visible above the bottom benefit bar. Do not crop, cover, or hide the lower frame, gap below the screen, mounting tabs, or bottom openings.",
         ])
@@ -21664,6 +21669,7 @@ def _graphic_chatgpt_production_prompt(
     if correction_prompt:
         lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
     return "\n".join(lines)[:30000]
+
 
 
 GRAPHIC_ENGINE_VERSION = "v63000"
@@ -33505,25 +33511,24 @@ def _graphic_v68680_stage_result(
 
 
 
-
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True,
     preserve_product=True, style_strength="High",
     forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    """v68810 production generation state machine.
+    """v68790 public generation path.
 
-    Exact Reference Mode now combines the two proven requirements:
+    Restore the proven v66200/v67610 order:
 
-    1. v68800 active-ID role authority guarantees that the uploaded Toyota product,
-       not the Ford style reference or a historical asset, is the product source.
-    2. The v66200/v3200 controlled compositor guarantees that the provider generates
-       scenery only and the exact uploaded product is composited locally as the final
-       visible product.
+        advanced professional generation
+        -> usable image exists
+        -> return immediately
 
-    A usable controlled-compositor image returns immediately and is not passed through
-    a later optional-metadata wrapper.
+    The v3200 deterministic compositor remains recovery only. It is not promoted
+    ahead of the advanced path because doing so allows reference-template hardware
+    to survive behind the uploaded product when the provider background contains a
+    larger product-like structure.
     """
     arguments = dict(
         use_approved_style=use_approved_style,
@@ -33547,113 +33552,51 @@ def generate_graphic_marketing_images(
     project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
 
-    # v68800 resolver consumes active_product_id and active_reference_id, excludes
-    # historical product/reference records, and returns exactly one of each.
-    role_items = _graphic_project_role_items(
-        uploaded_files,
-        effective_prompt,
-        forced_upload_role,
-    )
-    has_product = any(
-        isinstance(item, dict) and item.get("role") == "product_photo"
-        for item in role_items
-    )
-    has_reference = any(
-        isinstance(item, dict) and item.get("role") == "style_reference"
-        for item in role_items
-    )
-    has_edit_base = any(
-        isinstance(item, dict) and item.get("role") == "edit_base"
-        for item in role_items
-    )
-    exact_reference_job = bool(
-        preserve_product
-        and has_product
-        and has_reference
-        and not has_edit_base
-        and not installed_request
-    )
-
-    # Primary Reference Mode route:
-    # provider background -> full reserved product-zone removal -> exact uploaded
-    # product local composite -> typography/icons/footer.
-    if exact_reference_job:
-        try:
-            controlled_raw = _generate_graphic_marketing_images_advanced_v3200(
-                effective_prompt,
-                uploaded_files,
-                **arguments,
-            )
-            controlled_images = _graphic_v68680_normalize_usable_images(
-                controlled_raw,
-                "v68810-active-id-controlled-compositor",
-                failures,
-            )
-            if controlled_images:
-                state = get_graphic_project_state()
-                authority = dict(state.get("last_role_authority_v68800") or {})
-                for image in controlled_images:
-                    if isinstance(image, dict):
-                        image["generation_state_machine_v68810"] = {
-                            "success": True,
-                            "accepted_route": (
-                                "v68810-active-id-controlled-compositor"
-                            ),
-                            "active_id_role_authority": True,
-                            "provider_full_product_result_not_published": True,
-                            "blocking_wrapper_bypassed": True,
-                        }
-                        image["product_geometry_authority_v68810"] = {
-                            "selected_product_id": authority.get(
-                                "selected_product_id"
-                            ),
-                            "active_product_id": authority.get(
-                                "active_product_id"
-                            ),
-                            "selected_reference_id": authority.get(
-                                "selected_reference_id"
-                            ),
-                            "active_reference_id": authority.get(
-                                "active_reference_id"
-                            ),
-                            "uploaded_product_final_visible_layer": True,
-                            "provider_product_zone_removed_before_composite": True,
-                            "provider_product_not_authoritative": True,
-                            "product_count": authority.get("product_count"),
-                            "reference_count": authority.get("reference_count"),
-                        }
-                diagnostic_log(
-                    "graphic_v68810_controlled_compositor_return",
-                    image_count=len(controlled_images),
-                    product_match=(
-                        authority.get("active_product_id")
-                        == authority.get("selected_product_id")
-                    ),
-                    reference_match=(
-                        authority.get("active_reference_id")
-                        == authority.get("selected_reference_id")
-                    ),
-                )
-                return controlled_images
-
-            failures.append(
-                "v68810-active-id-controlled-compositor:"
-                "route returned no usable image"
-            )
-        except Exception as error:
-            reason = (
-                f"{type(error).__name__}:"
-                f"{_graphic_compact_error_v4000(error)}"
-            )
-            failures.append(
-                "v68810-active-id-controlled-compositor:" + reason
-            )
+    # Stage 1: exact v66200/v68720 professional path, returned immediately when
+    # usable. This generator already performs its own product-source, geometry,
+    # fitment, composition, and QA checks.
+    try:
+        advanced_raw = _generate_graphic_marketing_images_advanced(
+            effective_prompt,
+            uploaded_files,
+            **arguments,
+        )
+        advanced_images = _graphic_v68680_normalize_usable_images(
+            advanced_raw,
+            "advanced-direct-return",
+            failures,
+        )
+        if advanced_images:
+            for image in advanced_images:
+                if isinstance(image, dict):
+                    image["generation_state_machine_v68790"] = {
+                        "success": True,
+                        "accepted_route": "advanced-direct-return",
+                        "advanced_first": True,
+                        "blocking_wrapper_bypassed": True,
+                        "v3200_used_as_recovery_only": True,
+                    }
             diagnostic_log(
-                "graphic_v68810_controlled_compositor_failed",
-                reason=reason,
+                "graphic_v68790_advanced_direct_return",
+                image_count=len(advanced_images),
             )
+            return advanced_images
 
-    # Installed View remains dedicated and fail-closed.
+        failures.append(
+            "advanced-direct-return:route returned no usable image"
+        )
+    except Exception as error:
+        reason = (
+            f"{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
+        )
+        failures.append("advanced-direct-return:" + reason)
+        diagnostic_log(
+            "graphic_v68790_advanced_exception",
+            reason=reason,
+        )
+
+    # Installed View must remain interior-only and fail closed.
     if installed_request:
         try:
             installed_raw = _graphic_installed_view_recovery_v47000(
@@ -33668,6 +33611,13 @@ def generate_graphic_marketing_images(
                 failures,
             )
             if installed_images:
+                for image in installed_images:
+                    if isinstance(image, dict):
+                        image["generation_state_machine_v68790"] = {
+                            "success": True,
+                            "accepted_route": "installed-view-only-v47000",
+                            "advanced_first": True,
+                        }
                 return installed_images
             failures.append(
                 "installed-view-only-v47000:"
@@ -33679,17 +33629,22 @@ def generate_graphic_marketing_images(
                 f"{type(error).__name__}:"
                 f"{_graphic_compact_error_v4000(error)}"
             )
+
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-4:])[:1800]
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         raise RuntimeError(
             "Installed View failed safely after its dedicated routes. "
             + " | ".join(failures[-3:])
         )
 
-    # Non-reference generation and exact-route recovery retain the v68720 advanced
-    # engine. For an exact Reference job this route is recovery only.
+    # Stage 2: unchanged v3200 compatibility recovery. It is intentionally not the
+    # primary Reference Mode route.
     recovery_stages = [
         (
-            "advanced-recovery" if exact_reference_job else "advanced",
-            lambda: _generate_graphic_marketing_images_advanced(
+            "v3200-compatibility",
+            lambda: _generate_graphic_marketing_images_advanced_v3200(
                 effective_prompt,
                 uploaded_files,
                 **arguments,
@@ -33723,31 +33678,30 @@ def generate_graphic_marketing_images(
             images = result["images"]
             for image in images:
                 if isinstance(image, dict):
-                    image["generation_state_machine_v68810"] = {
+                    image["generation_state_machine_v68790"] = {
                         "success": True,
                         "accepted_route": route_name,
-                        "exact_reference_job": exact_reference_job,
-                        "controlled_route_failed_before_recovery": bool(
-                            exact_reference_job
-                        ),
+                        "advanced_first": True,
+                        "advanced_failure": failures[0] if failures else "",
                         "attempts": [
                             {
                                 "route": item.get("route"),
                                 "success": bool(item.get("success")),
                                 "blocked": bool(item.get("blocked")),
-                                "reason": str(
-                                    item.get("reason") or ""
-                                )[:500],
+                                "reason": str(item.get("reason") or "")[:500],
                             }
                             for item in stage_results
                         ],
                     }
+            diagnostic_log(
+                "graphic_v68790_recovery_accepted",
+                route=route_name,
+                attempts=len(stage_results),
+            )
             return images
 
-        failures.append(
-            f"{route_name}:"
-            f"{str(result.get('reason') or 'route failed')}"
-        )
+        reason = str(result.get("reason") or "route failed")
+        failures.append(f"{route_name}:{reason}")
 
     state = get_graphic_project_state()
     state["stage"] = "ready_to_generate"
@@ -33757,12 +33711,15 @@ def generate_graphic_marketing_images(
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
 
+    diagnostic_log(
+        "graphic_v68790_all_routes_failed",
+        failures=failures[-6:],
+    )
     raise RuntimeError(
         "All established image-generation routes genuinely failed. "
         "Your project remains saved. "
         + " | ".join(failures[-4:])
     )
-
 
 
 
