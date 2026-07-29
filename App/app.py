@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68807 FINAL LTS — Immutable Screen UI Pixel Authority, Built Directly from v68806
+# AutoTecPro AI Graphic Marketing Engine v68808 FINAL LTS — Deterministic Product Placement and Screen Fidelity, Built Directly from v68807
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -21641,6 +21641,10 @@ def _graphic_chatgpt_production_prompt(
             "ONE-TRANSFORM RULE: the screen aperture and screen UI must receive exactly the same uniform scale, translation, optional rotation and conservative perspective transform as the complete physical product. Never apply a second crop, warp, perspective correction, corner correction or independent resize to the screen region.",
             "PHOTOMETRIC-ONLY GLASS INTEGRATION: environmental lighting, exposure, reflections, glare and glass effects may be added only as a subtle transparent overlay above the unchanged source screen pixels. These effects may alter appearance only; they must never replace, move, erase, blur, bend or geometrically distort any source UI pixel.",
             "SCREEN-DETAIL FAIL-CLOSED RULE: if the provider cannot preserve the complete source screen faithfully, keep the original screen pixels unchanged and reduce or omit the glass/reflection enhancement rather than reconstructing the UI.",
+            "DETERMINISTIC PRODUCT PLACEMENT AUTHORITY: the exact product may be uniformly resized and relocated as one locked layer to improve the commercial composition. In the common product-left / vehicle-right layout, place the product visually between the left canvas boundary and the vehicle, with balanced negative space on both sides and without crowding the headline, feature grid or vehicle.",
+            "COMPOSITION-INTELLIGENCE RULE: evaluate headline length, feature-grid footprint, vehicle footprint, footer height and available negative space before selecting product scale and position. Prefer the smallest change that improves balance: normally reduce the product by 2–8%, move it slightly left or right, and adjust footer overlap by no more than 2 percentage points around the 5% target.",
+            "VEHICLE DIRECTION AUTHORITY: when the reference vehicle faces right, or when a right-facing vehicle creates the stronger product-to-vehicle visual flow, show the target vehicle genuinely facing right. Do not mirror badges, grille text or asymmetric vehicle details; generate the correct right-facing view.",
+            "GEOMETRY-SAFE SCENE INTEGRATION: add only restrained micro-contact shadow, ambient occlusion, low-intensity environmental colour bleed on the sun-facing housing edge and sky-aligned transparent glass reflection. These effects may modify appearance but never alpha, silhouette, proportions, screen pixels, bezel geometry, controls, openings, ears, brackets or mounting hardware.",
             "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
             "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 5% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
             "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 5% of the complete product and must never cause the product to appear cut off incorrectly.",
@@ -21680,6 +21684,7 @@ def _graphic_chatgpt_production_prompt(
     if correction_prompt:
         lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
     return "\n".join(lines)[:30000]
+
 
 
 
@@ -26192,41 +26197,73 @@ def _graphic_detail_masks_v48000(source):
         return {"available": False, "reason": type(error).__name__}
 
 
+
 def _graphic_restore_ui_and_controls_v48000(source, candidate, masks=None):
-    """Restore exact UI/button pixels after relighting and apply only localized crispness."""
+    """Restore exact resized source UI/control pixels after all optical processing.
+
+    v68808 treats the already-resized authoritative product as the immutable pixel
+    master. The screen aperture, its four edges/corners, status bar and tiny UI are
+    pasted back exactly without sharpening or provider reconstruction. Controls keep
+    a restrained source-detail restoration outside the screen.
+    """
     if Image is None or source is None or candidate is None:
         return candidate, {"applied": False, "reason": "missing image"}
     try:
-        from PIL import ImageFilter, ImageChops, ImageStat
+        from PIL import ImageFilter, ImageChops
         src = source.convert("RGBA")
         out = candidate.convert("RGBA")
         masks = dict(masks or _graphic_detail_masks_v48000(src))
         if not masks.get("available"):
-            return out, {"applied": False, "reason": masks.get("reason") or "mask unavailable"}
+            return out, {
+                "applied": False,
+                "reason": masks.get("reason") or "mask unavailable",
+            }
+
         ui_mask = masks.get("ui_mask")
         control_mask = masks.get("control_mask")
-        # UI: exact source pixels with a very small retained scene-reflection contribution.
-        ui_exact = src.filter(ImageFilter.UnsharpMask(radius=0.75, percent=145, threshold=2))
-        out.paste(ui_exact, (0,0), ui_mask)
-        # Controls: restore source micro-detail and sharpen gently, avoiding synthetic redraw.
-        controls_exact = src.filter(ImageFilter.UnsharpMask(radius=0.65, percent=175, threshold=1))
-        out.paste(controls_exact, (0,0), control_mask)
-        before_ui = _graphic_high_frequency_score_v48000(src, ui_mask)
-        after_ui = _graphic_high_frequency_score_v48000(out, ui_mask)
+
+        # Expand the UI mask by only a few pixels so the exact source includes the
+        # screen-to-bezel seam and all four screen corners. Clamp through source alpha.
+        exact_ui_mask = ui_mask
+        if exact_ui_mask is not None and exact_ui_mask.getbbox():
+            exact_ui_mask = exact_ui_mask.filter(ImageFilter.MaxFilter(5))
+            exact_ui_mask = ImageChops.multiply(
+                exact_ui_mask,
+                src.getchannel("A"),
+            )
+            # Exact source pixels—no unsharp mask, repainting, color conversion or
+            # separate perspective operation.
+            out.paste(src, (0, 0), exact_ui_mask)
+
+        # Restore small physical controls from source with only minimal localized
+        # crispness. Screen pixels are explicitly excluded by the mask builder.
+        if control_mask is not None and control_mask.getbbox():
+            controls_exact = src.filter(
+                ImageFilter.UnsharpMask(radius=0.45, percent=120, threshold=2)
+            )
+            out.paste(controls_exact, (0, 0), control_mask)
+
+        before_ui = _graphic_high_frequency_score_v48000(src, exact_ui_mask)
+        after_ui = _graphic_high_frequency_score_v48000(out, exact_ui_mask)
         before_controls = _graphic_high_frequency_score_v48000(src, control_mask)
         after_controls = _graphic_high_frequency_score_v48000(out, control_mask)
+
         return out, {
             "applied": True,
-            "ui_restored": bool(ui_mask and ui_mask.getbbox()),
+            "ui_restored": bool(exact_ui_mask and exact_ui_mask.getbbox()),
             "controls_restored": bool(control_mask and control_mask.getbbox()),
+            "screen_edges_restored": bool(exact_ui_mask and exact_ui_mask.getbbox()),
             "ui_detail_source": before_ui,
             "ui_detail_final": after_ui,
             "control_detail_source": before_controls,
             "control_detail_final": after_controls,
-            "engine": "ui-control-pixel-restoration-v48000",
+            "source_pixel_mode": "exact-resized-authoritative-product",
+            "screen_reconstruction_allowed": False,
+            "engine": "immutable-screen-ui-restoration-v68808",
         }
     except Exception as error:
         return candidate, {"applied": False, "reason": type(error).__name__}
+
 
 
 def _graphic_micro_reflection_v48000(product, masks, lighting_profile):
@@ -26495,21 +26532,50 @@ def _graphic_compose_reference_campaign_v3200(
     scale = min(base_scale, max(base_scale * 0.998, desired_scale))
     scale *= max(1.0, float(layout_bp.get("template_product_scale", template_cfg.get("product_scale", 1.0))))
     scale *= float(transforms.get("product_scale", 1.0))
-    # Never crop the exact product.
+
+    # v68808 composition intelligence: use the reference vehicle zone and text density
+    # to apply only a small uniform reduction when the product would dominate or crowd
+    # the product-to-vehicle corridor. Width and height always share this one factor.
+    vehicle_box_for_fit = list(layout_bp.get("vehicle_box") or [0.62, 0.36, 0.34, 0.46])
+    vehicle_left_px_for_fit = int(W * float(vehicle_box_for_fit[0]))
+    left_safe_px_for_fit = max(int(W * 0.018), hero_x0)
+    corridor_w_for_fit = max(1, vehicle_left_px_for_fit - left_safe_px_for_fit - int(W * 0.025))
+    prompt_density = min(1.0, len(re.sub(r"\s+", " ", str(prompt_text or "")).strip()) / 240.0)
+    projected_w = product.width * scale
+    corridor_fill = projected_w / max(1.0, float(corridor_w_for_fit))
+    adaptive_reduction = 1.0
+    if corridor_fill > 0.88:
+        adaptive_reduction -= min(0.08, (corridor_fill - 0.88) * 0.34)
+    if prompt_density > 0.72:
+        adaptive_reduction -= min(0.025, (prompt_density - 0.72) * 0.07)
+    adaptive_reduction = max(0.92, min(1.0, adaptive_reduction))
+    scale *= adaptive_reduction
+
+    # Never crop or non-uniformly distort the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
     authoritative_pre_resize_v61000 = product.copy()
     product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
         product,
         (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
     )
-    if source_aspect < 0.90:
-        px = hero_x0 + max(0, int((hero_w - product.width) * 0.10))
-    else:
-        px = hero_x0 + max(0, (hero_w - product.width) // 2)
+    # v68808 deterministic relocation: center the product in the visual corridor
+    # between the left canvas safe area and the vehicle, then clamp it to the
+    # reference-authorized hero region. This moves the unit slightly left when useful
+    # without changing its geometry.
+    vehicle_box_for_position = list(layout_bp.get("vehicle_box") or [0.62, 0.36, 0.34, 0.46])
+    vehicle_left_px = int(W * float(vehicle_box_for_position[0]))
+    left_canvas_safe_px = max(int(W * 0.018), hero_x0)
+    right_corridor_safe_px = min(hero_x1, vehicle_left_px - int(W * 0.025))
+    corridor_center_px = (left_canvas_safe_px + right_corridor_safe_px) // 2
+    px = int(round(corridor_center_px - product.width / 2))
+    px = max(hero_x0, min(px, hero_x1 - product.width))
+
     footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
-    safety_gap_px = max(6, int(H * 0.012))
-    py = min(hero_y1 - product.height, footer_top_px - safety_gap_px - product.height)
-    py = max(hero_y0, py)
+    # The footer is a foreground layer. Place approximately 5% of the exact product
+    # behind it while keeping the complete product layer intact beneath the banner.
+    footer_overlap_px = max(1, int(round(product.height * 0.05)))
+    py = footer_top_px - product.height + footer_overlap_px
+    py = max(hero_y0, min(py, H - product.height))
 
     state_now = get_graphic_project_state()
     design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
@@ -26528,11 +26594,14 @@ def _graphic_compose_reference_campaign_v3200(
         product, product_lighting_report = _graphic_material_aware_lighting_v61000(
             product_before_lighting, lighting_profile, detail_masks_v48000
         )
-        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(
-            product_before_lighting, product, detail_masks_v48000
-        )
         product, micro_reflection_v48000 = _graphic_advanced_glass_optics_v61000(
             product, detail_masks_v48000, lighting_profile
+        )
+        # Restore the exact already-resized source screen and controls after every
+        # lighting/glass operation so optical enhancement can never soften, warp or
+        # regenerate the UI.
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(
+            product_before_lighting, product, detail_masks_v48000
         )
         background_harmony_v48000 = {
             "applied": bool(product_lighting_report.get("applied")),
@@ -26953,6 +27022,7 @@ def _graphic_compose_reference_campaign_v3200(
         product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
         source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
     )
+
 
 
 
