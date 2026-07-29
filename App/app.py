@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68790 FINAL LTS — Advanced-First Direct Return, Built Directly from v68720
+# AutoTecPro AI Graphic Marketing Engine v68800 FINAL LTS — Active Product-ID Geometry Authority, Built from v68790/v68720 with v66200 Exact Product Pipeline
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -20554,14 +20554,28 @@ def _graphic_role_integrity_v8300(role_items):
     }
 
 
+
 def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
-    """Resolve persistent project assets into one authoritative ordered role list."""
+    """Resolve exactly one active product and one active style reference.
+
+    v68800 closes the persistent-asset authority gap: v16000 recorded
+    ``active_product_id`` and ``active_reference_id`` but the old resolver never
+    consumed those fields. Historical product/reference assets therefore remained in
+    ``role_items`` and downstream code selected the first ``product_photo``. In a
+    reference-first workflow that could make the Ford reference advertisement become
+    the product geometry authority.
+
+    The active project IDs are now authoritative. Historical product/reference
+    records are excluded from generation, while logos/supporting images and the edit
+    base remain available.
+    """
     effective_files = graphic_project_uploaded_files(uploaded_files or [])
     role_items = classify_graphic_uploaded_image_roles(
         effective_files, prompt_text, forced_role=forced_role
     )
-    # Recover the common reference-first/product-second sequence if the deterministic
-    # classifier cannot locate both required roles.
+
+    # Preserve the existing deterministic recovery for projects whose role metadata
+    # predates the persistent-role transport.
     has_product = any(item.get("role") == "product_photo" for item in role_items)
     has_style = any(item.get("role") == "style_reference" for item in role_items)
     if effective_files and (not has_product or not has_style):
@@ -20570,9 +20584,133 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         )
         if recovered:
             role_items = recovered
+
+    role_items = _graphic_enforce_reference_product_roles_v8300(
+        role_items, prompt_text
+    )
+
+    project = get_graphic_project_state()
+    active_product_id = str(project.get("active_product_id") or "").strip()
+    active_reference_id = str(project.get("active_reference_id") or "").strip()
+
+    def item_id(item):
+        file_obj = item.get("file") if isinstance(item, dict) else None
+        saved = str(
+            getattr(file_obj, "graphic_asset_id", "") or
+            item.get("graphic_asset_id", "") or
+            item.get("id", "")
+        ).strip()
+        if saved:
+            return saved
+        try:
+            return hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
+        except Exception:
+            return ""
+
+    # Re-label the exact active records by ID before filtering. This prevents a
+    # filename/prompt classifier from overriding authoritative persistent roles.
+    for item in role_items:
+        digest = item_id(item)
+        item["graphic_asset_id"] = digest
+        if active_product_id and digest == active_product_id:
+            item["role"] = "product_photo"
+            item["role_locked_by"] = "v68800_active_product_id"
+        elif active_reference_id and digest == active_reference_id:
+            item["role"] = "style_reference"
+            item["role_locked_by"] = "v68800_active_reference_id"
+
+    filtered = []
+    for item in role_items:
+        role = str(item.get("role") or "")
+        digest = item_id(item)
+
+        if role == "product_photo":
+            if active_product_id and digest != active_product_id:
+                continue
+        elif role == "style_reference":
+            if active_reference_id and digest != active_reference_id:
+                continue
+
+        filtered.append(item)
+
+    role_items = filtered
+
+    # Fail closed against one physical file being both product and reference.
+    if active_product_id and active_reference_id and active_product_id == active_reference_id:
+        raise RuntimeError(
+            "The active product and style reference resolve to the same file. "
+            "Start a new case or re-upload the product photo."
+        )
+
+    product_items = [
+        item for item in role_items
+        if item.get("role") == "product_photo"
+    ]
+    style_items = [
+        item for item in role_items
+        if item.get("role") == "style_reference"
+    ]
+
+    # Current-turn product fallback: if persistent IDs are unavailable, the newest
+    # non-reference current upload remains the product, preserving the established
+    # reference-first/product-second workflow.
+    if effective_files and not product_items:
+        current_ids = []
+        for file_obj in uploaded_files or []:
+            try:
+                current_ids.append(
+                    hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
+                )
+            except Exception:
+                pass
+        candidate = next(
+            (
+                item for item in role_items
+                if item_id(item) in set(current_ids)
+                and item.get("role") not in {
+                    "style_reference", "edit_base", "logo_asset", "background"
+                }
+            ),
+            None,
+        )
+        if candidate is not None:
+            candidate["role"] = "product_photo"
+            candidate["role_locked_by"] = "v68800_current_upload_product_fallback"
+            product_items = [candidate]
+
+    if effective_files and not product_items:
+        raise RuntimeError(
+            "The active uploaded product photo could not be resolved safely. "
+            "The style reference will not be used as product geometry."
+        )
+
+    if len(product_items) > 1:
+        # Keep only the active product. If no active ID is available, keep the first
+        # current-turn product after deterministic ordering.
+        keep = product_items[0]
+        role_items = [
+            item for item in role_items
+            if item.get("role") != "product_photo" or item is keep
+        ]
+        product_items = [keep]
+
+    if len(style_items) > 1:
+        keep = style_items[0]
+        role_items = [
+            item for item in role_items
+            if item.get("role") != "style_reference" or item is keep
+        ]
+        style_items = [keep]
+
     edit_base = _graphic_latest_generated_role_item(prompt_text)
     if edit_base:
-        role_items = [edit_base] + [item for item in role_items if item.get("role") != "edit_base"]
+        role_items = [
+            edit_base
+        ] + [
+            item for item in role_items
+            if item.get("role") != "edit_base"
+        ]
+
     role_priority = {
         "edit_base": 0,
         "product_photo": 1,
@@ -20580,19 +20718,62 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         "logo_asset": 3,
         "supporting_image": 4,
     }
-    role_items = _graphic_enforce_reference_product_roles_v8300(role_items, prompt_text)
-    # Recovery can change the earlier product to a reference while leaving the newest
-    # image as supporting. Re-run a strict final guarantee so one product always exists.
-    if effective_files and not any(item.get("role") == "product_photo" for item in role_items):
-        newest = next((item for item in reversed(role_items) if item.get("role") not in {"edit_base", "logo_asset", "background"}), None)
-        if newest is not None:
-            newest["role"] = "product_photo"
-            newest["role_locked_by"] = "v8300_newest_product_fallback"
     role_items = sorted(
         role_items,
         key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
     )
+
+    final_product = next(
+        (item for item in role_items if item.get("role") == "product_photo"),
+        None,
+    )
+    final_reference = next(
+        (item for item in role_items if item.get("role") == "style_reference"),
+        None,
+    )
+    final_product_id = item_id(final_product) if final_product else ""
+    final_reference_id = item_id(final_reference) if final_reference else ""
+
+    if active_product_id and final_product_id != active_product_id:
+        raise RuntimeError(
+            "Product Geometry Authority failed: the selected product does not match "
+            "the active uploaded product ID."
+        )
+    if active_reference_id and final_reference_id != active_reference_id:
+        raise RuntimeError(
+            "Reference authority failed: the selected style reference does not match "
+            "the active reference ID."
+        )
+
+    state = get_graphic_project_state()
+    state["last_role_authority_v68800"] = {
+        "active_product_id": active_product_id,
+        "selected_product_id": final_product_id,
+        "active_reference_id": active_reference_id,
+        "selected_reference_id": final_reference_id,
+        "product_count": sum(
+            1 for item in role_items if item.get("role") == "product_photo"
+        ),
+        "reference_count": sum(
+            1 for item in role_items if item.get("role") == "style_reference"
+        ),
+        "historical_product_reference_assets_excluded": True,
+        "product_geometry_source": "active_product_id",
+    }
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log(
+        "graphic_v68800_active_role_authority",
+        product_match=(
+            not active_product_id or final_product_id == active_product_id
+        ),
+        reference_match=(
+            not active_reference_id or final_reference_id == active_reference_id
+        ),
+        product_count=state["last_role_authority_v68800"]["product_count"],
+        reference_count=state["last_role_authority_v68800"]["reference_count"],
+    )
     return role_items
+
 
 
 
