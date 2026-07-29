@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68809 FINAL LTS — Context-Aware Fuzzy Generation Intent, Built Directly from v68808
+# AutoTecPro AI Graphic Marketing Engine v68811 FINAL LTS — Prerequisite-Gated Generation Intent, Built Directly from v68809
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18258,8 +18258,10 @@ def classify_graphic_chat_intent(
     )
 
     if generation_command:
-        # A short typo/consent command is safe only after assets are ready.
-        if not short_command or project_ready or project_image_count >= 2:
+        # v68811 prerequisite gate: every generation command—short or long—requires
+        # a complete ready project. Mentioning "create" while asking to analyze or
+        # prepare a future reference must never start the image pipeline.
+        if project_ready or project_image_count >= 2:
             return "generate"
 
     # Mixed current-turn requests such as "analyze/use this reference and create
@@ -18268,7 +18270,7 @@ def classify_graphic_chat_intent(
     # blocked by the defer gate.
     if (
         (explicit_now or concrete_deliverable)
-        and (project_ready or project_image_count >= 2 or has_images)
+        and (project_ready or project_image_count >= 2)
     ):
         return "generate"
 
@@ -18300,6 +18302,7 @@ def classify_graphic_chat_intent(
         return "analyze"
 
     return "conversation"
+
 
 
 
