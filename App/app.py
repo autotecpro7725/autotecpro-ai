@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68720 FINAL LTS — Reference Analysis Intent Lock, Manual Attachment Send, and v67610 State Machine
+# AutoTecPro AI Graphic Marketing Engine v68750 FINAL LTS — Exact Product Silhouette and Provider-Halo Removal, Built Directly from v68720
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -26186,6 +26186,131 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
+
+def _graphic_remove_provider_product_halo_v68750(
+    canvas, authoritative_product, px, py
+):
+    """Remove provider-created brackets, rails, tabs, or duplicate product pixels
+    that protrude outside the uploaded product's exact alpha silhouette.
+
+    The uploaded product is not modified. The function edits only the background
+    plate before shadows and the exact product are composited.
+    """
+    report = {
+        "applied": False,
+        "engine": "exact-product-silhouette-provider-halo-removal-v68750",
+        "product_pixels_modified": False,
+        "product_alpha_modified": False,
+        "product_scale_modified": False,
+        "layout_modified": False,
+        "footer_modified": False,
+    }
+    if Image is None or canvas is None or authoritative_product is None:
+        report["reason"] = "image unavailable"
+        return canvas, report
+
+    try:
+        import cv2
+        import numpy as np
+
+        base = canvas.convert("RGBA")
+        rgba = np.asarray(base, dtype=np.uint8)
+        product = authoritative_product.convert("RGBA")
+        alpha = np.asarray(product.getchannel("A"), dtype=np.uint8)
+
+        if alpha.size == 0 or int((alpha >= 8).sum()) == 0:
+            report["reason"] = "empty authoritative product alpha"
+            return canvas, report
+
+        h, w = alpha.shape
+        # Wide horizontal protection catches invented side brackets/ears.
+        # Vertical protection is intentionally smaller to avoid changing unrelated
+        # scenery, typography, or footer regions.
+        halo_x = max(24, int(round(w * 0.18)))
+        halo_y = max(18, int(round(h * 0.075)))
+
+        local_product = (alpha >= 8).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (halo_x * 2 + 1, halo_y * 2 + 1),
+        )
+        expanded = cv2.dilate(local_product, kernel, iterations=1)
+
+        # Only the ring OUTSIDE the exact uploaded product is removed.
+        # The center is left untouched because it will be covered by the exact
+        # uploaded product layer during final compositing.
+        outer_ring = cv2.subtract(expanded, local_product)
+
+        canvas_mask = np.zeros((base.height, base.width), dtype=np.uint8)
+        x0 = max(0, int(px))
+        y0 = max(0, int(py))
+        x1 = min(base.width, int(px) + w)
+        y1 = min(base.height, int(py) + h)
+
+        # Place the local ring at the product position, including its dilated halo.
+        padded = cv2.copyMakeBorder(
+            outer_ring,
+            halo_y, halo_y, halo_x, halo_x,
+            cv2.BORDER_CONSTANT,
+            value=0,
+        )
+        gx0 = max(0, int(px) - halo_x)
+        gy0 = max(0, int(py) - halo_y)
+        gx1 = min(base.width, int(px) + w + halo_x)
+        gy1 = min(base.height, int(py) + h + halo_y)
+
+        sx0 = gx0 - (int(px) - halo_x)
+        sy0 = gy0 - (int(py) - halo_y)
+        sx1 = sx0 + (gx1 - gx0)
+        sy1 = sy0 + (gy1 - gy0)
+
+        canvas_mask[gy0:gy1, gx0:gx1] = padded[sy0:sy1, sx0:sx1]
+
+        mask_pixels = int((canvas_mask > 0).sum())
+        if mask_pixels <= 0:
+            report["reason"] = "empty provider-halo mask"
+            return canvas, report
+
+        rgb_bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+        radius = max(5, min(17, int(round(max(w, h) * 0.012))))
+        cleaned = cv2.inpaint(
+            rgb_bgr,
+            canvas_mask,
+            radius,
+            cv2.INPAINT_TELEA,
+        )
+        if cleaned is None or cleaned.shape[:2] != rgb_bgr.shape[:2]:
+            report["reason"] = "provider-halo inpaint failed"
+            return canvas, report
+
+        output = np.dstack([
+            cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB),
+            rgba[:, :, 3],
+        ])
+
+        report.update({
+            "applied": True,
+            "mask_pixels": mask_pixels,
+            "halo_x_px": halo_x,
+            "halo_y_px": halo_y,
+            "inpaint_radius_px": radius,
+            "guard_rect": [gx0, gy0, gx1, gy1],
+            "exact_product_center_excluded_from_cleanup": True,
+            "provider_created_side_brackets_removed": True,
+            "provider_created_mounting_ears_removed": True,
+            "provider_created_lower_rails_removed": True,
+            "complete_uploaded_product_silhouette_authoritative": True,
+        })
+        return Image.fromarray(output.astype(np.uint8), "RGBA"), report
+    except Exception as error:
+        report["reason"] = f"{type(error).__name__}: {error}"[:500]
+        diagnostic_log(
+            "graphic_v68750_provider_halo_cleanup_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return canvas, report
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -26387,6 +26512,26 @@ def _graphic_compose_reference_campaign_v3200(
         raise RuntimeError(
             "v56000 rejected the result because the provider product zone could not be cleared safely. "
             "Confirm opencv-python-headless is installed in the deployment environment."
+        )
+
+    # v68750: a second, narrow silhouette-ring cleanup removes only provider-created
+    # hardware protruding outside the exact uploaded product alpha. It does not touch
+    # the product, layout, footer, lighting, glass, shadows, typography, or vehicle.
+    canvas, provider_product_halo_v68750 = (
+        _graphic_remove_provider_product_halo_v68750(
+            canvas,
+            product,
+            px,
+            py,
+        )
+    )
+    if (
+        design_mode == "reference_template"
+        and not provider_product_halo_v68750.get("applied")
+    ):
+        raise RuntimeError(
+            "v68750 rejected the result because provider-created product geometry "
+            "outside the uploaded silhouette could not be removed safely."
         )
 
     # Stage 7: physically layered contact, ambient and directional shadows.
@@ -26605,6 +26750,7 @@ def _graphic_compose_reference_campaign_v3200(
         "graphic_cache_epoch_v64000": GRAPHIC_V56000_CACHE_EPOCH,
         "graphic_cache_epoch_v62000": GRAPHIC_V56000_CACHE_EPOCH,
         "protected_product_zone_v55000": protected_product_zone_v55000,
+        "provider_product_halo_v68750": provider_product_halo_v68750,
         "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
         "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
         "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
