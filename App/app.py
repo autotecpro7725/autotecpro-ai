@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68815 FINAL LTS — Object-Specific Negative Intent Restoration, Built Directly from v68814
+# AutoTecPro AI Graphic Marketing Engine v68813 FINAL LTS — Transient Memory Optimization and Full Compatibility, Built Directly from v68812
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18076,123 +18076,28 @@ def _graphic_project_context_text():
     return " | ".join(history[-6:])[:5000]
 
 
-
 def _infer_graphic_asset_role(prompt_text, state):
-    """Infer one uploaded Graphic asset role without losing the active style reference.
-
-    In a ready/generated project, a newly uploaded unit is normally the next product.
-    Incidental wording such as "same style as the reference" must not replace the
-    existing reference. A reference is replaced only when the user explicitly says
-    the newly uploaded image itself is the new/replacement style reference.
-    """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    project = state if isinstance(state, dict) else {}
-    assets = [
-        item for item in (project.get("assets") or [])
-        if isinstance(item, dict)
-    ]
-
-    has_reference = any(
-        str(item.get("role") or "").casefold()
-        in {"reference", "style_reference"}
-        and bytes(item.get("data") or b"")
-        for item in assets
-    )
-    has_product = any(
-        str(item.get("role") or "").casefold()
-        in {"product", "product_photo"}
-        and bytes(item.get("data") or b"")
-        for item in assets
-    )
-    established_project = bool(has_reference and has_product)
-
+    if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
+        return "reference"
     if any(term in text for term in ("logo", "brand mark")):
         return "logo"
-
-    product_patterns = (
-        r"\b(?:next|new|another|second|replacement)\s+"
-        r"(?:product|unit|screen|head unit|radio|cluster|product photo|product image)\b",
-        r"\b(?:this|the|uploaded)\s+"
-        r"(?:product|unit|screen|head unit|radio|cluster|product photo|product image)\b",
-        r"\b(?:use|keep|preserve)\b.*\b(?:uploaded|original)\b.*"
-        r"\b(?:product|unit|bezel|housing|screen|geometry)\b",
-        r"\b(?:product photo|product image|head unit|infotainment unit|"
-        r"radio unit|screen unit|digital gauge cluster)\b",
-        r"\b(?:product|screen|unit|head unit|cluster|radio)\b",
-        r"\b(?:next one|another one|second one|new one|create this one|"
-        r"generate this one|make this one)\b",
-    )
-    product_intent = any(re.search(pattern, text) for pattern in product_patterns)
-
-    explicit_reference_patterns = (
-        r"\b(?:this|the|uploaded)\s+(?:image|photo|ad|advertisement)\s+"
-        r"(?:is|will be|should be|must be)\s+(?:the\s+)?"
-        r"(?:new|replacement|next)?\s*(?:style\s+)?reference\b",
-        r"\b(?:use|set|treat|save|replace)\s+(?:this|the|uploaded)\s+"
-        r"(?:image|photo|ad|advertisement)\s+as\s+(?:the\s+)?"
-        r"(?:new|replacement|next)?\s*(?:style\s+)?reference\b",
-        r"\b(?:new|replacement|next)\s+(?:style\s+)?reference"
-        r"(?:\s+(?:image|photo|ad|advertisement))?\b",
-        r"\breplace\s+(?:the\s+)?(?:current|existing|old)?\s*"
-        r"(?:style\s+)?reference\b",
-    )
-    explicit_reference_replacement = any(
-        re.search(pattern, text)
-        for pattern in explicit_reference_patterns
-    )
-
-    # A concrete product/unit instruction always wins over incidental discussion
-    # of the existing reference or its style.
-    if product_intent:
+    if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
         return "product"
-
-    if explicit_reference_replacement:
+    stage = str((state or {}).get("stage") or "planning")
+    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
         return "reference"
-
-    # Once one reference and one product already exist, a new image is the next
-    # product by default. This supports "Next one" and attachment-only product turns.
-    if established_project:
-        return "product"
-
-    if any(term in text for term in (
-        "reference", "inspiration", "layout", "style",
-        "example ad", "advertisement",
-    )):
-        return "reference"
-
-    stage = str(project.get("stage") or "planning")
-    if (
-        stage in {"awaiting_reference", "planning"}
-        and not has_reference
-    ):
-        return "reference"
-    if has_reference and not has_product:
+    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
         return "product"
     return "supporting"
 
 
-
-
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist Graphic assets and safely transition to the next product.
-
-    A newly accepted product replaces only the active product. The existing style
-    reference remains authoritative, while product-specific state from the previous
-    unit is cleared so it cannot leak fitment, geometry, vehicle or edit context into
-    the next commercial.
-    """
+    """Persist image bytes and explicit project facts across Graphic turns."""
     state = _graphic_update_project_brief(prompt_text)
-    previous_active_product_id = str(
-        state.get("active_product_id") or ""
-    ).strip()
-    previous_active_reference_id = str(
-        state.get("active_reference_id") or ""
-    ).strip()
-
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
     added = []
-
     for uploaded in uploaded_files or []:
         mime = str(getattr(uploaded, "type", "") or "").casefold()
         if not mime.startswith("image/"):
@@ -18201,21 +18106,14 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             data = uploaded.getvalue()
         except Exception:
             continue
-        if not data:
-            continue
-
         digest = hashlib.sha256(data).hexdigest()
         if digest in known:
             continue
-
         role = _infer_graphic_asset_role(prompt_text, state)
         record = {
             "id": digest,
             "name": str(getattr(uploaded, "name", "image")),
-            "type": str(
-                getattr(uploaded, "type", "image/png")
-                or "image/png"
-            ),
+            "type": str(getattr(uploaded, "type", "image/png") or "image/png"),
             "data": data,
             "role": role,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -18223,110 +18121,22 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         assets.append(record)
         added.append(record)
         known.add(digest)
-
-        # Let subsequent files in the same turn see the role just assigned.
-        state["assets"] = assets
-
     if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
         assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
     state["assets"] = assets
-
-    added_products = [
-        item for item in added
-        if str(item.get("role") or "").casefold()
-        in {"product", "product_photo"}
-    ]
-    replacing_product = bool(
-        added_products
-        and previous_active_product_id
-        and str(added_products[-1].get("id") or "")
-        != previous_active_product_id
-    )
-
-    if replacing_product:
-        current_prompt = re.sub(
-            r"\s+",
-            " ",
-            str(prompt_text or ""),
-        ).strip()
-
-        # Clear only product-specific state. Keep reference/style authority,
-        # template learning, approval learning and prior chat history.
-        state["latest_generated"] = None
-        state["current_canvas_id"] = ""
-        state["current_canvas_version"] = 0
-        state["edit_history"] = []
-        state["last_edit_directive"] = {}
-        state["product_view_sources"] = []
-        state["product_identity_profile"] = {}
-        state["product_dna"] = {}
-        state["layer_stack"] = {}
-        state["last_generation_route"] = ""
-        state["last_error"] = ""
-
-        # Prevent the old unit's fitment/vehicle/copy from leaking into Product B.
-        state["project_brief_history"] = (
-            [current_prompt[:1200]] if current_prompt else []
-        )
-        state["campaign_spec"] = _graphic_extract_campaign_spec(
-            current_prompt,
-            {},
-        ) if current_prompt else {}
-        state["explicit_vehicle"] = (
-            _graphic_extract_explicit_vehicle(current_prompt) or {}
-        )
-
-        object_state = state.setdefault("visual_object_state", {})
-        object_state["layout_locked"] = False
-        object_state["vehicle_locked"] = bool(state["explicit_vehicle"])
-        object_state["product_locked"] = False
-        # Keep the learned style/reference lock.
-        object_state["style_locked"] = bool(
-            previous_active_reference_id
-            or state.get("active_reference_id")
-        )
-
-        state["product_replacement_v68814"] = {
-            "previous_product_id": previous_active_product_id,
-            "new_product_id": str(added_products[-1].get("id") or ""),
-            "reference_id_preserved": (
-                previous_active_reference_id
-                or str(state.get("active_reference_id") or "")
-            ),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-
     if added:
-        roles = {
-            str(item.get("role") or "").casefold()
-            for item in added
-        }
-        if "product" in roles or "product_photo" in roles:
-            state["stage"] = "ready_to_generate"
-        elif "reference" in roles or "style_reference" in roles:
+        roles = {item.get("role") for item in added}
+        if "reference" in roles:
             state["stage"] = "awaiting_product"
+        elif "product" in roles:
+            state["stage"] = "ready_to_generate"
         else:
             state["stage"] = "assets_received"
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
-
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-    active_state = _graphic_active_project_assets_v16000(state)
-
-    # A product replacement must never silently replace the existing reference.
-    if (
-        replacing_product
-        and previous_active_reference_id
-        and str(active_state.get("active_reference_id") or "")
-        != previous_active_reference_id
-    ):
-        raise RuntimeError(
-            "Reference authority changed while accepting the next product. "
-            "Please re-upload the intended style reference."
-        )
-
-    _graphic_persist_project_v68400(active_state)
+    _graphic_active_project_assets_v16000(state)
+    _graphic_persist_project_v68400(state)
     return added
-
 
 
 
@@ -18452,16 +18262,19 @@ def _explicit_product_library_request(prompt_text):
 
 
 
-
 def classify_graphic_chat_intent(
     prompt_text, uploaded_files=None, *, structured_request=False
 ):
     """Resolve Graphic Marketing intent from wording, uploads and project state.
 
-    v68815 preserves the v68811 prerequisite gate and typo-tolerant routing while
-    restoring object-specific negative interpretation: "do not create extra parts"
-    protects product geometry and does not cancel an otherwise explicit generation
-    command.
+    v68809 fixes two routing failures:
+    1. short typo commands such as "crest it" were treated as conversation;
+    2. a current product-upload instruction containing both reference/analysis
+       wording and an explicit "create ... now" command was classified as analysis
+       before the generation command could be evaluated.
+
+    Negative/defer instructions remain authoritative, and short consent commands
+    cannot start generation unless the project is ready.
     """
     if structured_request:
         return "generate"
@@ -18489,26 +18302,7 @@ def classify_graphic_chat_intent(
         project_ready = False
         project_image_count = 0
 
-    # A negative instruction is a defer command only when it targets the artwork
-    # itself. Do not treat product-preservation constraints such as "do not create
-    # extra brackets" or "do not modify the bezel" as cancellation.
-    negative_deliverable_pattern = (
-        r"(?:^|[.!?]\s*|\bplease\s+)"
-        r"(?:don't|do not)\s+"
-        r"(?:create|generate|make|edit|render|produce)"
-        r"(?:\s+(?:"
-        r"it|this|that|anything|"
-        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
-        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
-        r"artwork|graphic|design|poster|banner|render)"
-        r"))?"
-        r"(?:\s+(?:now|yet|right now))?"
-        r"\s*[.!?]?$"
-    )
-    if re.search(negative_deliverable_pattern, text):
-        return "planning"
-
-    # Hard defer and sequencing language remains authoritative.
+    # Hard negative, defer and sequencing language always wins.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
@@ -18540,6 +18334,8 @@ def classify_graphic_chat_intent(
         r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
         r"\bwhat (?:do you|should i|would you) need\b",
         r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
+        r"\bdo not (?:create|generate|make|edit|render|produce)\b",
+        r"\b(?:don't|do not) (?:create|generate|make|edit|render|produce)\b",
         r"\bnot ready to (?:create|generate|make|edit|render|produce)\b",
         r"\bhold (?:on|off)\b",
     )
@@ -18553,8 +18349,20 @@ def classify_graphic_chat_intent(
         return "learn"
 
     # Evaluate the current turn's explicit generation action before generic
-    # analysis vocabulary. This remains subject to the prerequisite gate.
+    # analysis vocabulary. This is limited to a real command, not mere future
+    # discussion of creating another product.
     generation_command = _graphic_generation_command_v16000(text)
+    short_command = bool(re.fullmatch(
+        r"(?:please\s+)?(?:"
+        r"create|creat|crete|crate|craete|crest|generate|genrate|generte|gnerate|"
+        r"make|render|rendar|do"
+        r")\s+(?:it|this|that)(?:\s+now)?[.!]?",
+        text,
+    ) or re.fullmatch(
+        r"(?:please\s+)?(?:go ahead|proceed|start|start now|retry|try again)"
+        r"[.!]?",
+        text,
+    ))
 
     explicit_now = bool(re.search(
         r"\b(?:create|generate|make|render|produce|design|build)\b.*"
@@ -18574,9 +18382,16 @@ def classify_graphic_chat_intent(
     )
 
     if generation_command:
+        # v68811 prerequisite gate: every generation command—short or long—requires
+        # a complete ready project. Mentioning "create" while asking to analyze or
+        # prepare a future reference must never start the image pipeline.
         if project_ready or project_image_count >= 2:
             return "generate"
 
+    # Mixed current-turn requests such as "analyze/use this reference and create
+    # the commercial photo now" should generate once the current upload has made
+    # the project ready. Explicit sequencing such as "analyze first" was already
+    # blocked by the defer gate.
     if (
         (explicit_now or concrete_deliverable)
         and (project_ready or project_image_count >= 2)
@@ -18585,9 +18400,8 @@ def classify_graphic_chat_intent(
 
     analysis_terms = (
         "analyze", "analyse", "review", "inspect", "compare", "describe",
-        "look at", "what do you think", "feedback", "suggest", "recommend",
-        "idea", "concept", "brainstorm", "plan", "prepare", "discuss",
-        "reference", "sample", "style", "layout", "inspiration",
+        "what do you see", "identify", "study", "evaluate", "give feedback",
+        "tell me about", "break down", "extract the style", "reference analysis",
     )
     if any(term in text for term in analysis_terms):
         return "analyze"
@@ -18607,11 +18421,11 @@ def classify_graphic_chat_intent(
     if any(re.search(pattern, text) for pattern in edit_patterns):
         return "edit"
 
+    # Upload without a current actionable creation command remains analysis.
     if has_images:
         return "analyze"
 
     return "conversation"
-
 
 
 
@@ -18672,50 +18486,23 @@ def _graphic_repair_project_asset_roles_v15000(state=None):
 
 
 
-
 def _graphic_generation_command_v16000(prompt_text):
     """Recognize natural and typo-tolerant create commands in the current turn.
 
-    Negative language blocks generation only when its grammatical target is the
-    requested artwork/deliverable. Product-preservation constraints such as
-    "do not create extra parts" remain valid generation instructions.
+    v68809 keeps generation fail-closed: typo-only/short consent commands become
+    actionable only after the Graphic project is ready. Full explicit generation
+    instructions remain actionable when the product/reference assets were attached
+    in the same submitted turn and have already been committed to project state.
     """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return False
 
-    # Restore the proven object-specific negative behavior. A prohibition blocks
-    # generation only when it targets the image/commercial itself, not when it
-    # protects product geometry, hardware, copy, or other internal details.
-    negative_deliverable_pattern = (
-        r"(?:^|[.!?]\s*|\bplease\s+)"
-        r"(?:don't|do not)\s+"
-        r"(?:create|generate|make|edit|render|produce)"
-        r"(?:\s+(?:"
-        r"it|this|that|anything|"
-        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
-        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
-        r"artwork|graphic|design|poster|banner|render)"
-        r"))?"
-        r"(?:\s+(?:now|yet|right now))?"
-        r"\s*[.!?]?$"
-    )
-    if re.search(negative_deliverable_pattern, text):
-        return False
-
     blocked = (
-        "not ready",
-        "hold on",
-        "wait",
-        "before you create",
-        "before creating",
-        "analyze first",
-        "analyse first",
-        "review first",
-        "inspect first",
-        "study first",
-        "before generating",
-        "before generation",
+        "do not create", "don't create", "do not generate", "don't generate",
+        "not ready", "hold on", "wait", "before you create", "before creating",
+        "analyze first", "analyse first", "review first", "inspect first",
+        "study first", "before generating", "before generation",
     )
     if any(term in text for term in blocked):
         return False
@@ -18748,7 +18535,6 @@ def _graphic_generation_command_v16000(prompt_text):
         r"(?:create|generate|make|render|produce|design)\b",
     )
     return any(re.search(pattern, normalized) for pattern in patterns)
-
 
 
 
@@ -19248,62 +19034,16 @@ def _graphic_project_direct_action(prompt_text, state=None):
 
 
 
-
 def _graphic_project_ready_message(state=None):
-    """Acknowledge only the currently active product and style reference."""
+    """Return a concise deterministic acknowledgement instead of campaign copy."""
     project = state if isinstance(state, dict) else get_graphic_project_state()
-    assets = [
-        item for item in (project.get("assets") or [])
-        if isinstance(item, dict)
-    ]
-    active_product_id = str(
-        project.get("active_product_id") or ""
-    ).strip()
-    active_reference_id = str(
-        project.get("active_reference_id") or ""
-    ).strip()
-
-    active_product = next(
-        (
-            item for item in assets
-            if str(item.get("id") or "") == active_product_id
-            and str(item.get("role") or "").casefold()
-            in {"product", "product_photo"}
-            and bytes(item.get("data") or b"")
-        ),
-        None,
-    )
-    active_reference = next(
-        (
-            item for item in assets
-            if str(item.get("id") or "") == active_reference_id
-            and str(item.get("role") or "").casefold()
-            in {"reference", "style_reference"}
-            and bytes(item.get("data") or b"")
-        ),
-        None,
-    )
-
-    if not active_product or not active_reference:
-        missing = []
-        if not active_product:
-            missing.append("active product")
-        if not active_reference:
-            missing.append("style reference")
-        return (
-            "The Graphic project is not ready because the "
-            + " and ".join(missing)
-            + " could not be verified. Please upload the missing image."
-        )
-
+    products = [str(i.get("name") or "product image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"product", "product_photo"}]
+    references = [str(i.get("name") or "reference image") for i in (project.get("assets") or []) if isinstance(i, dict) and str(i.get("role") or "").casefold() in {"reference", "style_reference"}]
     return (
-        f"Product received: "
-        f"{str(active_product.get('name') or 'the product photo')}. "
-        f"Reference locked: "
-        f"{str(active_reference.get('name') or 'the reference style')}. "
+        f"Product received: {products[-1] if products else 'the product photo'}. "
+        f"Reference locked: {references[-1] if references else 'the reference style'}. "
         "The project is ready. Type ‘Create it’ to generate the commercial image."
     )
-
 
 
 def build_graphic_conversation_guardrail(intent, has_uploaded_images=False):
