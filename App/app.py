@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68812 FINAL LTS — Bounded Graphic Memory and Second-Product Stability, Built Directly from v68811
+# AutoTecPro AI Graphic Marketing Engine v68813 FINAL LTS — Transient Memory Optimization and Full Compatibility, Built Directly from v68812
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -16882,13 +16882,14 @@ def _graphic_mobile_cache_key_v68400():
 
 
 
-def _graphic_copy_project_state_v68400(state):
-    """Return a bounded reconnect snapshot without duplicating generated canvases.
 
-    Uploaded reference/current-product bytes are retained because they are required to
-    resume a disconnected Graphic job. Full generated data URLs are deliberately
-    excluded from the process-wide recovery cache; the active Streamlit session and
-    saved chat remain the authorities for completed output images.
+def _graphic_copy_project_state_v68400(state):
+    """Return a bounded reconnect snapshot without duplicating image canvases.
+
+    The active reference/current-product bytes are retained for reconnect recovery.
+    Generated canvases and layer-stack background pixels remain session/chat
+    authorities and are excluded before any JSON serialization, preventing transient
+    Base64 duplication while the snapshot is created.
     """
     source = dict(state or {})
     copied = {}
@@ -16918,9 +16919,6 @@ def _graphic_copy_project_state_v68400(state):
                 elif canonical_role == "product" and active_product_id:
                     is_active = asset_id == active_product_id
 
-                # Reconnect recovery requires the current reference and product only.
-                # Keep lightweight metadata for inactive assets, but release their
-                # image bytes from the process-wide cache.
                 record["data"] = (
                     bytes(record.get("data") or b"")
                     if is_active or canonical_role not in {"reference", "product"}
@@ -16950,21 +16948,47 @@ def _graphic_copy_project_state_v68400(state):
             continue
 
         if key == "layer_stack":
-            stack = json.loads(
-                json.dumps(value or {}, ensure_ascii=False, default=str)
-            )
+            # Exclude the heavy background bitmap before serialization. This avoids
+            # the v68812 temporary JSON copy of the complete Base64 background.
+            source_stack = value if isinstance(value, dict) else {}
+            safe_stack = {
+                stack_key: stack_value
+                for stack_key, stack_value in source_stack.items()
+                if stack_key != "layers"
+            }
+            safe_layers = {}
+            source_layers = source_stack.get("layers") or {}
+            if isinstance(source_layers, dict):
+                for layer_name, layer_value in source_layers.items():
+                    if not isinstance(layer_value, dict):
+                        safe_layers[str(layer_name)] = layer_value
+                        continue
+                    safe_layer = {
+                        field: field_value
+                        for field, field_value in layer_value.items()
+                        if not (
+                            str(layer_name) == "background"
+                            and field == "asset"
+                        )
+                    }
+                    if str(layer_name) == "background":
+                        safe_layer["asset_retained_in_recovery"] = False
+                        safe_layer.setdefault(
+                            "asset_source_key",
+                            "latest_generated.background_data_url",
+                        )
+                    safe_layers[str(layer_name)] = safe_layer
+            safe_stack["layers"] = safe_layers
             try:
-                background = (
-                    (stack.get("layers") or {}).get("background")
-                    if isinstance(stack, dict)
-                    else None
+                copied[key] = json.loads(
+                    json.dumps(
+                        safe_stack,
+                        ensure_ascii=False,
+                        default=str,
+                    )
                 )
-                if isinstance(background, dict):
-                    background.pop("asset", None)
-                    background["asset_retained_in_recovery"] = False
             except Exception:
-                pass
-            copied[key] = stack
+                copied[key] = safe_stack
             continue
 
         try:
@@ -16975,6 +16999,7 @@ def _graphic_copy_project_state_v68400(state):
             copied[key] = value
 
     return copied
+
 
 
 
@@ -18114,15 +18139,13 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
     return added
 
 
-def graphic_project_uploaded_files(include_current=None):
-    """Materialize persistent Graphic assets while preserving their saved roles.
 
-    v1600 correctly retained image bytes across turns, but role metadata was lost
-    when those bytes were converted back into upload-like objects. A reference ad
-    whose filename did not contain words such as ``reference`` could therefore be
-    reclassified as a supporting/product image and overwrite the requested product.
-    This function now attaches the authoritative project role to every materialized
-    image, including files uploaded in the current turn.
+def graphic_project_uploaded_files(include_current=None):
+    """Materialize usable Graphic assets while preserving authoritative roles.
+
+    Released historical products remain as lightweight project metadata, but empty
+    byte records are never converted into upload objects or sent through downstream
+    role classification.
     """
     combined = []
     seen = set()
@@ -18140,18 +18163,22 @@ def graphic_project_uploaded_files(include_current=None):
         except Exception:
             raw = b""
             digest = str(id(item))
-        if digest in seen:
+        if not raw or digest in seen:
             continue
         saved_role = role_by_digest.get(digest, "")
-        if saved_role and not str(getattr(item, "graphic_role", "") or "").strip():
+        if saved_role and not str(
+            getattr(item, "graphic_role", "") or ""
+        ).strip():
             try:
                 item.graphic_role = saved_role
                 item.graphic_asset_id = digest
             except Exception:
                 item = ManagedUploadedFile(
-                    raw, getattr(item, "name", "image"),
+                    raw,
+                    getattr(item, "name", "image"),
                     getattr(item, "type", "image/png"),
-                    graphic_role=saved_role, graphic_asset_id=digest,
+                    graphic_role=saved_role,
+                    graphic_asset_id=digest,
                 )
         combined.append(item)
         seen.add(digest)
@@ -18160,8 +18187,11 @@ def graphic_project_uploaded_files(include_current=None):
         digest = str(record.get("id") or "")
         if not digest or digest in seen:
             continue
+        raw = bytes(record.get("data") or b"")
+        if not raw:
+            continue
         combined.append(ManagedUploadedFile(
-            record.get("data") or b"",
+            raw,
             record.get("name") or "image",
             record.get("type") or "image/png",
             graphic_role=record.get("role") or "supporting",
@@ -18169,6 +18199,7 @@ def graphic_project_uploaded_files(include_current=None):
         ))
         seen.add(digest)
     return combined
+
 
 
 def build_graphic_project_context():
@@ -29696,25 +29727,92 @@ def _graphic_build_product_dna_v8000_original_v67200(role_items, structure_profi
     return dna
 
 
-def _graphic_layer_stack_v8000(result=None, *, geometry=None, campaign_spec=None, template_key=""):
+
+def _graphic_layer_stack_v8000(
+    result=None,
+    *,
+    geometry=None,
+    campaign_spec=None,
+    template_key="",
+):
+    """Return editable layer metadata without duplicating the active background.
+
+    Local edit routes already read the authoritative background from
+    latest_generated.background_data_url. The layer stack therefore stores a stable
+    source key instead of a second full Base64 copy.
+    """
     geometry = dict(geometry or {})
     campaign_spec = dict(campaign_spec or {})
     result = dict(result or {})
+    has_background = bool(result.get("background_data_url"))
     layers = {
-        "background": {"editable": True, "source": "ai_scene", "asset": result.get("background_data_url") or ""},
-        "vehicle": {"editable": True, "source": "ai_scene", "locked": False},
-        "product": {"editable": True, "source": "uploaded_bitmap_deterministic_composite" if (result or {}).get("product_layer_immutable") else "bounded_recreated_product", "identity_locked": True, "engineering_dna": True, "pixel_locked": bool((result or {}).get("product_layer_immutable") or (result or {}).get("exact_product_structure_lock")), "source_sha256": (result or {}).get("authoritative_product_sha256") or ""},
-        "logo": {"editable": True, "source": "brand_asset", "locked": True},
-        "headline": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("headline") or ""},
-        "ribbon": {"editable": True, "source": "deterministic_text", "text": campaign_spec.get("compatibility") or ""},
-        "feature_grid": {"editable": True, "source": "deterministic_component", "items": campaign_spec.get("feature_labels") or []},
-        "bottom_bar": {"editable": True, "source": "deterministic_component", "items": campaign_spec.get("bottom_benefits") or []},
-        "effects": {"editable": True, "source": "local_compositor"},
+        "background": {
+            "editable": True,
+            "source": "ai_scene",
+            "asset_source_key": "latest_generated.background_data_url",
+            "asset_available": has_background,
+        },
+        "vehicle": {
+            "editable": True,
+            "source": "ai_scene",
+            "locked": False,
+        },
+        "product": {
+            "editable": True,
+            "source": (
+                "uploaded_bitmap_deterministic_composite"
+                if result.get("product_layer_immutable")
+                else "bounded_recreated_product"
+            ),
+            "identity_locked": True,
+            "engineering_dna": True,
+            "pixel_locked": bool(
+                result.get("product_layer_immutable")
+                or result.get("exact_product_structure_lock")
+            ),
+            "source_sha256": (
+                result.get("authoritative_product_sha256") or ""
+            ),
+        },
+        "logo": {
+            "editable": True,
+            "source": "brand_asset",
+            "locked": True,
+        },
+        "headline": {
+            "editable": True,
+            "source": "deterministic_text",
+            "text": campaign_spec.get("headline") or "",
+        },
+        "ribbon": {
+            "editable": True,
+            "source": "deterministic_text",
+            "text": campaign_spec.get("compatibility") or "",
+        },
+        "feature_grid": {
+            "editable": True,
+            "source": "deterministic_component",
+            "items": campaign_spec.get("feature_labels") or [],
+        },
+        "bottom_bar": {
+            "editable": True,
+            "source": "deterministic_component",
+            "items": campaign_spec.get("bottom_benefits") or [],
+        },
+        "effects": {
+            "editable": True,
+            "source": "local_compositor",
+        },
     }
     for key, value in geometry.items():
         if key in layers and isinstance(value, (list, tuple)):
             layers[key]["box"] = list(value)
-    return {"template": template_key, "layers": layers, "updated_at": datetime.now(timezone.utc).isoformat()}
+    return {
+        "template": template_key,
+        "layers": layers,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
 
 
 def _graphic_local_edit_kind_v8000(edit_directive):
