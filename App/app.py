@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68813 FINAL LTS — Transient Memory Optimization and Full Compatibility, Built Directly from v68812
+# AutoTecPro AI Graphic Marketing Engine v68817 FINAL LTS — v68813 Reference Lock, Multi-Product Authority and Isolated Installed View Upgrade
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18076,6 +18076,135 @@ def _graphic_project_context_text():
     return " | ".join(history[-6:])[:5000]
 
 
+
+def _graphic_asset_id_v68817(item):
+    """Return one stable asset identifier without changing image bytes."""
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("id") or "").strip()
+
+
+def _graphic_explicit_product_upload_v68817(prompt_text):
+    """Recognize a product upload without broadening v68813 reference inference."""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text:
+        return False
+    patterns = (
+        r"\b(?:this|the|my|our|uploaded|attached|new|next|second|another)\s+"
+        r"(?:product|unit|screen|head unit|radio|cluster|gauge cluster|infotainment)\b",
+        r"\b(?:product|unit|screen|head unit|radio|cluster|gauge cluster|infotainment)\s+"
+        r"(?:photo|image|picture|file)\b",
+        r"\b(?:replace|switch|change|update|use)\s+(?:the\s+)?"
+        r"(?:active|current|previous|old)?\s*product\b",
+        r"\bproduct\s+[ab]\b",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _graphic_activate_new_product_v68817(state, new_product):
+    """Replace only the active product while preserving the v68813 reference asset."""
+    if not isinstance(state, dict) or not isinstance(new_product, dict):
+        return state
+
+    new_id = _graphic_asset_id_v68817(new_product)
+    if not new_id:
+        return state
+
+    assets = list(state.get("assets") or [])
+    previous_active = str(state.get("active_product_id") or "").strip()
+
+    # Preserve every reference exactly. Historical products remain as metadata but
+    # only the new product keeps live bytes and product authority.
+    for item in assets:
+        if not isinstance(item, dict):
+            continue
+        item_id = _graphic_asset_id_v68817(item)
+        role = str(item.get("role") or "").strip().casefold()
+        if item_id == new_id:
+            item["role"] = "product"
+            item["active_v68817"] = True
+        elif role == "product":
+            item["active_v68817"] = False
+            # Release only historical product bytes to prevent repeated Base64
+            # duplication. References and the current product remain untouched.
+            if item_id and item_id != new_id:
+                item["data"] = b""
+
+    state["assets"] = assets
+    state["active_product_id"] = new_id
+    state["stage"] = "ready_to_generate"
+    state["latest_generated"] = None
+    state["current_canvas_id"] = ""
+    state["edit_history"] = []
+    state["product_view_sources"] = []
+    state["product_identity_profile"] = {}
+    state["product_dna"] = {}
+    state["layer_stack"] = {}
+    state["last_multi_product_switch_v68817"] = {
+        "previous_active_product_id": previous_active,
+        "new_active_product_id": new_id,
+        "reference_id_preserved": str(
+            state.get("active_reference_id") or ""
+        ).strip(),
+    }
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return state
+
+
+def _graphic_authority_preflight_v68817(state):
+    """Fail closed when product/reference authority is ambiguous."""
+    state = dict(state or {})
+    assets = [
+        item for item in (state.get("assets") or [])
+        if isinstance(item, dict)
+    ]
+    active_product_id = str(state.get("active_product_id") or "").strip()
+    active_reference_id = str(state.get("active_reference_id") or "").strip()
+
+    product = next(
+        (
+            item for item in assets
+            if _graphic_asset_id_v68817(item) == active_product_id
+            and bytes(item.get("data") or b"")
+        ),
+        None,
+    )
+    reference = next(
+        (
+            item for item in assets
+            if _graphic_asset_id_v68817(item) == active_reference_id
+            and bytes(item.get("data") or b"")
+        ),
+        None,
+    )
+
+    if active_product_id and active_reference_id and active_product_id == active_reference_id:
+        raise RuntimeError(
+            "Graphic asset authority failed: product and reference resolved "
+            "to the same uploaded image."
+        )
+    if not product:
+        raise RuntimeError(
+            "Graphic asset authority failed: the active product image is unavailable."
+        )
+    if not reference:
+        raise RuntimeError(
+            "Graphic asset authority failed: the active style reference is unavailable."
+        )
+
+    report = {
+        "product_id": active_product_id,
+        "product_name": str(product.get("name") or ""),
+        "reference_id": active_reference_id,
+        "reference_name": str(reference.get("name") or ""),
+        "product_reference_distinct": True,
+        "reference_mode_baseline": "v68813",
+    }
+    state["last_authority_preflight_v68817"] = report
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log("graphic_v68817_authority_preflight", **report)
+    return report
+
 def _infer_graphic_asset_role(prompt_text, state):
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
@@ -18092,12 +18221,14 @@ def _infer_graphic_asset_role(prompt_text, state):
     return "supporting"
 
 
+
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist image bytes and explicit project facts across Graphic turns."""
+    """Persist assets using v68813 role inference plus safe active-product switching."""
     state = _graphic_update_project_brief(prompt_text)
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
     added = []
+
     for uploaded in uploaded_files or []:
         mime = str(getattr(uploaded, "type", "") or "").casefold()
         if not mime.startswith("image/"):
@@ -18106,14 +18237,38 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             data = uploaded.getvalue()
         except Exception:
             continue
+
         digest = hashlib.sha256(data).hexdigest()
         if digest in known:
             continue
+
+        # Keep the exact v68813 role inference. The only additional rule is that
+        # an explicit new-product upload can replace an existing active product
+        # after a reference has already been locked.
         role = _infer_graphic_asset_role(prompt_text, state)
+        has_reference = any(
+            str(item.get("role") or "").casefold() == "reference"
+            and bytes(item.get("data") or b"")
+            for item in assets
+            if isinstance(item, dict)
+        )
+        has_product = any(
+            str(item.get("role") or "").casefold() == "product"
+            and bytes(item.get("data") or b"")
+            for item in assets
+            if isinstance(item, dict)
+        )
+        explicit_product = _graphic_explicit_product_upload_v68817(prompt_text)
+
+        if has_reference and has_product and explicit_product:
+            role = "product"
+
         record = {
             "id": digest,
             "name": str(getattr(uploaded, "name", "image")),
-            "type": str(getattr(uploaded, "type", "image/png") or "image/png"),
+            "type": str(
+                getattr(uploaded, "type", "image/png") or "image/png"
+            ),
             "data": data,
             "role": role,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -18121,22 +18276,51 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         assets.append(record)
         added.append(record)
         known.add(digest)
+
     if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
         assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+
     state["assets"] = assets
+
     if added:
         roles = {item.get("role") for item in added}
-        if "reference" in roles:
+        new_products = [
+            item for item in added if item.get("role") == "product"
+        ]
+
+        if new_products and any(
+            str(item.get("id") or "") != str(
+                state.get("active_product_id") or ""
+            )
+            for item in new_products
+        ):
+            state = _graphic_activate_new_product_v68817(
+                state,
+                new_products[-1],
+            )
+        elif "reference" in roles:
             state["stage"] = "awaiting_product"
         elif "product" in roles:
             state["stage"] = "ready_to_generate"
         else:
             state["stage"] = "assets_received"
+
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
+
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     _graphic_active_project_assets_v16000(state)
-    _graphic_persist_project_v68400(state)
+
+    # Record and validate authority only after both active IDs are available.
+    current = get_graphic_project_state()
+    if (
+        str(current.get("active_product_id") or "").strip()
+        and str(current.get("active_reference_id") or "").strip()
+    ):
+        _graphic_authority_preflight_v68817(current)
+
+    _graphic_persist_project_v68400(get_graphic_project_state())
     return added
+
 
 
 
@@ -18267,14 +18451,10 @@ def classify_graphic_chat_intent(
 ):
     """Resolve Graphic Marketing intent from wording, uploads and project state.
 
-    v68809 fixes two routing failures:
-    1. short typo commands such as "crest it" were treated as conversation;
-    2. a current product-upload instruction containing both reference/analysis
-       wording and an explicit "create ... now" command was classified as analysis
-       before the generation command could be evaluated.
-
-    Negative/defer instructions remain authoritative, and short consent commands
-    cannot start generation unless the project is ready.
+    v68815 preserves the v68811 prerequisite gate and typo-tolerant routing while
+    restoring object-specific negative interpretation: "do not create extra parts"
+    protects product geometry and does not cancel an otherwise explicit generation
+    command.
     """
     if structured_request:
         return "generate"
@@ -18302,7 +18482,26 @@ def classify_graphic_chat_intent(
         project_ready = False
         project_image_count = 0
 
-    # Hard negative, defer and sequencing language always wins.
+    # A negative instruction is a defer command only when it targets the artwork
+    # itself. Do not treat product-preservation constraints such as "do not create
+    # extra brackets" or "do not modify the bezel" as cancellation.
+    negative_deliverable_pattern = (
+        r"(?:^|[.!?]\s*|\bplease\s+)"
+        r"(?:don't|do not)\s+"
+        r"(?:create|generate|make|edit|render|produce)"
+        r"(?:\s+(?:"
+        r"it|this|that|anything|"
+        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
+        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
+        r"artwork|graphic|design|poster|banner|render)"
+        r"))?"
+        r"(?:\s+(?:now|yet|right now))?"
+        r"\s*[.!?]?$"
+    )
+    if re.search(negative_deliverable_pattern, text):
+        return "planning"
+
+    # Hard defer and sequencing language remains authoritative.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
@@ -18334,8 +18533,6 @@ def classify_graphic_chat_intent(
         r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
         r"\bwhat (?:do you|should i|would you) need\b",
         r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
-        r"\bdo not (?:create|generate|make|edit|render|produce)\b",
-        r"\b(?:don't|do not) (?:create|generate|make|edit|render|produce)\b",
         r"\bnot ready to (?:create|generate|make|edit|render|produce)\b",
         r"\bhold (?:on|off)\b",
     )
@@ -18349,20 +18546,8 @@ def classify_graphic_chat_intent(
         return "learn"
 
     # Evaluate the current turn's explicit generation action before generic
-    # analysis vocabulary. This is limited to a real command, not mere future
-    # discussion of creating another product.
+    # analysis vocabulary. This remains subject to the prerequisite gate.
     generation_command = _graphic_generation_command_v16000(text)
-    short_command = bool(re.fullmatch(
-        r"(?:please\s+)?(?:"
-        r"create|creat|crete|crate|craete|crest|generate|genrate|generte|gnerate|"
-        r"make|render|rendar|do"
-        r")\s+(?:it|this|that)(?:\s+now)?[.!]?",
-        text,
-    ) or re.fullmatch(
-        r"(?:please\s+)?(?:go ahead|proceed|start|start now|retry|try again)"
-        r"[.!]?",
-        text,
-    ))
 
     explicit_now = bool(re.search(
         r"\b(?:create|generate|make|render|produce|design|build)\b.*"
@@ -18382,16 +18567,9 @@ def classify_graphic_chat_intent(
     )
 
     if generation_command:
-        # v68811 prerequisite gate: every generation command—short or long—requires
-        # a complete ready project. Mentioning "create" while asking to analyze or
-        # prepare a future reference must never start the image pipeline.
         if project_ready or project_image_count >= 2:
             return "generate"
 
-    # Mixed current-turn requests such as "analyze/use this reference and create
-    # the commercial photo now" should generate once the current upload has made
-    # the project ready. Explicit sequencing such as "analyze first" was already
-    # blocked by the defer gate.
     if (
         (explicit_now or concrete_deliverable)
         and (project_ready or project_image_count >= 2)
@@ -18400,8 +18578,9 @@ def classify_graphic_chat_intent(
 
     analysis_terms = (
         "analyze", "analyse", "review", "inspect", "compare", "describe",
-        "what do you see", "identify", "study", "evaluate", "give feedback",
-        "tell me about", "break down", "extract the style", "reference analysis",
+        "look at", "what do you think", "feedback", "suggest", "recommend",
+        "idea", "concept", "brainstorm", "plan", "prepare", "discuss",
+        "reference", "sample", "style", "layout", "inspiration",
     )
     if any(term in text for term in analysis_terms):
         return "analyze"
@@ -18421,11 +18600,11 @@ def classify_graphic_chat_intent(
     if any(re.search(pattern, text) for pattern in edit_patterns):
         return "edit"
 
-    # Upload without a current actionable creation command remains analysis.
     if has_images:
         return "analyze"
 
     return "conversation"
+
 
 
 
@@ -18489,20 +18668,46 @@ def _graphic_repair_project_asset_roles_v15000(state=None):
 def _graphic_generation_command_v16000(prompt_text):
     """Recognize natural and typo-tolerant create commands in the current turn.
 
-    v68809 keeps generation fail-closed: typo-only/short consent commands become
-    actionable only after the Graphic project is ready. Full explicit generation
-    instructions remain actionable when the product/reference assets were attached
-    in the same submitted turn and have already been committed to project state.
+    Negative language blocks generation only when its grammatical target is the
+    requested artwork/deliverable. Product-preservation constraints such as
+    "do not create extra parts" remain valid generation instructions.
     """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return False
 
+    # Restore the proven object-specific negative behavior. A prohibition blocks
+    # generation only when it targets the image/commercial itself, not when it
+    # protects product geometry, hardware, copy, or other internal details.
+    negative_deliverable_pattern = (
+        r"(?:^|[.!?]\s*|\bplease\s+)"
+        r"(?:don't|do not)\s+"
+        r"(?:create|generate|make|edit|render|produce)"
+        r"(?:\s+(?:"
+        r"it|this|that|anything|"
+        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
+        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
+        r"artwork|graphic|design|poster|banner|render)"
+        r"))?"
+        r"(?:\s+(?:now|yet|right now))?"
+        r"\s*[.!?]?$"
+    )
+    if re.search(negative_deliverable_pattern, text):
+        return False
+
     blocked = (
-        "do not create", "don't create", "do not generate", "don't generate",
-        "not ready", "hold on", "wait", "before you create", "before creating",
-        "analyze first", "analyse first", "review first", "inspect first",
-        "study first", "before generating", "before generation",
+        "not ready",
+        "hold on",
+        "wait",
+        "before you create",
+        "before creating",
+        "analyze first",
+        "analyse first",
+        "review first",
+        "inspect first",
+        "study first",
+        "before generating",
+        "before generation",
     )
     if any(term in text for term in blocked):
         return False
@@ -18535,6 +18740,7 @@ def _graphic_generation_command_v16000(prompt_text):
         r"(?:create|generate|make|render|produce|design)\b",
     )
     return any(re.search(pattern, normalized) for pattern in patterns)
+
 
 
 
@@ -28573,42 +28779,188 @@ def _graphic_vehicle_specificity_v46000(prompt_text, vehicle_profile=None):
     return {"identity": identity, "has_model": has_model, "has_year": has_year, "has_trim": trim, "years": years[:4]}
 
 
-def _graphic_installation_source_plan_v46000(prompt_text, role_items, vehicle_profile=None):
-    """Resolve Level 1 uploaded dash, Level 2 exact vehicle research, or Level 3 best-effort research."""
-    candidates = _graphic_installation_candidate_items_v46000(role_items)
-    for item in candidates[:4]:
-        name = str(item.get("name") or "").casefold()
-        likely = any(k in name for k in ("dashboard", "dash", "interior", "cabin", "center stack", "centre stack"))
-        classification = _graphic_classify_dashboard_source_v46000(item, prompt_text)
-        if classification.get("usable_as_exact_installation_target") or (likely and classification.get("is_dashboard")):
-            profile = _graphic_uploaded_dashboard_profile_v46000(item, prompt_text, vehicle_profile, classification)
-            if profile.get("available"):
-                item["provider_role"] = "installation_dashboard_reference"
-                return profile
 
-    specificity = _graphic_vehicle_specificity_v46000(prompt_text, vehicle_profile)
-    researched = _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile)
-    researched = dict(researched or {})
-    if specificity.get("has_model") and specificity.get("has_year"):
-        researched.update({
-            "source_level": 2,
-            "source_method": "cached_or_live_exact_vehicle_research",
-            "dashboard_ground_truth": False,
-            "web_search_used": not bool(researched.get("cache_hit")),
-            "needs_vehicle_clarification": False,
+def _graphic_installed_prerequisite_gate_v68817(
+    prompt_text,
+    role_items,
+    vehicle_profile=None,
+    dashboard_item=None,
+):
+    """Require one product plus a dashboard or exact vehicle/year."""
+    product_items = [
+        item for item in (role_items or [])
+        if isinstance(item, dict)
+        and item.get("role") == "product_photo"
+        and item.get("file") is not None
+        and _graphic_uploaded_file_bytes(item.get("file"))
+    ]
+    if len(product_items) != 1:
+        raise RuntimeError(
+            "After Installation mode requires exactly one active product photo."
+        )
+
+    specificity = _graphic_vehicle_specificity_v46000(
+        prompt_text,
+        vehicle_profile,
+    )
+    if dashboard_item is None and not (
+        specificity.get("has_model") and specificity.get("has_year")
+    ):
+        raise RuntimeError(
+            "After Installation mode requires either an uploaded dashboard "
+            "photo or an exact vehicle model and year/generation."
+        )
+
+    return {
+        "product_item": product_items[0],
+        "dashboard_item": dashboard_item,
+        "vehicle_specificity": specificity,
+    }
+
+
+def _graphic_installed_authority_report_v68817(
+    product_item,
+    dashboard_item,
+    prompt_text,
+    vehicle_profile=None,
+):
+    """Store Installed View authority separately from Reference Mode authority."""
+    product_file = (
+        product_item.get("file")
+        if isinstance(product_item, dict)
+        else None
+    )
+    dashboard_file = (
+        dashboard_item.get("file")
+        if isinstance(dashboard_item, dict)
+        else None
+    )
+    product_bytes = (
+        _graphic_uploaded_file_bytes(product_file)
+        if product_file is not None
+        else b""
+    )
+    dashboard_bytes = (
+        _graphic_uploaded_file_bytes(dashboard_file)
+        if dashboard_file is not None
+        else b""
+    )
+    report = {
+        "product_sha256": (
+            hashlib.sha256(product_bytes).hexdigest()
+            if product_bytes else ""
+        ),
+        "dashboard_sha256": (
+            hashlib.sha256(dashboard_bytes).hexdigest()
+            if dashboard_bytes else ""
+        ),
+        "vehicle": (
+            (_graphic_extract_explicit_vehicle(prompt_text) or {}).get(
+                "display_name"
+            )
+            or (vehicle_profile or {}).get("explicit_display_name")
+            or (vehicle_profile or {}).get("model")
+            or ""
+        ),
+        "dashboard_ground_truth": bool(dashboard_bytes),
+        "mode": "installed_view",
+    }
+    state = get_graphic_project_state()
+    state["installed_authority_v68817"] = report
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return report
+
+
+def _graphic_installation_source_plan_v46000(
+    prompt_text,
+    role_items,
+    vehicle_profile=None,
+):
+    """Resolve uploaded dashboard authority or verified exact-vehicle research."""
+    candidates = _graphic_installation_candidate_items_v46000(role_items)
+    dashboard_item = None
+    dashboard_profile = None
+
+    for item in candidates[:6]:
+        name = str(item.get("name") or "").casefold()
+        likely = any(
+            key in name
+            for key in (
+                "dashboard", "dash", "interior", "cabin",
+                "center stack", "centre stack",
+            )
+        )
+        classification = _graphic_classify_dashboard_source_v46000(
+            item,
+            prompt_text,
+        )
+        if (
+            classification.get("usable_as_exact_installation_target")
+            or (likely and classification.get("is_dashboard"))
+        ):
+            profile = _graphic_uploaded_dashboard_profile_v46000(
+                item,
+                prompt_text,
+                vehicle_profile,
+                classification,
+            )
+            if profile.get("available"):
+                dashboard_item = item
+                dashboard_profile = dict(profile)
+                break
+
+    gate = _graphic_installed_prerequisite_gate_v68817(
+        prompt_text,
+        role_items,
+        vehicle_profile,
+        dashboard_item,
+    )
+    authority = _graphic_installed_authority_report_v68817(
+        gate["product_item"],
+        dashboard_item,
+        prompt_text,
+        vehicle_profile,
+    )
+
+    if dashboard_profile:
+        dashboard_item["provider_role"] = (
+            "installation_dashboard_reference"
+        )
+        dashboard_profile.update({
+            "installed_authority_v68817": authority,
+            "source_priority_v68817": (
+                "uploaded_dashboard_overrides_research"
+            ),
+            "prerequisite_gate_passed_v68817": True,
         })
-    else:
-        researched.update({
-            "source_level": 3,
-            "source_method": "best_effort_vehicle_family_research",
-            "dashboard_ground_truth": False,
-            "web_search_used": True,
-            "needs_vehicle_clarification": not specificity.get("has_year"),
-            "clarification_message": "A precise model year or generation was not supplied. The engine used the best-supported dashboard family and the result requires review.",
-            "research_verified_enough_for_generation": bool(researched.get("available") and researched.get("confidence_score", 0) >= 75 and specificity.get("has_model")),
-        })
-    researched["vehicle_specificity"] = specificity
+        return dashboard_profile
+
+    researched = dict(
+        _graphic_installed_interior_research_v44000(
+            prompt_text,
+            vehicle_profile,
+        )
+        or {}
+    )
+    if not researched.get("research_verified_enough_for_generation"):
+        raise RuntimeError(
+            "After Installation mode could not verify the exact OEM dashboard "
+            "family. Upload a dashboard photo or provide a more exact vehicle "
+            "year, model and trim."
+        )
+
+    researched.update({
+        "source_level": 2,
+        "source_method": "verified_exact_vehicle_research",
+        "dashboard_ground_truth": False,
+        "web_search_used": not bool(researched.get("cache_hit")),
+        "needs_vehicle_clarification": False,
+        "vehicle_specificity": gate["vehicle_specificity"],
+        "installed_authority_v68817": authority,
+        "prerequisite_gate_passed_v68817": True,
+    })
     return researched
+
 
 def _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile=None):
     """Research and compile an OEM interior contract for Installed View Mode.
@@ -28700,81 +29052,195 @@ def _graphic_installed_interior_research_v44000(prompt_text, vehicle_profile=Non
     return result
 
 
-def _graphic_installed_view_validation_v45000(data_url, role_items, prompt_text, vehicle_profile, interior_profile):
-    """Validate OEM cabin identity and installation realism independently."""
+
+def _graphic_installed_view_validation_v45000(
+    data_url,
+    role_items,
+    prompt_text,
+    vehicle_profile,
+    interior_profile,
+):
+    """Strict Installed View-only source, fitment and realism validation."""
     if not data_url:
-        return {"available": False, "passed": None, "score": None, "reason": "generated image unavailable", "provider_calls": 0}
-    required_vehicle = str((interior_profile or {}).get("vehicle_identity") or (vehicle_profile or {}).get("explicit_display_name") or "").strip()
+        return {
+            "available": False,
+            "passed": None,
+            "score": None,
+            "reason": "generated image unavailable",
+            "provider_calls": 0,
+        }
+
+    profile = dict(interior_profile or {})
+    required_vehicle = str(
+        profile.get("vehicle_identity")
+        or (vehicle_profile or {}).get("explicit_display_name")
+        or ""
+    ).strip()
     if not required_vehicle:
-        return {"available": False, "passed": None, "score": None, "reason": "vehicle identity unavailable", "provider_calls": 0}
-    product_sources = [x for x in (role_items or []) if x.get("role") == "product_photo"][:3]
-    contract = {
-        k: (interior_profile or {}).get(k)
-        for k in (
-            "vehicle_identity", "model_year_range", "generation", "trim_or_dashboard_family",
-            "dashboard_center_stack_description", "factory_screen_location", "installation_target_region",
-            "installation_opening_shape", "vent_relationship_to_screen", "climate_controls", "physical_buttons",
-            "hazard_button_location", "surrounding_trim_shape", "steering_wheel_and_cluster_cues",
-            "camera_view_primary", "perspective_and_scale_rules", "occlusion_rules", "lighting_rules",
-            "product_integration_rules", "ui_visibility_rules", "prohibited_mismatches"
-        )
-    }
-    content = [{"type": "input_text", "text": (
-        "Act as a strict automotive OEM interior and aftermarket-installation visualization inspector. "
-        "The first image is the generated after-installation result. If an uploaded dashboard ground-truth image follows, it is authoritative for cabin geometry and perspective; remaining images are authoritative product sources. "
-        "Return JSON only with keys: passed, score, vehicle_interior_identity_score, dashboard_generation_score, center_stack_geometry_score, "
-        "vent_and_control_layout_score, installation_fit_score, product_identity_score, product_scale_perspective_score, lighting_integration_score, "
-        "ui_visibility_score, photorealism_score, wrong_or_invented_details, confirmed_details, correction_prompt, reason. "
-        "Fail the result if it uses an exterior vehicle scene, generic dashboard, wrong generation, wrong vent arrangement, impossible installation opening, floating screen, "
-        "incorrect product proportions, visibly generic substitute product, mismatched perspective, implausible trim seams, or inconsistent cabin lighting. "
-        "Allow bounded product perspective reconstruction needed for installation, but preserve recognizable screen ratio, housing identity, controls, bezel relationship, and supplied UI. "
-        "Required minimums: overall 92; vehicle interior identity 95; dashboard generation 95; center stack 94; vents/controls 93; installation fit 94; product identity 92; perspective 92; lighting 88; UI 90; photorealism 90.\n"
-        f"Requested vehicle: {required_vehicle}\nOEM interior contract: {json.dumps(contract, ensure_ascii=False, default=str)[:14000]}\nUser request: {str(prompt_text or '')[:1400]}"
-    )}, {"type": "input_image", "image_url": data_url, "detail": "high"}]
-    dashboard_item = (interior_profile or {}).get("dashboard_source_item") if isinstance(interior_profile, dict) else None
-    if isinstance(dashboard_item, dict):
+        return {
+            "available": True,
+            "passed": False,
+            "score": 0,
+            "reason": "vehicle identity unavailable",
+            "failed_categories": ["vehicle_identity"],
+            "provider_calls": 0,
+        }
+
+    product_sources = [
+        item for item in (role_items or [])
+        if item.get("role") == "product_photo"
+    ][:1]
+    authority = dict(profile.get("installed_authority_v68817") or {})
+
+    content = [{
+        "type": "input_text",
+        "text": (
+            "Act as a fail-closed OEM interior installation inspector. "
+            "Image 1 is the generated result. If Image 2 is an uploaded OEM "
+            "dashboard, it is immutable ground truth outside the replacement "
+            "region. Later images are the authoritative product source.\n"
+            "Return JSON only with keys: passed, score, source_authority_score, "
+            "dashboard_structure_score, vehicle_identity_score, "
+            "center_stack_geometry_score, vent_control_score, fitment_score, "
+            "product_identity_score, perspective_score, lighting_score, "
+            "ui_score, photorealism_score, wrong_or_invented_details, "
+            "confirmed_details, correction_prompt, reason.\n"
+            "Automatic failures: advertisement/poster output, exterior scene, "
+            "generic or wrong-generation cabin, changed dashboard camera/crop "
+            "when ground truth exists, invented vents or controls, impossible "
+            "opening, floating screen, generic substitute product, wrong screen "
+            "ratio, missing/duplicated OEM controls, mismatched perspective, "
+            "pasted appearance, inconsistent lighting or obscured UI.\n"
+            "Required minimums: overall 93; source authority 100; uploaded "
+            "dashboard structure 98 when present; vehicle identity 96; center "
+            "stack 95; vents/controls 95; fitment 95; product identity 94; "
+            "perspective 93; lighting 90; UI 92; photorealism 92.\n"
+            f"Requested vehicle: {required_vehicle}\n"
+            "Installed authority: "
+            + json.dumps(authority, ensure_ascii=False, default=str)
+            + "\nUser request: "
+            + str(prompt_text or "")[:1600]
+        ),
+    }, {
+        "type": "input_image",
+        "image_url": data_url,
+        "detail": "high",
+    }]
+
+    dashboard_item = profile.get("dashboard_source_item")
+    has_dashboard = bool(
+        profile.get("dashboard_ground_truth")
+        and isinstance(dashboard_item, dict)
+    )
+    if has_dashboard:
         dashboard_source = _graphic_role_data_url(dashboard_item)
         if dashboard_source:
-            content.append({"type": "input_text", "text": "AUTHORITATIVE USER-UPLOADED DASHBOARD GROUND TRUTH. The generated result must preserve this cabin geometry and camera perspective."})
-            content.append({"type": "input_image", "image_url": dashboard_source, "detail": "high"})
+            content.append({
+                "type": "input_image",
+                "image_url": dashboard_source,
+                "detail": "high",
+            })
+
     for item in product_sources:
         source = _graphic_role_data_url(item)
         if source:
-            content.append({"type": "input_image", "image_url": source, "detail": "high"})
+            content.append({
+                "type": "input_image",
+                "image_url": source,
+                "detail": "high",
+            })
+
     try:
-        response = client.responses.create(model=_graphic_responses_model_v4000(), input=[{"role": "user", "content": content}], max_output_tokens=1800)
-        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        response = client.responses.create(
+            model=_graphic_responses_model_v4000(),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=2100,
+        )
+        payload = extract_json_object(
+            str(getattr(response, "output_text", "") or "")
+        )
         payload = payload if isinstance(payload, dict) else {}
-        keys = [
-            "score", "vehicle_interior_identity_score", "dashboard_generation_score", "center_stack_geometry_score",
-            "vent_and_control_layout_score", "installation_fit_score", "product_identity_score",
-            "product_scale_perspective_score", "lighting_integration_score", "ui_visibility_score", "photorealism_score"
-        ]
-        scores = {}
-        for key_name in keys:
-            try:
-                scores[key_name] = max(0, min(100, int(float(payload.get(key_name) or 0))))
-            except Exception:
-                scores[key_name] = 0
-        thresholds = {
-            "score": 92, "vehicle_interior_identity_score": 95, "dashboard_generation_score": 95,
-            "center_stack_geometry_score": 94, "vent_and_control_layout_score": 93, "installation_fit_score": 94,
-            "product_identity_score": 92, "product_scale_perspective_score": 92, "lighting_integration_score": 88,
-            "ui_visibility_score": 90, "photorealism_score": 90,
-        }
-        failed = [k for k, minimum in thresholds.items() if scores.get(k, 0) < minimum]
-        passed = bool(payload.get("passed")) and not failed
-        return {
-            "available": True, "passed": passed, "score": scores["score"], "scores": scores, "thresholds": thresholds,
-            "failed_categories": failed, "wrong_or_invented_details": (payload.get("wrong_or_invented_details") or [])[:30],
-            "confirmed_details": (payload.get("confirmed_details") or [])[:30],
-            "correction_prompt": str(payload.get("correction_prompt") or "")[:2500],
-            "reason": str(payload.get("reason") or "")[:1800], "provider_calls": 1,
-            "required_vehicle": required_vehicle, "policy": "v46000_adaptive_interior_source_validation"
-        }
     except Exception as error:
-        diagnostic_log("graphic_v45000_installed_validation_unavailable", error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
-        return {"available": False, "passed": None, "score": None, "reason": "Installed View validation unavailable", "provider_calls": 1}
+        diagnostic_log(
+            "graphic_v68817_installed_validation_unavailable",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+        return {
+            "available": False,
+            "passed": None,
+            "score": None,
+            "reason": "Installed View validation unavailable",
+            "provider_calls": 1,
+        }
+
+    score_keys = (
+        "score", "source_authority_score", "dashboard_structure_score",
+        "vehicle_identity_score", "center_stack_geometry_score",
+        "vent_control_score", "fitment_score", "product_identity_score",
+        "perspective_score", "lighting_score", "ui_score",
+        "photorealism_score",
+    )
+    scores = {}
+    for key in score_keys:
+        try:
+            scores[key] = max(
+                0,
+                min(100, int(float(payload.get(key) or 0))),
+            )
+        except Exception:
+            scores[key] = 0
+
+    thresholds = {
+        "score": 93,
+        "source_authority_score": 100,
+        "vehicle_identity_score": 96,
+        "center_stack_geometry_score": 95,
+        "vent_control_score": 95,
+        "fitment_score": 95,
+        "product_identity_score": 94,
+        "perspective_score": 93,
+        "lighting_score": 90,
+        "ui_score": 92,
+        "photorealism_score": 92,
+    }
+    if has_dashboard:
+        thresholds["dashboard_structure_score"] = 98
+
+    failed = [
+        key for key, minimum in thresholds.items()
+        if scores.get(key, 0) < minimum
+    ]
+    wrong = [
+        item for item in (
+            payload.get("wrong_or_invented_details") or []
+        )
+        if str(item).strip()
+    ]
+    passed = bool(payload.get("passed")) and not failed and not wrong
+
+    return {
+        "available": True,
+        "passed": passed,
+        "score": scores["score"],
+        "scores": scores,
+        "thresholds": thresholds,
+        "failed_categories": failed,
+        "wrong_or_invented_details": wrong[:30],
+        "confirmed_details": (
+            payload.get("confirmed_details") or []
+        )[:30],
+        "correction_prompt": str(
+            payload.get("correction_prompt") or ""
+        )[:4000],
+        "reason": str(payload.get("reason") or "")[:2200],
+        "provider_calls": 1,
+        "required_vehicle": required_vehicle,
+        "dashboard_ground_truth": has_dashboard,
+        "installed_authority_v68817": authority,
+        "policy": "v68817_isolated_installed_validation",
+    }
+
 
 def _graphic_ui_source_item_v44000(role_items):
     """Choose the most likely uploaded UI screenshot without confusing the product."""
@@ -31041,74 +31507,140 @@ def _graphic_emergency_provider_result_v15000(
 
 
 
-def _graphic_installed_view_recovery_v47000(prompt_text, uploaded_files, *, output_size="1536x1024", forced_upload_role="Auto-detect"):
-    """Dedicated fail-safe recovery that can only return an interior installation.
 
-    Generic emergency generation is intentionally forbidden for Installed View jobs,
-    because it may reinterpret the product as a marketing poster. This route keeps
-    the product upload, researches/resolves the best interior source, and gives the
-    provider a strict interior-only contract.
-    """
-    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
-    role_items = classify_graphic_uploaded_image_roles(
-        graphic_project_uploaded_files(include_current=uploaded_files),
+def _graphic_installed_view_recovery_v47000(
+    prompt_text,
+    uploaded_files,
+    *,
+    output_size="1536x1024",
+    forced_upload_role="Auto-detect",
+):
+    """Installed-only recovery using current authoritative role items."""
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(
+        prompt_text
+    )
+
+    # Use the active-ID authority resolver rather than reclassifying all history.
+    role_items = _graphic_project_role_items(
+        uploaded_files or [],
         effective_prompt,
-        forced_upload_role,
+        forced_role=forced_upload_role,
     )
-    product_items = [item for item in role_items if item.get("role") == "product_photo"]
-    if not product_items:
-        raise RuntimeError("Installed View recovery requires an identifiable product image.")
+    product_items = [
+        item for item in role_items
+        if item.get("role") == "product_photo"
+    ]
+    if len(product_items) != 1:
+        raise RuntimeError(
+            "Installed View recovery requires exactly one active product."
+        )
 
-    vehicle_profile = _graphic_resolve_vehicle_lock(effective_prompt, {})
-    interior_profile = _graphic_installation_source_plan_v46000(
-        effective_prompt, role_items, vehicle_profile
+    vehicle_profile = _graphic_resolve_vehicle_lock(
+        effective_prompt,
+        {},
     )
-    dashboard_item = interior_profile.get("dashboard_source_item") if isinstance(interior_profile, dict) else None
+    interior_profile = _graphic_installation_source_plan_v46000(
+        effective_prompt,
+        role_items,
+        vehicle_profile,
+    )
+    dashboard_item = (
+        interior_profile.get("dashboard_source_item")
+        if isinstance(interior_profile, dict)
+        else None
+    )
     if isinstance(dashboard_item, dict):
-        dashboard_item["provider_role"] = "installation_dashboard_reference"
+        dashboard_item["provider_role"] = (
+            "installation_dashboard_reference"
+        )
 
     strict_prompt = (
-        "FAIL-SAFE VEHICLE INSTALLATION RENDER. Create one photorealistic AFTER-INSTALLATION photograph from INSIDE the vehicle cabin. When an uploaded dashboard reference exists, use it as the immutable base photograph: preserve all pixels and geometry outside the factory radio replacement region, including camera/crop, steering wheel, cluster, vents, trim, lower controls, console, windshield framing, materials and lighting. Do not generate a new cabin. "
-        "This is not an advertisement poster, product hero graphic, catalogue layout, exterior vehicle image, infographic, or feature-callout design. "
-        "Do not render a logo, headline, compatibility ribbon, feature grid, arrows, labels, footer bar, or marketing text. "
-        "Use the uploaded AutoTecPro unit only as the product identity reference and integrate it into the real factory center-stack replacement region. "
-        "The cabin and OEM dashboard must fill the frame. Preserve generation-specific vents, climate controls, physical buttons, trim seams, steering wheel, console, and dashboard depth. "
-        "The installed unit must share the dashboard plane, perspective, occlusion, contact shadows, reflections, exposure, and color temperature. "
-        "Never return the source product photo or recreate its surrounding white background/poster. Never show a floating tablet or generic double-DIN radio.\n"
+        "FAIL-SAFE VEHICLE INSTALLATION RENDER. Create one photorealistic "
+        "AFTER-INSTALLATION photograph from INSIDE the exact vehicle cabin. "
+        "When an uploaded dashboard exists, preserve its camera, crop, steering "
+        "wheel, cluster, vents, controls, trim, console, materials and lighting "
+        "outside the factory replacement region. Modify only the installation "
+        "opening and the narrowest seam-blending boundary. Do not return an "
+        "advertisement, exterior vehicle, poster, generic dashboard, floating "
+        "tablet, generic double-DIN radio, headline, logo, feature grid, banner "
+        "or footer. Preserve the active AutoTecPro product identity, screen ratio, "
+        "housing, controls and UI. Match dashboard plane, scale, perspective, "
+        "occlusion, reflections, exposure, color temperature, contact shadows "
+        "and trim seams. Never use historical products.\n"
         f"USER REQUEST: {effective_prompt}\n"
-        "INTERIOR SOURCE CONTRACT: " + json.dumps(
-            {k: v for k, v in dict(interior_profile or {}).items() if k != "dashboard_source_item"},
+        "INTERIOR SOURCE CONTRACT: "
+        + json.dumps(
+            {
+                key: value
+                for key, value in dict(interior_profile or {}).items()
+                if key != "dashboard_source_item"
+            },
             ensure_ascii=False,
             default=str,
-        )[:18000]
+        )[:20000]
     )
-    raw_images, route = _graphic_responses_generate_v3000(role_items, strict_prompt, output_size)
+
+    raw_images, route = _graphic_responses_generate_v3000(
+        role_items,
+        strict_prompt,
+        output_size,
+    )
     if not raw_images:
-        raw_images, route = _graphic_images_api_fallback_v3000(role_items, strict_prompt, output_size)
+        raw_images, route = _graphic_images_api_fallback_v3000(
+            role_items,
+            strict_prompt,
+            output_size,
+        )
     if not raw_images:
-        raise RuntimeError("Installed View recovery returned no image.")
+        raise RuntimeError(
+            "Installed View recovery returned no image."
+        )
 
     result = _graphic_build_provider_result_v3000(
-        raw_images[0], effective_prompt, output_size, role_items, route, {}, vehicle_profile
+        raw_images[0],
+        effective_prompt,
+        output_size,
+        role_items,
+        route,
+        {},
+        vehicle_profile,
     )
     validation = _graphic_safe_optional_call(
-        "graphic_v47000_installed_recovery_validation_unavailable",
+        "graphic_v68817_installed_recovery_validation_unavailable",
         lambda: _graphic_installed_view_validation_v45000(
-            result.get("data_url"), role_items, effective_prompt, vehicle_profile, interior_profile
+            result.get("data_url"),
+            role_items,
+            effective_prompt,
+            vehicle_profile,
+            interior_profile,
         ),
-        {"available": False, "passed": None, "reason": "Installed View recovery validation unavailable", "provider_calls": 0},
+        {
+            "available": False,
+            "passed": None,
+            "reason": "Installed View recovery validation unavailable",
+            "provider_calls": 0,
+        },
     )
     result.update({
         "adaptive_mode": "installed_view",
         "installed_interior_profile": interior_profile,
         "installed_view_validation": validation,
-        "output_status": "completed_installed_view_recovery_v47000" if validation.get("passed") is True else "completed_installed_view_needs_review_v47000",
-        "verification_status": "verified" if validation.get("passed") is True else "review_required",
-        "recovery_route": "installed-view-only-v47000",
+        "output_status": (
+            "completed_installed_view_recovery_v68817"
+            if validation.get("passed") is True
+            else "completed_installed_view_needs_review_v68817"
+        ),
+        "verification_status": (
+            "verified"
+            if validation.get("passed") is True
+            else "review_required"
+        ),
+        "recovery_route": "installed-view-active-authority-v68817",
         "poster_output_prohibited": True,
         "ai_product_recreated": True,
     })
     return [result]
+
 
 
 
