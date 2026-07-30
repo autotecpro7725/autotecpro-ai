@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68817 FINAL LTS — v68813 Reference Lock, Multi-Product Authority and Isolated Installed View Upgrade
+# AutoTecPro AI Graphic Marketing Engine v68818 FINAL LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -22101,12 +22101,12 @@ def _graphic_chatgpt_production_prompt(
             "PHOTOMETRIC-ONLY GLASS INTEGRATION: environmental lighting, exposure, reflections, glare and glass effects may be added only as a subtle transparent overlay above the unchanged source screen pixels. These effects may alter appearance only; they must never replace, move, erase, blur, bend or geometrically distort any source UI pixel.",
             "SCREEN-DETAIL FAIL-CLOSED RULE: if the provider cannot preserve the complete source screen faithfully, keep the original screen pixels unchanged and reduce or omit the glass/reflection enhancement rather than reconstructing the UI.",
             "DETERMINISTIC PRODUCT PLACEMENT AUTHORITY: the exact product may be uniformly resized and relocated as one locked layer to improve the commercial composition. In the common product-left / vehicle-right layout, place the product visually between the left canvas boundary and the vehicle, with balanced negative space on both sides and without crowding the headline, feature grid or vehicle.",
-            "COMPOSITION-INTELLIGENCE RULE: evaluate headline length, feature-grid footprint, vehicle footprint, footer height and available negative space before selecting product scale and position. Prefer the smallest change that improves balance: normally reduce the product by 2–8%, move it slightly left or right, and adjust footer overlap by no more than 2 percentage points around the 5% target.",
+            "COMPOSITION-INTELLIGENCE RULE: evaluate headline length, feature-grid footprint, vehicle footprint, footer height and available negative space before selecting product scale and position. Prefer the smallest change that improves balance: normally reduce the product by 2–8%, move it slightly left or right, and adjust footer overlap only as needed around the fixed 2% target.",
             "VEHICLE DIRECTION AUTHORITY: when the reference vehicle faces right, or when a right-facing vehicle creates the stronger product-to-vehicle visual flow, show the target vehicle genuinely facing right. Do not mirror badges, grille text or asymmetric vehicle details; generate the correct right-facing view.",
             "GEOMETRY-SAFE SCENE INTEGRATION: add only restrained micro-contact shadow, ambient occlusion, low-intensity environmental colour bleed on the sun-facing housing edge and sky-aligned transparent glass reflection. These effects may modify appearance but never alpha, silhouette, proportions, screen pixels, bezel geometry, controls, openings, ears, brackets or mounting hardware.",
             "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
-            "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 5% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
-            "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 5% of the complete product and must never cause the product to appear cut off incorrectly.",
+            "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 2% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
+            "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 2% of the complete product and must never cause the product to appear cut off incorrectly.",
             "BOTTOM-BANNER SAFE-ZONE LOCK: every footer icon, separator and wording must remain fully contained, vertically centered and comfortably padded inside the dark banner. Never place, squeeze or drop a benefit label below the banner. Keep all footer groups readable even when the product overlaps behind the banner.",
         ])
         if product_structure_text:
@@ -27055,9 +27055,9 @@ def _graphic_compose_reference_campaign_v3200(
     px = max(hero_x0, min(px, hero_x1 - product.width))
 
     footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
-    # The footer is a foreground layer. Place approximately 5% of the exact product
+    # The footer is a foreground layer. Place approximately 2% of the exact product
     # behind it while keeping the complete product layer intact beneath the banner.
-    footer_overlap_px = max(1, int(round(product.height * 0.05)))
+    footer_overlap_px = max(1, int(round(product.height * 0.02)))
     py = footer_top_px - product.height + footer_overlap_px
     py = max(hero_y0, min(py, H - product.height))
 
