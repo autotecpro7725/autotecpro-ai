@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68814 FINAL LTS — Same-Conversation Multi-Product Authority Fix, Built Directly from v68813
+# AutoTecPro AI Graphic Marketing Engine v68815 FINAL LTS — Object-Specific Negative Intent Restoration, Built Directly from v68814
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18452,19 +18452,16 @@ def _explicit_product_library_request(prompt_text):
 
 
 
+
 def classify_graphic_chat_intent(
     prompt_text, uploaded_files=None, *, structured_request=False
 ):
     """Resolve Graphic Marketing intent from wording, uploads and project state.
 
-    v68809 fixes two routing failures:
-    1. short typo commands such as "crest it" were treated as conversation;
-    2. a current product-upload instruction containing both reference/analysis
-       wording and an explicit "create ... now" command was classified as analysis
-       before the generation command could be evaluated.
-
-    Negative/defer instructions remain authoritative, and short consent commands
-    cannot start generation unless the project is ready.
+    v68815 preserves the v68811 prerequisite gate and typo-tolerant routing while
+    restoring object-specific negative interpretation: "do not create extra parts"
+    protects product geometry and does not cancel an otherwise explicit generation
+    command.
     """
     if structured_request:
         return "generate"
@@ -18492,7 +18489,26 @@ def classify_graphic_chat_intent(
         project_ready = False
         project_image_count = 0
 
-    # Hard negative, defer and sequencing language always wins.
+    # A negative instruction is a defer command only when it targets the artwork
+    # itself. Do not treat product-preservation constraints such as "do not create
+    # extra brackets" or "do not modify the bezel" as cancellation.
+    negative_deliverable_pattern = (
+        r"(?:^|[.!?]\s*|\bplease\s+)"
+        r"(?:don't|do not)\s+"
+        r"(?:create|generate|make|edit|render|produce)"
+        r"(?:\s+(?:"
+        r"it|this|that|anything|"
+        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
+        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
+        r"artwork|graphic|design|poster|banner|render)"
+        r"))?"
+        r"(?:\s+(?:now|yet|right now))?"
+        r"\s*[.!?]?$"
+    )
+    if re.search(negative_deliverable_pattern, text):
+        return "planning"
+
+    # Hard defer and sequencing language remains authoritative.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
@@ -18524,8 +18540,6 @@ def classify_graphic_chat_intent(
         r"\b(?:help me|let's|lets) (?:plan|prepare|brainstorm|discuss)\b",
         r"\bwhat (?:do you|should i|would you) need\b",
         r"\bhow (?:should|do) i (?:start|upload|send|prepare)\b",
-        r"\bdo not (?:create|generate|make|edit|render|produce)\b",
-        r"\b(?:don't|do not) (?:create|generate|make|edit|render|produce)\b",
         r"\bnot ready to (?:create|generate|make|edit|render|produce)\b",
         r"\bhold (?:on|off)\b",
     )
@@ -18539,20 +18553,8 @@ def classify_graphic_chat_intent(
         return "learn"
 
     # Evaluate the current turn's explicit generation action before generic
-    # analysis vocabulary. This is limited to a real command, not mere future
-    # discussion of creating another product.
+    # analysis vocabulary. This remains subject to the prerequisite gate.
     generation_command = _graphic_generation_command_v16000(text)
-    short_command = bool(re.fullmatch(
-        r"(?:please\s+)?(?:"
-        r"create|creat|crete|crate|craete|crest|generate|genrate|generte|gnerate|"
-        r"make|render|rendar|do"
-        r")\s+(?:it|this|that)(?:\s+now)?[.!]?",
-        text,
-    ) or re.fullmatch(
-        r"(?:please\s+)?(?:go ahead|proceed|start|start now|retry|try again)"
-        r"[.!]?",
-        text,
-    ))
 
     explicit_now = bool(re.search(
         r"\b(?:create|generate|make|render|produce|design|build)\b.*"
@@ -18572,16 +18574,9 @@ def classify_graphic_chat_intent(
     )
 
     if generation_command:
-        # v68811 prerequisite gate: every generation command—short or long—requires
-        # a complete ready project. Mentioning "create" while asking to analyze or
-        # prepare a future reference must never start the image pipeline.
         if project_ready or project_image_count >= 2:
             return "generate"
 
-    # Mixed current-turn requests such as "analyze/use this reference and create
-    # the commercial photo now" should generate once the current upload has made
-    # the project ready. Explicit sequencing such as "analyze first" was already
-    # blocked by the defer gate.
     if (
         (explicit_now or concrete_deliverable)
         and (project_ready or project_image_count >= 2)
@@ -18590,8 +18585,9 @@ def classify_graphic_chat_intent(
 
     analysis_terms = (
         "analyze", "analyse", "review", "inspect", "compare", "describe",
-        "what do you see", "identify", "study", "evaluate", "give feedback",
-        "tell me about", "break down", "extract the style", "reference analysis",
+        "look at", "what do you think", "feedback", "suggest", "recommend",
+        "idea", "concept", "brainstorm", "plan", "prepare", "discuss",
+        "reference", "sample", "style", "layout", "inspiration",
     )
     if any(term in text for term in analysis_terms):
         return "analyze"
@@ -18611,11 +18607,11 @@ def classify_graphic_chat_intent(
     if any(re.search(pattern, text) for pattern in edit_patterns):
         return "edit"
 
-    # Upload without a current actionable creation command remains analysis.
     if has_images:
         return "analyze"
 
     return "conversation"
+
 
 
 
@@ -18676,23 +18672,50 @@ def _graphic_repair_project_asset_roles_v15000(state=None):
 
 
 
+
 def _graphic_generation_command_v16000(prompt_text):
     """Recognize natural and typo-tolerant create commands in the current turn.
 
-    v68809 keeps generation fail-closed: typo-only/short consent commands become
-    actionable only after the Graphic project is ready. Full explicit generation
-    instructions remain actionable when the product/reference assets were attached
-    in the same submitted turn and have already been committed to project state.
+    Negative language blocks generation only when its grammatical target is the
+    requested artwork/deliverable. Product-preservation constraints such as
+    "do not create extra parts" remain valid generation instructions.
     """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not text:
         return False
 
+    # Restore the proven object-specific negative behavior. A prohibition blocks
+    # generation only when it targets the image/commercial itself, not when it
+    # protects product geometry, hardware, copy, or other internal details.
+    negative_deliverable_pattern = (
+        r"(?:^|[.!?]\s*|\bplease\s+)"
+        r"(?:don't|do not)\s+"
+        r"(?:create|generate|make|edit|render|produce)"
+        r"(?:\s+(?:"
+        r"it|this|that|anything|"
+        r"(?:a|an|the|this|that|my|our|current|final|new|another)\s+"
+        r"(?:image|photo|picture|ad|advertisement|commercial|campaign|"
+        r"artwork|graphic|design|poster|banner|render)"
+        r"))?"
+        r"(?:\s+(?:now|yet|right now))?"
+        r"\s*[.!?]?$"
+    )
+    if re.search(negative_deliverable_pattern, text):
+        return False
+
     blocked = (
-        "do not create", "don't create", "do not generate", "don't generate",
-        "not ready", "hold on", "wait", "before you create", "before creating",
-        "analyze first", "analyse first", "review first", "inspect first",
-        "study first", "before generating", "before generation",
+        "not ready",
+        "hold on",
+        "wait",
+        "before you create",
+        "before creating",
+        "analyze first",
+        "analyse first",
+        "review first",
+        "inspect first",
+        "study first",
+        "before generating",
+        "before generation",
     )
     if any(term in text for term in blocked):
         return False
@@ -18725,6 +18748,7 @@ def _graphic_generation_command_v16000(prompt_text):
         r"(?:create|generate|make|render|produce|design)\b",
     )
     return any(re.search(pattern, normalized) for pattern in patterns)
+
 
 
 
