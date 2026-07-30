@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68811 FINAL LTS — Prerequisite-Gated Generation Intent, Built Directly from v68809
+# AutoTecPro AI Graphic Marketing Engine v68812 FINAL LTS — Bounded Graphic Memory and Second-Product Stability, Built Directly from v68811
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -16881,26 +16881,101 @@ def _graphic_mobile_cache_key_v68400():
     return _graphic_mobile_cache_keys_v68400()[0]
 
 
+
 def _graphic_copy_project_state_v68400(state):
-    """Make a defensive copy while preserving immutable uploaded bytes."""
+    """Return a bounded reconnect snapshot without duplicating generated canvases.
+
+    Uploaded reference/current-product bytes are retained because they are required to
+    resume a disconnected Graphic job. Full generated data URLs are deliberately
+    excluded from the process-wide recovery cache; the active Streamlit session and
+    saved chat remain the authorities for completed output images.
+    """
     source = dict(state or {})
     copied = {}
+
+    active_reference_id = str(source.get("active_reference_id") or "")
+    active_product_id = str(source.get("active_product_id") or "")
+
     for key, value in source.items():
         if key == "assets":
-            assets=[]
+            retained_assets = []
             for item in value or []:
                 if not isinstance(item, dict):
                     continue
-                record=dict(item)
-                record["data"]=bytes(record.get("data") or b"")
-                assets.append(record)
-            copied[key]=assets
-        else:
+                record = dict(item)
+                role = str(record.get("role") or "").casefold()
+                asset_id = str(record.get("id") or "")
+                canonical_role = (
+                    "reference"
+                    if role in {"reference", "style_reference"}
+                    else "product"
+                    if role in {"product", "product_photo"}
+                    else role
+                )
+                is_active = bool(record.get("active_for_generation"))
+                if canonical_role == "reference" and active_reference_id:
+                    is_active = asset_id == active_reference_id
+                elif canonical_role == "product" and active_product_id:
+                    is_active = asset_id == active_product_id
+
+                # Reconnect recovery requires the current reference and product only.
+                # Keep lightweight metadata for inactive assets, but release their
+                # image bytes from the process-wide cache.
+                record["data"] = (
+                    bytes(record.get("data") or b"")
+                    if is_active or canonical_role not in {"reference", "product"}
+                    else b""
+                )
+                retained_assets.append(record)
+            copied[key] = retained_assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+            continue
+
+        if key == "latest_generated":
+            latest = dict(value or {}) if isinstance(value, dict) else {}
+            latest.pop("data_url", None)
+            latest.pop("background_data_url", None)
+            copied[key] = latest or None
+            continue
+
+        if key == "generation_history":
+            compact_history = []
+            for item in value or []:
+                if not isinstance(item, dict):
+                    continue
+                compact = dict(item)
+                compact.pop("data_url", None)
+                compact.pop("background_data_url", None)
+                compact_history.append(compact)
+            copied[key] = compact_history[-5:]
+            continue
+
+        if key == "layer_stack":
+            stack = json.loads(
+                json.dumps(value or {}, ensure_ascii=False, default=str)
+            )
             try:
-                copied[key]=json.loads(json.dumps(value, ensure_ascii=False, default=str))
+                background = (
+                    (stack.get("layers") or {}).get("background")
+                    if isinstance(stack, dict)
+                    else None
+                )
+                if isinstance(background, dict):
+                    background.pop("asset", None)
+                    background["asset_retained_in_recovery"] = False
             except Exception:
-                copied[key]=value
+                pass
+            copied[key] = stack
+            continue
+
+        try:
+            copied[key] = json.loads(
+                json.dumps(value, ensure_ascii=False, default=str)
+            )
+        except Exception:
+            copied[key] = value
+
     return copied
+
 
 
 def _graphic_persist_project_v68400(state=None):
@@ -17083,8 +17158,14 @@ def _empty_graphic_project_state():
 
 
 
+
 def get_graphic_project_state():
-    """Return the current Graphic workspace with mobile reconnect recovery."""
+    """Return the current Graphic workspace with bounded reconnect recovery.
+
+    This getter is intentionally read-only with respect to the process-wide recovery
+    cache. Persisting here previously deep-copied image-heavy state on every ordinary
+    lookup, creating large transient allocations during a second generation.
+    """
     state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     if not isinstance(state, dict):
         state = _graphic_restore_project_v68400()
@@ -17112,15 +17193,27 @@ def get_graphic_project_state():
     state.setdefault("layer_stack", {})
     state.setdefault("brand_template", "autotecpro_adventure")
     state.setdefault("template_history", [])
-    state.setdefault("approval_learning", {"approved": 0, "rejected": 0, "preferred_templates": {}})
-    state.setdefault("production_metrics", {"generation_count": 0, "local_edit_count": 0, "provider_calls": 0, "retry_count": 0, "total_seconds": 0.0})
+    state.setdefault(
+        "approval_learning",
+        {"approved": 0, "rejected": 0, "preferred_templates": {}},
+    )
+    state.setdefault(
+        "production_metrics",
+        {
+            "generation_count": 0,
+            "local_edit_count": 0,
+            "provider_calls": 0,
+            "retry_count": 0,
+            "total_seconds": 0.0,
+        },
+    )
     object_state = state.setdefault("visual_object_state", {})
     object_state.setdefault("layout_locked", False)
     object_state.setdefault("style_locked", False)
     object_state.setdefault("vehicle_locked", False)
     object_state.setdefault("product_locked", False)
-    _graphic_persist_project_v68400(state)
     return state
+
 
 
 
@@ -18414,26 +18507,76 @@ def _graphic_generation_command_v16000(prompt_text):
 
 
 
+
 def _graphic_active_project_assets_v16000(state=None):
-    """Keep the newest reference and product authoritative while retaining history."""
+    """Keep the newest reference and product authoritative with bounded asset memory.
+
+    The reference style remains available across multiple products in the same case.
+    Once a newer product becomes active, byte payloads for older inactive product
+    photos are released from Graphic project state to prevent second-generation memory
+    accumulation. Their lightweight metadata remains for diagnostics.
+    """
     project = state if isinstance(state, dict) else get_graphic_project_state()
-    assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
+    assets = [
+        item for item in (project.get("assets") or [])
+        if isinstance(item, dict)
+    ]
     newest = {}
+
     for item in assets:
         role = str(item.get("role") or "").casefold()
-        canonical = "reference" if role in {"reference", "style_reference"} else "product" if role in {"product", "product_photo"} else role
-        if canonical in {"reference", "product"} and bytes(item.get("data") or b""):
+        canonical = (
+            "reference"
+            if role in {"reference", "style_reference"}
+            else "product"
+            if role in {"product", "product_photo"}
+            else role
+        )
+        if (
+            canonical in {"reference", "product"}
+            and bytes(item.get("data") or b"")
+        ):
             newest[canonical] = item
-    active_ids = {str(item.get("id") or "") for item in newest.values()}
+
+    active_ids = {
+        str(item.get("id") or "")
+        for item in newest.values()
+    }
+    active_reference_id = str(
+        (newest.get("reference") or {}).get("id") or ""
+    )
+    active_product_id = str(
+        (newest.get("product") or {}).get("id") or ""
+    )
+
     for item in assets:
         role = str(item.get("role") or "").casefold()
-        if role in {"reference", "style_reference", "product", "product_photo"}:
-            item["active_for_generation"] = str(item.get("id") or "") in active_ids
+        canonical = (
+            "reference"
+            if role in {"reference", "style_reference"}
+            else "product"
+            if role in {"product", "product_photo"}
+            else role
+        )
+        asset_id = str(item.get("id") or "")
+        if canonical in {"reference", "product"}:
+            item["active_for_generation"] = asset_id in active_ids
+
+        # Keep the current product only. The current reference remains untouched.
+        if (
+            canonical == "product"
+            and active_product_id
+            and asset_id != active_product_id
+        ):
+            item["data"] = b""
+            item["released_from_memory"] = True
+
     project["assets"] = assets
-    project["active_reference_id"] = str((newest.get("reference") or {}).get("id") or "")
-    project["active_product_id"] = str((newest.get("product") or {}).get("id") or "")
+    project["active_reference_id"] = active_reference_id
+    project["active_product_id"] = active_product_id
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     return project
+
 
 
 def _graphic_project_style_dna_v16000(reference_blueprint, state=None):
@@ -22553,14 +22696,27 @@ def _graphic_build_provider_result_v3000(
 
 
 
+
 def _graphic_save_latest_project_result(image):
-    """Persist the latest result as the active editable canvas and version snapshot."""
-    if not isinstance(image, dict) or not str(image.get("data_url") or "").startswith("data:image/"):
+    """Persist one full active canvas and lightweight version metadata.
+
+    Older versions remain traceable by metadata but do not retain duplicate full
+    data URLs in Graphic project state. The generated image is still preserved in the
+    conversation message/history path exactly as before.
+    """
+    if (
+        not isinstance(image, dict)
+        or not str(image.get("data_url") or "").startswith("data:image/")
+    ):
         return
+
     state = get_graphic_project_state()
     raw, _mime = data_url_to_bytes(str(image.get("data_url") or ""))
-    canvas_id = hashlib.sha256(raw or str(image.get("data_url") or "").encode()).hexdigest()[:20]
+    canvas_id = hashlib.sha256(
+        raw or str(image.get("data_url") or "").encode()
+    ).hexdigest()[:20]
     next_version = int(state.get("current_canvas_version") or 0) + 1
+
     snapshot = {
         key: image.get(key)
         for key in (
@@ -22575,8 +22731,19 @@ def _graphic_save_latest_project_result(image):
     }
     snapshot["canvas_id"] = canvas_id
     snapshot["canvas_version"] = next_version
-    history = [item for item in (state.get("generation_history") or []) if isinstance(item, dict)]
-    history.append(snapshot)
+
+    history = [
+        item for item in (state.get("generation_history") or [])
+        if isinstance(item, dict)
+    ]
+    compact_snapshot = {
+        key: value
+        for key, value in snapshot.items()
+        if key not in {"data_url", "background_data_url"}
+    }
+    compact_snapshot["full_canvas_in_active_state"] = True
+    history.append(compact_snapshot)
+
     state["generation_history"] = history[-10:]
     state["latest_generated"] = snapshot
     state["current_canvas_id"] = canvas_id
@@ -22585,6 +22752,7 @@ def _graphic_save_latest_project_result(image):
     state["last_error"] = ""
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
 
 
 
