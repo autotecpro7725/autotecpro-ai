@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68818 FINAL LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
+# AutoTecPro AI Graphic Marketing Engine v68819 FINAL LTS — Same-Conversation Second Product Immediate Generation Fix, Built Directly from v68818
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18222,8 +18222,15 @@ def _infer_graphic_asset_role(prompt_text, state):
 
 
 
+
 def remember_graphic_project_assets(uploaded_files, prompt_text=""):
-    """Persist assets using v68813 role inference plus safe active-product switching."""
+    """Persist assets using v68813 role inference plus safe active-product switching.
+
+    v68819 adds only one narrow execution latch: when a genuinely new Product B image
+    is uploaded in an already-ready reference project and that same turn explicitly
+    says to create the commercial, the following intent classifier must execute the
+    request immediately instead of returning another confirmation turn.
+    """
     state = _graphic_update_project_brief(prompt_text)
     assets = list(state.get("assets") or [])
     known = {str(item.get("id") or "") for item in assets}
@@ -18242,9 +18249,8 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         if digest in known:
             continue
 
-        # Keep the exact v68813 role inference. The only additional rule is that
-        # an explicit new-product upload can replace an existing active product
-        # after a reference has already been locked.
+        # Keep the exact v68813 role inference. The only additional role rule is
+        # the established explicit Product B replacement behavior from v68817.
         role = _infer_graphic_asset_role(prompt_text, state)
         has_reference = any(
             str(item.get("role") or "").casefold() == "reference"
@@ -18287,13 +18293,17 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         new_products = [
             item for item in added if item.get("role") == "product"
         ]
-
-        if new_products and any(
-            str(item.get("id") or "") != str(
-                state.get("active_product_id") or ""
+        product_switched = bool(
+            new_products
+            and any(
+                str(item.get("id") or "") != str(
+                    state.get("active_product_id") or ""
+                )
+                for item in new_products
             )
-            for item in new_products
-        ):
+        )
+
+        if product_switched:
             state = _graphic_activate_new_product_v68817(
                 state,
                 new_products[-1],
@@ -18304,6 +18314,35 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             state["stage"] = "ready_to_generate"
         else:
             state["stage"] = "assets_received"
+
+        # The upload handler runs before intent classification. Preserve one
+        # current-turn signal only when all of these are true:
+        #   1) an existing reference/product project was already active;
+        #   2) a genuinely new product became active;
+        #   3) the same message explicitly requests generation.
+        #
+        # This closes the observed Product B acknowledgement loop without changing
+        # asset selection, prompt construction, rendering, recovery, or Reference Mode.
+        current_text = re.sub(
+            r"\s+",
+            " ",
+            str(prompt_text or ""),
+        ).strip()
+        state["force_current_product_generation_v68819"] = bool(
+            product_switched
+            and _graphic_explicit_product_upload_v68817(current_text)
+            and _graphic_generation_command_v16000(current_text)
+        )
+        if state["force_current_product_generation_v68819"]:
+            state["force_current_product_generation_id_v68819"] = str(
+                new_products[-1].get("id") or ""
+            )
+            state["force_current_product_generation_prompt_v68819"] = (
+                current_text[:4000]
+            )
+        else:
+            state.pop("force_current_product_generation_id_v68819", None)
+            state.pop("force_current_product_generation_prompt_v68819", None)
 
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -18320,6 +18359,7 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
 
     _graphic_persist_project_v68400(get_graphic_project_state())
     return added
+
 
 
 
@@ -18446,15 +18486,15 @@ def _explicit_product_library_request(prompt_text):
 
 
 
+
 def classify_graphic_chat_intent(
     prompt_text, uploaded_files=None, *, structured_request=False
 ):
     """Resolve Graphic Marketing intent from wording, uploads and project state.
 
-    v68815 preserves the v68811 prerequisite gate and typo-tolerant routing while
-    restoring object-specific negative interpretation: "do not create extra parts"
-    protects product geometry and does not cancel an otherwise explicit generation
-    command.
+    v68819 retains the v68815 object-specific negative-language correction and adds
+    one narrow same-turn Product B execution path. It does not alter Reference Mode
+    rendering, prompts, product geometry, fitment, composition, or provider routing.
     """
     if structured_request:
         return "generate"
@@ -18479,12 +18519,46 @@ def classify_graphic_chat_intent(
             if isinstance(item, dict) and bytes(item.get("data") or b"")
         )
     except Exception:
+        project = {}
         project_ready = False
         project_image_count = 0
 
+    # Consume only the same-turn latch set by remember_graphic_project_assets().
+    # The active ID must still match the newly uploaded product, preventing a stale
+    # flag from generating a later unrelated message.
+    forced_product_id = str(
+        project.get("force_current_product_generation_id_v68819") or ""
+    ).strip()
+    active_product_id = str(
+        project.get("active_product_id") or ""
+    ).strip()
+    force_current_product = bool(
+        has_images
+        and project.get("force_current_product_generation_v68819")
+        and forced_product_id
+        and forced_product_id == active_product_id
+        and _graphic_generation_command_v16000(text)
+    )
+    if force_current_product:
+        project["force_current_product_generation_v68819"] = False
+        project.pop("force_current_product_generation_id_v68819", None)
+        project.pop("force_current_product_generation_prompt_v68819", None)
+        project["last_forced_product_generation_v68819"] = {
+            "active_product_id": active_product_id,
+            "reason": "new_product_upload_with_explicit_create_command",
+        }
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+        diagnostic_log(
+            "graphic_v68819_second_product_immediate_generation",
+            active_product_id=active_product_id,
+            project_ready=project_ready,
+            project_image_count=project_image_count,
+        )
+        return "generate"
+
     # A negative instruction is a defer command only when it targets the artwork
-    # itself. Do not treat product-preservation constraints such as "do not create
-    # extra brackets" or "do not modify the bezel" as cancellation.
+    # itself. Product-preservation constraints remain valid generation instructions.
     negative_deliverable_pattern = (
         r"(?:^|[.!?]\s*|\bplease\s+)"
         r"(?:don't|do not)\s+"
@@ -18501,7 +18575,6 @@ def classify_graphic_chat_intent(
     if re.search(negative_deliverable_pattern, text):
         return "planning"
 
-    # Hard defer and sequencing language remains authoritative.
     defer_patterns = (
         r"\bcan i (?:send|upload|show|attach|provide)\b",
         r"\bmay i (?:send|upload|show|attach|provide)\b",
@@ -18545,8 +18618,6 @@ def classify_graphic_chat_intent(
     )):
         return "learn"
 
-    # Evaluate the current turn's explicit generation action before generic
-    # analysis vocabulary. This remains subject to the prerequisite gate.
     generation_command = _graphic_generation_command_v16000(text)
 
     explicit_now = bool(re.search(
@@ -18604,6 +18675,7 @@ def classify_graphic_chat_intent(
         return "analyze"
 
     return "conversation"
+
 
 
 
