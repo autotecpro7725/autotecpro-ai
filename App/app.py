@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68830 INSTALLED VIEW ONLY LTS — v68828 Reference Exact Pass-Through + Multi-Product Continuation Repair
+# AutoTecPro AI v68835 — Technical Customer Reply Spacing Renderer Fix Only; v68833 Graphic/Reference/Installed Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -5140,16 +5140,18 @@ def inject_base_css():
             border-radius: 0 12px 12px 0;
             background: rgba(245, 158, 11, 0.07);
             box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.10);
+            line-height: 1.72;
         }
 
         .assistant-bubble .atp-customer-reply-box .atp-customer-reply-line {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             opacity: 1 !important;
-            margin: 0 0 10px 0;
+            margin: 0 0 18px 0;
             padding: 0;
             border: 0;
             background: transparent;
+            line-height: 1.72;
         }
 
         .assistant-bubble .atp-customer-reply-box .atp-customer-reply-line:last-child {
@@ -9922,6 +9924,12 @@ def html_from_text(text, assistant_mode=False):
 
         if not stripped:
             close_lists()
+            # Customer Reply paragraphs already receive a deterministic double
+            # line break when rendered. Ignore the source blank separator here so
+            # the visual gap is consistent instead of becoming triple-spaced.
+            if assistant_mode and in_customer_reply and customer_reply_box_open:
+                i += 1
+                continue
             next_nonempty = ""
             lookahead = i + 1
             while lookahead < len(lines):
@@ -10070,8 +10078,13 @@ def html_from_text(text, assistant_mode=False):
                     customer_reply_box_open = True
                 reply_text = re.sub(r"^>\s?", "", stripped).strip()
                 if reply_text:
+                    # Use explicit HTML line breaks rather than <p>/<div> wrappers.
+                    # The existing final safety sweep intentionally removes those
+                    # wrapper tags from rendered chat content, while <br> survives.
+                    # Two breaks therefore create a reliable paragraph gap without
+                    # changing any reply wording or non-reply rendering behavior.
                     html_lines.append(
-                        f'<div class="atp-customer-reply-line">{inline_format(reply_text)}</div>'
+                        f'{inline_format(reply_text)}<br><br>'
                     )
             elif assistant_mode:
                 html_lines.append(
@@ -34492,6 +34505,82 @@ def _graphic_v68680_normalize_usable_images(images, route_name, failures=None):
     return normalized
 
 
+GRAPHIC_V68833_REFERENCE_ASPECT_TOLERANCE = 0.005
+
+
+def _graphic_v68833_reference_aspect_release_gate(images):
+    """Validate Reference Mode product proportions without changing image pixels.
+
+    This is a release-only gate. It does not resize, crop, regenerate, rewrite, or
+    otherwise mutate the output. Existing compliant images pass through unchanged;
+    only a result carrying direct metadata evidence of non-uniform product scaling
+    is rejected so the established v68832 state machine can try its existing next
+    route. Missing optional ratio metadata remains diagnostic rather than a blocker.
+    """
+    reports = []
+    issues = []
+    available = False
+
+    for index, image in enumerate(images or []):
+        if not isinstance(image, dict):
+            continue
+        metadata = dict(image.get("layered_metadata") or {})
+        source_ratio = float(metadata.get("product_source_visible_aspect_ratio") or 0.0)
+        rendered_ratio = float(metadata.get("product_rendered_aspect_ratio") or 0.0)
+
+        if rendered_ratio <= 0.0:
+            box = list(metadata.get("product_box") or [])
+            if len(box) == 4:
+                try:
+                    width = float(box[2])
+                    height = float(box[3])
+                    if width > 0.0 and height > 0.0:
+                        rendered_ratio = width / height
+                except Exception:
+                    rendered_ratio = 0.0
+
+        relative_error = None
+        passed = None
+        if source_ratio > 0.0 and rendered_ratio > 0.0:
+            available = True
+            relative_error = abs(rendered_ratio - source_ratio) / max(source_ratio, 1e-9)
+            passed = relative_error <= GRAPHIC_V68833_REFERENCE_ASPECT_TOLERANCE
+            if not passed:
+                issues.append(
+                    "image " + str(index + 1)
+                    + " product width-to-height ratio drifted by "
+                    + f"{relative_error * 100:.3f}%"
+                )
+        elif metadata.get("product_ratio_preserved") is False:
+            available = True
+            passed = False
+            issues.append(
+                "image " + str(index + 1)
+                + " reports non-uniform product scaling"
+            )
+
+        reports.append({
+            "image_index": index,
+            "available": bool(source_ratio > 0.0 and rendered_ratio > 0.0),
+            "source_visible_aspect_ratio": round(source_ratio, 10) if source_ratio > 0.0 else None,
+            "rendered_aspect_ratio": round(rendered_ratio, 10) if rendered_ratio > 0.0 else None,
+            "relative_error": round(relative_error, 10) if relative_error is not None else None,
+            "tolerance": GRAPHIC_V68833_REFERENCE_ASPECT_TOLERANCE,
+            "passed": passed,
+        })
+
+    return {
+        "engine": "v68833-reference-aspect-release-gate",
+        "available": available,
+        "passed": not issues,
+        "issues": issues,
+        "reports": reports,
+        "validation_only": True,
+        "pixels_mutated": False,
+        "pipeline_mutated": False,
+    }
+
+
 def _graphic_v68680_direct_release_blockers(
     images, prompt_text, uploaded_files, *, forced_upload_role="Auto-detect",
     preserve_product=True, route_name="",
@@ -34521,6 +34610,21 @@ def _graphic_v68680_direct_release_blockers(
         violation = _graphic_v66860_direct_product_violation(images)
         if violation and violation != "missing generated image":
             issues.append("geometry: " + violation)
+
+        aspect_gate = _graphic_v68833_reference_aspect_release_gate(images)
+        if aspect_gate.get("available") and not aspect_gate.get("passed"):
+            issues.extend(
+                "geometry: " + str(item)
+                for item in (aspect_gate.get("issues") or [])
+            )
+        elif not aspect_gate.get("available"):
+            diagnostics.append(
+                "reference aspect-ratio metadata unavailable; existing exact-proof gates remain authoritative"
+            )
+        else:
+            diagnostics.append(
+                "reference product aspect ratio independently verified at release"
+            )
 
         proof = _graphic_v67100_exact_proof(images)
         if not proof.get("passed"):
@@ -34562,8 +34666,19 @@ def _graphic_v68680_direct_release_blockers(
         "diagnostics": diagnostics,
         "reference_mode": reference_mode,
         "fitment": fitment,
+        "reference_aspect_release_gate_v68833": (
+            aspect_gate if reference_mode else {
+                "engine": "v68833-reference-aspect-release-gate",
+                "available": False,
+                "passed": True,
+                "not_required": True,
+                "validation_only": True,
+                "pixels_mutated": False,
+                "pipeline_mutated": False,
+            }
+        ),
         "route": route_name,
-        "policy": "v68680-direct-evidence-only-release-blockers",
+        "policy": "v68680-direct-evidence-only-release-blockers+v68833-reference-aspect-validation",
     }
 
 
@@ -36603,6 +36718,10 @@ enrichment sections below in this exact order when information is available:
     - Never invent a link. If no exact verified resource is found, say so.
 14. ## Customer Reply Draft
     - Always place this last and format it as Markdown blockquote paragraphs.
+    - Insert one completely blank physical line between every customer-facing paragraph.
+    - Keep the greeting, each issue or troubleshooting topic, each requested action,
+      and the closing as separate short paragraphs. Never combine the entire customer
+      reply into one dense paragraph.
 
 For ordinary non-order Technical Support questions, use the most relevant
 sections from the workflow above without forcing unrelated order sections.
