@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68827 AUTOMATIC STYLE INTELLIGENCE LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
+# AutoTecPro AI Graphic Marketing Engine v68830 INSTALLED VIEW ONLY LTS — v68828 Reference Exact Pass-Through + Multi-Product Continuation Repair
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17440,21 +17440,37 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         new = re.sub(r"\s+", " ", replacement.group(2)).strip(" .,:;-\"")
         directive["replacement_from"] = old
         directive["replacement_to"] = new
+        directive["strict_preservation"] = True
         old_lower = old.casefold()
-        # Product/category wording is copy unless the user explicitly says to replace
-        # the physical product, unit, hardware, housing, device or uploaded product.
-        physical_words = ("product photo", "physical product", "hardware", "housing", "unit itself", "device itself")
-        text_words = ("headline", "title", "wording", "text", "display", "dash display", "product name", "category")
+        # Resolve the explicitly named replacement target before scanning the whole
+        # sentence. Product names often contain words such as “screen”, “Tundra”, or
+        # “display”; those words describe headline copy and must not accidentally
+        # unlock the physical product or vehicle layers.
+        physical_words = ("product photo", "physical product", "hardware", "housing", "unit itself", "device itself", "uploaded product")
         if any(term in lower for term in physical_words):
             directive["change_targets"].append("hero_product")
-        elif any(term in old_lower for term in text_words) or any(term in lower for term in ("headline", "title", "wording", "text")):
+        elif any(term in old_lower for term in ("background", "scene", "sky", "mountain", "sunset", "lighting")):
+            directive["change_targets"].append("background")
+        elif any(term in old_lower for term in ("truck", "vehicle", "car")):
+            directive["change_targets"].append("vehicle")
+        elif any(term in old_lower for term in ("logo", "brand mark", "website")):
+            directive["change_targets"].append("logo")
+        elif any(term in old_lower for term in ("feature", "icon", "icons")):
+            directive["change_targets"].append("feature_matrix")
+        elif any(term in old_lower for term in ("bottom bar", "benefit bar", "bottom strip")):
+            directive["change_targets"].append("bottom_benefit_bar")
+        elif any(term in old_lower for term in ("layout", "position", "spacing")):
+            directive["change_targets"].append("layout")
+        elif any(term in old_lower for term in ("screen content", "display content", "interface", "screen ui", " ui")):
+            directive["change_targets"].append("requested_object")
+        else:
+            # A bounded X -> Y wording replacement defaults to copy/headline. This
+            # is the safest interpretation and preserves every visual layer.
             directive["change_targets"].append("headline")
             directive["copy_updates"]["product_category"] = new.upper()
             spec = dict(existing_spec or {})
             size = str(spec.get("screen_size") or "").strip()
             directive["copy_updates"]["headline"] = f"{size} {new}".strip().upper()
-        else:
-            directive["change_targets"].append("requested_object")
 
     target_map = {
         "headline": ("headline", "title", "wording", "text"),
@@ -17466,9 +17482,12 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         "bottom_benefit_bar": ("bottom bar", "benefit bar", "bottom strip"),
         "layout": ("layout", "position", "spacing", "move", "resize", "bigger", "smaller"),
     }
-    for target, terms in target_map.items():
-        if any(term in lower for term in terms) and target not in directive["change_targets"]:
-            directive["change_targets"].append(target)
+    # For an explicit X -> Y replacement, the target was already resolved from X.
+    # Do not scan unrelated words in the replacement value and unlock extra layers.
+    if not replacement:
+        for target, terms in target_map.items():
+            if any(term in lower for term in terms) and target not in directive["change_targets"]:
+                directive["change_targets"].append(target)
 
     # Default ChatGPT-style behavior: preserve every unmentioned object.
     all_targets = list(target_map)
@@ -18347,6 +18366,35 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
 
         digest = hashlib.sha256(data).hexdigest()
         if digest in known:
+            # v68830 transport-only repair: a product photo may first be staged by
+            # a short continuation message such as "next one", which correctly
+            # leaves it as supporting evidence. When the same managed upload is
+            # submitted again with an explicit product instruction, the previous
+            # implementation skipped the known digest before it could become the
+            # active product. Promote only that existing supporting record; do not
+            # duplicate bytes, alter references, or touch the rendering pipeline.
+            explicit_product = _graphic_explicit_product_upload_v68817(prompt_text)
+            existing = next(
+                (item for item in assets if str(item.get("id") or "") == digest),
+                None,
+            )
+            existing_role = str((existing or {}).get("role") or "").casefold()
+            if (
+                explicit_product
+                and isinstance(existing, dict)
+                and existing_role not in {"reference", "style_reference", "logo", "product", "product_photo"}
+                and str(state.get("active_reference_id") or "").strip()
+                and str(state.get("active_product_id") or "").strip()
+            ):
+                existing["role"] = "product"
+                existing["role_promoted_v68830"] = True
+                existing["role_promoted_at_v68830"] = datetime.now(timezone.utc).isoformat()
+                added.append(existing)
+                diagnostic_log(
+                    "graphic_existing_upload_promoted_to_product_v68830",
+                    asset_id=digest,
+                    asset_name=str(existing.get("name") or ""),
+                )
             continue
 
         # Keep the exact v68813 role inference. The only additional rule is that
@@ -18651,6 +18699,16 @@ def classify_graphic_chat_intent(
         "store this style", "add this to graphic memory",
     )):
         return "learn"
+
+    # Conversational follow-up edits to the latest generated artwork must route
+    # directly to the image-edit path even when the user does not repeat
+    # “edit this image” verbatim. This keeps natural copy-only requests such as
+    # “change the headline to ...” on the generation branch.
+    latest_generated_available = bool(
+        ((project.get("latest_generated") or {}).get("data_url") or "").strip()
+    )
+    if latest_generated_available and _graphic_is_followup_edit_request(text):
+        return "edit"
 
     # Evaluate the current turn's explicit generation action before generic
     # analysis vocabulary. This remains subject to the prerequisite gate.
@@ -19326,6 +19384,12 @@ def _graphic_project_direct_action(prompt_text, state=None):
         return "generate"
     if not ready:
         return ""
+
+    latest_generated_available = bool(
+        (((project or {}).get("latest_generated") or {}).get("data_url") or "").strip()
+    )
+    if latest_generated_available and _graphic_is_followup_edit_request(text):
+        return "edit"
 
     if re.search(
         r"\b(?:edit|modify|revise|update|change|replace|remove|add|move|resize|reposition|regenerate)\b",
@@ -22177,8 +22241,10 @@ def _graphic_chatgpt_production_prompt(
         preserve_targets = [str(x) for x in (edit_directive.get("preserve_targets") or [])]
         lines.extend([
             "IMAGE 1 is the CURRENT ARTWORK TO EDIT. This is an EDIT, not a new design.",
-            "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar and spacing unless the user explicitly names that object for change.",
-            "Do not redesign or reinterpret unaffected areas. Make the smallest possible visual change that satisfies the current command.",
+            "Preserve the entire existing image automatically. Treat every object, layer, and visual detail as locked unless the user explicitly asks to change that specific part.",
+            "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar, typography style, spacing, and screen UI unless the user explicitly names that object for change.",
+            "Do not redesign, reinterpret, regenerate, or improve unaffected areas. Make the smallest possible visual change that satisfies the current command.",
+            "When the request changes wording or text, change only that wording/text on the existing artwork and preserve every other part of the image.",
             "OBJECTS ALLOWED TO CHANGE: " + (", ".join(change_targets) if change_targets else "only the specifically requested wording/object"),
             "OBJECTS THAT MUST REMAIN UNCHANGED: " + (", ".join(preserve_targets) if preserve_targets else "all other objects"),
         ])
@@ -35422,6 +35488,150 @@ def generate_graphic_marketing_images(
             image["company_wide_approved_output_hit_v68826"] = False
             image["automatic_style_intelligence_v68827"] = bool(intelligence_applied)
             image["reference_mode_intelligence_bypassed_v68827"] = bool(is_reference)
+    return images
+
+
+
+# ============================================================
+# v68829 — Installed View Authority Engine
+# Reference Mode and flexible wording are frozen. This layer activates only for
+# Installed View / After Installation requests and builds on the existing v51000
+# donor-to-aperture, v49000 dashboard-lock, v50000 photographic-integration,
+# v45000 vehicle-validation, and targeted-recovery systems.
+# ============================================================
+GRAPHIC_V68829_INSTALLED_ENGINE = "v68829-installed-view-authority"
+_GRAPHIC_V68829_BASE_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v68829_is_installed_request(prompt_text):
+    """Use the established Installed View detector; never classify Reference Mode."""
+    try:
+        return bool(_graphic_installed_intent_hint_v47000(prompt_text))
+    except Exception:
+        value = str(prompt_text or "").casefold()
+        return bool(re.search(
+            r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|"
+            r"\bshow .{0,45} installed\b|\binstall .{0,70}(?:dashboard|dash|interior|vehicle|car)\b",
+            value,
+        ))
+
+
+def _graphic_v68829_installed_authority_contract():
+    """Return the ten-point Installed View engineering contract."""
+    return {
+        "1_oem_component_transfer": "Extract every retained OEM control as an authoritative donor layer and map it one-to-one into the matching new-bezel aperture. Preserve button count, order, labels, icons, knobs, illumination, orientation and complete panel silhouette. Never invent, duplicate, omit, redraw or leave a required aperture empty.",
+        "2_vehicle_identity": "Lock make, model, model year or year range, trim, dashboard generation, steering side, factory-radio configuration and visible cabin identity. Reject a candidate that changes the requested interior family.",
+        "3_bezel_aperture_geometry": "Detect every receiving aperture as a polygon with type, aspect ratio, corner geometry, anchors and fill requirement. Validate donor-to-aperture compatibility before generation.",
+        "4_installation_homography": "Use one bounded perspective transform per physical donor/product layer. Preserve aspect ratio, controls and geometry; prohibit independent warping of buttons, screen UI or component faces.",
+        "5_boundary_reconstruction": "Repair only the narrow product-to-dashboard and donor-to-aperture seams: recess depth, contact shadow, inner lip, panel gap, ambient occlusion and material edge. Do not regenerate the dashboard or authoritative component face.",
+        "6_occlusion_depth": "Maintain correct foreground/background ordering for steering wheel, console, shifter, trim, hands and bezel lips. No floating product, buried controls or impossible overlap.",
+        "7_lighting_glass_material": "Transfer cabin exposure, colour temperature, black level, reflection direction, glare, Fresnel glass response and material gloss through bounded overlays while preserving source geometry and readable controls.",
+        "8_release_qa": "Apply hard gates for vehicle identity, dashboard preservation, donor identity, aperture completion, button order, product geometry, perspective, functional clearance, depth, lighting, completeness and no hallucinated controls.",
+        "9_targeted_recovery": "Repair only the failed layer or mask. Restore authoritative source pixels for geometry/control failures; retry background, seam, reflection, depth or aperture mapping independently. Never regenerate a passing product or dashboard region.",
+        "10_multiview_consistency": "Persist one installation manifest across views: same vehicle identity, product dimensions, bezel thickness, donor mapping, aperture fill, installation position, UI, lighting family and fitment wording.",
+    }
+
+
+def _graphic_v68829_installed_directive(prompt_text):
+    contract = _graphic_v68829_installed_authority_contract()
+    lines = [
+        "[V68829 INSTALLED VIEW AUTHORITY — AFTER INSTALLATION MODE ONLY]",
+        "This contract is subordinate to explicit user instructions and exact uploaded source evidence, but it is release-blocking for physical correctness.",
+    ]
+    for key, value in contract.items():
+        lines.append(f"{key}: {value}")
+    lines.extend([
+        "Use the existing v51000 OEM donor-to-aperture assembly map, v49000 dashboard pixel lock, v50000 photographic integration, v45000 vehicle validation and existing targeted recovery paths.",
+        "The final result must look like a real completed installation photograph, not a poster, concept image, floating mockup or generic dashboard reconstruction.",
+        "Do not alter Reference Mode behavior, flexible fitment wording, exact-source product authority or any existing shared rendering function.",
+        "[END V68829 INSTALLED VIEW AUTHORITY]",
+    ])
+    return str(prompt_text or "") + "\n\n" + "\n".join(lines)
+
+
+def _graphic_v68829_release_audit(image):
+    """Aggregate existing Installed View validators without making new provider calls."""
+    image = image if isinstance(image, dict) else {}
+    installed = dict(image.get("installed_view_validation") or {})
+    photo = dict(image.get("installed_photographic_validation_v51000") or {})
+    authority = dict(image.get("installed_authority_report_v68817") or image.get("installed_view_authority") or {})
+    checks = {
+        "vehicle_identity": installed.get("passed") if installed.get("available") else None,
+        "oem_component_transfer": photo.get("passed") if photo.get("available") else None,
+        "donor_control_transfer_score": photo.get("donor_control_transfer_score"),
+        "receiving_aperture_completion_score": photo.get("receiving_aperture_completion_score"),
+        "switch_order_identity_score": photo.get("switch_order_identity_score"),
+        "dashboard_authority": authority.get("passed") if authority.get("available") else None,
+        "product_geometry": (image.get("product_geometry_validation") or {}).get("passed") if isinstance(image.get("product_geometry_validation"), dict) else None,
+        "professional_qa": (image.get("professional_qa") or {}).get("passed") if isinstance(image.get("professional_qa"), dict) else None,
+    }
+    explicit_failures = [k for k,v in checks.items() if v is False]
+    for key, minimum in (("donor_control_transfer_score",98),("receiving_aperture_completion_score",100),("switch_order_identity_score",96)):
+        value = checks.get(key)
+        try:
+            if value is not None and float(value) < minimum:
+                explicit_failures.append(key)
+        except Exception:
+            pass
+    return {
+        "engine": GRAPHIC_V68829_INSTALLED_ENGINE,
+        "available": any(v is not None for v in checks.values()),
+        "passed": not explicit_failures,
+        "checks": checks,
+        "failed_categories": sorted(set(explicit_failures)),
+        "new_provider_calls": 0,
+        "reference_mode_untouched": True,
+        "flexible_wording_untouched": True,
+    }
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """Apply v68829 only to Installed View; all other modes call v68828 unchanged."""
+    original_prompt = str(prompt_text or "")
+    is_reference = _graphic_v68827_is_reference_mode(
+        original_prompt, uploaded_files, forced_upload_role,
+    )
+    is_installed = (not is_reference) and _graphic_v68829_is_installed_request(original_prompt)
+
+    # Exact v68828 pass-through for Reference Mode and every non-Installed mode.
+    # No v68829/v68830 prompt mutation, result mutation, metadata injection, QA,
+    # cache change, learning change, or post-processing is allowed on this branch.
+    if not is_installed:
+        return _GRAPHIC_V68829_BASE_GENERATOR(
+            original_prompt, uploaded_files,
+            use_approved_style=use_approved_style,
+            preserve_product=preserve_product,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry,
+            product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+
+    effective_prompt = _graphic_v68829_installed_directive(original_prompt)
+    images = _GRAPHIC_V68829_BASE_GENERATOR(
+        effective_prompt, uploaded_files,
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        image["prompt"] = original_prompt
+        image["installed_view_authority_engine_v68829"] = True
+        image["installed_view_authority_contract_v68829"] = _graphic_v68829_installed_authority_contract()
+        image["installed_view_release_audit_v68829"] = _graphic_v68829_release_audit(image)
+        image["vehicle_installation_engine_version"] = GRAPHIC_V68829_INSTALLED_ENGINE
     return images
 
 # ============================================================
