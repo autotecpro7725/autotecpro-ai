@@ -15809,6 +15809,24 @@ def reject_graphic_style_fast(image):
 
 
 
+def _graphic_v68828_baseline_session_rejection_guidance(limit=4):
+    """Exact v68818 session-only rejection guidance for strict Reference parity."""
+    records = []
+    for entry in reversed(list(_graphic_style_feedback_registry().values())):
+        if str((entry or {}).get("feedback") or "") != "rejected":
+            continue
+        profile = (entry or {}).get("profile") or {}
+        guidance = str(profile.get("reusable_prompt_guidance") or "").strip()
+        original = str(profile.get("original_prompt") or "").strip()
+        if guidance:
+            records.append(f"- {guidance}")
+        elif original:
+            records.append(f"- Do not repeat the rejected result made for: {original[:500]}")
+        if len(records) >= max(1, int(limit)):
+            break
+    return "\n".join(records)
+
+
 def _graphic_session_rejection_guidance(limit=4):
     """Return shared negative guidance from persistent and current-session rejects.
 
@@ -15816,6 +15834,11 @@ def _graphic_session_rejection_guidance(limit=4):
     broadens only the memory source: rejected styles saved by any authenticated
     AutoTecPro user become company-wide guidance for later generations.
     """
+    # Strict v68818 Reference parity: company-wide negative learning must never
+    # enter the established Reference pipeline. Preserve the exact original
+    # session-only behavior while the public wrapper marks a Reference request.
+    if st.session_state.get("_graphic_v68828_reference_pipeline_active", False):
+        return _graphic_v68828_baseline_session_rejection_guidance(limit)
     try:
         limit = max(1, min(int(limit), 12))
     except Exception:
@@ -35376,9 +35399,22 @@ def generate_graphic_marketing_images(
 
     # Call the untouched pre-v68826 generation pipeline directly. Reference Mode
     # receives the exact original prompt and arguments with no intelligence text.
-    images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
-        effective_prompt, uploaded_files, **arguments
-    )
+    # Quarantine Reference Mode from every v68826/v68827 shared-learning side
+    # channel. The original v68818 generator still runs unchanged; only the
+    # rejection-memory provider is temporarily restored to exact v68818 behavior.
+    previous_reference_flag = st.session_state.get("_graphic_v68828_reference_pipeline_active")
+    if is_reference:
+        st.session_state["_graphic_v68828_reference_pipeline_active"] = True
+    try:
+        images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
+            effective_prompt, uploaded_files, **arguments
+        )
+    finally:
+        if is_reference:
+            if previous_reference_flag is None:
+                st.session_state.pop("_graphic_v68828_reference_pipeline_active", None)
+            else:
+                st.session_state["_graphic_v68828_reference_pipeline_active"] = previous_reference_flag
     for image in images or []:
         if isinstance(image, dict):
             image["prompt"] = str(prompt_text or "")
