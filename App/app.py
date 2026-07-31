@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68826 PRODUCTION SHARED LEARNING LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
+# AutoTecPro AI Graphic Marketing Engine v68827 AUTOMATIC STYLE INTELLIGENCE LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -35012,6 +35012,381 @@ def generate_graphic_marketing_images(
             image["company_wide_approved_output_hit_v68826"] = False
     return images
 
+
+
+# ============================================================
+# v68827 — Automatic Company-Wide Style Intelligence
+# Built directly on v68826. Reference Mode and product-authority code are not
+# modified. Intelligence is refreshed opportunistically and applied only to
+# non-Reference-Mode cache misses.
+# ============================================================
+GRAPHIC_V68827_INTELLIGENCE_RECORD_TYPE = "graphic_style_intelligence"
+GRAPHIC_V68827_INTELLIGENCE_SCHEMA = "v68827-company-style-intelligence"
+GRAPHIC_V68827_MIN_NEW_DECISIONS = 3
+GRAPHIC_V68827_MAX_FEEDBACK_ROWS = 500
+GRAPHIC_V68827_REFRESH_SECONDS = 24 * 60 * 60
+_GRAPHIC_V68827_BASE_SAVE_STYLE_MEMORY = save_graphic_style_memory
+_GRAPHIC_V68827_BASE_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v68827_parse_iso(value):
+    try:
+        return datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _graphic_v68827_feedback_rows(limit=GRAPHIC_V68827_MAX_FEEDBACK_ROWS):
+    """Load company-wide explicit Graphic approval/rejection decisions."""
+    rows = safe_select_rows(
+        "learned_knowledge",
+        order_columns=["updated_at", "created_at"],
+        limit=max(20, min(int(limit), GRAPHIC_V68827_MAX_FEEDBACK_ROWS)),
+    )
+    allowed = {"approved_visual_style", "rejected_visual_style", "approved_reference_style_set"}
+    return [
+        row for row in (rows or [])
+        if str(row.get("assistant") or "").strip().lower() == "graphic marketing"
+        and str(row.get("record_type") or "").strip().lower() in allowed
+    ]
+
+
+def _graphic_v68827_latest_snapshot(rows=None):
+    rows = rows if rows is not None else safe_select_rows(
+        "learned_knowledge",
+        order_columns=["updated_at", "created_at"],
+        limit=100,
+    )
+    for row in rows or []:
+        if str(row.get("assistant") or "").strip().lower() != "graphic marketing":
+            continue
+        if str(row.get("record_type") or "").strip().lower() == GRAPHIC_V68827_INTELLIGENCE_RECORD_TYPE:
+            return row
+    return None
+
+
+def _graphic_v68827_feedback_signature(rows):
+    compact = []
+    for row in rows or []:
+        compact.append({
+            "id": row.get("id"),
+            "record_type": row.get("record_type"),
+            "updated_at": row.get("updated_at") or row.get("created_at"),
+            "confidence_score": row.get("confidence_score"),
+        })
+    return hashlib.sha256(json.dumps(
+        compact, ensure_ascii=False, sort_keys=True, default=str,
+        separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+
+
+def _graphic_v68827_extract_snapshot_payload(row):
+    if not isinstance(row, dict):
+        return {}
+    raw = str(row.get("solution") or row.get("approved_answer") or "").strip()
+    if not raw:
+        return {}
+    payload = extract_json_object(raw)
+    if isinstance(payload, dict):
+        return payload
+    marker = "STYLE INTELLIGENCE JSON:"
+    if marker in raw:
+        payload = extract_json_object(raw.split(marker, 1)[1].strip())
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
+def _graphic_v68827_feedback_digest(rows):
+    """Create bounded evidence for synthesis; no image bytes or user secrets."""
+    records = []
+    for row in reversed(list(rows or [])):
+        solution = re.sub(r"\s+", " ", str(
+            row.get("solution") or row.get("approved_answer") or ""
+        )).strip()
+        records.append({
+            "decision": "approved" if "approved" in str(row.get("record_type") or "").lower() else "rejected",
+            "title": str(row.get("issue") or "")[:300],
+            "request": str(row.get("question") or row.get("source_question") or "")[:1000],
+            "style_profile": solution[:4500],
+            "confidence": row.get("confidence_score"),
+            "times_seen": row.get("times_seen"),
+            "created_at": row.get("created_at"),
+        })
+    return records[-GRAPHIC_V68827_MAX_FEEDBACK_ROWS:]
+
+
+def _graphic_v68827_should_refresh(feedback_rows, snapshot):
+    if not feedback_rows:
+        return False
+    signature = _graphic_v68827_feedback_signature(feedback_rows)
+    current = _graphic_v68827_extract_snapshot_payload(snapshot)
+    if str(current.get("feedback_signature") or "") == signature:
+        return False
+    previous_count = int(current.get("decision_count") or 0)
+    new_count = max(0, len(feedback_rows) - previous_count)
+    updated = _graphic_v68827_parse_iso((snapshot or {}).get("updated_at") or (snapshot or {}).get("created_at"))
+    stale = not updated or (datetime.now(timezone.utc) - updated.astimezone(timezone.utc)).total_seconds() >= GRAPHIC_V68827_REFRESH_SECONDS
+    return (snapshot is None and len(feedback_rows) >= GRAPHIC_V68827_MIN_NEW_DECISIONS) or new_count >= GRAPHIC_V68827_MIN_NEW_DECISIONS or (snapshot is not None and stale)
+
+
+def _graphic_v68827_synthesize(feedback_rows):
+    evidence = _graphic_v68827_feedback_digest(feedback_rows)
+    approved_count = sum(1 for row in evidence if row.get("decision") == "approved")
+    rejected_count = sum(1 for row in evidence if row.get("decision") == "rejected")
+    instructions = (
+        "You are AutoTecPro's company-wide Graphic Style Intelligence analyst. "
+        "Derive stable reusable rules only from the supplied explicit staff approvals and rejections. "
+        "Return one strict JSON object only, no markdown. Include: schema, title, decision_count, "
+        "approved_count, rejected_count, stable_approved_patterns, stable_rejected_patterns, "
+        "composition_rules, lighting_rules, background_rules, color_rules, typography_rules, "
+        "spacing_rules, logo_rules, cta_rules, product_presentation_rules, vehicle_presentation_rules, "
+        "conditional_rules, conflicts_or_low_confidence_patterns, non_reference_prompt_guidance, "
+        "prohibited_guidance, confidence_score. Never create a rule unsupported by repeated evidence. "
+        "Rejects are negative evidence, not desired style. Most importantly, all derived rules are optional "
+        "and subordinate to the user's current request, uploaded reference, exact product pixels, product geometry, "
+        "fitment wording, vehicle identity, brand-logo authority, and every existing product-authority/QA constraint. "
+        "Do not propose changing Reference Mode or any generation pipeline behavior."
+    )
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=instructions,
+        input=[{
+            "role": "user",
+            "content": [{
+                "type": "input_text",
+                "text": json.dumps({
+                    "approved_count": approved_count,
+                    "rejected_count": rejected_count,
+                    "decisions": evidence,
+                }, ensure_ascii=False, default=str),
+            }],
+        }],
+        max_output_tokens=5000,
+    )
+    payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+    if not isinstance(payload, dict):
+        raise RuntimeError("Automatic Style Intelligence returned no valid JSON.")
+    payload["schema"] = GRAPHIC_V68827_INTELLIGENCE_SCHEMA
+    payload["decision_count"] = len(feedback_rows)
+    payload["approved_count"] = approved_count
+    payload["rejected_count"] = rejected_count
+    payload["feedback_signature"] = _graphic_v68827_feedback_signature(feedback_rows)
+    payload["generated_at"] = now_iso()
+    payload["reference_mode_policy"] = "never_apply"
+    payload["authority_policy"] = (
+        "Subordinate to user request, uploaded references, exact product pixels, geometry, fitment, "
+        "vehicle identity, official branding, product authority, QA and recovery constraints."
+    )
+    return payload
+
+
+def _graphic_v68827_save_snapshot(payload, existing=None):
+    text_payload = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2, default=str)
+    confidence = payload.get("confidence_score", 80)
+    try:
+        confidence = max(0, min(100, int(float(confidence))))
+    except Exception:
+        confidence = 80
+    record = {
+        "username": "company_style_intelligence",
+        "record_type": GRAPHIC_V68827_INTELLIGENCE_RECORD_TYPE,
+        "assistant": "Graphic Marketing",
+        "vehicle": "Company-wide",
+        "issue": "Automatic Company-Wide Graphic Style Intelligence",
+        "solution": text_payload,
+        "approved_answer": text_payload,
+        "question": "Synthesize all explicit Graphic Marketing approvals and rejections into reusable company design rules.",
+        "keywords": "graphic style intelligence company approved rejected design rules",
+        "source_question": "Automatic Style Intelligence",
+        "source_answer": text_payload,
+        "source_conversation_id": None,
+        "confidence_score": confidence,
+        "times_seen": int(payload.get("decision_count") or 0),
+        "times_used": int((existing or {}).get("times_used") or 0),
+        "search_count": int((existing or {}).get("search_count") or 0),
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": False,
+        "embedding_status": "pending",
+        "source_type": "graphic_style_intelligence_v68827",
+        "staff_confirmed": True,
+        "created_at": (existing or {}).get("created_at") or now_iso(),
+        "updated_at": now_iso(),
+    }
+    openai_file_id, vector_ready, ingestion_status = upload_learned_record_to_vector_store(
+        record, GRAPHIC_VECTOR_STORE_ID, return_status=True,
+    )
+    record["openai_file_id"] = openai_file_id
+    record["synced"] = bool(vector_ready)
+    record["embedding_status"] = "synced" if vector_ready else (ingestion_status or "processing")
+    if existing and existing.get("id") is not None:
+        old_file_id = existing.get("openai_file_id")
+        result = safe_update_row("learned_knowledge", record, existing.get("id"))
+        if getattr(result, "data", None):
+            if old_file_id and old_file_id != openai_file_id:
+                remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, old_file_id)
+            return result.data[0]
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+        raise RuntimeError("Automatic Style Intelligence snapshot update failed.")
+    result = safe_insert_row("learned_knowledge", record)
+    if not getattr(result, "data", None):
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+        raise RuntimeError("Automatic Style Intelligence snapshot save failed.")
+    return result.data[0]
+
+
+def refresh_graphic_style_intelligence(force=False):
+    """Opportunistically refresh one shared intelligence snapshot.
+
+    Streamlit has no always-running worker, so periodic means: refresh after a
+    qualifying feedback change or when a later request observes a stale snapshot.
+    Fail-open behavior guarantees that image generation remains available.
+    """
+    try:
+        feedback_rows = _graphic_v68827_feedback_rows()
+        all_rows = safe_select_rows(
+            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=100,
+        )
+        snapshot = _graphic_v68827_latest_snapshot(all_rows)
+        if not force and not _graphic_v68827_should_refresh(feedback_rows, snapshot):
+            return _graphic_v68827_extract_snapshot_payload(snapshot)
+        if not feedback_rows:
+            return {}
+        payload = _graphic_v68827_synthesize(feedback_rows)
+        _graphic_v68827_save_snapshot(payload, snapshot)
+        st.session_state["graphic_v68827_intelligence"] = payload
+        diagnostic_log(
+            "graphic_v68827_intelligence_refreshed",
+            decisions=len(feedback_rows),
+            approved=payload.get("approved_count"),
+            rejected=payload.get("rejected_count"),
+        )
+        return payload
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68827_intelligence_refresh_failed_open",
+            error_type=type(error).__name__, error=str(error),
+        )
+        return {}
+
+
+def _graphic_v68827_current_intelligence():
+    cached = st.session_state.get("graphic_v68827_intelligence")
+    if isinstance(cached, dict) and cached:
+        return cached
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=100,
+        )
+        payload = _graphic_v68827_extract_snapshot_payload(
+            _graphic_v68827_latest_snapshot(rows)
+        )
+        if payload:
+            st.session_state["graphic_v68827_intelligence"] = payload
+        return payload
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68827_intelligence_load_failed_open",
+            error_type=type(error).__name__,
+        )
+        return {}
+
+
+def _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
+    """Use the established detector; any uncertainty fails closed to no guidance."""
+    try:
+        context = _graphic_v68000_exact_reference_context(
+            prompt_text, uploaded_files or [], forced_upload_role,
+        )
+        return bool((context or {}).get("exact_reference"))
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68827_reference_detection_failed_closed",
+            error_type=type(error).__name__,
+        )
+        return True
+
+
+def _graphic_v68827_guidance_text(payload):
+    if not isinstance(payload, dict) or not payload:
+        return ""
+    guidance = str(payload.get("non_reference_prompt_guidance") or "").strip()
+    prohibited = payload.get("prohibited_guidance")
+    if isinstance(prohibited, (list, tuple, dict)):
+        prohibited = json.dumps(prohibited, ensure_ascii=False)
+    prohibited = str(prohibited or "").strip()
+    if not guidance and not prohibited:
+        return ""
+    return (
+        "\n\n[INTERNAL COMPANY STYLE INTELLIGENCE — NON-REFERENCE MODE ONLY]\n"
+        "Use these learned preferences only when compatible with the user's current request. "
+        "They must never override uploaded references, exact product pixels, product geometry, fitment wording, "
+        "vehicle identity, official logo rules, product authority, or any existing QA/recovery constraint.\n"
+        f"Preferred guidance: {guidance[:9000]}\n"
+        f"Avoid: {prohibited[:5000]}\n"
+        "[END INTERNAL COMPANY STYLE INTELLIGENCE]"
+    )
+
+
+def save_graphic_style_memory(image, feedback="approved"):
+    """v68826 persistence plus opportunistic v68827 intelligence refresh."""
+    result = _GRAPHIC_V68827_BASE_SAVE_STYLE_MEMORY(image, feedback=feedback)
+    # Refresh is fail-open and never changes the completed Approve/Reject result.
+    refresh_graphic_style_intelligence(force=False)
+    return result
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68826 exact reuse plus non-reference-only automatic style guidance."""
+    arguments = {
+        "use_approved_style": use_approved_style,
+        "preserve_product": preserve_product,
+        "style_strength": style_strength,
+        "forced_upload_role": forced_upload_role,
+        "quality_retry": quality_retry,
+        "product_transform_mode": product_transform_mode,
+        "professional_layered_studio": professional_layered_studio,
+    }
+    # Keep v68826's original-request cache identity unchanged.
+    request_key = _graphic_v68826_request_key(prompt_text, uploaded_files, arguments)
+    cached = _graphic_v68826_restore_approved_output(request_key)
+    if cached:
+        diagnostic_log(
+            "graphic_v68827_company_approved_output_hit",
+            request_key=request_key[:16],
+        )
+        return cached
+
+    is_reference = _graphic_v68827_is_reference_mode(
+        prompt_text, uploaded_files, forced_upload_role,
+    )
+    effective_prompt = str(prompt_text or "")
+    intelligence_applied = False
+    if not is_reference and use_approved_style and not graphic_prompt_disables_approved_reference(prompt_text):
+        payload = refresh_graphic_style_intelligence(force=False) or _graphic_v68827_current_intelligence()
+        guidance = _graphic_v68827_guidance_text(payload)
+        if guidance:
+            effective_prompt += guidance
+            intelligence_applied = True
+
+    # Call the untouched pre-v68826 generation pipeline directly. Reference Mode
+    # receives the exact original prompt and arguments with no intelligence text.
+    images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
+        effective_prompt, uploaded_files, **arguments
+    )
+    for image in images or []:
+        if isinstance(image, dict):
+            image["prompt"] = str(prompt_text or "")
+            image["graphic_v68826_request_key"] = request_key
+            image["company_wide_approved_output_hit_v68826"] = False
+            image["automatic_style_intelligence_v68827"] = bool(intelligence_applied)
+            image["reference_mode_intelligence_bypassed_v68827"] = bool(is_reference)
+    return images
 
 # ============================================================
 # v67200 LTS — quality-preserving parallel preparation and persistent asset cache
