@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI Graphic Marketing Engine v68818 FINAL LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
+# AutoTecPro AI Graphic Marketing Engine v68826 PRODUCTION SHARED LEARNING LTS — 2 Percent Footer Overlap Only, Built Directly from v68817
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -15730,6 +15730,10 @@ def save_graphic_style_memory(image, feedback="approved"):
                 "prompt": str(image.get("prompt") or ""),
                 "profile": profile,
             }
+        # Approval is the publication gate for exact company-wide reuse.
+        _graphic_v68826_publish_approved_output(image)
+    else:
+        _graphic_v68826_revoke_approved_output(image)
 
     return {
         "feedback": feedback,
@@ -15740,19 +15744,32 @@ def save_graphic_style_memory(image, feedback="approved"):
 
 
 def reject_graphic_style_fast(image):
-    """Reject one generated style immediately without a vision/vector round trip.
+    """Persist a rejected style as company-wide Graphic learning.
 
-    Rejection is a lightweight negative preference, so the UI must not wait for
-    image analysis, storage upload, vector ingestion, or a full-app rerun. The
-    session record is used immediately by subsequent Graphic generations.
-    Approved styles continue to use the full persistent learning pipeline.
+    The public function name is retained for UI compatibility. v68826 first uses
+    the established structured learning path (Supabase + Graphic vector store),
+    then falls back to the previous session-only behavior if a remote dependency
+    is temporarily unavailable.
     """
     image = image or {}
     fingerprint = _graphic_image_fingerprint(image)
     registry = _graphic_style_feedback_registry()
     existing = registry.get(fingerprint, {})
     if str(existing.get("feedback") or "") == "rejected":
-        return {"feedback": "rejected", "already_saved": True, "instant": True}
+        return {"feedback": "rejected", "already_saved": True, "instant": False}
+
+    try:
+        result = save_graphic_style_memory(image, feedback="rejected")
+        _graphic_v68826_revoke_approved_output(image)
+        result["persistent"] = True
+        result["company_wide"] = True
+        return result
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68826_reject_persistence_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
 
     prompt_text = str(image.get("prompt") or "").strip()
     model_name = str(image.get("model") or "").strip()
@@ -15779,27 +15796,93 @@ def reject_graphic_style_fast(image):
         "saved_at": now_iso(),
         "vector_ready": False,
         "instant": True,
+        "persistent": False,
     }
-    diagnostic_log("graphic_style_rejected_fast", fingerprint=fingerprint[:12], model=model_name)
-    return {"feedback": "rejected", "profile": profile, "already_saved": False, "instant": True}
+    _graphic_v68826_revoke_approved_output(image)
+    return {
+        "feedback": "rejected",
+        "profile": profile,
+        "already_saved": False,
+        "instant": True,
+        "persistent": False,
+    }
+
 
 
 def _graphic_session_rejection_guidance(limit=4):
-    """Return concise negative guidance from styles rejected in this session."""
+    """Return shared negative guidance from persistent and current-session rejects.
+
+    v68826 keeps the existing call site and generation pipeline unchanged. It
+    broadens only the memory source: rejected styles saved by any authenticated
+    AutoTecPro user become company-wide guidance for later generations.
+    """
+    try:
+        limit = max(1, min(int(limit), 12))
+    except Exception:
+        limit = 4
+
     records = []
+    seen = set()
+
+    def append_guidance(profile, fallback_prompt=""):
+        profile = profile or {}
+        guidance = str(profile.get("reusable_prompt_guidance") or "").strip()
+        original = str(profile.get("original_prompt") or fallback_prompt or "").strip()
+        text = guidance or (
+            f"Do not repeat the rejected result made for: {original[:500]}"
+            if original else ""
+        )
+        normalized = re.sub(r"\s+", " ", text).strip().casefold()
+        if text and normalized not in seen:
+            seen.add(normalized)
+            records.append(f"- {text}")
+
+    # Current-session feedback remains immediately effective.
     for entry in reversed(list(_graphic_style_feedback_registry().values())):
         if str((entry or {}).get("feedback") or "") != "rejected":
             continue
-        profile = (entry or {}).get("profile") or {}
-        guidance = str(profile.get("reusable_prompt_guidance") or "").strip()
-        original = str(profile.get("original_prompt") or "").strip()
-        if guidance:
-            records.append(f"- {guidance}")
-        elif original:
-            records.append(f"- Do not repeat the rejected result made for: {original[:500]}")
-        if len(records) >= max(1, int(limit)):
-            break
+        append_guidance((entry or {}).get("profile") or {})
+        if len(records) >= limit:
+            return "\n".join(records)
+
+    # Persistent shared feedback makes learning survive logout, restart, and
+    # account changes. Fail open so generation remains available during a DB issue.
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=max(40, limit * 10),
+        )
+        for row in rows:
+            if str(row.get("assistant") or "").strip().lower() != "graphic marketing":
+                continue
+            if str(row.get("record_type") or "").strip().lower() != "rejected_visual_style":
+                continue
+            solution = str(row.get("solution") or row.get("approved_answer") or "").strip()
+            profile = {}
+            # Structured memory text stores the reusable guidance on its own line.
+            match = re.search(
+                r"Reusable Prompt Guidance:\s*(.+?)(?=\n[A-Z][A-Za-z ]+:|\Z)",
+                solution,
+                flags=re.I | re.S,
+            )
+            if match:
+                profile["reusable_prompt_guidance"] = re.sub(r"\s+", " ", match.group(1)).strip()
+            profile["original_prompt"] = str(
+                row.get("question") or row.get("source_question") or ""
+            ).strip()
+            append_guidance(profile)
+            if len(records) >= limit:
+                break
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68826_shared_rejection_memory_unavailable",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+
     return "\n".join(records)
+
 
 
 def _uploaded_graphic_reference_payload(uploaded_file):
@@ -16252,14 +16335,15 @@ def hydrate_latest_graphic_reference_from_storage():
     except Exception as error:
         diagnostic_log("graphic_style_hydration_query_failed", error=str(error))
         return False
-    username = str(st.session_state.get("username") or "").strip()
+    # v68826: Graphic Memory is company-wide. The authenticated username remains
+    # audit metadata on each record, but it must never partition which approved
+    # style is available to another AutoTecPro staff account.
     candidates = [
         row for row in rows
         if str(row.get("assistant") or "").strip().lower() == "graphic marketing"
         and str(row.get("record_type") or "").strip().lower() in {
             "approved_reference_style_set", "approved_visual_style"
         }
-        and (not username or str(row.get("username") or "").strip() == username)
     ]
     if not candidates:
         return False
@@ -34686,6 +34770,249 @@ def generate_graphic_marketing_images(
 
 
 
+
+# ============================================================
+# v68826 — production shared Graphic learning and approved-output consistency
+# The established v68790/Reference Mode generator above is retained unchanged.
+# This wrapper reuses exact pixels only after explicit staff approval.
+# ============================================================
+GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE = "v68826-approved-company-output"
+GRAPHIC_V68826_SHARED_OUTPUT_BUCKET = (
+    _read_app_secret("GRAPHIC_CACHE_BUCKET", "graphic-runtime-cache")
+    or "graphic-runtime-cache"
+)
+_GRAPHIC_V68826_UNCACHED_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v68826_uploaded_file_digest(uploaded_file):
+    """Return stable upload metadata without consuming the Streamlit file."""
+    if uploaded_file is None:
+        return {"name": "", "type": "", "sha256": "", "size": 0}
+    try:
+        raw = bytes(uploaded_file.getvalue() or b"")
+    except Exception:
+        position = None
+        try:
+            position = uploaded_file.tell()
+        except Exception:
+            pass
+        try:
+            raw = bytes(uploaded_file.read() or b"")
+        except Exception:
+            raw = b""
+        if position is not None:
+            try:
+                uploaded_file.seek(position)
+            except Exception:
+                pass
+    return {
+        "name": Path(str(getattr(uploaded_file, "name", "") or "")).name,
+        "type": str(getattr(uploaded_file, "type", "") or "").lower(),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "size": len(raw),
+    }
+
+
+def _graphic_v68826_request_key(prompt_text, uploaded_files, arguments):
+    """Build a company-wide key that intentionally excludes user/session data."""
+    payload = {
+        "namespace": GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE,
+        "engine": str(GRAPHIC_ENGINE_VERSION),
+        "release": str(GRAPHIC_V68300_RELEASE),
+        "prompt": str(prompt_text or "").strip(),
+        "uploads": [
+            _graphic_v68826_uploaded_file_digest(item)
+            for item in (uploaded_files or [])
+        ],
+        "arguments": {key: arguments.get(key) for key in sorted(arguments)},
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":"), default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _graphic_v68826_cache_record_key(request_key):
+    return (
+        f"approved-output:{GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE}:"
+        f"{request_key}"
+    )
+
+
+def _graphic_v68826_storage_bucket():
+    clients = []
+    try:
+        admin_client = get_supabase_admin_client()
+        if admin_client is not None:
+            clients.append(admin_client)
+    except Exception:
+        pass
+    clients.append(supabase)
+    for client_obj in clients:
+        try:
+            storage = getattr(client_obj, "storage", None)
+            if storage is not None:
+                return storage.from_(GRAPHIC_V68826_SHARED_OUTPUT_BUCKET)
+        except Exception:
+            continue
+    return None
+
+
+def _graphic_v68826_restore_approved_output(request_key):
+    payload = _graphic_v66100_cache_get(
+        _graphic_v68826_cache_record_key(request_key)
+    )
+    if not isinstance(payload, dict) or not payload.get("approved"):
+        return None
+    row = payload.get("image")
+    if not isinstance(row, dict):
+        return None
+    metadata = dict(row.get("metadata") or {})
+    data_url = str(row.get("inline_data_url") or "")
+    storage_path = str(row.get("storage_path") or "")
+    if not data_url.startswith("data:image/") and storage_path:
+        bucket = _graphic_v68826_storage_bucket()
+        if bucket is not None:
+            try:
+                raw = bucket.download(storage_path)
+                if isinstance(raw, (bytes, bytearray)) and raw:
+                    data_url = (
+                        "data:image/png;base64," +
+                        base64.b64encode(bytes(raw)).decode("ascii")
+                    )
+            except Exception as error:
+                diagnostic_log(
+                    "graphic_v68826_approved_output_download_failed",
+                    request_key=request_key[:16],
+                    error_type=type(error).__name__,
+                )
+    if not data_url.startswith("data:image/"):
+        return None
+    metadata["data_url"] = data_url
+    metadata["generated"] = True
+    metadata["company_wide_approved_output_hit_v68826"] = True
+    metadata["graphic_v68826_request_key"] = request_key
+    return [metadata]
+
+
+def _graphic_v68826_publish_approved_output(image):
+    """Publish one explicitly approved final PNG for exact company-wide reuse."""
+    image = image or {}
+    request_key = str(image.get("graphic_v68826_request_key") or "").strip()
+    data_url = str(image.get("data_url") or "")
+    raw, _ = data_url_to_bytes(data_url)
+    if not request_key or not raw:
+        return False
+    storage_path = (
+        f"{GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE}/"
+        f"{request_key}/approved.png"
+    )
+    stored = False
+    bucket = _graphic_v68826_storage_bucket()
+    if bucket is not None:
+        attempts = (
+            lambda: bucket.upload(
+                storage_path, raw,
+                file_options={"content-type": "image/png", "upsert": "true"},
+            ),
+            lambda: bucket.upload(
+                storage_path, raw,
+                {"content-type": "image/png", "upsert": "true"},
+            ),
+            lambda: bucket.upload(storage_path, raw),
+        )
+        for attempt in attempts:
+            try:
+                attempt()
+                stored = True
+                break
+            except TypeError:
+                continue
+            except Exception:
+                continue
+    metadata = {key: value for key, value in image.items() if key != "data_url"}
+    payload = {
+        "schema": GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE,
+        "approved": True,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "approved_by": str(st.session_state.get("username") or ""),
+        "image_fingerprint": _graphic_image_fingerprint(image),
+        "image": {
+            "metadata": metadata,
+            "storage_path": storage_path if stored else "",
+            "inline_data_url": "" if stored else data_url,
+        },
+    }
+    saved = _graphic_v66100_cache_put(
+        _graphic_v68826_cache_record_key(request_key), payload
+    )
+    diagnostic_log(
+        "graphic_v68826_approved_output_published",
+        request_key=request_key[:16], stored=bool(stored), saved=bool(saved),
+    )
+    return bool(saved)
+
+
+def _graphic_v68826_revoke_approved_output(image):
+    """Write a rejection tombstone so a rejected output cannot be reused."""
+    request_key = str((image or {}).get("graphic_v68826_request_key") or "").strip()
+    if not request_key:
+        return False
+    payload = {
+        "schema": GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE,
+        "approved": False,
+        "rejected_at": datetime.now(timezone.utc).isoformat(),
+        "rejected_by": str(st.session_state.get("username") or ""),
+        "image_fingerprint": _graphic_image_fingerprint(image),
+    }
+    return bool(_graphic_v66100_cache_put(
+        _graphic_v68826_cache_record_key(request_key), payload
+    ))
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """Reuse exact pixels company-wide only after explicit approval.
+
+    Cache misses execute the untouched v68790 generator. The wrapper neither
+    changes Reference Mode analysis nor alters prompt, product, rendering, QA,
+    recovery, or provider-routing behavior.
+    """
+    arguments = {
+        "use_approved_style": use_approved_style,
+        "preserve_product": preserve_product,
+        "style_strength": style_strength,
+        "forced_upload_role": forced_upload_role,
+        "quality_retry": quality_retry,
+        "product_transform_mode": product_transform_mode,
+        "professional_layered_studio": professional_layered_studio,
+    }
+    request_key = _graphic_v68826_request_key(
+        prompt_text, uploaded_files, arguments
+    )
+    cached = _graphic_v68826_restore_approved_output(request_key)
+    if cached:
+        diagnostic_log(
+            "graphic_v68826_company_approved_output_hit",
+            request_key=request_key[:16],
+        )
+        return cached
+
+    images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
+        prompt_text, uploaded_files, **arguments
+    )
+    for image in images or []:
+        if isinstance(image, dict):
+            image["graphic_v68826_request_key"] = request_key
+            image["company_wide_approved_output_hit_v68826"] = False
+    return images
+
+
 # ============================================================
 # v67200 LTS — quality-preserving parallel preparation and persistent asset cache
 # This layer changes only orchestration and reuse. It does not modify the v66000
@@ -35402,7 +35729,7 @@ def render_generated_image_actions(images, message_index=None):
                         if save_result.get("already_saved"):
                             st.info("This style is already approved.")
                         else:
-                            st.success("Approved style saved to Graphic Memory.")
+                            st.success("Approved style saved to shared Graphic Memory and exact-output reuse.")
                     except Exception as error:
                         st.error(f"Could not save approved style: {error}")
 
@@ -35426,7 +35753,7 @@ def render_generated_image_actions(images, message_index=None):
                         if save_result.get("already_saved"):
                             st.info("This style is already rejected.")
                         else:
-                            st.success("Style rejected. It will not be reused in this Graphic session.")
+                            st.success("Style rejected and added to shared Graphic learning.")
                     except Exception as error:
                         st.error(f"Could not reject style: {error}")
 
