@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68842 — Multi-Unit Product Isolation; v68840 Single-Unit/Reference/Installed Rendering Pipelines Unchanged
+# AutoTecPro AI v68845 — Graphic UI Stability & Action-Button Recovery; v68844 Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17260,6 +17260,116 @@ def _graphic_mark_mobile_job_v68400(status, *, error=""):
     if status=="completed":
         for key in keys: cache["jobs"].pop(key,None)
         st.session_state.pop("graphic_mobile_job_id_v68400",None)
+
+GRAPHIC_V68845_PROCESSING_STALE_SECONDS = 480
+
+
+def _graphic_durable_job_keys_v68844(conversation_id=None):
+    """Return workspace-independent keys for one resumable Graphic job.
+
+    These keys intentionally do not depend on ``current_assistant``. A websocket
+    reconnect may recreate session state before workspace restoration, but the same
+    authenticated user/conversation must still be able to locate the pending job.
+    """
+    username = str(st.session_state.get("username") or "anonymous").strip().casefold()
+    conversation = str(
+        conversation_id
+        if conversation_id is not None
+        else st.session_state.get("conversation_id") or ""
+    ).strip()
+    keys = []
+    if conversation:
+        keys.append(f"{username}:{conversation}:graphic-job-v68844")
+    keys.append(f"{username}:graphic-active-job-v68844")
+    return list(dict.fromkeys(keys))
+
+
+def _graphic_queue_durable_job_v68844(
+    prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1
+):
+    """Checkpoint the exact generation inputs before the provider call."""
+    cache = _graphic_mobile_runtime_cache_v68400()
+    keys = _graphic_durable_job_keys_v68844()
+    job_id = hashlib.sha256(
+        f"{keys[0]}:{time.time_ns()}:{prompt_text}".encode()
+    ).hexdigest()[:20]
+    job = {
+        "job_id": job_id,
+        "status": "queued",
+        "prompt": str(prompt_text or ""),
+        "uploads": _graphic_upload_records_v68400(files),
+        "structured_options": dict(structured_options or {}),
+        "intent": str(intent or "generate"),
+        "attempt": 0,
+        "max_attempts": max(1, int(max_attempts or 1)),
+        "conversation_id": str(st.session_state.get("conversation_id") or ""),
+        "created_at": time.time(),
+        "updated_at": time.time(),
+    }
+    for key in keys:
+        cache["jobs"][key] = job
+    st.session_state["graphic_durable_job_id_v68844"] = job_id
+    return dict(job)
+
+
+def _graphic_pending_durable_job_v68844():
+    """Return a queued/retryable job after a rerun, without consuming it."""
+    cache = _graphic_mobile_runtime_cache_v68400()
+    for key in _graphic_durable_job_keys_v68844():
+        job = cache["jobs"].get(key)
+        if not isinstance(job, dict):
+            continue
+        age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
+        if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+            cache["jobs"].pop(key, None)
+            continue
+        status = str(job.get("status") or "")
+        if status in {"queued", "retryable"}:
+            return dict(job)
+        # v68845: a provider call can outlive the browser/websocket script context.
+        # Treat a processing job as resumable only after a conservative stale lease
+        # so an ordinary long request is not duplicated while it is still active.
+        if status == "processing" and age >= GRAPHIC_V68845_PROCESSING_STALE_SECONDS:
+            recovered = dict(job)
+            recovered["status"] = "retryable"
+            recovered["error"] = "StaleProcessingLeaseRecovered"
+            recovered["updated_at"] = time.time()
+            for alias in _graphic_durable_job_keys_v68844(recovered.get("conversation_id")):
+                cache["jobs"][alias] = recovered
+            return recovered
+    return None
+
+
+def _graphic_update_durable_job_v68844(job, *, status=None, attempt=None, error=""):
+    """Persist retry progress before any controlled rerun."""
+    if not isinstance(job, dict):
+        return None
+    updated = dict(job)
+    if status is not None:
+        updated["status"] = str(status)
+    if attempt is not None:
+        updated["attempt"] = max(0, int(attempt))
+    updated["updated_at"] = time.time()
+    if error:
+        updated["error"] = str(error)[:1000]
+    cache = _graphic_mobile_runtime_cache_v68400()
+    conversation_id = updated.get("conversation_id")
+    for key in _graphic_durable_job_keys_v68844(conversation_id):
+        cache["jobs"][key] = updated
+    return dict(updated)
+
+
+def _graphic_complete_durable_job_v68844(job):
+    """Remove every alias only after the generated result is safely saved."""
+    if not isinstance(job, dict):
+        return
+    cache = _graphic_mobile_runtime_cache_v68400()
+    for key in _graphic_durable_job_keys_v68844(job.get("conversation_id")):
+        candidate = cache["jobs"].get(key)
+        if not isinstance(candidate, dict) or candidate.get("job_id") == job.get("job_id"):
+            cache["jobs"].pop(key, None)
+    st.session_state.pop("graphic_durable_job_id_v68844", None)
+
 
 GRAPHIC_PROJECT_STATE_KEY = "graphic_chat_project"
 GRAPHIC_PROJECT_MAX_ASSETS = 16
@@ -36447,13 +36557,14 @@ def render_generated_jpg_download(
         st.download_button(**button_kwargs)
 
 
-@_optional_ui_fragment
 def render_generated_image_actions(images, message_index=None):
     """
     Render equal-size Full Size, PNG, JPG, Regenerate, Approve, and Reject controls.
 
-    The displayed image remains a standard HTML image, so desktop users can
-    still right-click and use Save Image As or Copy Image.
+    v68845 intentionally keeps this action row in the normal full-app widget tree.
+    Server-dependent controls must remain bound after long Graphic generation,
+    durable retry, websocket reconnect, and controlled full-app reruns. Downloads
+    remain browser-side and do not alter the PNG master.
     """
     generated_images = [
         image
@@ -36689,6 +36800,8 @@ def render_generated_image_actions(images, message_index=None):
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
                     }
+                    # v68845: this row is no longer a fragment, so a full rerun
+                    # safely hands the saved request to process_pending_graphic_regeneration.
                     st.rerun()
 
             fingerprint = _graphic_image_fingerprint(image)
@@ -52604,7 +52717,26 @@ else:
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input("Message AutoTecPro AI...")
 
-    if (
+    # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
+    # execution. The user message was already committed on the first execution, so
+    # this injection restores only the generation inputs and never duplicates chat.
+    graphic_resume_job_v68844 = (
+        _graphic_pending_durable_job_v68844()
+        if assistant == "🎨 Graphic Marketing"
+        else None
+    )
+
+    if isinstance(graphic_resume_job_v68844, dict):
+        prompt = str(graphic_resume_job_v68844.get("prompt") or "")
+        active_structured_tool = {
+            "prompt": prompt,
+            "display_text": "",
+            "graphic_options": dict(
+                graphic_resume_job_v68844.get("structured_options") or {}
+            ),
+            "_durable_resume_v68844": True,
+        }
+    elif (
         isinstance(graphic_tool_request, dict)
         and graphic_tool_request.get("prompt")
     ):
@@ -52624,8 +52756,10 @@ else:
     # An attachment-only turn is submitted only when the user explicitly clicks
     # the native chat send arrow, which returns the hidden zero-width sentinel.
     # A normal Streamlit rerun with prompt=None must never auto-post the files.
+    is_graphic_resume_v68844 = isinstance(graphic_resume_job_v68844, dict)
     native_attachment_only_submit = bool(
-        uploaded_files
+        not is_graphic_resume_v68844
+        and uploaded_files
         and active_structured_tool is None
         and isinstance(prompt, str)
         and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
@@ -52635,7 +52769,7 @@ else:
         prompt = build_attachment_only_chat_prompt(assistant)
 
     submission_fingerprint_v68690 = ""
-    if prompt and uploaded_files:
+    if prompt and uploaded_files and not is_graphic_resume_v68844:
         submission_fingerprint_v68690 = _chat_submission_fingerprint_v68690(
             assistant,
             prompt,
@@ -52696,7 +52830,7 @@ else:
             st.error(f"ZIP analysis was stopped: {error}")
             st.stop()
 
-        if assistant == "🎨 Graphic Marketing":
+        if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
             graphic_asset_role_prompt_v68620 = (
                 "" if attachment_only_mode else interaction_prompt
             )
@@ -52709,6 +52843,12 @@ else:
             if assistant == "🎨 Graphic Marketing"
             else effective_uploaded_files
         )
+        if is_graphic_resume_v68844:
+            # Restore the exact files used by the interrupted attempt, including the
+            # latest generated PNG/edit-base. Do not reclassify them as new uploads.
+            graphic_generation_files = _graphic_upload_objects_v68400(
+                graphic_resume_job_v68844.get("uploads") or []
+            )
 
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
@@ -52756,41 +52896,42 @@ else:
             + serialize_images_marker(uploaded_image_previews)
         )
 
-        if history_is_enabled() and st.session_state.conversation_id is None:
-            try:
-                conversation_title_seed = user_display.strip()
-                if not conversation_title_seed and uploaded_files:
-                    conversation_title_seed = "Uploaded " + ", ".join(
-                        str(getattr(file, "name", "attachment"))
-                        for file in uploaded_files[:3]
+        if not is_graphic_resume_v68844:
+            if history_is_enabled() and st.session_state.conversation_id is None:
+                try:
+                    conversation_title_seed = user_display.strip()
+                    if not conversation_title_seed and uploaded_files:
+                        conversation_title_seed = "Uploaded " + ", ".join(
+                            str(getattr(file, "name", "attachment"))
+                            for file in uploaded_files[:3]
+                        )
+                    st.session_state.conversation_id = create_conversation(
+                        st.session_state.username,
+                        assistant,
+                        conversation_title_seed or "New attachment conversation"
                     )
-                st.session_state.conversation_id = create_conversation(
-                    st.session_state.username,
-                    assistant,
-                    conversation_title_seed or "New attachment conversation"
-                )
-            except Exception as e:
-                st.error(f"Could not create chat history case: {e}")
-                st.session_state.conversation_id = None
+                except Exception as e:
+                    st.error(f"Could not create chat history case: {e}")
+                    st.session_state.conversation_id = None
 
-        # This turn is committed exactly once. No background/mobile replay path
-        # is allowed to append the same user message on a later Streamlit rerun.
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_content_to_save
-        })
+            # The original turn is committed once. A durable retry restores only
+            # generation inputs and must never append a duplicate user message.
+            st.session_state.messages.append({
+                "role": "user",
+                "content": user_content_to_save
+            })
 
-        if history_is_enabled():
-            try:
-                save_message(
-                    st.session_state.conversation_id,
-                    "user",
-                    user_content_to_save,
-                )
-            except Exception as e:
-                st.warning(f"User message was not saved to history: {e}")
+            if history_is_enabled():
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "user",
+                        user_content_to_save,
+                    )
+                except Exception as e:
+                    st.warning(f"User message was not saved to history: {e}")
 
-        render_chat_message("user", user_display, uploaded_image_previews)
+            render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -52872,6 +53013,13 @@ else:
             if assistant == "🎨 Graphic Marketing"
             else "conversation"
         )
+        if is_graphic_resume_v68844:
+            # The durable job owns the already-resolved intent. A restored project
+            # snapshot may omit latest_generated.data_url by design, so reclassifying
+            # the same turn could incorrectly downgrade an edit to a new generation.
+            graphic_chat_intent = str(
+                graphic_resume_job_v68844.get("intent") or graphic_chat_intent
+            ).strip().lower()
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
             graphic_chat_intent = "analyze"
         if (
@@ -53107,10 +53255,6 @@ else:
             )
             generated_images = []
             generation_error_v68837 = None
-            # v68843: follow-up image edits receive the same one-time bounded
-            # recovery opportunity as a newly switched product. The second call uses
-            # the exact same prompt, edit-base PNG, assets, options and unchanged
-            # generator. Successful first attempts remain single-call and unchanged.
             automatic_followup_edit_retry_v68843 = bool(
                 graphic_chat_intent == "edit"
                 and (project_before_generation_v68837.get("latest_generated") or {})
@@ -53124,52 +53268,94 @@ else:
                 else 1
             )
 
+            # v68844: checkpoint exact inputs before the provider call. Recoverable
+            # attempt 2 runs after a controlled rerun, not inside the same long-lived
+            # Streamlit execution. This preserves the existing generator unchanged.
+            if is_graphic_resume_v68844:
+                durable_job_v68844 = dict(graphic_resume_job_v68844)
+            else:
+                durable_job_v68844 = _graphic_queue_durable_job_v68844(
+                    prompt,
+                    graphic_generation_files,
+                    structured_options=graphic_options,
+                    intent=graphic_chat_intent,
+                    max_attempts=generation_attempts_v68837,
+                )
+
+            current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
+            max_attempts_v68844 = max(
+                1, int(durable_job_v68844.get("max_attempts") or 1)
+            )
+            durable_job_v68844 = _graphic_update_durable_job_v68844(
+                durable_job_v68844,
+                status="processing",
+                attempt=current_attempt_v68844,
+            )
+
             with st.spinner("Creating your image..."):
-                for generation_attempt_v68837 in range(
-                    generation_attempts_v68837
-                ):
-                    try:
-                        generated_images = generate_graphic_marketing_images(
-                            prompt,
-                            graphic_generation_files,
-                            use_approved_style=graphic_options.get("use_approved_style", True),
-                            preserve_product=graphic_options.get("preserve_product", True),
-                            style_strength=graphic_options.get("style_strength", "High"),
-                            forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
-                            quality_retry=graphic_options.get("quality_retry", True),
-                            product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
-                            professional_layered_studio=graphic_options.get("professional_layered_studio", True),
-                        )
-                        generation_error_v68837 = None
-                        if generated_images:
-                            break
-                        if generation_attempt_v68837 + 1 < generation_attempts_v68837:
-                            diagnostic_log(
-                                "graphic_recoverable_empty_result_retry_v68843",
-                                active_product_id=new_product_id_v68837[:16],
-                                attempt=generation_attempt_v68837 + 1,
-                            )
-                    except Exception as error:
-                        generation_error_v68837 = error
-                        if generation_attempt_v68837 + 1 < generation_attempts_v68837:
-                            diagnostic_log(
-                                "graphic_recoverable_automatic_retry_v68843",
-                                active_product_id=new_product_id_v68837[:16],
-                                attempt=generation_attempt_v68837 + 1,
-                                error_type=type(error).__name__,
-                            )
-                            continue
-                        break
+                try:
+                    generated_images = generate_graphic_marketing_images(
+                        prompt,
+                        graphic_generation_files,
+                        use_approved_style=graphic_options.get("use_approved_style", True),
+                        preserve_product=graphic_options.get("preserve_product", True),
+                        style_strength=graphic_options.get("style_strength", "High"),
+                        forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
+                        quality_retry=graphic_options.get("quality_retry", True),
+                        product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
+                        professional_layered_studio=graphic_options.get("professional_layered_studio", True),
+                    )
+                    generation_error_v68837 = None
+                except Exception as error:
+                    generation_error_v68837 = error
+                    generated_images = []
+
+            if not generated_images and current_attempt_v68844 + 1 < max_attempts_v68844:
+                durable_job_v68844 = _graphic_update_durable_job_v68844(
+                    durable_job_v68844,
+                    status="retryable",
+                    attempt=current_attempt_v68844 + 1,
+                    error=(
+                        generation_error_v68837
+                        if generation_error_v68837 is not None
+                        else "EmptyGraphicResult"
+                    ),
+                )
+                diagnostic_log(
+                    "graphic_durable_retry_checkpoint_v68844",
+                    job_id=str(durable_job_v68844.get("job_id") or ""),
+                    next_attempt=current_attempt_v68844 + 2,
+                    max_attempts=max_attempts_v68844,
+                    error_type=(
+                        type(generation_error_v68837).__name__
+                        if generation_error_v68837 is not None
+                        else "EmptyGraphicResult"
+                    ),
+                )
+                st.session_state["current_assistant"] = "🎨 Graphic Marketing"
+                st.rerun()
 
             if generated_images:
                 answer = generated_image_answer_text(generated_images)
                 _graphic_save_latest_project_result(generated_images[0])
+                _graphic_complete_durable_job_v68844(durable_job_v68844)
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "generated"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
                 _graphic_persist_project_v68400(graphic_project)
             else:
+                _graphic_update_durable_job_v68844(
+                    durable_job_v68844,
+                    status="failed",
+                    attempt=current_attempt_v68844,
+                    error=(
+                        generation_error_v68837
+                        if generation_error_v68837 is not None
+                        else "EmptyGraphicResult"
+                    ),
+                )
+                _graphic_complete_durable_job_v68844(durable_job_v68844)
                 diagnostic_id = hashlib.sha256(
                     f"graphic-generation:{time.time_ns()}".encode()
                 ).hexdigest()[:10]
