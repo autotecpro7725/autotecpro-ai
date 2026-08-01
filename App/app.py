@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68835 — Technical Customer Reply Spacing Renderer Fix Only; v68833 Graphic/Reference/Installed Pipelines Unchanged
+# AutoTecPro AI v68837 — Automatic Second-Product Generation Retry; v68836 Rendering/Reference/Installed Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17440,8 +17440,12 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
 
     # Common replacement grammar.  Keep it deliberately conservative and bounded.
     replacement_patterns = (
-        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)(?:[.!]|$)",
-        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)(?:[.!]|$)",
+        # Anchor optional sentence punctuation at the actual end of the command.
+        # The previous ``(?:[.!]|$)`` terminator treated the decimal point in
+        # values such as 14.4" as sentence punctuation and truncated the new
+        # wording to ``14``. Decimal screen sizes must remain intact.
+        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)\s*[.!]?\s*$",
+        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)\s*[.!]?\s*$",
     )
     replacement = None
     for pattern in replacement_patterns:
@@ -52790,42 +52794,116 @@ else:
         elif is_graphic_generation:
             response_start_time = time.time()
             _graphic_persist_project_v68400(get_graphic_project_state())
-            try:
-                with st.spinner("Creating your image..."):
-                    graphic_options = (
-                        active_structured_tool.get("graphic_options", {})
-                        if isinstance(active_structured_tool, dict)
-                        else {}
+
+            # v68837 orchestration-only repair: when this turn activates a different
+            # product in the same Graphic conversation, one recoverable/empty first
+            # attempt must not force the user to type “Create it” again. The exact
+            # same v68836 generator, prompt, files, options, QA and recovery pipeline
+            # are called once more. No rendering or Reference/Installed logic changes.
+            current_upload_ids_v68837 = set()
+            for file_obj_v68837 in effective_uploaded_files or []:
+                try:
+                    current_upload_ids_v68837.add(
+                        hashlib.sha256(
+                            _graphic_uploaded_file_bytes(file_obj_v68837)
+                        ).hexdigest()
                     )
-                    generated_images = generate_graphic_marketing_images(
-                        prompt,
-                        graphic_generation_files,
-                        use_approved_style=graphic_options.get("use_approved_style", True),
-                        preserve_product=graphic_options.get("preserve_product", True),
-                        style_strength=graphic_options.get("style_strength", "High"),
-                        forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
-                        quality_retry=graphic_options.get("quality_retry", True),
-                        product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
-                        professional_layered_studio=graphic_options.get("professional_layered_studio", True),
-                    )
+                except Exception:
+                    pass
+            project_before_generation_v68837 = get_graphic_project_state()
+            switch_v68837 = dict(
+                project_before_generation_v68837.get(
+                    "last_multi_product_switch_v68817"
+                ) or {}
+            )
+            new_product_id_v68837 = str(
+                switch_v68837.get("new_active_product_id") or ""
+            ).strip()
+            previous_product_id_v68837 = str(
+                switch_v68837.get("previous_active_product_id") or ""
+            ).strip()
+            automatic_second_product_retry_v68837 = bool(
+                new_product_id_v68837
+                and new_product_id_v68837 in current_upload_ids_v68837
+                and previous_product_id_v68837
+                and previous_product_id_v68837 != new_product_id_v68837
+            )
+
+            graphic_options = (
+                active_structured_tool.get("graphic_options", {})
+                if isinstance(active_structured_tool, dict)
+                else {}
+            )
+            generated_images = []
+            generation_error_v68837 = None
+            generation_attempts_v68837 = (
+                2 if automatic_second_product_retry_v68837 else 1
+            )
+
+            with st.spinner("Creating your image..."):
+                for generation_attempt_v68837 in range(
+                    generation_attempts_v68837
+                ):
+                    try:
+                        generated_images = generate_graphic_marketing_images(
+                            prompt,
+                            graphic_generation_files,
+                            use_approved_style=graphic_options.get("use_approved_style", True),
+                            preserve_product=graphic_options.get("preserve_product", True),
+                            style_strength=graphic_options.get("style_strength", "High"),
+                            forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
+                            quality_retry=graphic_options.get("quality_retry", True),
+                            product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
+                            professional_layered_studio=graphic_options.get("professional_layered_studio", True),
+                        )
+                        generation_error_v68837 = None
+                        if generated_images:
+                            break
+                        if generation_attempt_v68837 + 1 < generation_attempts_v68837:
+                            diagnostic_log(
+                                "graphic_second_product_empty_result_retry_v68837",
+                                active_product_id=new_product_id_v68837[:16],
+                                attempt=generation_attempt_v68837 + 1,
+                            )
+                    except Exception as error:
+                        generation_error_v68837 = error
+                        if generation_attempt_v68837 + 1 < generation_attempts_v68837:
+                            diagnostic_log(
+                                "graphic_second_product_automatic_retry_v68837",
+                                active_product_id=new_product_id_v68837[:16],
+                                attempt=generation_attempt_v68837 + 1,
+                                error_type=type(error).__name__,
+                            )
+                            continue
+                        break
+
+            if generated_images:
                 answer = generated_image_answer_text(generated_images)
-                if generated_images:
-                    _graphic_save_latest_project_result(generated_images[0])
+                _graphic_save_latest_project_result(generated_images[0])
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "generated"
                 graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
                 st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
                 _graphic_persist_project_v68400(graphic_project)
-            except Exception as error:
-                generated_images = []
+            else:
                 diagnostic_id = hashlib.sha256(
                     f"graphic-generation:{time.time_ns()}".encode()
                 ).hexdigest()[:10]
                 diagnostic_log(
                     "graphic_generation_failed",
                     diagnostic_id=diagnostic_id,
-                    error_type=type(error).__name__,
-                    error=error,
+                    error_type=(
+                        type(generation_error_v68837).__name__
+                        if generation_error_v68837 is not None
+                        else "EmptyGraphicResult"
+                    ),
+                    error=(
+                        generation_error_v68837
+                        if generation_error_v68837 is not None
+                        else "The Graphic generator returned no images."
+                    ),
+                    automatic_second_product_retry=automatic_second_product_retry_v68837,
+                    attempts=generation_attempts_v68837,
                 )
                 answer = (
                     "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
