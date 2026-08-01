@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68840 — Pending Follow-Up Edit Continuation Routing Fix; v68837 Rendering/Reference/Installed Pipelines Unchanged
+# AutoTecPro AI v68842 — Multi-Unit Product Isolation; v68840 Single-Unit/Reference/Installed Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18449,6 +18449,60 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         added.append(record)
         known.add(digest)
 
+    # v68842 multi-unit isolation: when one upload turn contains two or more
+    # catalogue-style unit photos and a true reference is already locked, keep one
+    # authoritative primary product and mark the remaining units as product variants.
+    # Variants stay available to the provider as additional exact unit sources, but
+    # they are never eligible to become the style reference or geometry authority.
+    # The single-unit path is byte-for-byte behaviorally unchanged because this block
+    # activates only when at least two newly added images independently look like
+    # catalogue product sources.
+    if len(added) >= 2:
+        has_locked_reference_v68842 = bool(
+            str(state.get("active_reference_id") or "").strip()
+            or any(
+                str(item.get("role") or "").casefold() in {"reference", "style_reference"}
+                and bytes(item.get("data") or b"")
+                for item in assets
+                if isinstance(item, dict)
+            )
+        )
+        if has_locked_reference_v68842:
+            product_like_v68842 = []
+            for item in added:
+                try:
+                    profile = _graphic_asset_visual_profile_v8300({
+                        "file": ManagedUploadedFile(
+                            bytes(item.get("data") or b""),
+                            item.get("name") or "image",
+                            item.get("type") or "image/png",
+                        ),
+                        "name": item.get("name") or "image",
+                        "role": item.get("role") or "supporting_image",
+                    })
+                except Exception:
+                    profile = {}
+                studio_score = float(profile.get("studio_product_likelihood") or 0.0)
+                advert_score = float(profile.get("advertisement_likelihood") or 0.0)
+                if studio_score >= 0.42 and advert_score < 0.58:
+                    product_like_v68842.append(item)
+
+            if len(product_like_v68842) >= 2:
+                primary_v68842 = product_like_v68842[0]
+                primary_v68842["role"] = "product"
+                primary_v68842["multi_unit_primary_v68842"] = True
+                for variant_index, item in enumerate(product_like_v68842[1:], start=2):
+                    item["role"] = "product_variant"
+                    item["multi_unit_variant_index_v68842"] = variant_index
+                    item["style_authority_excluded_v68842"] = True
+                    item["geometry_authority_excluded_v68842"] = True
+                diagnostic_log(
+                    "graphic_v68842_multi_unit_isolation",
+                    primary=str(primary_v68842.get("name") or ""),
+                    variants=[str(item.get("name") or "") for item in product_like_v68842[1:]],
+                    reference_preserved=True,
+                )
+
     if len(assets) > GRAPHIC_PROJECT_MAX_ASSETS:
         assets = assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
 
@@ -19657,6 +19711,9 @@ def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced
             "style_reference": "style_reference",
             "product": "product_photo",
             "product_photo": "product_photo",
+            "product_variant": "product_variant",
+            "alternate_product": "product_variant",
+            "secondary_product": "product_variant",
             "logo": "logo_asset",
             "logo_asset": "logo_asset",
             "background": "background",
@@ -21474,9 +21531,10 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
     role_priority = {
         "edit_base": 0,
         "product_photo": 1,
-        "style_reference": 2,
-        "logo_asset": 3,
-        "supporting_image": 4,
+        "product_variant": 2,
+        "style_reference": 3,
+        "logo_asset": 4,
+        "supporting_image": 5,
     }
     role_items = sorted(
         role_items,
@@ -21516,6 +21574,9 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         ),
         "reference_count": sum(
             1 for item in role_items if item.get("role") == "style_reference"
+        ),
+        "product_variant_count_v68842": sum(
+            1 for item in role_items if item.get("role") == "product_variant"
         ),
         "historical_product_reference_assets_excluded": True,
         "product_geometry_source": "active_product_id",
@@ -23048,7 +23109,7 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
     if not capabilities.get("responses"):
         raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
     content=[{"type":"input_text","text":str(production_prompt or "")[:30000]}]
-    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRODUCT SOURCE — preserve this exact product identity","style_reference":"STYLE REFERENCE — copy design language only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
+    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRIMARY PRODUCT SOURCE — preserve this exact product identity and geometry","product_variant":"ADDITIONAL PRODUCT UNIT — include this exact second/alternate unit when multiple units were uploaded; preserve its own color, bezel, controls and geometry; NEVER use it as style, logo, background, typography or color-grade authority","style_reference":"SOLE STYLE REFERENCE — copy design language, logo treatment, layout and color grade only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
     usable=0
     for item in role_items or []:
         url=_graphic_role_data_url(item)
