@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68847 — Graphic Memory Stability & Multi-Image Asset Recovery; v68846 Rendering Pipelines Unchanged
+# AutoTecPro AI v68849 — Final Stable Graphic Submission Routing; v68848 Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -4485,6 +4485,37 @@ def _chat_submission_complete_v68690(fingerprint):
         st.session_state.pop("_atp_active_submission_v68690", None)
 
 ATTACHMENT_ONLY_CHAT_SENTINEL = "\u200b"
+
+
+def _graphic_visible_submission_text_v68849(value):
+    """Return the real user text without the invisible attachment sentinel.
+
+    The managed uploader inserts a zero-width sentinel only to enable Streamlit's
+    native send arrow.  It must never replace, hide, or influence visible text that
+    the user typed into the composer.
+    """
+    text = str(value or "")
+    return text.replace(ATTACHMENT_ONLY_CHAT_SENTINEL, "").strip()
+
+
+def _graphic_project_generation_ready_v68849(state=None):
+    """Return whether an existing Graphic project has product and style authority.
+
+    This is an orchestration-only readiness check.  It does not change reference,
+    installed-view, geometry, provider, QA, or final-rendering behavior.
+    """
+    project = _graphic_repair_project_asset_roles_v15000(
+        state if isinstance(state, dict) else get_graphic_project_state()
+    )
+    roles = _graphic_project_role_set(project)
+    has_product = bool({"product", "product_photo"} & roles)
+    has_reference_asset = bool({"reference", "style_reference"} & roles)
+    has_locked_reference = bool(
+        str(project.get("active_reference_id") or "").strip()
+        or project.get("last_reference_blueprint")
+        or project.get("project_style_dna")
+    )
+    return bool(has_product and (has_reference_asset or has_locked_reference))
 
 
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
@@ -53365,21 +53396,33 @@ else:
         prompt = chat_prompt
         active_structured_tool = None
 
-    # v68700: selecting files only stages them in the managed uploader.
-    # An attachment-only turn is submitted only when the user explicitly clicks
-    # the native chat send arrow, which returns the hidden zero-width sentinel.
-    # A normal Streamlit rerun with prompt=None must never auto-post the files.
+    # v68849: separate the invisible upload sentinel from real composer text.
+    # A turn is attachment-only only when no visible text exists.  If the sentinel
+    # remains before typed text, remove it and classify the user's complete command.
     is_graphic_resume_v68844 = isinstance(graphic_resume_job_v68844, dict)
+    raw_submission_prompt_v68849 = prompt
+    visible_submission_prompt_v68849 = (
+        _graphic_visible_submission_text_v68849(prompt)
+        if isinstance(prompt, str)
+        else ""
+    )
     native_attachment_only_submit = bool(
         not is_graphic_resume_v68844
         and uploaded_files
         and active_structured_tool is None
-        and isinstance(prompt, str)
-        and prompt == ATTACHMENT_ONLY_CHAT_SENTINEL
+        and isinstance(raw_submission_prompt_v68849, str)
+        and ATTACHMENT_ONLY_CHAT_SENTINEL in raw_submission_prompt_v68849
+        and not visible_submission_prompt_v68849
     )
     attachment_only_mode = native_attachment_only_submit
     if attachment_only_mode:
         prompt = build_attachment_only_chat_prompt(assistant)
+    elif (
+        not is_graphic_resume_v68844
+        and active_structured_tool is None
+        and isinstance(prompt, str)
+    ):
+        prompt = visible_submission_prompt_v68849
 
     submission_fingerprint_v68690 = ""
     if prompt and uploaded_files and not is_graphic_resume_v68844:
@@ -53633,8 +53676,30 @@ else:
             graphic_chat_intent = str(
                 graphic_resume_job_v68844.get("intent") or graphic_chat_intent
             ).strip().lower()
+        explicit_graphic_action_v68849 = bool(
+            assistant == "🎨 Graphic Marketing"
+            and not attachment_only_mode
+            and _graphic_generation_command_v16000(interaction_prompt)
+        )
+        project_generation_ready_v68849 = bool(
+            assistant == "🎨 Graphic Marketing"
+            and _graphic_project_generation_ready_v68849(
+                get_graphic_project_state()
+            )
+        )
         if attachment_only_mode and assistant == "🎨 Graphic Marketing":
             graphic_chat_intent = "analyze"
+        elif explicit_graphic_action_v68849 and project_generation_ready_v68849:
+            # Explicit create consent is authoritative once product and style are
+            # ready.  Pending edits retain edit intent; otherwise start generation
+            # in this same turn instead of returning another readiness message.
+            graphic_chat_intent = (
+                "edit"
+                if _graphic_is_pending_edit_continuation_v68840(
+                    interaction_prompt, get_graphic_project_state()
+                )
+                else "generate"
+            )
         if (
             assistant == "🎨 Graphic Marketing"
             and not attachment_only_mode
@@ -53655,7 +53720,10 @@ else:
         is_graphic_project_ready_ack = bool(
             assistant == "🎨 Graphic Marketing"
             and attachment_only_mode
-            and _graphic_project_is_ready(get_graphic_project_state())
+            and not explicit_graphic_action_v68849
+            and _graphic_project_generation_ready_v68849(
+                get_graphic_project_state()
+            )
         )
         is_graphic_reference_learning = (
             is_graphic_reference_style_learning_request(
@@ -53665,8 +53733,9 @@ else:
                 explicit_learning=explicit_learning_requested,
             )
         )
-        if is_graphic_reference_learning:
+        if is_graphic_reference_learning and not explicit_graphic_action_v68849:
             # Learning uploaded references must never be misrouted to Image Edit.
+            # An explicit create command on a ready project is not a learning turn.
             is_graphic_generation = False
 
         if assistant == "🎨 Graphic Marketing":
