@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68845 — Graphic UI Stability & Action-Button Recovery; v68844 Rendering Pipelines Unchanged
+# AutoTecPro AI v68846 — Explicit Multi-Unit Dual-Product Contract; v68845 Single-Unit/Installed Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -22504,6 +22504,44 @@ def _graphic_engine5_dna_hierarchy_v19000(
         "multi_reference_rule": "newest active reference controls; no blending unless explicitly requested",
     }
 
+def _graphic_explicit_multi_unit_contract_v68846(prompt_text, role_items):
+    """Return a fail-closed contract for explicit multi-product compositions.
+
+    This branch activates only when at least two product authorities are available
+    and the current user command explicitly asks to show/include both, all, or
+    multiple versions together. Single-product requests preserve the v68845 path.
+    """
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    products = [
+        item for item in (role_items or [])
+        if str(item.get("role") or "").casefold() in {"product_photo", "product_variant"}
+        and (item.get("file") is not None or _graphic_role_data_url(item))
+    ]
+    if len(products) < 2 or not text:
+        return {"active": False, "required_count": 1, "products": products[:1]}
+
+    explicit_patterns = (
+        r"\bshow\s+both\b",
+        r"\binclude\s+both\b",
+        r"\buse\s+both\b",
+        r"\bdisplay\s+both\b",
+        r"\bkeep\s+both\b",
+        r"\bboth\s+(?:the\s+)?(?:units?|versions?|colors?|colours?|products?|images?|photos?)\b",
+        r"\b(?:black|silver|white|gray|grey|red|blue|carbon|woodgrain)\s+(?:and|&)\s+(?:black|silver|white|gray|grey|red|blue|carbon|woodgrain)\b",
+        r"\ball\s+(?:uploaded\s+)?(?:units?|versions?|colors?|colours?|products?)\b",
+        r"\bmultiple\s+(?:units?|versions?|colors?|colours?|products?)\b",
+        r"\bside[ -]?by[ -]?side\b",
+        r"\bsame\s+size\b.*\b(?:units?|versions?|colors?|colours?|products?)\b",
+    )
+    active = any(re.search(pattern, text) for pattern in explicit_patterns)
+    return {
+        "active": bool(active),
+        "required_count": len(products) if active else 1,
+        "products": products if active else products[:1],
+        "asset_names": [str(item.get("name") or f"product {index + 1}") for index, item in enumerate(products)],
+    }
+
+
 def _graphic_chatgpt_production_prompt(
     prompt_text,
     role_items,
@@ -22519,6 +22557,10 @@ def _graphic_chatgpt_production_prompt(
     has_edit_base = "edit_base" in roles
     has_product = "product_photo" in roles
     has_style = "style_reference" in roles
+    multi_unit_contract_v68846 = _graphic_explicit_multi_unit_contract_v68846(
+        prompt_text, role_items
+    )
+    explicit_multi_unit_v68846 = bool(multi_unit_contract_v68846.get("active"))
     blueprint_text = _graphic_reference_blueprint_text(reference_blueprint or {})
     vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
     vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
@@ -22582,9 +22624,30 @@ def _graphic_chatgpt_production_prompt(
                 + ". When this is campaign wording, change the text only and do not alter the physical product or its screen UI."
             )
     if has_product:
+        if explicit_multi_unit_v68846:
+            required_count_v68846 = int(multi_unit_contract_v68846.get("required_count") or 2)
+            source_names_v68846 = ", ".join(multi_unit_contract_v68846.get("asset_names") or [])
+            lines.extend([
+                "V68846 EXPLICIT MULTI-UNIT PRODUCT CONTRACT — THIS OVERRIDES EVERY SINGULAR PRODUCT OR SINGLE-HERO STATEMENT IN THIS BRIEF:",
+                f"MANDATORY PRODUCT COUNT: show exactly {required_count_v68846} distinct uploaded product units in the completed advertisement.",
+                "Every uploaded PRIMARY PRODUCT SOURCE and ADDITIONAL PRODUCT UNIT is mandatory. No unit may be omitted, merged, averaged, recolored into another unit, used only as hidden reference evidence, or replaced by a duplicate of another unit.",
+                "Show all mandatory units simultaneously as separate complete products. When the user asks for the same size, give them equal visual scale, equal prominence, and a clear side-by-side or balanced grouped composition.",
+                "Each unit has its own immutable product authority: preserve that unit's exact bezel color/finish, housing silhouette, screen UI, controls, openings, mounting geometry, width-to-height ratio, and product identity independently.",
+                "The style reference controls commercial layout, lighting, typography hierarchy, icon rhythm, background and vehicle relationship only. It must never replace, merge, recolor, or suppress either product unit.",
+                "FAIL-CLOSED MULTI-UNIT RULE: an image containing fewer than the mandatory product count is incomplete and must be corrected before release or recovery output.",
+                "MANDATORY SOURCE UNITS: " + (source_names_v68846 or "all uploaded product units"),
+            ])
         lines.extend([
-            "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
-            "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity.",
+            (
+                "The PRODUCT SOURCE images are the only hardware/products that may appear as the hero products; preserve every mandatory unit independently."
+                if explicit_multi_unit_v68846
+                else "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product."
+            ),
+            (
+                "Preserve each source unit's exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, color/finish, and product identity."
+                if explicit_multi_unit_v68846
+                else "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity."
+            ),
             "Do not redesign, simplify, crop away, or substitute its physical components. Do not use the gauge cluster or hardware shown in a style reference.",
             "ZERO REFERENCE-HARDWARE TRANSFER: the style reference controls layout, lighting, scenery, typography hierarchy, icon rhythm and campaign polish only. It has absolutely no authority over the product silhouette or mechanical construction.",
             "SILHOUETTE SUBTRACTION LOCK: any ear, side wing, mounting bracket, rail, tab, flange, screw plate, lower frame, support, handle, extension or protrusion that is not visibly present in the PRODUCT SOURCE is forbidden and must be absent from the output.",
@@ -23245,7 +23308,22 @@ def _graphic_responses_generate_v3000(role_items, production_prompt, output_size
     if not capabilities.get("responses"):
         raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
     content=[{"type":"input_text","text":str(production_prompt or "")[:30000]}]
-    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRIMARY PRODUCT SOURCE — preserve this exact product identity and geometry","product_variant":"ADDITIONAL PRODUCT UNIT — include this exact second/alternate unit when multiple units were uploaded; preserve its own color, bezel, controls and geometry; NEVER use it as style, logo, background, typography or color-grade authority","style_reference":"SOLE STYLE REFERENCE — copy design language, logo treatment, layout and color grade only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
+    multi_unit_contract_v68846 = _graphic_explicit_multi_unit_contract_v68846(
+        production_prompt, role_items
+    )
+    if multi_unit_contract_v68846.get("active"):
+        content.append({
+            "type": "input_text",
+            "text": (
+                "V68846 PROVIDER ENFORCEMENT: this request requires every PRIMARY PRODUCT SOURCE "
+                "and every ADDITIONAL PRODUCT UNIT to appear simultaneously as separate complete "
+                "products. Required count: "
+                + str(multi_unit_contract_v68846.get("required_count") or 2)
+                + ". Equal-size wording requires equal visual scale and prominence. Omitting any "
+                "unit is a failed output, including all fallback/recovery routes."
+            ),
+        })
+    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"MANDATORY PRIMARY PRODUCT UNIT 1 — preserve this exact product identity, color/finish and geometry","product_variant":"MANDATORY ADDITIONAL PRODUCT UNIT — this unit MUST appear as a separate complete product when the explicit multi-unit contract is active; preserve its own color/finish, bezel, controls and geometry; NEVER use it as style, logo, background, typography or color-grade authority","style_reference":"SOLE STYLE REFERENCE — copy design language, logo treatment, layout and color grade only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
     usable=0
     for item in role_items or []:
         url=_graphic_role_data_url(item)
@@ -23291,15 +23369,24 @@ def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_siz
     errors = []
 
     product_files = [i.get("file") for i in role_items or [] if i.get("role") == "product_photo" and i.get("file") is not None]
+    product_variant_files_v68846 = [i.get("file") for i in role_items or [] if i.get("role") == "product_variant" and i.get("file") is not None]
     style_files = [i.get("file") for i in role_items or [] if i.get("role") == "style_reference" and i.get("file") is not None]
     edit_files = [i.get("file") for i in role_items or [] if i.get("role") == "edit_base" and i.get("file") is not None]
-    other_files = [i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo", "style_reference", "edit_base"}]
+    other_files = [i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo", "product_variant", "style_reference", "edit_base"}]
+    explicit_multi_unit_v68846 = bool(
+        _graphic_explicit_multi_unit_contract_v68846(production_prompt, role_items).get("active")
+    )
+    mandatory_product_files_v68846 = (
+        product_files[:1] + product_variant_files_v68846[:3]
+        if explicit_multi_unit_v68846
+        else product_files[:1]
+    )
 
     groups = []
     for label, files_group in (
-        ("all", edit_files[:1] + product_files[:1] + style_files[:2] + other_files[:1]),
-        ("product-plus-style", product_files[:1] + style_files[:1]),
-        ("product-only", product_files[:1]),
+        ("all-mandatory-products-v68846", edit_files[:1] + mandatory_product_files_v68846 + style_files[:2] + other_files[:1]),
+        ("mandatory-products-plus-style-v68846", mandatory_product_files_v68846 + style_files[:1]),
+        ("mandatory-products-only-v68846", mandatory_product_files_v68846),
         ("edit-only", edit_files[:1]),
     ):
         clean = [f for f in files_group if f is not None]
