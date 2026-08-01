@@ -17302,7 +17302,7 @@ def _graphic_mark_mobile_job_v68400(status, *, error=""):
         for key in keys: cache["jobs"].pop(key,None)
         st.session_state.pop("graphic_mobile_job_id_v68400",None)
 
-GRAPHIC_V68845_PROCESSING_STALE_SECONDS = 480
+GRAPHIC_V68845_PROCESSING_STALE_SECONDS = 780  # v68851: must exceed the 720-second cross-worker lease
 
 
 def _graphic_durable_job_keys_v68844(conversation_id=None):
@@ -17470,9 +17470,14 @@ def _graphic_v68848_persist_manifest(job):
 
 
 def _graphic_v68848_restore_manifest():
-    """Restore the active job after a worker/container restart."""
+    """Restore only a genuinely resumable active job after a worker restart.
+
+    v68851 rejects completed/failed pointers and does not revive a still-leased
+    processing job. This prevents an old job from hijacking a new user submission.
+    """
+    pointer_path = _graphic_v68848_active_pointer_path()
     try:
-        pointer_raw = _graphic_v68848_download_bytes(_graphic_v68848_active_pointer_path())
+        pointer_raw = _graphic_v68848_download_bytes(pointer_path)
         pointer = json.loads(pointer_raw.decode("utf-8")) if pointer_raw else {}
         manifest_path = str(pointer.get("manifest_path") or "")
         if not manifest_path:
@@ -17480,9 +17485,29 @@ def _graphic_v68848_restore_manifest():
         raw = _graphic_v68848_download_bytes(manifest_path)
         job = json.loads(raw.decode("utf-8")) if raw else None
         if not isinstance(job, dict):
+            _graphic_v68848_remove_paths([pointer_path])
             return None
-        age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
-        if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+        now = time.time()
+        age = now - float(job.get("updated_at") or job.get("created_at") or 0.0)
+        status = str(job.get("status") or "").strip().lower()
+        if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS or status in {"completed", "failed", "cancelled"}:
+            _graphic_v68848_remove_paths([manifest_path, pointer_path])
+            return None
+        if status == "processing":
+            # A processing manifest is not resumable while its cross-worker lease
+            # can still be alive. Wait until both safeguards have expired.
+            stale_after = max(
+                GRAPHIC_V68845_PROCESSING_STALE_SECONDS,
+                GRAPHIC_V68848_LEASE_SECONDS + 30,
+            )
+            if age < stale_after:
+                return None
+            job["status"] = "retryable"
+            job["error"] = "StaleProcessingLeaseRecoveredV68851"
+            job["updated_at"] = now
+            _graphic_v68848_release_lease(job)
+            _graphic_v68848_persist_manifest(job)
+        if str(job.get("status") or "").strip().lower() not in {"queued", "retryable"}:
             return None
         return job
     except Exception as error:
@@ -17780,6 +17805,27 @@ def _graphic_upload_objects_v68847(records):
     return result
 
 
+def _graphic_v68851_retire_superseded_job(job):
+    """Best-effort cleanup for an older, non-running job replaced by a new request."""
+    if not isinstance(job, dict) or not job.get("job_id"):
+        return
+    status = str(job.get("status") or "").strip().lower()
+    age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
+    # Never cancel a genuinely live processing job in another browser. New jobs use
+    # different job IDs and leases, so it can finish independently.
+    if status == "processing" and age < max(GRAPHIC_V68848_LEASE_SECONDS + 30, GRAPHIC_V68845_PROCESSING_STALE_SECONDS):
+        return
+    _graphic_v68848_release_lease(job)
+    _graphic_cleanup_spooled_uploads_v68847(job.get("uploads") or [])
+    paths = [
+        str(item.get("storage_path") or "")
+        for item in (job.get("uploads") or [])
+        if isinstance(item, dict)
+    ]
+    paths.append(f"{_graphic_v68848_job_prefix(job)}/manifest.json")
+    _graphic_v68848_remove_paths(paths)
+
+
 def _graphic_queue_durable_job_v68844(
     prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1
 ):
@@ -17797,7 +17843,7 @@ def _graphic_queue_durable_job_v68844(
         if isinstance(previous, dict) and previous.get("job_id") == job_id and str(previous.get("status")) in {"queued", "processing", "retryable"}:
             return dict(previous)
         if isinstance(previous, dict) and previous.get("job_id") != job_id:
-            _graphic_cleanup_spooled_uploads_v68847(previous.get("uploads") or [])
+            _graphic_v68851_retire_superseded_job(previous)
     job = {
         "job_id": job_id, "idempotency_key": job_id, "status": "queued",
         "prompt": str(prompt_text or ""), "structured_options": dict(structured_options or {}),
@@ -17832,11 +17878,16 @@ def _graphic_pending_durable_job_v68844():
         # v68845: a provider call can outlive the browser/websocket script context.
         # Treat a processing job as resumable only after a conservative stale lease
         # so an ordinary long request is not duplicated while it is still active.
-        if status == "processing" and age >= GRAPHIC_V68845_PROCESSING_STALE_SECONDS:
+        stale_after = max(
+            GRAPHIC_V68845_PROCESSING_STALE_SECONDS,
+            GRAPHIC_V68848_LEASE_SECONDS + 30,
+        )
+        if status == "processing" and age >= stale_after:
             recovered = dict(job)
             recovered["status"] = "retryable"
-            recovered["error"] = "StaleProcessingLeaseRecovered"
+            recovered["error"] = "StaleProcessingLeaseRecoveredV68851"
             recovered["updated_at"] = time.time()
+            _graphic_v68848_release_lease(recovered)
             for alias in _graphic_durable_job_keys_v68844(recovered.get("conversation_id")):
                 cache["jobs"][alias] = recovered
             _graphic_v68848_persist_manifest(recovered)
@@ -53391,9 +53442,17 @@ else:
     # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
     # execution. The user message was already committed on the first execution, so
     # this injection restores only the generation inputs and never duplicates chat.
+    # v68851: a fresh user/tool submission always takes precedence over any
+    # process-local or Supabase resume pointer. A stale active.json must never
+    # replace a newly typed prompt or newly uploaded product set with an old job.
+    fresh_graphic_submission_v68851 = bool(
+        chat_prompt
+        or (isinstance(graphic_tool_request, dict) and graphic_tool_request.get("prompt"))
+        or (isinstance(marketing_tool_request, dict) and marketing_tool_request.get("prompt"))
+    )
     graphic_resume_job_v68844 = (
         _graphic_pending_durable_job_v68844()
-        if assistant == "🎨 Graphic Marketing"
+        if assistant == "🎨 Graphic Marketing" and not fresh_graphic_submission_v68851
         else None
     )
 
