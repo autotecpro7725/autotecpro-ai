@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68849 — Final Stable Graphic Submission Routing; v68848 Rendering Pipelines Unchanged
+# AutoTecPro AI v68850 — Graphic Product/Reference Role Routing Fix; v68849 Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -19000,7 +19000,30 @@ def _graphic_authority_preflight_v68817(state):
     return report
 
 def _infer_graphic_asset_role(prompt_text, state):
+    """Infer one persistent Graphic asset role without confusing product instructions.
+
+    v68850 fixes the guided Reference Style workflow where the product-upload prompt
+    naturally repeats phrases such as "same style as the reference image".  Once a
+    live reference is already present, an explicit uploaded-product instruction is
+    authoritative and must be classified as ``product`` before incidental reference
+    vocabulary is considered.  This changes only asset routing; image rendering,
+    Reference Mode, Installed View, geometry, prompts, QA and output pixels are
+    untouched.
+    """
     text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    assets = [item for item in (state or {}).get("assets", []) if isinstance(item, dict)]
+    has_live_reference = any(
+        str(item.get("role") or "").casefold() in {"reference", "style_reference"}
+        and bytes(item.get("data") or b"")
+        for item in assets
+    )
+
+    # Product-source wording wins only after a reference has already been locked.
+    # This prevents "use the uploaded product photo ... same style as the reference"
+    # from replacing the real style reference with the product image.
+    if has_live_reference and _graphic_explicit_product_upload_v68817(text):
+        return "product"
+
     if any(term in text for term in ("reference", "inspiration", "layout", "style", "example ad", "advertisement")):
         return "reference"
     if any(term in text for term in ("logo", "brand mark")):
@@ -19008,9 +19031,9 @@ def _infer_graphic_asset_role(prompt_text, state):
     if any(term in text for term in ("product", "screen", "unit", "head unit", "cluster", "radio")):
         return "product"
     stage = str((state or {}).get("stage") or "planning")
-    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in (state or {}).get("assets", [])):
+    if stage in {"awaiting_reference", "planning"} and not any(a.get("role") == "reference" for a in assets):
         return "reference"
-    if any(a.get("role") == "reference" for a in (state or {}).get("assets", [])) and not any(a.get("role") == "product" for a in (state or {}).get("assets", [])):
+    if any(a.get("role") == "reference" for a in assets) and not any(a.get("role") == "product" for a in assets):
         return "product"
     return "supporting"
 
@@ -19083,7 +19106,11 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         )
         explicit_product = _graphic_explicit_product_upload_v68817(prompt_text)
 
-        if has_reference and has_product and explicit_product:
+        # v68850: once a reference is already locked, an explicit product upload
+        # must remain the product even when the same sentence repeats "reference
+        # image" or "same style".  Requiring an older product here caused the first
+        # product after a reference to be misclassified as a second reference.
+        if has_reference and explicit_product:
             role = "product"
 
         record = {
