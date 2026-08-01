@@ -10490,7 +10490,7 @@ def _sign_auth_session_payload(payload_text):
     ).hexdigest()
 
 
-def save_authenticated_session(username, remember=False):
+def save_authenticated_session(username, remember=False, workspace=None):
     """
     Save a signed browser session so Streamlit websocket/session resets do not
     unexpectedly return an authenticated user to the login page.
@@ -10508,12 +10508,20 @@ def save_authenticated_session(username, remember=False):
         if remember
         else AUTH_SESSION_HOURS * 60 * 60
     )
+    active_workspace = str(
+        workspace
+        if workspace is not None
+        else st.session_state.get("current_assistant") or ""
+    ).strip()
     payload = {
         "version": 1,
         "username": username,
         "issued_at": issued_at,
         "expires_at": issued_at + lifetime_seconds,
         "remember": bool(remember),
+        # v68843: preserve the active workspace across websocket/session recovery.
+        # This changes navigation restoration only; no assistant pipeline is altered.
+        "workspace": active_workspace,
     }
     payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     envelope = {
@@ -10621,7 +10629,14 @@ def restore_login_session():
             raise ValueError("User is inactive or missing")
 
         st.session_state["_atp_session_remembered"] = bool(payload.get("remember"))
-        diagnostic_log("login_session_restored", username=username)
+        restored_workspace = str(payload.get("workspace") or "").strip()
+        if restored_workspace:
+            st.session_state["_restored_workspace_assistant_v68843"] = restored_workspace
+        diagnostic_log(
+            "login_session_restored",
+            username=username,
+            workspace=restored_workspace,
+        )
         return True
     except Exception as error:
         diagnostic_log("login_session_restore_failed", error=str(error))
@@ -11756,7 +11771,17 @@ if (
     "current_assistant" not in st.session_state
     or st.session_state.current_assistant not in valid_assistants
 ):
-    st.session_state.current_assistant = valid_assistants[0]
+    # v68843: restore the signed-cookie workspace before using the first permitted
+    # workspace as a fallback. This prevents a Graphic job reconnect from opening
+    # Technical Support merely because session_state was recreated.
+    restored_workspace_v68843 = str(
+        st.session_state.pop("_restored_workspace_assistant_v68843", "") or ""
+    ).strip()
+    st.session_state.current_assistant = (
+        restored_workspace_v68843
+        if restored_workspace_v68843 in valid_assistants
+        else valid_assistants[0]
+    )
 
 st.sidebar.markdown(
     '<div class="workspace-title">AutoTecPro AI</div>',
@@ -11774,22 +11799,23 @@ def switch_workspace(assistant_name):
     if st.session_state.get("current_assistant") == assistant_name:
         return
 
-    # Preserve authentication explicitly before changing workspace state.
-    # This is especially important on iOS Safari, where a navigation rerun can
-    # coincide with a websocket reconnect.
+    st.session_state.messages = []
+    st.session_state.conversation_id = None
+    st.session_state.current_assistant = assistant_name
+
+    # Preserve authentication and the newly selected workspace explicitly before
+    # Streamlit's normal rerun. Saving after assignment is required so reconnect
+    # recovery restores the destination workspace, not the previous one.
     username = str(st.session_state.get("username") or "").strip()
     if username:
         try:
             save_authenticated_session(
                 username,
                 remember=bool(st.session_state.get("_atp_session_remembered")),
+                workspace=assistant_name,
             )
         except Exception as error:
             diagnostic_log("workspace_auth_refresh_failed", error=str(error))
-
-    st.session_state.messages = []
-    st.session_state.conversation_id = None
-    st.session_state.current_assistant = assistant_name
     st.session_state.chat_file_uploader_generation = int(
         st.session_state.get("chat_file_uploader_generation", 0)
     ) + 1
@@ -53022,6 +53048,24 @@ else:
             response_start_time = time.time()
             _graphic_persist_project_v68400(get_graphic_project_state())
 
+            # v68843: refresh the signed auth/workspace cookie immediately before a
+            # long Graphic request. If the websocket/session reconnects while the
+            # provider is working, the app returns to Graphic Marketing instead of
+            # defaulting to Technical Support.
+            username_v68843 = str(st.session_state.get("username") or "").strip()
+            if username_v68843:
+                try:
+                    save_authenticated_session(
+                        username_v68843,
+                        remember=bool(st.session_state.get("_atp_session_remembered")),
+                        workspace="🎨 Graphic Marketing",
+                    )
+                except Exception as error_v68843:
+                    diagnostic_log(
+                        "graphic_workspace_checkpoint_failed_v68843",
+                        error=str(error_v68843),
+                    )
+
             # v68837 orchestration-only repair: when this turn activates a different
             # product in the same Graphic conversation, one recoverable/empty first
             # attempt must not force the user to type “Create it” again. The exact
@@ -53063,8 +53107,21 @@ else:
             )
             generated_images = []
             generation_error_v68837 = None
+            # v68843: follow-up image edits receive the same one-time bounded
+            # recovery opportunity as a newly switched product. The second call uses
+            # the exact same prompt, edit-base PNG, assets, options and unchanged
+            # generator. Successful first attempts remain single-call and unchanged.
+            automatic_followup_edit_retry_v68843 = bool(
+                graphic_chat_intent == "edit"
+                and (project_before_generation_v68837.get("latest_generated") or {})
+            )
             generation_attempts_v68837 = (
-                2 if automatic_second_product_retry_v68837 else 1
+                2
+                if (
+                    automatic_second_product_retry_v68837
+                    or automatic_followup_edit_retry_v68843
+                )
+                else 1
             )
 
             with st.spinner("Creating your image..."):
@@ -53088,7 +53145,7 @@ else:
                             break
                         if generation_attempt_v68837 + 1 < generation_attempts_v68837:
                             diagnostic_log(
-                                "graphic_second_product_empty_result_retry_v68837",
+                                "graphic_recoverable_empty_result_retry_v68843",
                                 active_product_id=new_product_id_v68837[:16],
                                 attempt=generation_attempt_v68837 + 1,
                             )
@@ -53096,7 +53153,7 @@ else:
                         generation_error_v68837 = error
                         if generation_attempt_v68837 + 1 < generation_attempts_v68837:
                             diagnostic_log(
-                                "graphic_second_product_automatic_retry_v68837",
+                                "graphic_recoverable_automatic_retry_v68843",
                                 active_product_id=new_product_id_v68837[:16],
                                 attempt=generation_attempt_v68837 + 1,
                                 error_type=type(error).__name__,
@@ -53130,6 +53187,7 @@ else:
                         else "The Graphic generator returned no images."
                     ),
                     automatic_second_product_retry=automatic_second_product_retry_v68837,
+                    automatic_followup_edit_retry=automatic_followup_edit_retry_v68843,
                     attempts=generation_attempts_v68837,
                 )
                 answer = (
