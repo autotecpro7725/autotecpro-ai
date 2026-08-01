@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68846 — Explicit Multi-Unit Dual-Product Contract; v68845 Single-Unit/Installed Pipelines Unchanged
+# AutoTecPro AI v68847 — Graphic Memory Stability & Multi-Image Asset Recovery; v68846 Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17056,15 +17056,25 @@ def _graphic_copy_project_state_v68400(state):
                     "reference"
                     if role in {"reference", "style_reference"}
                     else "product"
-                    if role in {"product", "product_photo"}
+                    if role in {"product", "product_photo", "product_variant"}
                     else role
                 )
+                active_product_ids = {
+                    str(value or "")
+                    for value in (source.get("active_product_ids") or [])
+                    if str(value or "")
+                }
+                if active_product_id:
+                    active_product_ids.add(active_product_id)
                 is_active = bool(record.get("active_for_generation"))
                 if canonical_role == "reference" and active_reference_id:
                     is_active = asset_id == active_reference_id
-                elif canonical_role == "product" and active_product_id:
-                    is_active = asset_id == active_product_id
+                elif canonical_role == "product" and active_product_ids:
+                    is_active = asset_id in active_product_ids
 
+                # v68847: known reference/product assets retain bytes only while they
+                # are active. Product variants are no longer treated as miscellaneous
+                # assets that are copied indefinitely into every recovery snapshot.
                 record["data"] = (
                     bytes(record.get("data") or b"")
                     if is_active or canonical_role not in {"reference", "product"}
@@ -17284,6 +17294,88 @@ def _graphic_durable_job_keys_v68844(conversation_id=None):
     return list(dict.fromkeys(keys))
 
 
+GRAPHIC_V68847_JOB_SPOOL_DIR = Path(tempfile.gettempdir()) / "autotecpro_graphic_jobs_v68847"
+
+
+def _graphic_cleanup_spooled_uploads_v68847(records):
+    """Delete temporary job files without affecting uploaded/project authorities."""
+    directories = set()
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        path_text = str(record.get("spool_path") or "").strip()
+        if not path_text:
+            continue
+        path = Path(path_text)
+        directories.add(path.parent)
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except Exception:
+            pass
+
+
+def _graphic_spool_upload_records_v68847(files, job_id):
+    """Checkpoint generation files on local disk instead of duplicating raw bytes in cache."""
+    job_dir = GRAPHIC_V68847_JOB_SPOOL_DIR / str(job_id or "job")
+    job_dir.mkdir(parents=True, exist_ok=True)
+    records = []
+    seen = set()
+    for index, item in enumerate(files or []):
+        try:
+            data = bytes(item.getvalue())
+        except Exception:
+            continue
+        if not data:
+            continue
+        digest = hashlib.sha256(data).hexdigest()
+        if digest in seen:
+            continue
+        seen.add(digest)
+        name = str(getattr(item, "name", "image"))
+        suffix = Path(name).suffix.lower() or ".bin"
+        spool_path = job_dir / f"{index:02d}_{digest[:16]}{suffix}"
+        spool_path.write_bytes(data)
+        records.append({
+            "id": digest,
+            "name": name,
+            "type": _normalized_upload_mime_type(name, getattr(item, "type", "")),
+            "spool_path": str(spool_path),
+            "size": len(data),
+            "graphic_role": str(getattr(item, "graphic_role", "") or ""),
+            "graphic_asset_id": str(getattr(item, "graphic_asset_id", "") or ""),
+        })
+        del data
+    return records
+
+
+def _graphic_upload_objects_v68847(records):
+    """Materialize one resume attempt from disk-backed durable-job records."""
+    result = []
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        path_text = str(record.get("spool_path") or "").strip()
+        try:
+            data = Path(path_text).read_bytes() if path_text else bytes(record.get("data") or b"")
+        except Exception:
+            data = b""
+        if not data:
+            continue
+        result.append(ManagedUploadedFile(
+            data,
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("graphic_role") or "",
+            graphic_asset_id=record.get("graphic_asset_id") or record.get("id") or "",
+        ))
+    return result
+
+
 def _graphic_queue_durable_job_v68844(
     prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1
 ):
@@ -17293,11 +17385,16 @@ def _graphic_queue_durable_job_v68844(
     job_id = hashlib.sha256(
         f"{keys[0]}:{time.time_ns()}:{prompt_text}".encode()
     ).hexdigest()[:20]
+    # v68847: remove any superseded disk-backed active job before replacing it.
+    for key in keys:
+        previous = cache["jobs"].get(key)
+        if isinstance(previous, dict) and previous.get("job_id") != job_id:
+            _graphic_cleanup_spooled_uploads_v68847(previous.get("uploads") or [])
     job = {
         "job_id": job_id,
         "status": "queued",
         "prompt": str(prompt_text or ""),
-        "uploads": _graphic_upload_records_v68400(files),
+        "uploads": _graphic_spool_upload_records_v68847(files, job_id),
         "structured_options": dict(structured_options or {}),
         "intent": str(intent or "generate"),
         "attempt": 0,
@@ -17321,6 +17418,7 @@ def _graphic_pending_durable_job_v68844():
             continue
         age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
         if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+            _graphic_cleanup_spooled_uploads_v68847(job.get("uploads") or [])
             cache["jobs"].pop(key, None)
             continue
         status = str(job.get("status") or "")
@@ -17364,6 +17462,7 @@ def _graphic_complete_durable_job_v68844(job):
     if not isinstance(job, dict):
         return
     cache = _graphic_mobile_runtime_cache_v68400()
+    _graphic_cleanup_spooled_uploads_v68847(job.get("uploads") or [])
     for key in _graphic_durable_job_keys_v68844(job.get("conversation_id")):
         candidate = cache["jobs"].get(key)
         if not isinstance(candidate, dict) or candidate.get("job_id") == job.get("job_id"):
@@ -19121,76 +19220,72 @@ def _graphic_generation_command_v16000(prompt_text):
 
 
 def _graphic_active_project_assets_v16000(state=None):
-    """Keep the newest reference and product authoritative with bounded asset memory.
+    """Keep the current reference and bounded current product set authoritative.
 
-    The reference style remains available across multiple products in the same case.
-    Once a newer product becomes active, byte payloads for older inactive product
-    photos are released from Graphic project state to prevent second-generation memory
-    accumulation. Their lightweight metadata remains for diagnostics.
+    v68847 treats ``product_variant`` as a real product asset for recognition and
+    memory ownership. The newest primary product plus up to three associated
+    variants remain active; older inactive product bytes are released. This keeps
+    explicit black/silver multi-unit requests intact without retaining every prior
+    product image in the Streamlit worker.
     """
     project = state if isinstance(state, dict) else get_graphic_project_state()
     assets = [
         item for item in (project.get("assets") or [])
         if isinstance(item, dict)
     ]
-    newest = {}
 
+    references = []
+    primary_products = []
+    product_variants = []
     for item in assets:
         role = str(item.get("role") or "").casefold()
-        canonical = (
-            "reference"
-            if role in {"reference", "style_reference"}
-            else "product"
-            if role in {"product", "product_photo"}
-            else role
-        )
-        if (
-            canonical in {"reference", "product"}
-            and bytes(item.get("data") or b"")
-        ):
-            newest[canonical] = item
+        if not bytes(item.get("data") or b""):
+            continue
+        if role in {"reference", "style_reference"}:
+            references.append(item)
+        elif role in {"product", "product_photo"}:
+            primary_products.append(item)
+        elif role == "product_variant":
+            product_variants.append(item)
 
-    active_ids = {
-        str(item.get("id") or "")
-        for item in newest.values()
+    active_reference = references[-1] if references else None
+    active_primary = primary_products[-1] if primary_products else None
+    active_products = []
+    if active_primary is not None:
+        active_products.append(active_primary)
+        # Variants created by the current multi-unit upload are retained as equal
+        # generation assets, but bounded to prevent unbounded worker memory growth.
+        active_products.extend(product_variants[-3:])
+    elif product_variants:
+        active_products.extend(product_variants[-4:])
+
+    active_reference_id = str((active_reference or {}).get("id") or "")
+    active_product_ids = {
+        str(item.get("id") or "") for item in active_products
+        if str(item.get("id") or "")
     }
-    active_reference_id = str(
-        (newest.get("reference") or {}).get("id") or ""
-    )
-    active_product_id = str(
-        (newest.get("product") or {}).get("id") or ""
-    )
+    active_product_id = str((active_primary or (active_products[-1] if active_products else {})).get("id") or "")
 
     for item in assets:
         role = str(item.get("role") or "").casefold()
-        canonical = (
-            "reference"
-            if role in {"reference", "style_reference"}
-            else "product"
-            if role in {"product", "product_photo"}
-            else role
-        )
         asset_id = str(item.get("id") or "")
-        if canonical in {"reference", "product"}:
-            item["active_for_generation"] = asset_id in active_ids
-
-        # Keep the current product only. The current reference remains untouched.
-        if (
-            canonical == "product"
-            and active_product_id
-            and asset_id != active_product_id
-        ):
-            item["data"] = b""
-            item["released_from_memory"] = True
+        if role in {"reference", "style_reference"}:
+            item["active_for_generation"] = bool(active_reference_id and asset_id == active_reference_id)
+            if active_reference_id and asset_id != active_reference_id:
+                item["data"] = b""
+                item["released_from_memory"] = True
+        elif role in {"product", "product_photo", "product_variant"}:
+            item["active_for_generation"] = asset_id in active_product_ids
+            if active_product_ids and asset_id not in active_product_ids:
+                item["data"] = b""
+                item["released_from_memory"] = True
 
     project["assets"] = assets
     project["active_reference_id"] = active_reference_id
     project["active_product_id"] = active_product_id
+    project["active_product_ids"] = list(active_product_ids)
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
     return project
-
-
-
 def _graphic_project_style_dna_v16000(reference_blueprint, state=None):
     """Persist reusable project-level style DNA without silently approving global memory."""
     project = state if isinstance(state, dict) else get_graphic_project_state()
@@ -52933,7 +53028,7 @@ else:
         if is_graphic_resume_v68844:
             # Restore the exact files used by the interrupted attempt, including the
             # latest generated PNG/edit-base. Do not reclassify them as new uploads.
-            graphic_generation_files = _graphic_upload_objects_v68400(
+            graphic_generation_files = _graphic_upload_objects_v68847(
                 graphic_resume_job_v68844.get("uploads") or []
             )
 
@@ -53377,6 +53472,20 @@ else:
                 durable_job_v68844,
                 status="processing",
                 attempt=current_attempt_v68844,
+            )
+
+            durable_spooled_bytes_v68847 = sum(
+                int(item.get("size") or 0)
+                for item in (durable_job_v68844.get("uploads") or [])
+                if isinstance(item, dict)
+            )
+            diagnostic_log(
+                "graphic_v68847_generation_memory_checkpoint",
+                job_id=str(durable_job_v68844.get("job_id") or ""),
+                file_count=len(graphic_generation_files or []),
+                spooled_bytes=durable_spooled_bytes_v68847,
+                resume=is_graphic_resume_v68844,
+                attempt=current_attempt_v68844 + 1,
             )
 
             with st.spinner("Creating your image..."):
