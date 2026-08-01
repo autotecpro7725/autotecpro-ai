@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68837 — Automatic Second-Product Generation Retry; v68836 Rendering/Reference/Installed Pipelines Unchanged
+# AutoTecPro AI v68840 — Pending Follow-Up Edit Continuation Routing Fix; v68837 Rendering/Reference/Installed Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -18724,7 +18724,10 @@ def classify_graphic_chat_intent(
     latest_generated_available = bool(
         ((project.get("latest_generated") or {}).get("data_url") or "").strip()
     )
-    if latest_generated_available and _graphic_is_followup_edit_request(text):
+    if latest_generated_available and (
+        _graphic_is_followup_edit_request(text)
+        or _graphic_is_pending_edit_continuation_v68840(text, project)
+    ):
         return "edit"
 
     # Evaluate the current turn's explicit generation action before generic
@@ -19396,6 +19399,12 @@ def _graphic_project_direct_action(prompt_text, state=None):
         if isinstance(item, dict) and bytes(item.get("data") or b"")
     )
     contextual_create = _graphic_generation_command_v16000(text)
+
+    # An unresolved follow-up edit must remain on the edit route when the user
+    # confirms it with “Create it”. Previously this generic create check ran first,
+    # discarded the edit-base context, and required a second confirmation turn.
+    if _graphic_is_pending_edit_continuation_v68840(text, project):
+        return "edit"
 
     if contextual_create and (ready or image_count >= 2):
         return "generate"
@@ -20957,9 +20966,58 @@ def _graphic_is_followup_edit_request(prompt_text):
     return any(term in value for term in edit_terms) and not any(term == value for term in creation_terms)
 
 
+def _graphic_is_pending_edit_continuation_v68840(prompt_text, state=None):
+    """Return True only for an explicit continuation of one unresolved canvas edit.
+
+    This is an orchestration-only decision. It does not alter prompts, rendering,
+    Reference Mode, Installed View, product authority, or generated pixels. The
+    saved edit must still target the currently active canvas version, which keeps
+    an old completed edit from leaking into a later request.
+    """
+    project = state if isinstance(state, dict) else get_graphic_project_state()
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text:
+        return False
+
+    continuation_patterns = (
+        r"^(?:please\s+)?(?:create|generate|make|render|produce)\s+it(?:\s+now)?[.!]?$",
+        r"^(?:please\s+)?(?:go ahead|proceed|do it|continue|apply it)(?:\s+now)?[.!]?$",
+        r"^(?:please\s+)?(?:retry|try again|create it again|generate it again)[.!]?$",
+    )
+    if not any(re.fullmatch(pattern, text) for pattern in continuation_patterns):
+        return False
+
+    latest = dict(project.get("latest_generated") or {})
+    directive = dict(project.get("last_edit_directive") or {})
+    if not str(latest.get("data_url") or "").startswith("data:image/"):
+        return False
+    if not directive.get("is_edit"):
+        return False
+
+    current_canvas_id = str(project.get("current_canvas_id") or "").strip()
+    directive_canvas_id = str(directive.get("canvas_id") or "").strip()
+    current_version = int(project.get("current_canvas_version") or 0)
+    try:
+        directive_version = int(directive.get("canvas_version") or 0)
+    except (TypeError, ValueError):
+        directive_version = -1
+
+    return bool(
+        current_canvas_id
+        and directive_canvas_id == current_canvas_id
+        and directive_version == current_version
+        and str(project.get("stage") or "").strip().casefold()
+        in {"editing", "generating", "ready_to_generate", "generated"}
+    )
+
+
 def _graphic_latest_generated_role_item(prompt_text):
     """Materialize the current conversation's latest artwork as an edit base."""
-    if not _graphic_is_followup_edit_request(prompt_text):
+    project = get_graphic_project_state()
+    if not (
+        _graphic_is_followup_edit_request(prompt_text)
+        or _graphic_is_pending_edit_continuation_v68840(prompt_text, project)
+    ):
         return None
     latest = (get_graphic_project_state() or {}).get("latest_generated") or {}
     data_url = str(latest.get("data_url") or "")
