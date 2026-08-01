@@ -17297,6 +17297,379 @@ def _graphic_durable_job_keys_v68844(conversation_id=None):
 GRAPHIC_V68847_JOB_SPOOL_DIR = Path(tempfile.gettempdir()) / "autotecpro_graphic_jobs_v68847"
 
 
+# v68848 orchestration-only persistence. These helpers deliberately sit outside
+# every Reference Style / After Installation renderer and never alter image pixels.
+GRAPHIC_V68848_JOB_BUCKET = get_optional_secret(
+    "GRAPHIC_GENERATION_JOB_BUCKET", "graphic-generation-jobs"
+) or "graphic-generation-jobs"
+GRAPHIC_V68848_LEASE_SECONDS = 720
+GRAPHIC_V68848_ACTION_TTL_SECONDS = 60 * 60 * 24 * 90
+
+
+def _graphic_v68848_safe_segment(value, fallback="unknown"):
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value or "").strip())
+    return cleaned[:120] or fallback
+
+
+def _graphic_v68848_owner_context(conversation_id=None):
+    username = _graphic_v68848_safe_segment(
+        st.session_state.get("username") or "anonymous", "anonymous"
+    ).casefold()
+    conversation = _graphic_v68848_safe_segment(
+        conversation_id if conversation_id is not None else st.session_state.get("conversation_id") or "active",
+        "active",
+    )
+    return username, conversation
+
+
+@st.cache_resource(show_spinner=False)
+def _graphic_v68848_storage_bucket():
+    """Return the private Supabase Storage bucket used only for job orchestration."""
+    admin = get_supabase_admin_client()
+    try:
+        response = admin.storage.list_buckets()
+        buckets = getattr(response, "data", response) or []
+        names = set()
+        for bucket in buckets:
+            if isinstance(bucket, dict):
+                name = bucket.get("name") or bucket.get("id")
+            else:
+                name = getattr(bucket, "name", "") or getattr(bucket, "id", "")
+            if name:
+                names.add(str(name))
+        if GRAPHIC_V68848_JOB_BUCKET not in names:
+            try:
+                admin.storage.create_bucket(
+                    GRAPHIC_V68848_JOB_BUCKET,
+                    options={"public": False},
+                )
+            except TypeError:
+                admin.storage.create_bucket(
+                    GRAPHIC_V68848_JOB_BUCKET,
+                    {"public": False},
+                )
+    except Exception as error:
+        diagnostic_log("graphic_v68848_job_bucket_check_failed", error=str(error))
+    return admin.storage.from_(GRAPHIC_V68848_JOB_BUCKET)
+
+
+def _graphic_v68848_upload_bytes(path, data, content_type="application/octet-stream", *, upsert=True):
+    bucket = _graphic_v68848_storage_bucket()
+    options = {"content-type": content_type, "upsert": "true" if upsert else "false"}
+    attempts = (
+        lambda: bucket.upload(path, data, file_options=options),
+        lambda: bucket.upload(path, data, options),
+        lambda: bucket.upload(path, data),
+    )
+    last = None
+    for attempt in attempts:
+        try:
+            return attempt()
+        except TypeError as error:
+            last = error
+    if last:
+        raise last
+    return None
+
+
+def _graphic_v68848_download_bytes(path):
+    raw = _graphic_v68848_storage_bucket().download(path)
+    return bytes(raw) if isinstance(raw, (bytes, bytearray)) else b""
+
+
+def _graphic_v68848_remove_paths(paths):
+    clean = [str(path) for path in paths or [] if str(path).strip()]
+    if not clean:
+        return
+    try:
+        _graphic_v68848_storage_bucket().remove(clean)
+    except Exception as error:
+        diagnostic_log("graphic_v68848_storage_cleanup_failed", error=str(error), count=len(clean))
+
+
+def _graphic_v68848_job_prefix(job):
+    username, conversation = _graphic_v68848_owner_context(job.get("conversation_id") if isinstance(job, dict) else None)
+    job_id = _graphic_v68848_safe_segment((job or {}).get("job_id"), "job")
+    return f"jobs/{username}/{conversation}/{job_id}"
+
+
+def _graphic_v68848_active_pointer_path(conversation_id=None):
+    username, conversation = _graphic_v68848_owner_context(conversation_id)
+    return f"jobs/{username}/{conversation}/active.json"
+
+
+def _graphic_v68848_public_job(job):
+    """Return a JSON-safe manifest without local-only spool paths or byte payloads."""
+    clean = dict(job or {})
+    uploads = []
+    for record in clean.get("uploads") or []:
+        if not isinstance(record, dict):
+            continue
+        item = {k: v for k, v in record.items() if k not in {"data", "spool_path"}}
+        uploads.append(item)
+    clean["uploads"] = uploads
+    clean.pop("lease_token_local", None)
+    return clean
+
+
+def _graphic_v68848_persist_manifest(job):
+    """Best-effort Supabase-backed job manifest and active pointer."""
+    if not isinstance(job, dict) or not job.get("job_id"):
+        return False
+    try:
+        manifest = _graphic_v68848_public_job(job)
+        prefix = _graphic_v68848_job_prefix(job)
+        payload = json.dumps(manifest, ensure_ascii=False, default=str).encode("utf-8")
+        _graphic_v68848_upload_bytes(f"{prefix}/manifest.json", payload, "application/json", upsert=True)
+        pointer = json.dumps({
+            "job_id": job.get("job_id"),
+            "manifest_path": f"{prefix}/manifest.json",
+            "updated_at": job.get("updated_at") or time.time(),
+        }, ensure_ascii=False).encode("utf-8")
+        _graphic_v68848_upload_bytes(
+            _graphic_v68848_active_pointer_path(job.get("conversation_id")),
+            pointer,
+            "application/json",
+            upsert=True,
+        )
+        return True
+    except Exception as error:
+        diagnostic_log("graphic_v68848_manifest_persist_failed", error_type=type(error).__name__, error=str(error))
+        return False
+
+
+def _graphic_v68848_restore_manifest():
+    """Restore the active job after a worker/container restart."""
+    try:
+        pointer_raw = _graphic_v68848_download_bytes(_graphic_v68848_active_pointer_path())
+        pointer = json.loads(pointer_raw.decode("utf-8")) if pointer_raw else {}
+        manifest_path = str(pointer.get("manifest_path") or "")
+        if not manifest_path:
+            return None
+        raw = _graphic_v68848_download_bytes(manifest_path)
+        job = json.loads(raw.decode("utf-8")) if raw else None
+        if not isinstance(job, dict):
+            return None
+        age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
+        if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+            return None
+        return job
+    except Exception as error:
+        diagnostic_log("graphic_v68848_manifest_restore_failed", error_type=type(error).__name__, error=str(error))
+        return None
+
+
+def _graphic_v68848_store_uploads(job, files):
+    """Persist exact retry inputs in Supabase Storage, retaining local spool fallback."""
+    prefix = _graphic_v68848_job_prefix(job)
+    records = []
+    local_records = _graphic_spool_upload_records_v68847(files, job.get("job_id"))
+    for index, record in enumerate(local_records):
+        item = dict(record)
+        try:
+            raw = Path(str(item.get("spool_path") or "")).read_bytes()
+        except Exception:
+            raw = b""
+        if raw:
+            suffix = Path(item.get("name") or "image").suffix.lower() or ".bin"
+            storage_path = f"{prefix}/inputs/{index:02d}_{item.get('id','')[:16]}{suffix}"
+            try:
+                _graphic_v68848_upload_bytes(storage_path, raw, item.get("type") or "application/octet-stream", upsert=True)
+                item["storage_path"] = storage_path
+            except Exception as error:
+                diagnostic_log("graphic_v68848_input_upload_failed", error=str(error), name=item.get("name"))
+        records.append(item)
+    return records
+
+
+def _graphic_v68848_upload_objects(records):
+    """Materialize retry inputs from local spool first, then Supabase Storage."""
+    result = _graphic_upload_objects_v68847(records)
+    present_ids = {str(getattr(item, "graphic_asset_id", "") or "") for item in result}
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        record_id = str(record.get("graphic_asset_id") or record.get("id") or "")
+        if record_id and record_id in present_ids:
+            continue
+        path = str(record.get("storage_path") or "")
+        if not path:
+            continue
+        try:
+            raw = _graphic_v68848_download_bytes(path)
+        except Exception:
+            raw = b""
+        if not raw:
+            continue
+        result.append(ManagedUploadedFile(
+            raw,
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("graphic_role") or "",
+            graphic_asset_id=record_id,
+        ))
+    return result
+
+
+def _graphic_v68848_claim_lease(job):
+    """Claim one cross-worker lease, with process-local fallback when Storage is unavailable."""
+    if not isinstance(job, dict):
+        return None
+    prefix = _graphic_v68848_job_prefix(job)
+    lease_path = f"{prefix}/lease.json"
+    token = hashlib.sha256(f"{job.get('job_id')}:{time.time_ns()}:{os.getpid()}".encode()).hexdigest()[:32]
+    now = time.time()
+    lease = {"token": token, "claimed_at": now, "expires_at": now + GRAPHIC_V68848_LEASE_SECONDS}
+    payload = json.dumps(lease).encode("utf-8")
+    storage_reachable = True
+    try:
+        _graphic_v68848_upload_bytes(lease_path, payload, "application/json", upsert=False)
+        return token
+    except Exception:
+        try:
+            existing_raw = _graphic_v68848_download_bytes(lease_path)
+            existing = json.loads(existing_raw.decode("utf-8")) if existing_raw else {}
+            if float(existing.get("expires_at") or 0.0) < now:
+                _graphic_v68848_remove_paths([lease_path])
+                _graphic_v68848_upload_bytes(lease_path, payload, "application/json", upsert=False)
+                return token
+            # A live remote lease exists: another worker owns this job.
+            return None
+        except Exception:
+            storage_reachable = False
+    if not storage_reachable:
+        cache = _graphic_mobile_runtime_cache_v68400()
+        lease_key = f"lease:{job.get('job_id')}"
+        existing = cache.setdefault("leases", {}).get(lease_key) or {}
+        if float(existing.get("expires_at") or 0.0) >= now:
+            return None
+        cache["leases"][lease_key] = lease
+        diagnostic_log("graphic_v68848_local_lease_fallback", job_id=str(job.get("job_id") or ""))
+        return token
+    return None
+
+
+def _graphic_v68848_release_lease(job):
+    if isinstance(job, dict):
+        _graphic_v68848_remove_paths([f"{_graphic_v68848_job_prefix(job)}/lease.json"])
+        cache = _graphic_mobile_runtime_cache_v68400()
+        cache.setdefault("leases", {}).pop(f"lease:{job.get('job_id')}", None)
+
+
+def _graphic_v68848_is_retryable(error, generated_images=None):
+    """Retry only transient/provider failures; never repeat deterministic authority failures."""
+    if not generated_images and error is None:
+        return True, "empty_response"
+    if error is None:
+        return False, "success"
+    text = f"{type(error).__name__}: {error}".casefold()
+    non_retryable = (
+        "geometry authority", "reference authority", "missing required reference",
+        "no exact product source", "invalid asset", "unsupported image", "deterministic qa",
+        "product geometry", "bezel", "screen aperture", "same file", "could not be resolved safely",
+    )
+    if any(term in text for term in non_retryable):
+        return False, "deterministic_failure"
+    retryable = (
+        "timeout", "timed out", "connection", "reset", "temporarily", "temporary",
+        "rate limit", "429", "502", "503", "504", "server error", "service unavailable",
+        "no-image", "empty", "websocket", "worker", "transport",
+    )
+    return (any(term in text for term in retryable), "transient_failure" if any(term in text for term in retryable) else "unclassified_failure")
+
+
+def _graphic_multi_image_intent_plan_v68848(prompt_text, role_items):
+    """Create a deterministic multi-image selection plan before provider assembly."""
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    products = [item for item in role_items or [] if str(item.get("role") or "").casefold() in {"product_photo", "product_variant"}]
+    plan = {"mode": "single", "active_ids": [], "inactive_ids": [], "requested_finish": "", "separate_outputs": False}
+    if not products:
+        return plan
+    def iid(item):
+        f = item.get("file") if isinstance(item, dict) else None
+        return str(getattr(f, "graphic_asset_id", "") or item.get("graphic_asset_id", "") or item.get("id", ""))
+    all_ids = [iid(item) for item in products]
+    together = any(re.search(p, text) for p in (
+        r"\b(show|include|use|display|keep)\s+(both|all)\b", r"\bside[ -]?by[ -]?side\b",
+        r"\bblack\s+(and|&)\s+silver\b", r"\bsilver\s+(and|&)\s+black\b", r"\bsame\s+size\b",
+    ))
+    separate = bool(re.search(r"\b(one|separate)\s+(design|image|photo)\s+(for|per)\s+(each|every|color|colour|version)\b", text))
+    choice = bool(re.search(r"\b(treat|use)\s+(them|images|photos)\s+as\s+(choices|options)\b", text))
+    front_rear = bool(re.search(r"\bfront\s+(and|&)\s+(rear|back)\b|\brear\s+(and|&)\s+front\b", text))
+    requested = ""
+    for finish in ("gloss black", "black", "silver", "satin silver", "brushed aluminum", "carbon fibre", "carbon fiber", "woodgrain", "chrome", "matte black"):
+        if re.search(rf"\b(?:only|keep|use|show|create|replace[^.]*with)\s+(?:the\s+)?{re.escape(finish)}\b", text):
+            requested = finish
+            break
+    if separate:
+        plan["mode"] = "separate_designs"
+        plan["separate_outputs"] = True
+        plan["active_ids"] = all_ids
+    elif together or front_rear:
+        plan["mode"] = "front_rear" if front_rear else "together"
+        plan["active_ids"] = all_ids
+    elif choice:
+        plan["mode"] = "choices"
+        plan["active_ids"] = all_ids[:1]
+        plan["inactive_ids"] = all_ids[1:]
+    elif requested:
+        plan["mode"] = "selected_variant"
+        plan["requested_finish"] = requested
+        matches = []
+        for item in products:
+            hay = f"{item.get('name','')} {item.get('material_finish_v68848','')}".casefold()
+            if requested.replace("gloss ", "") in hay or requested in hay:
+                matches.append(iid(item))
+        plan["active_ids"] = matches[:1] or all_ids[:1]
+        plan["inactive_ids"] = [x for x in all_ids if x not in plan["active_ids"]]
+    else:
+        plan["active_ids"] = all_ids[:1]
+        plan["inactive_ids"] = all_ids[1:]
+    return plan
+
+
+def _graphic_material_finish_profile_v68848(name, prompt_text=""):
+    """Metadata-only finish authority; it does not modify pixels or QA thresholds."""
+    text = f"{name} {prompt_text}".casefold()
+    finishes = (
+        "gloss black", "satin silver", "brushed aluminum", "brushed aluminium",
+        "carbon fibre", "carbon fiber", "woodgrain", "chrome", "matte black", "silver", "black",
+    )
+    finish = next((value for value in finishes if value in text), "unspecified")
+    return {"finish": finish, "source": "filename_and_user_text", "enforcement": "metadata_only"}
+
+
+def _graphic_v68848_action_path(result_id):
+    username, conversation = _graphic_v68848_owner_context()
+    return f"actions/{username}/{conversation}/{_graphic_v68848_safe_segment(result_id, 'result')}.json"
+
+
+def _graphic_v68848_load_action_state(result_id):
+    try:
+        raw = _graphic_v68848_download_bytes(_graphic_v68848_action_path(result_id))
+        state = json.loads(raw.decode("utf-8")) if raw else {}
+        return state if isinstance(state, dict) else {}
+    except Exception:
+        return {}
+
+
+def _graphic_v68848_save_action_state(result_id, **updates):
+    state = _graphic_v68848_load_action_state(result_id)
+    state.update({k: v for k, v in updates.items() if v is not None})
+    state["result_id"] = result_id
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        _graphic_v68848_upload_bytes(
+            _graphic_v68848_action_path(result_id),
+            json.dumps(state, ensure_ascii=False, default=str).encode("utf-8"),
+            "application/json",
+            upsert=True,
+        )
+    except Exception as error:
+        diagnostic_log("graphic_v68848_action_state_save_failed", error=str(error))
+    return state
+
+
 def _graphic_cleanup_spooled_uploads_v68847(records):
     """Delete temporary job files without affecting uploaded/project authorities."""
     directories = set()
@@ -17379,33 +17752,34 @@ def _graphic_upload_objects_v68847(records):
 def _graphic_queue_durable_job_v68844(
     prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1
 ):
-    """Checkpoint the exact generation inputs before the provider call."""
+    """Checkpoint exact inputs locally and in Supabase before the provider call."""
     cache = _graphic_mobile_runtime_cache_v68400()
     keys = _graphic_durable_job_keys_v68844()
-    job_id = hashlib.sha256(
-        f"{keys[0]}:{time.time_ns()}:{prompt_text}".encode()
-    ).hexdigest()[:20]
-    # v68847: remove any superseded disk-backed active job before replacing it.
+    idempotency_source = json.dumps({
+        "owner": keys[0], "prompt": str(prompt_text or ""),
+        "file_ids": [hashlib.sha256(_graphic_uploaded_file_bytes(f)).hexdigest() for f in (files or [])],
+        "intent": str(intent or "generate"),
+    }, sort_keys=True, default=str)
+    job_id = hashlib.sha256(idempotency_source.encode()).hexdigest()[:24]
     for key in keys:
         previous = cache["jobs"].get(key)
+        if isinstance(previous, dict) and previous.get("job_id") == job_id and str(previous.get("status")) in {"queued", "processing", "retryable"}:
+            return dict(previous)
         if isinstance(previous, dict) and previous.get("job_id") != job_id:
             _graphic_cleanup_spooled_uploads_v68847(previous.get("uploads") or [])
     job = {
-        "job_id": job_id,
-        "status": "queued",
-        "prompt": str(prompt_text or ""),
-        "uploads": _graphic_spool_upload_records_v68847(files, job_id),
-        "structured_options": dict(structured_options or {}),
-        "intent": str(intent or "generate"),
-        "attempt": 0,
+        "job_id": job_id, "idempotency_key": job_id, "status": "queued",
+        "prompt": str(prompt_text or ""), "structured_options": dict(structured_options or {}),
+        "intent": str(intent or "generate"), "attempt": 0,
         "max_attempts": max(1, int(max_attempts or 1)),
         "conversation_id": str(st.session_state.get("conversation_id") or ""),
-        "created_at": time.time(),
-        "updated_at": time.time(),
+        "created_at": time.time(), "updated_at": time.time(),
     }
+    job["uploads"] = _graphic_v68848_store_uploads(job, files)
     for key in keys:
         cache["jobs"][key] = job
     st.session_state["graphic_durable_job_id_v68844"] = job_id
+    _graphic_v68848_persist_manifest(job)
     return dict(job)
 
 
@@ -17434,7 +17808,13 @@ def _graphic_pending_durable_job_v68844():
             recovered["updated_at"] = time.time()
             for alias in _graphic_durable_job_keys_v68844(recovered.get("conversation_id")):
                 cache["jobs"][alias] = recovered
+            _graphic_v68848_persist_manifest(recovered)
             return recovered
+    restored = _graphic_v68848_restore_manifest()
+    if isinstance(restored, dict):
+        for alias in _graphic_durable_job_keys_v68844(restored.get("conversation_id")):
+            cache["jobs"][alias] = restored
+        return dict(restored)
     return None
 
 
@@ -17454,6 +17834,7 @@ def _graphic_update_durable_job_v68844(job, *, status=None, attempt=None, error=
     conversation_id = updated.get("conversation_id")
     for key in _graphic_durable_job_keys_v68844(conversation_id):
         cache["jobs"][key] = updated
+    _graphic_v68848_persist_manifest(updated)
     return dict(updated)
 
 
@@ -17462,7 +17843,11 @@ def _graphic_complete_durable_job_v68844(job):
     if not isinstance(job, dict):
         return
     cache = _graphic_mobile_runtime_cache_v68400()
+    _graphic_v68848_release_lease(job)
     _graphic_cleanup_spooled_uploads_v68847(job.get("uploads") or [])
+    storage_paths = [str(item.get("storage_path") or "") for item in (job.get("uploads") or []) if isinstance(item, dict)]
+    storage_paths += [f"{_graphic_v68848_job_prefix(job)}/manifest.json", _graphic_v68848_active_pointer_path(job.get("conversation_id"))]
+    _graphic_v68848_remove_paths(storage_paths)
     for key in _graphic_durable_job_keys_v68844(job.get("conversation_id")):
         candidate = cache["jobs"].get(key)
         if not isinstance(candidate, dict) or candidate.get("job_id") == job.get("job_id"):
@@ -18678,6 +19063,9 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
             ),
             "data": data,
             "role": role,
+            "material_finish_v68848": _graphic_material_finish_profile_v68848(
+                str(getattr(uploaded, "name", "image")), prompt_text
+            ).get("finish"),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         assets.append(record)
@@ -21639,6 +22027,12 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
 
     project = get_graphic_project_state()
     active_product_id = str(project.get("active_product_id") or "").strip()
+    active_product_ids = {
+        str(value or "").strip() for value in (project.get("active_product_ids") or [])
+        if str(value or "").strip()
+    }
+    if active_product_id:
+        active_product_ids.add(active_product_id)
     active_reference_id = str(project.get("active_reference_id") or "").strip()
 
     def item_id(item):
@@ -21663,6 +22057,9 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         if active_product_id and digest == active_product_id:
             item["role"] = "product_photo"
             item["role_locked_by"] = "v68800_active_product_id"
+        elif digest and digest in active_product_ids:
+            item["role"] = "product_variant"
+            item["role_locked_by"] = "v68848_active_product_ids"
         elif active_reference_id and digest == active_reference_id:
             item["role"] = "style_reference"
             item["role_locked_by"] = "v68800_active_reference_id"
@@ -21674,6 +22071,9 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
 
         if role == "product_photo":
             if active_product_id and digest != active_product_id:
+                continue
+        elif role == "product_variant":
+            if active_product_ids and digest not in active_product_ids:
                 continue
         elif role == "style_reference":
             if active_reference_id and digest != active_reference_id:
@@ -21698,6 +22098,18 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         item for item in role_items
         if item.get("role") == "style_reference"
     ]
+    multi_image_plan_v68848 = _graphic_multi_image_intent_plan_v68848(prompt_text, role_items)
+    active_plan_ids_v68848 = set(multi_image_plan_v68848.get("active_ids") or [])
+    if active_plan_ids_v68848:
+        role_items = [
+            item for item in role_items
+            if str(item.get("role") or "") not in {"product_photo", "product_variant"}
+            or item_id(item) in active_plan_ids_v68848
+        ]
+        product_items = [item for item in role_items if item.get("role") == "product_photo"]
+        variant_items_v68848 = [item for item in role_items if item.get("role") == "product_variant"]
+    else:
+        variant_items_v68848 = [item for item in role_items if item.get("role") == "product_variant"]
 
     # Current-turn product fallback: if persistent IDs are unavailable, the newest
     # non-reference current upload remains the product, preserving the established
@@ -21733,14 +22145,19 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         )
 
     if len(product_items) > 1:
-        # Keep only the active product. If no active ID is available, keep the first
-        # current-turn product after deterministic ordering.
+        # The established single-product path remains unchanged. Explicit multi-image
+        # plans retain one primary product plus separately addressable variants.
         keep = product_items[0]
+        for extra in product_items[1:]:
+            extra["role"] = "product_variant"
+            extra["role_locked_by"] = "v68848_multi_image_plan"
+        product_items = [keep]
+    if multi_image_plan_v68848.get("mode") not in {"together", "front_rear", "separate_designs"}:
+        selected_ids = set(multi_image_plan_v68848.get("active_ids") or [])
         role_items = [
             item for item in role_items
-            if item.get("role") != "product_photo" or item is keep
+            if item.get("role") != "product_variant" or item_id(item) in selected_ids
         ]
-        product_items = [keep]
 
     if len(style_items) > 1:
         keep = style_items[0]
@@ -21811,6 +22228,8 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
         ),
         "historical_product_reference_assets_excluded": True,
         "product_geometry_source": "active_product_id",
+        "active_product_ids_v68848": sorted(active_product_ids),
+        "multi_image_intent_plan_v68848": multi_image_plan_v68848,
     }
     st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
     diagnostic_log(
@@ -22628,9 +23047,11 @@ def _graphic_explicit_multi_unit_contract_v68846(prompt_text, role_items):
         r"\bside[ -]?by[ -]?side\b",
         r"\bsame\s+size\b.*\b(?:units?|versions?|colors?|colours?|products?)\b",
     )
-    active = any(re.search(pattern, text) for pattern in explicit_patterns)
+    plan_v68848 = _graphic_multi_image_intent_plan_v68848(prompt_text, role_items)
+    active = any(re.search(pattern, text) for pattern in explicit_patterns) or plan_v68848.get("mode") in {"together", "front_rear", "separate_designs"}
     return {
         "active": bool(active),
+        "intent_plan_v68848": plan_v68848,
         "required_count": len(products) if active else 1,
         "products": products if active else products[:1],
         "asset_names": [str(item.get("name") or f"product {index + 1}") for index, item in enumerate(products)],
@@ -36763,6 +37184,8 @@ def render_generated_image_actions(images, message_index=None):
         if not image_bytes:
             continue
 
+        result_id_v68848 = str(image.get("canvas_id") or _graphic_image_fingerprint(image))
+        persistent_action_v68848 = _graphic_v68848_load_action_state(result_id_v68848)
         filename = str(
             image.get("filename")
             or image.get("name")
@@ -36956,6 +37379,7 @@ def render_generated_image_actions(images, message_index=None):
                     use_container_width=True,
                     type="secondary",
                 ):
+                    _graphic_v68848_save_action_state(result_id_v68848, full_size_status="opened")
                     show_generated_image_full_size(image)
 
             with png_download_column:
@@ -36979,6 +37403,7 @@ def render_generated_image_actions(images, message_index=None):
                     use_container_width=True,
                     type="secondary",
                 ):
+                    _graphic_v68848_save_action_state(result_id_v68848, regeneration_status="requested")
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
                     }
@@ -36992,6 +37417,10 @@ def render_generated_image_actions(images, message_index=None):
                 {},
             )
             current_feedback = str(feedback_record.get("feedback") or "")
+            if persistent_action_v68848.get("approve_status") == "approved":
+                current_feedback = "approved"
+            elif persistent_action_v68848.get("reject_status") == "rejected":
+                current_feedback = "rejected"
 
             with approve_column:
                 approve_label = (
@@ -37014,6 +37443,7 @@ def render_generated_image_actions(images, message_index=None):
                                 image,
                                 feedback="approved",
                             )
+                        _graphic_v68848_save_action_state(result_id_v68848, approve_status="approved", reject_status="")
                         if save_result.get("already_saved"):
                             st.info("This style is already approved.")
                         else:
@@ -37038,6 +37468,7 @@ def render_generated_image_actions(images, message_index=None):
                 ):
                     try:
                         save_result = reject_graphic_style_fast(image)
+                        _graphic_v68848_save_action_state(result_id_v68848, reject_status="rejected", approve_status="")
                         if save_result.get("already_saved"):
                             st.info("This style is already rejected.")
                         else:
@@ -53028,7 +53459,7 @@ else:
         if is_graphic_resume_v68844:
             # Restore the exact files used by the interrupted attempt, including the
             # latest generated PNG/edit-base. Do not reclassify them as new uploads.
-            graphic_generation_files = _graphic_upload_objects_v68847(
+            graphic_generation_files = _graphic_v68848_upload_objects(
                 graphic_resume_job_v68844.get("uploads") or []
             )
 
@@ -53464,6 +53895,12 @@ else:
                     max_attempts=generation_attempts_v68837,
                 )
 
+            lease_token_v68848 = _graphic_v68848_claim_lease(durable_job_v68844)
+            if not lease_token_v68848:
+                diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
+                st.info("This image request is already processing in another session. The result will appear when it completes.")
+                st.stop()
+            durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
             max_attempts_v68844 = max(
                 1, int(durable_job_v68844.get("max_attempts") or 1)
@@ -53506,7 +53943,11 @@ else:
                     generation_error_v68837 = error
                     generated_images = []
 
-            if not generated_images and current_attempt_v68844 + 1 < max_attempts_v68844:
+            retryable_v68848, retry_reason_v68848 = _graphic_v68848_is_retryable(
+                generation_error_v68837, generated_images
+            )
+            if not generated_images and retryable_v68848 and current_attempt_v68844 + 1 < max_attempts_v68844:
+                _graphic_v68848_release_lease(durable_job_v68844)
                 durable_job_v68844 = _graphic_update_durable_job_v68844(
                     durable_job_v68844,
                     status="retryable",
@@ -53527,6 +53968,7 @@ else:
                         if generation_error_v68837 is not None
                         else "EmptyGraphicResult"
                     ),
+                    retry_reason=retry_reason_v68848,
                 )
                 st.session_state["current_assistant"] = "🎨 Graphic Marketing"
                 st.rerun()
