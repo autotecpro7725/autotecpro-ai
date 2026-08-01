@@ -19527,6 +19527,61 @@ def image_bytes_to_png(image_bytes):
         return raw
 
 
+@st.cache_data(max_entries=64, show_spinner=False)
+def _cached_generated_jpg_export(image_sha256, quality, _image_bytes):
+    """Encode one JPG export once per PNG master and quality setting.
+
+    ``_image_bytes`` is intentionally excluded from Streamlit's argument hash;
+    ``image_sha256`` is the authoritative cache key. This avoids repeatedly
+    hashing and re-encoding multi-megabyte PNG masters on every UI rerun.
+    """
+    raw = bytes(_image_bytes or b"")
+    if not raw or Image is None:
+        return b""
+
+    try:
+        with Image.open(io.BytesIO(raw)) as generated_image:
+            # JPEG has no alpha channel. Composite transparent pixels onto white
+            # so logos, text, and product edges remain clean and predictable.
+            if generated_image.mode in ("RGBA", "LA") or (
+                generated_image.mode == "P" and "transparency" in generated_image.info
+            ):
+                rgba_image = generated_image.convert("RGBA")
+                white_background = Image.new("RGB", rgba_image.size, (255, 255, 255))
+                white_background.paste(rgba_image, mask=rgba_image.getchannel("A"))
+                generated_image = white_background
+            elif generated_image.mode != "RGB":
+                generated_image = generated_image.convert("RGB")
+
+            output = io.BytesIO()
+            generated_image.save(
+                output,
+                format="JPEG",
+                quality=int(quality),
+                optimize=False,
+                progressive=False,
+                subsampling=0,
+            )
+            return output.getvalue()
+    except Exception:
+        return b""
+
+
+def image_bytes_to_jpg(image_bytes, quality=96):
+    """Return a cached high-quality JPEG copy of the unchanged PNG master."""
+    raw = bytes(image_bytes or b"")
+    if not raw or Image is None:
+        return b""
+
+    try:
+        clean_quality = max(85, min(int(quality), 100))
+    except (TypeError, ValueError):
+        clean_quality = 96
+
+    image_sha256 = hashlib.sha256(raw).hexdigest()
+    return _cached_generated_jpg_export(image_sha256, clean_quality, raw)
+
+
 def prepare_graphic_reference_images(uploaded_files):
     """Convert uploaded reference images into SDK-compatible in-memory files."""
     references = []
@@ -36214,10 +36269,43 @@ def render_generated_png_download(
         st.download_button(**button_kwargs)
 
 
+def render_generated_jpg_download(
+    image_bytes,
+    filename,
+    download_key,
+):
+    """Render a high-quality JPG download without changing the PNG master."""
+    download_data = image_bytes_to_jpg(image_bytes, quality=96)
+    if not download_data:
+        st.error("The JPG download could not be prepared.")
+        return
+
+    safe_filename = Path(str(filename or "AutoTecPro_Generated_Image.jpg")).name
+    safe_filename = f"{Path(safe_filename).stem}.jpg"
+
+    button_kwargs = {
+        "label": "Download JPG",
+        "data": download_data,
+        "file_name": safe_filename,
+        "mime": "image/jpeg",
+        "key": download_key,
+        "use_container_width": True,
+        "type": "secondary",
+    }
+
+    try:
+        st.download_button(
+            **button_kwargs,
+            on_click="ignore",
+        )
+    except TypeError:
+        st.download_button(**button_kwargs)
+
+
 @_optional_ui_fragment
 def render_generated_image_actions(images, message_index=None):
     """
-    Render equal-size Full Size, Download, Regenerate, Approve, and Reject controls.
+    Render equal-size Full Size, PNG, JPG, Regenerate, Approve, and Reject controls.
 
     The displayed image remains a standard HTML image, so desktop users can
     still right-click and use Save Image As or Copy Image.
@@ -36257,6 +36345,12 @@ def render_generated_image_actions(images, message_index=None):
             image_index,
             "download",
         )
+        jpg_download_key = generated_image_action_key(
+            image,
+            message_index,
+            image_index,
+            "download_jpg",
+        )
         regenerate_key = generated_image_action_key(
             image,
             message_index,
@@ -36270,7 +36364,7 @@ def render_generated_image_actions(images, message_index=None):
             st.markdown(
                 """
                 <style>
-                /* Force three genuinely equal columns. */
+                /* Force all generated-image action columns to remain equal. */
                 div[class*="st-key-generated_image_actions_"]
                 div[data-testid="stHorizontalBlock"] {
                     width: 100% !important;
@@ -36404,8 +36498,15 @@ def render_generated_image_actions(images, message_index=None):
                 unsafe_allow_html=True,
             )
 
-            open_column, download_column, regenerate_column, approve_column, reject_column = st.columns(
-                5,
+            (
+                open_column,
+                png_download_column,
+                jpg_download_column,
+                regenerate_column,
+                approve_column,
+                reject_column,
+            ) = st.columns(
+                6,
                 gap="small",
                 vertical_alignment="center",
             )
@@ -36419,11 +36520,18 @@ def render_generated_image_actions(images, message_index=None):
                 ):
                     show_generated_image_full_size(image)
 
-            with download_column:
+            with png_download_column:
                 render_generated_png_download(
                     image_bytes=image_bytes,
                     filename=filename,
                     download_key=download_key,
+                )
+
+            with jpg_download_column:
+                render_generated_jpg_download(
+                    image_bytes=image_bytes,
+                    filename=filename,
+                    download_key=jpg_download_key,
                 )
 
             with regenerate_column:
