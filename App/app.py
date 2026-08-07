@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68851 — Deterministic Streamlit Chrome / Theme-Toggle Fix; v68850 App Logic Unchanged
+# AutoTecPro AI v68853 — Reference Style Color CarPlay/Android Auto Icons; v68850 Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -462,19 +462,6 @@ def user_can_use_feature(feature_key):
 
 def history_is_enabled():
     return user_can_use_feature("history")
-
-
-# ============================================================
-# Deterministic Streamlit App Chrome
-# ============================================================
-# Streamlit's default client.toolbarMode is "auto". On Community Cloud,
-# developer sessions can therefore receive viewer/developer toolbar controls
-# such as the built-in light/dark theme toggle (rendered as a moon/sun icon).
-# Because AutoTecPro AI owns its dark visual system in app CSS, that native
-# theme control is both unnecessary and visually inconsistent. Pin the toolbar
-# to "minimal" so only Cloud/page-config chrome remains; this removes the
-# built-in theme toggle without CSS DOM hacks and without changing app logic.
-st.set_option("client.toolbarMode", "minimal")
 
 
 st.set_page_config(
@@ -27276,6 +27263,96 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
 
 
+def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
+    """Draw branded-color connectivity icons only for Reference Style mode.
+
+    This helper is intentionally isolated from the existing generic icon renderer so
+    AutoTecPro Studio and every non-reference Graphic mode retain their current
+    monochrome deterministic icon pipeline unchanged.
+    """
+    semantic = str(semantic or "").strip().casefold()
+    if semantic not in {"carplay", "android_auto"}:
+        return False
+
+    x0, y0, x1, y1 = [int(round(v)) for v in box]
+    w, h = max(1, x1 - x0), max(1, y1 - y0)
+    size = max(8, min(w, h))
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+
+    if semantic == "carplay":
+        # Apple CarPlay-style green rounded tile with a white circular/play glyph.
+        tile = int(size * 0.78)
+        left = int(round(cx - tile / 2))
+        top = int(round(cy - tile / 2))
+        right = left + tile
+        bottom = top + tile
+        radius = max(4, int(tile * 0.22))
+        draw.rounded_rectangle(
+            (left, top, right, bottom),
+            radius=radius,
+            fill=(72, 194, 67, 255),
+            outline=(52, 164, 48, 255),
+            width=max(1, int(tile * 0.025)),
+        )
+        stroke = max(2, int(tile * 0.055))
+        ring_pad = int(tile * 0.20)
+        draw.arc(
+            (left + ring_pad, top + ring_pad, right - ring_pad, bottom - ring_pad),
+            38,
+            322,
+            fill=(255, 255, 255, 255),
+            width=stroke,
+        )
+        tri_cx = int(cx + tile * 0.045)
+        tri_cy = int(cy)
+        tri_w = max(4, int(tile * 0.18))
+        tri_h = max(5, int(tile * 0.22))
+        draw.polygon(
+            [
+                (tri_cx - tri_w // 2, tri_cy - tri_h // 2),
+                (tri_cx - tri_w // 2, tri_cy + tri_h // 2),
+                (tri_cx + tri_w // 2, tri_cy),
+            ],
+            fill=(255, 255, 255, 255),
+        )
+        return True
+
+    # Android Auto-style blue navigation A. Use deterministic vector geometry so
+    # there is no external asset/font dependency and the icon remains crisp at any
+    # campaign resolution.
+    blue = (22, 153, 222, 255)
+    dark_blue = (15, 126, 196, 255)
+    top = int(round(cy - size * 0.38))
+    bottom = int(round(cy + size * 0.36))
+    left = int(round(cx - size * 0.31))
+    right = int(round(cx + size * 0.31))
+    mid_left = int(round(cx - size * 0.08))
+    mid_right = int(round(cx + size * 0.08))
+    center_y = int(round(cy + size * 0.08))
+    draw.polygon(
+        [
+            (int(cx), top),
+            (right, bottom),
+            (int(cx + size * 0.12), bottom),
+            (int(cx), center_y),
+            (int(cx - size * 0.12), bottom),
+            (left, bottom),
+        ],
+        fill=blue,
+    )
+    # Subtle inner facet gives the recognizable folded-ribbon Auto appearance.
+    draw.polygon(
+        [
+            (int(cx), top),
+            (int(cx + size * 0.08), center_y),
+            (mid_right, int(cy + size * 0.22)),
+            (int(cx), int(cy + size * 0.08)),
+        ],
+        fill=dark_blue,
+    )
+    return True
+
+
 def _graphic_draw_feature_icon_v3200(draw, box, index, color):
     """Draw a compact deterministic line icon without external font/icon dependencies."""
     x0, y0, x1, y1 = box
@@ -28527,7 +28604,12 @@ def _graphic_compose_reference_campaign_v3200(
             int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
             int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
         )
-        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
+        semantic = (feature_registry_v42000[idx].get("semantic") if idx < len(feature_registry_v42000) else "")
+        if not (
+            design_mode == "reference_template"
+            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+        ):
+            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
         ty = int(y0 + cell_h * 0.57)
         for line in lines:
@@ -28552,12 +28634,18 @@ def _graphic_compose_reference_campaign_v3200(
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
     cell = bw / 5.0
     bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
+    bottom_feature_registry_v68853 = _graphic_feature_registry_v42000(benefits, 5)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
             draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
         icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
-        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
+        semantic = (bottom_feature_registry_v68853[idx].get("semantic") if idx < len(bottom_feature_registry_v68853) else "")
+        if not (
+            design_mode == "reference_template"
+            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+        ):
+            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
         lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
         ty = int(by + bh * 0.25)
         for line in lines:
