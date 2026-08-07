@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68853 — Reference Style Color CarPlay/Android Auto Icons; v68850 Pipelines Unchanged
+# AutoTecPro AI v68854 — Durable Graphic Project Context & Interrupted-Run Recovery; v68853 Rendering Pipelines Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17191,6 +17191,13 @@ def _graphic_copy_project_state_v68400(state):
 
 
 def _graphic_persist_project_v68400(state=None):
+    """Persist Graphic project state locally and, when possible, durably.
+
+    v68854 keeps the original process-local fast path unchanged and adds a
+    conversation-scoped Supabase Storage checkpoint for the exact active Graphic
+    assets.  This is orchestration only: no renderer, provider prompt, QA, product
+    authority, Reference Style, or Installed View pipeline is changed.
+    """
     project = state if isinstance(state, dict) else st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     if not isinstance(project, dict):
         return False
@@ -17198,22 +17205,49 @@ def _graphic_persist_project_v68400(state=None):
     record={"saved_at": time.time(), "state": _graphic_copy_project_state_v68400(project)}
     for key in _graphic_mobile_cache_keys_v68400():
         cache["projects"][key]=record
+
+    remote_persist = globals().get("_graphic_v68854_persist_project_remote")
+    if callable(remote_persist):
+        try:
+            remote_persist(project)
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v68854_project_remote_checkpoint_failed",
+                error_type=type(error).__name__,
+                error=str(error),
+            )
     return True
 
 
 def _graphic_restore_project_v68400():
+    """Restore the current Graphic project from local cache or durable storage."""
     cache=_graphic_mobile_runtime_cache_v68400()
     record={}
     for key in _graphic_mobile_cache_keys_v68400():
         record=cache["projects"].get(key) or {}
         if record: break
     saved=float(record.get("saved_at") or 0.0)
-    if not saved or time.time()-saved > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
-        return None
-    state=record.get("state")
-    if not isinstance(state,dict):
-        return None
-    return _graphic_copy_project_state_v68400(state)
+    if saved and time.time()-saved <= GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+        state=record.get("state")
+        if isinstance(state,dict):
+            return _graphic_copy_project_state_v68400(state)
+
+    remote_restore = globals().get("_graphic_v68854_restore_project_remote")
+    if callable(remote_restore):
+        try:
+            restored = remote_restore()
+            if isinstance(restored, dict):
+                record={"saved_at": time.time(), "state": _graphic_copy_project_state_v68400(restored)}
+                for key in _graphic_mobile_cache_keys_v68400():
+                    cache["projects"][key]=record
+                return restored
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v68854_project_remote_restore_failed",
+                error_type=type(error).__name__,
+                error=str(error),
+            )
+    return None
 
 
 def _graphic_upload_records_v68400(files):
@@ -17416,6 +17450,203 @@ def _graphic_v68848_remove_paths(paths):
         _graphic_v68848_storage_bucket().remove(clean)
     except Exception as error:
         diagnostic_log("graphic_v68848_storage_cleanup_failed", error=str(error), count=len(clean))
+
+
+def _graphic_v68854_project_prefix(conversation_id=None):
+    """Return a conversation-scoped path for durable Graphic project context."""
+    username, conversation = _graphic_v68848_owner_context(conversation_id)
+    return f"projects/{username}/{conversation}"
+
+
+def _graphic_v68854_persist_project_remote(state=None):
+    """Persist exact active Graphic assets without changing generation behavior.
+
+    The state manifest contains metadata only. Each retained image is stored as its
+    original bytes and is restored only into the same authenticated username +
+    conversation. This prevents a Streamlit worker restart from making a later
+    `Create it` turn forget the already-uploaded product/reference images.
+    """
+    conversation_id = str(st.session_state.get("conversation_id") or "").strip()
+    username = str(st.session_state.get("username") or "").strip()
+    if not conversation_id or not username:
+        return False
+    project = state if isinstance(state, dict) else st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
+    if not isinstance(project, dict):
+        return False
+
+    prefix = _graphic_v68854_project_prefix(conversation_id)
+    snapshot = _graphic_copy_project_state_v68400(project)
+    snapshot["bound_conversation_id_v68854"] = conversation_id
+    snapshot["durable_project_version"] = "v68854"
+    snapshot["durable_saved_at"] = time.time()
+    remote_assets = []
+
+    assets = []
+    for record in snapshot.get("assets") or []:
+        if not isinstance(record, dict):
+            continue
+        item = dict(record)
+        asset_id = str(item.get("id") or "").strip()
+        raw = bytes(item.get("data") or b"")
+        item["data"] = b""
+        if asset_id and raw:
+            suffix = Path(str(item.get("name") or "image")).suffix.lower() or ".bin"
+            storage_path = f"{prefix}/assets/{_graphic_v68848_safe_segment(asset_id, 'asset')}{suffix}"
+            _graphic_v68848_upload_bytes(
+                storage_path,
+                raw,
+                item.get("type") or "application/octet-stream",
+                upsert=True,
+            )
+            item["durable_storage_path_v68854"] = storage_path
+            remote_assets.append(asset_id)
+        assets.append(item)
+    snapshot["assets"] = assets
+
+    payload = json.dumps(snapshot, ensure_ascii=False, default=str).encode("utf-8")
+    _graphic_v68848_upload_bytes(
+        f"{prefix}/project.json",
+        payload,
+        "application/json",
+        upsert=True,
+    )
+    diagnostic_log(
+        "graphic_v68854_project_remote_checkpoint",
+        conversation_id=conversation_id,
+        asset_count=len(assets),
+        exact_asset_count=len(remote_assets),
+        stage=str(project.get("stage") or ""),
+    )
+    return True
+
+
+def _graphic_v68854_restore_project_remote(conversation_id=None):
+    """Restore exact Graphic project assets for the current conversation only."""
+    conversation_id = str(
+        conversation_id if conversation_id is not None else st.session_state.get("conversation_id") or ""
+    ).strip()
+    username = str(st.session_state.get("username") or "").strip()
+    if not conversation_id or not username:
+        return None
+    prefix = _graphic_v68854_project_prefix(conversation_id)
+    raw = _graphic_v68848_download_bytes(f"{prefix}/project.json")
+    if not raw:
+        return None
+    snapshot = json.loads(raw.decode("utf-8"))
+    if not isinstance(snapshot, dict):
+        return None
+    bound = str(snapshot.get("bound_conversation_id_v68854") or "").strip()
+    if bound and bound != conversation_id:
+        diagnostic_log(
+            "graphic_v68854_project_scope_rejected",
+            requested_conversation=conversation_id,
+            bound_conversation=bound,
+        )
+        return None
+
+    restored_assets = []
+    for record in snapshot.get("assets") or []:
+        if not isinstance(record, dict):
+            continue
+        item = dict(record)
+        storage_path = str(item.get("durable_storage_path_v68854") or "").strip()
+        data = b""
+        if storage_path:
+            try:
+                data = _graphic_v68848_download_bytes(storage_path)
+            except Exception as error:
+                diagnostic_log(
+                    "graphic_v68854_asset_restore_failed",
+                    asset_id=str(item.get("id") or ""),
+                    error_type=type(error).__name__,
+                )
+        item["data"] = bytes(data or b"")
+        restored_assets.append(item)
+    snapshot["assets"] = restored_assets
+    snapshot["bound_conversation_id_v68854"] = conversation_id
+    snapshot["restored_from_durable_project_v68854"] = True
+
+    exact_count = sum(1 for item in restored_assets if bytes(item.get("data") or b""))
+    diagnostic_log(
+        "graphic_v68854_project_remote_restored",
+        conversation_id=conversation_id,
+        asset_count=len(restored_assets),
+        exact_asset_count=exact_count,
+        stage=str(snapshot.get("stage") or ""),
+    )
+    return snapshot
+
+
+def _graphic_v68854_rehydrate_project_if_needed():
+    """Repair a lost Graphic session from durable conversation-scoped project data."""
+    conversation_id = str(st.session_state.get("conversation_id") or "").strip()
+    if not conversation_id:
+        return get_graphic_project_state()
+    current = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
+    current_assets = [
+        item for item in ((current or {}).get("assets") or [])
+        if isinstance(item, dict) and bytes(item.get("data") or b"")
+    ] if isinstance(current, dict) else []
+    bound = str((current or {}).get("bound_conversation_id_v68854") or "").strip() if isinstance(current, dict) else ""
+    if current_assets and (not bound or bound == conversation_id):
+        return current
+    try:
+        restored = _graphic_v68854_restore_project_remote(conversation_id)
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68854_project_rehydrate_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        restored = None
+    if isinstance(restored, dict):
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = restored
+        cache = _graphic_mobile_runtime_cache_v68400()
+        record={"saved_at": time.time(), "state": _graphic_copy_project_state_v68400(restored)}
+        for key in _graphic_mobile_cache_keys_v68400():
+            cache["projects"][key]=record
+        return restored
+    return get_graphic_project_state()
+
+
+def _graphic_v68854_bind_project_to_conversation():
+    """Bind pre-conversation uploads after the first persistent chat ID is created."""
+    conversation_id = str(st.session_state.get("conversation_id") or "").strip()
+    if not conversation_id:
+        return False
+    state = get_graphic_project_state()
+    state["bound_conversation_id_v68854"] = conversation_id
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    return _graphic_persist_project_v68400(state)
+
+
+def _graphic_v68854_peek_active_manifest(conversation_id=None):
+    """Read an active durable job without changing its status or lease."""
+    pointer_path = _graphic_v68848_active_pointer_path(conversation_id)
+    try:
+        pointer_raw = _graphic_v68848_download_bytes(pointer_path)
+        pointer = json.loads(pointer_raw.decode("utf-8")) if pointer_raw else {}
+        manifest_path = str(pointer.get("manifest_path") or "")
+        if not manifest_path:
+            return None
+        raw = _graphic_v68848_download_bytes(manifest_path)
+        job = json.loads(raw.decode("utf-8")) if raw else None
+        if not isinstance(job, dict):
+            return None
+        age = time.time() - float(job.get("updated_at") or job.get("created_at") or 0.0)
+        if age > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+            return None
+        if str(job.get("status") or "").strip().lower() in {"completed", "failed", "cancelled"}:
+            return None
+        return job
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68854_active_manifest_peek_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return None
 
 
 def _graphic_v68848_job_prefix(job):
@@ -53673,6 +53904,9 @@ else:
             st.error(f"ZIP analysis was stopped: {error}")
             st.stop()
 
+        if assistant == "🎨 Graphic Marketing":
+            _graphic_v68854_rehydrate_project_if_needed()
+
         if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
             graphic_asset_role_prompt_v68620 = (
                 "" if attachment_only_mode else interaction_prompt
@@ -53692,6 +53926,26 @@ else:
             graphic_generation_files = _graphic_v68848_upload_objects(
                 graphic_resume_job_v68844.get("uploads") or []
             )
+        elif assistant == "🎨 Graphic Marketing" and not graphic_generation_files:
+            # v68854: after a worker/session interruption, the visible chat may still
+            # exist while process-local image bytes are gone. Recover the exact durable
+            # job inputs for context only. The existing lease remains authoritative, so
+            # this does not duplicate or alter the provider/rendering pipeline.
+            active_job_v68854 = _graphic_v68854_peek_active_manifest(
+                st.session_state.get("conversation_id")
+            )
+            if isinstance(active_job_v68854, dict):
+                recovered_files_v68854 = _graphic_v68848_upload_objects(
+                    active_job_v68854.get("uploads") or []
+                )
+                if recovered_files_v68854:
+                    graphic_generation_files = recovered_files_v68854
+                    diagnostic_log(
+                        "graphic_v68854_exact_job_inputs_recovered",
+                        job_id=str(active_job_v68854.get("job_id") or ""),
+                        status=str(active_job_v68854.get("status") or ""),
+                        file_count=len(recovered_files_v68854),
+                    )
 
         explicit_learning_requested = detect_explicit_learning_command(
             interaction_prompt,
@@ -53753,6 +54007,8 @@ else:
                         assistant,
                         conversation_title_seed or "New attachment conversation"
                     )
+                    if assistant == "🎨 Graphic Marketing":
+                        _graphic_v68854_bind_project_to_conversation()
                 except Exception as e:
                     st.error(f"Could not create chat history case: {e}")
                     st.session_state.conversation_id = None
@@ -53868,6 +54124,11 @@ else:
             and not attachment_only_mode
             and _graphic_generation_command_v16000(interaction_prompt)
         )
+        if assistant == "🎨 Graphic Marketing" and explicit_graphic_action_v68849:
+            # Re-read durable conversation context immediately before readiness
+            # classification. This is a state-recovery gate only; it does not modify
+            # any Reference Style generation or rendering function.
+            _graphic_v68854_rehydrate_project_if_needed()
         project_generation_ready_v68849 = bool(
             assistant == "🎨 Graphic Marketing"
             and _graphic_project_generation_ready_v68849(
@@ -53934,6 +54195,7 @@ else:
                 graphic_project["stage"] = "awaiting_reference"
             graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
             st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
+            _graphic_persist_project_v68400(graphic_project)
             diagnostic_log(
                 "graphic_chat_intent",
                 intent=graphic_chat_intent,
