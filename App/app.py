@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68850 — Graphic Product/Reference Role Routing Fix; v68849 Rendering Pipelines Unchanged
+# AutoTecPro AI v68851 — Deterministic Streamlit Chrome / Theme-Toggle Fix; v68850 App Logic Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -462,6 +462,19 @@ def user_can_use_feature(feature_key):
 
 def history_is_enabled():
     return user_can_use_feature("history")
+
+
+# ============================================================
+# Deterministic Streamlit App Chrome
+# ============================================================
+# Streamlit's default client.toolbarMode is "auto". On Community Cloud,
+# developer sessions can therefore receive viewer/developer toolbar controls
+# such as the built-in light/dark theme toggle (rendered as a moon/sun icon).
+# Because AutoTecPro AI owns its dark visual system in app CSS, that native
+# theme control is both unnecessary and visually inconsistent. Pin the toolbar
+# to "minimal" so only Cloud/page-config chrome remains; this removes the
+# built-in theme toggle without CSS DOM hacks and without changing app logic.
+st.set_option("client.toolbarMode", "minimal")
 
 
 st.set_page_config(
