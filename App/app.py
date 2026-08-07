@@ -28508,13 +28508,16 @@ def _graphic_compose_reference_campaign_v3200(
     # v68855: color-connectivity rendering follows the actual active Style
     # Reference asset instead of relying only on the mutable session design_mode
     # flag. This is presentation-only and does not change the generation pipeline.
-    reference_style_connectivity_icons_v68855 = bool(
-        any(
-            str(item.get("role") or "").strip().casefold()
-            in {"reference", "style_reference"}
-            for item in (role_items or [])
-            if isinstance(item, dict)
-        )
+    # v68857: this composer can be reached after a durable-project restore where
+    # the analyzed Reference Style blueprint survives but the transient role_items
+    # list contains only the product asset.  v68855/v68856 gated the colored
+    # connectivity icons on role_items alone, so the helper was skipped and the
+    # generic monochrome icons were drawn.  Treat the already-validated reference
+    # blueprint as authoritative evidence that this is a Reference Style render.
+    # This changes only icon presentation; no generation/composition route changes.
+    reference_style_connectivity_icons_v68857 = bool(
+        isinstance(reference_blueprint, dict)
+        and bool(reference_blueprint)
         and not graphic_prompt_disables_approved_reference(prompt_text)
     )
 
@@ -28881,7 +28884,7 @@ def _graphic_compose_reference_campaign_v3200(
         )
         semantic = (feature_registry_v42000[idx].get("semantic") if idx < len(feature_registry_v42000) else "")
         if not (
-            reference_style_connectivity_icons_v68855
+            reference_style_connectivity_icons_v68857
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
@@ -28917,7 +28920,7 @@ def _graphic_compose_reference_campaign_v3200(
         icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
         semantic = (bottom_feature_registry_v68853[idx].get("semantic") if idx < len(bottom_feature_registry_v68853) else "")
         if not (
-            reference_style_connectivity_icons_v68855
+            reference_style_connectivity_icons_v68857
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
