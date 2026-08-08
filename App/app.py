@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68860 — Reference Connectivity Release Fix; v68854 Generation/Recovery Pipeline Preserved
+# AutoTecPro AI v68861 — Reference Connectivity Production Audit Fix; v68854 Generation/Recovery Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -37204,30 +37204,40 @@ def _graphic_reference_connectivity_layout_v68860(feature_labels, bottom_benefit
 
 
 def _graphic_v68860_reference_active(prompt_text, uploaded_files, forced_upload_role, images=None):
-    """Detect Reference Style using current project authority first, then legacy routing."""
+    """Detect Reference Style without leaking the postprocessor into other Graphic modes.
+
+    v68861 audit fix:
+    - An explicit "no reference style" request always wins.
+    - The existing v68827 production classifier is authoritative when available.
+    - Session-state fallback is limited to an explicit reference_template mode.
+    - Merely retaining an old reference asset/blueprint is NOT enough to activate
+      post-processing in AutoTecPro Studio or another Graphic mode.
+    """
+    prompt_value = str(prompt_text or "")
+
     try:
-        state = get_graphic_project_state() or {}
-        if str(state.get("graphic_design_mode") or "").strip().casefold() == "reference_template":
-            return True
-        if state.get("reference_blueprint") or state.get("active_reference_blueprint"):
-            return True
-        for item in state.get("assets") or []:
-            if (
-                isinstance(item, dict)
-                and str(item.get("role") or "").strip().casefold()
-                in {"reference", "style_reference"}
-            ):
-                return True
+        if graphic_prompt_disables_approved_reference(prompt_value):
+            return False
     except Exception:
         pass
 
     try:
-        return bool(
-            _graphic_v68827_is_reference_mode(
-                str(prompt_text or ""),
-                uploaded_files,
-                forced_upload_role,
-            )
+        if _graphic_v68827_is_reference_mode(
+            prompt_value,
+            uploaded_files,
+            forced_upload_role,
+        ):
+            return True
+    except Exception:
+        pass
+
+    try:
+        state = get_graphic_project_state() or {}
+        return (
+            str(state.get("graphic_design_mode") or "")
+            .strip()
+            .casefold()
+            == "reference_template"
         )
     except Exception:
         return False
@@ -37391,6 +37401,12 @@ def _graphic_v68860_normalize_release_image(image, prompt_text):
         ).convert("RGBA")
 
         spec = dict(image.get("campaign_spec") or {})
+        if not spec:
+            try:
+                project_state = get_graphic_project_state() or {}
+                spec = dict(project_state.get("campaign_spec") or {})
+            except Exception:
+                spec = {}
         if not spec:
             spec = dict(_graphic_extract_campaign_spec(prompt_text, {}) or {})
 
