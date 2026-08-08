@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68863 — Reference Connectivity Composer Fix; v68854 Generation/Recovery Pipeline Preserved
+# AutoTecPro AI v68855 — Reference Style Color Connectivity Gate Fix; v68854 Recovery & Generation Pipeline Unchanged
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -27495,12 +27495,11 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
 
 def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
-    """Draw the approved color connectivity icons for Reference Style only.
+    """Draw branded-color connectivity icons only for Reference Style mode.
 
-    v68856 refines only the deterministic vector geometry of the existing
-    Reference Style CarPlay / Android Auto icons.  Routing, generation prompts,
-    product authority, composition, QA, recovery and every non-reference mode
-    remain unchanged.
+    This helper is intentionally isolated from the existing generic icon renderer so
+    AutoTecPro Studio and every non-reference Graphic mode retain their current
+    monochrome deterministic icon pipeline unchanged.
     """
     semantic = str(semantic or "").strip().casefold()
     if semantic not in {"carplay", "android_auto"}:
@@ -27512,45 +27511,33 @@ def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
 
     if semantic == "carplay":
-        # Match the approved reference: bright lime-green rounded square,
-        # thick white broken-C ring, and centered white play triangle.
-        tile = max(8, int(round(size * 0.86)))
+        # Apple CarPlay-style green rounded tile with a white circular/play glyph.
+        tile = int(size * 0.78)
         left = int(round(cx - tile / 2))
         top = int(round(cy - tile / 2))
         right = left + tile
         bottom = top + tile
-        radius = max(4, int(round(tile * 0.20)))
-
-        # Two inset layers provide the brighter center / softer edge visible in
-        # the approved reference without introducing any external asset.
+        radius = max(4, int(tile * 0.22))
         draw.rounded_rectangle(
             (left, top, right, bottom),
             radius=radius,
-            fill=(64, 204, 48, 255),
+            fill=(72, 194, 67, 255),
+            outline=(52, 164, 48, 255),
+            width=max(1, int(tile * 0.025)),
         )
-        inset = max(1, int(round(tile * 0.035)))
-        draw.rounded_rectangle(
-            (left + inset, top + inset, right - inset, bottom - inset),
-            radius=max(3, radius - inset),
-            fill=(72, 220, 50, 255),
-        )
-
-        ring_pad = int(round(tile * 0.205))
-        stroke = max(2, int(round(tile * 0.058)))
-        # The reference uses a C-shaped circular stroke with a deliberate
-        # opening toward the upper-right / right side.
+        stroke = max(2, int(tile * 0.055))
+        ring_pad = int(tile * 0.20)
         draw.arc(
             (left + ring_pad, top + ring_pad, right - ring_pad, bottom - ring_pad),
-            42,
-            318,
+            38,
+            322,
             fill=(255, 255, 255, 255),
             width=stroke,
         )
-
-        tri_cx = int(round(cx + tile * 0.040))
-        tri_cy = int(round(cy + tile * 0.005))
-        tri_w = max(5, int(round(tile * 0.205)))
-        tri_h = max(6, int(round(tile * 0.255)))
+        tri_cx = int(cx + tile * 0.045)
+        tri_cy = int(cy)
+        tri_w = max(4, int(tile * 0.18))
+        tri_h = max(5, int(tile * 0.22))
         draw.polygon(
             [
                 (tri_cx - tri_w // 2, tri_cy - tri_h // 2),
@@ -27561,55 +27548,38 @@ def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
         )
         return True
 
-    # Match the approved Android Auto mark: two blue upper ribbons forming an
-    # open A, with a separate light lower-center wedge.  This deliberately does
-    # NOT draw a solid blue triangle.
-    blue = (20, 145, 214, 255)
-    light = (238, 241, 243, 255)
-
-    top_y = int(round(cy - size * 0.39))
-    shoulder_y = int(round(cy - size * 0.10))
-    bottom_y = int(round(cy + size * 0.34))
-    half_outer = size * 0.33
-    half_inner = size * 0.12
-    apex_half = size * 0.035
-
-    # Left blue ribbon.
+    # Android Auto-style blue navigation A. Use deterministic vector geometry so
+    # there is no external asset/font dependency and the icon remains crisp at any
+    # campaign resolution.
+    blue = (22, 153, 222, 255)
+    dark_blue = (15, 126, 196, 255)
+    top = int(round(cy - size * 0.38))
+    bottom = int(round(cy + size * 0.36))
+    left = int(round(cx - size * 0.31))
+    right = int(round(cx + size * 0.31))
+    mid_left = int(round(cx - size * 0.08))
+    mid_right = int(round(cx + size * 0.08))
+    center_y = int(round(cy + size * 0.08))
     draw.polygon(
         [
-            (int(round(cx - apex_half)), top_y),
-            (int(round(cx - half_inner)), shoulder_y),
-            (int(round(cx - half_outer)), bottom_y),
-            (int(round(cx - half_outer + size * 0.105)), bottom_y),
-            (int(round(cx - size * 0.015)), int(round(cy - size * 0.015))),
+            (int(cx), top),
+            (right, bottom),
+            (int(cx + size * 0.12), bottom),
+            (int(cx), center_y),
+            (int(cx - size * 0.12), bottom),
+            (left, bottom),
         ],
         fill=blue,
     )
-
-    # Right blue ribbon.
+    # Subtle inner facet gives the recognizable folded-ribbon Auto appearance.
     draw.polygon(
         [
-            (int(round(cx + apex_half)), top_y),
-            (int(round(cx + half_inner)), shoulder_y),
-            (int(round(cx + half_outer)), bottom_y),
-            (int(round(cx + half_outer - size * 0.105)), bottom_y),
-            (int(round(cx + size * 0.015)), int(round(cy - size * 0.015))),
+            (int(cx), top),
+            (int(cx + size * 0.08), center_y),
+            (mid_right, int(cy + size * 0.22)),
+            (int(cx), int(cy + size * 0.08)),
         ],
-        fill=blue,
-    )
-
-    # Light lower wedge, separated from the blue ribbons exactly as in the
-    # supplied reference icon.
-    wedge_top = int(round(cy + size * 0.04))
-    wedge_bottom = int(round(cy + size * 0.36))
-    wedge_half = int(round(size * 0.145))
-    draw.polygon(
-        [
-            (int(round(cx)), wedge_top),
-            (int(round(cx - wedge_half)), wedge_bottom),
-            (int(round(cx + wedge_half)), wedge_bottom),
-        ],
-        fill=light,
+        fill=dark_blue,
     )
     return True
 
@@ -28470,47 +28440,6 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
-
-def _graphic_reference_connectivity_order_v68863(labels, *, top=False):
-    """Reorder only EXISTING Reference Style feature labels.
-
-    No label is created, removed, renamed, or replaced.
-    Top matrix: CarPlay + Android Auto -> the two far-right cells of row 1.
-    Footer: CarPlay + Android Auto -> the two far-right cells.
-    Every other label keeps its relative order.
-    """
-    values = [str(x or "").strip() for x in (labels or []) if str(x or "").strip()]
-    if not values:
-        return values
-
-    def semantic(value):
-        lower = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
-        if "carplay" in lower:
-            return "carplay"
-        if "android auto" in lower:
-            return "android_auto"
-        return ""
-
-    car_index = next((i for i, value in enumerate(values) if semantic(value) == "carplay"), None)
-    android_index = next((i for i, value in enumerate(values) if semantic(value) == "android_auto"), None)
-
-    # Never invent connectivity copy. If either item is missing, preserve the
-    # campaign list exactly as the existing pipeline produced it.
-    if car_index is None or android_index is None or car_index == android_index:
-        return values
-
-    normal = [
-        value for i, value in enumerate(values)
-        if i not in {car_index, android_index}
-    ]
-    carplay = values[car_index]
-    android = values[android_index]
-
-    if top and len(values) >= 4:
-        return (normal[:2] + [carplay, android] + normal[2:])[:len(values)]
-    return (normal + [carplay, android])[:len(values)]
-
-
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -28545,6 +28474,20 @@ def _graphic_compose_reference_campaign_v3200(
     W, H = canvas.size
     template_cfg = _graphic_template_config_v8200(template_key)
     reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+
+    # v68855: color-connectivity rendering follows the actual active Style
+    # Reference asset instead of relying only on the mutable session design_mode
+    # flag. This is presentation-only and does not change the generation pipeline.
+    reference_style_connectivity_icons_v68855 = bool(
+        any(
+            str(item.get("role") or "").strip().casefold()
+            in {"reference", "style_reference"}
+            for item in (role_items or [])
+            if isinstance(item, dict)
+        )
+        and not graphic_prompt_disables_approved_reference(prompt_text)
+    )
+
     fused_reference, reference_fusion_v42000 = _graphic_multi_reference_fusion_v42000(reference_blueprint, role_items)
     layout_bp = _graphic_reference_layout_blueprint_v9000(fused_reference, template_key)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
@@ -28881,19 +28824,13 @@ def _graphic_compose_reference_campaign_v3200(
 
     # Compact, reference-faithful 4x2 feature matrix.
     features = list(campaign_spec.get("feature_labels") or [])[:8]
+    feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
     defaults = [
         "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
         "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
     ]
     while len(features) < 8:
         features.append(defaults[len(features)])
-
-    # v68863 changes ORDER only when both labels already exist. No feature copy is
-    # invented or replaced. This preserves the existing Reference Style content.
-    if design_mode == "reference_template":
-        features = _graphic_reference_connectivity_order_v68863(features, top=True)
-
-    feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
     feature_box = layout_bp["feature_matrix_box"]
     grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
@@ -28914,7 +28851,7 @@ def _graphic_compose_reference_campaign_v3200(
         )
         semantic = (feature_registry_v42000[idx].get("semantic") if idx < len(feature_registry_v42000) else "")
         if not (
-            design_mode == "reference_template"
+            reference_style_connectivity_icons_v68855
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
@@ -28936,12 +28873,6 @@ def _graphic_compose_reference_campaign_v3200(
     bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
     while len(benefits) < 5:
         benefits.append(bottom_defaults[len(benefits)])
-
-    # Keep the existing 5-cell footer and exact campaign wording. When both
-    # connectivity labels already exist, move them to the two far-right cells.
-    if design_mode == "reference_template":
-        benefits = _graphic_reference_connectivity_order_v68863(benefits, top=False)
-
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
@@ -28956,7 +28887,7 @@ def _graphic_compose_reference_campaign_v3200(
         icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
         semantic = (bottom_feature_registry_v68853[idx].get("semantic") if idx < len(bottom_feature_registry_v68853) else "")
         if not (
-            design_mode == "reference_template"
+            reference_style_connectivity_icons_v68855
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
