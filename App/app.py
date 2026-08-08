@@ -55860,3 +55860,297 @@ st.markdown(
 # the fixed cover until this point prevents stale login or authenticated DOM
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
+
+# ============================================================
+# v68859 — Final Reference-Style Connectivity Normalization
+# This is a post-generation presentation layer only.
+# It does NOT alter provider routing, prompts, model calls, product authority,
+# reference analysis, vehicle/background generation, geometry, QA, recovery,
+# or any non-Reference Graphic mode.
+# ============================================================
+
+_GRAPHIC_V68859_BASE_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v68859_fit_font(draw, text, max_width, preferred_px, minimum_px=14, bold=False):
+    """Return an existing AutoTecPro font fitted to one deterministic cell."""
+    size = max(int(minimum_px), int(preferred_px))
+    while size > int(minimum_px):
+        font = _graphic_font(size, bold)
+        try:
+            width = draw.textbbox((0, 0), str(text), font=font)[2]
+        except Exception:
+            width = len(str(text)) * max(8, size // 2)
+        if width <= max_width:
+            return font
+        size -= 1
+    return _graphic_font(int(minimum_px), bold)
+
+
+def _graphic_v68859_clear_with_local_background(canvas, box, *, dark=False):
+    """Erase provider-created icon/copy content while preserving scene character."""
+    from PIL import ImageFilter, ImageEnhance
+
+    x0, y0, x1, y1 = [max(0, int(round(v))) for v in box]
+    x1 = min(canvas.width, x1)
+    y1 = min(canvas.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return
+
+    if dark:
+        patch = Image.new("RGBA", (x1 - x0, y1 - y0), (4, 7, 12, 246))
+        canvas.alpha_composite(patch, (x0, y0))
+        return
+
+    crop = canvas.crop((x0, y0, x1, y1)).convert("RGBA")
+    # Strong blur removes old icons/text but retains the local sky/light gradient.
+    radius = max(10, int(round(min(crop.size) * 0.08)))
+    crop = crop.filter(ImageFilter.GaussianBlur(radius))
+    crop = ImageEnhance.Brightness(crop).enhance(1.03)
+    wash = Image.new("RGBA", crop.size, (246, 249, 253, 178))
+    crop = Image.alpha_composite(crop, wash)
+    canvas.alpha_composite(crop, (x0, y0))
+
+
+def _graphic_v68859_draw_top_feature_grid(canvas, features):
+    """Redraw the Reference Style 4x2 grid with only CarPlay/Android in color."""
+    from PIL import ImageDraw
+
+    W, H = canvas.size
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    navy = (7, 34, 76, 255)
+    divider = (7, 34, 76, 92)
+
+    # Production-normalized upper-right grid. Matches the approved Reference Style.
+    gx0, gy0 = int(W * 0.595), int(H * 0.045)
+    gx1, gy1 = int(W * 0.975), int(H * 0.335)
+    _graphic_v68859_clear_with_local_background(canvas, (gx0, gy0, gx1, gy1), dark=False)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    cols, rows = 4, 2
+    cell_w = (gx1 - gx0) / cols
+    cell_h = (gy1 - gy0) / rows
+    registry = _graphic_feature_registry_v42000(features, 8)
+
+    for idx, label in enumerate(list(features)[:8]):
+        row, col = divmod(idx, 4)
+        x0 = int(gx0 + col * cell_w)
+        y0 = int(gy0 + row * cell_h)
+
+        if col:
+            draw.line(
+                (x0, y0 + int(cell_h * 0.08), x0, y0 + int(cell_h * 0.92)),
+                fill=divider,
+                width=max(1, int(W * 0.0008)),
+            )
+        if row:
+            draw.line(
+                (x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0),
+                fill=divider,
+                width=max(1, int(H * 0.0010)),
+            )
+
+        icon_box = (
+            int(x0 + cell_w * 0.28),
+            int(y0 + cell_h * 0.05),
+            int(x0 + cell_w * 0.72),
+            int(y0 + cell_h * 0.48),
+        )
+        semantic = registry[idx].get("semantic") if idx < len(registry) else ""
+
+        # Only these two semantics are allowed to introduce brand color.
+        if semantic in {"carplay", "android_auto"}:
+            _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+        else:
+            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
+
+        lines = _graphic_wrap_text_v3200(
+            draw,
+            label,
+            _graphic_font(max(18, int(H * 0.0205)), False),
+            int(cell_w * 0.90),
+            2,
+        )
+        font = _graphic_font(max(18, int(H * 0.0205)), False)
+        ty = int(y0 + cell_h * 0.59)
+        for line in lines:
+            try:
+                box = draw.textbbox((0, 0), line, font=font)
+                tw = box[2] - box[0]
+            except Exception:
+                tw = len(line) * 10
+            draw.text(
+                (int(x0 + (cell_w - tw) / 2), ty),
+                line,
+                font=font,
+                fill=navy,
+            )
+            ty += int(H * 0.024)
+
+
+def _graphic_v68859_draw_bottom_banner(canvas, benefits):
+    """Redraw six-cell footer; CarPlay/Android Auto are always the two far-right cells."""
+    from PIL import ImageDraw
+
+    W, H = canvas.size
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    white = (255, 255, 255, 255)
+
+    bx0, by0 = int(W * 0.040), int(H * 0.895)
+    bx1, by1 = int(W * 0.960), int(H * 0.985)
+    _graphic_v68859_clear_with_local_background(canvas, (bx0, by0, bx1, by1), dark=True)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    radius = max(10, int(H * 0.017))
+    draw.rounded_rectangle(
+        (bx0, by0, bx1, by1),
+        radius=radius,
+        fill=(4, 7, 12, 246),
+        outline=(255, 255, 255, 85),
+        width=max(1, int(H * 0.0012)),
+    )
+
+    cell_w = (bx1 - bx0) / 6.0
+    registry = _graphic_feature_registry_v42000(benefits, 6)
+    font = _graphic_font(max(17, int(H * 0.0200)), False)
+
+    for idx, label in enumerate(list(benefits)[:6]):
+        x0 = int(bx0 + idx * cell_w)
+        if idx:
+            draw.line(
+                (x0, by0 + int((by1 - by0) * 0.15), x0, by1 - int((by1 - by0) * 0.15)),
+                fill=(255, 255, 255, 115),
+                width=max(1, int(W * 0.0008)),
+            )
+
+        icon_box = (
+            int(x0 + cell_w * 0.065),
+            int(by0 + (by1 - by0) * 0.17),
+            int(x0 + cell_w * 0.305),
+            int(by0 + (by1 - by0) * 0.80),
+        )
+        semantic = registry[idx].get("semantic") if idx < len(registry) else ""
+
+        if semantic in {"carplay", "android_auto"}:
+            _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+        else:
+            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
+
+        lines = _graphic_wrap_text_v3200(
+            draw, label, font, int(cell_w * 0.63), 2
+        )
+        ty = int(by0 + (by1 - by0) * 0.25)
+        for line in lines:
+            draw.text(
+                (int(x0 + cell_w * 0.34), ty),
+                line,
+                font=font,
+                fill=white,
+            )
+            ty += int(H * 0.024)
+
+
+def _graphic_v68859_normalize_reference_connectivity(image, prompt_text):
+    """Normalize only the Reference Style feature-grid/footer presentation."""
+    if Image is None or not isinstance(image, dict):
+        return image
+
+    data_url = str(image.get("data_url") or "")
+    raw, _mime = data_url_to_bytes(data_url)
+    if not raw:
+        return image
+
+    try:
+        from PIL import ImageOps
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68859_open_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return image
+
+    spec = dict(image.get("campaign_spec") or {})
+    if not spec:
+        try:
+            spec = dict(_graphic_extract_campaign_spec(prompt_text, {}) or {})
+        except Exception:
+            spec = {}
+
+    features, benefits = _graphic_reference_connectivity_layout_v68858(
+        spec.get("feature_labels") or [],
+        spec.get("bottom_benefits") or [],
+    )
+
+    try:
+        _graphic_v68859_draw_top_feature_grid(source, features)
+        _graphic_v68859_draw_bottom_banner(source, benefits)
+
+        output = io.BytesIO()
+        source.convert("RGB").save(output, format="PNG", compress_level=5)
+        final_raw = output.getvalue()
+
+        updated = dict(image)
+        updated["data_url"] = (
+            "data:image/png;base64,"
+            + base64.b64encode(final_raw).decode("ascii")
+        )
+        updated["reference_connectivity_normalized_v68859"] = True
+        updated["reference_connectivity_layout_v68859"] = {
+            "top": list(features),
+            "bottom": list(benefits),
+            "only_colored_semantics": ["carplay", "android_auto"],
+            "top_positions": [2, 3],
+            "bottom_positions": [4, 5],
+        }
+        return updated
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68859_postprocess_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return image
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68859: preserve the full production generator and normalize only Reference Style connectivity UI after success."""
+    images = _GRAPHIC_V68859_BASE_GENERATOR(
+        prompt_text,
+        uploaded_files,
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+
+    try:
+        is_reference = _graphic_v68827_is_reference_mode(
+            str(prompt_text or ""),
+            uploaded_files,
+            forced_upload_role,
+        )
+    except Exception:
+        is_reference = False
+
+    if not is_reference:
+        return images
+
+    normalized = []
+    for image in images or []:
+        normalized.append(
+            _graphic_v68859_normalize_reference_connectivity(
+                image,
+                str(prompt_text or ""),
+            )
+        )
+    return normalized
