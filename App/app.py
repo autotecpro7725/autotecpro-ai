@@ -27526,13 +27526,13 @@ def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
         draw.rounded_rectangle(
             (left, top, right, bottom),
             radius=radius,
-            fill=(64, 204, 48, 255),
+            fill=(76, 188, 59, 255),
         )
         inset = max(1, int(round(tile * 0.035)))
         draw.rounded_rectangle(
             (left + inset, top + inset, right - inset, bottom - inset),
             radius=max(3, radius - inset),
-            fill=(72, 220, 50, 255),
+            fill=(80, 193, 63, 255),
         )
 
         ring_pad = int(round(tile * 0.205))
@@ -27564,8 +27564,8 @@ def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
     # Match the approved Android Auto mark: two blue upper ribbons forming an
     # open A, with a separate light lower-center wedge.  This deliberately does
     # NOT draw a solid blue triangle.
-    blue = (20, 145, 214, 255)
-    light = (238, 241, 243, 255)
+    blue = (4, 139, 211, 255)
+    light = (246, 248, 250, 255)
 
     top_y = int(round(cy - size * 0.39))
     shoulder_y = int(round(cy - size * 0.10))
@@ -28470,6 +28470,96 @@ def _graphic_supersampled_product_resize_v56000(image, target_size):
         return image.resize((tw, th), Image.Resampling.LANCZOS), {"applied": False, "reason": str(error)[:300], "engine": "single-pass-product-resize-v59000-fallback"}
 
 
+
+def _graphic_reference_connectivity_layout_v68858(feature_labels, bottom_benefits):
+    """Lock only CarPlay/Android Auto placement for Reference Style.
+
+    Upper matrix:
+      [normal, normal, Wireless CarPlay, Android Auto]
+      [normal, normal, normal, normal]
+
+    Bottom banner:
+      [normal, normal, normal, normal, Wireless CarPlay, Android Auto]
+
+    All non-connectivity labels retain the existing deterministic monochrome
+    renderer. This helper changes presentation order only; it does not alter
+    provider routing, prompts, product authority, scene generation, layout
+    blueprint selection, QA, or any other Graphic mode.
+    """
+    def clean(values):
+        return [
+            re.sub(r"\s+", " ", str(value or "")).strip()
+            for value in (values or [])
+            if str(value or "").strip()
+        ]
+
+    def semantic(label):
+        lower = str(label or "").casefold()
+        if "carplay" in lower:
+            return "carplay"
+        if "android auto" in lower:
+            return "android_auto"
+        return ""
+
+    top_in = clean(feature_labels)
+    bottom_in = clean(bottom_benefits)
+
+    top_normal = [x for x in top_in if not semantic(x)]
+    bottom_normal = [x for x in bottom_in if not semantic(x)]
+
+    # Preserve existing non-connectivity copy first, then use the established
+    # Reference Style defaults only when a slot is missing.
+    top_defaults = [
+        '15.6" Large Screen',
+        "2K QHD Display",
+        "Vehicle Data",
+        "OEM Fit & Finish",
+        "Touch Control",
+        "Black Finish",
+    ]
+    for label in top_defaults:
+        if len(top_normal) >= 6:
+            break
+        if label.casefold() not in {x.casefold() for x in top_normal}:
+            top_normal.append(label)
+
+    top_normal = top_normal[:6]
+    while len(top_normal) < 6:
+        top_normal.append(top_defaults[len(top_normal)])
+
+    # CarPlay and Android Auto are always the two far-right cells of the first row.
+    top = [
+        top_normal[0],
+        top_normal[1],
+        "Wireless CarPlay",
+        "Android Auto",
+        top_normal[2],
+        top_normal[3],
+        top_normal[4],
+        top_normal[5],
+    ]
+
+    bottom_defaults = [
+        "Plug and Play",
+        "OEM Fit & Finish",
+        "Navigation Ready",
+        "Bluetooth Audio",
+    ]
+    for label in bottom_defaults:
+        if len(bottom_normal) >= 4:
+            break
+        if label.casefold() not in {x.casefold() for x in bottom_normal}:
+            bottom_normal.append(label)
+
+    bottom_normal = bottom_normal[:4]
+    while len(bottom_normal) < 4:
+        bottom_normal.append(bottom_defaults[len(bottom_normal)])
+
+    # Six-cell footer: connectivity is always on the far-right side.
+    bottom = bottom_normal + ["Wireless CarPlay", "Android Auto"]
+    return top, bottom
+
+
 def _graphic_compose_reference_campaign_v3200(
     background_bytes,
     product_item,
@@ -28515,7 +28605,7 @@ def _graphic_compose_reference_campaign_v3200(
     # generic monochrome icons were drawn.  Treat the already-validated reference
     # blueprint as authoritative evidence that this is a Reference Style render.
     # This changes only icon presentation; no generation/composition route changes.
-    reference_style_connectivity_icons_v68857 = bool(
+    reference_style_connectivity_icons_v68858 = bool(
         isinstance(reference_blueprint, dict)
         and bool(reference_blueprint)
         and not graphic_prompt_disables_approved_reference(prompt_text)
@@ -28856,14 +28946,13 @@ def _graphic_compose_reference_campaign_v3200(
     draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
 
     # Compact, reference-faithful 4x2 feature matrix.
-    features = list(campaign_spec.get("feature_labels") or [])[:8]
+    # v68858 locks CarPlay / Android Auto into the two far-right cells of row 1.
+    # Every other feature continues through the original monochrome renderer.
+    features, benefits_v68858 = _graphic_reference_connectivity_layout_v68858(
+        campaign_spec.get("feature_labels") or [],
+        campaign_spec.get("bottom_benefits") or [],
+    )
     feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
-    defaults = [
-        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
-        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
-    ]
-    while len(features) < 8:
-        features.append(defaults[len(features)])
     feature_box = layout_bp["feature_matrix_box"]
     grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
@@ -28883,8 +28972,25 @@ def _graphic_compose_reference_campaign_v3200(
             int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
         )
         semantic = (feature_registry_v42000[idx].get("semantic") if idx < len(feature_registry_v42000) else "")
+
+        # v68858: clear the local icon zone before deterministic drawing. This
+        # guarantees that provider/background artwork cannot leave a colored
+        # Android/feature glyph behind the approved local icon. Only CarPlay and
+        # Android Auto below are permitted to introduce color.
+        icon_clear_pad = max(1, int(H * 0.003))
+        draw.rounded_rectangle(
+            (
+                icon_box[0] - icon_clear_pad,
+                icon_box[1] - icon_clear_pad,
+                icon_box[2] + icon_clear_pad,
+                icon_box[3] + icon_clear_pad,
+            ),
+            radius=max(2, int(H * 0.006)),
+            fill=(244, 248, 253, 238),
+        )
+
         if not (
-            reference_style_connectivity_icons_v68857
+            reference_style_connectivity_icons_v68858
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
@@ -28902,17 +29008,14 @@ def _graphic_compose_reference_campaign_v3200(
     underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
     draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
 
-    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
-    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
-    while len(benefits) < 5:
-        benefits.append(bottom_defaults[len(benefits)])
+    benefits = list(benefits_v68858)
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
     draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
-    cell = bw / 5.0
-    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
-    bottom_feature_registry_v68853 = _graphic_feature_registry_v42000(benefits, 5)
+    cell = bw / 6.0
+    bottom_font = _graphic_font(max(18, int(H * 0.0205)), False)
+    bottom_feature_registry_v68853 = _graphic_feature_registry_v42000(benefits, 6)
     for idx, label in enumerate(benefits):
         x0 = int(bx + idx * cell)
         if idx:
@@ -28920,7 +29023,7 @@ def _graphic_compose_reference_campaign_v3200(
         icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
         semantic = (bottom_feature_registry_v68853[idx].get("semantic") if idx < len(bottom_feature_registry_v68853) else "")
         if not (
-            reference_style_connectivity_icons_v68857
+            reference_style_connectivity_icons_v68858
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
             _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
