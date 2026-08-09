@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68878 — Reference Authority Handoff Fix; v68877 Image Pipeline Preserved
+# AutoTecPro AI v68879 — Technical Photo Follow-Up Context Fix; v68878 Graphic Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -13280,6 +13280,7 @@ def _start_new_case_callback():
         "chat_managed_uploads",
         "chat_managed_upload_generation",
     )
+    _technical_clear_photo_context_v68879()
     clear_graphic_project_state()
 
 
@@ -51707,6 +51708,139 @@ def _product_library_candidate_label(product):
     return f"{code} — {name}" + (f" — {details}" if details else "")
 
 
+TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
+
+
+def _technical_photo_context_v68879():
+    value = st.session_state.get(TECHNICAL_PHOTO_CONTEXT_KEY_V68879)
+    return value if isinstance(value, dict) else {}
+
+
+def _technical_photo_request_v68879(prompt_text):
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    visual_terms = (
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "show me", "display", "diagram", "screenshot",
+    )
+    technical_terms = (
+        "car model", "a/c", "ac model", "protocol", "setting", "settings",
+        "wiring", "harness", "camera", "connector", "installation", "screen",
+    )
+    return any(term in value for term in visual_terms) and any(
+        term in value for term in technical_terms
+    )
+
+
+def _technical_short_clarification_v68879(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value or len(value) > 48:
+        return False
+    facets = _product_library_reply_facets(value)
+    return bool(
+        facets.get("screen_sizes")
+        or facets.get("sync_versions")
+        or facets.get("climate_terms")
+        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[123])", value)
+    )
+
+
+def _technical_recent_user_context_v68879(max_messages=3):
+    """Return only recent user wording so short photo follow-ups retain model context.
+
+    Assistant replies are intentionally excluded because they can contain several
+    alternative product codes/options and would make Product Library matching
+    ambiguous again.
+    """
+    rows = []
+    for message in reversed(list(st.session_state.get("messages") or [])):
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = re.sub(
+            r"\s+",
+            " ",
+            clean_visible_chat_text(visible),
+        ).strip()
+        if not visible:
+            continue
+        rows.append(visible[:500])
+        if len(rows) >= max(1, int(max_messages or 1)):
+            break
+    rows.reverse()
+    return "\n".join(rows)
+
+
+def _technical_store_photo_context_v68879(prompt_text, uploaded_files):
+    records = []
+    for item in uploaded_files or []:
+        mime = str(getattr(item, "type", "") or "").casefold()
+        if not mime.startswith("image/"):
+            continue
+        try:
+            records.append(_managed_upload_record(item))
+        except Exception:
+            continue
+
+    prior = _technical_photo_context_v68879()
+    context = {
+        "request_text": str(prompt_text or prior.get("request_text") or "").strip(),
+        "prior_user_context": (
+            _technical_recent_user_context_v68879(max_messages=3)
+            or str(prior.get("prior_user_context") or "")
+        ),
+        "image_records": records or list(prior.get("image_records") or []),
+        "conversation_id": str(st.session_state.get("conversation_id") or ""),
+        "updated_at": time.time(),
+    }
+    st.session_state[TECHNICAL_PHOTO_CONTEXT_KEY_V68879] = context
+    return context
+
+
+def _technical_restore_photo_files_v68879():
+    context = _technical_photo_context_v68879()
+    records = context.get("image_records") or []
+    return _managed_upload_objects(records) if records else []
+
+
+def _technical_effective_followup_prompt_v68879(prompt_text):
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    context = _technical_photo_context_v68879()
+    original = re.sub(
+        r"\s+",
+        " ",
+        str(context.get("request_text") or ""),
+    ).strip()
+    prior_user_context = str(context.get("prior_user_context") or "").strip()
+    if not original or not _technical_short_clarification_v68879(current):
+        return current
+
+    context_prefix = (
+        "RECENT USER TECHNICAL CONTEXT:\n"
+        + prior_user_context
+        + "\n\n"
+        if prior_user_context
+        else ""
+    )
+    return (
+        context_prefix
+        + original
+        + "\n\nTECHNICAL PHOTO CLARIFICATION ANSWER: "
+        + current
+        + "\nUse this clarification to complete the original photo request now. "
+          "Do not ask again for a detail already supplied."
+    )
+
+
+def _technical_clear_photo_context_v68879():
+    st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
+
+
 def _product_library_pending_candidates():
     value = st.session_state.get("product_library_pending_candidates")
     return value if isinstance(value, list) else []
@@ -56015,6 +56149,47 @@ else:
             st.error(f"ZIP analysis was stopped: {error}")
             st.stop()
 
+        technical_followup_prompt_v68879 = interaction_prompt
+        technical_reused_photo_context_v68879 = False
+        if assistant == "🔧 Technical Support":
+            current_image_uploads_v68879 = [
+                item for item in (effective_uploaded_files or [])
+                if str(getattr(item, "type", "") or "").casefold().startswith("image/")
+            ]
+            pending_context_v68879 = _technical_photo_context_v68879()
+
+            if _technical_photo_request_v68879(interaction_prompt):
+                pending_context_v68879 = _technical_store_photo_context_v68879(
+                    interaction_prompt,
+                    current_image_uploads_v68879,
+                )
+            elif (
+                pending_context_v68879
+                and _technical_short_clarification_v68879(interaction_prompt)
+            ):
+                technical_followup_prompt_v68879 = (
+                    _technical_effective_followup_prompt_v68879(interaction_prompt)
+                )
+                if not current_image_uploads_v68879:
+                    restored_photo_files_v68879 = _technical_restore_photo_files_v68879()
+                    if restored_photo_files_v68879:
+                        effective_uploaded_files = (
+                            list(effective_uploaded_files or [])
+                            + restored_photo_files_v68879
+                        )
+                        technical_reused_photo_context_v68879 = True
+
+                diagnostic_log(
+                    "technical_photo_followup_context_restored_v68879",
+                    conversation_id=st.session_state.get("conversation_id"),
+                    restored_image_count=sum(
+                        1 for item in (effective_uploaded_files or [])
+                        if str(getattr(item, "type", "") or "")
+                        .casefold().startswith("image/")
+                    ),
+                    clarification=str(interaction_prompt)[:80],
+                )
+
         if assistant == "🎨 Graphic Marketing":
             if graphic_early_status_v68865 is not None:
                 try:
@@ -56067,9 +56242,15 @@ else:
                         file_count=len(recovered_files_v68854),
                     )
 
+        technical_request_prompt_v68879 = (
+            technical_followup_prompt_v68879
+            if assistant == "🔧 Technical Support"
+            else interaction_prompt
+        )
+
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
-                interaction_prompt,
+                technical_request_prompt_v68879,
                 assistant,
             )
         )
@@ -56397,9 +56578,40 @@ else:
             )
         try:
             if allow_product_library_lookup:
-                product_library_lookup = _product_library_chat_lookup(interaction_prompt)
+                product_library_prompt_v68879 = (
+                    technical_request_prompt_v68879
+                    if assistant == "🔧 Technical Support"
+                    else interaction_prompt
+                )
+                product_library_lookup = _product_library_chat_lookup(
+                    product_library_prompt_v68879
+                )
+
+                # v68879: a Technical photo clarification that already supplies the
+                # requested screen/SYNC/climate detail must not be trapped in another
+                # Product Library clarification loop. If Product Library still cannot
+                # resolve one asset deterministically, fall through to Technical
+                # file_search/website knowledge with the restored original request.
+                if (
+                    assistant == "🔧 Technical Support"
+                    and _technical_photo_context_v68879()
+                    and _technical_short_clarification_v68879(interaction_prompt)
+                    and isinstance(product_library_lookup, dict)
+                    and product_library_lookup.get("clarification")
+                ):
+                    diagnostic_log(
+                        "technical_photo_product_library_repeat_clarification_bypassed_v68879",
+                        clarification=str(interaction_prompt)[:80],
+                        candidate_count=len(
+                            product_library_lookup.get("candidates") or []
+                        ),
+                    )
+                    product_library_lookup = None
+
                 if product_library_lookup is None:
-                    product_library_lookup = _product_library_fact_lookup(interaction_prompt)
+                    product_library_lookup = _product_library_fact_lookup(
+                        product_library_prompt_v68879
+                    )
                 product_library_images = list((product_library_lookup or {}).get("images") or [])
                 if product_library_images:
                     generated_images.extend(product_library_images)
@@ -56909,13 +57121,18 @@ else:
                         unsafe_allow_html=True,
                     )
 
+                base_ai_prompt_v68879 = (
+                    technical_request_prompt_v68879
+                    if assistant == "🔧 Technical Support"
+                    else prompt
+                )
                 ai_request_prompt = (
                     build_explicit_learning_ai_prompt(
-                        prompt,
+                        base_ai_prompt_v68879,
                         learning_context_snapshot,
                     )
                     if explicit_learning_requested
-                    else prompt
+                    else base_ai_prompt_v68879
                 )
                 if product_library_lookup:
                     ai_request_prompt += _product_library_chat_context(product_library_lookup)
@@ -57155,6 +57372,19 @@ else:
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
         assistant_images_to_save = list(generated_images or [])
+
+        if assistant == "🔧 Technical Support":
+            resolved_visual_sources_v68879 = {
+                str(image.get("source") or "").strip().casefold()
+                for image in assistant_images_to_save
+                if isinstance(image, dict)
+            }
+            if resolved_visual_sources_v68879 & {
+                "product_library",
+                "website_knowledge",
+            }:
+                _technical_clear_photo_context_v68879()
+
         assistant_content_to_save = (
             answer
             + serialize_documents_marker(generated_documents)
