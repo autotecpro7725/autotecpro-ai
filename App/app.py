@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68874 — Graphic Memory Stability Fix; v68873 Generation/QA Pipelines Preserved
+# AutoTecPro AI v68875 — Graphic Project Rehydration Fix; v68874 Image Output Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -17139,13 +17139,25 @@ GRAPHIC_V68400_MOBILE_RESUME_DELAY_SECONDS = 35
 
 @st.cache_resource(show_spinner=False)
 def _graphic_mobile_runtime_cache_v68400():
-    """Process-local recovery cache for iOS Safari / websocket reruns.
+    """Process/session-local recovery cache for websocket/Streamlit reruns.
 
-    This cache stores only the current user's Graphic project and pending job.
-    It supplements Streamlit session_state; it does not replace persistent chat
-    history or Product Library storage.
+    v68875 fixes the previous implementation that returned a fresh empty dict
+    on every call. This cache is recovery-only; durable Supabase/conversation
+    project storage remains authoritative.
     """
-    return {"projects": {}, "jobs": {}}
+    cache = st.session_state.setdefault(
+        "_graphic_mobile_runtime_cache_v68400",
+        {"projects": {}, "jobs": {}},
+    )
+    if not isinstance(cache, dict):
+        cache = {"projects": {}, "jobs": {}}
+        st.session_state["_graphic_mobile_runtime_cache_v68400"] = cache
+    if not isinstance(cache.get("projects"), dict):
+        cache["projects"] = {}
+    if not isinstance(cache.get("jobs"), dict):
+        cache["jobs"] = {}
+    return cache
+
 
 
 def _graphic_mobile_cache_keys_v68400():
@@ -17683,18 +17695,55 @@ def _graphic_v68854_restore_project_remote(conversation_id=None):
 
 
 def _graphic_v68854_rehydrate_project_if_needed():
-    """Repair a lost Graphic session from durable conversation-scoped project data."""
-    conversation_id = str(st.session_state.get("conversation_id") or "").strip()
+    """Repair incomplete Graphic session state from durable conversation data.
+
+    v68875 keeps current/newly uploaded assets authoritative. If the live
+    project already contains both a reference and a product, it returns
+    unchanged. If one canonical role is missing, only that missing role is
+    restored from the same conversation's durable project. This prevents a
+    product-only rerun from forgetting the earlier style reference without
+    allowing an older durable product to overwrite a newly uploaded product.
+    """
+    conversation_id = str(
+        st.session_state.get("conversation_id") or ""
+    ).strip()
     if not conversation_id:
         return get_graphic_project_state()
+
     current = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY)
     current_assets = [
-        item for item in ((current or {}).get("assets") or [])
+        item
+        for item in ((current or {}).get("assets") or [])
         if isinstance(item, dict) and bytes(item.get("data") or b"")
     ] if isinstance(current, dict) else []
-    bound = str((current or {}).get("bound_conversation_id_v68854") or "").strip() if isinstance(current, dict) else ""
-    if current_assets and (not bound or bound == conversation_id):
+
+    bound = str(
+        (current or {}).get("bound_conversation_id_v68854") or ""
+    ).strip() if isinstance(current, dict) else ""
+
+    def _canonical_role(item):
+        role = str((item or {}).get("role") or "").strip().casefold()
+        if role in {"reference", "style_reference"}:
+            return "reference"
+        if role in {"product", "product_photo", "product_variant"}:
+            return "product"
+        return role
+
+    current_roles = {
+        _canonical_role(item)
+        for item in current_assets
+        if _canonical_role(item)
+    }
+    current_is_same_scope = bool(not bound or bound == conversation_id)
+
+    # Complete same-conversation state needs no recovery.
+    if (
+        current_assets
+        and current_is_same_scope
+        and {"reference", "product"}.issubset(current_roles)
+    ):
         return current
+
     try:
         restored = _graphic_v68854_restore_project_remote(conversation_id)
     except Exception as error:
@@ -17704,14 +17753,123 @@ def _graphic_v68854_rehydrate_project_if_needed():
             error=str(error),
         )
         restored = None
-    if isinstance(restored, dict):
-        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = restored
-        cache = _graphic_mobile_runtime_cache_v68400()
-        record={"saved_at": time.time(), "state": _graphic_copy_project_state_v68400(restored)}
-        for key in _graphic_mobile_cache_keys_v68400():
-            cache["projects"][key]=record
-        return restored
-    return get_graphic_project_state()
+
+    if not isinstance(restored, dict):
+        # Preserve a valid partial current project if durable recovery is
+        # unavailable; do not replace it with an empty state.
+        if isinstance(current, dict) and current_is_same_scope:
+            return current
+        return get_graphic_project_state()
+
+    # If current state belongs to a different conversation, the durable
+    # same-conversation project is the only valid recovery authority.
+    if not isinstance(current, dict) or not current_is_same_scope:
+        merged = restored
+    else:
+        merged = dict(current)
+        merged_assets = [
+            dict(item)
+            for item in (current.get("assets") or [])
+            if isinstance(item, dict)
+        ]
+
+        live_current_roles = {
+            _canonical_role(item)
+            for item in merged_assets
+            if bytes(item.get("data") or b"")
+        }
+
+        missing_roles = {
+            role
+            for role in {"reference", "product"}
+            if role not in live_current_roles
+        }
+
+        existing_ids = {
+            str(item.get("id") or "")
+            for item in merged_assets
+            if str(item.get("id") or "")
+        }
+
+        restored_assets = [
+            item
+            for item in (restored.get("assets") or [])
+            if isinstance(item, dict) and bytes(item.get("data") or b"")
+        ]
+
+        added_roles = set()
+        for item in restored_assets:
+            canonical = _canonical_role(item)
+            asset_id = str(item.get("id") or "")
+            if canonical not in missing_roles or canonical in added_roles:
+                continue
+            if asset_id and asset_id in existing_ids:
+                continue
+            merged_assets.append(dict(item))
+            if asset_id:
+                existing_ids.add(asset_id)
+            added_roles.add(canonical)
+
+        merged["assets"] = merged_assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+        merged["bound_conversation_id_v68854"] = conversation_id
+
+        # Fill only the active ID for a role that was actually missing.
+        # Existing/current active IDs are never overwritten.
+        if "reference" in missing_roles and "reference" in added_roles:
+            if not str(merged.get("active_reference_id") or ""):
+                restored_ref_id = str(
+                    restored.get("active_reference_id") or ""
+                ).strip()
+                if restored_ref_id:
+                    merged["active_reference_id"] = restored_ref_id
+
+        if "product" in missing_roles and "product" in added_roles:
+            if not str(merged.get("active_product_id") or ""):
+                restored_product_id = str(
+                    restored.get("active_product_id") or ""
+                ).strip()
+                if restored_product_id:
+                    merged["active_product_id"] = restored_product_id
+
+        # Fill non-asset recovery metadata only when current state does not
+        # already have a meaningful value. This avoids changing the live
+        # campaign/output authority while still restoring lost rerun state.
+        protected_keys = {
+            "assets",
+            "active_reference_id",
+            "active_product_id",
+            "active_product_ids",
+            "latest_generated",
+            "generation_history",
+            "layer_stack",
+        }
+        for key, value in restored.items():
+            if key in protected_keys:
+                continue
+            current_value = merged.get(key)
+            if current_value in (None, "", [], {}, ()):
+                merged[key] = value
+
+        diagnostic_log(
+            "graphic_v68875_partial_project_merged",
+            conversation_id=conversation_id,
+            current_roles=sorted(live_current_roles),
+            missing_roles=sorted(missing_roles),
+            restored_roles=sorted(added_roles),
+            final_asset_count=len(merged_assets),
+        )
+
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = merged
+    cache = _graphic_mobile_runtime_cache_v68400()
+    record = {
+        "saved_at": time.time(),
+        "state": _graphic_copy_project_state_v68400(merged),
+    }
+    for key in _graphic_mobile_cache_keys_v68400():
+        cache["projects"][key] = record
+
+    return merged
+
 
 
 def _graphic_v68854_bind_project_to_conversation():
