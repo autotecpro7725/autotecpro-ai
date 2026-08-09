@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68877 — Two-Color Variant Stacking; v68876 Pipelines Preserved
+# AutoTecPro AI v68878 — Reference Authority Handoff Fix; v68877 Image Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -16273,7 +16273,7 @@ def _graphic_reference_blueprint_text(blueprint):
         "reference_summary", "layout_archetype", "canvas_zones", "product_scale_percent", "product_position",
         "product_crop_and_perspective", "background_scene", "vehicle_or_environment_role", "lighting_direction",
         "color_palette", "typography_system", "headline_zone", "subheadline_zone", "logo_zone", "feature_icon_system",
-        "feature_copy_structure", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",
+        "feature_copy_structure", "feature_grid_topology", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",
         "product_integration_instructions", "must_copy_visual_patterns", "acceptable_variations", "forbidden_transfers",
         "negative_constraints", "final_generation_blueprint", "confidence_score",
     )
@@ -20293,6 +20293,7 @@ def _graphic_project_style_dna_v16000(reference_blueprint, state=None):
     keys = (
         "layout_archetype", "normalized_boxes", "canvas_zones", "background_scene",
         "lighting_direction", "color_palette", "typography_system", "feature_icon_system",
+        "feature_copy_structure", "feature_grid_topology",
         "bottom_feature_bar", "spacing_and_margins", "depth_and_layering",
         "must_copy_visual_patterns", "acceptable_variations", "negative_constraints",
     )
@@ -29072,6 +29073,11 @@ def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_bl
     product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)
     W, H = [int(v) for v in str(output_size or "1536x1024").lower().split("x", 1)]
     reference = _graphic_reference_intelligence_v43000(reference_blueprint, role_items)
+    reference_authority_v68878 = (
+        _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+        if reference.get("available")
+        else {}
+    )
     product = _graphic_product_intelligence_v43000(product_item)
     campaign = _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile)
     layout = _graphic_layout_compiler_v43000(reference, product, (W, H), {"fields": campaign.get("fields") or {}})
@@ -29089,6 +29095,7 @@ def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_bl
             "3_campaign_compiler": campaign,
             "4_layout_compiler": layout,
         },
+        "reference_authority_v68878": reference_authority_v68878,
         "scene_strategy": scene,
         "provider_scope": "background_and_one_scene_vehicle_only",
         "deterministic_local_layers": ["exact_product", "logo", "headline", "compatibility", "tagline", "feature_grid", "bottom_bar"],
@@ -29373,7 +29380,21 @@ def _graphic_stage5_execute_v43000(
     role_items, execution_blueprint, template_key="", product_dna=None,
 ):
     """Execute the compiled blueprint and perform one local-only repair pass when needed."""
-    ref = dict(((execution_blueprint or {}).get("stages") or {}).get("4_layout_compiler", {}).get("normalized_boxes") or {})
+    stages_v68878 = dict((execution_blueprint or {}).get("stages") or {})
+    layout_stage_v68878 = dict(stages_v68878.get("4_layout_compiler") or {})
+    solved_boxes_v68878 = dict(layout_stage_v68878.get("normalized_boxes") or {})
+
+    # v68878: carry the complete reference authority into Stage 5 and overlay
+    # only the Stage-4 solved geometry. This preserves measured topology,
+    # icon/copy style, and other reference metadata while retaining the same
+    # Stage-4 layout solver output.
+    ref = dict((execution_blueprint or {}).get("reference_authority_v68878") or {})
+    if ref:
+        ref["normalized_boxes"] = solved_boxes_v68878
+    else:
+        # Non-reference / backward-compatible path.
+        ref = {"normalized_boxes": solved_boxes_v68878}
+
     composed, metadata = _graphic_compose_reference_campaign_v3200(
         background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
         role_items, reference_blueprint=ref, template_key=template_key, product_dna=product_dna or {},
@@ -29381,8 +29402,13 @@ def _graphic_stage5_execute_v43000(
     score = _graphic_qa_scorecard_v42000(metadata)
     repair_applied = False
     if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):
-        repaired_ref = _graphic_local_repair_blueprint_v43000(ref, score.get("critical_failed"))
-        if repaired_ref != ref:
+        repaired_boxes_v68878 = _graphic_local_repair_blueprint_v43000(
+            dict(ref.get("normalized_boxes") or {}),
+            score.get("critical_failed"),
+        )
+        if repaired_boxes_v68878 != dict(ref.get("normalized_boxes") or {}):
+            repaired_ref = dict(ref)
+            repaired_ref["normalized_boxes"] = repaired_boxes_v68878
             composed, metadata = _graphic_compose_reference_campaign_v3200(
                 background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
                 role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},
@@ -29394,6 +29420,14 @@ def _graphic_stage5_execute_v43000(
         score = dict(score or {})
         score["passed"] = False
         score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))
+    metadata["reference_authority_handoff_v68878"] = {
+        "reference_authority_present": bool((execution_blueprint or {}).get("reference_authority_v68878")),
+        "normalized_boxes_present": bool(ref.get("normalized_boxes")),
+        "feature_grid_topology": dict(ref.get("feature_grid_topology") or {}),
+        "feature_icon_system_present": bool(ref.get("feature_icon_system")),
+        "feature_copy_structure_present": bool(ref.get("feature_copy_structure")),
+        "engine": "reference-authority-handoff-v68878",
+    }
     metadata["five_stage_execution_v43000"] = {
         "ready": bool((execution_blueprint or {}).get("ready")),
         "local_repair_applied": repair_applied,
@@ -29722,7 +29756,24 @@ def _graphic_compose_reference_campaign_v3200(
             py = max(hero_y0, min(py, H - product.height))
 
     state_now = get_graphic_project_state()
-    design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    active_style_reference_v68878 = bool(
+        reference_blueprint
+        and any(
+            isinstance(item, dict)
+            and str(item.get("role") or "").strip().casefold()
+            in {"reference", "style_reference"}
+            for item in (role_items or [])
+        )
+        and not graphic_prompt_disables_approved_reference(prompt_text)
+    )
+    design_mode = (
+        "reference_template"
+        if active_style_reference_v68878
+        else str(
+            state_now.get("graphic_design_mode")
+            or ("reference_template" if reference_blueprint else "autotecpro_studio")
+        )
+    )
     product_before_lighting = product.copy()
     product_analysis_v41000 = _graphic_product_analysis_v41000(product_before_lighting)
     ultimate_product_fingerprint = dict(product_analysis_v41000.get("fingerprint") or {})
