@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68855 — Reference Style Color Connectivity Gate Fix; v68854 Recovery & Generation Pipeline Unchanged
+# AutoTecPro AI v68864 — Mobile Table + Command Latency Optimization; Existing AI/Graphic Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -5240,6 +5240,69 @@ def inject_base_css():
 
         .assistant-bubble table tbody tr:nth-child(even) td {
             background: rgba(148, 163, 184, 0.045);
+        }
+
+        /* ============================================================
+           v68864 MOBILE RESPONSE TABLE FIX
+           Preserve readable desktop-like columns on phones. Tables scroll
+           horizontally instead of shrinking every column to a few pixels.
+        ============================================================ */
+        @media (max-width: 768px) {
+            .chat-bubble {
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+
+            .chat-bubble table,
+            .assistant-bubble table {
+                display: block !important;
+                width: max-content !important;
+                min-width: 760px !important;
+                max-width: none !important;
+                table-layout: auto !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior-x: contain !important;
+                scrollbar-width: thin !important;
+                border-radius: 10px !important;
+            }
+
+            .chat-bubble table thead,
+            .chat-bubble table tbody,
+            .assistant-bubble table thead,
+            .assistant-bubble table tbody {
+                width: max-content !important;
+            }
+
+            .chat-bubble table th,
+            .chat-bubble table td,
+            .assistant-bubble table th,
+            .assistant-bubble table td {
+                min-width: 112px !important;
+                max-width: 220px !important;
+                width: auto !important;
+                white-space: normal !important;
+                word-break: normal !important;
+                overflow-wrap: normal !important;
+                hyphens: none !important;
+                line-height: 1.38 !important;
+                padding: 9px 10px !important;
+                vertical-align: top !important;
+            }
+
+            .chat-bubble table th:first-child,
+            .chat-bubble table td:first-child,
+            .assistant-bubble table th:first-child,
+            .assistant-bubble table td:first-child {
+                min-width: 150px !important;
+            }
+
+            /* Leave enough space below long mobile answers so the fixed composer
+               never covers the last rows of a table. */
+            div[data-testid="stAppViewContainer"] main .block-container {
+                padding-bottom: 10.5rem !important;
+            }
         }
 
         .assistant-bubble .atp-compatibility-badge {
@@ -39330,15 +39393,33 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
     """
     Return approved staff-confirmed knowledge learned in the current conversation.
 
-    This direct Supabase context closes the short indexing window between saving a
-    learned record and OpenAI file_search making the new vector file searchable.
-    It is intentionally limited to the active conversation and a few newest rows.
+    v68864 performance behavior:
+    - Keep the existing direct-Supabase authority.
+    - Cache the already-built current-case context per browser session.
+    - Invalidate immediately whenever this session successfully learns new
+      current-case knowledge.
+    - Ordinary follow-up commands therefore avoid a redundant Supabase round trip.
     """
     conversation_id = str(st.session_state.get("conversation_id") or "").strip()
     if not conversation_id:
         return ""
 
     clean_assistant = clean_assistant_label(selected_assistant).strip()
+    revision = int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
+    cache_key = f"{conversation_id}|{clean_assistant}|{int(limit or 5)}|{revision}"
+    session_cache = st.session_state.setdefault(
+        "_case_learning_context_cache_v68864",
+        {},
+    )
+
+    cached = session_cache.get(cache_key)
+    if isinstance(cached, dict):
+        cached_at = float(cached.get("cached_at") or 0.0)
+        # Five minutes is long enough to remove repeated query latency while the
+        # revision above guarantees same-session learning is visible immediately.
+        if time.monotonic() - cached_at <= 300.0:
+            return str(cached.get("text") or "")
+
     try:
         query = (
             supabase.table("learned_knowledge")
@@ -39366,30 +39447,42 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
         if not is_pending_knowledge_row(row)
         and str(row.get("solution") or row.get("approved_answer") or "").strip()
     ]
-    if not approved_rows:
-        return ""
 
-    blocks = [
-        "CURRENT-CASE STAFF-CONFIRMED KNOWLEDGE — direct Supabase record:\n",
-        "These records were explicitly taught or confirmed by staff in this same "
-        "conversation. For an exact vehicle/product match, they override ambiguous "
-        "Product Library suggestions, older conflicting drafts, and the temporary "
-        "absence of the new record from file_search indexing. Do not ask staff to "
-        "reconfirm facts already confirmed here. Ask only for genuinely unresolved "
-        "choices, such as standard versus Pro when both remain valid.\n",
-    ]
-    for index, row in enumerate(approved_rows, start=1):
-        solution = str(row.get("solution") or row.get("approved_answer") or "").strip()
-        blocks.append(
-            f"\nRECORD {index}\n"
-            f"Title: {str(row.get('issue') or '').strip()}\n"
-            f"Vehicle/Product: {str(row.get('vehicle') or '').strip()}\n"
-            f"Record type: {str(row.get('record_type') or '').strip()}\n"
-            f"Staff confirmed: {bool(row.get('staff_confirmed'))}\n"
-            f"Confidence: {row.get('confidence_score')}\n"
-            f"Approved knowledge:\n{solution}\n"
-        )
-    return "".join(blocks).strip()
+    if not approved_rows:
+        context_text = ""
+    else:
+        blocks = [
+            "CURRENT-CASE STAFF-CONFIRMED KNOWLEDGE — direct Supabase record:\n",
+            "These records were explicitly taught or confirmed by staff in this same "
+            "conversation. For an exact vehicle/product match, they override ambiguous "
+            "Product Library suggestions, older conflicting drafts, and the temporary "
+            "absence of the new record from file_search indexing. Do not ask staff to "
+            "reconfirm facts already confirmed here. Ask only for genuinely unresolved "
+            "choices, such as standard versus Pro when both remain valid.\n",
+        ]
+        for index, row in enumerate(approved_rows, start=1):
+            solution = str(
+                row.get("solution") or row.get("approved_answer") or ""
+            ).strip()
+            blocks.append(
+                f"\nRECORD {index}\n"
+                f"Title: {str(row.get('issue') or '').strip()}\n"
+                f"Vehicle/Product: {str(row.get('vehicle') or '').strip()}\n"
+                f"Record type: {str(row.get('record_type') or '').strip()}\n"
+                f"Staff confirmed: {bool(row.get('staff_confirmed'))}\n"
+                f"Confidence: {row.get('confidence_score')}\n"
+                f"Approved knowledge:\n{solution}\n"
+            )
+        context_text = "".join(blocks).strip()
+
+    # Keep this tiny and session-local.
+    if len(session_cache) >= 16:
+        session_cache.clear()
+    session_cache[cache_key] = {
+        "cached_at": time.monotonic(),
+        "text": context_text,
+    }
+    return context_text
 
 
 def build_user_input(
@@ -42010,6 +42103,39 @@ def queue_ai_postprocess(
     }
 
 
+
+def process_pending_history_trim_v68864():
+    """Run conversation-limit housekeeping only after the visible answer lifecycle."""
+    username = str(
+        st.session_state.pop("_pending_history_trim_v68864", "") or ""
+    ).strip()
+    if not username:
+        return
+
+    started = time.perf_counter()
+    try:
+        # After insertion we want at most the configured maximum. Passing
+        # max+1 reuses the existing pre-insert arithmetic and trims only when
+        # the post-insert count exceeds the real maximum.
+        make_room_for_new_conversation(
+            username,
+            max_unpinned=MAX_UNPINNED_CONVERSATIONS_PER_USER + 1,
+        )
+        diagnostic_log(
+            "history_trim_deferred_v68864",
+            username=username,
+            elapsed_seconds=round(time.perf_counter() - started, 3),
+        )
+    except Exception as error:
+        # Housekeeping must never block or break chat.
+        diagnostic_log(
+            "history_trim_deferred_failed_v68864",
+            username=username,
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+
+
 def process_pending_ai_postprocess():
     """
     Process one queued maintenance job after the answer has already been saved
@@ -42045,6 +42171,11 @@ def process_pending_ai_postprocess():
                 learning_context=job.get("learning_context"),
             )
             if learning_result and learning_result.get("learned"):
+                st.session_state["_case_learning_context_revision_v68864"] = (
+                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
+                    + 1
+                )
+                st.session_state.pop("_case_learning_context_cache_v68864", None)
                 mode = learning_result.get("mode", "saved")
                 if learning_result.get("explicit_learning"):
                     message = f"Knowledge saved permanently ({mode})."
@@ -43098,10 +43229,11 @@ def make_room_for_new_conversation(
 
 
 def create_conversation(username, assistant_name, first_message=None):
-    """Create a new conversation and return its ID."""
-    # History is isolated by username. Pinned chats are unlimited; only
-    # unpinned chats are limited to the newest 100 for this account.
-    make_room_for_new_conversation(username)
+    """Create a new conversation and return its ID without blocking on history housekeeping."""
+    # v68864: create the conversation immediately. The 100-unpinned-chat cleanup
+    # is maintenance work and is deferred until after the answer has already been
+    # persisted/displayed, removing a Supabase count/delete path from first-token
+    # latency. Pinned chats remain protected by make_room_for_new_conversation().
     payload = {
         "username": username,
         "assistant": clean_assistant_label(assistant_name),
@@ -43134,6 +43266,7 @@ def create_conversation(username, assistant_name, first_message=None):
         messages=False,
         username=username,
     )
+    st.session_state["_pending_history_trim_v68864"] = str(username or "").strip()
     return conversation_id
 
 
@@ -53883,6 +54016,7 @@ else:
             )
 
     if prompt:
+        command_preflight_started_v68864 = time.perf_counter()
         user_display = (
             ""
             if attachment_only_mode
@@ -54008,6 +54142,15 @@ else:
         )
 
         if not is_graphic_resume_v68844:
+            # v68864: render and commit the local session turn immediately so the
+            # interface reacts as soon as Send is pressed. Supabase persistence
+            # follows afterward and no longer delays the visible acknowledgement.
+            st.session_state.messages.append({
+                "role": "user",
+                "content": user_content_to_save
+            })
+            render_chat_message("user", user_display, uploaded_image_previews)
+
             if history_is_enabled() and st.session_state.conversation_id is None:
                 try:
                     conversation_title_seed = user_display.strip()
@@ -54027,14 +54170,7 @@ else:
                     st.error(f"Could not create chat history case: {e}")
                     st.session_state.conversation_id = None
 
-            # The original turn is committed once. A durable retry restores only
-            # generation inputs and must never append a duplicate user message.
-            st.session_state.messages.append({
-                "role": "user",
-                "content": user_content_to_save
-            })
-
-            if history_is_enabled():
+            if history_is_enabled() and st.session_state.conversation_id:
                 try:
                     save_message(
                         st.session_state.conversation_id,
@@ -54043,8 +54179,6 @@ else:
                     )
                 except Exception as e:
                     st.warning(f"User message was not saved to history: {e}")
-
-            render_chat_message("user", user_display, uploaded_image_previews)
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -54056,6 +54190,16 @@ else:
             prompt,
             assistant,
             has_images=has_uploaded_images,
+        )
+        diagnostic_log(
+            "command_preflight_ready_v68864",
+            workspace=str(assistant),
+            elapsed_seconds=round(
+                time.perf_counter() - command_preflight_started_v68864,
+                3,
+            ),
+            conversation_id=st.session_state.get("conversation_id"),
+            upload_count=len(effective_uploaded_files or []),
         )
 
         # A staff command such as "learn this and save this" must take
@@ -55005,8 +55149,9 @@ else:
         )
         st.rerun()
 
-# Process learning and analytics only after the completed answer has already
-# been persisted and displayed on the previous run.
+# Process maintenance only after the completed answer has already been
+# persisted and displayed on the previous run. Neither task delays first token.
+process_pending_history_trim_v68864()
 process_pending_ai_postprocess()
 
 # ============================================================
