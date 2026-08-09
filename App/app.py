@@ -28,7 +28,7 @@ import io
 import zipfile
 import requests
 import xml.etree.ElementTree as ET
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlparse, urljoin
 from html.parser import HTMLParser
 import socket
 import ipaddress
@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68869 — Full Runtime Cleanup Fix; v68868 Submission + v68867 Reference Grid Preserved
+# AutoTecPro AI v68870 — Website Learning + Image Retrieval; Existing AI/Graphic Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -2193,6 +2193,17 @@ def detect_technical_support_tool(
     lower = value.lower()
     if not lower:
         return {"type": "none"}
+
+    website_learning_url = detect_technical_website_learning_command(
+        value,
+        selected_assistant or st.session_state.get("current_assistant"),
+    )
+    if website_learning_url:
+        return {
+            "type": "technical_learn_website",
+            "label": "Learn Website",
+            "url": website_learning_url,
+        }
 
     photo_diagnosis_terms = (
         "analyze this photo", "analyse this photo", "analyze this image",
@@ -39938,7 +39949,15 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
             "wiring, firmware, hardware behavior, retained functions, limitations, and "
             "troubleshooting.\n"
             "- When information is not supported by Technical knowledge, say what is "
-            "missing instead of guessing."
+            "missing instead of guessing.\n"
+            "- Website knowledge may contain exact AUTO_DISPLAY_IMAGE URLs next to image "
+            "analysis. When one of those images directly supports the current answer, append "
+            "up to 4 internal control lines at the END of the response, each exactly in this "
+            "format: [[ATP_WEB_IMAGE_JSON:{\"url\":\"EXACT_AUTO_DISPLAY_IMAGE_URL\","
+            "\"caption\":\"short factual caption\"}]]. Use only an exact URL retrieved "
+            "from Technical file_search knowledge. Never invent, rewrite, guess, or use an "
+            "unrelated image URL. If no retrieved image directly supports the answer, append "
+            "no image control line."
         )
     if is_sales_workspace(selected_assistant):
         return (
@@ -45044,6 +45063,11 @@ if (
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
 WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 WEBSITE_MAX_EXTRACTED_CHARS = 120000
+WEBSITE_MAX_DISCOVERED_IMAGES = 40
+WEBSITE_MAX_ANALYZED_IMAGES = 28
+WEBSITE_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS = 18
+WEBSITE_AUTO_DISPLAY_MAX_IMAGES = 4
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -45066,6 +45090,7 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._parts = []
         self.title = ""
         self._inside_title = False
+        self.images = []
 
     def handle_starttag(self, tag, attrs):
         tag = str(tag or "").lower()
@@ -45085,6 +45110,35 @@ class KnowledgePageHTMLParser(HTMLParser):
         if tag == "img":
             attributes = dict(attrs or [])
             alt_text = str(attributes.get("alt") or "").strip()
+            title_text = str(attributes.get("title") or "").strip()
+            candidate_src = (
+                attributes.get("data-src")
+                or attributes.get("data-lazy-src")
+                or attributes.get("data-original")
+                or attributes.get("src")
+                or ""
+            )
+            srcset = str(
+                attributes.get("data-srcset")
+                or attributes.get("srcset")
+                or ""
+            ).strip()
+            if srcset:
+                # Prefer the largest/right-most candidate from a standard srcset.
+                candidates = [
+                    part.strip().split()[0]
+                    for part in srcset.split(",")
+                    if part.strip()
+                ]
+                if candidates:
+                    candidate_src = candidates[-1]
+            candidate_src = str(candidate_src or "").strip()
+            if candidate_src:
+                self.images.append({
+                    "src": candidate_src,
+                    "alt": alt_text,
+                    "title": title_text,
+                })
             if alt_text:
                 self._parts.append(f"\nImage description: {alt_text}\n")
 
@@ -45281,6 +45335,496 @@ def clean_extracted_website_text(raw_text):
     return cleaned
 
 
+
+def _website_image_candidate_urls(parser_images, page_url):
+    """Resolve and de-duplicate meaningful image URLs discovered in one webpage."""
+    results = []
+    seen = set()
+    skip_tokens = (
+        "logo", "favicon", "icon", "sprite", "avatar", "emoji", "badge",
+        "payment", "paypal", "visa", "mastercard", "social", "facebook",
+        "instagram", "twitter", "youtube", "pixel", "tracker", "analytics",
+        "placeholder", "loading", "spinner", "gravatar",
+    )
+    for raw in parser_images or []:
+        if not isinstance(raw, dict):
+            continue
+        src = str(raw.get("src") or "").strip()
+        if not src or src.startswith(("data:", "blob:", "javascript:")):
+            continue
+        resolved = urljoin(page_url, src)
+        try:
+            normalized = normalize_website_url(resolved)
+        except Exception:
+            continue
+        parsed = urlparse(normalized)
+        identity = (
+            str(parsed.scheme or "").lower(),
+            str(parsed.netloc or "").lower(),
+            re.sub(r"/{2,}", "/", str(parsed.path or "")),
+            str(parsed.query or ""),
+        )
+        if identity in seen:
+            continue
+        seen.add(identity)
+        alt = re.sub(r"\s+", " ", str(raw.get("alt") or "")).strip()
+        title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
+        haystack = f"{parsed.path} {alt} {title}".casefold()
+        # Only reject obvious decorative assets here. Dimension/content validation
+        # happens later so installation/product photos are not accidentally lost.
+        if any(token in haystack for token in skip_tokens):
+            continue
+        results.append({
+            "url": normalized,
+            "alt": alt,
+            "title": title,
+        })
+        if len(results) >= WEBSITE_MAX_DISCOVERED_IMAGES:
+            break
+    return results
+
+
+def _download_public_website_image(image_url):
+    """Fetch and validate one public website image for vision analysis."""
+    normalized_url = normalize_website_url(image_url)
+    validate_public_website_host(normalized_url)
+
+    response = http_session.get(
+        normalized_url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (compatible; AutoTecProKnowledgeBot/1.0; "
+                "+https://autotecpro.com)"
+            ),
+            "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.1",
+        },
+        timeout=WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS,
+        allow_redirects=True,
+        stream=True,
+    )
+    response.raise_for_status()
+    final_url = normalize_website_url(response.url)
+    validate_public_website_host(final_url)
+
+    content_type = str(response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+    if not content_type.startswith("image/"):
+        raise ValueError(f"URL did not return an image ({content_type or 'unknown'}).")
+    if content_type in {"image/svg+xml", "image/gif"}:
+        raise ValueError("Decorative/vector/animated image skipped.")
+
+    declared_length = response.headers.get("Content-Length")
+    if declared_length:
+        try:
+            if int(declared_length) > WEBSITE_MAX_IMAGE_BYTES:
+                raise ValueError("Website image exceeds the 8 MB safety limit.")
+        except ValueError as error:
+            if "8 MB" in str(error):
+                raise
+
+    chunks = []
+    total = 0
+    for chunk in response.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > WEBSITE_MAX_IMAGE_BYTES:
+            raise ValueError("Website image exceeds the 8 MB safety limit.")
+        chunks.append(chunk)
+    raw = b"".join(chunks)
+    if not raw:
+        raise ValueError("Website image was empty.")
+
+    width = height = 0
+    normalized_bytes = raw
+    normalized_mime = content_type if content_type.startswith("image/") else "image/jpeg"
+
+    if Image is not None:
+        try:
+            source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+            width, height = source.size
+            # Tiny assets are almost always icons, bullets, or tracking graphics.
+            if width < 180 or height < 120 or (width * height) < 30000:
+                raise ValueError("Image is too small to contain useful technical knowledge.")
+            if width / max(1, height) > 8 or height / max(1, width) > 8:
+                raise ValueError("Extremely narrow decorative image skipped.")
+
+            work = source.convert("RGB")
+            work.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            work.save(buf, format="JPEG", quality=90, optimize=True)
+            normalized_bytes = buf.getvalue()
+            normalized_mime = "image/jpeg"
+        except ValueError:
+            raise
+        except Exception:
+            pass
+
+    return {
+        "source_url": final_url,
+        "bytes": normalized_bytes,
+        "mime_type": normalized_mime,
+        "original_content_type": content_type,
+        "width": width,
+        "height": height,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+@st.cache_data(ttl=86400, max_entries=256, show_spinner=False)
+def _analyze_website_image_cached(
+    image_data_url,
+    page_url,
+    image_url,
+    page_title,
+    alt_text,
+    database_choice,
+):
+    """Turn one website image into retrievable Technical/Sales/Marketing knowledge."""
+    instructions = (
+        "You are AutoTecPro's internal website-image knowledge extraction specialist. "
+        "Analyze only what the image actually supports. If the image is merely decorative, "
+        "a generic vehicle photo, logo, banner ornament, icon, or contains no reusable "
+        "product/installation/technical/sales/marketing knowledge, return exactly SKIP_IMAGE. "
+        "Otherwise return concise searchable plain text. Preserve visible connector details, "
+        "labels, settings, diagrams, installation relationships, product identity, vehicle "
+        "identity, warnings, and visible text. Never invent compatibility or hidden details."
+    )
+    prompt = (
+        f"Destination: {database_choice}\n"
+        f"Source page: {page_url}\n"
+        f"Page title: {page_title}\n"
+        f"Image URL: {image_url}\n"
+        f"Image alt text: {alt_text or '(none)'}\n\n"
+        "Extract reusable knowledge from this website image."
+    )
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=instructions,
+        input=[{
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": prompt},
+                {"type": "input_image", "image_url": image_data_url, "detail": "high"},
+            ],
+        }],
+    )
+    return clean_visible_chat_text(response.output_text).strip()
+
+
+def analyze_website_images(extraction, database_choice, selected_urls=None):
+    """Download, filter, analyze, and de-duplicate useful images from one page."""
+    selected_set = {
+        str(item or "").strip()
+        for item in (selected_urls or [])
+        if str(item or "").strip()
+    }
+    candidates = list(extraction.get("image_candidates") or [])
+    if selected_set:
+        candidates = [
+            item for item in candidates
+            if str((item or {}).get("url") or "") in selected_set
+        ]
+
+    learned = []
+    seen_hashes = set()
+    attempted = 0
+    skipped = 0
+
+    for candidate in candidates:
+        if len(learned) >= WEBSITE_MAX_ANALYZED_IMAGES:
+            break
+        if not isinstance(candidate, dict):
+            continue
+        attempted += 1
+        try:
+            downloaded = _download_public_website_image(candidate.get("url"))
+            digest = str(downloaded.get("sha256") or "")
+            if digest and digest in seen_hashes:
+                skipped += 1
+                continue
+            if digest:
+                seen_hashes.add(digest)
+
+            data_url = (
+                f"data:{downloaded.get('mime_type') or 'image/jpeg'};base64,"
+                + base64.b64encode(downloaded.get("bytes") or b"").decode("ascii")
+            )
+            analysis = _analyze_website_image_cached(
+                data_url,
+                str(extraction.get("source_url") or ""),
+                str(downloaded.get("source_url") or candidate.get("url") or ""),
+                str(extraction.get("title") or ""),
+                str(candidate.get("alt") or candidate.get("title") or ""),
+                str(database_choice or ""),
+            )
+            if not analysis or analysis.strip().upper() == "SKIP_IMAGE":
+                skipped += 1
+                continue
+
+            learned.append({
+                "url": str(downloaded.get("source_url") or candidate.get("url") or ""),
+                "alt": str(candidate.get("alt") or "").strip(),
+                "title": str(candidate.get("title") or "").strip(),
+                "analysis": analysis,
+                "sha256": digest,
+                "width": int(downloaded.get("width") or 0),
+                "height": int(downloaded.get("height") or 0),
+            })
+        except Exception as error:
+            skipped += 1
+            diagnostic_log(
+                "website_image_ingestion_skipped_v68870",
+                image_url=str((candidate or {}).get("url") or "")[:500],
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+    return {
+        "images": learned,
+        "attempted": attempted,
+        "skipped": skipped,
+        "discovered": len(candidates),
+        "limited": len(candidates) > WEBSITE_MAX_ANALYZED_IMAGES,
+    }
+
+
+def build_website_knowledge_package_document(
+    extraction,
+    database_choice,
+    reviewed_content=None,
+    image_analysis=None,
+):
+    """Build one searchable package containing webpage text plus image knowledge."""
+    content = clean_extracted_website_text(
+        reviewed_content if reviewed_content is not None else extraction.get("content")
+    )
+    image_analysis = image_analysis or {}
+    images = list(image_analysis.get("images") or [])
+
+    lines = [
+        "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE",
+        f"Destination: {database_choice}",
+        f"Page title: {extraction.get('title')}",
+        f"Requested URL: {extraction.get('requested_url') or extraction.get('source_url')}",
+        f"Final source URL: {extraction.get('source_url')}",
+        f"Extracted at (UTC): {extraction.get('extracted_at')}",
+        f"Page content SHA-256: {extraction.get('content_hash')}",
+        f"Useful website images analyzed: {len(images)}",
+        "",
+        "WEBPAGE TEXT",
+        "============",
+        content,
+        "",
+    ]
+
+    if images:
+        lines.extend([
+            "WEBSITE IMAGE KNOWLEDGE",
+            "=======================",
+            (
+                "IMPORTANT FOR TECHNICAL SUPPORT RETRIEVAL: When an image below directly "
+                "supports a future answer, use its exact AUTO_DISPLAY_IMAGE URL. Never "
+                "invent, modify, or substitute an image URL."
+            ),
+            "",
+        ])
+        for index, item in enumerate(images, start=1):
+            caption = (
+                str(item.get("alt") or item.get("title") or "").strip()
+                or f"Source image {index}"
+            )
+            lines.extend([
+                f"IMAGE {index}",
+                f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
+                f"IMAGE_CAPTION: {caption}",
+                f"IMAGE_SHA256: {item.get('sha256')}",
+                f"IMAGE_SIZE: {item.get('width')}x{item.get('height')}",
+                "IMAGE_ANALYSIS:",
+                str(item.get("analysis") or "").strip(),
+                "",
+            ])
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def save_website_knowledge_package(
+    extraction,
+    database_choice,
+    reviewed_content=None,
+    include_images=True,
+    selected_image_urls=None,
+):
+    """Analyze website images and save one de-duplicated package to the selected vector store."""
+    reviewed = clean_extracted_website_text(
+        reviewed_content if reviewed_content is not None else extraction.get("content")
+    )
+    if len(reviewed) < 120:
+        raise ValueError("The reviewed website content is too short to save.")
+
+    selected_vector_store_id = {
+        "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
+        "Sales Database": SALES_VECTOR_STORE_ID,
+        "Marketing Database": MARKETING_VECTOR_STORE_ID,
+        "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
+    }[database_choice]
+
+    image_analysis = (
+        analyze_website_images(
+            extraction,
+            database_choice,
+            selected_urls=selected_image_urls,
+        )
+        if include_images
+        else {"images": [], "attempted": 0, "skipped": 0, "discovered": 0, "limited": False}
+    )
+
+    package_text = build_website_knowledge_package_document(
+        extraction,
+        database_choice,
+        reviewed_content=reviewed,
+        image_analysis=image_analysis,
+    )
+    package_hash = hashlib.sha256(package_text.encode("utf-8")).hexdigest()
+
+    package_extraction = dict(extraction)
+    package_extraction["content_hash"] = package_hash
+    filename = website_knowledge_filename(package_extraction)
+
+    if vector_store_has_filename(selected_vector_store_id, filename):
+        return {
+            "already_saved": True,
+            "file_id": "",
+            "filename": filename,
+            "images": list(image_analysis.get("images") or []),
+            "image_analysis": image_analysis,
+        }
+
+    website_file = ManagedUploadedFile(
+        package_text.encode("utf-8"),
+        filename,
+        "text/plain",
+    )
+    file_id = upload_to_vector_store(website_file, selected_vector_store_id)
+
+    return {
+        "already_saved": False,
+        "file_id": file_id,
+        "filename": filename,
+        "images": list(image_analysis.get("images") or []),
+        "image_analysis": image_analysis,
+    }
+
+
+def _website_images_for_chat(image_items, max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES):
+    """Convert learned website image metadata into persistent chat image records."""
+    records = []
+    for item in list(image_items or [])[:max(1, int(max_images or 1))]:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        caption = (
+            str(item.get("alt") or item.get("title") or "").strip()
+            or "Website instruction image"
+        )
+        records.append({
+            "name": caption,
+            "data_url": url,
+            "source": "website_knowledge",
+            "asset_type": "website_instruction_image",
+            "archive_web_url": url,
+            "generated": False,
+        })
+    return records
+
+
+def detect_technical_website_learning_command(prompt_text, selected_assistant):
+    """Return a public URL only for an explicit Technical Support 'learn this' website command."""
+    if str(selected_assistant or "") != "🔧 Technical Support":
+        return ""
+    value = str(prompt_text or "").strip()
+    if not re.search(
+        r"(?i)\b(?:learn|save|remember|ingest)\s+(?:this|this\s+website|this\s+page)\b",
+        value,
+    ):
+        return ""
+    markdown_match = re.search(
+        r"\[[^\]]*\]\((https?://[^)]+)\)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if markdown_match:
+        url = markdown_match.group(1).strip()
+    else:
+        match = re.search(
+            r"https?://[^\s<>\]\)\}]+",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return ""
+        url = match.group(0).strip()
+    url = url.rstrip(").,;]}'\"")
+    try:
+        return normalize_website_url(url)
+    except Exception:
+        return ""
+
+
+WEB_IMAGE_CONTROL_PREFIX_V68870 = "[[ATP_WEB_IMAGE_JSON:"
+WEB_IMAGE_CONTROL_SUFFIX_V68870 = "]]"
+
+
+def extract_website_image_controls_v68870(text_value):
+    """Extract hidden model-selected website-image controls from a completed answer."""
+    value = str(text_value or "")
+    pattern = (
+        re.escape(WEB_IMAGE_CONTROL_PREFIX_V68870)
+        + r"(.*?)"
+        + re.escape(WEB_IMAGE_CONTROL_SUFFIX_V68870)
+    )
+    records = []
+    for raw in re.findall(pattern, value, flags=re.DOTALL):
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        url = str(payload.get("url") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        # Validate public-host form. The browser may still fail to load a source
+        # that later disappears, but unsafe/private URLs are never rendered.
+        try:
+            validate_public_website_host(url)
+        except Exception:
+            continue
+        caption = re.sub(r"\s+", " ", str(payload.get("caption") or "")).strip()
+        records.append({
+            "name": caption or "Relevant instruction image",
+            "data_url": url,
+            "source": "website_knowledge",
+            "asset_type": "website_instruction_image",
+            "archive_web_url": url,
+            "generated": False,
+        })
+        if len(records) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
+            break
+    cleaned = re.sub(pattern, "", value, flags=re.DOTALL).strip()
+    return cleaned, records
+
+
+def strip_website_image_control_tail_v68870(text_value):
+    """Hide internal image-control lines while an answer is streaming."""
+    value = str(text_value or "")
+    marker_index = value.find(WEB_IMAGE_CONTROL_PREFIX_V68870)
+    if marker_index >= 0:
+        return value[:marker_index].rstrip()
+    return value
+
+
 def extract_public_webpage(url):
     """Download and extract readable knowledge from one public webpage."""
     normalized_url = normalize_website_url(url)
@@ -45373,6 +45917,10 @@ def extract_public_webpage(url):
     content_hash = hashlib.sha256(
         cleaned_text.encode("utf-8")
     ).hexdigest()
+    image_candidates = _website_image_candidate_urls(
+        getattr(parser, "images", []) if "parser" in locals() else [],
+        final_url,
+    )
 
     return {
         # Keep both values:
@@ -45387,6 +45935,8 @@ def extract_public_webpage(url):
         "content_hash": content_hash,
         "character_count": len(cleaned_text),
         "word_count": len(cleaned_text.split()),
+        "image_candidates": image_candidates,
+        "image_candidate_count": len(image_candidates),
     }
 
 
@@ -45559,8 +46109,38 @@ def render_learn_from_website(database_choice):
     st.caption(
         f"Source: {extraction.get('source_url')}  |  "
         f"{extraction.get('word_count', 0):,} words  |  "
-        f"{extraction.get('character_count', 0):,} characters"
+        f"{extraction.get('character_count', 0):,} characters  |  "
+        f"{extraction.get('image_candidate_count', 0):,} candidate images"
     )
+
+    include_website_images = st.checkbox(
+        "Analyze and save useful images from this webpage",
+        value=True,
+        key="stable_admin_website_include_images",
+        help=(
+            "Product photos, connector photos, diagrams, screenshots, and installation "
+            "images are analyzed into searchable knowledge. Tiny icons, logos, tracking "
+            "pixels, and decorative images are filtered automatically."
+        ),
+    )
+    website_image_candidates = list(extraction.get("image_candidates") or [])
+    if include_website_images and website_image_candidates:
+        st.caption(
+            "Image candidates discovered on this page. Useful images are validated "
+            "and analyzed only when you click Approve and Save."
+        )
+        preview_records = [
+            {
+                "name": str(item.get("alt") or item.get("title") or "Website image"),
+                "data_url": str(item.get("url") or ""),
+                "source": "website_knowledge",
+            }
+            for item in website_image_candidates[:12]
+            if str((item or {}).get("url") or "").startswith("https://")
+        ]
+        preview_html = render_image_previews(preview_records)
+        if preview_html:
+            st.markdown(preview_html, unsafe_allow_html=True)
 
     reviewed_content = st.text_area(
         "Review extracted content",
@@ -45641,46 +46221,38 @@ def render_learn_from_website(database_choice):
             reviewed_content.encode("utf-8")
         ).hexdigest()
 
-        selected_vector_store_id = {
-            "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
-            "Sales Database": SALES_VECTOR_STORE_ID,
-            "Marketing Database": MARKETING_VECTOR_STORE_ID,
-            "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
-        }[database_choice]
-
-        filename = website_knowledge_filename(reviewed_extraction)
-
-        with st.spinner("Saving website knowledge..."):
-            if vector_store_has_filename(selected_vector_store_id, filename):
-                st.session_state.admin_website_save_notice = {
-                    "type": "info",
-                    "message": (
-                        "This exact reviewed webpage content is already saved "
-                        "in the selected knowledge database."
-                    ),
-                }
-                return
-
-            document_text = build_website_knowledge_document(
+        with st.spinner(
+            "Saving website text and analyzing useful images..."
+            if include_website_images
+            else "Saving website knowledge..."
+        ):
+            save_result = save_website_knowledge_package(
                 reviewed_extraction,
                 database_choice,
+                reviewed_content=reviewed_content,
+                include_images=include_website_images,
             )
-            website_file = ManagedUploadedFile(
-                document_text.encode("utf-8"),
-                filename,
-                "text/plain",
-            )
-            file_id = upload_to_vector_store(
-                website_file,
-                selected_vector_store_id,
-            )
+
+        image_count = len(save_result.get("images") or [])
+        analysis_stats = dict(save_result.get("image_analysis") or {})
+        if save_result.get("already_saved"):
+            st.session_state.admin_website_save_notice = {
+                "type": "info",
+                "message": (
+                    "This exact reviewed webpage knowledge package is already saved "
+                    f"in {database_choice}."
+                ),
+            }
+            return
 
         st.session_state.admin_website_save_notice = {
             "type": "success",
             "message": (
                 f"Website knowledge saved to {database_choice}. "
-                f"File ID: {file_id}. OpenAI may take a short time to finish "
-                "indexing the new knowledge."
+                f"Analyzed and saved {image_count} useful image(s) "
+                f"from {analysis_stats.get('attempted', 0)} checked image(s). "
+                f"File ID: {save_result.get('file_id')}. OpenAI may take a short "
+                "time to finish indexing the new knowledge."
             ),
         }
         st.session_state.pop("admin_website_extraction", None)
@@ -54399,10 +54971,24 @@ else:
                         file_count=len(recovered_files_v68854),
                     )
 
-        explicit_learning_requested = detect_explicit_learning_command(
-            interaction_prompt,
-            has_recent_context=bool(st.session_state.get("messages")),
-            has_attachments=bool(effective_uploaded_files),
+        technical_website_learning_url_v68870 = (
+            detect_technical_website_learning_command(
+                interaction_prompt,
+                assistant,
+            )
+        )
+        technical_website_learning_requested_v68870 = bool(
+            technical_website_learning_url_v68870
+        )
+
+        explicit_learning_requested = (
+            False
+            if technical_website_learning_requested_v68870
+            else detect_explicit_learning_command(
+                interaction_prompt,
+                has_recent_context=bool(st.session_state.get("messages")),
+                has_attachments=bool(effective_uploaded_files),
+            )
         )
         learning_context_snapshot = (
             recent_learning_conversation_context(max_messages=8)
@@ -54786,6 +55372,81 @@ else:
             response_time = round(time.time() - response_start_time, 2)
             tokens_used = None
             render_chat_message("assistant", answer, message_index=len(st.session_state.messages))
+        elif (
+            technical_website_learning_requested_v68870
+            and assistant == "🔧 Technical Support"
+            and not is_graphic_generation
+        ):
+            response_start_time = time.time()
+            website_chat_images_v68870 = []
+            if str(st.session_state.get("role") or "").strip().lower() != "admin":
+                answer = (
+                    "Website learning changes the shared Technical Support knowledge base, "
+                    "so this command is restricted to admin accounts. Please use an admin "
+                    "account or submit the page through Admin Panel → Upload Knowledge."
+                )
+            else:
+                try:
+                    with st.spinner(
+                        "Learning website text and analyzing useful instruction images..."
+                    ):
+                        extraction_v68870 = extract_public_webpage(
+                            technical_website_learning_url_v68870
+                        )
+                        save_result_v68870 = save_website_knowledge_package(
+                            extraction_v68870,
+                            "Technical Support Database",
+                            include_images=True,
+                        )
+                    stats_v68870 = dict(
+                        save_result_v68870.get("image_analysis") or {}
+                    )
+                    website_chat_images_v68870 = _website_images_for_chat(
+                        save_result_v68870.get("images") or [],
+                        max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES,
+                    )
+                    if save_result_v68870.get("already_saved"):
+                        answer = (
+                            "This exact website knowledge package is already saved in the "
+                            "Technical Support Database. I verified the page and found "
+                            f"{len(save_result_v68870.get('images') or [])} useful saved "
+                            "instruction image(s)."
+                        )
+                    else:
+                        answer = (
+                            f"Learned and saved **{extraction_v68870.get('title') or 'the webpage'}** "
+                            "to the Technical Support Database.\n\n"
+                            f"- Page text: {extraction_v68870.get('word_count', 0):,} words\n"
+                            f"- Image candidates discovered: {extraction_v68870.get('image_candidate_count', 0)}\n"
+                            f"- Images checked: {stats_v68870.get('attempted', 0)}\n"
+                            f"- Useful images analyzed and saved: {len(save_result_v68870.get('images') or [])}\n"
+                            f"- Images skipped/filtered: {stats_v68870.get('skipped', 0)}\n"
+                            f"- Knowledge file ID: {save_result_v68870.get('file_id')}\n\n"
+                            "Future Technical Support inquiries can retrieve the instructions "
+                            "and automatically display relevant saved webpage images when the "
+                            "retrieved image knowledge directly supports the answer."
+                        )
+                    generated_images.extend(website_chat_images_v68870)
+                except Exception as error:
+                    diagnostic_log(
+                        "technical_website_learning_failed_v68870",
+                        error_type=type(error).__name__,
+                        error=str(error)[:1000],
+                        url=str(technical_website_learning_url_v68870)[:600],
+                    )
+                    answer = (
+                        "I couldn't learn that website. The page may block automated access, "
+                        "require JavaScript/login, or contain unsupported content. "
+                        f"Details: {str(error)[:500]}"
+                    )
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer + serialize_images_marker(website_chat_images_v68870),
+                website_chat_images_v68870,
+                message_index=len(st.session_state.messages),
+            )
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
@@ -55172,7 +55833,9 @@ else:
                             loading_status_placeholder.empty()
 
                         streamed_answer += delta_text
-                        visible_stream = streamed_answer
+                        visible_stream = strip_website_image_control_tail_v68870(
+                            streamed_answer
+                        )
                         if explicit_learning_requested:
                             visible_stream = format_learning_record_for_display(
                                 visible_stream
@@ -55203,7 +55866,14 @@ else:
                             )
                             last_stream_update = now_value
 
-                    answer_body = clean_visible_chat_text(streamed_answer)
+                    streamed_answer_clean_v68870, auto_website_images_v68870 = (
+                        extract_website_image_controls_v68870(streamed_answer)
+                    )
+                    if auto_website_images_v68870:
+                        generated_images.extend(auto_website_images_v68870)
+                    answer_body = clean_visible_chat_text(
+                        streamed_answer_clean_v68870
+                    )
                     if explicit_learning_requested:
                         answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
@@ -55235,8 +55905,13 @@ else:
                     # every streaming/rendering interruption cleared the visible
                     # response and re-raised before the partial answer could be
                     # saved to session state or conversation history.
+                    partial_stream_clean_v68870, partial_web_images_v68870 = (
+                        extract_website_image_controls_v68870(streamed_answer)
+                    )
+                    if partial_web_images_v68870:
+                        generated_images.extend(partial_web_images_v68870)
                     partial_answer_body = clean_visible_chat_text(
-                        streamed_answer
+                        partial_stream_clean_v68870
                     )
                     if explicit_learning_requested:
                         partial_answer_body = format_learning_record_for_display(
@@ -55384,9 +56059,26 @@ else:
                     message_key=len(st.session_state.messages),
                 )
 
+            website_knowledge_images_v68870 = [
+                image for image in generated_images
+                if str(image.get("source") or "") == "website_knowledge"
+            ]
+            if website_knowledge_images_v68870:
+                website_preview_html_v68870 = render_image_previews(
+                    website_knowledge_images_v68870
+                )
+                if website_preview_html_v68870:
+                    st.markdown(
+                        website_preview_html_v68870,
+                        unsafe_allow_html=True,
+                    )
+
             non_library_generated_images = [
                 image for image in generated_images
-                if str(image.get("source") or "") != "product_library"
+                if str(image.get("source") or "") not in {
+                    "product_library",
+                    "website_knowledge",
+                }
             ]
             if non_library_generated_images:
                 render_generated_image_actions(
@@ -55441,7 +56133,11 @@ else:
             and graphic_tool_request.get("prompt")
         )
 
-        if not is_woocommerce_request and not is_graphic_reference_learning:
+        if (
+            not is_woocommerce_request
+            and not is_graphic_reference_learning
+            and not technical_website_learning_requested_v68870
+        ):
             queue_ai_postprocess(
                 interaction_prompt,
                 answer,
