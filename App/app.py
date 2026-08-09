@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68875 — Graphic Project Rehydration Fix; v68874 Image Output Pipeline Preserved
+# AutoTecPro AI v68877 — Two-Color Variant Stacking; v68876 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -16214,12 +16214,15 @@ def analyze_graphic_reference_blueprint(role_items, prompt_text="", style_streng
             "placing the PRODUCT SOURCE into a new advertisement. Required keys: reference_summary, layout_archetype, "
             "normalized_boxes, canvas_zones, product_scale_percent, product_position, product_crop_and_perspective, background_scene, "
             "vehicle_or_environment_role, lighting_direction, color_palette, typography_system, headline_zone, "
-            "subheadline_zone, logo_zone, feature_icon_system, feature_copy_structure, bottom_feature_bar, cta_system, "
+            "subheadline_zone, logo_zone, feature_icon_system, feature_copy_structure, feature_grid_topology, bottom_feature_bar, cta_system, "
             "spacing_and_margins, depth_and_layering, product_integration_instructions, must_copy_visual_patterns, "
             "acceptable_variations, forbidden_transfers, negative_constraints, final_generation_blueprint, confidence_score. "
             "normalized_boxes is mandatory and must contain logo_box, headline_box, compatibility_box, tagline_box, "
             "feature_matrix_box, hero_product_box, vehicle_box, and bottom_bar_box. Every box must be [x,y,width,height] "
-            "in normalized 0..1 canvas coordinates measured from the STYLE REFERENCE. canvas_zones must also describe "
+            "in normalized 0..1 canvas coordinates measured from the STYLE REFERENCE. feature_grid_topology is mandatory "
+            "and must be an object with integer rows, columns, and count measured from the visible STYLE REFERENCE feature grid "
+            "(for example 3 columns x 2 rows => {rows:2, columns:3, count:6}; 4 columns x 2 rows => {rows:2, columns:4, count:8}). "
+            "Do not infer topology from the staff request or requested feature count; measure the reference image itself. canvas_zones must also describe "
             "approximate percentages and positions. Measure the dominant product's visible bounding box, not its source-file canvas. "
             "final_generation_blueprint must be concise and directly usable by an image model. Requested style strength: " + str(style_strength) + ". Staff request: " + str(prompt_text or "")[:5000]
         ),
@@ -18140,8 +18143,14 @@ def _graphic_multi_image_intent_plan_v68848(prompt_text, role_items):
         return str(getattr(f, "graphic_asset_id", "") or item.get("graphic_asset_id", "") or item.get("id", ""))
     all_ids = [iid(item) for item in products]
     together = any(re.search(p, text) for p in (
-        r"\b(show|include|use|display|keep)\s+(both|all)\b", r"\bside[ -]?by[ -]?side\b",
-        r"\bblack\s+(and|&)\s+silver\b", r"\bsilver\s+(and|&)\s+black\b", r"\bsame\s+size\b",
+        r"\b(show|include|use|display|keep)\s+(both|all)\b",
+        r"\bside[ -]?by[ -]?side\b",
+        r"\bblack\s+(and|&)\s+silver\b",
+        r"\bsilver\s+(and|&)\s+black\b",
+        r"\bsame\s+size\b",
+        r"\b(?:two|2)\s+(?:colors?|colours?|versions?|finishes?)\b",
+        r"\bboth\s+(?:colors?|colours?|versions?|finishes?)\b",
+        r"\b(?:black|silver|white|gray|grey|chrome)\s+version\b.*\b(?:black|silver|white|gray|grey|chrome)\s+version\b",
     ))
     separate = bool(re.search(r"\b(one|separate)\s+(design|image|photo)\s+(for|per)\s+(each|every|color|colour|version)\b", text))
     choice = bool(re.search(r"\b(treat|use)\s+(them|images|photos)\s+as\s+(choices|options)\b", text))
@@ -20327,6 +20336,40 @@ def _graphic_safe_reference_blueprint_v16000(blueprint=None):
     boxes["bottom_bar_box"][2] = max(float(boxes["bottom_bar_box"][2]), 0.88)
     boxes["bottom_bar_box"][3] = max(float(boxes["bottom_bar_box"][3]), 0.085)
     bp["normalized_boxes"] = boxes
+
+    # v68876: preserve the feature-grid topology measured from the active style
+    # reference instead of hard-coding a 4x2 matrix.
+    topology = dict(bp.get("feature_grid_topology") or {})
+    try:
+        rows = int(topology.get("rows") or 0)
+        columns = int(topology.get("columns") or 0)
+        count = int(topology.get("count") or (rows * columns))
+    except Exception:
+        rows = columns = count = 0
+
+    # Backward-compatible recovery for older cached reference blueprints that
+    # described the topology in text but did not yet expose the structured key.
+    if rows <= 0 or columns <= 0:
+        topology_text = " ".join(
+            str(bp.get(key) or "")
+            for key in ("feature_copy_structure", "feature_icon_system", "reference_summary", "final_generation_blueprint")
+        )
+        match = re.search(r"(?i)\\b([2-6])\\s*[x×]\\s*([1-4])\\b", topology_text)
+        if match:
+            columns, rows = int(match.group(1)), int(match.group(2))
+            count = rows * columns
+
+    # Approved legacy fallback. New reference analyses always provide the
+    # measured topology above; this only protects old projects/caches.
+    if rows <= 0 or columns <= 0 or rows * columns < 2 or rows * columns > 16:
+        rows, columns = 2, 4
+    count = rows * columns
+    bp["feature_grid_topology"] = {
+        "rows": rows,
+        "columns": columns,
+        "count": count,
+        "source": "reference_analysis" if topology else "legacy_reference_fallback",
+    }
     bp["layout_repaired_v16000"] = True
     return bp
 
@@ -27697,17 +27740,25 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     regional = dict(metadata.get("regional_geometry_fidelity") or {})
     topology = dict(metadata.get("feature_matrix_topology_v68866") or {})
     topology_required = bool(metadata.get("graphic_design_mode") == "reference_template")
+    required_count = int(topology.get("required_count") or 0)
+    required_rows = int(topology.get("rows") or 0)
+    required_columns = int(topology.get("columns") or 0)
     topology_ok = (
         not topology_required
         or (
-            int(topology.get("rendered_count") or 0) == 8
-            and int(topology.get("rows") or 0) == 2
-            and int(topology.get("columns") or 0) == 4
+            required_count > 0
+            and required_rows > 0
+            and required_columns > 0
+            and required_rows * required_columns == required_count
+            and int(topology.get("rendered_count") or 0) == required_count
             and bool(topology.get("semantic_registry_complete"))
         )
     )
     if topology_required and not topology_ok:
-        issues.append("reference feature matrix topology drifted from the required 4x2 / 8-cell structure")
+        issues.append(
+            f"reference feature matrix topology drifted from the measured "
+            f"{required_columns}x{required_rows} / {required_count}-cell structure"
+        )
     if rgb.get("available") and not rgb.get("passed"):
         issues.append("product RGB drift exceeded the reference-mode tolerance")
     if not copy.get("complete", False):
@@ -28168,20 +28219,301 @@ def _graphic_draw_semantic_feature_icon_v68866(draw, box, semantic, color, fallb
     return True
 
 
-def _graphic_reference_feature_labels_v68866(campaign_spec, prompt_text, design_mode):
-    """Build the final Reference Style 4x2 content before semantic registry creation.
+def _graphic_two_color_requested_v68877(prompt_text):
+    text = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return bool(
+        re.search(
+            r"\b(?:two|2)\s+(?:colors?|colours?|versions?|finishes?)\b"
+            r"|\bboth\s+(?:colors?|colours?|versions?|finishes?)\b"
+            r"|\bblack\s+(?:and|&)\s+silver\b"
+            r"|\bsilver\s+(?:and|&)\s+black\b"
+            r"|\bshow\s+both\b",
+            text,
+        )
+    )
 
-    The reference controls topology (8 cells). The campaign controls copy.
-    Existing verified/user-requested features are never discarded; missing slots
-    are filled with product-appropriate deterministic defaults.
+
+def _graphic_split_two_variant_source_v68877(product, transparent=False):
+    """Split one combined source containing two side-by-side variants.
+
+    This is fail-closed and pixel-preserving: it only returns two crops when the
+    source has two substantial left/right objects separated by a clear vertical
+    valley. It never synthesizes or recolors either variant.
     """
+    if Image is None or product is None:
+        return []
+
+    try:
+        from PIL import ImageChops, ImageFilter
+
+        image = ImageOps.exif_transpose(product).convert("RGBA")
+        w, h = image.size
+        if w < 160 or h < 160 or w < h * 0.72:
+            return []
+
+        if transparent:
+            mask = image.getchannel("A").point(
+                lambda a: 255 if a >= 8 else 0
+            )
+        else:
+            rgb = image.convert("RGB")
+            s = max(2, min(w, h) // 80)
+            pixels = []
+            for box in (
+                (0, 0, s, s),
+                (w - s, 0, w, s),
+                (0, h - s, s, h),
+                (w - s, h - s, w, h),
+            ):
+                pixels.extend(list(rgb.crop(box).getdata()))
+            pixels.sort(key=sum)
+            bg = pixels[len(pixels) // 2] if pixels else (255, 255, 255)
+            mask = (
+                ImageChops.difference(
+                    rgb,
+                    Image.new("RGB", rgb.size, bg),
+                )
+                .convert("L")
+                .point(lambda v: 255 if v >= 18 else 0)
+                .filter(ImageFilter.MaxFilter(5))
+            )
+
+        bbox = mask.getbbox()
+        if not bbox:
+            return []
+
+        l, t, r, b = bbox
+        object_w = max(1, r - l)
+        object_h = max(1, b - t)
+        if object_w < w * 0.42:
+            return []
+
+        # Per-column occupied-pixel fraction inside the complete object envelope.
+        occupancy = []
+        for x in range(l, r):
+            col = mask.crop((x, t, x + 1, b))
+            occupied = sum(1 for value in col.getdata() if value > 0)
+            occupancy.append(occupied / max(1, object_h))
+
+        # Search only around the center where a two-unit gap should occur.
+        lo = max(1, int(len(occupancy) * 0.28))
+        hi = min(len(occupancy) - 1, int(len(occupancy) * 0.72))
+        if hi <= lo:
+            return []
+
+        # Find the widest contiguous near-empty valley.
+        valleys = []
+        start = None
+        for idx in range(lo, hi):
+            if occupancy[idx] <= 0.045:
+                if start is None:
+                    start = idx
+            elif start is not None:
+                valleys.append((start, idx))
+                start = None
+        if start is not None:
+            valleys.append((start, hi))
+
+        if not valleys:
+            return []
+
+        valley_start, valley_end = max(
+            valleys,
+            key=lambda pair: pair[1] - pair[0],
+        )
+        valley_width = valley_end - valley_start
+        if valley_width < max(4, int(object_w * 0.018)):
+            return []
+
+        split_x = l + (valley_start + valley_end) // 2
+
+        left_mask = mask.crop((l, t, split_x, b))
+        right_mask = mask.crop((split_x, t, r, b))
+        left_bbox_local = left_mask.getbbox()
+        right_bbox_local = right_mask.getbbox()
+        if not left_bbox_local or not right_bbox_local:
+            return []
+
+        def _absolute_box(local_box, offset_x, offset_y):
+            ll, tt, rr, bb = local_box
+            return (
+                offset_x + ll,
+                offset_y + tt,
+                offset_x + rr,
+                offset_y + bb,
+            )
+
+        left_box = _absolute_box(left_bbox_local, l, t)
+        right_box = _absolute_box(right_bbox_local, split_x, t)
+
+        def _area(box):
+            return max(1, box[2] - box[0]) * max(1, box[3] - box[1])
+
+        full_area = max(1, object_w * object_h)
+        left_ratio = _area(left_box) / full_area
+        right_ratio = _area(right_box) / full_area
+        if min(left_ratio, right_ratio) < 0.12:
+            return []
+
+        pad = max(3, int(min(w, h) * 0.006))
+
+        def _pad_box(box):
+            ll, tt, rr, bb = box
+            return (
+                max(0, ll - pad),
+                max(0, tt - pad),
+                min(w, rr + pad),
+                min(h, bb + pad),
+            )
+
+        left_box = _pad_box(left_box)
+        right_box = _pad_box(right_box)
+
+        left = image.crop(left_box)
+        right = image.crop(right_box)
+
+        # A valid two-color source should produce comparably sized units.
+        left_aspect = left.width / max(1, left.height)
+        right_aspect = right.width / max(1, right.height)
+        if (
+            abs(left_aspect - right_aspect)
+            / max(left_aspect, right_aspect, 0.001)
+            > 0.35
+        ):
+            return []
+
+        return [
+            {
+                "image": left,
+                "source_box": list(left_box),
+                "index": 0,
+            },
+            {
+                "image": right,
+                "source_box": list(right_box),
+                "index": 1,
+            },
+        ]
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68877_two_variant_source_split_failed",
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        return []
+
+
+def _graphic_two_variant_stack_plan_v68877(
+    hero_box,
+    canvas_size,
+    primary_size,
+    secondary_size,
+):
+    """Compute overlapping front/rear boxes for exactly two product variants.
+
+    Both variants preserve their own aspect ratio. The primary/current product
+    remains dominant in front; the secondary color is offset behind it. The pair
+    stays inside the same reference-authorized hero region.
+    """
+    try:
+        W, H = int(canvas_size[0]), int(canvas_size[1])
+    except Exception:
+        W, H = 1536, 1024
+
+    try:
+        hx, hy, hw, hh = [float(v) for v in list(hero_box)[:4]]
+    except Exception:
+        hx, hy, hw, hh = 0.04, 0.32, 0.58, 0.55
+
+    x0 = int(W * hx)
+    y0 = int(H * hy)
+    region_w = max(1, int(W * hw))
+    region_h = max(1, int(H * hh))
+
+    p_w, p_h = max(1, int(primary_size[0])), max(1, int(primary_size[1]))
+    s_w, s_h = max(1, int(secondary_size[0])), max(1, int(secondary_size[1]))
+
+    # Reference relationship: one grouped hero, not two independently spaced units.
+    # Primary fills ~62% of hero width; rear fills ~56%, with substantial overlap.
+    primary_target_w = max(1, int(region_w * 0.62))
+    primary_target_h = max(1, int(region_h * 0.96))
+    secondary_target_w = max(1, int(region_w * 0.56))
+    secondary_target_h = max(1, int(region_h * 0.90))
+
+    p_scale = min(primary_target_w / p_w, primary_target_h / p_h)
+    s_scale = min(secondary_target_w / s_w, secondary_target_h / s_h)
+
+    primary_box_w = max(1, int(round(p_w * p_scale)))
+    primary_box_h = max(1, int(round(p_h * p_scale)))
+    secondary_box_w = max(1, int(round(s_w * s_scale)))
+    secondary_box_h = max(1, int(round(s_h * s_scale)))
+
+    primary_x = x0 + int(region_w * 0.03)
+    secondary_x = x0 + int(region_w * 0.40)
+
+    # Keep both aligned to the same visual baseline, rear unit slightly higher.
+    baseline = y0 + region_h
+    primary_y = baseline - primary_box_h
+    secondary_y = baseline - secondary_box_h - int(region_h * 0.035)
+
+    # Clamp inside the hero box while retaining overlap.
+    primary_x = max(x0, min(primary_x, x0 + region_w - primary_box_w))
+    secondary_x = max(x0, min(secondary_x, x0 + region_w - secondary_box_w))
+    primary_y = max(y0, min(primary_y, y0 + region_h - primary_box_h))
+    secondary_y = max(y0, min(secondary_y, y0 + region_h - secondary_box_h))
+
+    overlap_x = max(
+        0,
+        min(primary_x + primary_box_w, secondary_x + secondary_box_w)
+        - max(primary_x, secondary_x),
+    )
+    min_overlap = int(min(primary_box_w, secondary_box_w) * 0.18)
+    if overlap_x < min_overlap:
+        secondary_x = max(
+            x0,
+            min(
+                x0 + region_w - secondary_box_w,
+                primary_x + primary_box_w - min_overlap,
+            ),
+        )
+
+    return {
+        "mode": "stacked_two_color_variants",
+        "primary_box": [primary_x, primary_y, primary_box_w, primary_box_h],
+        "secondary_box": [secondary_x, secondary_y, secondary_box_w, secondary_box_h],
+        "primary_front": True,
+        "secondary_behind": True,
+        "overlap_required": True,
+        "preserve_individual_aspect_ratio": True,
+    }
+
+
+def _graphic_reference_grid_topology_v68876(reference_blueprint=None, design_mode=""):
+    """Return the measured feature-grid topology for the active style reference."""
+    if str(design_mode or "") != "reference_template":
+        return {"rows": 0, "columns": 0, "count": 0, "source": "not_reference_mode"}
+    bp = dict(reference_blueprint or {})
+    topology = dict(bp.get("feature_grid_topology") or {})
+    try:
+        rows = int(topology.get("rows") or 0)
+        columns = int(topology.get("columns") or 0)
+    except Exception:
+        rows = columns = 0
+    if rows <= 0 or columns <= 0 or rows * columns < 2 or rows * columns > 16:
+        rows, columns = 2, 4
+        source = "legacy_reference_fallback"
+    else:
+        source = str(topology.get("source") or "reference_analysis")
+    return {"rows": rows, "columns": columns, "count": rows * columns, "source": source}
+
+
+def _graphic_reference_feature_labels_v68876(campaign_spec, prompt_text, design_mode, reference_blueprint=None):
+    """Build feature copy while preserving the measured reference grid topology."""
     raw = [
         re.sub(r"\\s+", " ", str(x or "")).strip()
         for x in ((campaign_spec or {}).get("feature_labels") or [])
         if str(x or "").strip()
     ]
-
-    # Stable de-duplication by visible copy.
     seen=set(); features=[]
     for label in raw:
         key=label.casefold()
@@ -28191,63 +28523,48 @@ def _graphic_reference_feature_labels_v68866(campaign_spec, prompt_text, design_
     if str(design_mode or "") != "reference_template":
         return features[:8]
 
+    topology = _graphic_reference_grid_topology_v68876(reference_blueprint, design_mode)
+    target_count = max(2, min(16, int(topology.get("count") or 8)))
+    columns = max(1, int(topology.get("columns") or 4))
+
     context = " ".join([
         str(prompt_text or ""),
         str((campaign_spec or {}).get("headline") or ""),
         str((campaign_spec or {}).get("compatibility") or ""),
     ]).casefold()
-
     infotainment = any(term in context for term in (
         "infotainment", "carplay", "android auto", "navigation", "stereo",
         "touchscreen", "screen", "radio",
     ))
-
     defaults = (
-        [
-            "Large Touchscreen",
-            "Wireless Connectivity",
-            "Vehicle Data",
-            "OEM Fit & Finish",
-            "Touch Control",
-            "Bluetooth Audio",
-            "Navigation Ready",
-            "High-Brightness Display",
-        ]
-        if infotainment
-        else [
-            "Large Screen",
-            "Multiple Display Styles",
-            "Real-Time Vehicle Data",
-            "Fuel Level Display",
-            "Outdoor Temperature",
-            "Off-Road Information",
-            "Dual Travel Mileage",
-            "Hill Descent Assist",
-        ]
+        ["Large Touchscreen","Wireless Connectivity","Vehicle Data","OEM Fit & Finish",
+         "Touch Control","Bluetooth Audio","Navigation Ready","High-Brightness Display",
+         "DSP Audio","2K QHD Display","Plug and Play","Integrated Climate Control"]
+        if infotainment else
+        ["Large Screen","Multiple Display Styles","Real-Time Vehicle Data","Fuel Level Display",
+         "Outdoor Temperature","Off-Road Information","Dual Travel Mileage","Hill Descent Assist",
+         "Vehicle Information","OEM Fit & Finish","High-Brightness Display","Plug and Play"]
     )
-
     for label in defaults:
-        if len(features) >= 8:
+        if len(features) >= target_count:
             break
         key=label.casefold()
         if key not in seen:
             features.append(label); seen.add(key)
 
-    # Reference topology is exactly 8 cells.
-    features = features[:8]
-    while len(features) < 8:
-        label = f"Vehicle Feature {len(features)+1}"
-        features.append(label)
+    features = features[:target_count]
+    while len(features) < target_count:
+        features.append(f"Vehicle Feature {len(features)+1}")
 
-    # Match the approved Reference Style placement preference: connectivity is the
-    # two far-right cells of row 1 when both are present.
-    registry = _graphic_feature_registry_v42000(features, 8)
+    # Keep CarPlay + Android Auto at the far-right of row 1 when the measured
+    # reference row has room for both; never change the measured row/column count.
+    registry = _graphic_feature_registry_v42000(features, target_count)
     car = next((i for i,r in enumerate(registry) if r.get("semantic")=="carplay"), None)
     aa = next((i for i,r in enumerate(registry) if r.get("semantic")=="android_auto"), None)
-    if car is not None and aa is not None and car != aa:
+    if columns >= 2 and car is not None and aa is not None and car != aa:
         normal=[label for i,label in enumerate(features) if i not in {car,aa}]
-        features=(normal[:2]+[features[car],features[aa]]+normal[2:])[:8]
-
+        first_row_normal=max(0, columns-2)
+        features=(normal[:first_row_normal]+[features[car],features[aa]]+normal[first_row_normal:])[:target_count]
     return features
 
 
@@ -29160,11 +29477,44 @@ def _graphic_compose_reference_campaign_v3200(
     layout_bp = _graphic_reference_layout_blueprint_v9000(fused_reference, template_key)
     transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
 
+    multi_image_plan_v68877 = _graphic_multi_image_intent_plan_v68848(
+        prompt_text, role_items
+    )
+    secondary_variant_item_v68877 = None
+    if str(multi_image_plan_v68877.get("mode") or "") == "together":
+        secondary_candidates_v68877 = [
+            item for item in (role_items or [])
+            if isinstance(item, dict)
+            and str(item.get("role") or "").casefold() == "product_variant"
+            and item.get("file") is not None
+        ]
+        if len(secondary_candidates_v68877) == 1:
+            secondary_variant_item_v68877 = secondary_candidates_v68877[0]
+
     product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
     if product is None:
         raise RuntimeError("The exact product source could not be decoded.")
     product = ImageOps.exif_transpose(product).convert("RGBA")
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
+
+    combined_variant_split_v68877 = []
+    if (
+        secondary_variant_item_v68877 is None
+        and _graphic_two_color_requested_v68877(prompt_text)
+    ):
+        combined_variant_split_v68877 = _graphic_split_two_variant_source_v68877(
+            product,
+            transparent=transparent,
+        )
+        if len(combined_variant_split_v68877) == 2:
+            product = combined_variant_split_v68877[0]["image"]
+            transparent = True
+            secondary_product_v68877_pending = combined_variant_split_v68877[1]["image"]
+        else:
+            secondary_product_v68877_pending = None
+    else:
+        secondary_product_v68877_pending = None
+
     product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
     layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
 
@@ -29220,6 +29570,57 @@ def _graphic_compose_reference_campaign_v3200(
     hero_w = max(1, hero_x1 - hero_x0)
     hero_h = max(1, hero_y1 - hero_y0)
 
+    secondary_product_v68877 = None
+    secondary_source_v68877 = None
+    secondary_stack_plan_v68877 = {}
+
+    if secondary_product_v68877_pending is not None:
+        secondary_product_v68877 = ImageOps.exif_transpose(
+            secondary_product_v68877_pending
+        ).convert("RGBA")
+        secondary_source_v68877 = secondary_product_v68877.copy()
+        secondary_stack_plan_v68877 = _graphic_two_variant_stack_plan_v68877(
+            hero_box,
+            (W, H),
+            product.size,
+            secondary_product_v68877.size,
+        )
+
+    elif secondary_variant_item_v68877 is not None:
+        secondary_product_v68877, secondary_transparent_v68877 = _graphic_open_product_layer_v3300(
+            secondary_variant_item_v68877.get("file")
+        )
+        if secondary_product_v68877 is not None:
+            secondary_product_v68877 = ImageOps.exif_transpose(
+                secondary_product_v68877
+            ).convert("RGBA")
+            secondary_product_v68877, _secondary_trim_report_v68877 = _graphic_trim_visible_product_canvas_v14000(
+                secondary_product_v68877,
+                transparent=secondary_transparent_v68877,
+            )
+            if not secondary_transparent_v68877:
+                pad_v68877 = max(6, int(H * 0.006))
+                card_v68877 = Image.new(
+                    "RGBA",
+                    (
+                        secondary_product_v68877.width + pad_v68877 * 2,
+                        secondary_product_v68877.height + pad_v68877 * 2,
+                    ),
+                    (250, 251, 253, 242),
+                )
+                card_v68877.alpha_composite(
+                    secondary_product_v68877,
+                    (pad_v68877, pad_v68877),
+                )
+                secondary_product_v68877 = card_v68877
+            secondary_source_v68877 = secondary_product_v68877.copy()
+            secondary_stack_plan_v68877 = _graphic_two_variant_stack_plan_v68877(
+                hero_box,
+                (W, H),
+                product.size,
+                secondary_product_v68877.size,
+            )
+
     base_scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
     # Fill the measured reference zone aggressively. Portrait products use the full
     # available height; wide products use the full available width. This preserves
@@ -29253,10 +29654,39 @@ def _graphic_compose_reference_campaign_v3200(
     # Never crop or non-uniformly distort the exact product.
     scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
     authoritative_pre_resize_v61000 = product.copy()
-    product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
-        product,
-        (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
-    )
+
+    if secondary_stack_plan_v68877:
+        primary_box_v68877 = list(
+            secondary_stack_plan_v68877.get("primary_box") or []
+        )
+        if len(primary_box_v68877) == 4:
+            target_primary_size_v68877 = (
+                max(1, int(primary_box_v68877[2])),
+                max(1, int(primary_box_v68877[3])),
+            )
+            # Fit inside the planned box without changing aspect ratio.
+            fit_scale_v68877 = min(
+                target_primary_size_v68877[0] / max(1, product.width),
+                target_primary_size_v68877[1] / max(1, product.height),
+            )
+            product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
+                product,
+                (
+                    max(1, int(round(product.width * fit_scale_v68877))),
+                    max(1, int(round(product.height * fit_scale_v68877))),
+                ),
+            )
+        else:
+            product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
+                product,
+                (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
+            )
+    else:
+        product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
+            product,
+            (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
+        )
+
     # v68808 deterministic relocation: center the product in the visual corridor
     # between the left canvas safe area and the vehicle, then clamp it to the
     # reference-authorized hero region. This moves the unit slightly left when useful
@@ -29275,6 +29705,21 @@ def _graphic_compose_reference_campaign_v3200(
     footer_overlap_px = max(1, int(round(product.height * 0.02)))
     py = footer_top_px - product.height + footer_overlap_px
     py = max(hero_y0, min(py, H - product.height))
+
+    if secondary_stack_plan_v68877:
+        primary_box_v68877 = list(
+            secondary_stack_plan_v68877.get("primary_box") or []
+        )
+        if len(primary_box_v68877) == 4:
+            px = int(primary_box_v68877[0])
+            # Keep the existing footer-overlap relationship while honoring the
+            # reference-authorized two-variant group position.
+            py = min(
+                int(primary_box_v68877[1]),
+                footer_top_px - product.height + footer_overlap_px,
+            )
+            px = max(hero_x0, min(px, hero_x1 - product.width))
+            py = max(hero_y0, min(py, H - product.height))
 
     state_now = get_graphic_project_state()
     design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
@@ -29359,6 +29804,100 @@ def _graphic_compose_reference_campaign_v3200(
 
     # Stage 7: physically layered contact, ambient and directional shadows.
     shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v61000(product, (W,H), lighting_profile)
+
+    secondary_variant_report_v68877 = {
+        "enabled": False,
+        "count": 1,
+        "mode": "single_product",
+    }
+    if secondary_product_v68877 is not None and secondary_stack_plan_v68877:
+        rear_box_v68877 = list(
+            secondary_stack_plan_v68877.get("secondary_box") or []
+        )
+        if len(rear_box_v68877) == 4:
+            rear_fit_v68877 = min(
+                int(rear_box_v68877[2]) / max(1, secondary_product_v68877.width),
+                int(rear_box_v68877[3]) / max(1, secondary_product_v68877.height),
+            )
+            secondary_product_v68877, secondary_resize_report_v68877 = _graphic_supersampled_product_resize_v56000(
+                secondary_product_v68877,
+                (
+                    max(1, int(round(secondary_product_v68877.width * rear_fit_v68877))),
+                    max(1, int(round(secondary_product_v68877.height * rear_fit_v68877))),
+                ),
+            )
+            secondary_x_v68877 = int(rear_box_v68877[0])
+            secondary_y_v68877 = min(
+                int(rear_box_v68877[1]),
+                footer_top_px - secondary_product_v68877.height + max(
+                    1,
+                    int(round(secondary_product_v68877.height * 0.02)),
+                ),
+            )
+            secondary_x_v68877 = max(
+                hero_x0,
+                min(secondary_x_v68877, hero_x1 - secondary_product_v68877.width),
+            )
+            secondary_y_v68877 = max(
+                hero_y0,
+                min(secondary_y_v68877, H - secondary_product_v68877.height),
+            )
+
+            secondary_shadow_layers_v68877, _secondary_shadow_solver_v68877 = _graphic_shadow_solver_v61000(
+                secondary_product_v68877,
+                (W, H),
+                lighting_profile,
+            )
+            for _shadow_name_v68877, _shadow_layer_v68877, (_sdx_v68877, _sdy_v68877) in secondary_shadow_layers_v68877:
+                canvas.alpha_composite(
+                    _shadow_layer_v68877,
+                    (
+                        secondary_x_v68877 + _sdx_v68877,
+                        secondary_y_v68877 + _sdy_v68877,
+                    ),
+                )
+            canvas.alpha_composite(
+                secondary_product_v68877,
+                (secondary_x_v68877, secondary_y_v68877),
+            )
+
+            secondary_aspect_before_v68877 = (
+                secondary_source_v68877.width
+                / max(1, secondary_source_v68877.height)
+            )
+            secondary_aspect_after_v68877 = (
+                secondary_product_v68877.width
+                / max(1, secondary_product_v68877.height)
+            )
+            secondary_variant_report_v68877 = {
+                "enabled": True,
+                "count": 2,
+                "mode": "stacked_two_color_variants",
+                "primary_front": True,
+                "secondary_behind": True,
+                "primary_box": [px, py, product.width, product.height],
+                "secondary_box": [
+                    secondary_x_v68877,
+                    secondary_y_v68877,
+                    secondary_product_v68877.width,
+                    secondary_product_v68877.height,
+                ],
+                "secondary_aspect_relative_error": round(
+                    abs(
+                        secondary_aspect_after_v68877
+                        - secondary_aspect_before_v68877
+                    )
+                    / max(secondary_aspect_before_v68877, 0.001),
+                    8,
+                ),
+                "secondary_exact_source_pixels": True,
+                "source_mode": (
+                    "combined_source_split"
+                    if len(combined_variant_split_v68877) == 2
+                    else "separate_product_variant"
+                ),
+            }
+
     for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
         canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
     canvas.alpha_composite(product, (px, py))
@@ -29492,18 +30031,21 @@ def _graphic_compose_reference_campaign_v3200(
 
     # v68866 Reference Style topology authority:
     # resolve all eight visible labels FIRST, then build semantic icon authority.
-    features = _graphic_reference_feature_labels_v68866(
-        campaign_spec, prompt_text, design_mode
+    reference_topology_v68876 = _graphic_reference_grid_topology_v68876(reference_blueprint, design_mode)
+    features = _graphic_reference_feature_labels_v68876(
+        campaign_spec, prompt_text, design_mode, reference_blueprint
     )
-    feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
+    feature_registry_v42000 = _graphic_feature_registry_v42000(features, len(features))
     feature_box = layout_bp["feature_matrix_box"]
     grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
     grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
-    cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
+    grid_columns = max(1, int(reference_topology_v68876.get("columns") or 4)) if design_mode == "reference_template" else 4
+    grid_rows = max(1, int(reference_topology_v68876.get("rows") or 2)) if design_mode == "reference_template" else max(1, (len(features)+grid_columns-1)//grid_columns)
+    cell_w, cell_h = grid_w / float(grid_columns), grid_h / float(grid_rows)
     feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
     for idx, label in enumerate(features):
-        row, col = divmod(idx, 4)
+        row, col = divmod(idx, grid_columns)
         x0 = int(grid_x + col * cell_w)
         y0 = int(grid_y + row * cell_h)
         if col:
@@ -29683,11 +30225,12 @@ def _graphic_compose_reference_campaign_v3200(
         "product_perspective_analysis_v42000": product_perspective_v42000,
         "multi_reference_fusion_v42000": reference_fusion_v42000,
         "feature_icon_registry_v42000": feature_registry_v42000,
+        "two_variant_stack_v68877": secondary_variant_report_v68877,
         "feature_matrix_topology_v68866": {
-            "required_count": 8 if design_mode == "reference_template" else len(features),
+            "required_count": int(reference_topology_v68876.get("count") or len(features)) if design_mode == "reference_template" else len(features),
             "rendered_count": len(features),
-            "rows": 2 if design_mode == "reference_template" else max(1, (len(features)+3)//4),
-            "columns": 4,
+            "rows": int(reference_topology_v68876.get("rows") or max(1, (len(features)+3)//4)) if design_mode == "reference_template" else max(1, (len(features)+3)//4),
+            "columns": int(reference_topology_v68876.get("columns") or 4) if design_mode == "reference_template" else 4,
             "labels": list(features),
             "semantics": [str(row.get("semantic") or "") for row in feature_registry_v42000],
             "semantic_registry_complete": len(feature_registry_v42000) == len(features),
