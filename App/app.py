@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68867 — Reference Grid + Semantic Icons + Instant Graphic Status; AI/Graphic Generation Pipeline Preserved
+# AutoTecPro AI v68869 — Full Runtime Cleanup Fix; v68868 Submission + v68867 Reference Grid Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -4516,6 +4516,36 @@ def _graphic_project_generation_ready_v68849(state=None):
         or project.get("project_style_dna")
     )
     return bool(has_product and (has_reference_asset or has_locked_reference))
+
+
+def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_files=None):
+    """Fast local-only Graphic action detector used only for immediate UI feedback.
+
+    This does not route or alter the request. The existing production detectors
+    remain authoritative later in the turn.
+    """
+    if str(assistant or "") != "🎨 Graphic Marketing":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    # Keep this intentionally narrow and deterministic.
+    action_terms = (
+        "create it",
+        "create the image",
+        "create the commercial",
+        "create commercial",
+        "generate it",
+        "generate image",
+        "generate the image",
+        "make the image",
+        "make this image",
+        "regenerate",
+        "try again",
+        "proceed",
+        "create now",
+    )
+    return any(term in value for term in action_terms)
 
 
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
@@ -29201,6 +29231,10 @@ def _graphic_compose_reference_campaign_v3200(
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
+    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
+        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
+        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
+    )
     return output.getvalue(), {
         "engine": "autotecpro-commercial-composer-v66000-universal-fail-closed-exact-geometry-authority",
         "exact_product_pixels": True,
@@ -29369,10 +29403,6 @@ def _graphic_compose_reference_campaign_v3200(
         "v61000_compatibility_scope": ["authentication","roles_permissions","supabase","history","admin","knowledge_upload","product_library","technical","sales","marketing","woocommerce","documents","mobile","downloads"],
         "v61000_stage_timing": {"local_composition_seconds": round(time.perf_counter()-v61000_compose_started,4)},
     }
-    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
-        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
-        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
-    )
 
 
 
@@ -54260,36 +54290,6 @@ else:
             _chat_submission_begin_v68690(
                 submission_fingerprint_v68690
             )
-
-
-def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_files=None):
-    """Fast local-only Graphic action detector used only for immediate UI feedback.
-
-    This does not route or alter the request. The existing production detectors
-    remain authoritative later in the turn.
-    """
-    if str(assistant or "") != "🎨 Graphic Marketing":
-        return False
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not value:
-        return False
-    # Keep this intentionally narrow and deterministic.
-    action_terms = (
-        "create it",
-        "create the image",
-        "create the commercial",
-        "create commercial",
-        "generate it",
-        "generate image",
-        "generate the image",
-        "make the image",
-        "make this image",
-        "regenerate",
-        "try again",
-        "proceed",
-        "create now",
-    )
-    return any(term in value for term in action_terms)
 
 
     if prompt:
