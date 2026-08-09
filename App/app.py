@@ -35,6 +35,7 @@ import ipaddress
 import csv
 import inspect
 import math
+import gc
 from difflib import SequenceMatcher
 try:
     from openpyxl import load_workbook
@@ -46,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68870 — Website Learning + Image Retrieval; Existing AI/Graphic Pipelines Preserved
+# AutoTecPro AI v68874 — Graphic Memory Stability Fix; v68873 Generation/QA Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -23860,10 +23861,173 @@ def _graphic_v66100_record_attempt(**entry):
     return row
 
 
+GRAPHIC_V68874_SESSION_CACHE_MAX_ENTRIES = 36
+GRAPHIC_V68874_SESSION_CACHE_MAX_APPROX_BYTES = 24 * 1024 * 1024
+
+
+def _graphic_v68874_approx_object_bytes(value):
+    """Cheap bounded-size estimate for session-cache pressure accounting."""
+    try:
+        if isinstance(value, (bytes, bytearray)):
+            return len(value)
+        if isinstance(value, str):
+            return len(value.encode("utf-8", "ignore"))
+        return len(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8", "ignore")
+        )
+    except Exception:
+        try:
+            return len(str(value).encode("utf-8", "ignore"))
+        except Exception:
+            return 0
+
+
+def _graphic_v68874_bound_session_cache(cache):
+    """Bound the local v66100 cache without changing its Supabase authority.
+
+    Large validated background plates can contain multi-megabyte Base64 strings.
+    v68873 kept every cache entry in Streamlit session_state indefinitely.
+    This helper evicts only the oldest LOCAL copies. An evicted entry remains
+    available from the existing Supabase cache and is transparently reloaded by
+    _graphic_v66100_cache_get when needed.
+    """
+    if not isinstance(cache, dict):
+        return {}
+
+    # First enforce count.
+    while len(cache) > GRAPHIC_V68874_SESSION_CACHE_MAX_ENTRIES:
+        try:
+            cache.pop(next(iter(cache)), None)
+        except Exception:
+            break
+
+    # Then enforce approximate payload size.
+    try:
+        sizes = {
+            key: _graphic_v68874_approx_object_bytes(value)
+            for key, value in cache.items()
+        }
+        total = sum(sizes.values())
+        while (
+            total > GRAPHIC_V68874_SESSION_CACHE_MAX_APPROX_BYTES
+            and len(cache) > 1
+        ):
+            oldest = next(iter(cache))
+            total -= sizes.get(oldest, 0)
+            cache.pop(oldest, None)
+            sizes.pop(oldest, None)
+    except Exception:
+        pass
+
+    return cache
+
+
+def _graphic_v68874_process_memory_snapshot():
+    """Return best-effort Linux process/container memory telemetry without dependencies."""
+    snapshot = {
+        "rss_mb": None,
+        "peak_rss_mb": None,
+        "available_mb": None,
+    }
+
+    try:
+        status_values = {}
+        with open("/proc/self/status", "r", encoding="utf-8") as handle:
+            for line in handle:
+                if ":" not in line:
+                    continue
+                key, value = line.split(":", 1)
+                status_values[key.strip()] = value.strip()
+
+        def _kb(name):
+            raw = status_values.get(name, "")
+            match = re.search(r"(\d+)", raw)
+            return int(match.group(1)) if match else None
+
+        rss_kb = _kb("VmRSS")
+        peak_kb = _kb("VmHWM")
+        snapshot["rss_mb"] = round(rss_kb / 1024.0, 2) if rss_kb is not None else None
+        snapshot["peak_rss_mb"] = round(peak_kb / 1024.0, 2) if peak_kb is not None else None
+    except Exception:
+        pass
+
+    try:
+        available_kb = None
+        with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("MemAvailable:"):
+                    match = re.search(r"(\d+)", line)
+                    available_kb = int(match.group(1)) if match else None
+                    break
+        snapshot["available_mb"] = (
+            round(available_kb / 1024.0, 2)
+            if available_kb is not None
+            else None
+        )
+    except Exception:
+        pass
+
+    return snapshot
+
+
+def _graphic_v68874_release_transient_memory(stage=""):
+    """Release unreachable image buffers at safe stage boundaries only.
+
+    This never deletes project assets, generated results, history, provider
+    inputs, reference/product authorities, or any deterministic caches needed
+    for output. It only asks Python/Pillow/libc to return already-unreachable
+    memory and records the resulting process footprint.
+    """
+    collected = 0
+    try:
+        collected = int(gc.collect())
+    except Exception:
+        collected = 0
+
+    # Pillow maintains optional allocator caches. Clearing them does not alter
+    # live Image objects or pixels; it only releases reusable internal blocks.
+    try:
+        core = getattr(Image, "core", None) if Image is not None else None
+        clear_cache = getattr(core, "clear_cache", None)
+        if callable(clear_cache):
+            clear_cache()
+    except Exception:
+        pass
+
+    # On Linux/glibc, return free heap arenas to the container where possible.
+    try:
+        if os.name == "posix":
+            import ctypes
+            libc = ctypes.CDLL(None)
+            malloc_trim = getattr(libc, "malloc_trim", None)
+            if callable(malloc_trim):
+                malloc_trim(0)
+    except Exception:
+        pass
+
+    snapshot = _graphic_v68874_process_memory_snapshot()
+    diagnostic_log(
+        "graphic_v68874_memory_checkpoint",
+        stage=str(stage or ""),
+        collected_objects=collected,
+        **snapshot,
+    )
+    return snapshot
+
+
 def _graphic_v66100_cache_get(cache_key):
     session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    _graphic_v68874_bound_session_cache(session)
     if cache_key in session:
-        return session.get(cache_key)
+        # Refresh local recency without changing the cached payload.
+        cached = session.pop(cache_key)
+        session[cache_key] = cached
+        return cached
     try:
         result = (supabase.table(GRAPHIC_V66100_CACHE_TABLE)
                   .select("payload")
@@ -23871,7 +24035,8 @@ def _graphic_v66100_cache_get(cache_key):
         rows = getattr(result, "data", None) or []
         if rows and isinstance(rows[0].get("payload"), dict):
             session[cache_key] = rows[0]["payload"]
-            return session[cache_key]
+            _graphic_v68874_bound_session_cache(session)
+            return session.get(cache_key) or rows[0]["payload"]
     except Exception as error:
         diagnostic_log("graphic_v66100_cache_read_unavailable", error_type=type(error).__name__)
     return None
@@ -23880,7 +24045,13 @@ def _graphic_v66100_cache_get(cache_key):
 def _graphic_v66100_cache_put(cache_key, payload):
     if not isinstance(payload, dict):
         return False
-    st.session_state.setdefault("graphic_persistent_cache_v66100", {})[cache_key] = payload
+
+    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    if cache_key in session:
+        session.pop(cache_key, None)
+    session[cache_key] = payload
+    _graphic_v68874_bound_session_cache(session)
+
     try:
         record = {"cache_key": cache_key, "namespace": GRAPHIC_V66100_CACHE_NAMESPACE,
                   "payload": payload, "updated_at": datetime.now(timezone.utc).isoformat()}
@@ -30276,6 +30447,16 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
     )
     result["product_identity_method"] = "engine-v48000-compiled-detail-restored-product-composite"
     result["layered_metadata"].update(metadata)
+
+    # v68874: the completed result now owns the encoded final artwork.
+    # Drop only local raw byte buffers before QA to reduce the peak footprint.
+    # This does not alter the final data_url, metadata, product pixels, or QA.
+    try:
+        del composed
+        del background
+    except Exception:
+        pass
+    _graphic_v68874_release_transient_memory("reference_composite_ready")
 
     scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
     result["layered_metadata"]["qa_scorecard_v43000"] = scorecard
@@ -38403,6 +38584,7 @@ RESPONSE PRESENTATION RULES:
   or code fences. Preserve all facts, uncertainty, warnings, and required steps.
 """
 
+@st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -38996,6 +39178,7 @@ def should_use_workspace_file_search(
     }
 
 
+@st.cache_data(ttl=300, max_entries=2048, show_spinner=False)
 def detect_prompt_execution_plan(
     prompt_text,
     selected_assistant,
@@ -39118,16 +39301,60 @@ def _uploaded_file_bytes(uploaded_file):
     return bytes(payload or b"")
 
 
+def _uploaded_file_session_identity_v68872(uploaded_file):
+    """Return a stable Streamlit upload identity when available."""
+    file_id = str(getattr(uploaded_file, "file_id", "") or "").strip()
+    if not file_id:
+        return ""
+    return "|".join([
+        file_id,
+        str(getattr(uploaded_file, "name", "") or ""),
+        str(getattr(uploaded_file, "type", "") or ""),
+        str(getattr(uploaded_file, "size", "") or ""),
+    ])
+
+
+def _uploaded_file_payload_digest_v68872(uploaded_file):
+    """Reuse unchanged attachment bytes/digest across reruns without altering uploads."""
+    session_identity = _uploaded_file_session_identity_v68872(uploaded_file)
+    cache = st.session_state.setdefault(
+        "_uploaded_file_payload_digest_cache_v68872",
+        {},
+    )
+
+    if session_identity:
+        cached = cache.get(session_identity)
+        if isinstance(cached, dict):
+            payload = cached.get("payload")
+            digest = str(cached.get("digest") or "")
+            if isinstance(payload, (bytes, bytearray)) and digest:
+                return bytes(payload), digest
+
+    payload = _uploaded_file_bytes(uploaded_file)
+    digest = hashlib.sha256(payload).hexdigest()
+
+    if session_identity:
+        # Keep memory bounded. This only avoids rereading/re-hashing files that
+        # Streamlit replays across reruns; OpenAI upload authority is unchanged.
+        if len(cache) >= 16:
+            cache.clear()
+        cache[session_identity] = {
+            "payload": payload,
+            "digest": digest,
+        }
+
+    return payload, digest
+
+
 def upload_openai_file_once(uploaded_file):
     """
     Upload one unchanged chat attachment only once per user session.
 
-    Streamlit reruns can otherwise upload the same attachment repeatedly before
-    a response finishes. The cache is keyed by filename, MIME type, size, and
-    SHA-256 content digest.
+    v68872 keeps the exact existing OpenAI upload cache and adds a safe
+    Streamlit-file-id byte/digest cache so reruns do not repeatedly read/hash
+    the same unchanged attachment.
     """
-    payload = _uploaded_file_bytes(uploaded_file)
-    digest = hashlib.sha256(payload).hexdigest()
+    payload, digest = _uploaded_file_payload_digest_v68872(uploaded_file)
     cache_key = (
         str(getattr(uploaded_file, "name", "") or ""),
         str(getattr(uploaded_file, "type", "") or ""),
@@ -39937,6 +40164,7 @@ def build_user_input(
     return [{"role": "user", "content": content}]
 
 
+@st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def _workspace_knowledge_priority_instruction(selected_assistant):
     """Describe one-way knowledge access and source authority for the active workspace."""
     if selected_assistant == "🔧 Technical Support":
@@ -39950,14 +40178,16 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
             "troubleshooting.\n"
             "- When information is not supported by Technical knowledge, say what is "
             "missing instead of guessing.\n"
-            "- Website knowledge may contain exact AUTO_DISPLAY_IMAGE URLs next to image "
-            "analysis. When one of those images directly supports the current answer, append "
-            "up to 4 internal control lines at the END of the response, each exactly in this "
-            "format: [[ATP_WEB_IMAGE_JSON:{\"url\":\"EXACT_AUTO_DISPLAY_IMAGE_URL\","
+            "- Website knowledge may contain SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
+            "IMAGE_ANALYSIS, and an exact AUTO_DISPLAY_IMAGE URL. Prefer images whose section "
+            "heading and nearby instruction text match the exact installation step being "
+            "answered. When one directly supports the current answer, append up to 4 internal "
+            "control lines at the END of the response, each exactly in this format: "
+            "[[ATP_WEB_IMAGE_JSON:{\"url\":\"EXACT_AUTO_DISPLAY_IMAGE_URL\","
             "\"caption\":\"short factual caption\"}]]. Use only an exact URL retrieved "
             "from Technical file_search knowledge. Never invent, rewrite, guess, or use an "
-            "unrelated image URL. If no retrieved image directly supports the answer, append "
-            "no image control line."
+            "image merely because it is from the same webpage. If no retrieved image directly "
+            "supports the answer, append no image control line."
         )
     if is_sales_workspace(selected_assistant):
         return (
@@ -45092,6 +45322,12 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._inside_title = False
         self.images = []
 
+        # v68871: structural context used to bind each image to its section.
+        self._current_heading_level = ""
+        self._current_heading_parts = []
+        self._last_heading = ""
+        self._recent_text_chunks = []
+
     def handle_starttag(self, tag, attrs):
         tag = str(tag or "").lower()
         if tag in self.SKIP_TAGS:
@@ -45103,6 +45339,10 @@ class KnowledgePageHTMLParser(HTMLParser):
 
         if tag == "title":
             self._inside_title = True
+
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self._current_heading_level = tag
+            self._current_heading_parts = []
 
         if tag in self.BLOCK_TAGS:
             self._parts.append("\n")
@@ -45134,10 +45374,17 @@ class KnowledgePageHTMLParser(HTMLParser):
                     candidate_src = candidates[-1]
             candidate_src = str(candidate_src or "").strip()
             if candidate_src:
+                nearby_text = " ".join(
+                    chunk for chunk in self._recent_text_chunks[-6:] if chunk
+                )
+                nearby_text = re.sub(r"\s+", " ", nearby_text).strip()
                 self.images.append({
                     "src": candidate_src,
                     "alt": alt_text,
                     "title": title_text,
+                    "nearest_heading": self._last_heading,
+                    "heading_level": self._current_heading_level,
+                    "nearby_text": nearby_text[-1400:],
                 })
             if alt_text:
                 self._parts.append(f"\nImage description: {alt_text}\n")
@@ -45156,6 +45403,19 @@ class KnowledgePageHTMLParser(HTMLParser):
         if tag == "title":
             self._inside_title = False
 
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            heading = re.sub(
+                r"\s+",
+                " ",
+                " ".join(self._current_heading_parts),
+            ).strip()
+            if heading:
+                self._last_heading = heading
+                self._recent_text_chunks.append(heading)
+                self._recent_text_chunks = self._recent_text_chunks[-12:]
+            self._current_heading_parts = []
+            self._current_heading_level = ""
+
         if tag in self.BLOCK_TAGS:
             self._parts.append("\n")
 
@@ -45169,6 +45429,13 @@ class KnowledgePageHTMLParser(HTMLParser):
 
         if self._inside_title and not self.title:
             self.title = value
+
+        if self._current_heading_level:
+            self._current_heading_parts.append(value)
+
+        if not self._inside_title:
+            self._recent_text_chunks.append(value)
+            self._recent_text_chunks = self._recent_text_chunks[-12:]
 
         self._parts.append(value + " ")
 
@@ -45337,26 +45604,40 @@ def clean_extracted_website_text(raw_text):
 
 
 def _website_image_candidate_urls(parser_images, page_url):
-    """Resolve and de-duplicate meaningful image URLs discovered in one webpage."""
+    """Resolve, score, filter, and de-duplicate meaningful webpage image candidates."""
     results = []
     seen = set()
-    skip_tokens = (
+
+    hard_skip_tokens = (
         "logo", "favicon", "icon", "sprite", "avatar", "emoji", "badge",
-        "payment", "paypal", "visa", "mastercard", "social", "facebook",
-        "instagram", "twitter", "youtube", "pixel", "tracker", "analytics",
-        "placeholder", "loading", "spinner", "gravatar",
+        "payment", "paypal", "visa", "mastercard", "amex",
+        "social", "facebook", "instagram", "twitter", "youtube", "tiktok",
+        "pixel", "tracker", "analytics", "placeholder", "loading", "spinner",
+        "gravatar", "header-logo", "footer-logo", "site-logo", "woocommerce",
+        "trustpilot", "klarna", "afterpay", "shop-pay", "apple-pay",
     )
+    positive_tokens = (
+        "install", "installation", "instruction", "camera", "reverse", "harness",
+        "wiring", "connector", "cable", "protocol", "setting", "settings",
+        "dip", "switch", "aux", "lvds", "usb", "factory", "radio",
+        "screen", "module", "adapter", "canbus", "can bus", "diagram",
+        "connection", "plug", "socket", "port", "rear entertainment",
+    )
+
     for raw in parser_images or []:
         if not isinstance(raw, dict):
             continue
+
         src = str(raw.get("src") or "").strip()
         if not src or src.startswith(("data:", "blob:", "javascript:")):
             continue
+
         resolved = urljoin(page_url, src)
         try:
             normalized = normalize_website_url(resolved)
         except Exception:
             continue
+
         parsed = urlparse(normalized)
         identity = (
             str(parsed.scheme or "").lower(),
@@ -45367,21 +45648,69 @@ def _website_image_candidate_urls(parser_images, page_url):
         if identity in seen:
             continue
         seen.add(identity)
+
         alt = re.sub(r"\s+", " ", str(raw.get("alt") or "")).strip()
         title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
-        haystack = f"{parsed.path} {alt} {title}".casefold()
-        # Only reject obvious decorative assets here. Dimension/content validation
-        # happens later so installation/product photos are not accidentally lost.
-        if any(token in haystack for token in skip_tokens):
+        nearest_heading = re.sub(
+            r"\s+",
+            " ",
+            str(raw.get("nearest_heading") or ""),
+        ).strip()
+        nearby_text = re.sub(
+            r"\s+",
+            " ",
+            str(raw.get("nearby_text") or ""),
+        ).strip()
+
+        asset_identity = " ".join(
+            part for part in (
+                str(parsed.path or ""), alt, title
+            ) if part
+        ).casefold()
+        contextual_haystack = " ".join(
+            part for part in (
+                asset_identity, nearest_heading, nearby_text
+            ) if part
+        ).casefold()
+
+        # Reject decorative assets based on the asset itself, not surrounding page
+        # copy. This prevents a valid installation image from being discarded just
+        # because nearby header text mentions PayPal, a logo, or social links.
+        if any(token in asset_identity for token in hard_skip_tokens):
             continue
+
+        score = 0
+        if any(token in contextual_haystack for token in positive_tokens):
+            score += 4
+        if nearest_heading:
+            score += 2
+        if nearby_text:
+            score += 1
+        if alt:
+            score += 1
+        if re.search(r"\.(?:jpg|jpeg|png|webp)(?:$|\?)", normalized, flags=re.I):
+            score += 1
+
+        if score <= 0:
+            continue
+
         results.append({
             "url": normalized,
             "alt": alt,
             "title": title,
+            "nearest_heading": nearest_heading,
+            "nearby_text": nearby_text[-1400:],
+            "context_score": score,
         })
-        if len(results) >= WEBSITE_MAX_DISCOVERED_IMAGES:
-            break
-    return results
+
+    results.sort(
+        key=lambda item: (
+            -int(item.get("context_score") or 0),
+            str(item.get("nearest_heading") or ""),
+            str(item.get("url") or ""),
+        )
+    )
+    return results[:WEBSITE_MAX_DISCOVERED_IMAGES]
 
 
 def _download_public_website_image(image_url):
@@ -45477,6 +45806,8 @@ def _analyze_website_image_cached(
     image_url,
     page_title,
     alt_text,
+    nearest_heading,
+    nearby_text,
     database_choice,
 ):
     """Turn one website image into retrievable Technical/Sales/Marketing knowledge."""
@@ -45493,9 +45824,14 @@ def _analyze_website_image_cached(
         f"Destination: {database_choice}\n"
         f"Source page: {page_url}\n"
         f"Page title: {page_title}\n"
+        f"Nearest section heading: {nearest_heading or '(none)'}\n"
+        f"Nearby webpage instruction text: {nearby_text or '(none)'}\n"
         f"Image URL: {image_url}\n"
         f"Image alt text: {alt_text or '(none)'}\n\n"
-        "Extract reusable knowledge from this website image."
+        "Extract reusable knowledge from this website image. Explicitly connect the "
+        "visual evidence to the nearest heading and nearby instruction text when they "
+        "describe the same step. If the surrounding text is unrelated, say so rather "
+        "than forcing an association."
     )
     response = client.responses.create(
         model="gpt-5.5",
@@ -45555,6 +45891,8 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 str(downloaded.get("source_url") or candidate.get("url") or ""),
                 str(extraction.get("title") or ""),
                 str(candidate.get("alt") or candidate.get("title") or ""),
+                str(candidate.get("nearest_heading") or ""),
+                str(candidate.get("nearby_text") or ""),
                 str(database_choice or ""),
             )
             if not analysis or analysis.strip().upper() == "SKIP_IMAGE":
@@ -45565,6 +45903,8 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "url": str(downloaded.get("source_url") or candidate.get("url") or ""),
                 "alt": str(candidate.get("alt") or "").strip(),
                 "title": str(candidate.get("title") or "").strip(),
+                "nearest_heading": str(candidate.get("nearest_heading") or "").strip(),
+                "nearby_text": str(candidate.get("nearby_text") or "").strip(),
                 "analysis": analysis,
                 "sha256": digest,
                 "width": int(downloaded.get("width") or 0),
@@ -45635,6 +45975,8 @@ def build_website_knowledge_package_document(
             )
             lines.extend([
                 f"IMAGE {index}",
+                f"SECTION_HEADING: {str(item.get('nearest_heading') or '').strip()}",
+                f"NEARBY_INSTRUCTION_TEXT: {str(item.get('nearby_text') or '').strip()}",
                 f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
                 f"IMAGE_CAPTION: {caption}",
                 f"IMAGE_SHA256: {item.get('sha256')}",
@@ -46129,15 +46471,17 @@ def render_learn_from_website(database_choice):
             "Image candidates discovered on this page. Useful images are validated "
             "and analyzed only when you click Approve and Save."
         )
-        preview_records = [
-            {
-                "name": str(item.get("alt") or item.get("title") or "Website image"),
-                "data_url": str(item.get("url") or ""),
+        preview_records = []
+        for item in website_image_candidates[:12]:
+            if not str((item or {}).get("url") or "").startswith("https://"):
+                continue
+            section = str((item or {}).get("nearest_heading") or "").strip()
+            alt = str((item or {}).get("alt") or (item or {}).get("title") or "").strip()
+            preview_records.append({
+                "name": section or alt or "Website instruction image",
+                "data_url": str((item or {}).get("url") or ""),
                 "source": "website_knowledge",
-            }
-            for item in website_image_candidates[:12]
-            if str((item or {}).get("url") or "").startswith("https://")
-        ]
+            })
         preview_html = render_image_previews(preview_records)
         if preview_html:
             st.markdown(preview_html, unsafe_allow_html=True)
@@ -55041,7 +55385,22 @@ else:
             })
             render_chat_message("user", user_display, uploaded_image_previews)
 
-            if history_is_enabled() and st.session_state.conversation_id is None:
+            deferred_new_conversation_v68872 = bool(
+                history_is_enabled()
+                and st.session_state.conversation_id is None
+                and assistant != "🎨 Graphic Marketing"
+            )
+
+            # Graphic Marketing keeps the existing synchronous conversation binding
+            # because its durable project/job recovery architecture uses the real
+            # conversation ID during generation. Text workspaces can safely create
+            # the persistent case after the visible answer because their AI context
+            # comes from local session messages, not the Supabase row.
+            if (
+                history_is_enabled()
+                and st.session_state.conversation_id is None
+                and not deferred_new_conversation_v68872
+            ):
                 try:
                     conversation_title_seed = user_display.strip()
                     if not conversation_title_seed and uploaded_files:
@@ -55060,15 +55419,10 @@ else:
                     st.error(f"Could not create chat history case: {e}")
                     st.session_state.conversation_id = None
 
-            if history_is_enabled() and st.session_state.conversation_id:
-                try:
-                    save_message(
-                        st.session_state.conversation_id,
-                        "user",
-                        user_content_to_save,
-                    )
-                except Exception as e:
-                    st.warning(f"User message was not saved to history: {e}")
+            # v68872: do not block first-token latency on the Supabase user-message
+            # write. The active AI turn already reads this exact message from local
+            # session state. The identical history row is persisted after the answer
+            # is rendered, before the assistant row is saved.
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -55589,33 +55943,38 @@ else:
                 attempt=current_attempt_v68844 + 1,
             )
 
+            # v68873 status lifecycle only:
+            # the early status gives immediate feedback while preflight runs.
+            # Once the real Graphic engine starts, remove that temporary surface
+            # and let the engine's existing stage-aware st.status become the single
+            # authoritative progress display. No generation inputs/pipeline change.
             if graphic_early_status_v68865 is not None:
                 try:
-                    graphic_early_status_v68865.update(
-                        label="Creating your image...",
-                        state="complete",
-                        expanded=False,
-                    )
+                    graphic_early_status_v68865.empty()
                 except Exception:
                     pass
+                graphic_early_status_v68865 = None
 
-            with st.spinner("Creating your image..."):
-                try:
-                    generated_images = generate_graphic_marketing_images(
-                        prompt,
-                        graphic_generation_files,
-                        use_approved_style=graphic_options.get("use_approved_style", True),
-                        preserve_product=graphic_options.get("preserve_product", True),
-                        style_strength=graphic_options.get("style_strength", "High"),
-                        forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
-                        quality_retry=graphic_options.get("quality_retry", True),
-                        product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
-                        professional_layered_studio=graphic_options.get("professional_layered_studio", True),
-                    )
-                    generation_error_v68837 = None
-                except Exception as error:
-                    generation_error_v68837 = error
-                    generated_images = []
+            _graphic_v68874_release_transient_memory("before_graphic_generation")
+
+            try:
+                generated_images = generate_graphic_marketing_images(
+                    prompt,
+                    graphic_generation_files,
+                    use_approved_style=graphic_options.get("use_approved_style", True),
+                    preserve_product=graphic_options.get("preserve_product", True),
+                    style_strength=graphic_options.get("style_strength", "High"),
+                    forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
+                    quality_retry=graphic_options.get("quality_retry", True),
+                    product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
+                    professional_layered_studio=graphic_options.get("professional_layered_studio", True),
+                )
+                generation_error_v68837 = None
+            except Exception as error:
+                generation_error_v68837 = error
+                generated_images = []
+            finally:
+                _graphic_v68874_release_transient_memory("after_graphic_generation")
 
             retryable_v68848, retry_reason_v68848 = _graphic_v68848_is_retryable(
                 generation_error_v68837, generated_images
@@ -55816,6 +56175,17 @@ else:
                     ai_request_prompt += build_graphic_project_context()
 
                 try:
+                    diagnostic_log(
+                        "ai_stream_start_ready_v68872",
+                        workspace=str(assistant),
+                        elapsed_seconds=round(
+                            time.perf_counter() - command_preflight_started_v68864,
+                            3,
+                        ),
+                        conversation_id=st.session_state.get("conversation_id"),
+                        use_file_search=bool(use_file_search),
+                        upload_count=len(graphic_generation_files or []),
+                    )
                     for delta in ask_ai_stream(
                         ai_request_prompt,
                         graphic_generation_files,
@@ -56092,20 +56462,61 @@ else:
         })
 
         if history_is_enabled():
-            try:
-                save_message(
-                    st.session_state.conversation_id,
-                    "assistant",
-                    assistant_content_to_save,
-                )
-            except Exception as e:
-                st.warning(f"AI answer was not saved to history: {e}")
+            # v68872: for a brand-new non-Graphic text case, create the persistent
+            # conversation only after the answer is already visible. This removes
+            # the Supabase conversation insert from first-token latency while
+            # preserving the same durable history rows and title workflow.
+            if (
+                st.session_state.conversation_id is None
+                and locals().get("deferred_new_conversation_v68872", False)
+            ):
+                try:
+                    conversation_title_seed = user_display.strip()
+                    if not conversation_title_seed and uploaded_files:
+                        conversation_title_seed = "Uploaded " + ", ".join(
+                            str(getattr(file, "name", "attachment"))
+                            for file in uploaded_files[:3]
+                        )
+                    st.session_state.conversation_id = create_conversation(
+                        st.session_state.username,
+                        assistant,
+                        conversation_title_seed or "New attachment conversation"
+                    )
+                except Exception as e:
+                    st.warning(f"Chat history case could not be created after the response: {e}")
+                    st.session_state.conversation_id = None
+
+            # Preserve durable history ordering (user then assistant) while keeping
+            # the user Supabase write outside the first-token critical path.
+            if not is_graphic_resume_v68844 and st.session_state.conversation_id:
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "user",
+                        user_content_to_save,
+                        touch_conversation=False,
+                    )
+                except Exception as e:
+                    st.warning(f"User message was not saved to history: {e}")
+
+            if st.session_state.conversation_id:
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        assistant_content_to_save,
+                    )
+                except Exception as e:
+                    st.warning(f"AI answer was not saved to history: {e}")
 
             # Generate a concise ChatGPT-style title only for persistent chats.
-            if sum(
-                1 for item in st.session_state.messages
-                if item.get("role") == "user"
-            ) == 1:
+            if (
+                st.session_state.conversation_id
+                and sum(
+                    1 for item in st.session_state.messages
+                    if item.get("role") == "user"
+                ) == 1
+            ):
                 title_prompt = (
                     "Uploaded attachments for analysis"
                     if attachment_only_mode
