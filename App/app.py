@@ -46,7 +46,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68864 — Mobile Table + Command Latency Optimization; Existing AI/Graphic Pipelines Preserved
+# AutoTecPro AI v68867 — Reference Grid + Semantic Icons + Instant Graphic Status; AI/Graphic Generation Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -27325,6 +27325,19 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     copy = dict(metadata.get("compatibility_copy_fidelity") or {})
     aperture = dict(metadata.get("product_screen_aperture_fidelity") or {})
     regional = dict(metadata.get("regional_geometry_fidelity") or {})
+    topology = dict(metadata.get("feature_matrix_topology_v68866") or {})
+    topology_required = bool(metadata.get("graphic_design_mode") == "reference_template")
+    topology_ok = (
+        not topology_required
+        or (
+            int(topology.get("rendered_count") or 0) == 8
+            and int(topology.get("rows") or 0) == 2
+            and int(topology.get("columns") or 0) == 4
+            and bool(topology.get("semantic_registry_complete"))
+        )
+    )
+    if topology_required and not topology_ok:
+        issues.append("reference feature matrix topology drifted from the required 4x2 / 8-cell structure")
     if rgb.get("available") and not rgb.get("passed"):
         issues.append("product RGB drift exceeded the reference-mode tolerance")
     if not copy.get("complete", False):
@@ -27345,6 +27358,7 @@ def _graphic_reference_fidelity_qa_v34000(result, role_items):
     checks["copy_fidelity"] = 1.0 if copy.get("complete") else 0.0
     checks["screen_aperture_fidelity"] = 1.0 if aperture.get("passed", True) else 0.0
     checks["regional_mechanical_geometry"] = 1.0 if regional.get("passed", True) else 0.0
+    checks["feature_matrix_topology_v68866"] = 1.0 if topology_ok else 0.0
     score = round(
         float(base.get("score") or 0) * 0.68
         + checks["zone_completeness"] * 0.07
@@ -27678,6 +27692,218 @@ def _graphic_draw_feature_icon_v3200(draw, box, index, color):
             draw.line((cx+math.cos(a)*r*1.35,cy+math.sin(a)*r*1.35,cx+math.cos(a)*r*1.8,cy+math.sin(a)*r*1.8), fill=color, width=stroke)
 
 
+
+def _graphic_draw_semantic_feature_icon_v68866(draw, box, semantic, color, fallback_index=0):
+    """Draw a deterministic icon from feature meaning, never slot position, when known."""
+    semantic = str(semantic or "generic").strip().casefold()
+    x0, y0, x1, y1 = [int(round(v)) for v in box]
+    w, h = max(1, x1-x0), max(1, y1-y0)
+    cx, cy = (x0+x1)//2, (y0+y1)//2
+    stroke = max(2, int(min(w,h)*0.065))
+
+    if semantic == "screen":
+        draw.rounded_rectangle(
+            (x0+w*.16, y0+h*.18, x1-w*.16, y1-h*.18),
+            radius=max(4, stroke*2), outline=color, width=stroke
+        )
+        draw.line((x0+w*.28,y0+h*.34,x0+w*.28,y0+h*.25,x0+w*.38,y0+h*.25), fill=color, width=stroke)
+        draw.line((x1-w*.28,y1-h*.34,x1-w*.28,y1-h*.25,x1-w*.38,y1-h*.25), fill=color, width=stroke)
+        return True
+
+    if semantic in {"vehicle_data", "gauge"}:
+        draw.arc((x0+w*.17,y0+h*.18,x1-w*.17,y1-h*.08), 190, 350, fill=color, width=stroke)
+        draw.line((cx,cy+stroke,cx+w*.18,cy-h*.16), fill=color, width=stroke)
+        draw.ellipse((cx-stroke*2,cy-stroke*2,cx+stroke*2,cy+stroke*2), fill=color)
+        return True
+
+    if semantic == "navigation":
+        r = min(w,h)*.16
+        draw.ellipse((cx-r, y0+h*.15, cx+r, y0+h*.47), outline=color, width=stroke)
+        draw.line((cx-r, y0+h*.36, cx, y1-h*.14, cx+r, y0+h*.36), fill=color, width=stroke)
+        draw.ellipse((cx-stroke*1.4, y0+h*.27, cx+stroke*1.4, y0+h*.27+stroke*2.8), fill=color)
+        return True
+
+    if semantic == "bluetooth":
+        top = y0+h*.16; bottom = y1-h*.16
+        draw.line((cx, top, cx, bottom), fill=color, width=stroke)
+        draw.line((cx, top, cx+w*.18, cy-h*.12, cx-w*.12, cy+h*.02, cx+w*.18, bottom, cx, cy+h*.12), fill=color, width=stroke)
+        return True
+
+    if semantic == "camera":
+        draw.rounded_rectangle((x0+w*.17,y0+h*.28,x1-w*.17,y1-h*.22), radius=max(3,stroke), outline=color, width=stroke)
+        draw.rectangle((x0+w*.30,y0+h*.20,x0+w*.48,y0+h*.30), outline=color, width=stroke)
+        r=min(w,h)*.12
+        draw.ellipse((cx-r,cy-r,cx+r,cy+r), outline=color, width=stroke)
+        return True
+
+    if semantic == "oem_fit":
+        pts=[(cx,y0+h*.12),(x1-w*.18,y0+h*.25),(x1-w*.22,y1-h*.26),(cx,y1-h*.10),(x0+w*.22,y1-h*.26),(x0+w*.18,y0+h*.25)]
+        draw.line(pts+[pts[0]], fill=color, width=stroke, joint="curve")
+        draw.line((cx-w*.12,cy, cx-w*.02,cy+h*.10, cx+w*.18,cy-h*.14), fill=color, width=stroke)
+        return True
+
+    if semantic == "plug_play":
+        draw.arc((x0+w*.15,y0+h*.12,x1-w*.22,y1-h*.12), 70, 290, fill=color, width=stroke)
+        draw.line((cx-w*.08,y0+h*.16,cx-w*.08,cy-h*.06), fill=color, width=stroke)
+        draw.line((cx+w*.08,y0+h*.16,cx+w*.08,cy-h*.06), fill=color, width=stroke)
+        draw.line((cx-w*.18,cy-h*.06,cx+w*.18,cy-h*.06), fill=color, width=stroke)
+        return True
+
+    if semantic == "brightness":
+        r=min(w,h)*.15
+        draw.ellipse((cx-r,cy-r,cx+r,cy+r), outline=color, width=stroke)
+        for angle in range(0,360,45):
+            a=math.radians(angle)
+            draw.line((cx+math.cos(a)*r*1.35,cy+math.sin(a)*r*1.35,cx+math.cos(a)*r*1.85,cy+math.sin(a)*r*1.85), fill=color, width=stroke)
+        return True
+
+    if semantic == "wifi":
+        for radius, start_y in ((0.30,0.22),(0.22,0.32),(0.14,0.42)):
+            draw.arc((cx-w*radius, y0+h*start_y, cx+w*radius, y0+h*(start_y+0.42)), 205, 335, fill=color, width=stroke)
+        draw.ellipse((cx-stroke*1.4,y1-h*.22,cx+stroke*1.4,y1-h*.22+stroke*2.8), fill=color)
+        return True
+
+    if semantic == "dsp":
+        chip=(x0+w*.24,y0+h*.22,x1-w*.24,y1-h*.22)
+        draw.rounded_rectangle(chip, radius=max(3,stroke), outline=color, width=stroke)
+        for frac in (0.32,0.50,0.68):
+            px=x0+w*frac
+            draw.line((px,y0+h*.10,px,y0+h*.22),fill=color,width=stroke)
+            draw.line((px,y1-h*.22,px,y1-h*.10),fill=color,width=stroke)
+            py=y0+h*frac
+            draw.line((x0+w*.12,py,x0+w*.24,py),fill=color,width=stroke)
+            draw.line((x1-w*.24,py,x1-w*.12,py),fill=color,width=stroke)
+        return True
+
+    if semantic == "android_os":
+        head=(x0+w*.28,y0+h*.30,x1-w*.28,y1-h*.28)
+        draw.rounded_rectangle(head, radius=max(4,stroke*2), outline=color, width=stroke)
+        draw.line((x0+w*.34,y0+h*.28,x0+w*.27,y0+h*.16),fill=color,width=stroke)
+        draw.line((x1-w*.34,y0+h*.28,x1-w*.27,y0+h*.16),fill=color,width=stroke)
+        draw.ellipse((cx-w*.09,cy-h*.08,cx-w*.09+stroke*1.5,cy-h*.08+stroke*1.5),fill=color)
+        draw.ellipse((cx+w*.07,cy-h*.08,cx+w*.07+stroke*1.5,cy-h*.08+stroke*1.5),fill=color)
+        return True
+
+    if semantic == "apps":
+        s=min(w,h)*.14
+        for ox,oy in ((-.20,-.20),(.06,-.20),(-.20,.06),(.06,.06)):
+            draw.rounded_rectangle((cx+w*ox,cy+h*oy,cx+w*ox+s,cy+h*oy+s),radius=max(2,stroke),outline=color,width=stroke)
+        return True
+
+    # CarPlay / Android Auto are handled by the dedicated Reference Style color renderer.
+    if semantic in {"carplay", "android_auto"}:
+        return False
+
+    _graphic_draw_feature_icon_v3200(draw, box, int(fallback_index), color)
+    return True
+
+
+def _graphic_reference_feature_labels_v68866(campaign_spec, prompt_text, design_mode):
+    """Build the final Reference Style 4x2 content before semantic registry creation.
+
+    The reference controls topology (8 cells). The campaign controls copy.
+    Existing verified/user-requested features are never discarded; missing slots
+    are filled with product-appropriate deterministic defaults.
+    """
+    raw = [
+        re.sub(r"\\s+", " ", str(x or "")).strip()
+        for x in ((campaign_spec or {}).get("feature_labels") or [])
+        if str(x or "").strip()
+    ]
+
+    # Stable de-duplication by visible copy.
+    seen=set(); features=[]
+    for label in raw:
+        key=label.casefold()
+        if key not in seen:
+            seen.add(key); features.append(label)
+
+    if str(design_mode or "") != "reference_template":
+        return features[:8]
+
+    context = " ".join([
+        str(prompt_text or ""),
+        str((campaign_spec or {}).get("headline") or ""),
+        str((campaign_spec or {}).get("compatibility") or ""),
+    ]).casefold()
+
+    infotainment = any(term in context for term in (
+        "infotainment", "carplay", "android auto", "navigation", "stereo",
+        "touchscreen", "screen", "radio",
+    ))
+
+    defaults = (
+        [
+            "Large Touchscreen",
+            "Wireless Connectivity",
+            "Vehicle Data",
+            "OEM Fit & Finish",
+            "Touch Control",
+            "Bluetooth Audio",
+            "Navigation Ready",
+            "High-Brightness Display",
+        ]
+        if infotainment
+        else [
+            "Large Screen",
+            "Multiple Display Styles",
+            "Real-Time Vehicle Data",
+            "Fuel Level Display",
+            "Outdoor Temperature",
+            "Off-Road Information",
+            "Dual Travel Mileage",
+            "Hill Descent Assist",
+        ]
+    )
+
+    for label in defaults:
+        if len(features) >= 8:
+            break
+        key=label.casefold()
+        if key not in seen:
+            features.append(label); seen.add(key)
+
+    # Reference topology is exactly 8 cells.
+    features = features[:8]
+    while len(features) < 8:
+        label = f"Vehicle Feature {len(features)+1}"
+        features.append(label)
+
+    # Match the approved Reference Style placement preference: connectivity is the
+    # two far-right cells of row 1 when both are present.
+    registry = _graphic_feature_registry_v42000(features, 8)
+    car = next((i for i,r in enumerate(registry) if r.get("semantic")=="carplay"), None)
+    aa = next((i for i,r in enumerate(registry) if r.get("semantic")=="android_auto"), None)
+    if car is not None and aa is not None and car != aa:
+        normal=[label for i,label in enumerate(features) if i not in {car,aa}]
+        features=(normal[:2]+[features[car],features[aa]]+normal[2:])[:8]
+
+    return features
+
+
+def _graphic_reference_bottom_labels_v68866(campaign_spec, design_mode):
+    """Preserve the existing 5-cell footer; only reorder existing connectivity items."""
+    benefits=[
+        re.sub(r"\\s+"," ",str(x or "")).strip()
+        for x in ((campaign_spec or {}).get("bottom_benefits") or [])[:5]
+        if str(x or "").strip()
+    ]
+    defaults=["Plug and Play","Vehicle Information","Multiple Display Styles","OEM Fit & Finish","High-Brightness Screen"]
+    while len(benefits)<5:
+        benefits.append(defaults[len(benefits)])
+
+    if str(design_mode or "") != "reference_template":
+        return benefits[:5]
+
+    registry=_graphic_feature_registry_v42000(benefits,5)
+    car=next((i for i,r in enumerate(registry) if r.get("semantic")=="carplay"),None)
+    aa=next((i for i,r in enumerate(registry) if r.get("semantic")=="android_auto"),None)
+    if car is not None and aa is not None and car != aa:
+        normal=[label for i,label in enumerate(benefits) if i not in {car,aa}]
+        benefits=(normal+[benefits[car],benefits[aa]])[:5]
+    return benefits
+
+
 def _graphic_wrap_text_v3200(draw, text, font, max_width, max_lines=3):
     words=str(text or "").split(); lines=[]; current=""
     for word in words:
@@ -27772,18 +27998,27 @@ def _graphic_brand_lock_v42000():
 
 
 def _graphic_feature_registry_v42000(labels, limit=8):
-    """Map verified feature copy to deterministic local icon semantics."""
+    """Map verified feature copy to deterministic local icon semantics.
+
+    v68866 semantic authority:
+    - "wireless" alone is never enough to mean CarPlay.
+    - "android" alone is never enough to mean Android Auto.
+    - Known feature copy maps to a semantic icon instead of a positional icon.
+    """
     canonical = {
-        "screen": ("display", ("screen", "display", "touch", "qhd", "ips")),
+        "carplay": ("carplay", ("apple carplay", "wireless carplay", "carplay")),
+        "android_auto": ("android_auto", ("android auto",)),
+        "dsp": ("dsp", ("dsp", "digital signal processor", "chipset", "chipsets")),
+        "wifi": ("wifi", ("wi-fi", "wifi", "wireless connectivity")),
+        "android_os": ("android_os", ("android 14", "android 13", "android system", "android os")),
+        "screen": ("display", ("screen", "display", "touchscreen", "touch control", "qhd", "ips")),
         "navigation": ("navigation", ("navigation", "gps", "map")),
-        "bluetooth": ("bluetooth", ("bluetooth", "audio")),
-        "carplay": ("carplay", ("carplay", "wireless")),
-        "android_auto": ("android_auto", ("android auto", "android")),
-        "camera": ("camera", ("camera", "backup", "rear")),
-        "oem_fit": ("shield", ("oem", "factory", "fit", "finish", "integration")),
-        "vehicle_data": ("gauge", ("vehicle data", "information", "controls", "real-time")),
-        "plug_play": ("plug", ("plug", "installation")),
-        "brightness": ("sun", ("brightness", "bright")),
+        "bluetooth": ("bluetooth", ("bluetooth",)),
+        "camera": ("camera", ("camera", "backup camera", "rear camera")),
+        "oem_fit": ("shield", ("oem", "factory fit", "oem fit", "fit & finish", "fit and finish", "integration")),
+        "vehicle_data": ("gauge", ("vehicle data", "vehicle information", "real-time", "real time")),
+        "plug_play": ("plug", ("plug and play", "plug & play", "installation")),
+        "brightness": ("sun", ("brightness", "bright", "high brightness")),
         "apps": ("apps", ("apps", "multimedia", "movies")),
         "generic": ("generic", ()),
     }
@@ -28885,15 +29120,12 @@ def _graphic_compose_reference_campaign_v3200(
     tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
     draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
 
-    # Compact, reference-faithful 4x2 feature matrix.
-    features = list(campaign_spec.get("feature_labels") or [])[:8]
+    # v68866 Reference Style topology authority:
+    # resolve all eight visible labels FIRST, then build semantic icon authority.
+    features = _graphic_reference_feature_labels_v68866(
+        campaign_spec, prompt_text, design_mode
+    )
     feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
-    defaults = [
-        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
-        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
-    ]
-    while len(features) < 8:
-        features.append(defaults[len(features)])
     feature_box = layout_bp["feature_matrix_box"]
     grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
     grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
@@ -28917,7 +29149,9 @@ def _graphic_compose_reference_campaign_v3200(
             reference_style_connectivity_icons_v68855
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
-            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
+            _graphic_draw_semantic_feature_icon_v68866(
+                draw, icon_box, semantic, navy, fallback_index=idx
+            )
         lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
         ty = int(y0 + cell_h * 0.57)
         for line in lines:
@@ -28932,10 +29166,9 @@ def _graphic_compose_reference_campaign_v3200(
     underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
     draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
 
-    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
-    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
-    while len(benefits) < 5:
-        benefits.append(bottom_defaults[len(benefits)])
+    benefits = _graphic_reference_bottom_labels_v68866(
+        campaign_spec, design_mode
+    )
     bottom_box = layout_bp["bottom_bar_box"]
     bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
     bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
@@ -28953,7 +29186,9 @@ def _graphic_compose_reference_campaign_v3200(
             reference_style_connectivity_icons_v68855
             and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
         ):
-            _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
+            _graphic_draw_semantic_feature_icon_v68866(
+                draw, icon_box, semantic, white, fallback_index=idx
+            )
         lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
         ty = int(by + bh * 0.25)
         for line in lines:
@@ -29074,6 +29309,17 @@ def _graphic_compose_reference_campaign_v3200(
         "product_perspective_analysis_v42000": product_perspective_v42000,
         "multi_reference_fusion_v42000": reference_fusion_v42000,
         "feature_icon_registry_v42000": feature_registry_v42000,
+        "feature_matrix_topology_v68866": {
+            "required_count": 8 if design_mode == "reference_template" else len(features),
+            "rendered_count": len(features),
+            "rows": 2 if design_mode == "reference_template" else max(1, (len(features)+3)//4),
+            "columns": 4,
+            "labels": list(features),
+            "semantics": [str(row.get("semantic") or "") for row in feature_registry_v42000],
+            "semantic_registry_complete": len(feature_registry_v42000) == len(features),
+            "reference_topology_locked": design_mode == "reference_template",
+        },
+        "bottom_feature_registry_v68866": bottom_feature_registry_v68853,
         "campaign_contract_v42000": _graphic_campaign_contract_v42000(prompt_text, campaign_spec),
         "layer_manifest_v42000": _graphic_layer_manifest_v42000((W,H), layout_bp, product_box, _graphic_campaign_contract_v42000(prompt_text, campaign_spec), feature_registry_v42000),
         "adaptive_fidelity_policy_v48000": detail_policy_v48000,
@@ -54015,8 +54261,57 @@ else:
                 submission_fingerprint_v68690
             )
 
+
+def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_files=None):
+    """Fast local-only Graphic action detector used only for immediate UI feedback.
+
+    This does not route or alter the request. The existing production detectors
+    remain authoritative later in the turn.
+    """
+    if str(assistant or "") != "🎨 Graphic Marketing":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    # Keep this intentionally narrow and deterministic.
+    action_terms = (
+        "create it",
+        "create the image",
+        "create the commercial",
+        "create commercial",
+        "generate it",
+        "generate image",
+        "generate the image",
+        "make the image",
+        "make this image",
+        "regenerate",
+        "try again",
+        "proceed",
+        "create now",
+    )
+    return any(term in value for term in action_terms)
+
+
     if prompt:
         command_preflight_started_v68864 = time.perf_counter()
+        graphic_early_status_v68865 = None
+        if _graphic_v68865_should_show_early_status(
+            prompt,
+            assistant,
+            st.session_state.get("chat_managed_uploads") or [],
+        ):
+            try:
+                graphic_early_status_v68865 = st.status(
+                    "Creating your image...",
+                    state="running",
+                    expanded=False,
+                )
+                graphic_early_status_v68865.write(
+                    "Preparing your saved product, reference style, and generation context..."
+                )
+            except Exception:
+                graphic_early_status_v68865 = None
+
         user_display = (
             ""
             if attachment_only_mode
@@ -54053,6 +54348,15 @@ else:
             st.stop()
 
         if assistant == "🎨 Graphic Marketing":
+            if graphic_early_status_v68865 is not None:
+                try:
+                    graphic_early_status_v68865.update(
+                        label="Creating your image...",
+                        state="running",
+                        expanded=False,
+                    )
+                except Exception:
+                    pass
             _graphic_v68854_rehydrate_project_if_needed()
 
         if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
@@ -54191,6 +54495,13 @@ else:
             assistant,
             has_images=has_uploaded_images,
         )
+        if graphic_early_status_v68865 is not None:
+            try:
+                graphic_early_status_v68865.write(
+                    "Checking generation intent and project readiness..."
+                )
+            except Exception:
+                pass
         diagnostic_log(
             "command_preflight_ready_v68864",
             workspace=str(assistant),
@@ -54323,6 +54634,22 @@ else:
             assistant == "🎨 Graphic Marketing"
             and graphic_chat_intent in {"generate", "edit"}
         )
+        if (
+            graphic_early_status_v68865 is not None
+            and not is_graphic_generation
+        ):
+            try:
+                graphic_early_status_v68865.empty()
+            except Exception:
+                try:
+                    graphic_early_status_v68865.update(
+                        label="",
+                        state="complete",
+                        expanded=False,
+                    )
+                except Exception:
+                    pass
+            graphic_early_status_v68865 = None
         is_graphic_project_ready_ack = bool(
             assistant == "🎨 Graphic Marketing"
             and attachment_only_mode
@@ -54600,6 +54927,16 @@ else:
                 resume=is_graphic_resume_v68844,
                 attempt=current_attempt_v68844 + 1,
             )
+
+            if graphic_early_status_v68865 is not None:
+                try:
+                    graphic_early_status_v68865.update(
+                        label="Creating your image...",
+                        state="complete",
+                        expanded=False,
+                    )
+                except Exception:
+                    pass
 
             with st.spinner("Creating your image..."):
                 try:
