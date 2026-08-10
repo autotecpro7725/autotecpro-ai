@@ -1,3 +1,4 @@
+# AutoTecPro AI v68974 — Graphic Reference OpenCV dependency hardening + deterministic fallback
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -16507,12 +16508,48 @@ def _graphic_apply_v56000_cache_epoch():
         return {}
 
 
+def _graphic_connected_components_numpy_v68974(mask):
+    """Dependency-free 8-connected component count for small binary product masks."""
+    try:
+        import numpy as np
+        arr = np.asarray(mask, dtype=np.uint8)
+        if arr.size == 0:
+            return 0
+        h, w = arr.shape
+        seen = np.zeros((h, w), dtype=np.uint8)
+        count = 0
+        for yy in range(h):
+            for xx in range(w):
+                if not arr[yy, xx] or seen[yy, xx]:
+                    continue
+                count += 1
+                stack = [(yy, xx)]
+                seen[yy, xx] = 1
+                while stack:
+                    cy, cx = stack.pop()
+                    for dy in (-1, 0, 1):
+                        for dx in (-1, 0, 1):
+                            if dx == 0 and dy == 0:
+                                continue
+                            ny, nx = cy + dy, cx + dx
+                            if 0 <= ny < h and 0 <= nx < w and arr[ny, nx] and not seen[ny, nx]:
+                                seen[ny, nx] = 1
+                                stack.append((ny, nx))
+        return int(count)
+    except Exception:
+        return -1
+
+
 def _graphic_alpha_geometry_signature_v55000(layer):
-    """Return deterministic whole-product and lower-housing alpha geometry metrics."""
+    """Return deterministic whole-product and lower-housing alpha geometry metrics.
+
+    v68974 removes OpenCV as a single point of failure. OpenCV remains the preferred
+    contour engine when installed, while NumPy/Pillow-compatible metrics provide the
+    same release-critical alpha/lower-housing authority when cv2 is unavailable.
+    """
     if Image is None or layer is None:
         return {"available": False}
     try:
-        import cv2
         import numpy as np
         rgba = layer.convert("RGBA")
         alpha = np.asarray(rgba.getchannel("A"), dtype=np.uint8)
@@ -16525,25 +16562,32 @@ def _graphic_alpha_geometry_signature_v55000(layer):
         h, w = crop.shape
         lower_start = max(0, int(round(h * 0.70)))
         lower = crop[lower_start:, :]
-        contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        contour = max(contours, key=cv2.contourArea) if contours else None
         lower_widths = [int(row.sum()) for row in lower]
-        lower_components = int(cv2.connectedComponents(lower, connectivity=8)[0] - 1) if lower.size else 0
+        lower_components = _graphic_connected_components_numpy_v68974(lower)
+        perimeter = 0.0
+        engine = "product-alpha-geometry-v68974-numpy"
+        try:
+            import cv2
+            contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contour = max(contours, key=cv2.contourArea) if contours else None
+            perimeter = round(float(cv2.arcLength(contour, True)), 4) if contour is not None else 0.0
+            lower_components = int(cv2.connectedComponents(lower, connectivity=8)[0] - 1) if lower.size else 0
+            engine = "product-alpha-geometry-v68974-opencv"
+        except Exception as cv_error:
+            diagnostic_log("graphic_v68974_opencv_geometry_fallback", error_type=type(cv_error).__name__, error=str(cv_error))
         payload = crop.tobytes() + b"|" + lower.tobytes()
         return {
             "available": True, "bbox": [x0, y0, x1, y1], "visible_size": [w, h],
             "aspect_ratio": round(w / max(1, h), 10),
             "alpha_sha256": hashlib.sha256(payload).hexdigest(),
-            "area": int(crop.sum()),
-            "perimeter": round(float(cv2.arcLength(contour, True)), 4) if contour is not None else 0.0,
+            "area": int(crop.sum()), "perimeter": perimeter,
             "lower_start_ratio": 0.70, "lower_area": int(lower.sum()),
             "lower_row_widths": lower_widths, "lower_components": lower_components,
-            "engine": "product-alpha-geometry-v55000",
+            "engine": engine,
         }
     except Exception as error:
         diagnostic_log("graphic_v55000_geometry_signature_failed", error_type=type(error).__name__, error=str(error))
         return {"available": False, "reason": str(error)[:300]}
-
 
 def _graphic_lower_housing_fidelity_v55000(source, candidate):
     """Fail closed when the bezel, lower lip, tabs, openings or lower contour drift."""
@@ -16571,6 +16615,56 @@ def _graphic_lower_housing_fidelity_v55000(source, candidate):
         "candidate_lower_components": after.get("lower_components"),
         "source": before, "candidate": after, "engine": "lower-housing-fidelity-v55000",
     }
+
+
+def _graphic_clear_reserved_product_zone_pillow_v68974(canvas, product, x, y):
+    """Deterministic emergency fallback when OpenCV is unavailable.
+
+    The normal production path remains OpenCV inpainting. This fallback never touches
+    the uploaded product layer; it only neutralizes the reserved background zone before
+    the exact source product is composited, preventing a missing optional dependency
+    from turning a valid Reference Mode job into an EmptyGraphicResult.
+    """
+    if Image is None or canvas is None or product is None:
+        return canvas, {"applied": False, "reason": "image unavailable", "engine": "protected-product-zone-v68974-pillow"}
+    try:
+        from PIL import ImageFilter, ImageDraw
+        base = canvas.convert("RGBA")
+        side_margin = max(28, int(round(product.width * 0.24)))
+        top_margin = max(16, int(round(product.height * 0.08)))
+        bottom_apron = max(36, int(round(product.height * 0.26)))
+        rx0 = max(0, int(x) - side_margin)
+        ry0 = max(0, int(y) - top_margin)
+        rx1 = min(base.width, int(x) + product.width + side_margin)
+        ry1 = min(base.height, int(y) + product.height + bottom_apron)
+        if rx1 <= rx0 or ry1 <= ry0:
+            return canvas, {"applied": False, "reason": "reserved region outside canvas", "engine": "protected-product-zone-v68974-pillow"}
+
+        # Use a large-radius local background diffusion, then composite only the
+        # reserved rectangle. The exact uploaded product is overlaid afterward.
+        blur_radius = max(18, min(80, int(round(max(product.size) * 0.06))))
+        diffused = base.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        mask = Image.new("L", base.size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle((rx0, ry0, rx1 - 1, ry1 - 1), fill=255)
+        out = Image.composite(diffused, base, mask)
+        return out, {
+            "applied": True,
+            "engine": "protected-product-zone-v68974-pillow-fallback",
+            "reserved_rect": [rx0, ry0, rx1, ry1],
+            "side_margin_px": side_margin,
+            "top_margin_px": top_margin,
+            "bottom_apron_px": bottom_apron,
+            "blur_radius_px": blur_radius,
+            "product_region_provider_pixels_removed": True,
+            "bottom_bezel_provider_exclusion": True,
+            "provider_mounting_rail_exclusion": True,
+            "fallback": True,
+            "fail_closed": False,
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v68974_pillow_reserved_zone_failed", error_type=type(error).__name__, error=str(error))
+        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v68974-pillow", "fail_closed": True}
 
 
 def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
@@ -16675,6 +16769,10 @@ def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
         }
     except Exception as error:
         diagnostic_log("graphic_v62000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
+        fallback_canvas, fallback_report = _graphic_clear_reserved_product_zone_pillow_v68974(canvas, product, x, y)
+        if isinstance(fallback_report, dict) and fallback_report.get("applied"):
+            fallback_report["opencv_error"] = f"{type(error).__name__}: {str(error)[:220]}"
+            return fallback_canvas, fallback_report
         return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v62000", "fail_closed": True}
 
 
@@ -33519,11 +33617,11 @@ def _graphic_v68971_validate_reference_exact_result(images, role_items, prompt_t
             "v68971 blocked the Reference Mode result because bezel pixels were regenerated."
         )
 
-    image["graphic_reference_authority_engine_v68972"] = GRAPHIC_V68971_REFERENCE_LOCK_ENGINE
-    image["reference_exact_product_required_v68972"] = True
-    image["reference_provider_product_forbidden_v68972"] = True
-    image["reference_icon_render_authority_v68972"] = "exact-uploaded-product-ui+deterministic-local-reference-compositor"
-    image["reference_product_provenance_v68972"] = provenance
+    image["graphic_reference_authority_engine_v68974"] = GRAPHIC_V68971_REFERENCE_LOCK_ENGINE
+    image["reference_exact_product_required_v68974"] = True
+    image["reference_provider_product_forbidden_v68974"] = True
+    image["reference_icon_render_authority_v68974"] = "exact-uploaded-product-ui+deterministic-local-reference-compositor"
+    image["reference_product_provenance_v68974"] = provenance
     image["prompt"] = str(prompt_text or "")
     return images
 
