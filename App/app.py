@@ -46918,6 +46918,487 @@ def build_website_knowledge_package_document(
     return "\n".join(lines).strip() + "\n"
 
 
+WEBSITE_IMAGE_INDEX_SOURCE_V68883 = "website_image_index_v68883"
+WEBSITE_IMAGE_INDEX_PREFIX_V68883 = "WEBSITE_IMAGE_INDEX_JSON_V68883:"
+WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883 = 1500
+WEBSITE_IMAGE_INDEX_QUERY_MAX_IMAGES_V68883 = 3
+
+
+def _website_image_index_keywords_v68883(extraction, image_item):
+    parts = [
+        str(extraction.get("title") or ""),
+        str(extraction.get("source_url") or ""),
+        str(image_item.get("nearest_heading") or ""),
+        str(image_item.get("nearby_text") or ""),
+        str(image_item.get("alt") or ""),
+        str(image_item.get("title") or ""),
+        str(image_item.get("analysis") or ""),
+    ]
+    value = re.sub(r"\s+", " ", " ".join(parts)).strip().casefold()
+    tokens = re.findall(r"[a-z0-9][a-z0-9._/-]{1,}", value)
+    seen = set()
+    ordered = []
+    for token in tokens:
+        clean = token.strip("._/-")
+        if len(clean) < 2 or clean in seen:
+            continue
+        seen.add(clean)
+        ordered.append(clean)
+        if len(ordered) >= 120:
+            break
+    return ", ".join(ordered)
+
+
+def _website_image_archive_path_v68883(extraction, image_item, mime_type="image/jpeg"):
+    digest = str(image_item.get("sha256") or "").strip().lower()
+    if not digest:
+        digest = hashlib.sha256(
+            str(image_item.get("url") or "").encode("utf-8")
+        ).hexdigest()
+    parsed = urlparse(str(extraction.get("source_url") or ""))
+    host = re.sub(r"[^A-Za-z0-9._-]+", "-", parsed.hostname or "website").strip("-") or "website"
+    extension = ".png" if "png" in str(mime_type or "").casefold() else ".jpg"
+    return f"website_knowledge/{host}/{digest[:2]}/{digest}{extension}"
+
+
+def _website_image_index_record_v68883(
+    extraction,
+    database_choice,
+    image_item,
+    archive_path="",
+    archive_mime_type="",
+):
+    payload = {
+        "version": 1,
+        "database_choice": str(database_choice or ""),
+        "page_title": str(extraction.get("title") or "").strip(),
+        "source_page": str(extraction.get("source_url") or "").strip(),
+        "requested_page": str(
+            extraction.get("requested_url") or extraction.get("source_url") or ""
+        ).strip(),
+        "image_url": str(image_item.get("url") or "").strip(),
+        "image_sha256": str(image_item.get("sha256") or "").strip(),
+        "section_heading": str(image_item.get("nearest_heading") or "").strip(),
+        "nearby_instruction_text": str(image_item.get("nearby_text") or "").strip(),
+        "caption": str(
+            image_item.get("alt") or image_item.get("title") or ""
+        ).strip(),
+        "visual_analysis": str(image_item.get("analysis") or "").strip(),
+        "width": int(image_item.get("width") or 0),
+        "height": int(image_item.get("height") or 0),
+        "archive_storage_path": str(archive_path or "").strip(),
+        "archive_mime_type": str(archive_mime_type or "").strip(),
+        "keywords": _website_image_index_keywords_v68883(extraction, image_item),
+        "indexed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return payload
+
+
+def _website_image_index_issue_v68883(image_item):
+    digest = str(image_item.get("sha256") or "").strip().lower()
+    if not digest:
+        digest = hashlib.sha256(
+            str(image_item.get("url") or "").encode("utf-8")
+        ).hexdigest()
+    return f"website-image:{digest[:40]}"
+
+
+def _website_image_index_upsert_v68883(payload):
+    """Persist one compact image-index row using the existing learned_knowledge table."""
+    if not isinstance(payload, dict):
+        return False
+    issue = "website-image:" + str(payload.get("image_sha256") or hashlib.sha256(
+        str(payload.get("image_url") or "").encode("utf-8")
+    ).hexdigest())[:40]
+
+    try:
+        existing = (
+            supabase.table("learned_knowledge")
+            .select("id")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            .eq("issue", issue)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        existing = []
+
+    solution = WEBSITE_IMAGE_INDEX_PREFIX_V68883 + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    row = {
+        "assistant": "Technical Support",
+        "record_type": "website_image",
+        "vehicle": str(payload.get("page_title") or "")[:240],
+        "issue": issue,
+        "question": str(payload.get("section_heading") or "Website image")[:500],
+        "source_question": str(payload.get("source_page") or "")[:1200],
+        "solution": solution,
+        "approved_answer": solution,
+        "keywords": str(payload.get("keywords") or "")[:5000],
+        "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+        "staff_confirmed": True,
+        "confidence_score": 100,
+        "updated_at": now_iso(),
+    }
+
+    clean_row = filter_payload_for_table("learned_knowledge", row)
+    if existing:
+        (
+            supabase.table("learned_knowledge")
+            .update(clean_row)
+            .eq("id", existing[0]["id"])
+            .execute()
+        )
+    else:
+        safe_insert_row("learned_knowledge", clean_row)
+    return True
+
+
+def _website_archive_and_index_images_v68883(
+    extraction,
+    database_choice,
+    image_items,
+):
+    """Best-effort archive + durable metadata index for approved website images.
+
+    Text/vector-store saving remains authoritative and must not fail merely because
+    private image archival/index persistence is temporarily unavailable.
+    """
+    indexed = 0
+    archived = 0
+    failures = 0
+
+    for image_item in image_items or []:
+        if not isinstance(image_item, dict):
+            continue
+        archive_path = ""
+        archive_mime = ""
+        try:
+            downloaded = _download_public_website_image(image_item.get("url"))
+            raw = bytes(downloaded.get("bytes") or b"")
+            archive_mime = str(downloaded.get("mime_type") or "image/jpeg")
+            if raw:
+                archive_path = _website_image_archive_path_v68883(
+                    extraction,
+                    image_item,
+                    archive_mime,
+                )
+                _product_library_storage_upload(
+                    archive_path,
+                    raw,
+                    archive_mime,
+                )
+                archived += 1
+        except Exception as error:
+            diagnostic_log(
+                "website_image_archive_failed_v68883",
+                image_url=str(image_item.get("url") or "")[:500],
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+        try:
+            payload = _website_image_index_record_v68883(
+                extraction,
+                database_choice,
+                image_item,
+                archive_path=archive_path,
+                archive_mime_type=archive_mime,
+            )
+            if _website_image_index_upsert_v68883(payload):
+                indexed += 1
+        except Exception as error:
+            failures += 1
+            diagnostic_log(
+                "website_image_index_save_failed_v68883",
+                image_url=str(image_item.get("url") or "")[:500],
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+    try:
+        _website_image_index_rows_v68883.clear()
+    except Exception:
+        pass
+
+    return {
+        "indexed": indexed,
+        "archived": archived,
+        "failures": failures,
+    }
+
+
+@st.cache_data(ttl=60, max_entries=4, show_spinner=False)
+def _website_image_index_rows_v68883():
+    """Load durable approved website-image metadata without touching file_search."""
+    try:
+        result = (
+            supabase.table("learned_knowledge")
+            .select("id,issue,vehicle,solution,approved_answer,keywords,source_type,updated_at")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            .order("updated_at", desc=True)
+            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
+            .execute()
+        )
+        rows = list(result.data or [])
+    except Exception as error:
+        diagnostic_log(
+            "website_image_index_load_failed_v68883",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return []
+
+    parsed = []
+    for row in rows:
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+            continue
+        try:
+            payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
+        except Exception:
+            continue
+        if isinstance(payload, dict) and str(payload.get("image_url") or "").startswith("https://"):
+            parsed.append(payload)
+    return parsed
+
+
+def _website_image_query_context_v68883(prompt_text):
+    """Use current Technical request plus a small recent conversation window."""
+    parts = [str(prompt_text or "").strip()]
+    for message in list(st.session_state.get("messages") or [])[-6:]:
+        if not isinstance(message, dict):
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = clean_visible_chat_text(visible)
+        visible = re.sub(r"\s+", " ", str(visible or "")).strip()
+        if visible:
+            parts.append(visible[:900])
+    return "\n".join(parts)
+
+
+def _website_image_visual_intent_v68883(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return any(term in value for term in (
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "screenshot", "screenshots", "diagram", "diagrams",
+        "show me", "display the", "do you have a photo", "do you have an image",
+    ))
+
+
+def _website_image_tokens_v68883(value):
+    text = re.sub(r"car\s*model", " carmodel ", str(value or "").casefold())
+    text = re.sub(r"a\s*/\s*c", " ac ", text)
+    text = re.sub(r"\s+", " ", text)
+    tokens = re.findall(
+        r"\b(?:\d{3,4}(?:\.\d+)?|[a-z][a-z0-9_-]{2,})\b",
+        text,
+    )
+    stop = {
+        "the","and","for","with","this","that","from","have","has","can","you",
+        "your","please","need","want","show","photo","photos","image","images",
+        "picture","pictures","screenshot","screenshots","display","about","what",
+    }
+    return [token for token in tokens if token not in stop]
+
+
+def _website_image_rank_v68883(prompt_text, payload):
+    current = str(prompt_text or "")
+    context = _website_image_query_context_v68883(current)
+    current_tokens = set(_website_image_tokens_v68883(current))
+    context_tokens = set(_website_image_tokens_v68883(context))
+    candidate = " ".join([
+        str(payload.get("page_title") or ""),
+        str(payload.get("source_page") or ""),
+        str(payload.get("section_heading") or ""),
+        str(payload.get("nearby_instruction_text") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+        str(payload.get("keywords") or ""),
+    ]).casefold()
+    candidate_tokens = set(_website_image_tokens_v68883(candidate))
+
+    score = 0.0
+    score += 4.0 * len(current_tokens & candidate_tokens)
+    score += 1.0 * len((context_tokens - current_tokens) & candidate_tokens)
+
+    normalized_current = re.sub(r"\s+", " ", current.casefold())
+    topic_boosts = {
+        "carmodel": ("car model", "carmodel", "car model setting", "ac model"),
+        "protocol": ("protocol", "xinbasi", "canbus"),
+        "camera": ("camera", "reverse camera", "factory camera"),
+        "harness": ("harness", "connector", "wiring", "cable"),
+        "climate": ("climate", "a/c", " ac ", "automatic climate", "manual climate"),
+    }
+    for topic, aliases in topic_boosts.items():
+        if any(alias in normalized_current for alias in aliases):
+            if any(alias.strip() in candidate for alias in aliases):
+                score += 8.0
+
+    # Strict gate only when the *current user prompt* explicitly names a 3-digit
+    # product/model code. Recent assistant alternatives do not force a mismatch.
+    explicit_codes = set(re.findall(r"\b\d{3}\b", normalized_current))
+    if explicit_codes:
+        candidate_codes = set(re.findall(r"\b\d{3}\b", candidate))
+        if candidate_codes and not (explicit_codes & candidate_codes):
+            return -1000.0
+
+    explicit_sizes = set(
+        re.findall(r"\b(?:12\.1|13\.8|14\.4|14\.46|15\.6|17(?:\.2)?)\b", normalized_current)
+    )
+    if explicit_sizes:
+        candidate_sizes = set(
+            re.findall(r"\b(?:12\.1|13\.8|14\.4|14\.46|15\.6|17(?:\.2)?)\b", candidate)
+        )
+        if candidate_sizes and not (explicit_sizes & candidate_sizes):
+            return -1000.0
+
+    return score
+
+
+def _website_storage_bytes_v68883(path):
+    clean_path = str(path or "").strip().lstrip("/")
+    if not clean_path:
+        return b""
+    try:
+        payload = _product_library_storage_bucket().download(clean_path)
+    except Exception:
+        return b""
+
+    def _extract(value):
+        if value is None:
+            return b""
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, bytearray):
+            return bytes(value)
+        if isinstance(value, memoryview):
+            return value.tobytes()
+        if isinstance(value, dict):
+            for key in ("data", "content", "body"):
+                found = _extract(value.get(key))
+                if found:
+                    return found
+        for attr in ("data", "content", "body"):
+            found = _extract(getattr(value, attr, None))
+            if found:
+                return found
+        reader = getattr(value, "read", None)
+        if callable(reader):
+            try:
+                return _extract(reader())
+            except Exception:
+                return b""
+        return b""
+
+    return _extract(payload)
+
+
+def _website_image_record_for_chat_v68883(payload):
+    archive_path = str(payload.get("archive_storage_path") or "").strip()
+    mime = str(payload.get("archive_mime_type") or "image/jpeg").strip()
+    data_url = ""
+    if archive_path:
+        raw = _website_storage_bytes_v68883(archive_path)
+        if raw:
+            data_url = (
+                f"data:{mime};base64,"
+                + base64.b64encode(raw).decode("ascii")
+            )
+    if not data_url:
+        data_url = str(payload.get("image_url") or "").strip()
+    if not data_url:
+        return None
+
+    name = (
+        str(payload.get("section_heading") or "").strip()
+        or str(payload.get("caption") or "").strip()
+        or "Relevant website instruction image"
+    )
+    return {
+        "name": name[:180],
+        "data_url": data_url,
+        "source": "website_knowledge",
+        "asset_type": "website_instruction_image",
+        "archive_web_url": str(payload.get("image_url") or "").strip(),
+        "generated": False,
+        "website_image_index_v68883": True,
+        "website_image_sha256": str(payload.get("image_sha256") or ""),
+    }
+
+
+def _website_image_lookup_v68883(prompt_text):
+    """Deterministically retrieve approved website images for Technical Support."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    if not _website_image_visual_intent_v68883(prompt_text):
+        return []
+
+    ranked = []
+    for payload in _website_image_index_rows_v68883():
+        if str(payload.get("database_choice") or "") != "Technical Support Database":
+            continue
+        score = _website_image_rank_v68883(prompt_text, payload)
+        if score >= 8.0:
+            ranked.append((score, payload))
+
+    ranked.sort(
+        key=lambda item: (
+            float(item[0]),
+            str(item[1].get("indexed_at") or ""),
+        ),
+        reverse=True,
+    )
+
+    records = []
+    seen = set()
+    for score, payload in ranked:
+        digest = str(payload.get("image_sha256") or payload.get("image_url") or "")
+        if digest in seen:
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        seen.add(digest)
+        record["website_image_match_score_v68883"] = round(float(score), 3)
+        records.append(record)
+        if len(records) >= WEBSITE_IMAGE_INDEX_QUERY_MAX_IMAGES_V68883:
+            break
+
+    return records
+
+
+def _dedupe_website_chat_images_v68883(images):
+    """Remove duplicates between deterministic index hits and model control hits."""
+    output = []
+    seen = set()
+    for image in images or []:
+        if not isinstance(image, dict):
+            output.append(image)
+            continue
+        if str(image.get("source") or "") != "website_knowledge":
+            output.append(image)
+            continue
+        key = (
+            str(image.get("website_image_sha256") or "").strip()
+            or str(image.get("archive_web_url") or "").strip()
+            or str(image.get("data_url") or "").strip()
+        )
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        output.append(image)
+    return output
+
+
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -46961,6 +47442,12 @@ def save_website_knowledge_package(
     package_extraction["content_hash"] = package_hash
     filename = website_knowledge_filename(package_extraction)
 
+    website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+        extraction,
+        database_choice,
+        list(image_analysis.get("images") or []),
+    )
+
     if vector_store_has_filename(selected_vector_store_id, filename):
         return {
             "already_saved": True,
@@ -46968,6 +47455,7 @@ def save_website_knowledge_package(
             "filename": filename,
             "images": list(image_analysis.get("images") or []),
             "image_analysis": image_analysis,
+            "website_image_index_v68883": website_image_index_stats_v68883,
         }
 
     website_file = ManagedUploadedFile(
@@ -46983,6 +47471,7 @@ def save_website_knowledge_package(
         "filename": filename,
         "images": list(image_analysis.get("images") or []),
         "image_analysis": image_analysis,
+        "website_image_index_v68883": website_image_index_stats_v68883,
     }
 
 
@@ -57320,6 +57809,23 @@ else:
                         unsafe_allow_html=True,
                     )
 
+                website_index_images_v68883 = []
+                if assistant == "🔧 Technical Support":
+                    try:
+                        website_index_images_v68883 = _website_image_lookup_v68883(
+                            technical_request_prompt_v68879
+                        )
+                    except Exception as error:
+                        diagnostic_log(
+                            "website_image_lookup_failed_v68883",
+                            error_type=type(error).__name__,
+                            error=str(error)[:500],
+                        )
+                        website_index_images_v68883 = []
+
+                    if website_index_images_v68883:
+                        generated_images.extend(website_index_images_v68883)
+
                 base_ai_prompt_v68879 = (
                     technical_request_prompt_v68879
                     if assistant == "🔧 Technical Support"
@@ -57335,6 +57841,16 @@ else:
                 )
                 if product_library_lookup:
                     ai_request_prompt += _product_library_chat_context(product_library_lookup)
+                if assistant == "🔧 Technical Support" and website_index_images_v68883:
+                    ai_request_prompt += (
+                        "\n\nVERIFIED WEBSITE IMAGE INDEX RESULT (app-side deterministic lookup):\n"
+                        f"Matching approved website images loaded for chat display: "
+                        f"{len(website_index_images_v68883)}\n"
+                        "These images were previously analyzed and approved during website learning. "
+                        "State that the matching photo(s) are displayed below the answer. Do not say "
+                        "that no verified photo is available when this count is greater than zero. "
+                        "Use normal Technical file_search for the factual explanation.\n"
+                    )
                 if assistant == "🎨 Graphic Marketing":
                     ai_request_prompt += build_graphic_conversation_guardrail(
                         graphic_chat_intent,
@@ -57409,6 +57925,9 @@ else:
                     )
                     if auto_website_images_v68870:
                         generated_images.extend(auto_website_images_v68870)
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        generated_images
+                    )
                     answer_body = clean_visible_chat_text(
                         streamed_answer_clean_v68870
                     )
@@ -57448,6 +57967,9 @@ else:
                     )
                     if partial_web_images_v68870:
                         generated_images.extend(partial_web_images_v68870)
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        generated_images
+                    )
                     partial_answer_body = clean_visible_chat_text(
                         partial_stream_clean_v68870
                     )
