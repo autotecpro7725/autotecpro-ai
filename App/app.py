@@ -47,6 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
+# AutoTecPro AI v68890 — Deterministic Technical Image Context Fix; existing pipelines preserved
 # AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
@@ -47997,9 +47998,102 @@ def _website_image_roles_conflict_v68885(query_role, asset_role):
     )
 
 
+def _website_image_effective_query_v68890(prompt_text):
+    """Recover Technical visual subject from recent conversation when needed.
+
+    Example:
+      user: "what's the car model setting?"
+      user: "do you have a photo?"
+    The second turn carries visual intent but no subject. This helper supplies
+    the most recent subject-bearing Technical turn to the existing deterministic
+    image matcher without changing the AI/file_search pipeline.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current:
+        return current
+
+    if _website_image_query_role_v68884(current):
+        return current
+
+    if not _website_image_explicit_visual_request_v68888(current):
+        return current
+
+    recent_messages = list(st.session_state.get("messages") or [])[-10:]
+    for message in reversed(recent_messages):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "") != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = clean_visible_chat_text(visible)
+        visible = re.sub(r"\s+", " ", str(visible or "")).strip()
+        if not visible or visible == current:
+            continue
+        if _website_image_query_role_v68884(visible):
+            return current + "\n\nPrevious Technical subject: " + visible[:1200]
+
+    return current
+
+
+def _website_image_section_role_match_v68890(query_role, payload):
+    """Return True when authoritative webpage section/context identifies the role."""
+    if not query_role or not isinstance(payload, dict):
+        return False
+
+    heading = re.sub(
+        r"\s+", " ", str(payload.get("section_heading") or "")
+    ).strip().casefold()
+    nearby = re.sub(
+        r"\s+", " ", str(payload.get("nearby_instruction_text") or "")
+    ).strip().casefold()
+    context = heading + " " + nearby
+
+    role_terms = {
+        "car_model_ac": (
+            "car model / a/c", "car model / ac", "car model/ac",
+            "car model", "grand cherokee h", "grand cherokee l",
+        ),
+        "factory_camera": (
+            "factory reverse camera", "factory camera", "original camera",
+            "oem camera",
+        ),
+        "cargo_bed_camera": (
+            "cargo bed camera", "cargo camera", "bed camera",
+        ),
+        "aftermarket_camera": (
+            "aftermarket camera", "after market camera", "add-on camera",
+            "add on camera",
+        ),
+        "dashboard_fitment": (
+            "dashboard fitment", "dash fitment",
+        ),
+        "protocol": (
+            "protocol settings", "protocol", "car model / ac",
+        ),
+        "climate": (
+            "climate", "a/c", "car model / ac",
+        ),
+        "harness": (
+            "harness", "wiring", "connector", "cable",
+        ),
+        "audio": (
+            "audio", "factory amp", "amplifier",
+        ),
+        "weather": ("weather",),
+        "navigation": ("navigation", "offline navigation", "gps"),
+        "google_apps": ("google apps", "google app", "play store"),
+        "carplay_android_auto": ("carplay", "android auto"),
+        "camera_generic": ("camera", "reverse camera"),
+    }
+    return any(term in context for term in role_terms.get(query_role, ()))
+
+
 def _website_image_visual_state_gate_v68885(prompt_text, payload):
     """Validate that the image depicts the requested function, not merely a menu row."""
-    query_role = _website_image_query_role_v68884(prompt_text)
+    effective_prompt_v68890 = _website_image_effective_query_v68890(prompt_text)
+    query_role = _website_image_query_role_v68884(effective_prompt_v68890)
     if not query_role:
         return True
 
@@ -48016,7 +48110,8 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
         return False
 
     if query_role == "car_model_ac":
-        # Hard reject screenshots whose visible/selected state is another function.
+        # Keep the v68885 hard rejection: a screenshot selected on another
+        # setting must never be shown as a Car Model/A/C reference.
         conflicting_selected = (
             re.search(
                 r"(?:factory\s*amp|temperature\s*display|reverse\s*mute|"
@@ -48031,9 +48126,9 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
                 analysis,
             )
         )
+        if conflicting_selected:
+            return False
 
-        # Positive evidence must come from the image/caption itself, not nearby page
-        # text. Merely seeing the "Car model/AC" menu row is not sufficient.
         strong_visual_terms = (
             "grand cherokee h",
             "grand cherokee l",
@@ -48058,18 +48153,26 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
             )
             and not strong_visual
         )
-
-        if conflicting_selected or menu_row_only:
+        if menu_row_only:
             return False
 
+        # Strong filename/caption identity remains authoritative.
         if asset_role == "car_model_ac":
             return True
 
-        # For generic filenames, require image-level evidence that this is the
-        # actual selection page. No strong evidence = safer to show no image.
+        # v68890 root fix:
+        # v68885 required exact vision-description phrases for generic filenames.
+        # Real approved website screenshots can have a sparse/generic vision
+        # description even though their webpage section is unequivocally the
+        # Car Model/A/C section. Accept that authoritative section association
+        # when there is no filename contradiction or conflicting selected state.
+        if _website_image_section_role_match_v68890(query_role, payload):
+            return True
+
         return strong_visual
 
     return True
+
 
 
 def _website_image_final_payload_gate_v68885(prompt_text, payload):
@@ -48323,13 +48426,21 @@ def _website_image_lookup_v68883(prompt_text):
     if not _website_image_visual_intent_v68883(prompt_text):
         return []
 
+    effective_prompt_v68890 = _website_image_effective_query_v68890(prompt_text)
+
     ranked = []
     for payload in _website_image_index_rows_v68883():
         if str(payload.get("database_choice") or "") != "Technical Support Database":
             continue
-        if not _website_image_final_payload_gate_v68885(prompt_text, payload):
+        if not _website_image_final_payload_gate_v68885(
+            effective_prompt_v68890,
+            payload,
+        ):
             continue
-        score = _website_image_rank_v68883(prompt_text, payload)
+        score = _website_image_rank_v68883(
+            effective_prompt_v68890,
+            payload,
+        )
         if score >= 8.0:
             ranked.append((score, payload))
 
@@ -48343,7 +48454,9 @@ def _website_image_lookup_v68883(prompt_text):
 
     records = []
     seen = set()
-    query_role_v68884 = _website_image_query_role_v68884(prompt_text)
+    query_role_v68884 = _website_image_query_role_v68884(
+        effective_prompt_v68890
+    )
     result_limit_v68884 = (
         1
         if query_role_v68884 in {
