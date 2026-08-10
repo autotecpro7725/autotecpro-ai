@@ -12026,41 +12026,70 @@ components.html(
 )
 
 
-# v68880 mobile navigation UX: after a workspace tap, collapse the Streamlit
-# sidebar automatically and return keyboard/focus ownership to the main body.
-# Desktop behavior is intentionally unchanged.
-_workspace_mobile_collapse_nonce_v68880 = st.session_state.pop(
+# v68881 mobile navigation UX: after a workspace tap, collapse the Streamlit
+# sidebar exactly once and return focus to the main body. v68880 issued two
+# timed collapse clicks; during Streamlit's slide animation the sidebar still
+# looked visible, so the second click could toggle it open again.
+_workspace_mobile_collapse_nonce_v68881 = st.session_state.pop(
     "_workspace_nav_mobile_collapse_v68880",
     None,
 )
-if _workspace_mobile_collapse_nonce_v68880:
+if _workspace_mobile_collapse_nonce_v68881:
     components.html(
         f"""
         <script>
         (() => {{
             const parentWindow = window.parent;
             const doc = parentWindow.document;
-            const isMobile = parentWindow.matchMedia(
-                "(max-width: 768px)"
-            ).matches;
+            const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68881))};
+            const isMobile = parentWindow.matchMedia("(max-width: 768px)").matches;
             if (!isMobile) return;
 
-            const collapseSidebar = () => {{
-                const sidebar = doc.querySelector(
-                    'section[data-testid="stSidebar"]'
-                );
-                if (!sidebar) return;
+            const body = doc.body;
+            const lockKey = "atpSidebarAutoCollapseNonce";
+            if (body.dataset[lockKey] === nonce) return;
+
+            let completed = false;
+            let attempts = 0;
+
+            const focusMain = () => {{
+                const main = doc.querySelector("main");
+                if (!main) return;
+                main.setAttribute("tabindex", "-1");
+                try {{
+                    main.focus({{preventScroll: true}});
+                }} catch (_) {{
+                    main.focus();
+                }}
+            }};
+
+            const tryCollapseOnce = () => {{
+                if (completed) return;
+                attempts += 1;
+
+                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) {{
+                    if (attempts < 10) setTimeout(tryCollapseOnce, 45);
+                    return;
+                }}
 
                 const rect = sidebar.getBoundingClientRect();
+                const style = parentWindow.getComputedStyle(sidebar);
                 const visible = rect.width > 80
                     && rect.right > 1
                     && rect.left < parentWindow.innerWidth - 1
-                    && parentWindow.getComputedStyle(sidebar).display !== "none"
-                    && parentWindow.getComputedStyle(sidebar).visibility !== "hidden";
-                if (!visible) return;
+                    && style.display !== "none"
+                    && style.visibility !== "hidden";
 
-                const allButtons = Array.from(doc.querySelectorAll("button"));
-                const labeledControl = allButtons.find((button) => {{
+                if (!visible) {{
+                    completed = true;
+                    body.dataset[lockKey] = nonce;
+                    focusMain();
+                    return;
+                }}
+
+                const controls = Array.from(doc.querySelectorAll("button"));
+                const collapseControl = controls.find((button) => {{
                     const label = [
                         button.getAttribute("aria-label") || "",
                         button.getAttribute("title") || "",
@@ -12068,28 +12097,20 @@ if _workspace_mobile_collapse_nonce_v68880:
                     return /(?:collapse|close|hide).*sidebar|sidebar.*(?:collapse|close|hide)/i.test(label);
                 }});
 
-                const streamlitHeaderControl = sidebar.querySelector(
-                    'button[data-testid="stBaseButton-headerNoPadding"], button[kind="header"]'
-                );
-
-                const control = labeledControl || streamlitHeaderControl;
-                if (control && !control.disabled) {{
-                    control.click();
+                if (!collapseControl || collapseControl.disabled) {{
+                    if (attempts < 10) setTimeout(tryCollapseOnce, 45);
+                    return;
                 }}
 
-                const main = doc.querySelector("main");
-                if (main) {{
-                    main.setAttribute("tabindex", "-1");
-                    try {{
-                        main.focus({{preventScroll: true}});
-                    }} catch (_) {{
-                        main.focus();
-                    }}
-                }}
+                // Set the lock before the click. This makes the operation idempotent
+                // across DOM reconciliation and prevents a second toggle-open click.
+                completed = true;
+                body.dataset[lockKey] = nonce;
+                collapseControl.click();
+                setTimeout(focusMain, 220);
             }};
 
-            requestAnimationFrame(() => setTimeout(collapseSidebar, 40));
-            setTimeout(collapseSidebar, 180);
+            requestAnimationFrame(() => setTimeout(tryCollapseOnce, 40));
         }})();
         </script>
         """,
