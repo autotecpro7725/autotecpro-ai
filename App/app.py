@@ -1,4 +1,3 @@
-# AutoTecPro AI v68974 — Graphic Reference OpenCV dependency hardening + deterministic fallback
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -23398,6 +23397,108 @@ def _graphic_two_color_requested_v68877(prompt_text):
     )
 
 
+def _graphic_v68976_finish_variant_from_exact_source(product, prompt_text=""):
+    """Create one geometry-locked finish variant from the exact uploaded product layer.
+
+    This is used only when the user explicitly requests two finishes/colors but supplies
+    one authoritative product photo. It never asks an image provider to redraw the
+    product. Alpha/silhouette, dimensions, screen/UI pixels and small-control pixels are
+    preserved exactly; only neutral exterior-material pixels may receive a bounded
+    deterministic black/silver finish transform.
+    """
+    if Image is None or product is None:
+        return None, {"applied": False, "reason": "image unavailable", "engine": "v68976-finish-variant"}
+    try:
+        import numpy as np
+        from PIL import ImageChops
+        src = product.convert("RGBA")
+        arr = np.asarray(src, dtype=np.uint8).copy()
+        rgb = arr[:, :, :3].astype(np.float32)
+        alpha = arr[:, :, 3]
+        mx = rgb.max(axis=2); mn = rgb.min(axis=2)
+        sat = mx - mn
+        lum = rgb.mean(axis=2)
+
+        masks = dict(_graphic_detail_masks_v48000(src) or {})
+        protected = np.zeros(alpha.shape, dtype=bool)
+        for key in ("ui_mask", "control_mask"):
+            mask = masks.get(key)
+            if mask is not None:
+                try:
+                    protected |= np.asarray(mask.convert("L"), dtype=np.uint8) >= 8
+                except Exception:
+                    pass
+        # Conservative fallback protection for portrait infotainment units if automatic
+        # aperture/control masks are unavailable.
+        if not protected.any():
+            h, w = alpha.shape
+            protected[int(h*.10):int(h*.72), int(w*.22):int(w*.78)] = True
+
+        # Never touch transparent pixels, bright studio card/background pixels, vivid UI,
+        # chrome-like highlights or protected screen/control pixels.
+        eligible = (
+            (alpha >= 8) & (~protected) & (sat <= 62.0) &
+            (lum >= 18.0) & (lum <= 225.0)
+        )
+        text = str(prompt_text or "").casefold()
+        requests_silver = bool(re.search(r"\bsilver\b", text))
+        requests_black = bool(re.search(r"\bblack\b", text))
+        # Infer which alternate finish is more useful from the current neutral-material
+        # luminance. Dark source -> derive silver; bright source -> derive black.
+        source_neutral = lum[eligible]
+        median_lum = float(np.median(source_neutral)) if source_neutral.size else 90.0
+        target = "silver" if requests_silver and median_lum < 128.0 else "black"
+        if requests_black and not requests_silver:
+            target = "black"
+        elif requests_silver and not requests_black:
+            target = "silver"
+
+        out = rgb.copy()
+        if target == "silver":
+            # Metallic-neutral lift while retaining original local shading/edge detail.
+            shade = np.clip(150.0 + (lum - median_lum) * 0.62, 112.0, 224.0)
+            desired = np.stack([shade * 1.01, shade, shade * 0.98], axis=2)
+            blend = 0.78
+        else:
+            # Black finish retains highlight structure instead of flattening to pure black.
+            shade = np.clip(24.0 + lum * 0.30, 22.0, 104.0)
+            desired = np.stack([shade * 0.96, shade * 0.98, shade], axis=2)
+            blend = 0.82
+        out[eligible] = out[eligible] * (1.0 - blend) + desired[eligible] * blend
+        arr[:, :, :3] = np.clip(out, 0, 255).astype(np.uint8)
+        # Alpha is copied verbatim; protected UI/control pixels are copied verbatim too.
+        arr[:, :, 3] = alpha
+        result = Image.fromarray(arr, "RGBA")
+        if protected.any():
+            protect_img = Image.fromarray((protected.astype(np.uint8) * 255), "L")
+            result.paste(src, (0, 0), protect_img)
+
+        alpha_equal = result.getchannel("A").tobytes() == src.getchannel("A").tobytes()
+        protected_equal = True
+        if protected.any():
+            s = np.asarray(src, dtype=np.uint8)
+            r = np.asarray(result, dtype=np.uint8)
+            protected_equal = bool(np.array_equal(s[protected], r[protected]))
+        if not alpha_equal or not protected_equal or result.size != src.size:
+            return None, {
+                "applied": False, "reason": "geometry/UI preservation postcheck failed",
+                "alpha_equal": alpha_equal, "protected_pixels_equal": protected_equal,
+                "engine": "v68976-finish-variant",
+            }
+        return result, {
+            "applied": True, "target_finish": target,
+            "geometry_preserved": True, "alpha_equal": True,
+            "screen_and_controls_preserved": bool(protected_equal),
+            "eligible_pixel_count": int(eligible.sum()),
+            "source_median_neutral_luminance": round(median_lum, 3),
+            "provider_product_pixels_used": False,
+            "engine": "v68976-deterministic-finish-variant",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v68976_finish_variant_failed", error_type=type(error).__name__, error=str(error)[:600])
+        return None, {"applied": False, "reason": str(error)[:300], "engine": "v68976-finish-variant"}
+
+
 def _graphic_split_two_variant_source_v68877(product, transparent=False):
     """Split one combined source containing two side-by-side variants.
 
@@ -24696,6 +24797,7 @@ def _graphic_compose_reference_campaign_v3200(
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
 
     combined_variant_split_v68877 = []
+    derived_finish_variant_v68976 = {"applied": False}
     if (
         secondary_variant_item_v68877 is None
         and _graphic_two_color_requested_v68877(prompt_text)
@@ -24747,6 +24849,23 @@ def _graphic_compose_reference_campaign_v3200(
         # Do not run a second raw alpha getbbox(), which can either retain stray edge
         # pixels or re-crop delicate mounting details. Product geometry is now locked.
         pass
+
+    # v68976: the historic Graphic behavior allowed a user to request Black + Silver
+    # from one product photo. The strict v68971 product-authority gate correctly stopped
+    # provider recoloring, but that left the request unsatisfiable and could return an
+    # EmptyGraphicResult. Restore the feature without reopening product hallucination:
+    # derive only the SECOND finish locally from this already-locked exact product layer.
+    if secondary_product_v68877_pending is None and _graphic_two_color_requested_v68877(prompt_text):
+        derived_variant_v68976, derived_finish_variant_v68976 = _graphic_v68976_finish_variant_from_exact_source(
+            product, prompt_text
+        )
+        if derived_variant_v68976 is not None and derived_finish_variant_v68976.get("applied"):
+            secondary_product_v68877_pending = derived_variant_v68976
+            diagnostic_log(
+                "graphic_v68976_single_source_two_finish_recovered",
+                target_finish=str(derived_finish_variant_v68976.get("target_finish") or ""),
+                eligible_pixel_count=int(derived_finish_variant_v68976.get("eligible_pixel_count") or 0),
+            )
 
     # Reference-locked hero geometry. The analyzed product zone is authoritative;
     # aspect ratio is preserved and the exact product is never cropped or distorted.
@@ -25105,11 +25224,17 @@ def _graphic_compose_reference_campaign_v3200(
                     / max(secondary_aspect_before_v68877, 0.001),
                     8,
                 ),
-                "secondary_exact_source_pixels": True,
+                "secondary_exact_source_pixels": not bool(derived_finish_variant_v68976.get("applied")),
+                "secondary_geometry_exact": True,
+                "secondary_finish_derivation_v68976": dict(derived_finish_variant_v68976 or {}),
                 "source_mode": (
                     "combined_source_split"
                     if len(combined_variant_split_v68877) == 2
-                    else "separate_product_variant"
+                    else (
+                        "deterministic_single_source_finish_variant_v68976"
+                        if derived_finish_variant_v68976.get("applied")
+                        else "separate_product_variant"
+                    )
                 ),
             }
 
@@ -33617,11 +33742,11 @@ def _graphic_v68971_validate_reference_exact_result(images, role_items, prompt_t
             "v68971 blocked the Reference Mode result because bezel pixels were regenerated."
         )
 
-    image["graphic_reference_authority_engine_v68974"] = GRAPHIC_V68971_REFERENCE_LOCK_ENGINE
-    image["reference_exact_product_required_v68974"] = True
-    image["reference_provider_product_forbidden_v68974"] = True
-    image["reference_icon_render_authority_v68974"] = "exact-uploaded-product-ui+deterministic-local-reference-compositor"
-    image["reference_product_provenance_v68974"] = provenance
+    image["graphic_reference_authority_engine_v68976"] = GRAPHIC_V68971_REFERENCE_LOCK_ENGINE
+    image["reference_exact_product_required_v68976"] = True
+    image["reference_provider_product_forbidden_v68976"] = True
+    image["reference_icon_render_authority_v68976"] = "exact-uploaded-product-ui+deterministic-local-reference-compositor"
+    image["reference_product_provenance_v68976"] = provenance
     image["prompt"] = str(prompt_text or "")
     return images
 
@@ -33649,30 +33774,66 @@ def generate_graphic_marketing_images(
             original_prompt, uploaded_files, forced_upload_role, product_transform_mode
         )
         if exact_required:
-            role_items = list(role_state.get("role_items") or [])
-            integrity = _graphic_role_integrity_v8300(role_items)
-            if not integrity.get("passed"):
-                raise RuntimeError(
-                    "v68971 could not safely separate the Product Photo from the Style Reference: "
-                    + str(integrity.get("reason") or "role integrity failed")
+            # v68975 restores the same lower, stage-aware progress surface that
+            # Reference Mode displayed before the exact-product routing hardening.
+            # This is UI/orchestration only: compositor/provider/QA behavior is unchanged.
+            status_v68975 = _graphic_progress_v3300(
+                "Resolving persistent product, vehicle, copy, and reference assets…"
+            )
+            try:
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Resolving persistent product, vehicle, copy, and reference assets…",
                 )
-            diagnostic_log(
-                "graphic_v68971_reference_exact_route_forced",
-                product_count=sum(1 for item in role_items if item.get("role") == "product_photo"),
-                style_count=sum(1 for item in role_items if item.get("role") == "style_reference"),
-            )
-            # Deliberately bypass the approved-output cache and provider-first public route.
-            # A stale or previously approved reconstructed product must never override the
-            # current uploaded product's geometry authority.
-            images = _graphic_v66830_guaranteed_exact_result(
-                original_prompt, uploaded_files,
-                style_strength=style_strength,
-                forced_upload_role=forced_upload_role,
-                failure_reason="v68971 forced exact Reference Mode authority",
-            )
-            return _graphic_v68971_validate_reference_exact_result(
-                images, role_items, original_prompt
-            )
+                role_items = list(role_state.get("role_items") or [])
+                integrity = _graphic_role_integrity_v8300(role_items)
+                if not integrity.get("passed"):
+                    raise RuntimeError(
+                        "v68971 could not safely separate the Product Photo from the Style Reference: "
+                        + str(integrity.get("reason") or "role integrity failed")
+                    )
+                diagnostic_log(
+                    "graphic_v68971_reference_exact_route_forced",
+                    product_count=sum(1 for item in role_items if item.get("role") == "product_photo"),
+                    style_count=sum(1 for item in role_items if item.get("role") == "style_reference"),
+                )
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Reading locked reference geometry and exact uploaded product pixels…",
+                )
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Building the Reference Style campaign with immutable product geometry…",
+                )
+                # Deliberately bypass the approved-output cache and provider-first public route.
+                # A stale or previously approved reconstructed product must never override the
+                # current uploaded product's geometry authority.
+                images = _graphic_v66830_guaranteed_exact_result(
+                    original_prompt, uploaded_files,
+                    style_strength=style_strength,
+                    forced_upload_role=forced_upload_role,
+                    failure_reason="v68971 forced exact Reference Mode authority",
+                )
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Verifying product geometry, screen/UI fidelity, icons, and Reference layout…",
+                )
+                images = _graphic_v68971_validate_reference_exact_result(
+                    images, role_items, original_prompt
+                )
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Reference image completed and verified.",
+                    state="complete",
+                )
+                return images
+            except Exception:
+                _graphic_progress_update_v3300(
+                    status_v68975,
+                    "Reference image could not pass the required production checks.",
+                    state="error",
+                )
+                raise
 
     # Preserve the established v68829/v68970 behavior for every other mode.
     if not is_installed:
@@ -42917,6 +43078,68 @@ def _website_image_lookup_v68883(prompt_text):
         records.append(record)
         if len(records) >= result_limit_v68884:
             break
+
+    # v68975 deterministic recovery: older learned website-image records can have
+    # sparse captions/vision text even when their authoritative webpage section
+    # clearly identifies the requested Technical function. The strict v68883 score
+    # can therefore produce zero images and leave display to a model-emitted control.
+    # Recover only when the section itself strongly matches the requested role and
+    # the existing v68885 visual/conflict gate still accepts the asset. This keeps
+    # wrong-section images fail-closed while making automatic display deterministic.
+    if not records and query_role_v68884:
+        recovery_ranked_v68975 = []
+        for payload in _website_image_index_rows_v68883():
+            if str(payload.get("database_choice") or "") != "Technical Support Database":
+                continue
+            if not _website_image_section_role_match_v68890(query_role_v68884, payload):
+                continue
+            if not _website_image_visual_state_gate_v68885(effective_prompt_v68890, payload):
+                continue
+            asset_role_v68975 = _website_image_url_role_v68885(
+                str(payload.get("image_url") or ""),
+                str(payload.get("caption") or ""),
+            )
+            if _website_image_roles_conflict_v68885(query_role_v68884, asset_role_v68975):
+                continue
+            role_score_v68975 = _website_image_role_score_v68884(
+                query_role_v68884, payload
+            )
+            if role_score_v68975 < 6.0:
+                continue
+            recovery_ranked_v68975.append((float(role_score_v68975), payload))
+
+        recovery_ranked_v68975.sort(
+            key=lambda item: (
+                float(item[0]),
+                str(item[1].get("indexed_at") or ""),
+            ),
+            reverse=True,
+        )
+        for score_v68975, payload_v68975 in recovery_ranked_v68975:
+            digest_v68975 = str(
+                payload_v68975.get("image_sha256")
+                or payload_v68975.get("image_url")
+                or ""
+            )
+            if digest_v68975 in seen:
+                continue
+            record_v68975 = _website_image_record_for_chat_v68883(payload_v68975)
+            if not record_v68975:
+                continue
+            seen.add(digest_v68975)
+            record_v68975["website_image_match_score_v68883"] = round(
+                float(score_v68975), 3
+            )
+            record_v68975["website_image_recovery_v68975"] = True
+            records.append(record_v68975)
+            diagnostic_log(
+                "website_image_deterministic_recovery_v68975",
+                query_role=query_role_v68884,
+                score=round(float(score_v68975), 3),
+                image_url=str(payload_v68975.get("image_url") or "")[:500],
+            )
+            if len(records) >= result_limit_v68884:
+                break
 
     return records
 
