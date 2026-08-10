@@ -28,7 +28,7 @@ import io
 import zipfile
 import requests
 import xml.etree.ElementTree as ET
-from urllib.parse import quote, urlparse, urljoin
+from urllib.parse import quote, unquote, urlparse, urljoin
 from html.parser import HTMLParser
 import socket
 import ipaddress
@@ -47417,6 +47417,276 @@ def _website_image_section_gate_v68884(prompt_text, payload):
     return role_score >= 6.0
 
 
+def _website_image_url_role_v68885(image_url, caption=""):
+    """Infer only strong asset-role evidence from filename/path/caption.
+
+    This is intentionally conservative. It returns a role only when the asset
+    identity itself strongly identifies a function. Generic filenames remain
+    unclassified and are handled by section + vision checks.
+    """
+    value = unquote(str(image_url or "")).casefold()
+    value += " " + str(caption or "").casefold()
+    value = re.sub(r"[_+\-]+", " ", value)
+    value = re.sub(r"\s+", " ", value)
+
+    rules = (
+        ("factory_amp", (
+            "factory amp", "factoryamp", "amplifier", "factory amplifier",
+        )),
+        ("cargo_bed_camera", (
+            "cargo bed camera", "cargo camera", "bed camera", "cargobed",
+        )),
+        ("aftermarket_camera", (
+            "aftermarket camera", "after market camera", "aftermarketcamera",
+            "add on camera", "add-on camera",
+        )),
+        ("factory_camera", (
+            "factory camera", "factory reverse camera", "oem camera",
+            "original camera", "factorycamera",
+        )),
+        ("car_model_ac", (
+            "car model ac", "car model", "carmodel", "ac model",
+        )),
+        ("dashboard_fitment", (
+            "dashboard fitment", "dash fitment", "dashfit", "fitment",
+        )),
+        ("google_apps", (
+            "google apps", "google app", "play store", "googleplay",
+        )),
+        ("navigation", (
+            "offline navigation", "navigation", "gps",
+        )),
+        ("weather", (
+            "weather", "weather app",
+        )),
+        ("carplay_android_auto", (
+            "carplay", "android auto",
+        )),
+    )
+    for role, aliases in rules:
+        if any(alias in value for alias in aliases):
+            return role
+    return ""
+
+
+def _website_image_roles_conflict_v68885(query_role, asset_role):
+    if not query_role or not asset_role:
+        return False
+
+    # These roles are mutually exclusive for explicit visual requests.
+    explicit_visual_roles = {
+        "car_model_ac",
+        "factory_camera",
+        "cargo_bed_camera",
+        "aftermarket_camera",
+        "dashboard_fitment",
+        "factory_amp",
+        "google_apps",
+        "navigation",
+        "weather",
+        "carplay_android_auto",
+    }
+
+    query_role_normalized = (
+        "factory_amp" if query_role == "audio" and asset_role == "factory_amp"
+        else query_role
+    )
+    if query_role_normalized == asset_role:
+        return False
+
+    if query_role == "camera_generic" and asset_role in {
+        "factory_camera", "cargo_bed_camera", "aftermarket_camera"
+    }:
+        return False
+
+    return (
+        query_role_normalized in explicit_visual_roles
+        and asset_role in explicit_visual_roles
+        and query_role_normalized != asset_role
+    )
+
+
+def _website_image_visual_state_gate_v68885(prompt_text, payload):
+    """Validate that the image depicts the requested function, not merely a menu row."""
+    query_role = _website_image_query_role_v68884(prompt_text)
+    if not query_role:
+        return True
+
+    image_url = str(payload.get("image_url") or "")
+    caption = str(payload.get("caption") or "")
+    analysis = re.sub(
+        r"\s+", " ", str(payload.get("visual_analysis") or "")
+    ).strip().casefold()
+    caption_l = re.sub(r"\s+", " ", caption).strip().casefold()
+    visual_only = " ".join((caption_l, analysis))
+
+    asset_role = _website_image_url_role_v68885(image_url, caption)
+    if _website_image_roles_conflict_v68885(query_role, asset_role):
+        return False
+
+    if query_role == "car_model_ac":
+        # Hard reject screenshots whose visible/selected state is another function.
+        conflicting_selected = (
+            re.search(
+                r"(?:factory\s*amp|temperature\s*display|reverse\s*mute|"
+                r"dynamic\s*guideline|radar\s*sound).{0,80}"
+                r"(?:highlighted|selected|enabled|active|boxed)",
+                analysis,
+            )
+            or re.search(
+                r"(?:highlighted|selected|enabled|active|boxed).{0,80}"
+                r"(?:factory\s*amp|temperature\s*display|reverse\s*mute|"
+                r"dynamic\s*guideline|radar\s*sound)",
+                analysis,
+            )
+        )
+
+        # Positive evidence must come from the image/caption itself, not nearby page
+        # text. Merely seeing the "Car model/AC" menu row is not sufficient.
+        strong_visual_terms = (
+            "grand cherokee h",
+            "grand cherokee l",
+            "jeep grand cherokee",
+            "vehicle manufacturer",
+            "vehicle model",
+            "model selection list",
+            "car model / ac selection",
+            "car model/ac selection",
+            "car model selection screen",
+            "protocol selection",
+            "protocol simple",
+        )
+        strong_visual = any(term in visual_only for term in strong_visual_terms)
+
+        menu_row_only = (
+            ("car model/ac" in visual_only or "car model / ac" in visual_only)
+            and (
+                "menu row" in visual_only
+                or "menu item" in visual_only
+                or "setting guide" in visual_only
+            )
+            and not strong_visual
+        )
+
+        if conflicting_selected or menu_row_only:
+            return False
+
+        if asset_role == "car_model_ac":
+            return True
+
+        # For generic filenames, require image-level evidence that this is the
+        # actual selection page. No strong evidence = safer to show no image.
+        return strong_visual
+
+    return True
+
+
+def _website_image_final_payload_gate_v68885(prompt_text, payload):
+    """Final deterministic eligibility gate for a structured website-image payload."""
+    if not isinstance(payload, dict):
+        return False
+    if not _website_image_section_gate_v68884(prompt_text, payload):
+        return False
+    if not _website_image_visual_state_gate_v68885(prompt_text, payload):
+        return False
+    return True
+
+
+def _website_model_control_gate_v68885(prompt_text, image_record):
+    """Gate legacy/model-selected website images by strong filename contradiction."""
+    if not isinstance(image_record, dict):
+        return False
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return True
+
+    query_role = _website_image_query_role_v68884(prompt_text)
+    if not query_role:
+        return True
+
+    image_url = (
+        str(image_record.get("archive_web_url") or "").strip()
+        or str(image_record.get("data_url") or "").strip()
+    )
+    caption = str(image_record.get("name") or "")
+    asset_role = _website_image_url_role_v68885(image_url, caption)
+
+    if _website_image_roles_conflict_v68885(query_role, asset_role):
+        return False
+
+    # For high-risk explicit roles, model-only controls are not allowed to
+    # override a deterministic image-index decision.
+    return True
+
+
+def _website_image_final_authority_v68885(
+    prompt_text,
+    images,
+    deterministic_images=None,
+):
+    """One final authority gate for all website images before display/save.
+
+    If the deterministic image index has a verified result for an explicit
+    subsection request, it is the sole website-image authority. Legacy
+    file_search/model controls cannot add or replace another website image.
+    """
+    deterministic_images = [
+        item for item in (deterministic_images or [])
+        if isinstance(item, dict)
+        and str(item.get("source") or "") == "website_knowledge"
+        and bool(item.get("website_image_index_v68883"))
+    ]
+    deterministic_keys = {
+        str(item.get("website_image_sha256") or "").strip()
+        or str(item.get("archive_web_url") or "").strip()
+        or str(item.get("data_url") or "").strip()
+        for item in deterministic_images
+    }
+    deterministic_keys.discard("")
+
+    query_role = _website_image_query_role_v68884(prompt_text)
+    explicit_role = query_role in {
+        "car_model_ac",
+        "factory_camera",
+        "cargo_bed_camera",
+        "aftermarket_camera",
+        "dashboard_fitment",
+    }
+
+    output = []
+    seen = set()
+
+    for image in images or []:
+        if not isinstance(image, dict):
+            output.append(image)
+            continue
+
+        if str(image.get("source") or "") != "website_knowledge":
+            output.append(image)
+            continue
+
+        key = (
+            str(image.get("website_image_sha256") or "").strip()
+            or str(image.get("archive_web_url") or "").strip()
+            or str(image.get("data_url") or "").strip()
+        )
+
+        # Deterministic authority wins for explicit visual roles.
+        if explicit_role and deterministic_keys:
+            if key not in deterministic_keys:
+                continue
+        else:
+            if not _website_model_control_gate_v68885(prompt_text, image):
+                continue
+
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        output.append(image)
+
+    return output
+
+
 def _website_image_rank_v68883(prompt_text, payload):
     current = str(prompt_text or "")
     context = _website_image_query_context_v68883(current)
@@ -47565,6 +47835,8 @@ def _website_image_lookup_v68883(prompt_text):
     ranked = []
     for payload in _website_image_index_rows_v68883():
         if str(payload.get("database_choice") or "") != "Technical Support Database":
+            continue
+        if not _website_image_final_payload_gate_v68885(prompt_text, payload):
             continue
         score = _website_image_rank_v68883(prompt_text, payload)
         if score >= 8.0:
@@ -58082,7 +58354,10 @@ else:
                         "These images were previously analyzed and approved during website learning. "
                         "State that the matching photo(s) are displayed below the answer. Do not say "
                         "that no verified photo is available when this count is greater than zero. "
-                        "Use normal Technical file_search for the factual explanation.\n"
+                        "Use normal Technical file_search for the factual explanation. "
+                        "The app-side deterministic image result is the FINAL authority for which website "
+                        "photo is displayed. Do not output, recommend, or cite a different website image URL "
+                        "from file_search when a deterministic image result is present.\n"
                     )
                 if assistant == "🎨 Graphic Marketing":
                     ai_request_prompt += build_graphic_conversation_guardrail(
@@ -58158,8 +58433,12 @@ else:
                     )
                     if auto_website_images_v68870:
                         generated_images.extend(auto_website_images_v68870)
-                    generated_images = _dedupe_website_chat_images_v68883(
-                        generated_images
+                    generated_images = _website_image_final_authority_v68885(
+                        technical_request_prompt_v68879
+                        if assistant == "🔧 Technical Support"
+                        else interaction_prompt,
+                        _dedupe_website_chat_images_v68883(generated_images),
+                        deterministic_images=website_index_images_v68883,
                     )
                     answer_body = clean_visible_chat_text(
                         streamed_answer_clean_v68870
@@ -58200,8 +58479,12 @@ else:
                     )
                     if partial_web_images_v68870:
                         generated_images.extend(partial_web_images_v68870)
-                    generated_images = _dedupe_website_chat_images_v68883(
-                        generated_images
+                    generated_images = _website_image_final_authority_v68885(
+                        technical_request_prompt_v68879
+                        if assistant == "🔧 Technical Support"
+                        else interaction_prompt,
+                        _dedupe_website_chat_images_v68883(generated_images),
+                        deterministic_images=website_index_images_v68883,
                     )
                     partial_answer_body = clean_visible_chat_text(
                         partial_stream_clean_v68870
