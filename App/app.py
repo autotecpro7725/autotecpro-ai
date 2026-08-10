@@ -12877,6 +12877,12 @@ def _graphic_v68854_peek_active_manifest(conversation_id=None):
             return None
         if str(job.get("status") or "").strip().lower() in {"completed", "failed", "cancelled"}:
             return None
+        if _graphic_v68973_job_was_just_completed(job):
+            diagnostic_log(
+                "graphic_v68973_stale_active_pointer_blocked",
+                job_id=str(job.get("job_id") or ""),
+            )
+            return None
         return job
     except Exception as error:
         diagnostic_log(
@@ -13301,6 +13307,52 @@ def _graphic_v68851_retire_superseded_job(job):
     _graphic_v68848_remove_paths(paths)
 
 
+GRAPHIC_V68973_COMPLETION_TOMBSTONE_TTL_SECONDS = 180
+
+
+def _graphic_v68973_completed_job_tombstones():
+    """Session-local short-lived completion markers used only across Streamlit reruns.
+
+    A fresh user submission bypasses resume lookup entirely, so this guard cannot block
+    an intentional Regenerate/Create Again action. It only prevents a stale durable
+    pointer from reviving a job that this same session already completed successfully.
+    """
+    now = time.time()
+    raw = st.session_state.setdefault("graphic_completed_jobs_v68973", {})
+    if not isinstance(raw, dict):
+        raw = {}
+    clean = {}
+    for job_id, completed_at in raw.items():
+        try:
+            ts = float(completed_at or 0.0)
+        except Exception:
+            continue
+        if job_id and now - ts <= GRAPHIC_V68973_COMPLETION_TOMBSTONE_TTL_SECONDS:
+            clean[str(job_id)] = ts
+    st.session_state["graphic_completed_jobs_v68973"] = clean
+    return clean
+
+
+def _graphic_v68973_mark_job_completed(job):
+    if not isinstance(job, dict):
+        return
+    job_id = str(job.get("job_id") or "").strip()
+    if not job_id:
+        return
+    tombstones = _graphic_v68973_completed_job_tombstones()
+    tombstones[job_id] = time.time()
+    st.session_state["graphic_completed_jobs_v68973"] = tombstones
+
+
+def _graphic_v68973_job_was_just_completed(job):
+    if not isinstance(job, dict):
+        return False
+    job_id = str(job.get("job_id") or "").strip()
+    if not job_id:
+        return False
+    return job_id in _graphic_v68973_completed_job_tombstones()
+
+
 def _graphic_queue_durable_job_v68844(
     prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1
 ):
@@ -13348,6 +13400,14 @@ def _graphic_pending_durable_job_v68844():
             cache["jobs"].pop(key, None)
             continue
         status = str(job.get("status") or "")
+        if _graphic_v68973_job_was_just_completed(job):
+            cache["jobs"].pop(key, None)
+            diagnostic_log(
+                "graphic_v68973_stale_local_resume_blocked",
+                job_id=str(job.get("job_id") or ""),
+                status=status,
+            )
+            continue
         if status in {"queued", "retryable"}:
             return dict(job)
         # v68845: a provider call can outlive the browser/websocket script context.
@@ -13369,6 +13429,17 @@ def _graphic_pending_durable_job_v68844():
             return recovered
     restored = _graphic_v68848_restore_manifest()
     if isinstance(restored, dict):
+        if _graphic_v68973_job_was_just_completed(restored):
+            diagnostic_log(
+                "graphic_v68973_stale_remote_resume_blocked",
+                job_id=str(restored.get("job_id") or ""),
+                status=str(restored.get("status") or ""),
+            )
+            _graphic_v68848_remove_paths([
+                f"{_graphic_v68848_job_prefix(restored)}/manifest.json",
+                _graphic_v68848_active_pointer_path(restored.get("conversation_id")),
+            ])
+            return None
         for alias in _graphic_durable_job_keys_v68844(restored.get("conversation_id")):
             cache["jobs"][alias] = restored
         return dict(restored)
@@ -13396,18 +13467,41 @@ def _graphic_update_durable_job_v68844(job, *, status=None, attempt=None, error=
 
 
 def _graphic_complete_durable_job_v68844(job):
-    """Remove every alias only after the generated result is safely saved."""
+    """Commit completion before cleanup so a Streamlit rerun cannot redispatch it.
+
+    v68973 closes a durable-job race: earlier builds deleted the remote manifest
+    while it could still say queued/processing. If storage cleanup failed and the
+    app immediately reran, that stale pointer could later be treated as resumable.
+    Completion is now persisted first, then a short session tombstone is recorded,
+    and only then are lease/input/manifest objects removed best-effort.
+    """
     if not isinstance(job, dict):
         return
     cache = _graphic_mobile_runtime_cache_v68400()
-    _graphic_v68848_release_lease(job)
-    _graphic_cleanup_spooled_uploads_v68847(job.get("uploads") or [])
-    storage_paths = [str(item.get("storage_path") or "") for item in (job.get("uploads") or []) if isinstance(item, dict)]
-    storage_paths += [f"{_graphic_v68848_job_prefix(job)}/manifest.json", _graphic_v68848_active_pointer_path(job.get("conversation_id"))]
+    completed = dict(job)
+    completed["status"] = "completed"
+    completed["completed_at"] = time.time()
+    completed["updated_at"] = completed["completed_at"]
+
+    # Order matters: a surviving remote object must be non-resumable even when
+    # cleanup fails. The local tombstone additionally protects the mandatory
+    # post-response Streamlit rerun from stale remote visibility/consistency lag.
+    _graphic_v68973_mark_job_completed(completed)
+    persisted = _graphic_v68848_persist_manifest(completed)
+    diagnostic_log(
+        "graphic_v68973_completion_committed",
+        job_id=str(completed.get("job_id") or ""),
+        manifest_persisted=bool(persisted),
+    )
+
+    _graphic_v68848_release_lease(completed)
+    _graphic_cleanup_spooled_uploads_v68847(completed.get("uploads") or [])
+    storage_paths = [str(item.get("storage_path") or "") for item in (completed.get("uploads") or []) if isinstance(item, dict)]
+    storage_paths += [f"{_graphic_v68848_job_prefix(completed)}/manifest.json", _graphic_v68848_active_pointer_path(completed.get("conversation_id"))]
     _graphic_v68848_remove_paths(storage_paths)
-    for key in _graphic_durable_job_keys_v68844(job.get("conversation_id")):
+    for key in _graphic_durable_job_keys_v68844(completed.get("conversation_id")):
         candidate = cache["jobs"].get(key)
-        if not isinstance(candidate, dict) or candidate.get("job_id") == job.get("job_id"):
+        if not isinstance(candidate, dict) or candidate.get("job_id") == completed.get("job_id"):
             cache["jobs"].pop(key, None)
     st.session_state.pop("graphic_durable_job_id_v68844", None)
 
