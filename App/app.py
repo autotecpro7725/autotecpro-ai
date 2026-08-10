@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68891 — Password-Protected Website Learning; v68890 Pipelines Preserved
+# AutoTecPro AI v68892 — Same-URL Website Knowledge Upsert; v68891 Pipelines Preserved
 # AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
@@ -48515,7 +48515,13 @@ def save_website_knowledge_package(
     include_images=True,
     selected_image_urls=None,
 ):
-    """Analyze website images and save one de-duplicated package to the selected vector store."""
+    """Save website knowledge with same-URL upsert semantics.
+
+    Same URL + same database + same stable content/image version is a no-op.
+    Same URL + changed content/images uploads the new version first, waits for
+    indexing, then removes superseded website files so old and new instructions
+    are not simultaneously retrievable.
+    """
     reviewed = clean_extracted_website_text(
         reviewed_content if reviewed_content is not None else extraction.get("content")
     )
@@ -48536,7 +48542,49 @@ def save_website_knowledge_package(
             selected_urls=selected_image_urls,
         )
         if include_images
-        else {"images": [], "attempted": 0, "skipped": 0, "discovered": 0, "limited": False}
+        else {
+            "images": [],
+            "attempted": 0,
+            "skipped": 0,
+            "discovered": 0,
+            "limited": False,
+        }
+    )
+
+    version_hash_v68892 = _website_knowledge_version_hash_v68892(
+        extraction,
+        database_choice,
+        reviewed,
+        image_analysis,
+    )
+    package_extraction = dict(extraction)
+    package_extraction["website_version_hash_v68892"] = version_hash_v68892
+    filename = website_knowledge_filename(package_extraction)
+
+    # Stable exact duplicate check happens before package timestamp can vary.
+    if vector_store_has_filename(selected_vector_store_id, filename):
+        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+            extraction,
+            database_choice,
+            list(image_analysis.get("images") or []),
+        )
+        return {
+            "already_saved": True,
+            "updated_existing_url": False,
+            "replaced_file_count": 0,
+            "replacement_cleanup_pending": False,
+            "file_id": "",
+            "filename": filename,
+            "images": list(image_analysis.get("images") or []),
+            "image_analysis": image_analysis,
+            "website_image_index_v68883": website_image_index_stats_v68883,
+        }
+
+    # Discover all prior versions for this exact URL in the selected database.
+    prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
+        selected_vector_store_id,
+        extraction,
+        exclude_filename=filename,
     )
 
     package_text = build_website_knowledge_package_document(
@@ -48545,43 +48593,79 @@ def save_website_knowledge_package(
         reviewed_content=reviewed,
         image_analysis=image_analysis,
     )
-    package_hash = hashlib.sha256(package_text.encode("utf-8")).hexdigest()
 
-    package_extraction = dict(extraction)
-    package_extraction["content_hash"] = package_hash
-    filename = website_knowledge_filename(package_extraction)
-
+    # Preserve the existing image archive/index behavior.
     website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
         extraction,
         database_choice,
         list(image_analysis.get("images") or []),
     )
 
-    if vector_store_has_filename(selected_vector_store_id, filename):
-        return {
-            "already_saved": True,
-            "file_id": "",
-            "filename": filename,
-            "images": list(image_analysis.get("images") or []),
-            "image_analysis": image_analysis,
-            "website_image_index_v68883": website_image_index_stats_v68883,
-        }
-
     website_file = ManagedUploadedFile(
         package_text.encode("utf-8"),
         filename,
         "text/plain",
     )
-    file_id = upload_to_vector_store(website_file, selected_vector_store_id)
+
+    file_id = ""
+    try:
+        file_id = upload_to_vector_store(
+            website_file,
+            selected_vector_store_id,
+        )
+        indexing_status_v68892 = _wait_for_vector_store_file(
+            selected_vector_store_id,
+            file_id,
+            timeout_seconds=30,
+        )
+    except Exception:
+        # Never remove the previous good version if replacement upload/indexing fails.
+        if file_id:
+            try:
+                client.vector_stores.files.delete(
+                    vector_store_id=selected_vector_store_id,
+                    file_id=file_id,
+                )
+            except Exception:
+                pass
+            try:
+                client.files.delete(file_id)
+            except Exception:
+                pass
+        raise
+
+    replaced_file_count_v68892 = 0
+    cleanup_pending_v68892 = False
+
+    if str(indexing_status_v68892 or "").lower() == "completed":
+        for old_row in prior_same_url_files_v68892:
+            old_file_id = str(old_row.get("file_id") or "").strip()
+            if not old_file_id or old_file_id == str(file_id):
+                continue
+            if _website_remove_vector_file_v68892(
+                selected_vector_store_id,
+                old_file_id,
+            ):
+                replaced_file_count_v68892 += 1
+            else:
+                cleanup_pending_v68892 = True
+    elif prior_same_url_files_v68892:
+        # Fail safe: keep the old version until the new one is confirmed indexed.
+        cleanup_pending_v68892 = True
 
     return {
         "already_saved": False,
+        "updated_existing_url": bool(prior_same_url_files_v68892),
+        "replaced_file_count": replaced_file_count_v68892,
+        "replacement_cleanup_pending": cleanup_pending_v68892,
+        "indexing_status": indexing_status_v68892,
         "file_id": file_id,
         "filename": filename,
         "images": list(image_analysis.get("images") or []),
         "image_analysis": image_analysis,
         "website_image_index_v68883": website_image_index_stats_v68883,
     }
+
 
 
 def _website_images_for_chat(image_items, max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES):
@@ -48937,8 +49021,79 @@ def extract_public_webpage(url, page_password=""):
 
 
 
+def _website_knowledge_url_identity_v68892(extraction):
+    """Stable canonical identity for one learned webpage."""
+    raw_url = (
+        str(extraction.get("requested_url") or "").strip()
+        or str(extraction.get("source_url") or "").strip()
+    )
+    return canonical_website_url_identity(raw_url)
+
+
+def _website_knowledge_url_hash_v68892(extraction):
+    identity = _website_knowledge_url_identity_v68892(extraction)
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+
+
+def _website_knowledge_version_hash_v68892(
+    extraction,
+    database_choice,
+    reviewed_content,
+    image_analysis,
+):
+    """Stable version hash that ignores volatile extraction timestamps and AI wording."""
+    stable_images = []
+    for item in list((image_analysis or {}).get("images") or []):
+        if not isinstance(item, dict):
+            continue
+        stable_images.append({
+            "sha256": str(item.get("sha256") or "").strip().lower(),
+            "url": str(item.get("url") or "").strip(),
+            "section": re.sub(
+                r"\s+",
+                " ",
+                str(item.get("nearest_heading") or ""),
+            ).strip(),
+            "nearby": re.sub(
+                r"\s+",
+                " ",
+                str(item.get("nearby_text") or ""),
+            ).strip(),
+        })
+
+    stable_images.sort(
+        key=lambda row: (
+            row.get("sha256") or "",
+            row.get("url") or "",
+            row.get("section") or "",
+            row.get("nearby") or "",
+        )
+    )
+
+    payload = {
+        "database_choice": str(database_choice or "").strip(),
+        "url_identity": _website_knowledge_url_identity_v68892(extraction),
+        "reviewed_content": clean_extracted_website_text(reviewed_content),
+        "images": stable_images,
+    }
+    packed = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(packed.encode("utf-8")).hexdigest()
+
+
+def _website_knowledge_filename_prefix_v68892(extraction):
+    parsed = urlparse(str(extraction.get("source_url") or ""))
+    host = re.sub(r"[^A-Za-z0-9]+", "_", parsed.hostname or "website")
+    url_digest = _website_knowledge_url_hash_v68892(extraction)
+    return f"website_{host}_url_{url_digest}_"
+
+
 def website_knowledge_filename(extraction):
-    """Create a stable checksum-based filename for duplicate protection."""
+    """Create a stable same-URL/version filename for duplicate protection."""
     parsed = urlparse(str(extraction.get("source_url") or ""))
     host = re.sub(r"[^A-Za-z0-9]+", "_", parsed.hostname or "website")
     title = re.sub(
@@ -48946,9 +49101,17 @@ def website_knowledge_filename(extraction):
         "_",
         str(extraction.get("title") or "page"),
     ).strip("_")
-    title = title[:55] or "page"
-    digest = str(extraction.get("content_hash") or "")[:16]
-    return f"website_{host}_{title}_{digest}.txt"
+    title = title[:48] or "page"
+    url_digest = _website_knowledge_url_hash_v68892(extraction)
+    version_digest = str(
+        extraction.get("website_version_hash_v68892")
+        or extraction.get("content_hash")
+        or ""
+    )[:16]
+    return (
+        f"website_{host}_url_{url_digest}_{title}_{version_digest}.txt"
+    )
+
 
 
 def build_website_knowledge_document(extraction, database_choice):
@@ -48967,6 +49130,192 @@ def build_website_knowledge_document(extraction, database_choice):
         "=================\n"
     )
     return header + str(extraction.get("content") or "").strip() + "\n"
+
+
+def _website_vector_store_file_rows_v68892(vector_store_id):
+    """Return vector-store file IDs + filenames for website replacement checks."""
+    rows = []
+    try:
+        after = None
+        for _ in range(100):
+            request = {
+                "vector_store_id": vector_store_id,
+                "limit": 100,
+            }
+            if after:
+                request["after"] = after
+
+            page = client.vector_stores.files.list(**request)
+            records = list(getattr(page, "data", None) or [])
+            for record in records:
+                file_id = (
+                    getattr(record, "file_id", None)
+                    or getattr(record, "id", None)
+                    or (
+                        record.get("file_id") or record.get("id")
+                        if isinstance(record, dict)
+                        else None
+                    )
+                )
+                file_id = str(file_id or "").strip()
+                if not file_id:
+                    continue
+
+                filename = ""
+                try:
+                    file_record = client.files.retrieve(file_id)
+                    filename = str(
+                        getattr(file_record, "filename", "") or ""
+                    ).strip()
+                except Exception:
+                    pass
+
+                rows.append({
+                    "file_id": file_id,
+                    "filename": filename,
+                })
+
+            if not bool(getattr(page, "has_more", False)) or not records:
+                break
+
+            last_record = records[-1]
+            after = (
+                getattr(last_record, "id", None)
+                or (
+                    last_record.get("id")
+                    if isinstance(last_record, dict)
+                    else None
+                )
+            )
+            if not after:
+                break
+    except Exception as error:
+        diagnostic_log(
+            "website_v68892_vector_list_failed",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+    return rows
+
+
+def _website_openai_file_text_v68892(file_id):
+    """Best-effort text read for backward-compatible legacy website-file matching."""
+    try:
+        response = client.files.content(file_id)
+    except Exception:
+        return ""
+
+    if isinstance(response, bytes):
+        return response.decode("utf-8", errors="replace")
+    if isinstance(response, bytearray):
+        return bytes(response).decode("utf-8", errors="replace")
+    if isinstance(response, str):
+        return response
+
+    value = getattr(response, "text", None)
+    if isinstance(value, str) and value:
+        return value
+
+    value = getattr(response, "content", None)
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str) and value:
+        return value
+
+    reader = getattr(response, "read", None)
+    if callable(reader):
+        try:
+            value = reader()
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            if isinstance(value, str):
+                return value
+        except Exception:
+            pass
+
+    return ""
+
+
+def _website_package_url_identities_v68892(package_text):
+    identities = set()
+    value = str(package_text or "")
+    for label in ("Requested URL:", "Final source URL:", "Source page:"):
+        for match in re.finditer(
+            rf"(?im)^{re.escape(label)}\s*(https?://\S+)\s*$",
+            value,
+        ):
+            raw_url = str(match.group(1) or "").strip()
+            try:
+                identities.add(canonical_website_url_identity(raw_url))
+            except Exception:
+                continue
+    return identities
+
+
+def _website_same_url_vector_files_v68892(
+    vector_store_id,
+    extraction,
+    *,
+    exclude_filename="",
+):
+    """Find prior vector files for this exact canonical URL in this database."""
+    target_identity = _website_knowledge_url_identity_v68892(extraction)
+    new_prefix = _website_knowledge_filename_prefix_v68892(extraction)
+    exclude_filename = str(exclude_filename or "").strip()
+
+    matches = []
+    for row in _website_vector_store_file_rows_v68892(vector_store_id):
+        filename = str(row.get("filename") or "")
+        file_id = str(row.get("file_id") or "")
+        if not file_id:
+            continue
+        if exclude_filename and filename == exclude_filename:
+            continue
+
+        # v68892+ files are deterministically discoverable without content reads.
+        if filename.startswith(new_prefix):
+            matches.append(row)
+            continue
+
+        # Backward compatibility for v68891 and older checksum filenames.
+        if not filename.startswith("website_"):
+            continue
+
+        package_text = _website_openai_file_text_v68892(file_id)
+        if not package_text:
+            continue
+        identities = _website_package_url_identities_v68892(package_text)
+        if target_identity in identities:
+            matches.append(row)
+
+    return matches
+
+
+def _website_remove_vector_file_v68892(vector_store_id, file_id):
+    """Remove one superseded website file only after its replacement is ready."""
+    file_id = str(file_id or "").strip()
+    if not file_id:
+        return False
+    try:
+        client.vector_stores.files.delete(
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "website_v68892_vector_detach_failed",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+            file_id=file_id,
+        )
+        return False
+
+    try:
+        client.files.delete(file_id)
+    except Exception:
+        # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
+        pass
+    return True
 
 
 def vector_store_has_filename(vector_store_id, filename):
@@ -49257,14 +49606,37 @@ def render_learn_from_website(database_choice):
             }
             return
 
+        if save_result.get("updated_existing_url"):
+            replacement_count = int(save_result.get("replaced_file_count") or 0)
+            cleanup_pending = bool(
+                save_result.get("replacement_cleanup_pending")
+            )
+            replacement_text = (
+                f" Replaced {replacement_count} older version(s) of this same URL."
+                if replacement_count
+                else ""
+            )
+            if cleanup_pending:
+                replacement_text += (
+                    " The new version is saved, but an older version is being kept "
+                    "temporarily because replacement indexing/cleanup was not fully "
+                    "confirmed; resubmitting later can complete cleanup safely."
+                )
+        else:
+            replacement_text = ""
+
         st.session_state.admin_website_save_notice = {
-            "type": "success",
+            "type": (
+                "warning"
+                if save_result.get("replacement_cleanup_pending")
+                else "success"
+            ),
             "message": (
-                f"Website knowledge saved to {database_choice}. "
+                f"Website knowledge saved to {database_choice}."
+                f"{replacement_text} "
                 f"Analyzed and saved {image_count} useful image(s) "
                 f"from {analysis_stats.get('attempted', 0)} checked image(s). "
-                f"File ID: {save_result.get('file_id')}. OpenAI may take a short "
-                "time to finish indexing the new knowledge."
+                f"File ID: {save_result.get('file_id')}."
             ),
         }
         st.session_state.pop("admin_website_extraction", None)
