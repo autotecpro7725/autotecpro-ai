@@ -33808,7 +33808,7 @@ def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_f
     return report
 
 def _graphic_v68978_reference_recovery(prompt_text, uploaded_files, forced_upload_role, style_strength):
-    """Use the established deterministic Reference compositor as recovery only."""
+    """Use the established controlled Reference compositor as first recovery tier."""
     role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_role=forced_upload_role)
     if not any(i.get("role") == "product_photo" for i in role_items) or not any(i.get("role") == "style_reference" for i in role_items):
         raise RuntimeError("Reference recovery requires the active product and style reference.")
@@ -33827,7 +33827,46 @@ def _graphic_v68978_reference_recovery(prompt_text, uploaded_files, forced_uploa
         prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
     )
     result["graphic_v68978_reference_recovery"] = True
+    result["graphic_v68985_reference_recovery_tier"] = "controlled-hybrid"
     return [result]
+
+
+def _graphic_v68985_reference_local_failsafe(prompt_text, uploaded_files, forced_upload_role, style_strength, failure_reason=""):
+    """Final Reference failsafe that removes provider/five-stage-compiler dependency.
+
+    It uses the existing v66850 deterministic local commercial scene and the same
+    current Reference compositor. The uploaded product remains the immutable pixel
+    authority; Reference layout/icons/copy are still rendered by the established
+    deterministic Reference engine.
+    """
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = _graphic_project_role_items(uploaded_files or [], effective_prompt, forced_role=forced_upload_role)
+    if not any(i.get("role") == "product_photo" for i in role_items) or not any(i.get("role") == "style_reference" for i in role_items):
+        raise RuntimeError("Reference local failsafe requires the active product and style reference.")
+    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(effective_prompt))
+    reference_blueprint = _graphic_safe_optional_call(
+        "graphic_v68985_local_reference_analysis_failed_open",
+        lambda: analyze_graphic_reference_blueprint(role_items, prompt_text=effective_prompt, style_strength=style_strength), {},
+    )
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+    vehicle_profile = _graphic_safe_optional_call(
+        "graphic_v68985_local_vehicle_research_failed_open",
+        lambda: research_graphic_vehicle_profile(role_items, effective_prompt), {},
+    )
+    vehicle_profile = _graphic_resolve_vehicle_lock(effective_prompt, vehicle_profile)
+    images = _graphic_v66830_source_canvas_result(
+        effective_prompt,
+        role_items,
+        output_size,
+        reference_blueprint,
+        vehicle_profile,
+        failure_reason=str(failure_reason or "")[:1200],
+    )
+    for image in images or []:
+        if isinstance(image, dict):
+            image["graphic_v68985_reference_local_failsafe"] = True
+            image["graphic_v68985_reference_recovery_tier"] = "deterministic-local-commercial"
+    return images
 
 
 def generate_graphic_marketing_images(
@@ -33892,9 +33931,23 @@ def generate_graphic_marketing_images(
                 error_type=type(error).__name__,
                 error=_graphic_compact_error_v4000(error),
             )
-            images = _graphic_v68978_reference_recovery(
-                str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
-            )
+            try:
+                images = _graphic_v68978_reference_recovery(
+                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
+                )
+            except Exception as recovery_error:
+                diagnostic_log(
+                    "graphic_v68985_reference_hybrid_recovery_exception",
+                    error_type=type(recovery_error).__name__,
+                    error=_graphic_compact_error_v4000(recovery_error),
+                )
+                images = _graphic_v68985_reference_local_failsafe(
+                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                    failure_reason=(
+                        "primary=" + _graphic_compact_error_v4000(error)
+                        + " | hybrid=" + _graphic_compact_error_v4000(recovery_error)
+                    ),
+                )
     finally:
         if is_reference:
             if previous_reference_flag is None:
@@ -33910,15 +33963,48 @@ def generate_graphic_marketing_images(
                 "graphic_v68978_reference_primary_blocked",
                 issues="; ".join(publication.get("issues") or [])[:900],
             )
-            images = _graphic_v68978_reference_recovery(
-                str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
-            )
+            try:
+                images = _graphic_v68978_reference_recovery(
+                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
+                )
+            except Exception as recovery_error:
+                diagnostic_log(
+                    "graphic_v68985_reference_hybrid_recovery_exception_after_publication_block",
+                    error_type=type(recovery_error).__name__,
+                    error=_graphic_compact_error_v4000(recovery_error),
+                )
+                images = _graphic_v68985_reference_local_failsafe(
+                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                    failure_reason="primary-publication-block | hybrid=" + _graphic_compact_error_v4000(recovery_error),
+                )
             publication = _graphic_v68978_reference_publication_report(
                 images, prompt_text, uploaded_files, forced_upload_role
             )
             if not publication.get("passed"):
+                # A hybrid recovery can itself be structurally complete yet still
+                # lack positive v68978 authority metadata. Do one final provider-free
+                # exact-source composition before failing the user request.
+                try:
+                    images = _graphic_v68985_reference_local_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason="hybrid-publication-block: " + "; ".join(publication.get("issues") or []),
+                    )
+                    publication = _graphic_v68978_reference_publication_report(
+                        images, prompt_text, uploaded_files, forced_upload_role
+                    )
+                except Exception as local_error:
+                    diagnostic_log(
+                        "graphic_v68985_reference_local_failsafe_exception",
+                        error_type=type(local_error).__name__,
+                        error=_graphic_compact_error_v4000(local_error),
+                    )
+                    raise RuntimeError(
+                        "Reference Mode final deterministic failsafe failed: "
+                        + _graphic_compact_error_v4000(local_error)
+                    ) from local_error
+            if not publication.get("passed"):
                 raise RuntimeError(
-                    "Reference Mode blocked publication because exact product geometry/icon authority could not be proven: "
+                    "Reference Mode blocked publication because exact product geometry/icon authority could not be proven after deterministic local failsafe: "
                     + "; ".join(publication.get("issues") or [])
                 )
         for image in images or []:
