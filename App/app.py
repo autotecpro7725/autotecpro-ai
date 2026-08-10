@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68879 — Technical Photo Follow-Up Context Fix; v68878 Graphic Pipeline Preserved
+# AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -5285,59 +5285,78 @@ def inject_base_css():
         }
 
         /* ============================================================
-           v68864 MOBILE RESPONSE TABLE FIX
-           Preserve readable desktop-like columns on phones. Tables scroll
-           horizontally instead of shrinking every column to a few pixels.
+           v68880 MOBILE RESPONSE TABLE FIT
+           Keep AI-generated tables inside the mobile message boundary.
+           Long cell text wraps vertically instead of forcing a desktop-width
+           table beyond the viewport. Desktop table rendering is unchanged.
         ============================================================ */
         @media (max-width: 768px) {
-            .chat-bubble {
+            .chat-bubble,
+            .assistant-bubble {
+                width: 100% !important;
                 min-width: 0 !important;
                 max-width: 100% !important;
+                box-sizing: border-box !important;
             }
 
             .chat-bubble table,
             .assistant-bubble table {
-                display: block !important;
-                width: max-content !important;
-                min-width: 760px !important;
-                max-width: none !important;
-                table-layout: auto !important;
-                overflow-x: auto !important;
-                overflow-y: hidden !important;
-                -webkit-overflow-scrolling: touch !important;
-                overscroll-behavior-x: contain !important;
-                scrollbar-width: thin !important;
+                display: table !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                table-layout: fixed !important;
+                overflow: visible !important;
+                box-sizing: border-box !important;
                 border-radius: 10px !important;
             }
 
             .chat-bubble table thead,
             .chat-bubble table tbody,
+            .chat-bubble table tr,
             .assistant-bubble table thead,
-            .assistant-bubble table tbody {
-                width: max-content !important;
+            .assistant-bubble table tbody,
+            .assistant-bubble table tr {
+                width: 100% !important;
+                max-width: 100% !important;
             }
 
             .chat-bubble table th,
             .chat-bubble table td,
             .assistant-bubble table th,
             .assistant-bubble table td {
-                min-width: 112px !important;
-                max-width: 220px !important;
+                min-width: 0 !important;
+                max-width: none !important;
                 width: auto !important;
                 white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: normal !important;
-                hyphens: none !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+                hyphens: auto !important;
                 line-height: 1.38 !important;
-                padding: 9px 10px !important;
+                padding: 9px 9px !important;
                 vertical-align: top !important;
+                box-sizing: border-box !important;
             }
 
+            /* Two-column support/specification tables read best with a compact
+               label column and a wider detail column. Multi-column tables still
+               remain within the viewport because table-layout is fixed. */
             .chat-bubble table th:first-child,
             .chat-bubble table td:first-child,
             .assistant-bubble table th:first-child,
             .assistant-bubble table td:first-child {
-                min-width: 150px !important;
+                width: 38% !important;
+            }
+
+            /* Prevent a nested markdown/code/link node inside a cell from
+               re-introducing horizontal overflow. */
+            .chat-bubble table th *,
+            .chat-bubble table td *,
+            .assistant-bubble table th *,
+            .assistant-bubble table td * {
+                max-width: 100% !important;
+                overflow-wrap: anywhere !important;
+                word-break: break-word !important;
             }
 
             /* Leave enough space below long mobile answers so the fixed composer
@@ -11929,29 +11948,25 @@ def switch_workspace(assistant_name):
     """
     Update workspace state before Streamlit's normal button rerun.
 
-    Using a callback avoids the extra explicit rerun that previously caused a
-    second full page refresh and made navigation feel less smooth.
+    v68880 keeps this callback intentionally lightweight. The signed workspace
+    cookie is refreshed at the end of the destination render instead of blocking
+    the navigation callback, so the new workspace can paint first.
     """
     if st.session_state.get("current_assistant") == assistant_name:
         return
+
+    st.session_state["_workspace_nav_started_v68880"] = time.perf_counter()
+    st.session_state["_workspace_nav_mobile_collapse_v68880"] = time.time_ns()
+    st.session_state["_workspace_auth_refresh_pending_v68880"] = assistant_name
 
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.current_assistant = assistant_name
 
-    # Preserve authentication and the newly selected workspace explicitly before
-    # Streamlit's normal rerun. Saving after assignment is required so reconnect
-    # recovery restores the destination workspace, not the previous one.
-    username = str(st.session_state.get("username") or "").strip()
-    if username:
-        try:
-            save_authenticated_session(
-                username,
-                remember=bool(st.session_state.get("_atp_session_remembered")),
-                workspace=assistant_name,
-            )
-        except Exception as error:
-            diagnostic_log("workspace_auth_refresh_failed", error=str(error))
+    # A pending Technical-photo clarification belongs to the old case/workspace.
+    # Clear it on workspace navigation so it cannot bleed into a later case.
+    st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
+
     st.session_state.chat_file_uploader_generation = int(
         st.session_state.get("chat_file_uploader_generation", 0)
     ) + 1
@@ -12009,6 +12024,95 @@ components.html(
     height=0,
     width=0,
 )
+
+
+# v68880 mobile navigation UX: after a workspace tap, collapse the Streamlit
+# sidebar automatically and return keyboard/focus ownership to the main body.
+# Desktop behavior is intentionally unchanged.
+_workspace_mobile_collapse_nonce_v68880 = st.session_state.pop(
+    "_workspace_nav_mobile_collapse_v68880",
+    None,
+)
+if _workspace_mobile_collapse_nonce_v68880:
+    components.html(
+        f"""
+        <script>
+        (() => {{
+            const parentWindow = window.parent;
+            const doc = parentWindow.document;
+            const isMobile = parentWindow.matchMedia(
+                "(max-width: 768px)"
+            ).matches;
+            if (!isMobile) return;
+
+            const collapseSidebar = () => {{
+                const sidebar = doc.querySelector(
+                    'section[data-testid="stSidebar"]'
+                );
+                if (!sidebar) return;
+
+                const rect = sidebar.getBoundingClientRect();
+                const visible = rect.width > 80
+                    && rect.right > 1
+                    && rect.left < parentWindow.innerWidth - 1
+                    && parentWindow.getComputedStyle(sidebar).display !== "none"
+                    && parentWindow.getComputedStyle(sidebar).visibility !== "hidden";
+                if (!visible) return;
+
+                const allButtons = Array.from(doc.querySelectorAll("button"));
+                const labeledControl = allButtons.find((button) => {{
+                    const label = [
+                        button.getAttribute("aria-label") || "",
+                        button.getAttribute("title") || "",
+                    ].join(" ").trim();
+                    return /(?:collapse|close|hide).*sidebar|sidebar.*(?:collapse|close|hide)/i.test(label);
+                }});
+
+                const streamlitHeaderControl = sidebar.querySelector(
+                    'button[data-testid="stBaseButton-headerNoPadding"], button[kind="header"]'
+                );
+
+                const control = labeledControl || streamlitHeaderControl;
+                if (control && !control.disabled) {{
+                    control.click();
+                }}
+
+                const main = doc.querySelector("main");
+                if (main) {{
+                    main.setAttribute("tabindex", "-1");
+                    try {{
+                        main.focus({{preventScroll: true}});
+                    }} catch (_) {{
+                        main.focus();
+                    }}
+                }}
+            }};
+
+            requestAnimationFrame(() => setTimeout(collapseSidebar, 40));
+            setTimeout(collapseSidebar, 180);
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+_workspace_nav_started_v68880 = st.session_state.pop(
+    "_workspace_nav_started_v68880",
+    None,
+)
+if _workspace_nav_started_v68880 is not None:
+    try:
+        diagnostic_log(
+            "workspace_destination_render_reached_v68880",
+            workspace=_current_workspace_slug,
+            elapsed_seconds=round(
+                time.perf_counter() - float(_workspace_nav_started_v68880),
+                4,
+            ),
+        )
+    except Exception:
+        pass
 
 # Persistent workspace DOM isolation.
 #
@@ -51713,7 +51817,30 @@ TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
 
 def _technical_photo_context_v68879():
     value = st.session_state.get(TECHNICAL_PHOTO_CONTEXT_KEY_V68879)
-    return value if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        return {}
+
+    # v68880: pending Technical-photo state belongs to one conversation only.
+    # A short reply in another case must never inherit the previous case's
+    # request or uploaded image.
+    stored_conversation_id = str(value.get("conversation_id") or "").strip()
+    current_conversation_id = str(
+        st.session_state.get("conversation_id") or ""
+    ).strip()
+    if (
+        stored_conversation_id
+        and current_conversation_id
+        and stored_conversation_id != current_conversation_id
+    ):
+        st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
+        diagnostic_log(
+            "technical_photo_stale_conversation_context_rejected_v68880",
+            stored_conversation_id=stored_conversation_id,
+            current_conversation_id=current_conversation_id,
+        )
+        return {}
+
+    return value
 
 
 def _technical_photo_request_v68879(prompt_text):
@@ -58290,6 +58417,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# v68880: refresh the signed workspace cookie only after the destination UI has
+# been emitted. This preserves reconnect recovery while removing the cookie
+# component write from the workspace-navigation callback/critical paint path.
+_pending_workspace_auth_refresh_v68880 = str(
+    st.session_state.pop("_workspace_auth_refresh_pending_v68880", "") or ""
+).strip()
+if _pending_workspace_auth_refresh_v68880:
+    _workspace_cookie_started_v68880 = time.perf_counter()
+    username_v68880 = str(st.session_state.get("username") or "").strip()
+    if username_v68880:
+        try:
+            save_authenticated_session(
+                username_v68880,
+                remember=bool(
+                    st.session_state.get("_atp_session_remembered")
+                ),
+                workspace=_pending_workspace_auth_refresh_v68880,
+            )
+            diagnostic_log(
+                "workspace_auth_refresh_deferred_v68880",
+                workspace=_pending_workspace_auth_refresh_v68880,
+                elapsed_seconds=round(
+                    time.perf_counter() - _workspace_cookie_started_v68880,
+                    4,
+                ),
+            )
+        except Exception as error:
+            diagnostic_log(
+                "workspace_auth_refresh_failed",
+                error=str(error),
+            )
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
 # the fixed cover until this point prevents stale login or authenticated DOM
