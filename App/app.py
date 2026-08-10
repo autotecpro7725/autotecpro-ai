@@ -1,3 +1,4 @@
+# AutoTecPro AI v68977 — Restore pre-major-upgrade Graphic Reference Mode; v68976 non-Reference hardening preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -24797,7 +24798,6 @@ def _graphic_compose_reference_campaign_v3200(
     product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
 
     combined_variant_split_v68877 = []
-    derived_finish_variant_v68976 = {"applied": False}
     if (
         secondary_variant_item_v68877 is None
         and _graphic_two_color_requested_v68877(prompt_text)
@@ -24849,23 +24849,6 @@ def _graphic_compose_reference_campaign_v3200(
         # Do not run a second raw alpha getbbox(), which can either retain stray edge
         # pixels or re-crop delicate mounting details. Product geometry is now locked.
         pass
-
-    # v68976: the historic Graphic behavior allowed a user to request Black + Silver
-    # from one product photo. The strict v68971 product-authority gate correctly stopped
-    # provider recoloring, but that left the request unsatisfiable and could return an
-    # EmptyGraphicResult. Restore the feature without reopening product hallucination:
-    # derive only the SECOND finish locally from this already-locked exact product layer.
-    if secondary_product_v68877_pending is None and _graphic_two_color_requested_v68877(prompt_text):
-        derived_variant_v68976, derived_finish_variant_v68976 = _graphic_v68976_finish_variant_from_exact_source(
-            product, prompt_text
-        )
-        if derived_variant_v68976 is not None and derived_finish_variant_v68976.get("applied"):
-            secondary_product_v68877_pending = derived_variant_v68976
-            diagnostic_log(
-                "graphic_v68976_single_source_two_finish_recovered",
-                target_finish=str(derived_finish_variant_v68976.get("target_finish") or ""),
-                eligible_pixel_count=int(derived_finish_variant_v68976.get("eligible_pixel_count") or 0),
-            )
 
     # Reference-locked hero geometry. The analyzed product zone is authoritative;
     # aspect ratio is preserved and the exact product is never cropped or distorted.
@@ -25224,17 +25207,11 @@ def _graphic_compose_reference_campaign_v3200(
                     / max(secondary_aspect_before_v68877, 0.001),
                     8,
                 ),
-                "secondary_exact_source_pixels": not bool(derived_finish_variant_v68976.get("applied")),
-                "secondary_geometry_exact": True,
-                "secondary_finish_derivation_v68976": dict(derived_finish_variant_v68976 or {}),
+                "secondary_exact_source_pixels": True,
                 "source_mode": (
                     "combined_source_split"
                     if len(combined_variant_split_v68877) == 2
-                    else (
-                        "deterministic_single_source_finish_variant_v68976"
-                        if derived_finish_variant_v68976.get("applied")
-                        else "separate_product_variant"
-                    )
+                    else "separate_product_variant"
                 ),
             }
 
@@ -33757,85 +33734,16 @@ def generate_graphic_marketing_images(
     forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    """v68971: fail-closed exact product authority for normal Reference Mode campaigns.
-
-    Installed View and explicit product-recreation requests retain their established routes.
-    Reference Style + Product Photo advertisements bypass provider-created product geometry
-    and are finalized by the existing deterministic exact-pixel compositor.
-    """
+    """Apply v68829 only to Installed View; all other modes call v68828 unchanged."""
     original_prompt = str(prompt_text or "")
     is_reference = _graphic_v68827_is_reference_mode(
         original_prompt, uploaded_files, forced_upload_role,
     )
     is_installed = (not is_reference) and _graphic_v68829_is_installed_request(original_prompt)
 
-    if is_reference:
-        exact_required, role_state = _graphic_v68971_reference_pixel_lock_required(
-            original_prompt, uploaded_files, forced_upload_role, product_transform_mode
-        )
-        if exact_required:
-            # v68975 restores the same lower, stage-aware progress surface that
-            # Reference Mode displayed before the exact-product routing hardening.
-            # This is UI/orchestration only: compositor/provider/QA behavior is unchanged.
-            status_v68975 = _graphic_progress_v3300(
-                "Resolving persistent product, vehicle, copy, and reference assets…"
-            )
-            try:
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Resolving persistent product, vehicle, copy, and reference assets…",
-                )
-                role_items = list(role_state.get("role_items") or [])
-                integrity = _graphic_role_integrity_v8300(role_items)
-                if not integrity.get("passed"):
-                    raise RuntimeError(
-                        "v68971 could not safely separate the Product Photo from the Style Reference: "
-                        + str(integrity.get("reason") or "role integrity failed")
-                    )
-                diagnostic_log(
-                    "graphic_v68971_reference_exact_route_forced",
-                    product_count=sum(1 for item in role_items if item.get("role") == "product_photo"),
-                    style_count=sum(1 for item in role_items if item.get("role") == "style_reference"),
-                )
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Reading locked reference geometry and exact uploaded product pixels…",
-                )
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Building the Reference Style campaign with immutable product geometry…",
-                )
-                # Deliberately bypass the approved-output cache and provider-first public route.
-                # A stale or previously approved reconstructed product must never override the
-                # current uploaded product's geometry authority.
-                images = _graphic_v66830_guaranteed_exact_result(
-                    original_prompt, uploaded_files,
-                    style_strength=style_strength,
-                    forced_upload_role=forced_upload_role,
-                    failure_reason="v68971 forced exact Reference Mode authority",
-                )
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Verifying product geometry, screen/UI fidelity, icons, and Reference layout…",
-                )
-                images = _graphic_v68971_validate_reference_exact_result(
-                    images, role_items, original_prompt
-                )
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Reference image completed and verified.",
-                    state="complete",
-                )
-                return images
-            except Exception:
-                _graphic_progress_update_v3300(
-                    status_v68975,
-                    "Reference image could not pass the required production checks.",
-                    state="error",
-                )
-                raise
-
-    # Preserve the established v68829/v68970 behavior for every other mode.
+    # Exact v68828 pass-through for Reference Mode and every non-Installed mode.
+    # No v68829/v68830 prompt mutation, result mutation, metadata injection, QA,
+    # cache change, learning change, or post-processing is allowed on this branch.
     if not is_installed:
         return _GRAPHIC_V68829_BASE_GENERATOR(
             original_prompt, uploaded_files,
