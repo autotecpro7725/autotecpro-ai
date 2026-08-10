@@ -8621,6 +8621,321 @@ def inject_base_css():
             display: none !important;
         }
 
+
+        /* ============================================================
+           v68886 CLICK-TO-ENLARGE IMAGE LIGHTBOX
+           Pure CSS: no JavaScript, no rerun, no pipeline/state changes.
+        ============================================================ */
+        .atp-enlarge-label {
+            display: block;
+            width: 100%;
+            cursor: zoom-in;
+            border-radius: inherit;
+            position: relative;
+        }
+
+        .atp-enlarge-label::after {
+            content: "Click to enlarge";
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            z-index: 2;
+            padding: 5px 8px;
+            border-radius: 999px;
+            background: rgba(2, 6, 23, 0.78);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            opacity: 0;
+            transform: translateY(3px);
+            transition: opacity 0.16s ease, transform 0.16s ease;
+            pointer-events: none;
+            box-shadow: 0 5px 16px rgba(0,0,0,0.22);
+        }
+
+        .atp-enlarge-label:hover::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .atp-lightbox-toggle {
+            position: fixed !important;
+            left: -10000px !important;
+            top: -10000px !important;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .atp-lightbox-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2147483000;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+            background: rgba(2, 6, 23, 0.94);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            cursor: zoom-out;
+        }
+
+        .atp-lightbox-toggle:checked + .atp-lightbox-overlay {
+            display: flex !important;
+        }
+
+        .atp-lightbox-frame {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: min(96vw, 1600px);
+            height: min(94vh, 1100px);
+            padding: 18px;
+            box-sizing: border-box;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.98);
+            border: 1px solid rgba(255,255,255,0.16);
+            box-shadow: 0 28px 90px rgba(0,0,0,0.58);
+            cursor: default;
+        }
+
+        .atp-lightbox-frame img {
+            display: block !important;
+            width: auto !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+            border-radius: 8px !important;
+            background: transparent !important;
+        }
+
+        .atp-lightbox-close {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            background: rgba(2, 6, 23, 0.84);
+            border: 1px solid rgba(255,255,255,0.22);
+            color: #ffffff;
+            font-size: 26px;
+            font-weight: 400;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            .atp-lightbox-overlay {
+                padding: 8px;
+            }
+
+            .atp-lightbox-frame {
+                width: 98vw;
+                height: 92vh;
+                padding: 10px;
+                border-radius: 12px;
+            }
+
+            .atp-enlarge-label::after {
+                content: "Tap to enlarge";
+                opacity: 0.88;
+                transform: none;
+                right: 8px;
+                bottom: 8px;
+                font-size: 10px;
+            }
+        }
+
+        /* ============================================================
+           v68886 PRINT / SAVE-AS-PDF COLOR FIDELITY
+           Browser print engines often drop transparent dark backgrounds.
+           Use exact solid print colors and remove interactive chrome.
+        ============================================================ */
+        @media print {
+            html,
+            body,
+            body *,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewContainer"] * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+
+            @page {
+                margin: 12mm 10mm 14mm 10mm;
+            }
+
+            html,
+            body,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stMain"],
+            main,
+            main .block-container {
+                background: #07111f !important;
+                color: #f8fafc !important;
+            }
+
+            /* Print the conversation/document body at full page width. */
+            section[data-testid="stSidebar"],
+            [data-testid="stSidebar"],
+            [data-testid="stHeader"],
+            [data-testid="stToolbar"],
+            [data-testid="stDecoration"],
+            [data-testid="stStatusWidget"],
+            [data-testid="stChatInput"],
+            .atp-lightbox-overlay,
+            .atp-lightbox-toggle,
+            .atp-enlarge-label::after {
+                display: none !important;
+            }
+
+            main,
+            [data-testid="stMain"],
+            main .block-container {
+                width: 100% !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                padding-bottom: 0 !important;
+            }
+
+            /* Replace translucent screen colors with deterministic solids so
+               PDF/printers do not composite them against white/gray. */
+            .chat-row {
+                width: 100% !important;
+                break-inside: avoid-page;
+                page-break-inside: avoid;
+            }
+
+            .chat-bubble {
+                background: #172338 !important;
+                border-color: #334155 !important;
+                color: #f8fafc !important;
+                box-shadow: none !important;
+            }
+
+            .user-bubble {
+                background: #173a87 !important;
+                border-color: #3565c7 !important;
+            }
+
+            .assistant-bubble {
+                background: #0f1b2d !important;
+                border-color: #6b4d1e !important;
+            }
+
+            .assistant-section-card,
+            .workspace-card,
+            .app-header {
+                background: #101c2f !important;
+                border-color: #334155 !important;
+                box-shadow: none !important;
+            }
+
+            .chat-bubble h1,
+            .chat-bubble h2,
+            .chat-bubble h3,
+            .chat-bubble strong,
+            .assistant-bubble,
+            .assistant-bubble *,
+            .user-bubble,
+            .user-bubble * {
+                color: #f8fafc !important;
+                -webkit-text-fill-color: #f8fafc !important;
+                opacity: 1 !important;
+            }
+
+            .chat-bubble table {
+                width: 100% !important;
+                max-width: 100% !important;
+                table-layout: fixed !important;
+                border-collapse: collapse !important;
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+
+            .chat-bubble thead {
+                display: table-header-group;
+            }
+
+            .chat-bubble tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .chat-bubble th {
+                background: #29384f !important;
+                border-color: #526176 !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+            }
+
+            .chat-bubble td {
+                background: #101c2f !important;
+                border-color: #3b4a60 !important;
+                color: #e5e7eb !important;
+                -webkit-text-fill-color: #e5e7eb !important;
+                overflow-wrap: anywhere !important;
+                word-break: break-word !important;
+            }
+
+            .chat-bubble tr:nth-child(even) td,
+            .assistant-bubble table tbody tr:nth-child(even) td {
+                background: #152238 !important;
+            }
+
+            .chat-image-grid,
+            .chat-image-card,
+            .atp-pl-image-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .chat-image-card,
+            .atp-pl-image-card {
+                background: #0f1b2d !important;
+                border-color: #334155 !important;
+                box-shadow: none !important;
+            }
+
+            .chat-image-card img,
+            .atp-pl-image-card img,
+            .atp-enlarge-label img {
+                max-width: 100% !important;
+                height: auto !important;
+                object-fit: contain !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Hide interactive actions but retain the actual image and caption. */
+            .atp-pl-image-actions,
+            .generated-image-actions,
+            [class*="generated-image-actions"] {
+                display: none !important;
+            }
+
+            a,
+            a:visited {
+                color: #93c5fd !important;
+                -webkit-text-fill-color: #93c5fd !important;
+                text-decoration: none !important;
+            }
+        }
+
 </style>
         """,
         unsafe_allow_html=True
@@ -15331,7 +15646,7 @@ def extract_images_from_message_content(content):
 
 @st.cache_data(ttl=900, max_entries=256, show_spinner=False)
 def _render_image_previews_cached(images_json):
-    """Build deterministic image-preview HTML from immutable JSON."""
+    """Build deterministic image-preview HTML with click-to-enlarge lightboxes."""
     try:
         images = json.loads(images_json)
     except Exception:
@@ -15342,7 +15657,7 @@ def _render_image_previews_cached(images_json):
 
     cards = []
 
-    for image in images:
+    for image_index, image in enumerate(images):
         name = html.escape(
             str(image.get("name") or "uploaded image"),
             quote=True,
@@ -15355,6 +15670,12 @@ def _render_image_previews_cached(images_json):
             continue
 
         safe_data_url = html.escape(data_url, quote=True)
+        lightbox_id = (
+            "atp-chat-lightbox-"
+            + hashlib.sha256(
+                f"{image_index}|{data_url}|{name}".encode("utf-8")
+            ).hexdigest()[:18]
+        )
 
         caption_icon = "🖼️" if image.get("generated") else "📎"
         card_class = (
@@ -15364,7 +15685,19 @@ def _render_image_previews_cached(images_json):
         )
         cards.append(
             f'<div class="{card_class}">'
-            f'<img src="{safe_data_url}" alt="{name}">'
+            f'<label class="atp-enlarge-label" for="{lightbox_id}" '
+            f'title="Click to enlarge image">'
+            f'<img src="{safe_data_url}" alt="{name}" loading="lazy">'
+            f'</label>'
+            f'<input class="atp-lightbox-toggle" type="checkbox" '
+            f'id="{lightbox_id}" aria-hidden="true">'
+            f'<label class="atp-lightbox-overlay" for="{lightbox_id}" '
+            f'aria-label="Close enlarged image">'
+            f'<span class="atp-lightbox-frame">'
+            f'<img src="{safe_data_url}" alt="{name} — enlarged">'
+            f'<span class="atp-lightbox-close" aria-hidden="true">×</span>'
+            f'</span>'
+            f'</label>'
             f'<div class="chat-image-caption">{caption_icon} {name}</div>'
             f'</div>'
         )
@@ -15373,6 +15706,7 @@ def _render_image_previews_cached(images_json):
         return ""
 
     return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
+
 
 
 def render_image_previews(images):
@@ -15606,9 +15940,27 @@ def render_product_library_chat_gallery(images, message_key):
             )
 
         solo_class = " atp-pl-image-card-solo" if solo else ""
+        lightbox_id = (
+            "atp-pl-lightbox-"
+            + hashlib.sha256(
+                f"{message_key}|{image_index}|{image_source}|{filename}".encode("utf-8")
+            ).hexdigest()[:18]
+        )
         card_html = (
             f'<div class="atp-pl-image-card{solo_class}">'
-            f'<img src="{safe_image_source}" alt="{safe_filename}">'
+            f'<label class="atp-enlarge-label" for="{lightbox_id}" '
+            f'title="Click to enlarge image">'
+            f'<img src="{safe_image_source}" alt="{safe_filename}" loading="lazy">'
+            f'</label>'
+            f'<input class="atp-lightbox-toggle" type="checkbox" '
+            f'id="{lightbox_id}" aria-hidden="true">'
+            f'<label class="atp-lightbox-overlay" for="{lightbox_id}" '
+            f'aria-label="Close enlarged image">'
+            f'<span class="atp-lightbox-frame">'
+            f'<img src="{safe_image_source}" alt="{safe_filename} — enlarged">'
+            f'<span class="atp-lightbox-close" aria-hidden="true">×</span>'
+            f'</span>'
+            f'</label>'
             f'<div class="atp-pl-image-filename">{safe_filename}</div>'
             '<div class="atp-pl-image-actions">'
             f'{view_action}{download_action}'
@@ -47185,12 +47537,46 @@ def _website_image_query_context_v68883(prompt_text):
 
 
 def _website_image_visual_intent_v68883(prompt_text):
+    """Return True for explicit visual requests OR verified Technical topics.
+
+    v68887 keeps the existing deterministic website-image retrieval pipeline
+    unchanged, but allows strongly classified Technical topics to trigger that
+    pipeline automatically even when the user does not explicitly ask for a
+    photo. Final display eligibility is still controlled by the existing
+    v68885 authority/compatibility gate.
+    """
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    return any(term in value for term in (
+    if not value:
+        return False
+
+    explicit_visual_request = any(term in value for term in (
         "photo", "photos", "picture", "pictures", "image", "images",
         "screenshot", "screenshots", "diagram", "diagrams",
         "show me", "display the", "do you have a photo", "do you have an image",
     ))
+    if explicit_visual_request:
+        return True
+
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+
+    technical_role = _website_image_query_role_v68884(prompt_text)
+    return technical_role in {
+        "car_model_ac",
+        "factory_camera",
+        "cargo_bed_camera",
+        "aftermarket_camera",
+        "dashboard_fitment",
+        "protocol",
+        "climate",
+        "harness",
+        "audio",
+        "weather",
+        "navigation",
+        "google_apps",
+        "carplay_android_auto",
+        "camera_generic",
+    }
 
 
 def _website_image_tokens_v68883(value):
