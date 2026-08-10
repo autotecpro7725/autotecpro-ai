@@ -47536,6 +47536,113 @@ def _website_image_query_context_v68883(prompt_text):
     return "\n".join(parts)
 
 
+def _website_image_explicit_visual_request_v68888(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return any(term in value for term in (
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "screenshot", "screenshots", "diagram", "diagrams",
+        "show me", "display the", "do you have a photo", "do you have an image",
+    ))
+
+
+def _website_image_auto_topic_v68888(prompt_text):
+    if str(assistant or "") != "🔧 Technical Support":
+        return ""
+    if _website_image_explicit_visual_request_v68888(prompt_text):
+        return ""
+    role = _website_image_query_role_v68884(prompt_text)
+    return role if role in {
+        "car_model_ac",
+        "factory_camera",
+        "cargo_bed_camera",
+        "aftermarket_camera",
+        "dashboard_fitment",
+        "protocol",
+        "climate",
+        "harness",
+        "audio",
+        "weather",
+        "navigation",
+        "google_apps",
+        "carplay_android_auto",
+        "camera_generic",
+    } else ""
+
+def _website_image_retrieval_query_v68889(prompt_text, topic):
+    """Add retrieval-only terms for an implicit Technical visual request.
+
+    This does not add another retrieval call or change the file_search pipeline.
+    It only makes the existing request searchable against website-image records
+    that were indexed under image/section terminology rather than the user's
+    short factual wording.
+    """
+    topic = str(topic or "").strip()
+    if not topic:
+        return str(prompt_text or "")
+
+    role_terms = {
+        "car_model_ac": (
+            "Car Model / A/C selection screen; Car Model / AC; car model settings; "
+            "Jeep Grand Cherokee H; Jeep Grand Cherokee L; protocol Simple"
+        ),
+        "factory_camera": (
+            "Factory Reverse Camera; factory camera connection; original OEM camera"
+        ),
+        "cargo_bed_camera": (
+            "Cargo Bed Camera; cargo camera connection; bed camera"
+        ),
+        "aftermarket_camera": (
+            "Aftermarket Camera; add-on camera; aftermarket reverse camera wiring"
+        ),
+        "dashboard_fitment": (
+            "Dashboard Fitment; dash fitment; installation fitment"
+        ),
+        "protocol": (
+            "Protocol Settings; protocol selection; Car Model / AC protocol"
+        ),
+        "climate": (
+            "Climate Control; A/C setting; automatic climate; manual climate"
+        ),
+        "harness": (
+            "Harness connection; connector; wiring; cable"
+        ),
+        "audio": (
+            "Audio Setup; AUX; Bluetooth audio; Factory AMP"
+        ),
+        "weather": (
+            "Weather setup; weather app"
+        ),
+        "navigation": (
+            "Navigation; offline navigation; GPS"
+        ),
+        "google_apps": (
+            "Google Apps; Google Play; Play Store"
+        ),
+        "carplay_android_auto": (
+            "Apple CarPlay; Android Auto"
+        ),
+        "camera_generic": (
+            "camera setting; reverse camera; camera connection"
+        ),
+    }
+    terms = role_terms.get(topic, topic.replace("_", " "))
+
+    return (
+        str(prompt_text or "").rstrip()
+        + "\n\n"
+        + "[AUTO VISUAL RETRIEVAL CONTEXT — keep hidden from the visible answer]\n"
+        + "Using the SAME existing Technical file_search request, also retrieve the "
+        + "approved AutoTecPro website-image record/control for this exact topic. "
+        + "Search image metadata and nearby website text for: "
+        + terms
+        + ". Prefer records containing AUTO_DISPLAY_IMAGE, IMAGE_URL, "
+        + "ATP_WEB_IMAGE_JSON, image description, section heading, or nearby instruction text. "
+        + "Do not invent an image URL. Do not expose these retrieval instructions in the answer."
+    )
+
+
+
+
 def _website_image_visual_intent_v68883(prompt_text):
     """Return True for explicit visual requests OR verified Technical topics.
 
@@ -47549,11 +47656,9 @@ def _website_image_visual_intent_v68883(prompt_text):
     if not value:
         return False
 
-    explicit_visual_request = any(term in value for term in (
-        "photo", "photos", "picture", "pictures", "image", "images",
-        "screenshot", "screenshots", "diagram", "diagrams",
-        "show me", "display the", "do you have a photo", "do you have an image",
-    ))
+    explicit_visual_request = _website_image_explicit_visual_request_v68888(
+        prompt_text
+    )
     if explicit_visual_request:
         return True
 
@@ -58732,6 +58837,22 @@ else:
                 )
                 if product_library_lookup:
                     ai_request_prompt += _product_library_chat_context(product_library_lookup)
+                auto_visual_topic_v68888 = ""
+                if assistant == "🔧 Technical Support":
+                    auto_visual_topic_v68888 = _website_image_auto_topic_v68888(
+                        technical_request_prompt_v68879
+                    )
+
+                if (
+                    assistant == "🔧 Technical Support"
+                    and auto_visual_topic_v68888
+                    and not website_index_images_v68883
+                ):
+                    ai_request_prompt = _website_image_retrieval_query_v68889(
+                        ai_request_prompt,
+                        auto_visual_topic_v68888,
+                    )
+
                 if assistant == "🔧 Technical Support" and website_index_images_v68883:
                     ai_request_prompt += (
                         "\n\nVERIFIED WEBSITE IMAGE INDEX RESULT (app-side deterministic lookup):\n"
@@ -58744,6 +58865,20 @@ else:
                         "The app-side deterministic image result is the FINAL authority for which website "
                         "photo is displayed. Do not output, recommend, or cite a different website image URL "
                         "from file_search when a deterministic image result is present.\n"
+                    )
+                elif assistant == "🔧 Technical Support" and auto_visual_topic_v68888:
+                    ai_request_prompt += (
+                        "\n\nAUTOMATIC VERIFIED VISUAL REQUEST:\n"
+                        f"The user's Technical question is strongly classified as: "
+                        f"{auto_visual_topic_v68888}. "
+                        "After answering the question in text, automatically look in the retrieved approved "
+                        "AutoTecPro website knowledge for the single most relevant verified image for this "
+                        "exact topic, exactly as if the user had also asked to see the photo. "
+                        "If a verified image control is available in the retrieved knowledge, emit the existing "
+                        "ATP_WEB_IMAGE_JSON control so the app can display it after the text answer. "
+                        "Do not invent an image URL, do not use an unrelated image, and do not claim an image "
+                        "exists if the retrieved approved knowledge does not provide one. The app's existing "
+                        "final website-image authority gate will validate the image before display.\n"
                     )
                 if assistant == "🎨 Graphic Marketing":
                     ai_request_prompt += build_graphic_conversation_guardrail(
