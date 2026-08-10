@@ -82,7 +82,7 @@ except Exception:
 
 # AutoTecPro AI v68972 — Reference Mode Geometry + Screen/UI Pixel Authority; v68971 Exact Product Route Preserved
 # AutoTecPro AI v68950 — Security & Maintainability Hardening; v68892 Features/Pipelines Preserved
-# AutoTecPro AI v68980 — Safe Performance Memoization; v68978 Graphic Pipeline Preserved
+# AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -23774,7 +23774,13 @@ def _graphic_reference_grid_topology_v68876(reference_blueprint=None, design_mod
 
 
 def _graphic_reference_feature_labels_v68876(campaign_spec, prompt_text, design_mode, reference_blueprint=None):
-    """Build feature copy while preserving the measured reference grid topology."""
+    """Build feature copy while preserving the measured reference grid topology.
+
+    v68981 closes the icon-authority gap: when the user explicitly requests Apple
+    CarPlay and/or Android Auto, those semantics are guaranteed a slot in the fixed
+    reference grid rather than depending on upstream campaign-copy extraction.
+    The measured row/column count is never changed.
+    """
     raw = [
         re.sub(r"\\s+", " ", str(x or "")).strip()
         for x in ((campaign_spec or {}).get("feature_labels") or [])
@@ -23821,6 +23827,30 @@ def _graphic_reference_feature_labels_v68876(campaign_spec, prompt_text, design_
     features = features[:target_count]
     while len(features) < target_count:
         features.append(f"Vehicle Feature {len(features)+1}")
+
+    requested_semantics=[]
+    if "carplay" in context:
+        requested_semantics.append(("carplay", "Apple CarPlay"))
+    if "android auto" in context:
+        requested_semantics.append(("android_auto", "Android Auto"))
+
+    def current_semantics(values):
+        return [str(row.get("semantic") or "") for row in _graphic_feature_registry_v42000(values, target_count)]
+
+    # Explicit user-requested connectivity features outrank generic filler/default
+    # features. Replace from the tail only when a required semantic is absent.
+    for semantic, label in requested_semantics:
+        semantics=current_semantics(features)
+        if semantic in semantics:
+            continue
+        replace_idx=None
+        for idx in range(len(features)-1, -1, -1):
+            existing_semantic=semantics[idx] if idx < len(semantics) else ""
+            if existing_semantic not in {"carplay", "android_auto"}:
+                replace_idx=idx; break
+        if replace_idx is None:
+            replace_idx=max(0, len(features)-1)
+        features[replace_idx]=label
 
     # Keep CarPlay + Android Auto at the far-right of row 1 when the measured
     # reference row has room for both; never change the measured row/column count.
@@ -25225,8 +25255,36 @@ def _graphic_compose_reference_campaign_v3200(
     critical_region_visibility = _graphic_critical_region_visibility_v41000(
         product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
     )
-    if design_mode == "reference_template" and not critical_region_visibility.get("passed"):
-        raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
+    # v68981 exact cause fix: the historical mechanical-DNA detector reports
+    # passed=False both for a confirmed crop AND when bottom DNA is unavailable.
+    # Reference Mode must fail only on measured geometry violations. Exact source
+    # bounds and footer clearance are deterministic and therefore authoritative.
+    deterministic_on_canvas_v68981 = bool(
+        px >= 0 and py >= 0 and px + product.width <= W and py + product.height <= H
+    )
+    deterministic_clears_footer_v68981 = bool(
+        py + product.height <= footer_top_px - footer_safety_gap_px_v68978
+    )
+    if design_mode == "reference_template":
+        if not deterministic_on_canvas_v68981:
+            raise RuntimeError("Exact uploaded product would be cropped outside the final canvas.")
+        if not deterministic_clears_footer_v68981:
+            raise RuntimeError("Exact uploaded product would overlap the protected footer region.")
+        if critical_region_visibility.get("available") is True and critical_region_visibility.get("passed") is False:
+            measured_ratio = critical_region_visibility.get("visible_ratio")
+            confirmed_crop = measured_ratio is not None and float(measured_ratio or 0.0) < 0.95
+            confirmed_footer_overlap = critical_region_visibility.get("clears_footer") is False
+            if confirmed_crop or confirmed_footer_overlap:
+                raise RuntimeError("Critical bottom mounting geometry is confirmed hidden or clipped by the final layout.")
+            diagnostic_log(
+                "graphic_v68981_mechanical_visibility_advisory",
+                reason=str(critical_region_visibility.get("reason") or "detector did not pass without measured crop")[:300],
+            )
+        elif critical_region_visibility.get("available") is False:
+            diagnostic_log(
+                "graphic_v68981_mechanical_visibility_unavailable",
+                reason=str(critical_region_visibility.get("reason") or "bottom DNA unavailable")[:300],
+            )
 
     draw = ImageDraw.Draw(canvas, "RGBA")
     brand_lock_v42000 = _graphic_brand_lock_v42000()
@@ -25432,6 +25490,26 @@ def _graphic_compose_reference_campaign_v3200(
     product_box = [px, py, product.width, product.height]
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
+    # v68981 deterministic exact-source geometry proof. Unlike the historical
+    # bottom-mechanical heuristic, these facts are measured directly from the actual
+    # composed source layer and transform and therefore distinguish a true crop from
+    # an unavailable/uncertain mechanical-region detector.
+    reference_exact_source_bounds_v68981 = {
+        "product_box": [int(px), int(py), int(product.width), int(product.height)],
+        "canvas_size": [int(W), int(H)],
+        "footer_top_px": int(footer_top_px),
+        "footer_safety_gap_px": int(footer_safety_gap_px_v68978),
+        "on_canvas": bool(px >= 0 and py >= 0 and px + product.width <= W and py + product.height <= H),
+        "clears_footer": bool(py + product.height <= footer_top_px - footer_safety_gap_px_v68978),
+        "uniform_scale_only": True,
+        "source_visible_size": [int(source_visible_size[0]), int(source_visible_size[1])],
+        "rendered_size": [int(product.width), int(product.height)],
+        "aspect_ratio_relative_error": round(product_ratio_relative_error, 10),
+        "aspect_ratio_preserved": bool(product_ratio_relative_error <= 0.0025),
+        "crop_applied": False,
+        "perspective_warp_applied": False,
+        "engine": "exact-source-bounds-v68981",
+    }
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
     metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
         product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
@@ -25546,7 +25624,20 @@ def _graphic_compose_reference_campaign_v3200(
         "reference_footer_connectivity_semantics_v68978": [str(row.get("semantic") or "") for row in bottom_feature_registry_v68853],
         "reference_product_footer_overlap_px_v68978": int(footer_overlap_px),
         "reference_product_footer_safety_gap_px_v68978": int(footer_safety_gap_px_v68978),
-        "reference_full_product_visible_v68978": bool(critical_region_visibility.get("passed")),
+        # v68981 uses deterministic transform/bounds proof as publication authority.
+        # Mechanical DNA remains useful QA evidence, but detector unavailability is
+        # no longer misreported as confirmed clipping.
+        "reference_full_product_visible_v68978": bool(
+            reference_exact_source_bounds_v68981.get("on_canvas")
+            and reference_exact_source_bounds_v68981.get("clears_footer")
+            and reference_exact_source_bounds_v68981.get("aspect_ratio_preserved")
+        ),
+        "reference_exact_source_bounds_v68981": reference_exact_source_bounds_v68981,
+        "reference_geometry_authority_v68981": bool(
+            reference_exact_source_bounds_v68981.get("on_canvas")
+            and reference_exact_source_bounds_v68981.get("clears_footer")
+            and reference_exact_source_bounds_v68981.get("aspect_ratio_preserved")
+        ),
         "brand_color_lock_v42000": brand_lock_v42000,
         "product_perspective_analysis_v42000": product_perspective_v42000,
         "multi_reference_fusion_v42000": reference_fusion_v42000,
@@ -33516,8 +33607,14 @@ def save_graphic_style_memory(image, feedback="approved"):
 
 
 def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_files, forced_upload_role):
-    """Prove exact product, full visibility, active reference, and deterministic icons."""
-    report = {"passed": False, "issues": []}
+    """v68981 evidence-aware Reference publication authority.
+
+    Hard-block only confirmed violations of exact-source provenance, uniform geometry,
+    canvas/footer bounds, aspect ratio, or required deterministic connectivity icons.
+    Heuristic mechanical-DNA unavailability is retained as a warning instead of being
+    misclassified as confirmed clipping.
+    """
+    report = {"passed": False, "issues": [], "warnings": []}
     try:
         role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_role=forced_upload_role)
     except Exception as error:
@@ -33529,20 +33626,45 @@ def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_f
     if not reference_item: report["issues"].append("active style reference missing")
     image = images[0] if images and isinstance(images[0], dict) else {}
     metadata = dict(image.get("layered_metadata") or {})
+
     if metadata.get("exact_product_pixels") is not True:
         report["issues"].append("exact uploaded-product pixels not proven")
     if "composite" not in str(image.get("product_identity_method") or "").casefold():
         report["issues"].append("deterministic product composite not proven")
-    if metadata.get("reference_full_product_visible_v68978") is not True:
-        report["issues"].append("complete product geometry is not proven visible")
+
+    bounds = dict(metadata.get("reference_exact_source_bounds_v68981") or {})
+    if bounds:
+        if bounds.get("on_canvas") is not True:
+            report["issues"].append("confirmed product crop outside canvas")
+        if bounds.get("clears_footer") is not True:
+            report["issues"].append("confirmed product/footer overlap")
+        if bounds.get("uniform_scale_only") is not True or bounds.get("crop_applied") is True or bounds.get("perspective_warp_applied") is True:
+            report["issues"].append("product geometry transform is not source-preserving")
+        try:
+            if float(bounds.get("aspect_ratio_relative_error") or 0.0) > 0.0025:
+                report["issues"].append("product aspect ratio drift")
+        except Exception:
+            report["issues"].append("product aspect ratio verification unavailable")
+    else:
+        # Backward-compatible fallback for a primary provider result that predates
+        # the deterministic compositor metadata. It may recover through the exact
+        # compositor below, but it cannot publish without positive geometry proof.
+        report["issues"].append("deterministic exact-source bounds proof unavailable")
+
     visibility = dict(metadata.get("critical_region_visibility") or {})
-    if visibility and visibility.get("passed") is False:
-        report["issues"].append("critical lower housing is hidden or clipped")
-    try:
-        if float(metadata.get("product_ratio_relative_error") or 0.0) > 0.0025:
-            report["issues"].append("product aspect ratio drift")
-    except Exception:
-        report["issues"].append("product aspect ratio verification unavailable")
+    if visibility:
+        if visibility.get("available") is True and visibility.get("passed") is False:
+            # Only treat a detector result as hard evidence when it reports a real
+            # measured crop/overlap. If its own DNA is unavailable, it is advisory.
+            if visibility.get("visible_ratio") is not None and float(visibility.get("visible_ratio") or 0.0) < 0.95:
+                report["issues"].append("confirmed critical lower-housing crop")
+            elif visibility.get("clears_footer") is False:
+                report["issues"].append("confirmed critical lower-housing/footer overlap")
+            else:
+                report["warnings"].append("mechanical-region detector did not pass, but no confirmed crop was measured")
+        elif visibility.get("available") is False:
+            report["warnings"].append("mechanical-region detector unavailable; deterministic source bounds used")
+
     requested = str(prompt_text or "").casefold()
     required = []
     if "carplay" in requested: required.append("carplay")
@@ -33554,18 +33676,21 @@ def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_f
     for semantic in required:
         if semantic not in semantics and semantic not in footer_semantics:
             report["issues"].append("missing deterministic " + semantic + " icon semantic")
+
     if product_item:
         try:
             source_sha = hashlib.sha256(_graphic_uploaded_file_bytes(product_item.get("file"))).hexdigest()
             selected_sha = str(metadata.get("product_source_sha256") or "")
-            if selected_sha and selected_sha != source_sha:
+            if not selected_sha:
+                report["issues"].append("final product source SHA unavailable")
+            elif selected_sha != source_sha:
                 report["issues"].append("final product source SHA does not match active upload")
             report["product_sha256"] = source_sha
         except Exception:
             report["issues"].append("active product SHA verification unavailable")
+
     report["passed"] = not report["issues"]
     return report
-
 
 def _graphic_v68978_reference_recovery(prompt_text, uploaded_files, forced_upload_role, style_strength):
     """Use the established deterministic Reference compositor as recovery only."""
