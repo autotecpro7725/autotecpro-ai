@@ -1,4 +1,4 @@
-# AutoTecPro AI v68977 — Restore pre-major-upgrade Graphic Reference Mode; v68976 non-Reference hardening preserved
+# AutoTecPro AI v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -8334,6 +8334,30 @@ def _normalized_image_data_url_cached_v68979(raw, original_mime_type, max_dimens
     return f"data:{mime_type};base64,{encoded}"
 
 
+
+def _graphic_verified_upload_digest_v68983(uploaded_file, raw=None):
+    """Return the exact source SHA-256 without rehashing an immutable upload on reruns.
+
+    Only AutoTecPro-created/verified IDs are reused. Every uncertain object falls back
+    to hashing its complete bytes, so this optimization cannot merge different assets.
+    """
+    existing = str(getattr(uploaded_file, "graphic_asset_id", "") or "").strip().lower()
+    valid = bool(re.fullmatch(r"[0-9a-f]{64}", existing))
+    if valid and (
+        isinstance(uploaded_file, ManagedUploadedFile)
+        or bool(getattr(uploaded_file, "_atp_graphic_asset_id_verified_v68983", False))
+    ):
+        return existing
+    if raw is None:
+        raw = uploaded_file.getvalue()
+    digest = hashlib.sha256(bytes(raw or b"")).hexdigest()
+    try:
+        uploaded_file.graphic_asset_id = digest
+        uploaded_file._atp_graphic_asset_id_verified_v68983 = True
+    except Exception:
+        pass
+    return digest
+
 def normalized_image_data_url(uploaded_file):
     try:
         raw = uploaded_file.getvalue()
@@ -14875,9 +14899,9 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
 def graphic_project_uploaded_files(include_current=None):
     """Materialize usable Graphic assets while preserving authoritative roles.
 
-    Released historical products remain as lightweight project metadata, but empty
-    byte records are never converted into upload objects or sent through downstream
-    role classification.
+    v68983 is output-neutral: it reuses only an app-verified SHA for immutable uploads
+    on later Streamlit reruns. Role selection, bytes, ordering and downstream inputs
+    remain identical to v68982.
     """
     combined = []
     seen = set()
@@ -14891,7 +14915,7 @@ def graphic_project_uploaded_files(include_current=None):
     for item in include_current or []:
         try:
             raw = item.getvalue()
-            digest = hashlib.sha256(raw).hexdigest()
+            digest = _graphic_verified_upload_digest_v68983(item, raw)
         except Exception:
             raw = b""
             digest = str(id(item))
@@ -14904,6 +14928,7 @@ def graphic_project_uploaded_files(include_current=None):
             try:
                 item.graphic_role = saved_role
                 item.graphic_asset_id = digest
+                item._atp_graphic_asset_id_verified_v68983 = True
             except Exception:
                 item = ManagedUploadedFile(
                     raw,
@@ -14931,6 +14956,7 @@ def graphic_project_uploaded_files(include_current=None):
         ))
         seen.add(digest)
     return combined
+
 
 
 
@@ -16161,6 +16187,8 @@ def graphic_product_mode_threshold(mode):
 
 def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text, product_transform_mode="Controlled Product Adaptation", reference_blueprint=None):
     """Run one bounded vision review of product fidelity and style compliance."""
+    reference_blueprint_text_v68983 = _graphic_reference_blueprint_text(reference_blueprint)
+    project_context_text_v68983 = _graphic_project_context_text()[:3000]
     product_payloads = []
     style_payloads = []
     for item in product_role_items or []:
@@ -16204,7 +16232,7 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             "Immediately fail if the generated hero hardware matches, resembles, or substitutes the product shown in a STYLE REFERENCE rather than the ORIGINAL PRODUCT SOURCE. "
             "Immediately fail major silhouette/category mismatches such as vertical-vs-horizontal orientation, different screen aspect ratio, different housing outline, different bracket/vent/control architecture, or a gauge cluster replacing an infotainment unit. "
             f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must explicitly prohibit the reference product and list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
-            "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Persistent project context: " + _graphic_project_context_text()[:3000] + " Requested prompt: " + str(prompt_text or "")[:3000]
+            "Reference blueprint: " + reference_blueprint_text_v68983[:5000] + " Persistent project context: " + project_context_text_v68983 + " Requested prompt: " + str(prompt_text or "")[:3000]
         ),
     }]
     for url in product_payloads:
@@ -16227,11 +16255,11 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             "prompt": str(prompt_text or ""),
             "mode": str(mode or ""),
             "transform": str(product_transform_mode or ""),
-            "reference": _graphic_reference_blueprint_text(reference_blueprint),
+            "reference": reference_blueprint_text_v68983,
             # The QA prompt itself includes this persistent project context. It must
             # therefore be part of the memoization identity as well; otherwise a
             # vehicle/project-lock change could incorrectly reuse an older passed QA.
-            "project_context": _graphic_project_context_text()[:3000],
+            "project_context": project_context_text_v68983,
         }
         qa_key = hashlib.sha256(json.dumps(qa_key_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
         qa_cache = st.session_state.setdefault("_graphic_exact_qa_cache_v68980", {})
@@ -23217,32 +23245,97 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
 
 def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic, color=None):
-    """Draw deterministic Reference-style CarPlay / Android Auto line icons."""
+    """Draw branded-color connectivity icons only for Reference Style mode.
+
+    v68982 restores the v68882 colored Reference connectivity artwork. The optional
+    color argument is intentionally ignored so existing v68981 call sites remain
+    compatible while Reference CarPlay/Android Auto retain their original branded
+    green/blue treatment in both the upper grid and footer.
+
+    This helper is intentionally isolated from the existing generic icon renderer so
+    AutoTecPro Studio and every non-reference Graphic mode retain their current
+    monochrome deterministic icon pipeline unchanged.
+    """
     semantic = str(semantic or "").strip().casefold()
     if semantic not in {"carplay", "android_auto"}:
         return False
+
     x0, y0, x1, y1 = [int(round(v)) for v in box]
     w, h = max(1, x1 - x0), max(1, y1 - y0)
     size = max(8, min(w, h))
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
-    ink = tuple(color or (7, 34, 76, 255))
-    stroke = max(2, int(round(size * 0.055)))
+
     if semantic == "carplay":
-        tile_w = int(size * 0.64); tile_h = int(size * 0.82)
-        left = int(round(cx - tile_w / 2)); top = int(round(cy - tile_h / 2))
-        right = left + tile_w; bottom = top + tile_h
-        draw.rounded_rectangle((left, top, right, bottom), radius=max(4, int(size*0.10)), outline=ink, width=stroke)
-        ring_r = int(size * 0.20)
-        draw.ellipse((int(cx-ring_r), int(cy-ring_r), int(cx+ring_r), int(cy+ring_r)), outline=ink, width=stroke)
-        tri_w=max(4,int(size*0.13)); tri_h=max(5,int(size*0.17))
-        draw.polygon([(int(cx-tri_w*0.35),int(cy-tri_h/2)),(int(cx-tri_w*0.35),int(cy+tri_h/2)),(int(cx+tri_w*0.65),int(cy))],fill=ink)
+        # Apple CarPlay-style green rounded tile with a white circular/play glyph.
+        tile = int(size * 0.78)
+        left = int(round(cx - tile / 2))
+        top = int(round(cy - tile / 2))
+        right = left + tile
+        bottom = top + tile
+        radius = max(4, int(tile * 0.22))
+        draw.rounded_rectangle(
+            (left, top, right, bottom),
+            radius=radius,
+            fill=(72, 194, 67, 255),
+            outline=(52, 164, 48, 255),
+            width=max(1, int(tile * 0.025)),
+        )
+        stroke = max(2, int(tile * 0.055))
+        ring_pad = int(tile * 0.20)
+        draw.arc(
+            (left + ring_pad, top + ring_pad, right - ring_pad, bottom - ring_pad),
+            38,
+            322,
+            fill=(255, 255, 255, 255),
+            width=stroke,
+        )
+        tri_cx = int(cx + tile * 0.045)
+        tri_cy = int(cy)
+        tri_w = max(4, int(tile * 0.18))
+        tri_h = max(5, int(tile * 0.22))
+        draw.polygon(
+            [
+                (tri_cx - tri_w // 2, tri_cy - tri_h // 2),
+                (tri_cx - tri_w // 2, tri_cy + tri_h // 2),
+                (tri_cx + tri_w // 2, tri_cy),
+            ],
+            fill=(255, 255, 255, 255),
+        )
         return True
-    top = int(round(cy - size * 0.40)); bottom = int(round(cy + size * 0.36))
-    left = int(round(cx - size * 0.34)); right = int(round(cx + size * 0.34))
-    inner_y = int(round(cy + size * 0.12))
-    draw.line((left, bottom, int(cx), top, right, bottom), fill=ink, width=stroke, joint="curve")
-    draw.line((int(cx), top, int(cx), inner_y), fill=ink, width=stroke)
-    draw.line((int(cx), inner_y, int(cx - size*0.15), bottom), fill=ink, width=stroke)
+
+    # Android Auto-style blue navigation A. Use deterministic vector geometry so
+    # there is no external asset/font dependency and the icon remains crisp at any
+    # campaign resolution.
+    blue = (22, 153, 222, 255)
+    dark_blue = (15, 126, 196, 255)
+    top = int(round(cy - size * 0.38))
+    bottom = int(round(cy + size * 0.36))
+    left = int(round(cx - size * 0.31))
+    right = int(round(cx + size * 0.31))
+    mid_left = int(round(cx - size * 0.08))
+    mid_right = int(round(cx + size * 0.08))
+    center_y = int(round(cy + size * 0.08))
+    draw.polygon(
+        [
+            (int(cx), top),
+            (right, bottom),
+            (int(cx + size * 0.12), bottom),
+            (int(cx), center_y),
+            (int(cx - size * 0.12), bottom),
+            (left, bottom),
+        ],
+        fill=blue,
+    )
+    # Subtle inner facet gives the recognizable folded-ribbon Auto appearance.
+    draw.polygon(
+        [
+            (int(cx), top),
+            (int(cx + size * 0.08), center_y),
+            (mid_right, int(cy + size * 0.22)),
+            (int(cx), int(cy + size * 0.08)),
+        ],
+        fill=dark_blue,
+    )
     return True
 
 
@@ -28197,7 +28290,7 @@ def _graphic_save_mode_state_v7000(mode_info, role_items, structure_profile=None
 
 
 def _graphic_role_fingerprint_v8200(role_items, roles=None):
-    """Return a stable non-secret fingerprint for selected Graphic assets."""
+    """Return the exact v68982 fingerprint while avoiding repeated base64 hashing."""
     selected=[]
     allowed=set(roles or [])
     for item in role_items or []:
@@ -28205,14 +28298,26 @@ def _graphic_role_fingerprint_v8200(role_items, roles=None):
         if allowed and role not in allowed:
             continue
         data=str(item.get("data_url") or "")
+        digest=""
+        if data:
+            cached_digest=str(item.get("_data_url_digest_v68983") or "")
+            if re.fullmatch(r"[0-9a-f]{20}", cached_digest):
+                digest=cached_digest
+            else:
+                digest=hashlib.sha256(data.encode("utf-8")).hexdigest()[:20]
+                try:
+                    item["_data_url_digest_v68983"] = digest
+                except Exception:
+                    pass
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
             "asset_id": str(item.get("asset_id") or item.get("id") or ""),
-            "digest": hashlib.sha256(data.encode("utf-8")).hexdigest()[:20] if data else "",
+            "digest": digest,
         })
     payload=json.dumps(selected,ensure_ascii=False,sort_keys=True,separators=(",",":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
 
 
 def _graphic_cached_reference_blueprint_v8200(role_items, prompt_text, style_strength="High"):
@@ -33679,9 +33784,19 @@ def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_f
 
     if product_item:
         try:
-            source_sha = hashlib.sha256(_graphic_uploaded_file_bytes(product_item.get("file"))).hexdigest()
-            selected_sha = str(metadata.get("product_source_sha256") or "")
-            if not selected_sha:
+            file_obj = product_item.get("file")
+            source_sha = str(
+                getattr(file_obj, "graphic_asset_id", "")
+                or product_item.get("graphic_asset_id", "")
+                or ""
+            ).strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{64}", source_sha):
+                raw = _graphic_uploaded_file_bytes(file_obj)
+                source_sha = hashlib.sha256(raw).hexdigest() if raw else ""
+            selected_sha = str(metadata.get("product_source_sha256") or "").strip().lower()
+            if not source_sha:
+                report["issues"].append("active product SHA verification unavailable")
+            elif not selected_sha:
                 report["issues"].append("final product source SHA unavailable")
             elif selected_sha != source_sha:
                 report["issues"].append("final product source SHA does not match active upload")
@@ -33762,10 +33877,24 @@ def generate_graphic_marketing_images(
     previous_reference_flag = st.session_state.get("_graphic_v68828_reference_pipeline_active")
     if is_reference:
         st.session_state["_graphic_v68828_reference_pipeline_active"] = True
+    primary_reference_error_v68984 = None
     try:
-        images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
-            effective_prompt, uploaded_files, **arguments
-        )
+        try:
+            images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
+                effective_prompt, uploaded_files, **arguments
+            )
+        except Exception as error:
+            if not is_reference:
+                raise
+            primary_reference_error_v68984 = error
+            diagnostic_log(
+                "graphic_v68984_reference_primary_exception_recovery",
+                error_type=type(error).__name__,
+                error=_graphic_compact_error_v4000(error),
+            )
+            images = _graphic_v68978_reference_recovery(
+                str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
+            )
     finally:
         if is_reference:
             if previous_reference_flag is None:
@@ -33796,6 +33925,9 @@ def generate_graphic_marketing_images(
             if isinstance(image, dict):
                 image["reference_publication_authority_v68978"] = publication
                 image["company_wide_approved_output_hit_v68826"] = False
+                image["reference_primary_exception_recovered_v68984"] = bool(primary_reference_error_v68984 is not None)
+                if primary_reference_error_v68984 is not None:
+                    image["reference_primary_exception_type_v68984"] = type(primary_reference_error_v68984).__name__
 
     for image in images or []:
         if isinstance(image, dict):
