@@ -469,7 +469,7 @@ st.set_page_config(
     page_title="AutoTecPro AI",
     page_icon=PAGE_ICON,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 
@@ -12026,22 +12026,22 @@ components.html(
 )
 
 
-# v68881 mobile navigation UX: after a workspace tap, collapse the Streamlit
-# sidebar exactly once and return focus to the main body. v68880 issued two
-# timed collapse clicks; during Streamlit's slide animation the sidebar still
-# looked visible, so the second click could toggle it open again.
-_workspace_mobile_collapse_nonce_v68881 = st.session_state.pop(
+# v68882 mobile navigation UX: after a workspace tap, collapse the Streamlit
+# sidebar exactly once and verify the post-condition. The control lookup is
+# deliberately selector-robust because mobile Safari/Streamlit does not always
+# expose the << control with a collapse/close aria-label.
+_workspace_mobile_collapse_nonce_v68882 = st.session_state.pop(
     "_workspace_nav_mobile_collapse_v68880",
     None,
 )
-if _workspace_mobile_collapse_nonce_v68881:
+if _workspace_mobile_collapse_nonce_v68882:
     components.html(
         f"""
         <script>
         (() => {{
             const parentWindow = window.parent;
             const doc = parentWindow.document;
-            const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68881))};
+            const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68882))};
             const isMobile = parentWindow.matchMedia("(max-width: 768px)").matches;
             if (!isMobile) return;
 
@@ -12050,7 +12050,21 @@ if _workspace_mobile_collapse_nonce_v68881:
             if (body.dataset[lockKey] === nonce) return;
 
             let completed = false;
+            let clicked = false;
             let attempts = 0;
+            const maxAttempts = 18;
+
+            const sidebarVisible = (sidebar) => {{
+                if (!sidebar) return false;
+                const rect = sidebar.getBoundingClientRect();
+                const style = parentWindow.getComputedStyle(sidebar);
+                return rect.width > 80
+                    && rect.right > 1
+                    && rect.left < parentWindow.innerWidth - 1
+                    && style.display !== "none"
+                    && style.visibility !== "hidden"
+                    && style.opacity !== "0";
+            }};
 
             const focusMain = () => {{
                 const main = doc.querySelector("main");
@@ -12063,54 +12077,91 @@ if _workspace_mobile_collapse_nonce_v68881:
                 }}
             }};
 
-            const tryCollapseOnce = () => {{
-                if (completed) return;
-                attempts += 1;
+            const findCollapseControl = (sidebar) => {{
+                // Prefer explicit Streamlit test IDs when present.
+                const explicit = doc.querySelector(
+                    '[data-testid="stSidebarCollapseButton"] button, '
+                    + 'button[data-testid="stSidebarCollapseButton"], '
+                    + '[data-testid="collapsedControl"] button'
+                );
+                if (explicit && !explicit.disabled) return explicit;
 
-                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-                if (!sidebar) {{
-                    if (attempts < 10) setTimeout(tryCollapseOnce, 45);
-                    return;
-                }}
+                // Streamlit header button used by the visible << control.
+                const headerControl = sidebar.querySelector(
+                    'button[data-testid="stBaseButton-headerNoPadding"], '
+                    + 'button[kind="header"]'
+                );
+                if (headerControl && !headerControl.disabled) return headerControl;
 
-                const rect = sidebar.getBoundingClientRect();
-                const style = parentWindow.getComputedStyle(sidebar);
-                const visible = rect.width > 80
-                    && rect.right > 1
-                    && rect.left < parentWindow.innerWidth - 1
-                    && style.display !== "none"
-                    && style.visibility !== "hidden";
-
-                if (!visible) {{
-                    completed = true;
-                    body.dataset[lockKey] = nonce;
-                    focusMain();
-                    return;
-                }}
-
-                const controls = Array.from(doc.querySelectorAll("button"));
-                const collapseControl = controls.find((button) => {{
+                // Accessible-name fallback for Streamlit versions that expose one.
+                const scopedButtons = Array.from(sidebar.querySelectorAll("button"));
+                const labelled = scopedButtons.find((button) => {{
                     const label = [
                         button.getAttribute("aria-label") || "",
                         button.getAttribute("title") || "",
                     ].join(" ").trim();
                     return /(?:collapse|close|hide).*sidebar|sidebar.*(?:collapse|close|hide)/i.test(label);
                 }});
+                return labelled && !labelled.disabled ? labelled : null;
+            }};
 
-                if (!collapseControl || collapseControl.disabled) {{
-                    if (attempts < 10) setTimeout(tryCollapseOnce, 45);
+            const finish = () => {{
+                if (completed) return;
+                completed = true;
+                body.dataset[lockKey] = nonce;
+                focusMain();
+            }};
+
+            const verifyClosed = (sidebar, verifyAttempt = 0) => {{
+                if (completed) return;
+                if (!sidebarVisible(sidebar)) {{
+                    finish();
                     return;
                 }}
 
-                // Set the lock before the click. This makes the operation idempotent
-                // across DOM reconciliation and prevents a second toggle-open click.
-                completed = true;
-                body.dataset[lockKey] = nonce;
-                collapseControl.click();
-                setTimeout(focusMain, 220);
+                // Never click a second time. If Streamlit is still animating/reconciling,
+                // only observe until the post-condition is reached.
+                if (verifyAttempt < 12) {{
+                    setTimeout(() => verifyClosed(sidebar, verifyAttempt + 1), 55);
+                }} else {{
+                    // Mark this nonce consumed anyway so a delayed rerun cannot toggle
+                    // the sidebar open again. The user can still use the normal control.
+                    finish();
+                }}
             }};
 
-            requestAnimationFrame(() => setTimeout(tryCollapseOnce, 40));
+            const tryCollapse = () => {{
+                if (completed || clicked) return;
+                attempts += 1;
+
+                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) {{
+                    if (attempts < maxAttempts) setTimeout(tryCollapse, 55);
+                    return;
+                }}
+
+                if (!sidebarVisible(sidebar)) {{
+                    finish();
+                    return;
+                }}
+
+                const control = findCollapseControl(sidebar);
+                if (!control) {{
+                    if (attempts < maxAttempts) setTimeout(tryCollapse, 55);
+                    return;
+                }}
+
+                // Lock before the one and only click. This prevents any later rerun or
+                // observer from treating the same workspace tap as a fresh toggle.
+                clicked = true;
+                body.dataset[lockKey] = nonce;
+                control.click();
+
+                // Observe the close animation; do not click again under any condition.
+                setTimeout(() => verifyClosed(sidebar, 0), 45);
+            }};
+
+            requestAnimationFrame(() => setTimeout(tryCollapse, 30));
         }})();
         </script>
         """,
