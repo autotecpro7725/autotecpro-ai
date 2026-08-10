@@ -82,7 +82,7 @@ except Exception:
 
 # AutoTecPro AI v68972 — Reference Mode Geometry + Screen/UI Pixel Authority; v68971 Exact Product Route Preserved
 # AutoTecPro AI v68950 — Security & Maintainability Hardening; v68892 Features/Pipelines Preserved
-# AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
+# AutoTecPro AI v68980 — Safe Performance Memoization; v68978 Graphic Pipeline Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
@@ -8319,10 +8319,30 @@ def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90
         return b"", "image/jpeg"
 
 
-def normalized_image_data_url(uploaded_file):
-    normalized_bytes, mime_type = normalize_uploaded_image_bytes(uploaded_file)
+@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
+def _normalized_image_data_url_cached_v68979(raw, original_mime_type, max_dimension=2200, quality=90):
+    """Return the exact normalized data URL once per immutable upload payload.
+
+    Performance-only cache: output bytes are produced by the existing normalizer,
+    so this cannot alter image content or Graphic routing.
+    """
+    normalized_bytes, mime_type = _normalize_uploaded_image_bytes_cached(
+        raw, original_mime_type or "image/jpeg",
+        max_dimension=max_dimension, quality=quality,
+    )
     encoded = base64.b64encode(normalized_bytes).decode()
     return f"data:{mime_type};base64,{encoded}"
+
+
+def normalized_image_data_url(uploaded_file):
+    try:
+        raw = uploaded_file.getvalue()
+        original_mime_type = getattr(uploaded_file, "type", "image/jpeg")
+        return _normalized_image_data_url_cached_v68979(raw, original_mime_type)
+    except Exception:
+        normalized_bytes, mime_type = normalize_uploaded_image_bytes(uploaded_file)
+        encoded = base64.b64encode(normalized_bytes).decode()
+        return f"data:{mime_type};base64,{encoded}"
 
 
 def image_to_data_url(uploaded_file):
@@ -16195,6 +16215,34 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
         content.append({"type": "input_image", "image_url": url})
     content.append({"type": "input_text", "text": "GENERATED RESULT TO REVIEW"})
     content.append({"type": "input_image", "image_url": generated_data_url})
+
+    # v68980 performance-only QA memoization. The key includes every authority
+    # input that can change the review outcome. This is session-scoped to avoid
+    # cross-user reuse and bounded to prevent unbounded memory growth.
+    try:
+        qa_key_payload = {
+            "generated": hashlib.sha256(str(generated_data_url).encode("utf-8")).hexdigest(),
+            "products": [hashlib.sha256(str(x).encode("utf-8")).hexdigest() for x in product_payloads],
+            "styles": [hashlib.sha256(str(x).encode("utf-8")).hexdigest() for x in style_payloads],
+            "prompt": str(prompt_text or ""),
+            "mode": str(mode or ""),
+            "transform": str(product_transform_mode or ""),
+            "reference": _graphic_reference_blueprint_text(reference_blueprint),
+            # The QA prompt itself includes this persistent project context. It must
+            # therefore be part of the memoization identity as well; otherwise a
+            # vehicle/project-lock change could incorrectly reuse an older passed QA.
+            "project_context": _graphic_project_context_text()[:3000],
+        }
+        qa_key = hashlib.sha256(json.dumps(qa_key_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+        qa_cache = st.session_state.setdefault("_graphic_exact_qa_cache_v68980", {})
+        cached_qa = qa_cache.get(qa_key)
+        if isinstance(cached_qa, dict):
+            diagnostic_log("graphic_v68980_qa_cache_hit")
+            return dict(cached_qa)
+    except Exception:
+        qa_key = ""
+        qa_cache = None
+
     try:
         response = client.responses.create(
             model="gpt-5.5",
@@ -16203,7 +16251,18 @@ def review_graphic_output_accuracy(generated_data_url, product_role_items, promp
             max_output_tokens=900,
         )
         result = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        return result if isinstance(result, dict) else {}
+        result = result if isinstance(result, dict) else {}
+        # Cache only successful completed reviews. Failed/unavailable QA is always
+        # allowed to run again so performance memoization can never suppress a
+        # legitimate recovery attempt.
+        if qa_key and isinstance(qa_cache, dict) and result and result.get("passed") is True:
+            qa_cache[qa_key] = dict(result)
+            # Keep only the most recent exact-input QA results for this browser session.
+            if len(qa_cache) > 24:
+                for stale_key in list(qa_cache)[:-24]:
+                    qa_cache.pop(stale_key, None)
+            st.session_state["_graphic_exact_qa_cache_v68980"] = qa_cache
+        return result
     except Exception as error:
         diagnostic_log("graphic_output_review_failed", error_type=type(error).__name__, error=str(error))
         return {}
@@ -23157,93 +23216,33 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
 
 
 
-def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
-    """Draw branded-color connectivity icons only for Reference Style mode.
-
-    This helper is intentionally isolated from the existing generic icon renderer so
-    AutoTecPro Studio and every non-reference Graphic mode retain their current
-    monochrome deterministic icon pipeline unchanged.
-    """
+def _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic, color=None):
+    """Draw deterministic Reference-style CarPlay / Android Auto line icons."""
     semantic = str(semantic or "").strip().casefold()
     if semantic not in {"carplay", "android_auto"}:
         return False
-
     x0, y0, x1, y1 = [int(round(v)) for v in box]
     w, h = max(1, x1 - x0), max(1, y1 - y0)
     size = max(8, min(w, h))
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
-
+    ink = tuple(color or (7, 34, 76, 255))
+    stroke = max(2, int(round(size * 0.055)))
     if semantic == "carplay":
-        # Apple CarPlay-style green rounded tile with a white circular/play glyph.
-        tile = int(size * 0.78)
-        left = int(round(cx - tile / 2))
-        top = int(round(cy - tile / 2))
-        right = left + tile
-        bottom = top + tile
-        radius = max(4, int(tile * 0.22))
-        draw.rounded_rectangle(
-            (left, top, right, bottom),
-            radius=radius,
-            fill=(72, 194, 67, 255),
-            outline=(52, 164, 48, 255),
-            width=max(1, int(tile * 0.025)),
-        )
-        stroke = max(2, int(tile * 0.055))
-        ring_pad = int(tile * 0.20)
-        draw.arc(
-            (left + ring_pad, top + ring_pad, right - ring_pad, bottom - ring_pad),
-            38,
-            322,
-            fill=(255, 255, 255, 255),
-            width=stroke,
-        )
-        tri_cx = int(cx + tile * 0.045)
-        tri_cy = int(cy)
-        tri_w = max(4, int(tile * 0.18))
-        tri_h = max(5, int(tile * 0.22))
-        draw.polygon(
-            [
-                (tri_cx - tri_w // 2, tri_cy - tri_h // 2),
-                (tri_cx - tri_w // 2, tri_cy + tri_h // 2),
-                (tri_cx + tri_w // 2, tri_cy),
-            ],
-            fill=(255, 255, 255, 255),
-        )
+        tile_w = int(size * 0.64); tile_h = int(size * 0.82)
+        left = int(round(cx - tile_w / 2)); top = int(round(cy - tile_h / 2))
+        right = left + tile_w; bottom = top + tile_h
+        draw.rounded_rectangle((left, top, right, bottom), radius=max(4, int(size*0.10)), outline=ink, width=stroke)
+        ring_r = int(size * 0.20)
+        draw.ellipse((int(cx-ring_r), int(cy-ring_r), int(cx+ring_r), int(cy+ring_r)), outline=ink, width=stroke)
+        tri_w=max(4,int(size*0.13)); tri_h=max(5,int(size*0.17))
+        draw.polygon([(int(cx-tri_w*0.35),int(cy-tri_h/2)),(int(cx-tri_w*0.35),int(cy+tri_h/2)),(int(cx+tri_w*0.65),int(cy))],fill=ink)
         return True
-
-    # Android Auto-style blue navigation A. Use deterministic vector geometry so
-    # there is no external asset/font dependency and the icon remains crisp at any
-    # campaign resolution.
-    blue = (22, 153, 222, 255)
-    dark_blue = (15, 126, 196, 255)
-    top = int(round(cy - size * 0.38))
-    bottom = int(round(cy + size * 0.36))
-    left = int(round(cx - size * 0.31))
-    right = int(round(cx + size * 0.31))
-    mid_left = int(round(cx - size * 0.08))
-    mid_right = int(round(cx + size * 0.08))
-    center_y = int(round(cy + size * 0.08))
-    draw.polygon(
-        [
-            (int(cx), top),
-            (right, bottom),
-            (int(cx + size * 0.12), bottom),
-            (int(cx), center_y),
-            (int(cx - size * 0.12), bottom),
-            (left, bottom),
-        ],
-        fill=blue,
-    )
-    # Subtle inner facet gives the recognizable folded-ribbon Auto appearance.
-    draw.polygon(
-        [
-            (int(cx), top),
-            (int(cx + size * 0.08), center_y),
-            (mid_right, int(cy + size * 0.22)),
-            (int(cx), int(cy + size * 0.08)),
-        ],
-        fill=dark_blue,
-    )
+    top = int(round(cy - size * 0.40)); bottom = int(round(cy + size * 0.36))
+    left = int(round(cx - size * 0.34)); right = int(round(cx + size * 0.34))
+    inner_y = int(round(cy + size * 0.12))
+    draw.line((left, bottom, int(cx), top, right, bottom), fill=ink, width=stroke, joint="curve")
+    draw.line((int(cx), top, int(cx), inner_y), fill=ink, width=stroke)
+    draw.line((int(cx), inner_y, int(cx - size*0.15), bottom), fill=ink, width=stroke)
     return True
 
 
@@ -24764,13 +24763,17 @@ def _graphic_compose_reference_campaign_v3200(
     # Reference asset instead of relying only on the mutable session design_mode
     # flag. This is presentation-only and does not change the generation pipeline.
     reference_style_connectivity_icons_v68855 = bool(
-        any(
-            str(item.get("role") or "").strip().casefold()
-            in {"reference", "style_reference"}
-            for item in (role_items or [])
-            if isinstance(item, dict)
-        )
+        reference_blueprint
         and not graphic_prompt_disables_approved_reference(prompt_text)
+        and (
+            any(
+                str(item.get("role") or "").strip().casefold()
+                in {"reference", "style_reference"}
+                for item in (role_items or [])
+                if isinstance(item, dict)
+            )
+            or str(get_graphic_project_state().get("active_reference_id") or "").strip()
+        )
     )
 
     fused_reference, reference_fusion_v42000 = _graphic_multi_reference_fusion_v42000(reference_blueprint, role_items)
@@ -25000,10 +25003,10 @@ def _graphic_compose_reference_campaign_v3200(
     px = max(hero_x0, min(px, hero_x1 - product.width))
 
     footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
-    # The footer is a foreground layer. Place approximately 2% of the exact product
-    # behind it while keeping the complete product layer intact beneath the banner.
-    footer_overlap_px = max(1, int(round(product.height * 0.02)))
-    py = footer_top_px - product.height + footer_overlap_px
+    # v68978: never hide physical product geometry behind the footer.
+    footer_overlap_px = 0
+    footer_safety_gap_px_v68978 = max(6, int(round(H * 0.008)))
+    py = footer_top_px - product.height - footer_safety_gap_px_v68978
     py = max(hero_y0, min(py, H - product.height))
 
     if secondary_stack_plan_v68877:
@@ -25016,7 +25019,7 @@ def _graphic_compose_reference_campaign_v3200(
             # reference-authorized two-variant group position.
             py = min(
                 int(primary_box_v68877[1]),
-                footer_top_px - product.height + footer_overlap_px,
+                footer_top_px - product.height - footer_safety_gap_px_v68978,
             )
             px = max(hero_x0, min(px, hero_x1 - product.width))
             py = max(hero_y0, min(py, H - product.height))
@@ -25376,7 +25379,7 @@ def _graphic_compose_reference_campaign_v3200(
         semantic = (feature_registry_v42000[idx].get("semantic") if idx < len(feature_registry_v42000) else "")
         if not (
             reference_style_connectivity_icons_v68855
-            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic, navy)
         ):
             _graphic_draw_semantic_feature_icon_v68866(
                 draw, icon_box, semantic, navy, fallback_index=idx
@@ -25413,7 +25416,7 @@ def _graphic_compose_reference_campaign_v3200(
         semantic = (bottom_feature_registry_v68853[idx].get("semantic") if idx < len(bottom_feature_registry_v68853) else "")
         if not (
             reference_style_connectivity_icons_v68855
-            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic)
+            and _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic, white)
         ):
             _graphic_draw_semantic_feature_icon_v68866(
                 draw, icon_box, semantic, white, fallback_index=idx
@@ -25538,6 +25541,12 @@ def _graphic_compose_reference_campaign_v3200(
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
         "reference_style_grid": "reference-locked-commercial-grid-v16200",
+        "reference_connectivity_icon_authority_v68978": bool(reference_style_connectivity_icons_v68855),
+        "reference_connectivity_semantics_v68978": [str(row.get("semantic") or "") for row in feature_registry_v42000],
+        "reference_footer_connectivity_semantics_v68978": [str(row.get("semantic") or "") for row in bottom_feature_registry_v68853],
+        "reference_product_footer_overlap_px_v68978": int(footer_overlap_px),
+        "reference_product_footer_safety_gap_px_v68978": int(footer_safety_gap_px_v68978),
+        "reference_full_product_visible_v68978": bool(critical_region_visibility.get("passed")),
         "brand_color_lock_v42000": brand_lock_v42000,
         "product_perspective_analysis_v42000": product_perspective_v42000,
         "multi_reference_fusion_v42000": reference_fusion_v42000,
@@ -32938,8 +32947,52 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
     }
 
 
+def _graphic_v68978_persistent_authority_payload():
+    """Return non-secret persistent Graphic authority for cache identity."""
+    try:
+        project = _graphic_active_project_assets_v16000(
+            _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
+        )
+    except Exception:
+        project = get_graphic_project_state()
+    assets = [item for item in (project.get("assets") or []) if isinstance(item, dict)]
+    active_reference_id = str(project.get("active_reference_id") or "").strip()
+    active_product_id = str(project.get("active_product_id") or "").strip()
+    active_product_ids = sorted(
+        str(value or "").strip() for value in (project.get("active_product_ids") or [])
+        if str(value or "").strip()
+    )
+    def asset_row(asset_id):
+        if not asset_id:
+            return {}
+        for item in assets:
+            if str(item.get("id") or "").strip() == asset_id:
+                raw = bytes(item.get("data") or b"")
+                return {
+                    "id": asset_id,
+                    "role": str(item.get("role") or ""),
+                    "sha256": hashlib.sha256(raw).hexdigest() if raw else asset_id,
+                    "size": len(raw),
+                }
+        return {"id": asset_id, "sha256": asset_id}
+    style_dna = project.get("project_style_dna") or {}
+    try:
+        style_dna_sha = hashlib.sha256(json.dumps(
+            style_dna, ensure_ascii=False, sort_keys=True, default=str,
+            separators=(",", ":"),
+        ).encode("utf-8")).hexdigest() if style_dna else ""
+    except Exception:
+        style_dna_sha = ""
+    return {
+        "active_reference": asset_row(active_reference_id),
+        "active_product": asset_row(active_product_id),
+        "active_product_ids": active_product_ids,
+        "style_dna_sha256": style_dna_sha,
+    }
+
+
 def _graphic_v68826_request_key(prompt_text, uploaded_files, arguments):
-    """Build a company-wide key that intentionally excludes user/session data."""
+    """Build a company-wide key with persistent Graphic authority fingerprints."""
     payload = {
         "namespace": GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE,
         "engine": str(GRAPHIC_ENGINE_VERSION),
@@ -32949,6 +33002,7 @@ def _graphic_v68826_request_key(prompt_text, uploaded_files, arguments):
             _graphic_v68826_uploaded_file_digest(item)
             for item in (uploaded_files or [])
         ],
+        "persistent_authority_v68978": _graphic_v68978_persistent_authority_payload(),
         "arguments": {key: arguments.get(key) for key in sorted(arguments)},
     }
     encoded = json.dumps(
@@ -33461,6 +33515,81 @@ def save_graphic_style_memory(image, feedback="approved"):
     return result
 
 
+def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_files, forced_upload_role):
+    """Prove exact product, full visibility, active reference, and deterministic icons."""
+    report = {"passed": False, "issues": []}
+    try:
+        role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_role=forced_upload_role)
+    except Exception as error:
+        report["issues"].append("role authority unavailable: " + _graphic_compact_error_v4000(error))
+        return report
+    product_item = next((i for i in role_items if i.get("role") == "product_photo"), None)
+    reference_item = next((i for i in role_items if i.get("role") == "style_reference"), None)
+    if not product_item: report["issues"].append("active product missing")
+    if not reference_item: report["issues"].append("active style reference missing")
+    image = images[0] if images and isinstance(images[0], dict) else {}
+    metadata = dict(image.get("layered_metadata") or {})
+    if metadata.get("exact_product_pixels") is not True:
+        report["issues"].append("exact uploaded-product pixels not proven")
+    if "composite" not in str(image.get("product_identity_method") or "").casefold():
+        report["issues"].append("deterministic product composite not proven")
+    if metadata.get("reference_full_product_visible_v68978") is not True:
+        report["issues"].append("complete product geometry is not proven visible")
+    visibility = dict(metadata.get("critical_region_visibility") or {})
+    if visibility and visibility.get("passed") is False:
+        report["issues"].append("critical lower housing is hidden or clipped")
+    try:
+        if float(metadata.get("product_ratio_relative_error") or 0.0) > 0.0025:
+            report["issues"].append("product aspect ratio drift")
+    except Exception:
+        report["issues"].append("product aspect ratio verification unavailable")
+    requested = str(prompt_text or "").casefold()
+    required = []
+    if "carplay" in requested: required.append("carplay")
+    if "android auto" in requested: required.append("android_auto")
+    semantics = set(metadata.get("reference_connectivity_semantics_v68978") or [])
+    footer_semantics = set(metadata.get("reference_footer_connectivity_semantics_v68978") or [])
+    if required and metadata.get("reference_connectivity_icon_authority_v68978") is not True:
+        report["issues"].append("Reference connectivity icon authority inactive")
+    for semantic in required:
+        if semantic not in semantics and semantic not in footer_semantics:
+            report["issues"].append("missing deterministic " + semantic + " icon semantic")
+    if product_item:
+        try:
+            source_sha = hashlib.sha256(_graphic_uploaded_file_bytes(product_item.get("file"))).hexdigest()
+            selected_sha = str(metadata.get("product_source_sha256") or "")
+            if selected_sha and selected_sha != source_sha:
+                report["issues"].append("final product source SHA does not match active upload")
+            report["product_sha256"] = source_sha
+        except Exception:
+            report["issues"].append("active product SHA verification unavailable")
+    report["passed"] = not report["issues"]
+    return report
+
+
+def _graphic_v68978_reference_recovery(prompt_text, uploaded_files, forced_upload_role, style_strength):
+    """Use the established deterministic Reference compositor as recovery only."""
+    role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_role=forced_upload_role)
+    if not any(i.get("role") == "product_photo" for i in role_items) or not any(i.get("role") == "style_reference" for i in role_items):
+        raise RuntimeError("Reference recovery requires the active product and style reference.")
+    output_size = choose_graphic_image_size(prompt_text)
+    reference_blueprint = _graphic_safe_optional_call(
+        "graphic_v68978_reference_analysis_failed",
+        lambda: analyze_graphic_reference_blueprint(role_items, prompt_text=prompt_text, style_strength=style_strength), {},
+    )
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+    vehicle_profile = _graphic_safe_optional_call(
+        "graphic_v68978_vehicle_research_failed_open",
+        lambda: research_graphic_vehicle_profile(role_items, prompt_text), {},
+    )
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
+    result = _graphic_build_hybrid_campaign_result_v3300(
+        prompt_text, role_items, output_size, reference_blueprint, vehicle_profile
+    )
+    result["graphic_v68978_reference_recovery"] = True
+    return [result]
+
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True,
     preserve_product=True, style_strength="High",
@@ -33477,19 +33606,20 @@ def generate_graphic_marketing_images(
         "product_transform_mode": product_transform_mode,
         "professional_layered_studio": professional_layered_studio,
     }
-    # Keep v68826's original-request cache identity unchanged.
-    request_key = _graphic_v68826_request_key(prompt_text, uploaded_files, arguments)
-    cached = _graphic_v68826_restore_approved_output(request_key)
-    if cached:
-        diagnostic_log(
-            "graphic_v68827_company_approved_output_hit",
-            request_key=request_key[:16],
-        )
-        return cached
-
     is_reference = _graphic_v68827_is_reference_mode(
         prompt_text, uploaded_files, forced_upload_role,
     )
+    request_key = _graphic_v68826_request_key(prompt_text, uploaded_files, arguments)
+    # Reference Style is project-specific authority: never return a shared approved
+    # output before the active reference/product pair has been composed and verified.
+    if not is_reference:
+        cached = _graphic_v68826_restore_approved_output(request_key)
+        if cached:
+            diagnostic_log(
+                "graphic_v68827_company_approved_output_hit",
+                request_key=request_key[:16],
+            )
+            return cached
     effective_prompt = str(prompt_text or "")
     intelligence_applied = False
     if not is_reference and use_approved_style and not graphic_prompt_disables_approved_reference(prompt_text):
@@ -33517,6 +33647,31 @@ def generate_graphic_marketing_images(
                 st.session_state.pop("_graphic_v68828_reference_pipeline_active", None)
             else:
                 st.session_state["_graphic_v68828_reference_pipeline_active"] = previous_reference_flag
+    if is_reference:
+        publication = _graphic_v68978_reference_publication_report(
+            images, prompt_text, uploaded_files, forced_upload_role
+        )
+        if not publication.get("passed"):
+            diagnostic_log(
+                "graphic_v68978_reference_primary_blocked",
+                issues="; ".join(publication.get("issues") or [])[:900],
+            )
+            images = _graphic_v68978_reference_recovery(
+                str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength
+            )
+            publication = _graphic_v68978_reference_publication_report(
+                images, prompt_text, uploaded_files, forced_upload_role
+            )
+            if not publication.get("passed"):
+                raise RuntimeError(
+                    "Reference Mode blocked publication because exact product geometry/icon authority could not be proven: "
+                    + "; ".join(publication.get("issues") or [])
+                )
+        for image in images or []:
+            if isinstance(image, dict):
+                image["reference_publication_authority_v68978"] = publication
+                image["company_wide_approved_output_hit_v68826"] = False
+
     for image in images or []:
         if isinstance(image, dict):
             image["prompt"] = str(prompt_text or "")
