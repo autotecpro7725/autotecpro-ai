@@ -47209,6 +47209,214 @@ def _website_image_tokens_v68883(value):
     return [token for token in tokens if token not in stop]
 
 
+def _website_image_query_role_v68884(prompt_text):
+    """Classify only explicit visual intent in the current Technical question."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    rules = (
+        ("car_model_ac", (
+            "car model", "carmodel", "car model setting", "car model / ac",
+            "car model/ac", "ac model", "a/c model",
+        )),
+        ("factory_camera", (
+            "factory camera", "original camera", "oem camera",
+            "factory reverse camera", "original reverse camera",
+        )),
+        ("cargo_bed_camera", (
+            "cargo bed camera", "bed camera", "cargo camera",
+        )),
+        ("aftermarket_camera", (
+            "aftermarket camera", "after market camera", "add-on camera",
+            "add on camera",
+        )),
+        ("dashboard_fitment", (
+            "dashboard fitment", "dash fitment", "doesn't fit", "does not fit",
+            "fitment",
+        )),
+        ("audio", (
+            "audio", "aux", "bluetooth audio", "sound",
+        )),
+        ("weather", (
+            "weather", "weather app",
+        )),
+        ("navigation", (
+            "offline navigation", "navigation", "gps",
+        )),
+        ("google_apps", (
+            "google app", "google apps", "play store", "google play",
+        )),
+        ("carplay_android_auto", (
+            "carplay", "android auto", "apple carplay",
+        )),
+        ("protocol", (
+            "protocol", "xinbasi", "canbus setting",
+        )),
+        ("climate", (
+            "climate", "manual a/c", "automatic a/c",
+            "manual ac", "automatic ac",
+        )),
+        ("harness", (
+            "harness", "connector", "wiring", "cable",
+        )),
+        ("camera_generic", (
+            "camera", "reverse camera",
+        )),
+    )
+    for role, aliases in rules:
+        if any(alias in value for alias in aliases):
+            return role
+    return ""
+
+
+def _website_image_payload_text_v68884(payload):
+    return {
+        "heading": re.sub(
+            r"\s+", " ", str(payload.get("section_heading") or "")
+        ).strip().casefold(),
+        "nearby": re.sub(
+            r"\s+", " ", str(payload.get("nearby_instruction_text") or "")
+        ).strip().casefold(),
+        "caption": re.sub(
+            r"\s+", " ", str(payload.get("caption") or "")
+        ).strip().casefold(),
+        "analysis": re.sub(
+            r"\s+", " ", str(payload.get("visual_analysis") or "")
+        ).strip().casefold(),
+        "page": re.sub(
+            r"\s+", " ", str(payload.get("page_title") or "")
+        ).strip().casefold(),
+    }
+
+
+def _website_image_role_score_v68884(query_role, payload):
+    """Return strict section + visual-role score.
+
+    Heading/nearby instruction association is authoritative. Visual analysis
+    breaks ties between multiple images inside one section. A conflicting
+    section gets a strong negative score instead of being selected merely
+    because it belongs to the same vehicle/page.
+    """
+    if not query_role:
+        return 0.0
+
+    fields = _website_image_payload_text_v68884(payload)
+    heading = fields["heading"]
+    nearby = fields["nearby"]
+    caption = fields["caption"]
+    analysis = fields["analysis"]
+    combined = " ".join((heading, nearby, caption, analysis))
+
+    role_aliases = {
+        "car_model_ac": (
+            "car model / ac", "car model/ac", "car model", "carmodel",
+            "ac model", "a/c model",
+        ),
+        "factory_camera": (
+            "factory reverse camera", "factory camera", "original camera",
+            "oem camera",
+        ),
+        "cargo_bed_camera": (
+            "cargo bed camera", "cargo camera", "bed camera",
+        ),
+        "aftermarket_camera": (
+            "aftermarket camera", "after market camera", "add-on camera",
+            "add on camera",
+        ),
+        "dashboard_fitment": (
+            "dashboard fitment", "dash fitment", "fitment",
+        ),
+        "audio": (
+            "audio", "aux", "bluetooth audio", "sound",
+        ),
+        "weather": ("weather", "weather app"),
+        "navigation": ("offline navigation", "navigation", "gps"),
+        "google_apps": ("google apps", "google app", "play store", "google play"),
+        "carplay_android_auto": ("carplay", "android auto", "apple carplay"),
+        "protocol": ("protocol", "xinbasi", "canbus"),
+        "climate": ("climate", "a/c", " ac ", "automatic climate", "manual climate"),
+        "harness": ("harness", "connector", "wiring", "cable"),
+        "camera_generic": ("camera", "reverse camera"),
+    }
+
+    conflicts = {
+        "car_model_ac": (
+            "factory camera", "cargo bed camera", "aftermarket camera",
+            "dashboard fitment", "google apps", "offline navigation",
+        ),
+        "factory_camera": (
+            "cargo bed camera", "aftermarket camera", "car model",
+        ),
+        "cargo_bed_camera": (
+            "factory reverse camera", "aftermarket camera", "car model",
+        ),
+        "aftermarket_camera": (
+            "factory reverse camera", "cargo bed camera", "car model",
+        ),
+        "dashboard_fitment": (
+            "car model", "camera", "weather", "navigation",
+        ),
+    }
+
+    aliases = role_aliases.get(query_role, ())
+    conflict_terms = conflicts.get(query_role, ())
+
+    score = 0.0
+    if any(alias in heading for alias in aliases):
+        score += 24.0
+    if any(alias in nearby for alias in aliases):
+        score += 14.0
+    if any(alias in caption for alias in aliases):
+        score += 8.0
+    if any(alias in analysis for alias in aliases):
+        score += 10.0
+
+    if conflict_terms and any(term in heading for term in conflict_terms):
+        score -= 30.0
+
+    # Car Model/A/C is the most failure-prone section because a generic
+    # "Setting Guide" screenshot can sit beside the actual selection screen.
+    # Require visual evidence of the actual target screen when possible.
+    if query_role == "car_model_ac":
+        actual_screen_terms = (
+            "car model / ac", "car model/ac", "car model",
+            "grand cherokee", "jeep", "protocol", "simple",
+        )
+        actual_hits = sum(1 for term in actual_screen_terms if term in combined)
+        score += min(actual_hits, 4) * 5.0
+
+        generic_setting_guide = (
+            "setting guide" in combined
+            and not any(
+                term in analysis or term in caption
+                for term in (
+                    "car model / ac", "car model/ac", "car model",
+                    "grand cherokee", "jeep", "protocol",
+                )
+            )
+        )
+        if generic_setting_guide:
+            score -= 22.0
+
+    return score
+
+
+def _website_image_section_gate_v68884(prompt_text, payload):
+    """Strictly reject a clearly wrong subsection for explicit visual requests."""
+    query_role = _website_image_query_role_v68884(prompt_text)
+    if not query_role:
+        return True
+
+    role_score = _website_image_role_score_v68884(query_role, payload)
+    if query_role in {
+        "car_model_ac",
+        "factory_camera",
+        "cargo_bed_camera",
+        "aftermarket_camera",
+        "dashboard_fitment",
+    }:
+        return role_score >= 14.0
+    return role_score >= 6.0
+
+
 def _website_image_rank_v68883(prompt_text, payload):
     current = str(prompt_text or "")
     context = _website_image_query_context_v68883(current)
@@ -47230,6 +47438,19 @@ def _website_image_rank_v68883(prompt_text, payload):
     score += 1.0 * len((context_tokens - current_tokens) & candidate_tokens)
 
     normalized_current = re.sub(r"\s+", " ", current.casefold())
+
+    # v68884: subsection/visual-role authority outranks broad page similarity.
+    query_role_v68884 = _website_image_query_role_v68884(current)
+    role_score_v68884 = _website_image_role_score_v68884(
+        query_role_v68884,
+        payload,
+    )
+    if query_role_v68884 and not _website_image_section_gate_v68884(
+        current,
+        payload,
+    ):
+        return -900.0
+    score += role_score_v68884
     topic_boosts = {
         "carmodel": ("car model", "carmodel", "car model setting", "ac model"),
         "protocol": ("protocol", "xinbasi", "canbus"),
@@ -47359,6 +47580,18 @@ def _website_image_lookup_v68883(prompt_text):
 
     records = []
     seen = set()
+    query_role_v68884 = _website_image_query_role_v68884(prompt_text)
+    result_limit_v68884 = (
+        1
+        if query_role_v68884 in {
+            "car_model_ac",
+            "factory_camera",
+            "cargo_bed_camera",
+            "aftermarket_camera",
+            "dashboard_fitment",
+        }
+        else WEBSITE_IMAGE_INDEX_QUERY_MAX_IMAGES_V68883
+    )
     for score, payload in ranked:
         digest = str(payload.get("image_sha256") or payload.get("image_url") or "")
         if digest in seen:
@@ -47369,7 +47602,7 @@ def _website_image_lookup_v68883(prompt_text):
         seen.add(digest)
         record["website_image_match_score_v68883"] = round(float(score), 3)
         records.append(record)
-        if len(records) >= WEBSITE_IMAGE_INDEX_QUERY_MAX_IMAGES_V68883:
+        if len(records) >= result_limit_v68884:
             break
 
     return records
