@@ -59,6 +59,12 @@ import time
 import io
 import zipfile
 import requests
+try:
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+except Exception:
+    HTTPAdapter = None
+    Retry = None
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote, urlparse, urljoin
 from html.parser import HTMLParser
@@ -68,6 +74,7 @@ import csv
 import inspect
 import math
 import gc
+import threading
 from difflib import SequenceMatcher
 try:
     from openpyxl import load_workbook
@@ -79,7 +86,12 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68950 — Security & Maintainability Hardening; v68892 Features/Pipelines Preserved
+# AutoTecPro AI v68970 — Stability & Performance Hardening; v68950 Security + v68892 Features/Pipelines Preserved
+# - Adds conservative idempotent HTTP retry/backoff + per-service circuit breaking.
+# - Adds targeted Supabase filtered reads for Graphic memory/intelligence hot paths.
+# - Bounds raw Graphic style/reference registries and Installed View research session caches.
+# - Expands fragment-scoped reruns only for isolated management/UI refresh actions.
+# - Adds lightweight runtime latency/memory telemetry without changing user-visible behavior.
 # AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
@@ -178,9 +190,38 @@ def get_openai_client(secret_key):
 
 @st.cache_resource(show_spinner=False)
 def get_http_session():
-    """Reuse HTTP connection pools for live integrations."""
+    """Reuse HTTP pools and conservatively retry transient read-only failures.
+
+    Retry policy is intentionally restricted to idempotent methods so OAuth or
+    other write-like POST requests keep their established single-attempt behavior.
+    """
     session = requests.Session()
     session.headers.update({"User-Agent": "AutoTecPro-AI/1.0"})
+    if HTTPAdapter is not None and Retry is not None:
+        try:
+            retry = Retry(
+                total=2,
+                connect=2,
+                read=1,
+                status=2,
+                backoff_factor=0.35,
+                status_forcelist=(429, 500, 502, 503, 504),
+                allowed_methods=frozenset({"GET", "HEAD", "OPTIONS"}),
+                respect_retry_after_header=True,
+                raise_on_status=False,
+            )
+            adapter = HTTPAdapter(
+                max_retries=retry,
+                pool_connections=24,
+                pool_maxsize=48,
+                pool_block=False,
+            )
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+        except Exception:
+            # Retry configuration is an optimization only; preserve the proven
+            # requests.Session behavior if the runtime has an older urllib3.
+            pass
     return session
 
 
@@ -203,6 +244,118 @@ def diagnostic_log(event, **fields):
     except Exception:
         # Diagnostics must never affect application behavior.
         pass
+
+
+_EXTERNAL_CIRCUIT_LOCK = threading.RLock()
+_EXTERNAL_CIRCUITS = {}
+EXTERNAL_CIRCUIT_FAILURE_THRESHOLD = 4
+EXTERNAL_CIRCUIT_COOLDOWN_SECONDS = 20.0
+EXTERNAL_SLOW_REQUEST_SECONDS = 2.5
+
+
+def _external_circuit_status(service_name):
+    """Return (allowed, retry_after) for one process-local external service."""
+    key = re.sub(r"[^a-z0-9_.-]+", "_", str(service_name or "external").casefold()).strip("_") or "external"
+    now = time.monotonic()
+    with _EXTERNAL_CIRCUIT_LOCK:
+        state = dict(_EXTERNAL_CIRCUITS.get(key) or {})
+        opened_until = float(state.get("opened_until") or 0.0)
+        if opened_until > now:
+            return False, max(0.0, opened_until - now)
+        if opened_until:
+            # Half-open: permit a probe after cooldown and clear the open marker.
+            state["opened_until"] = 0.0
+            _EXTERNAL_CIRCUITS[key] = state
+        return True, 0.0
+
+
+def _external_circuit_record(service_name, success):
+    key = re.sub(r"[^a-z0-9_.-]+", "_", str(service_name or "external").casefold()).strip("_") or "external"
+    now = time.monotonic()
+    with _EXTERNAL_CIRCUIT_LOCK:
+        state = dict(_EXTERNAL_CIRCUITS.get(key) or {})
+        if success:
+            _EXTERNAL_CIRCUITS.pop(key, None)
+            return
+        failures = int(state.get("failures") or 0) + 1
+        state["failures"] = failures
+        state["last_failure"] = now
+        if failures >= EXTERNAL_CIRCUIT_FAILURE_THRESHOLD:
+            state["opened_until"] = now + EXTERNAL_CIRCUIT_COOLDOWN_SECONDS
+        _EXTERNAL_CIRCUITS[key] = state
+
+
+def resilient_external_get(service_name, url, **kwargs):
+    """GET through the shared retry session with a small process-local circuit breaker."""
+    allowed, retry_after = _external_circuit_status(service_name)
+    if not allowed:
+        diagnostic_log(
+            "external_circuit_open",
+            service=service_name,
+            retry_after_seconds=round(retry_after, 2),
+        )
+        raise RuntimeError(
+            f"{service_name} is temporarily unavailable after repeated upstream failures. "
+            "Please try again shortly."
+        )
+
+    started = time.perf_counter()
+    try:
+        response = http_session.get(url, **kwargs)
+    except Exception as error:
+        _external_circuit_record(service_name, False)
+        diagnostic_log(
+            "external_http_exception",
+            service=service_name,
+            elapsed_seconds=round(time.perf_counter() - started, 3),
+            error_type=type(error).__name__,
+            error=str(error),
+        )
+        raise
+
+    transient_failure = response.status_code == 429 or 500 <= int(response.status_code) <= 599
+    _external_circuit_record(service_name, not transient_failure)
+    elapsed = time.perf_counter() - started
+    if transient_failure or elapsed >= EXTERNAL_SLOW_REQUEST_SECONDS:
+        diagnostic_log(
+            "external_http_result",
+            service=service_name,
+            status_code=int(response.status_code),
+            elapsed_seconds=round(elapsed, 3),
+            transient_failure=transient_failure,
+        )
+    return response
+
+
+def runtime_memory_snapshot():
+    """Best-effort process memory telemetry with no additional dependency."""
+    snapshot = {"rss_mb": None, "peak_rss_mb": None, "available_mb": None}
+    try:
+        values = {}
+        with open("/proc/self/status", "r", encoding="utf-8") as handle:
+            for line in handle:
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    values[key.strip()] = value.strip()
+        def kb(field):
+            match = re.search(r"(\d+)", values.get(field, ""))
+            return int(match.group(1)) if match else None
+        rss = kb("VmRSS")
+        peak = kb("VmHWM")
+        snapshot["rss_mb"] = round(rss / 1024.0, 2) if rss is not None else None
+        snapshot["peak_rss_mb"] = round(peak / 1024.0, 2) if peak is not None else None
+        try:
+            with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+                meminfo = handle.read()
+            match = re.search(r"^MemAvailable:\s+(\d+)\s+kB", meminfo, flags=re.MULTILINE)
+            if match:
+                snapshot["available_mb"] = round(int(match.group(1)) / 1024.0, 2)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return snapshot
+
 
 def _read_app_secret(name, default=""):
     """Read one Streamlit secret safely without exposing its value."""
@@ -723,7 +876,8 @@ def woocommerce_api_request(endpoint, params=None):
     if not clean_endpoint:
         raise RuntimeError("WooCommerce API endpoint is missing.")
 
-    response = http_session.get(
+    response = resilient_external_get(
+        "WooCommerce",
         f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/v3/{clean_endpoint}",
         params=params or {},
         auth=(
@@ -1802,7 +1956,8 @@ def geocode_open_meteo(location):
     )
 
     for candidate in unique_candidates:
-        response = http_session.get(
+        response = resilient_external_get(
+            "Open-Meteo Geocoding",
             "https://geocoding-api.open-meteo.com/v1/search",
             params={
                 "name": candidate,
@@ -1832,7 +1987,8 @@ def geocode_open_meteo(location):
 
 def get_live_weather(location):
     place = geocode_open_meteo(location)
-    response = http_session.get(
+    response = resilient_external_get(
+        "Open-Meteo Weather",
         "https://api.open-meteo.com/v1/forecast",
         params={
             "latitude": place["latitude"],
@@ -1891,7 +2047,8 @@ def get_live_exchange_rate(base_currency, quote_currency):
             "note": "The currencies are identical.",
         }
 
-    response = http_session.get(
+    response = resilient_external_get(
+        "Frankfurter FX",
         f"https://api.frankfurter.dev/v2/rate/{base}/{quote_currency}",
         timeout=LIVE_HTTP_TIMEOUT,
     )
@@ -1997,7 +2154,8 @@ def track_ups(tracking_number):
         flush=True,
     )
     token = get_ups_access_token()
-    response = http_session.get(
+    response = resilient_external_get(
+        "UPS Tracking",
         (
             "https://onlinetools.ups.com/api/track/v1/details/"
             f"{quote(normalized_tracking, safe='')}"
@@ -2069,7 +2227,8 @@ def track_canada_post(tracking_number):
             "message": "Canada Post credentials are not configured."
         }
 
-    response = http_session.get(
+    response = resilient_external_get(
+        "Canada Post Tracking",
         (
             "https://soa-gw.canadapost.ca/vis/track/pin/"
             f"{quote(tracking_number.strip())}/detail"
@@ -4620,6 +4779,74 @@ def safe_select_rows(table_name, order_columns=None, limit=500):
             .data
         ) or []
     except Exception:
+        if last_error:
+            raise last_error
+        raise
+
+
+
+def safe_select_filtered_rows(
+    table_name,
+    *,
+    filters=None,
+    casefold_filters=None,
+    select_columns="*",
+    order_columns=None,
+    limit=500,
+):
+    """Select a small filtered projection with schema-compatible ordering fallback.
+
+    This is intentionally additive: legacy callers keep safe_select_rows(), while
+    high-frequency paths can push stable equality filters into PostgREST instead
+    of downloading broad tables and filtering them in Python.
+    """
+    filters = {
+        str(key): value
+        for key, value in dict(filters or {}).items()
+        if str(key).strip() and value is not None
+    }
+    casefold_filters = {
+        str(key): str(value)
+        for key, value in dict(casefold_filters or {}).items()
+        if str(key).strip() and value is not None
+    }
+    order_columns = order_columns or ["updated_at", "created_at"]
+    try:
+        limit = max(1, int(limit))
+    except Exception:
+        limit = 500
+
+    last_error = None
+    for order_col in order_columns:
+        try:
+            query = supabase.table(table_name).select(select_columns or "*")
+            for key, value in filters.items():
+                query = query.eq(key, value)
+            for key, value in casefold_filters.items():
+                query = query.ilike(key, value)
+            return query.order(order_col, desc=True).limit(limit).execute().data or []
+        except Exception as error:
+            last_error = error
+
+    try:
+        query = supabase.table(table_name).select(select_columns or "*")
+        for key, value in filters.items():
+            query = query.eq(key, value)
+        for key, value in casefold_filters.items():
+            query = query.ilike(key, value)
+        return query.limit(limit).execute().data or []
+    except Exception:
+        # Mixed/legacy schemas remain fully compatible with the original helper.
+        if filters or casefold_filters:
+            rows = safe_select_rows(table_name, order_columns=order_columns, limit=limit)
+            return [
+                row for row in rows
+                if all(row.get(key) == value for key, value in filters.items())
+                and all(
+                    str(row.get(key) or "").casefold() == str(value).casefold()
+                    for key, value in casefold_filters.items()
+                )
+            ]
         if last_error:
             raise last_error
         raise
@@ -10511,14 +10738,68 @@ def _graphic_image_fingerprint(image):
     return hashlib.sha256(seed).hexdigest()
 
 
+
+GRAPHIC_STYLE_SESSION_MAX_COLLECTIONS = 6
+GRAPHIC_STYLE_SESSION_MAX_RAW_BYTES = 48 * 1024 * 1024
+GRAPHIC_INSTALLED_RESEARCH_SESSION_MAX_ENTRIES = 24
+
+
+def _graphic_registry_raw_bytes(value, seen=None):
+    """Estimate unique raw byte/string payload held by a Graphic registry."""
+    seen = seen if isinstance(seen, set) else set()
+    obj_id = id(value)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    if isinstance(value, (bytes, bytearray)):
+        return len(value)
+    if isinstance(value, str):
+        # Data URLs are the only large strings relevant to memory pressure here.
+        return len(value.encode("utf-8", "ignore")) if value.startswith("data:image/") else 0
+    if isinstance(value, dict):
+        return sum(_graphic_registry_raw_bytes(item, seen) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return sum(_graphic_registry_raw_bytes(item, seen) for item in value)
+    return 0
+
+
+def _bound_graphic_reference_registry(registry):
+    """Bound session-local raw references; durable Supabase/storage remains authoritative."""
+    if not isinstance(registry, dict):
+        return {}
+    while len(registry) > GRAPHIC_STYLE_SESSION_MAX_COLLECTIONS:
+        try:
+            registry.pop(next(iter(registry)), None)
+        except Exception:
+            break
+    try:
+        while len(registry) > 1 and _graphic_registry_raw_bytes(registry) > GRAPHIC_STYLE_SESSION_MAX_RAW_BYTES:
+            registry.pop(next(iter(registry)), None)
+    except Exception:
+        pass
+    return registry
+
+
+def _bound_small_session_mapping(mapping, max_entries):
+    if not isinstance(mapping, dict):
+        return {}
+    while len(mapping) > max(1, int(max_entries)):
+        try:
+            mapping.pop(next(iter(mapping)), None)
+        except Exception:
+            break
+    return mapping
+
+
 def _graphic_style_feedback_registry():
     """Session-local cache of approved/rejected image feedback."""
     return st.session_state.setdefault("graphic_style_feedback", {})
 
 
 def _graphic_style_reference_registry():
-    """Session-local cache of approved image bytes for immediate reuse."""
-    return st.session_state.setdefault("graphic_style_references", {})
+    """Bounded session-local cache of approved image bytes for immediate reuse."""
+    registry = st.session_state.setdefault("graphic_style_references", {})
+    return _bound_graphic_reference_registry(registry)
 
 
 def analyze_graphic_style_profile(image, feedback="approved"):
@@ -10866,16 +11147,19 @@ def save_graphic_style_memory(image, feedback="approved"):
         "saved_at": now_iso(),
         "vector_ready": bool(vector_ready),
     }
+    _bound_small_session_mapping(registry, 200)
 
     if feedback == "approved":
         image_bytes, _ = data_url_to_bytes(image.get("data_url"))
         if image_bytes:
-            _graphic_style_reference_registry()[fingerprint] = {
+            reference_registry = _graphic_style_reference_registry()
+            reference_registry[fingerprint] = {
                 "bytes": image_bytes,
                 "name": str(image.get("filename") or image.get("name") or "approved_style.png"),
                 "prompt": str(image.get("prompt") or ""),
                 "profile": profile,
             }
+            _bound_graphic_reference_registry(reference_registry)
         # Approval is the publication gate for exact company-wide reuse.
         _graphic_v68826_publish_approved_output(image)
     else:
@@ -11017,10 +11301,13 @@ def _graphic_session_rejection_guidance(limit=4):
     # Persistent shared feedback makes learning survive logout, restart, and
     # account changes. Fail open so generation remains available during a DB issue.
     try:
-        rows = safe_select_rows(
+        rows = safe_select_filtered_rows(
             "learned_knowledge",
+            filters={"record_type": "rejected_visual_style"},
+            casefold_filters={"assistant": "Graphic Marketing"},
+            select_columns="id,assistant,record_type,solution,approved_answer,question,source_question,updated_at,created_at",
             order_columns=["updated_at", "created_at"],
-            limit=max(40, limit * 10),
+            limit=max(12, limit * 3),
         )
         for row in rows:
             if str(row.get("assistant") or "").strip().lower() != "graphic marketing":
@@ -11117,8 +11404,9 @@ def extract_graphic_style_collection_name(prompt_text):
 
 
 def _graphic_style_collection_registry():
-    """Return session-local named style index while persistent records remain in Supabase/vector search."""
-    return st.session_state.setdefault("graphic_style_collections", {})
+    """Return a bounded named style index while persistent storage remains authoritative."""
+    registry = st.session_state.setdefault("graphic_style_collections", {})
+    return _bound_graphic_reference_registry(registry)
 
 
 def list_graphic_style_collection_names():
@@ -11477,11 +11765,15 @@ def save_uploaded_graphic_style_set(uploaded_files, prompt_text=""):
             "prompt": str(prompt_text or ""),
             "profile": profile,
         }
-        _graphic_style_reference_registry()[fingerprint] = reference_record
+        reference_registry = _graphic_style_reference_registry()
+        reference_registry[fingerprint] = reference_record
+        _bound_graphic_reference_registry(reference_registry)
         collection_name = str(
             profile.get("collection_name") or profile.get("title") or fingerprint
         ).strip()
-        _graphic_style_collection_registry()[collection_name] = reference_record
+        collection_registry = _graphic_style_collection_registry()
+        collection_registry[collection_name] = reference_record
+        _bound_graphic_reference_registry(collection_registry)
 
     return {
         "profile": profile,
@@ -11501,8 +11793,12 @@ def hydrate_latest_graphic_reference_from_storage():
     if registry:
         return True
     try:
-        rows = safe_select_rows(
-            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=200
+        rows = safe_select_filtered_rows(
+            "learned_knowledge",
+            casefold_filters={"assistant": "Graphic Marketing"},
+            select_columns="id,username,assistant,record_type,solution,approved_answer,updated_at,created_at",
+            order_columns=["updated_at", "created_at"],
+            limit=80,
         )
     except Exception as error:
         diagnostic_log("graphic_style_hydration_query_failed", error=str(error))
@@ -32868,8 +33164,13 @@ def _graphic_v68827_parse_iso(value):
 
 def _graphic_v68827_feedback_rows(limit=GRAPHIC_V68827_MAX_FEEDBACK_ROWS):
     """Load company-wide explicit Graphic approval/rejection decisions."""
-    rows = safe_select_rows(
+    rows = safe_select_filtered_rows(
         "learned_knowledge",
+        casefold_filters={"assistant": "Graphic Marketing"},
+        select_columns=(
+            "id,username,assistant,record_type,solution,approved_answer,issue,question,"
+            "source_question,confidence_score,times_seen,updated_at,created_at"
+        ),
         order_columns=["updated_at", "created_at"],
         limit=max(20, min(int(limit), GRAPHIC_V68827_MAX_FEEDBACK_ROWS)),
     )
@@ -32882,10 +33183,13 @@ def _graphic_v68827_feedback_rows(limit=GRAPHIC_V68827_MAX_FEEDBACK_ROWS):
 
 
 def _graphic_v68827_latest_snapshot(rows=None):
-    rows = rows if rows is not None else safe_select_rows(
+    rows = rows if rows is not None else safe_select_filtered_rows(
         "learned_knowledge",
+        filters={"record_type": GRAPHIC_V68827_INTELLIGENCE_RECORD_TYPE},
+        casefold_filters={"assistant": "Graphic Marketing"},
+        select_columns="*",
         order_columns=["updated_at", "created_at"],
-        limit=100,
+        limit=3,
     )
     for row in rows or []:
         if str(row.get("assistant") or "").strip().lower() != "graphic marketing":
@@ -33074,10 +33378,7 @@ def refresh_graphic_style_intelligence(force=False):
     """
     try:
         feedback_rows = _graphic_v68827_feedback_rows()
-        all_rows = safe_select_rows(
-            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=100,
-        )
-        snapshot = _graphic_v68827_latest_snapshot(all_rows)
+        snapshot = _graphic_v68827_latest_snapshot()
         if not force and not _graphic_v68827_should_refresh(feedback_rows, snapshot):
             return _graphic_v68827_extract_snapshot_payload(snapshot)
         if not feedback_rows:
@@ -33105,11 +33406,8 @@ def _graphic_v68827_current_intelligence():
     if isinstance(cached, dict) and cached:
         return cached
     try:
-        rows = safe_select_rows(
-            "learned_knowledge", order_columns=["updated_at", "created_at"], limit=100,
-        )
         payload = _graphic_v68827_extract_snapshot_payload(
-            _graphic_v68827_latest_snapshot(rows)
+            _graphic_v68827_latest_snapshot()
         )
         if payload:
             st.session_state["graphic_v68827_intelligence"] = payload
@@ -44674,7 +44972,7 @@ def render_pending_knowledge_review():
         st.session_state.pending_knowledge_refresh_token = (
             int(st.session_state.get("pending_knowledge_refresh_token", 0)) + 1
         )
-        st.rerun()
+        _rerun_fragment_or_app()
 
     try:
         rows = select_pending_knowledge_rows(limit=500)
@@ -44743,7 +45041,7 @@ def render_pending_knowledge_review():
                             st.success("Approved and merged with existing knowledge.")
                         else:
                             st.success("Approved and synchronized successfully.")
-                        st.rerun()
+                        _rerun_fragment_or_app()
                     except Exception as error:
                         st.error(f"Approval failed: {error}")
 
@@ -44757,7 +45055,7 @@ def render_pending_knowledge_review():
                     try:
                         reject_pending_knowledge(row)
                         st.success("Submission rejected.")
-                        st.rerun()
+                        _rerun_fragment_or_app()
                     except Exception as error:
                         st.error(f"Rejection failed: {error}")
 
@@ -50870,8 +51168,10 @@ GRAPHIC_STYLE_DEFAULT_SOURCE_TYPE = "graphic_style_default"
 def _graphic_style_admin_rows(include_archived=False, limit=1000):
     """Load Graphic style rows from the existing learned_knowledge table."""
     try:
-        rows = safe_select_rows(
+        rows = safe_select_filtered_rows(
             "learned_knowledge",
+            casefold_filters={"assistant": "Graphic Marketing"},
+            select_columns="*",
             order_columns=["updated_at", "created_at"],
             limit=limit,
         )
@@ -51164,18 +51464,18 @@ def render_graphic_intelligence_center():
                 if c1.button("Set as Default", key=f"style_default_{row.get('id')}", disabled=profile["is_default"]):
                     _graphic_style_set_default(active_rows, row.get("id"))
                     st.success("Default Graphic style updated.")
-                    st.rerun()
+                    _rerun_fragment_or_app()
                 archive_label = "Restore" if profile["is_archived"] else "Archive"
                 if c2.button(archive_label, key=f"style_archive_{row.get('id')}"):
                     source = "graphic_uploaded_reference_style_set" if profile["is_archived"] else GRAPHIC_STYLE_ARCHIVED_SOURCE_TYPE
                     _graphic_style_update_record(row, source_type=source, note=f"{archive_label} from Graphic Intelligence Center")
                     st.success(f"Style {archive_label.lower()}d.")
-                    st.rerun()
+                    _rerun_fragment_or_app()
                 confirm = c3.checkbox("Confirm delete", key=f"style_delete_confirm_{row.get('id')}")
                 if c3.button("Delete Permanently", key=f"style_delete_{row.get('id')}", disabled=not confirm):
                     _graphic_style_delete_record(row)
                     st.success("Style deleted. A version snapshot was retained.")
-                    st.rerun()
+                    _rerun_fragment_or_app()
 
     with edit_tab:
         selected_id = st.selectbox("Style collection", options=list(label_map), format_func=lambda x: label_map[x], key="graphic_style_edit_select")
@@ -51189,7 +51489,7 @@ def render_graphic_intelligence_center():
             tags = [x.strip() for x in new_tags_text.split(",") if x.strip()]
             _graphic_style_update_record(selected, name=new_name, tags=tags, note="Renamed or retagged by admin")
             st.success("Style collection updated and versioned.")
-            st.rerun()
+            _rerun_fragment_or_app()
 
     with compare_tab:
         c1, c2 = st.columns(2)
@@ -51225,7 +51525,7 @@ def render_graphic_intelligence_center():
             selected_rows = [r for r in active_rows if str(r.get("id")) in set(map(str, merge_ids))]
             _graphic_style_merge_records(selected_rows, merge_name, [x.strip() for x in merge_tags.split(",") if x.strip()])
             st.success("Styles merged. Source collections were archived and versioned.")
-            st.rerun()
+            _rerun_fragment_or_app()
 
     with campaign_tab:
         st.markdown("#### Campaign Memory")
@@ -51255,7 +51555,7 @@ def render_graphic_intelligence_center():
                     keywords=f"brand rule {rule_name}", category="Brand Governance", confidence=95
                 )
                 st.success("Brand rule saved and will be used by the Brand Guardian agent.")
-                st.rerun()
+                _rerun_fragment_or_app()
         brand_rows = _graphic_intelligence_rows({GRAPHIC_BRAND_RULE_SOURCE_TYPE}, limit=200)
         for row in brand_rows[:100]:
             with st.expander(str(row.get("issue") or "Brand rule")):
@@ -51266,7 +51566,7 @@ def render_graphic_intelligence_center():
                         try:
                             supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
                             st.success("Brand rule deleted.")
-                            st.rerun()
+                            _rerun_fragment_or_app()
                         except Exception as error:
                             st.error(f"Could not delete brand rule: {error}")
 
@@ -53360,6 +53660,7 @@ else:
             queued_postprocess=bool(
                 st.session_state.get("pending_ai_postprocess")
             ),
+            runtime_memory=runtime_memory_snapshot(),
         )
         st.rerun()
 
