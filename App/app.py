@@ -47,7 +47,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68890 — Deterministic Technical Image Context Fix; existing pipelines preserved
+# AutoTecPro AI v68891 — Password-Protected Website Learning; v68890 Pipelines Preserved
 # AutoTecPro AI v68880 — Mobile UI & Workspace Smoothness; v68879 Pipelines Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
@@ -48694,44 +48694,70 @@ def strip_website_image_control_tail_v68870(text_value):
     return value
 
 
-def extract_public_webpage(url):
-    """Download and extract readable knowledge from one public webpage."""
-    normalized_url = normalize_website_url(url)
-    requested_url = normalized_url
-    validate_public_website_host(normalized_url)
+def _website_page_is_password_protected_v68891(page_html):
+    """Detect the standard WordPress protected-post password form."""
+    value = str(page_html or "")
+    if not value:
+        return False
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (compatible; AutoTecProKnowledgeBot/1.0; "
-            "+https://autotecpro.com)"
-        ),
-        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
+    has_password_input = bool(re.search(
+        r"<input\b[^>]*\bname\s*=\s*[\"']post_password[\"'][^>]*>",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    ))
+    has_postpass_action = bool(re.search(
+        r"<form\b[^>]*\baction\s*=\s*[\"'][^\"']*wp-login\.php\?[^\"']*action=postpass[^\"']*[\"'][^>]*>",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    ))
+    has_password_form_class = bool(re.search(
+        r"<form\b[^>]*\bclass\s*=\s*[\"'][^\"']*\bpost-password-form\b[^\"']*[\"'][^>]*>",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    ))
 
-    response = http_session.get(
-        normalized_url,
-        headers=headers,
-        timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
-        allow_redirects=True,
-        stream=True,
+    return bool(
+        has_password_input
+        and (has_postpass_action or has_password_form_class)
     )
-    response.raise_for_status()
 
-    final_url = normalize_website_url(response.url)
-    validate_public_website_host(final_url)
 
-    content_type = str(response.headers.get("Content-Type") or "").lower()
-    if not (
-        "text/html" in content_type
-        or "application/xhtml+xml" in content_type
-        or "text/plain" in content_type
-        or not content_type
-    ):
-        raise ValueError(
-            "This link is not a supported webpage. "
-            f"Returned content type: {content_type or 'unknown'}"
+def _website_password_post_endpoint_v68891(page_html, page_url):
+    """Resolve a same-origin WordPress post-password form endpoint."""
+    value = str(page_html or "")
+    match = re.search(
+        r"<form\b[^>]*\baction\s*=\s*[\"']([^\"']*wp-login\.php\?[^\"']*action=postpass[^\"']*)[\"'][^>]*>",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if match:
+        endpoint = html.unescape(str(match.group(1) or "").strip())
+        endpoint = urljoin(page_url, endpoint)
+    else:
+        parsed_page = urlparse(page_url)
+        endpoint = (
+            f"{parsed_page.scheme}://{parsed_page.netloc}"
+            "/wp-login.php?action=postpass"
         )
+
+    endpoint = normalize_website_url(endpoint)
+    validate_public_website_host(endpoint)
+
+    page_host = str(urlparse(page_url).hostname or "").strip().casefold()
+    endpoint_host = str(urlparse(endpoint).hostname or "").strip().casefold()
+    if page_host != endpoint_host:
+        raise ValueError(
+            "The password form points to a different website and was blocked "
+            "for security."
+        )
+
+    return endpoint
+
+
+def _website_read_response_bytes_v68891(response):
+    """Read one webpage response while enforcing the existing 5 MB limit."""
+    response.raise_for_status()
 
     declared_length = response.headers.get("Content-Length")
     if declared_length:
@@ -48740,7 +48766,7 @@ def extract_public_webpage(url):
                 raise ValueError(
                     "The webpage is larger than the 5 MB extraction limit."
                 )
-        except ValueError as error:
+        except (TypeError, ValueError) as error:
             if "larger than" in str(error):
                 raise
 
@@ -48756,57 +48782,159 @@ def extract_public_webpage(url):
             )
         chunks.append(chunk)
 
-    raw_bytes = b"".join(chunks)
+    return b"".join(chunks)
+
+
+def _website_decode_response_v68891(response, raw_bytes):
     encoding = response.encoding or response.apparent_encoding or "utf-8"
-    page_text = raw_bytes.decode(encoding, errors="replace")
+    return bytes(raw_bytes or b"").decode(encoding, errors="replace")
 
-    title = ""
-    if "text/plain" in content_type:
-        extracted_text = page_text
-    else:
-        parser = KnowledgePageHTMLParser()
-        parser.feed(page_text)
-        parser.close()
-        title = parser.title
-        extracted_text = parser.text()
 
-    cleaned_text = clean_extracted_website_text(extracted_text)
-    if len(cleaned_text) < 120:
-        raise ValueError(
-            "Not enough readable content could be extracted. "
-            "The page may require login, JavaScript, or may block automated access."
+def extract_public_webpage(url, page_password=""):
+    """Download and extract readable knowledge from one public webpage.
+
+    v68891 adds isolated WordPress protected-post authentication only for this
+    extraction call. Passwords are never stored in the extraction record.
+    """
+    normalized_url = normalize_website_url(url)
+    requested_url = normalized_url
+    validate_public_website_host(normalized_url)
+    clean_page_password = str(page_password or "")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; AutoTecProKnowledgeBot/1.0; "
+            "+https://autotecpro.com)"
+        ),
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    with requests.Session() as website_session:
+        response = website_session.get(
+            normalized_url,
+            headers=headers,
+            timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
+            allow_redirects=True,
+            stream=True,
+        )
+        raw_bytes = _website_read_response_bytes_v68891(response)
+
+        final_url = normalize_website_url(response.url)
+        validate_public_website_host(final_url)
+
+        content_type = str(response.headers.get("Content-Type") or "").lower()
+        if not (
+            "text/html" in content_type
+            or "application/xhtml+xml" in content_type
+            or "text/plain" in content_type
+            or not content_type
+        ):
+            raise ValueError(
+                "This link is not a supported webpage. "
+                f"Returned content type: {content_type or 'unknown'}"
+            )
+
+        page_text = _website_decode_response_v68891(response, raw_bytes)
+
+        if (
+            "text/html" in content_type
+            or "application/xhtml+xml" in content_type
+            or not content_type
+        ) and _website_page_is_password_protected_v68891(page_text):
+            if not clean_page_password:
+                raise ValueError(
+                    "This webpage is password protected. Enter the Page Password "
+                    "and click Extract and Preview again."
+                )
+
+            password_endpoint = _website_password_post_endpoint_v68891(
+                page_text,
+                final_url,
+            )
+            password_response = website_session.post(
+                password_endpoint,
+                data={
+                    "post_password": clean_page_password,
+                    "Submit": "Enter",
+                },
+                headers={
+                    **headers,
+                    "Referer": final_url,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
+                allow_redirects=True,
+            )
+            password_response.raise_for_status()
+
+            response = website_session.get(
+                final_url,
+                headers=headers,
+                timeout=WEBSITE_FETCH_TIMEOUT_SECONDS,
+                allow_redirects=True,
+                stream=True,
+            )
+            raw_bytes = _website_read_response_bytes_v68891(response)
+            final_url = normalize_website_url(response.url)
+            validate_public_website_host(final_url)
+            content_type = str(
+                response.headers.get("Content-Type") or ""
+            ).lower()
+            page_text = _website_decode_response_v68891(response, raw_bytes)
+
+            if _website_page_is_password_protected_v68891(page_text):
+                raise ValueError(
+                    "The Page Password was not accepted. Check the password and "
+                    "click Extract and Preview again."
+                )
+
+        title = ""
+        if "text/plain" in content_type:
+            extracted_text = page_text
+            parser = None
+        else:
+            parser = KnowledgePageHTMLParser()
+            parser.feed(page_text)
+            parser.close()
+            title = parser.title
+            extracted_text = parser.text()
+
+        cleaned_text = clean_extracted_website_text(extracted_text)
+        if len(cleaned_text) < 120:
+            raise ValueError(
+                "Not enough readable content could be extracted. "
+                "The page may require login, JavaScript, or may block automated access."
+            )
+
+        page_title = clean_extracted_website_text(title)[:300]
+        if not page_title:
+            page_title = urlparse(final_url).path.rstrip("/").split("/")[-1]
+            page_title = page_title or urlparse(final_url).hostname or "Website"
+
+        extracted_at = datetime.now(timezone.utc).isoformat()
+        content_hash = hashlib.sha256(
+            cleaned_text.encode("utf-8")
+        ).hexdigest()
+        image_candidates = _website_image_candidate_urls(
+            getattr(parser, "images", []) if parser is not None else [],
+            final_url,
         )
 
-    page_title = clean_extracted_website_text(title)[:300]
-    if not page_title:
-        page_title = urlparse(final_url).path.rstrip("/").split("/")[-1]
-        page_title = page_title or urlparse(final_url).hostname or "Website"
+        return {
+            "requested_url": requested_url,
+            "source_url": final_url,
+            "title": page_title,
+            "content": cleaned_text,
+            "extracted_at": extracted_at,
+            "content_hash": content_hash,
+            "character_count": len(cleaned_text),
+            "word_count": len(cleaned_text.split()),
+            "image_candidates": image_candidates,
+            "image_candidate_count": len(image_candidates),
+            "password_protected_access": bool(clean_page_password),
+        }
 
-    extracted_at = datetime.now(timezone.utc).isoformat()
-    content_hash = hashlib.sha256(
-        cleaned_text.encode("utf-8")
-    ).hexdigest()
-    image_candidates = _website_image_candidate_urls(
-        getattr(parser, "images", []) if "parser" in locals() else [],
-        final_url,
-    )
-
-    return {
-        # Keep both values:
-        # - requested_url is used only to detect whether the user edited the
-        #   URL field after extraction.
-        # - source_url is the final redirected page saved for traceability.
-        "requested_url": requested_url,
-        "source_url": final_url,
-        "title": page_title,
-        "content": cleaned_text,
-        "extracted_at": extracted_at,
-        "content_hash": content_hash,
-        "character_count": len(cleaned_text),
-        "word_count": len(cleaned_text.split()),
-        "image_candidates": image_candidates,
-        "image_candidate_count": len(image_candidates),
-    }
 
 
 def website_knowledge_filename(extraction):
@@ -48920,6 +49048,16 @@ def render_learn_from_website(database_choice):
         placeholder="https://example.com/product-page",
         key="stable_admin_website_url",
     )
+    website_page_password = st.text_input(
+        "Page Password (optional)",
+        type="password",
+        placeholder="Enter only if this webpage is password protected",
+        key="stable_admin_website_page_password_v68891",
+        help=(
+            "Used only to unlock this webpage during extraction. "
+            "The password is not saved to the knowledge base."
+        ),
+    )
 
     extract_left, extract_center, extract_right = st.columns(
         [3, 4, 3],
@@ -48936,7 +49074,10 @@ def render_learn_from_website(database_choice):
     if extract_submitted:
         try:
             with st.spinner("Extracting and cleaning webpage content..."):
-                extraction = extract_public_webpage(website_url)
+                extraction = extract_public_webpage(
+                    website_url,
+                    page_password=website_page_password,
+                )
             st.session_state.admin_website_extraction = extraction
             st.success("Website content extracted. Review it before saving.")
         except Exception as error:
