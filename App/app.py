@@ -41015,21 +41015,13 @@ def _delete_old_unpinned_conversation(username, conversation_id):
 
     _detach_learning_reference_before_history_delete(conversation_id)
 
-    (
-        supabase
-        .table("messages")
-        .delete()
-        .eq("conversation_id", conversation_id)
-        .execute()
-    )
-    (
-        supabase
-        .table("conversations")
-        .delete()
-        .eq("id", conversation_id)
-        .eq("username", username)
-        .eq("pinned", False)
-        .execute()
+    # v68991: use the same rollback-safe deletion primitive as the explicit
+    # user delete path. Ownership and the unpinned state were verified above,
+    # so ownership_verified=True avoids a redundant database ownership lookup.
+    # If parent deletion fails after child deletion, the persistence layer
+    # restores the exact message snapshot before re-raising.
+    persistence_delete_owned_conversation(
+        supabase, username, conversation_id, ownership_verified=True
     )
     return True
 
@@ -58412,12 +58404,41 @@ def generate_graphic_marketing_images(
 
 '''
 
+_GRAPHIC_V68835_COMPAT_SOURCE_SHA256 = hashlib.sha256(
+    _GRAPHIC_V68835_COMPAT_SOURCE.encode("utf-8")
+).hexdigest()
+
+
+@st.cache_resource(show_spinner=False)
+def _graphic_v68991_compiled_v68835_code(source_sha256):
+    """Compile the immutable v68835 compatibility source once per app process.
+
+    The source digest is part of the cache key so any future compatibility-source
+    change invalidates the compiled object automatically. Only the code object is
+    shared; every namespace remains fresh, preserving session/runtime isolation.
+    """
+    if str(source_sha256 or "") != _GRAPHIC_V68835_COMPAT_SOURCE_SHA256:
+        raise RuntimeError("The v68835 compatibility source digest is inconsistent.")
+    return compile(_GRAPHIC_V68835_COMPAT_SOURCE, "<v68835_graphic_compat>", "exec")
+
+
 def _graphic_v68989_build_v68835_namespace():
     ns = dict(globals())
-    exec(compile(_GRAPHIC_V68835_COMPAT_SOURCE, "<v68835_graphic_compat>", "exec"), ns, ns)
+    code = _graphic_v68991_compiled_v68835_code(
+        _GRAPHIC_V68835_COMPAT_SOURCE_SHA256
+    )
+    exec(code, ns, ns)
     return ns
 
 _GRAPHIC_V68835_NS = _graphic_v68989_build_v68835_namespace()
+
+# v68990 — output-neutral performance bridge for the frozen v68835 compatibility lane.
+# These two helpers return the same bytes/fingerprints as v68835 while avoiding
+# repeated PIL/base64 work and repeated hashing of identical large data URLs.
+# No v68835 router, prompt, provider, compositor, icon, geometry, QA, or recovery
+# function is replaced here.
+_GRAPHIC_V68835_NS["normalized_image_data_url"] = normalized_image_data_url
+_GRAPHIC_V68835_NS["_graphic_role_fingerprint_v8200"] = _graphic_role_fingerprint_v8200
 
 def _graphic_v68989_mode(prompt_text, uploaded_files, forced_upload_role):
     original_prompt = str(prompt_text or "")
