@@ -47332,6 +47332,7 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
     seen_hashes = set()
     attempted = 0
     skipped = 0
+    failures = 0
 
     for candidate in candidates:
         if len(learned) >= WEBSITE_MAX_ANALYZED_IMAGES:
@@ -47386,6 +47387,7 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             })
         except Exception as error:
             skipped += 1
+            failures += 1
             diagnostic_log(
                 "website_image_ingestion_skipped_v68870",
                 image_url=str((candidate or {}).get("url") or "")[:500],
@@ -47397,6 +47399,7 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
         "images": learned,
         "attempted": attempted,
         "skipped": skipped,
+        "failures": failures,
         "discovered": len(candidates),
         "limited": len(candidates) > WEBSITE_MAX_ANALYZED_IMAGES,
     }
@@ -47548,13 +47551,44 @@ def _website_image_index_issue_v68883(image_item):
     return f"website-image:{digest[:40]}"
 
 
+def _website_image_page_identity_v69003(payload_or_extraction):
+    """Return the canonical page identity used for page-scoped website image records."""
+    source = dict(payload_or_extraction or {})
+    raw_url = (
+        str(source.get("requested_page") or "").strip()
+        or str(source.get("source_page") or "").strip()
+        or str(source.get("requested_url") or "").strip()
+        or str(source.get("source_url") or "").strip()
+    )
+    if not raw_url:
+        return ""
+    try:
+        return canonical_website_url_identity(raw_url)
+    except Exception:
+        return raw_url.rstrip("/").casefold()
+
+
+def _website_image_scoped_issue_v69003(payload):
+    """Use page + database + image identity so the same image can safely exist on multiple pages."""
+    payload = dict(payload or {})
+    page_identity = _website_image_page_identity_v69003(payload)
+    database_choice = str(payload.get("database_choice") or "").strip().casefold()
+    image_identity = str(payload.get("image_sha256") or "").strip().lower()
+    if not image_identity:
+        image_identity = hashlib.sha256(
+            str(payload.get("image_url") or "").encode("utf-8")
+        ).hexdigest()
+    page_hash = hashlib.sha256(
+        f"{database_choice}|{page_identity}".encode("utf-8")
+    ).hexdigest()[:16]
+    return f"website-image:{page_hash}:{image_identity[:40]}"
+
+
 def _website_image_index_upsert_v68883(payload):
-    """Persist one compact image-index row using the existing learned_knowledge table."""
+    """Persist one page-scoped compact image-index row using learned_knowledge."""
     if not isinstance(payload, dict):
         return False
-    issue = "website-image:" + str(payload.get("image_sha256") or hashlib.sha256(
-        str(payload.get("image_url") or "").encode("utf-8")
-    ).hexdigest())[:40]
+    issue = _website_image_scoped_issue_v69003(payload)
 
     try:
         existing = (
@@ -47602,6 +47636,176 @@ def _website_image_index_upsert_v68883(payload):
     else:
         safe_insert_row("learned_knowledge", clean_row)
     return True
+
+
+def _website_image_index_rows_for_page_v69003(extraction, database_choice):
+    """Load durable website-image rows for one canonical page and one destination database."""
+    target_page = _website_image_page_identity_v69003(extraction)
+    target_database = str(database_choice or "").strip().casefold()
+    matches = []
+    try:
+        result = (
+            supabase.table("learned_knowledge")
+            .select("id,issue,solution,approved_answer,source_type")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
+            .execute()
+        )
+        rows = list(result.data or [])
+    except Exception as error:
+        diagnostic_log(
+            "website_image_page_sync_load_failed_v69003",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return [], False
+
+    for row in rows:
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+            continue
+        try:
+            payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("database_choice") or "").strip().casefold() != target_database:
+            continue
+        if _website_image_page_identity_v69003(payload) != target_page:
+            continue
+        matches.append({"row": row, "payload": payload})
+    return matches, True
+
+
+def _website_archive_path_is_referenced_v69003(archive_path):
+    """Fail closed: remove a stored image only when no other website-image row references it."""
+    target = str(archive_path or "").strip()
+    if not target:
+        return False, True
+    try:
+        result = (
+            supabase.table("learned_knowledge")
+            .select("solution,approved_answer,source_type")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
+            .execute()
+        )
+        rows = list(result.data or [])
+    except Exception:
+        return True, False
+    for row in rows:
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+            continue
+        try:
+            payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
+        except Exception:
+            continue
+        if str((payload or {}).get("archive_storage_path") or "").strip() == target:
+            return True, True
+    return False, True
+
+
+def _website_sync_page_image_index_v69003(extraction, database_choice, image_items):
+    """Delete stale/legacy image-index rows for this page after replacement is safely indexed."""
+    existing, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction,
+        database_choice,
+    )
+    stats = {
+        "loaded": len(existing),
+        "stale_deleted": 0,
+        "legacy_migrated": 0,
+        "archive_deleted": 0,
+        "failures": 0,
+        "completed": bool(loaded_ok),
+    }
+    if not loaded_ok:
+        stats["failures"] += 1
+        stats["completed"] = False
+        return stats
+
+    current_payloads = []
+    current_issues = set()
+    for item in image_items or []:
+        if not isinstance(item, dict):
+            continue
+        payload = _website_image_index_record_v68883(
+            extraction,
+            database_choice,
+            item,
+        )
+        current_payloads.append(payload)
+        current_issues.add(_website_image_scoped_issue_v69003(payload))
+
+    candidate_archive_paths = set()
+    for entry in existing:
+        row = dict(entry.get("row") or {})
+        payload = dict(entry.get("payload") or {})
+        row_id = str(row.get("id") or "").strip()
+        issue = str(row.get("issue") or "").strip()
+        expected_issue = _website_image_scoped_issue_v69003(payload)
+        image_digest = str(payload.get("image_sha256") or "").strip().lower()
+        if not image_digest:
+            image_digest = hashlib.sha256(
+                str(payload.get("image_url") or "").encode("utf-8")
+            ).hexdigest()
+        page_payload = dict(payload)
+        page_payload["image_sha256"] = image_digest
+        current_issue_for_payload = _website_image_scoped_issue_v69003(page_payload)
+        should_keep = current_issue_for_payload in current_issues and issue == expected_issue
+        if should_keep:
+            continue
+        if not row_id:
+            stats["failures"] += 1
+            stats["completed"] = False
+            continue
+        try:
+            supabase.table("learned_knowledge").delete().eq("id", row_id).execute()
+            archive_path = str(payload.get("archive_storage_path") or "").strip()
+            if archive_path:
+                candidate_archive_paths.add(archive_path)
+            if current_issue_for_payload in current_issues:
+                stats["legacy_migrated"] += 1
+            else:
+                stats["stale_deleted"] += 1
+        except Exception as error:
+            stats["failures"] += 1
+            stats["completed"] = False
+            diagnostic_log(
+                "website_image_page_sync_delete_failed_v69003",
+                row_id=row_id,
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+    for archive_path in sorted(candidate_archive_paths):
+        referenced, checked = _website_archive_path_is_referenced_v69003(archive_path)
+        if not checked:
+            stats["failures"] += 1
+            stats["completed"] = False
+            continue
+        if referenced:
+            continue
+        try:
+            _product_library_storage_remove([archive_path])
+            stats["archive_deleted"] += 1
+        except Exception as error:
+            stats["failures"] += 1
+            stats["completed"] = False
+            diagnostic_log(
+                "website_image_page_sync_archive_delete_failed_v69003",
+                archive_path=archive_path,
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+    try:
+        _website_image_index_rows_v68883.clear()
+    except Exception:
+        pass
+    return stats
 
 
 def _website_archive_and_index_images_v68883(
@@ -48887,6 +49091,7 @@ def save_website_knowledge_package(
             "images": [],
             "attempted": 0,
             "skipped": 0,
+            "failures": 0,
             "discovered": 0,
             "limited": False,
         }
@@ -48909,6 +49114,19 @@ def save_website_knowledge_package(
             database_choice,
             list(image_analysis.get("images") or []),
         )
+        website_image_sync_v69003 = {
+            "completed": False,
+            "skipped_reason": "image-analysis-or-index-failure",
+        }
+        if (
+            int(image_analysis.get("failures") or 0) == 0
+            and int(website_image_index_stats_v68883.get("failures") or 0) == 0
+        ):
+            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                extraction,
+                database_choice,
+                list(image_analysis.get("images") or []),
+            )
         return {
             "already_saved": True,
             "updated_existing_url": False,
@@ -48919,6 +49137,7 @@ def save_website_knowledge_package(
             "images": list(image_analysis.get("images") or []),
             "image_analysis": image_analysis,
             "website_image_index_v68883": website_image_index_stats_v68883,
+            "website_image_sync_v69003": website_image_sync_v69003,
         }
 
     # Discover all prior versions for this exact URL in the selected database.
@@ -48935,12 +49154,19 @@ def save_website_knowledge_package(
         image_analysis=image_analysis,
     )
 
-    # Preserve the existing image archive/index behavior.
-    website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-        extraction,
-        database_choice,
-        list(image_analysis.get("images") or []),
-    )
+    # v69003: defer image archive/index mutation until the replacement vector
+    # package is confirmed indexed. This prevents a failed replacement from
+    # partially changing the durable image knowledge for the existing page.
+    website_image_index_stats_v68883 = {
+        "indexed": 0,
+        "archived": 0,
+        "failures": 0,
+        "deferred_until_indexed_v69003": True,
+    }
+    website_image_sync_v69003 = {
+        "completed": False,
+        "skipped_reason": "replacement-not-yet-indexed",
+    }
 
     website_file = ManagedUploadedFile(
         package_text.encode("utf-8"),
@@ -48979,19 +49205,48 @@ def save_website_knowledge_package(
     cleanup_pending_v68892 = False
 
     if str(indexing_status_v68892 or "").lower() == "completed":
-        for old_row in prior_same_url_files_v68892:
-            old_file_id = str(old_row.get("file_id") or "").strip()
-            if not old_file_id or old_file_id == str(file_id):
-                continue
-            if _website_remove_vector_file_v68892(
-                selected_vector_store_id,
-                old_file_id,
-            ):
-                replaced_file_count_v68892 += 1
-            else:
-                cleanup_pending_v68892 = True
+        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+            extraction,
+            database_choice,
+            list(image_analysis.get("images") or []),
+        )
+        image_sync_safe_v69003 = (
+            int(image_analysis.get("failures") or 0) == 0
+            and int(website_image_index_stats_v68883.get("failures") or 0) == 0
+        )
+        if image_sync_safe_v69003:
+            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                extraction,
+                database_choice,
+                list(image_analysis.get("images") or []),
+            )
+        else:
+            website_image_sync_v69003 = {
+                "completed": False,
+                "skipped_reason": "image-analysis-or-index-failure",
+                "image_analysis_failures": int(image_analysis.get("failures") or 0),
+                "image_index_failures": int(website_image_index_stats_v68883.get("failures") or 0),
+            }
+
+        # Remove the superseded vector package only after the image knowledge
+        # for this same canonical page has also synchronized successfully.
+        if bool(website_image_sync_v69003.get("completed")):
+            for old_row in prior_same_url_files_v68892:
+                old_file_id = str(old_row.get("file_id") or "").strip()
+                if not old_file_id or old_file_id == str(file_id):
+                    continue
+                if _website_remove_vector_file_v68892(
+                    selected_vector_store_id,
+                    old_file_id,
+                ):
+                    replaced_file_count_v68892 += 1
+                else:
+                    cleanup_pending_v68892 = True
+        elif prior_same_url_files_v68892:
+            cleanup_pending_v68892 = True
     elif prior_same_url_files_v68892:
-        # Fail safe: keep the old version until the new one is confirmed indexed.
+        # Fail safe: keep the old version and old image index until the new
+        # replacement package is confirmed indexed.
         cleanup_pending_v68892 = True
 
     return {
@@ -49005,6 +49260,7 @@ def save_website_knowledge_package(
         "images": list(image_analysis.get("images") or []),
         "image_analysis": image_analysis,
         "website_image_index_v68883": website_image_index_stats_v68883,
+        "website_image_sync_v69003": website_image_sync_v69003,
     }
 
 
