@@ -55795,3 +55795,2665 @@ if _pending_workspace_auth_refresh_v68880:
 # the fixed cover until this point prevents stale login or authenticated DOM
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
+
+
+# ============================================================
+# v68989 — Isolated v68835 Reference + Installed View compatibility lane
+# v68835 is the visual/behavior authority for these two modes only.
+# All other Graphic modes remain on the v68988 engine.
+# ============================================================
+GRAPHIC_V68989_COMPAT_ENGINE = "v68989-isolated-v68835-reference-installed"
+_GRAPHIC_V68989_LATEST_ENGINE = generate_graphic_marketing_images
+
+_GRAPHIC_V68835_COMPAT_SOURCE = r'''
+def _graphic_alpha_geometry_signature_v55000(layer):
+    """Return deterministic whole-product and lower-housing alpha geometry metrics."""
+    if Image is None or layer is None:
+        return {"available": False}
+    try:
+        import cv2
+        import numpy as np
+        rgba = layer.convert("RGBA")
+        alpha = np.asarray(rgba.getchannel("A"), dtype=np.uint8)
+        mask = (alpha >= 8).astype(np.uint8)
+        ys, xs = np.where(mask > 0)
+        if not len(xs):
+            return {"available": False}
+        x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+        crop = mask[y0:y1, x0:x1]
+        h, w = crop.shape
+        lower_start = max(0, int(round(h * 0.70)))
+        lower = crop[lower_start:, :]
+        contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contour = max(contours, key=cv2.contourArea) if contours else None
+        lower_widths = [int(row.sum()) for row in lower]
+        lower_components = int(cv2.connectedComponents(lower, connectivity=8)[0] - 1) if lower.size else 0
+        payload = crop.tobytes() + b"|" + lower.tobytes()
+        return {
+            "available": True, "bbox": [x0, y0, x1, y1], "visible_size": [w, h],
+            "aspect_ratio": round(w / max(1, h), 10),
+            "alpha_sha256": hashlib.sha256(payload).hexdigest(),
+            "area": int(crop.sum()),
+            "perimeter": round(float(cv2.arcLength(contour, True)), 4) if contour is not None else 0.0,
+            "lower_start_ratio": 0.70, "lower_area": int(lower.sum()),
+            "lower_row_widths": lower_widths, "lower_components": lower_components,
+            "engine": "product-alpha-geometry-v55000",
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v55000_geometry_signature_failed", error_type=type(error).__name__, error=str(error))
+        return {"available": False, "reason": str(error)[:300]}
+
+
+def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_size, reference_blueprint, vehicle_profile):
+    """Run the compiled five-stage commercial pipeline with exact-product authority."""
+    product_item = next((item for item in role_items if item.get("role") == "product_photo"), None)
+    if not product_item:
+        raise RuntimeError("A product source is required for the controlled campaign engine.")
+
+    spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
+    compiled = _graphic_execution_blueprint_v43000(
+        prompt_text, spec, reference_blueprint, role_items, vehicle_profile, output_size
+    )
+    if not compiled.get("ready"):
+        missing = []
+        for name, stage in (compiled.get("stages") or {}).items():
+            if isinstance(stage, dict) and stage.get("available") is False:
+                missing.append(name)
+        raise RuntimeError(
+            "The five-stage graphic compiler could not prepare a safe campaign blueprint"
+            + (": " + ", ".join(missing) if missing else ".")
+        )
+
+    campaign_stage = ((compiled.get("stages") or {}).get("3_campaign_compiler") or {})
+    campaign_fields = dict(campaign_stage.get("fields") or {})
+    spec.update({
+        "compatibility": campaign_fields.get("compatibility") or spec.get("compatibility"),
+        "headline": campaign_fields.get("headline") or spec.get("headline"),
+        "tagline": campaign_fields.get("tagline") or spec.get("tagline"),
+        "feature_labels": campaign_fields.get("features") or spec.get("feature_labels"),
+        "bottom_benefits": campaign_fields.get("benefits") or spec.get("bottom_benefits"),
+        "compatibility_required_tokens": campaign_stage.get("required_compatibility_tokens") or [],
+        "compatibility_locked": True,
+        "compatibility_source": "campaign-compiler-v43000",
+    })
+
+    state = get_graphic_project_state()
+    template_key = str(state.get("brand_template") or "autotecpro_adventure")
+    state["five_stage_execution_blueprint_v43000"] = compiled
+    state["active_scene_intelligence_v41000"] = dict(compiled.get("scene_strategy") or {})
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+    background, route = _graphic_generate_background_plate_v3200(
+        role_items, prompt_text, output_size, vehicle_profile, spec,
+        ((compiled.get("stages") or {}).get("4_layout_compiler") or {}).get("normalized_boxes") or reference_blueprint,
+        template_key,
+    )
+
+    composed, metadata = _graphic_stage5_execute_v43000(
+        background, product_item, prompt_text, output_size, spec, vehicle_profile,
+        role_items, compiled, template_key=template_key, product_dna=state.get("product_dna") or {},
+    )
+    metadata["five_stage_execution_blueprint_v43000"] = compiled
+    metadata["reference_geometry"] = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
+    metadata["product_library_grounded"] = bool(spec.get("product_library_grounded"))
+    metadata["ultimate_scene_intelligence"] = dict(compiled.get("scene_strategy") or {})
+
+    result = _graphic_build_provider_result_v3000(
+        composed, prompt_text, output_size, role_items,
+        route + "+five-stage-controlled-compositor-v48000",
+        reference_blueprint, vehicle_profile, corrected=True,
+    )
+    result["product_identity_method"] = "engine-v48000-compiled-detail-restored-product-composite"
+    result["layered_metadata"].update(metadata)
+
+    scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
+    result["layered_metadata"]["qa_scorecard_v43000"] = scorecard
+    quality = _graphic_quality_verification_v40000(result["layered_metadata"])
+    if not scorecard.get("passed"):
+        quality = {
+            "passed": False,
+            "failed": list(dict.fromkeys(
+                list(quality.get("failed") or []) + list(scorecard.get("critical_failed") or [])
+            )),
+            "scorecard_v43000": scorecard,
+        }
+
+    retry_plan = _graphic_adaptive_retry_plan_v40000(quality)
+    executed = []
+    if "restore_immutable_product_master_no_provider_retry" in retry_plan.get("actions", []):
+        executed.append("immutable product master retained by compiled compositor")
+    if "rerender_local_typography_only" in retry_plan.get("actions", []):
+        executed.append("campaign copy remained local and immutable")
+    retry_plan["executed"] = executed
+    result["layered_metadata"]["ultimate_quality_verification"] = quality
+    result["layered_metadata"]["ultimate_adaptive_retry_plan"] = retry_plan
+
+    stage_status = {
+        "reference_intelligence": bool(((compiled.get("stages") or {}).get("1_reference_intelligence") or {}).get("version")),
+        "product_intelligence": bool(((compiled.get("stages") or {}).get("2_product_intelligence") or {}).get("available")),
+        "campaign_compiler": bool(((compiled.get("stages") or {}).get("3_campaign_compiler") or {}).get("available")),
+        "layout_compiler": bool(((compiled.get("stages") or {}).get("4_layout_compiler") or {}).get("passed")),
+        "image_generator": bool((metadata.get("five_stage_execution_v43000") or {}).get("version")),
+        "quality": bool(quality),
+        "final_composite": True,
+    }
+    result["layered_metadata"]["five_stage_trace_v43000"] = {
+        "stage_status": stage_status,
+        "completed": sum(1 for value in stage_status.values() if value),
+        "total": len(stage_status),
+        "all_completed": all(stage_status.values()),
+        "version": "five-stage-trace-v43000",
+    }
+
+    if not quality.get("passed"):
+        failed_checks = list(quality.get("failed") or [])
+        result = _graphic_mark_unverified_v4100(
+            result,
+            "The exact-product compiled campaign was created, but these QA checks need review: "
+            + ", ".join(failed_checks),
+            status="completed_compiled_campaign_review_v43000",
+        )
+        result["controlled_qa_failed_checks"] = failed_checks
+        diagnostic_log("graphic_v43000_compiled_qa_review", failed=failed_checks)
+    else:
+        result["output_status"] = "completed_compiled_campaign_v48000"
+        result["verification_status"] = "verified"
+
+    result["campaign_spec"] = spec
+    result["graphic_design_mode"] = "reference_template" if reference_blueprint else "autotecpro_studio"
+    result["studio_creative_brief"] = (
+        state.get("studio_creative_brief") or {}
+        if result["graphic_design_mode"] == "autotecpro_studio" else {}
+    )
+    result["reference_template_used"] = result["graphic_design_mode"] == "reference_template"
+    result["reference_memory_isolated"] = result["graphic_design_mode"] == "autotecpro_studio"
+    return result
+
+
+def _graphic_chatgpt_production_prompt(
+    prompt_text,
+    role_items,
+    output_size,
+    reference_blueprint=None,
+    vehicle_profile=None,
+    rejected_guidance="",
+    correction_prompt="",
+):
+    """Build one strict provider brief with persistent vehicle/content locks."""
+    prompt_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    roles = [str(item.get("role") or "") for item in role_items or []]
+    has_edit_base = "edit_base" in roles
+    has_product = "product_photo" in roles
+    has_style = "style_reference" in roles
+    blueprint_text = _graphic_reference_blueprint_text(reference_blueprint or {})
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, vehicle_profile)
+    vehicle_text = _graphic_vehicle_profile_text(vehicle_profile or {})
+    project_context = _graphic_project_context_text()
+    explicit_name = str((vehicle_profile or {}).get("explicit_display_name") or "").strip()
+    make = str((vehicle_profile or {}).get("make") or "").strip()
+    model = str((vehicle_profile or {}).get("model") or "").strip()
+    year = str((vehicle_profile or {}).get("year_range") or "").strip()
+    prohibited_terms = [str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip()]
+    product_structure = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
+    product_structure_text = _graphic_product_structure_text_v4300(product_structure)
+    product_identity = _graphic_product_identity_v18000(role_items, product_structure) if has_product else {}
+    vehicle_dna = _graphic_vehicle_dna_v18000(vehicle_profile)
+    reference_decomposition = _graphic_reference_decomposition_v18000(reference_blueprint) if has_style else {}
+    style_dna = _graphic_style_dna_v18000(reference_blueprint, prompt_text) if has_style else {}
+    generation_plan = _graphic_generation_plan_v18000(prompt_text, role_items, has_edit_base=has_edit_base)
+    dna_hierarchy = _graphic_engine5_dna_hierarchy_v19000(
+        prompt_text,
+        role_items,
+        product_identity=product_identity,
+        structure_profile=product_structure,
+        vehicle_dna=vehicle_dna,
+        reference_decomposition=reference_decomposition,
+        style_dna=style_dna,
+        generation_plan=generation_plan,
+    )
+
+    lines = [
+        "Create one finished, information-rich, premium AutoTecPro automotive commercial advertisement.",
+        f"Output canvas: {output_size}, landscape PNG, polished production quality.",
+        f"Current command: {prompt_text}",
+    ]
+    if project_context:
+        lines.append("PERSISTENT PROJECT CONTEXT FROM EARLIER USER TURNS: " + project_context)
+    if explicit_name:
+        lines.extend([
+            "HARD VEHICLE CONTENT LOCK — THIS OVERRIDES EVERY STYLE REFERENCE AND EVERY VISUAL GUESS:",
+            f"The target vehicle is exactly: {explicit_name}.",
+            f"Show a visually recognizable {year + ' ' if year else ''}{make} {model} exterior, not the truck shown in the reference advertisement.",
+            f"All visible compatibility wording must identify {explicit_name}. Never write or depict a different make/model.",
+        ])
+    if prohibited_terms:
+        lines.append("STRICTLY PROHIBITED vehicle/content terms and visual identities: " + ", ".join(prohibited_terms) + ". Remove them even if they appear in the style reference.")
+    if has_edit_base:
+        edit_directive = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+        change_targets = [str(x) for x in (edit_directive.get("change_targets") or [])]
+        preserve_targets = [str(x) for x in (edit_directive.get("preserve_targets") or [])]
+        lines.extend([
+            "IMAGE 1 is the CURRENT ARTWORK TO EDIT. This is an EDIT, not a new design.",
+            "Preserve the entire existing image automatically. Treat every object, layer, and visual detail as locked unless the user explicitly asks to change that specific part.",
+            "Preserve the existing canvas pixel structure, composition, style, lighting, vehicle, product, logo, feature grid, bottom bar, typography style, spacing, and screen UI unless the user explicitly names that object for change.",
+            "Do not redesign, reinterpret, regenerate, or improve unaffected areas. Make the smallest possible visual change that satisfies the current command.",
+            "When the request changes wording or text, change only that wording/text on the existing artwork and preserve every other part of the image.",
+            "OBJECTS ALLOWED TO CHANGE: " + (", ".join(change_targets) if change_targets else "only the specifically requested wording/object"),
+            "OBJECTS THAT MUST REMAIN UNCHANGED: " + (", ".join(preserve_targets) if preserve_targets else "all other objects"),
+        ])
+        if edit_directive.get("replacement_from") or edit_directive.get("replacement_to"):
+            lines.append(
+                "EXACT REPLACEMENT: replace " + repr(str(edit_directive.get("replacement_from") or ""))
+                + " with " + repr(str(edit_directive.get("replacement_to") or ""))
+                + ". When this is campaign wording, change the text only and do not alter the physical product or its screen UI."
+            )
+    if has_product:
+        lines.extend([
+            "The PRODUCT SOURCE image is the only hardware/product that may appear as the hero product.",
+            "Preserve its exact recognizable housing, screen UI, bezel, controls, trim, openings, mounting geometry, vertical orientation, proportions, and product identity.",
+            "Do not redesign, simplify, crop away, or substitute its physical components. Do not use the gauge cluster or hardware shown in a style reference.",
+            "ZERO REFERENCE-HARDWARE TRANSFER: the style reference controls layout, lighting, scenery, typography hierarchy, icon rhythm and campaign polish only. It has absolutely no authority over the product silhouette or mechanical construction.",
+            "SILHOUETTE SUBTRACTION LOCK: any ear, side wing, mounting bracket, rail, tab, flange, screw plate, lower frame, support, handle, extension or protrusion that is not visibly present in the PRODUCT SOURCE is forbidden and must be absent from the output.",
+            "Do not infer hidden installation hardware and do not make the unit look more installation-ready. Empty background immediately beside and below the source silhouette must remain empty background.",
+            "The left edge, right edge, top shoulders and bottom housing must terminate exactly where they terminate in the PRODUCT SOURCE. Never borrow the reference product's outer contour, side ears, bottom brackets or mounting frame.",
+            "A mild photographic straightening is allowed only through rotation or perspective correction of the complete source product as one rigid plane. Straightening must never synthesize, extend, redraw or complete any hardware.",
+            "RIGID PRODUCT TRANSFORM LOCK: product fitting may use translation, uniform scaling, and a subtle rotation or conservative perspective correction of the complete product as one rigid object. Width and height must always scale by the same factor. Never stretch, squeeze, widen, narrow, lengthen, shorten, shear, liquify, reshape, or independently transform any product region.",
+            "ADAPTIVE COMMERCIAL FIT: automatically evaluate the headline, feature matrix, vehicle, footer and available negative space. When the hero product crowds another element, reduce it only as much as needed—normally about 4–8%—and move it slightly left or right to achieve balanced spacing. For the common product-left / vehicle-right composition, prefer a small leftward adjustment when the product is too close to the vehicle or centerline.",
+            "ANGLE CONTROL: keep a naturally front-facing product straight whenever that is strongest. A subtle dynamic tilt is optional only when it improves the composition, normally within ±3 degrees, and must rotate the complete locked product uniformly without changing its proportions, silhouette, screen ratio, buttons, openings or mechanical geometry.",
+            "IMMUTABLE SCREEN-UI PIXEL AUTHORITY: the complete visible screen aperture and every pixel inside it are source-authoritative. Preserve the exact top status bar, upper-left and upper-right corners, Wi-Fi/system/brightness icons, clock, app icons, map, labels, buttons, cards, climate controls, spacing, margins, screen ratio and screen-to-bezel alignment from the PRODUCT SOURCE.",
+            "SCREEN-CORNER LOCK: the four screen corners and all straight screen edges must remain geometrically identical to the source after the same whole-product rigid transform. Never pinch, bow, curve, round, sharpen, clip, darken, brighten, compress, expand or reconstruct any screen corner or edge independently.",
+            "NO UI REGENERATION: do not repaint, regenerate, reinterpret, autocomplete, clean up, sharpen, stylize, replace, move or simplify any screen content. Do not invent missing status icons or redraw tiny text. The source screen must remain a single unchanged pixel layer.",
+            "ONE-TRANSFORM RULE: the screen aperture and screen UI must receive exactly the same uniform scale, translation, optional rotation and conservative perspective transform as the complete physical product. Never apply a second crop, warp, perspective correction, corner correction or independent resize to the screen region.",
+            "PHOTOMETRIC-ONLY GLASS INTEGRATION: environmental lighting, exposure, reflections, glare and glass effects may be added only as a subtle transparent overlay above the unchanged source screen pixels. These effects may alter appearance only; they must never replace, move, erase, blur, bend or geometrically distort any source UI pixel.",
+            "SCREEN-DETAIL FAIL-CLOSED RULE: if the provider cannot preserve the complete source screen faithfully, keep the original screen pixels unchanged and reduce or omit the glass/reflection enhancement rather than reconstructing the UI.",
+            "DETERMINISTIC PRODUCT PLACEMENT AUTHORITY: the exact product may be uniformly resized and relocated as one locked layer to improve the commercial composition. In the common product-left / vehicle-right layout, place the product visually between the left canvas boundary and the vehicle, with balanced negative space on both sides and without crowding the headline, feature grid or vehicle.",
+            "COMPOSITION-INTELLIGENCE RULE: evaluate headline length, feature-grid footprint, vehicle footprint, footer height and available negative space before selecting product scale and position. Prefer the smallest change that improves balance: normally reduce the product by 2–8%, move it slightly left or right, and adjust footer overlap only as needed around the fixed 2% target.",
+            "VEHICLE DIRECTION AUTHORITY: when the reference vehicle faces right, or when a right-facing vehicle creates the stronger product-to-vehicle visual flow, show the target vehicle genuinely facing right. Do not mirror badges, grille text or asymmetric vehicle details; generate the correct right-facing view.",
+            "GEOMETRY-SAFE SCENE INTEGRATION: add only restrained micro-contact shadow, ambient occlusion, low-intensity environmental colour bleed on the sun-facing housing edge and sky-aligned transparent glass reflection. These effects may modify appearance but never alpha, silhouette, proportions, screen pixels, bezel geometry, controls, openings, ears, brackets or mounting hardware.",
+            "STRUCTURAL NEGATIVE-SPACE LOCK: preserve every real opening and empty space. Never fill, close, shorten, or remove the horizontal gap directly below the screen, lower cavities, side handle openings, bottom mounting openings, or bracket gaps.",
+            "FOOTER DEPTH AND OCCLUSION RULE: the dark bottom benefit banner is a foreground layer and must be drawn after the hero product. Place approximately 2% of the product's total visible height behind the top edge of the banner so the banner cleanly occludes only the lowest portion and creates professional visual depth.",
+            "Do not hide important controls, screen content, primary housing geometry or identifying details. The intentional banner overlap may cover only the lowest approximately 2% of the complete product and must never cause the product to appear cut off incorrectly.",
+            "BOTTOM-BANNER SAFE-ZONE LOCK: every footer icon, separator and wording must remain fully contained, vertically centered and comfortably padded inside the dark banner. Never place, squeeze or drop a benefit label below the banner. Keep all footer groups readable even when the product overlaps behind the banner.",
+        ])
+        if product_structure_text:
+            lines.append("IMMUTABLE PRODUCT STRUCTURE MAP: " + product_structure_text)
+    if has_style:
+        lines.extend([
+            "The STYLE REFERENCE advertisements define the VISUAL SYSTEM ONLY. Their vehicle, product, claims, model names, years, watermarks, and compatibility copy are source content that must be replaced.",
+            "Reconstruct the same level of detail and campaign-family structure: top-left AutoTecPro logo and website zone; large condensed headline; red compatibility ribbon; italic benefit tagline; dense feature/icon matrix; large hero product; matching target vehicle in a premium outdoor automotive scene; and a full-width dark bottom benefit bar with multiple icon groups.",
+            "Match the reference's information density, hierarchy, spacing, product scale, lighting, scenic depth, icon rhythm, separators, and finished commercial polish. Do not produce a sparse layout or generic technology poster.",
+            "Use the reference as a composition blueprint, not as factual content. Every Ford/F-series element must be replaced when the user specifies a Chevrolet Silverado or another vehicle.",
+        ])
+    lines.extend([
+        "GRAPHIC ENGINE 5.0 PRODUCTION PLAN: " + json.dumps(generation_plan, ensure_ascii=False, default=str),
+        "VISUAL DNA HIERARCHY 5.0: " + json.dumps(dna_hierarchy, ensure_ascii=False, default=str)[:12000],
+        "PRODUCT IDENTITY CONTRACT: " + json.dumps(product_identity, ensure_ascii=False, default=str)[:6500],
+        "VEHICLE DNA 3.0: " + json.dumps(vehicle_dna, ensure_ascii=False, default=str)[:3500],
+        "REFERENCE DECOMPOSITION: " + json.dumps(reference_decomposition, ensure_ascii=False, default=str)[:6500],
+        "STYLE DNA 3.0: " + json.dumps(style_dna, ensure_ascii=False, default=str)[:2500],
+        "MULTI-REFERENCE POLICY: Keep every reference separate. The newest active reference controls the current layout. Do not blend older references unless the user explicitly asks to combine them. Never import a reference vehicle, product, claim, model year, logo placement error, or watermark into the current campaign.",
+        "ENGINEERING DETAIL PRESERVATION: preserve housing transitions, bezel thickness, independent left/right button columns, button count/order/spacing/bevel/recess, knob diameter/center cap/ring/chamfer, mounting tabs, fastener holes, lower bracket, side openings, cavities, seams, trim, screen ratio, screen-to-housing position, material boundaries and visible interface hierarchy. Rotation, uniform scaling, perspective, lighting, reflections and scene integration may change only when requested.",
+        "CONTENT QUALITY RULES:",
+        "Use only user-provided, visible, or verified product facts. When a precise feature claim is unavailable, keep the visual slot but use a short neutral category label or non-verbal icon treatment rather than inventing a specification.",
+        "Use exact readable spelling for AutoTec, AutoTecPro.com, the target vehicle, years, headline, ribbon, and tagline. Avoid gibberish or malformed letters.",
+        "The final layout should contain the same major information zones and approximately the same number of visual detail groups as the strongest style reference.",
+        "Integrate the product naturally with scene-matched highlights, realistic contact shadow, clean edges, and strong foreground/background separation.",
+        "Return only the completed advertisement image.",
+    ])
+    if blueprint_text:
+        lines.append("REFERENCE-LAYOUT BLUEPRINT: " + re.sub(r"\s+", " ", blueprint_text)[:8500])
+    if vehicle_text:
+        lines.append("VEHICLE PROFILE (explicit user facts take priority): " + re.sub(r"\s+", " ", vehicle_text)[:3000])
+    if rejected_guidance:
+        lines.append("DO NOT REPEAT USER-REJECTED DIRECTIONS: " + re.sub(r"\s+", " ", rejected_guidance)[:2500])
+    if correction_prompt:
+        lines.append("MANDATORY CORRECTION AFTER STRICT VISUAL REVIEW: " + re.sub(r"\s+", " ", correction_prompt)[:4500])
+    return "\n".join(lines)[:30000]
+
+
+def _graphic_clear_reserved_product_zone_v55000(canvas, product, x, y):
+    """Remove every provider-created product remnant before exact local compositing.
+
+    v57000 treats the full product bounding rectangle as reserved, not only the alpha
+    silhouette. This is essential for products photographed on a neutral studio card:
+    provider-generated rails, brackets, tabs and false lower bezels can otherwise sit
+    just outside the real alpha edge and remain visible after the source product is
+    composited. The reserved zone therefore includes:
+
+      * the complete product rectangle;
+      * a small top/side safety margin;
+      * a much larger asymmetric bottom apron covering lower-housing hallucinations;
+      * the dilated exact alpha silhouette as an additional geometry-aware mask.
+
+    The function fails closed when the requested region cannot be fully covered.
+    """
+    if Image is None or canvas is None or product is None:
+        return canvas, {"applied": False, "reason": "image unavailable", "engine": "protected-product-zone-v62000"}
+    try:
+        import cv2
+        import numpy as np
+
+        base = canvas.convert("RGBA")
+        rgba = np.asarray(base, dtype=np.uint8)
+        product_rgba = product.convert("RGBA")
+        alpha = np.asarray(product_rgba.getchannel("A"), dtype=np.uint8)
+        if alpha.size == 0 or int((alpha >= 8).sum()) == 0:
+            return canvas, {"applied": False, "reason": "empty authoritative product alpha", "engine": "protected-product-zone-v62000"}
+
+        # Asymmetric authority margins. The lower apron is intentionally large because
+        # the observed Toyota failure was a provider-generated mounting frame extending
+        # below the true product. Side/top margins remain conservative to protect layout.
+        side_margin = max(28, int(round(product.width * 0.24)))
+        top_margin = max(16, int(round(product.height * 0.08)))
+        bottom_apron = max(36, int(round(product.height * 0.26)))
+        alpha_halo = max(16, int(round(max(product.size) * 0.05)))
+
+        mask = np.zeros((base.height, base.width), dtype=np.uint8)
+
+        # 1) Full rectangular reserved region plus asymmetric bottom apron.
+        rx0 = max(0, int(x) - side_margin)
+        ry0 = max(0, int(y) - top_margin)
+        rx1 = min(base.width, int(x) + product.width + side_margin)
+        ry1 = min(base.height, int(y) + product.height + bottom_apron)
+        if rx1 <= rx0 or ry1 <= ry0:
+            return canvas, {"applied": False, "reason": "reserved region outside canvas", "engine": "protected-product-zone-v62000"}
+        mask[ry0:ry1, rx0:rx1] = 255
+
+        # 2) Geometry-aware alpha dilation catches unusual side ears and protrusions.
+        local = (alpha >= 8).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (alpha_halo * 2 + 1, alpha_halo * 2 + 1))
+        local = cv2.dilate(local, kernel, iterations=1)
+        lx0, ly0 = max(0, int(x) - alpha_halo), max(0, int(y) - alpha_halo)
+        lx1 = min(base.width, int(x) + product.width + alpha_halo)
+        ly1 = min(base.height, int(y) + product.height + alpha_halo)
+        padded = cv2.copyMakeBorder(local, alpha_halo, alpha_halo, alpha_halo, alpha_halo, cv2.BORDER_CONSTANT, value=0)
+        sx0, sy0 = lx0 - (int(x) - alpha_halo), ly0 - (int(y) - alpha_halo)
+        sx1, sy1 = sx0 + (lx1 - lx0), sy0 + (ly1 - ly0)
+        mask[ly0:ly1, lx0:lx1] = np.maximum(mask[ly0:ly1, lx0:lx1], padded[sy0:sy1, sx0:sx1])
+
+        requested_pixels = int((mask > 0).sum())
+        if requested_pixels <= 0:
+            return canvas, {"applied": False, "reason": "empty protected mask", "engine": "protected-product-zone-v62000"}
+
+        rgb = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+        radius = max(5, min(19, int(round(max(product.size) * 0.012))))
+        cleaned = cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
+        if cleaned is None or cleaned.shape[:2] != rgb.shape[:2]:
+            return canvas, {"applied": False, "reason": "inpainting returned invalid canvas", "engine": "protected-product-zone-v62000"}
+
+        # Coverage is deterministic because the exact mask is known. Fail closed if any
+        # requested pixel was lost through clipping or conversion.
+        covered_pixels = int((mask[ry0:ry1, rx0:rx1] > 0).sum())
+        expected_rect_pixels = int((ry1 - ry0) * (rx1 - rx0))
+        coverage_ratio = covered_pixels / max(1, expected_rect_pixels)
+        if coverage_ratio < 0.999:
+            return canvas, {
+                "applied": False,
+                "reason": "protected rectangle coverage incomplete",
+                "coverage_ratio": round(coverage_ratio, 6),
+                "engine": "protected-product-zone-v62000",
+            }
+
+        out = np.dstack([cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB), rgba[:, :, 3]])
+        return Image.fromarray(out.astype(np.uint8), "RGBA"), {
+            "applied": True,
+            "engine": "protected-product-zone-v62000",
+            "mask_pixels": requested_pixels,
+            "coverage_ratio": round(coverage_ratio, 6),
+            "reserved_rect": [rx0, ry0, rx1, ry1],
+            "side_margin_px": side_margin,
+            "top_margin_px": top_margin,
+            "bottom_apron_px": bottom_apron,
+            "alpha_halo_px": alpha_halo,
+            "inpaint_radius_px": radius,
+            "product_region_provider_pixels_removed": True,
+            "bottom_bezel_provider_exclusion": True,
+            "provider_mounting_rail_exclusion": True,
+            "fail_closed": True,
+        }
+    except Exception as error:
+        diagnostic_log("graphic_v62000_reserved_zone_clear_failed", error_type=type(error).__name__, error=str(error))
+        return canvas, {"applied": False, "reason": str(error)[:300], "engine": "protected-product-zone-v62000", "fail_closed": True}
+
+
+def _graphic_compose_reference_campaign_v3200(
+    background_bytes,
+    product_item,
+    prompt_text,
+    output_size,
+    campaign_spec,
+    vehicle_profile,
+    role_items,
+    reference_blueprint=None,
+    template_key="",
+    edit_directive=None,
+    product_dna=None,
+):
+    """Compose a reference-faithful AutoTecPro advertisement from deterministic layers.
+
+    v11000 never asks the image model to lay out the advertisement or redraw the
+    uploaded product. The provider supplies only scenery and the target vehicle.
+    This renderer applies a fixed AutoTecPro commercial grid modeled on the approved
+    reference: logo and strong copy upper-left, compact 4x2 feature matrix upper-right,
+    exact uploaded product as the dominant foreground hero, secondary vehicle behind it,
+    and a full-width benefit bar along the bottom.
+    """
+    v61000_compose_started = time.perf_counter()
+    if Image is None:
+        raise RuntimeError("Pillow is required for the commercial composer.")
+
+    from PIL import ImageDraw, ImageFilter
+
+    _graphic_apply_v56000_cache_epoch()
+    with Image.open(io.BytesIO(image_bytes_to_png(background_bytes))) as bg:
+        canvas = ImageOps.exif_transpose(bg).convert("RGBA")
+    W, H = canvas.size
+    template_cfg = _graphic_template_config_v8200(template_key)
+    reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint)
+    fused_reference, reference_fusion_v42000 = _graphic_multi_reference_fusion_v42000(reference_blueprint, role_items)
+    layout_bp = _graphic_reference_layout_blueprint_v9000(fused_reference, template_key)
+    transforms = _graphic_layout_overrides_v8200(prompt_text, edit_directive)
+
+    product, transparent = _graphic_open_product_layer_v3300(product_item.get("file"))
+    if product is None:
+        raise RuntimeError("The exact product source could not be decoded.")
+    product = ImageOps.exif_transpose(product).convert("RGBA")
+    product, product_trim_report = _graphic_trim_visible_product_canvas_v14000(product, transparent=transparent)
+    product_perspective_v42000 = _graphic_perspective_analysis_v42000(product)
+    layout_bp = _graphic_layout_solver_v42000(layout_bp, product.size, (W, H), _graphic_campaign_contract_v42000(prompt_text, campaign_spec))
+
+    # Reference-faithful production grid. The approved artwork uses the scenery as the
+    # entire background; the top is merely calmed for copy, never replaced by a large
+    # opaque white panel. This prevents the empty presentation-slide look seen before.
+    header_h = int(H * max(
+        layout_bp["tagline_box"][1] + layout_bp["tagline_box"][3],
+        layout_bp["feature_matrix_box"][1] + layout_bp["feature_matrix_box"][3],
+    ))
+    bar_top = int(H * layout_bp["bottom_bar_box"][1])
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay, "RGBA")
+    od.rectangle((0, 0, W, header_h), fill=(244, 248, 253, 150))
+    # Gentle vertical transition into the scene.
+    fade_h = max(1, int(H * 0.075))
+    for step in range(fade_h):
+        alpha = int(150 * (1.0 - step / fade_h))
+        y = header_h + step
+        od.line((0, y, W, y), fill=(244, 248, 253, alpha))
+    canvas = Image.alpha_composite(canvas, overlay)
+
+    # Keep exact source pixels. When cutout confidence is low, use a tightly cropped
+    # neutral card rather than corrupting physical geometry.
+    if not transparent:
+        pad = max(6, int(H * 0.006))
+        card = Image.new("RGBA", (product.width + pad * 2, product.height + pad * 2), (250, 251, 253, 242))
+        card.alpha_composite(product, (pad, pad))
+        product = card
+    else:
+        # v32000 already performed one robust, speck-resistant exterior-canvas trim.
+        # Do not run a second raw alpha getbbox(), which can either retain stray edge
+        # pixels or re-crop delicate mounting details. Product geometry is now locked.
+        pass
+
+    # Reference-locked hero geometry. The analyzed product zone is authoritative;
+    # aspect ratio is preserved and the exact product is never cropped or distorted.
+    source_aspect = product.width / max(1, product.height)
+    source_visible_size = [int(product.width), int(product.height)]
+    source_visible_aspect = float(source_aspect)
+    product_dx = float(transforms.get("product_dx", 0.0))
+    product_dy = float(transforms.get("product_dy", 0.0))
+    hero_box = list(layout_bp["hero_product_box"])
+    hero_left = hero_box[0] + product_dx
+    hero_top = hero_box[1] + product_dy
+    hero_right = hero_left + hero_box[2]
+    hero_bottom = min(layout_bp["bottom_bar_box"][1] - 0.006, hero_top + hero_box[3])
+
+    hero_x0 = int(W * hero_left)
+    hero_x1 = int(W * hero_right)
+    hero_y0 = int(H * hero_top)
+    hero_y1 = int(H * hero_bottom)
+    hero_w = max(1, hero_x1 - hero_x0)
+    hero_h = max(1, hero_y1 - hero_y0)
+
+    base_scale = min(hero_w / max(1, product.width), hero_h / max(1, product.height))
+    # Fill the measured reference zone aggressively. Portrait products use the full
+    # available height; wide products use the full available width. This preserves
+    # geometry while recreating the reference's dominant foreground hierarchy.
+    if source_aspect < 1.0:
+        desired_scale = hero_h / max(1, product.height)
+    else:
+        desired_scale = hero_w / max(1, product.width)
+    scale = min(base_scale, max(base_scale * 0.998, desired_scale))
+    scale *= max(1.0, float(layout_bp.get("template_product_scale", template_cfg.get("product_scale", 1.0))))
+    scale *= float(transforms.get("product_scale", 1.0))
+
+    # v68808 composition intelligence: use the reference vehicle zone and text density
+    # to apply only a small uniform reduction when the product would dominate or crowd
+    # the product-to-vehicle corridor. Width and height always share this one factor.
+    vehicle_box_for_fit = list(layout_bp.get("vehicle_box") or [0.62, 0.36, 0.34, 0.46])
+    vehicle_left_px_for_fit = int(W * float(vehicle_box_for_fit[0]))
+    left_safe_px_for_fit = max(int(W * 0.018), hero_x0)
+    corridor_w_for_fit = max(1, vehicle_left_px_for_fit - left_safe_px_for_fit - int(W * 0.025))
+    prompt_density = min(1.0, len(re.sub(r"\s+", " ", str(prompt_text or "")).strip()) / 240.0)
+    projected_w = product.width * scale
+    corridor_fill = projected_w / max(1.0, float(corridor_w_for_fit))
+    adaptive_reduction = 1.0
+    if corridor_fill > 0.88:
+        adaptive_reduction -= min(0.08, (corridor_fill - 0.88) * 0.34)
+    if prompt_density > 0.72:
+        adaptive_reduction -= min(0.025, (prompt_density - 0.72) * 0.07)
+    adaptive_reduction = max(0.92, min(1.0, adaptive_reduction))
+    scale *= adaptive_reduction
+
+    # Never crop or non-uniformly distort the exact product.
+    scale = min(scale, hero_w / max(1, product.width), hero_h / max(1, product.height))
+    authoritative_pre_resize_v61000 = product.copy()
+    product, supersampled_product_resize_v56000 = _graphic_supersampled_product_resize_v56000(
+        product,
+        (max(1, int(round(product.width * scale))), max(1, int(round(product.height * scale)))),
+    )
+    # v68808 deterministic relocation: center the product in the visual corridor
+    # between the left canvas safe area and the vehicle, then clamp it to the
+    # reference-authorized hero region. This moves the unit slightly left when useful
+    # without changing its geometry.
+    vehicle_box_for_position = list(layout_bp.get("vehicle_box") or [0.62, 0.36, 0.34, 0.46])
+    vehicle_left_px = int(W * float(vehicle_box_for_position[0]))
+    left_canvas_safe_px = max(int(W * 0.018), hero_x0)
+    right_corridor_safe_px = min(hero_x1, vehicle_left_px - int(W * 0.025))
+    corridor_center_px = (left_canvas_safe_px + right_corridor_safe_px) // 2
+    px = int(round(corridor_center_px - product.width / 2))
+    px = max(hero_x0, min(px, hero_x1 - product.width))
+
+    footer_top_px = int(H * layout_bp["bottom_bar_box"][1])
+    # The footer is a foreground layer. Place approximately 2% of the exact product
+    # behind it while keeping the complete product layer intact beneath the banner.
+    footer_overlap_px = max(1, int(round(product.height * 0.02)))
+    py = footer_top_px - product.height + footer_overlap_px
+    py = max(hero_y0, min(py, H - product.height))
+
+    state_now = get_graphic_project_state()
+    design_mode = str(state_now.get("graphic_design_mode") or ("reference_template" if reference_blueprint else "autotecpro_studio"))
+    product_before_lighting = product.copy()
+    product_analysis_v41000 = _graphic_product_analysis_v41000(product_before_lighting)
+    ultimate_product_fingerprint = dict(product_analysis_v41000.get("fingerprint") or {})
+    ultimate_material_fingerprint = dict(product_analysis_v41000.get("material") or {})
+    ultimate_layout_plan = _graphic_layout_intelligence_v40000(layout_bp, product_before_lighting.size, (W, H), design_mode)
+    adaptive_mode = str((get_graphic_project_state() or {}).get("adaptive_mode_v44000") or "commercial_lock")
+    detail_policy_v48000 = _graphic_detail_policy_v48000(prompt_text, design_mode, adaptive_mode)
+    detail_masks_v48000 = _graphic_detail_masks_v48000(product_before_lighting)
+    lighting_profile = _graphic_scene_lighting_profile_v60000(canvas, (px, py, product.width, product.height))
+    lighting_profile["directional_confidence_v66100"] = round(min(1.0, max(0.0, abs(float(lighting_profile.get("direction_x", 0.0) or 0.0)) * 0.55 + float(lighting_profile.get("contrast", 0.0) or 0.0) * 0.45)), 4)
+    if design_mode == "reference_template":
+        # v60000 keeps alpha/geometry immutable while applying bounded optical layers.
+        product, product_lighting_report = _graphic_material_aware_lighting_v61000(
+            product_before_lighting, lighting_profile, detail_masks_v48000
+        )
+        product, micro_reflection_v48000 = _graphic_advanced_glass_optics_v61000(
+            product, detail_masks_v48000, lighting_profile
+        )
+        # Restore the exact already-resized source screen and controls after every
+        # lighting/glass operation so optical enhancement can never soften, warp or
+        # regenerate the UI.
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(
+            product_before_lighting, product, detail_masks_v48000
+        )
+        background_harmony_v48000 = {
+            "applied": bool(product_lighting_report.get("applied")),
+            "geometry_safe": True,
+            "ambient_rgb": lighting_profile.get("ambient_rgb"),
+            "exposure_target": lighting_profile.get("exposure_target"),
+            "engine": "automatic-exposure-and-ambient-matching-v60000",
+        }
+    else:
+        product, product_lighting_report = _graphic_lighting_transfer_v40000(product, lighting_profile, design_mode)
+        product, background_harmony_v48000 = _graphic_background_harmony_v48000(product, lighting_profile, ultimate_material_fingerprint)
+        product, micro_reflection_v48000 = _graphic_micro_reflection_v48000(product, detail_masks_v48000, lighting_profile)
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
+    product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
+    product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
+    product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
+    photoreal_lighting_qa_v60000 = _graphic_photoreal_lighting_qa_v60000(
+        product_before_lighting, product, detail_masks_v48000
+    )
+    if design_mode == "reference_template" and not photoreal_lighting_qa_v60000.get("passed"):
+        product = product_before_lighting
+        product_lighting_report = dict(product_lighting_report or {})
+        product_lighting_report.update({"applied": False, "fallback_to_original": True, "postcheck_failed": True})
+        product_fidelity_report = _graphic_product_rgb_fidelity_v36000(product_before_lighting, product, product_before_lighting.getchannel("A"))
+        product_geometry_report = _graphic_geometry_fidelity_v38000(product_before_lighting, product)
+        product_screen_aperture_report = _graphic_screen_aperture_fidelity_v38100(product_before_lighting, product)
+        product, detail_restoration_v48000 = _graphic_restore_ui_and_controls_v48000(product_before_lighting, product, detail_masks_v48000)
+        photoreal_lighting_qa_v60000 = _graphic_photoreal_lighting_qa_v60000(
+            product_before_lighting, product, detail_masks_v48000
+        )
+
+    source_to_final_geometry_qa_v61000 = _graphic_source_to_final_geometry_qa_v61000(product_before_lighting, product)
+    if design_mode == "reference_template" and not source_to_final_geometry_qa_v61000.get("passed"):
+        product = product_before_lighting.copy()
+        source_to_final_geometry_qa_v61000 = _graphic_source_to_final_geometry_qa_v61000(product_before_lighting, product)
+        if not source_to_final_geometry_qa_v61000.get("passed"):
+            raise RuntimeError("v61000 rejected the product because source-to-final geometry authority failed.")
+
+    lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
+    if design_mode == "reference_template" and not lower_housing_fidelity_v55000.get("passed"):
+        # Restore the complete immutable master once, then fail closed if any alpha or
+        # lower-bezel geometry still differs.
+        product = product_before_lighting.copy()
+        lower_housing_fidelity_v55000 = _graphic_lower_housing_fidelity_v55000(product_before_lighting, product)
+        if not lower_housing_fidelity_v55000.get("passed"):
+            raise RuntimeError("v56000 rejected the result because the bottom bezel or lower housing geometry changed.")
+
+    # Remove any provider-created device, bezel, mounting tab or product shadow from
+    # the protected region before placing the exact uploaded product.
+    canvas, protected_product_zone_v55000 = _graphic_clear_reserved_product_zone_v55000(canvas, product, px, py)
+    if design_mode == "reference_template" and not protected_product_zone_v55000.get("applied"):
+        raise RuntimeError(
+            "v56000 rejected the result because the provider product zone could not be cleared safely. "
+            "Confirm opencv-python-headless is installed in the deployment environment."
+        )
+
+    # Stage 7: physically layered contact, ambient and directional shadows.
+    shadow_layers_v48000, shadow_solver_v48000 = _graphic_shadow_solver_v61000(product, (W,H), lighting_profile)
+    for _shadow_name, _shadow_layer, (_sdx,_sdy) in shadow_layers_v48000:
+        canvas.alpha_composite(_shadow_layer, (px+_sdx, py+_sdy))
+    canvas.alpha_composite(product, (px, py))
+    final_detail_qa_v48000 = _graphic_detail_fidelity_qa_v48000(product_before_lighting, product, detail_masks_v48000, detail_policy_v48000)
+    critical_region_visibility = _graphic_critical_region_visibility_v41000(
+        product, (px, py), footer_top_px, (W, H), product_analysis_v41000.get("mechanical")
+    )
+    if design_mode == "reference_template" and not critical_region_visibility.get("passed"):
+        raise RuntimeError("Critical bottom mounting geometry would be hidden or clipped by the final layout.")
+
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    brand_lock_v42000 = _graphic_brand_lock_v42000()
+    navy = brand_lock_v42000["navy"]
+    red = brand_lock_v42000["red"]
+    white = brand_lock_v42000["white"]
+    divider = brand_lock_v42000["divider"]
+
+    def text_width(value, font):
+        try:
+            box = draw.textbbox((0, 0), str(value), font=font)
+            return max(0, box[2] - box[0])
+        except Exception:
+            return len(str(value)) * 10
+
+    def fitted_font(value, max_width, preferred_px, minimum_px, bold=True):
+        size = int(preferred_px)
+        while size > int(minimum_px):
+            font = _graphic_font(size, bold)
+            if text_width(value, font) <= max_width:
+                return font
+            size -= 2
+        return _graphic_font(int(minimum_px), bold)
+
+    # Official logo is a deterministic layer and is always applied in commercial mode.
+    logo_applied = False
+    logo = get_official_brand_logo_image()
+    if logo is not None:
+        try:
+            logo_box = layout_bp["logo_box"]
+            target_w = int(W * logo_box[2])
+            target_h = min(int(H * logo_box[3]), max(1, int(logo.height * target_w / max(1, logo.width))))
+            logo = logo.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(logo, (int(W * logo_box[0]), int(H * logo_box[1])))
+            logo_applied = True
+            draw = ImageDraw.Draw(canvas, "RGBA")
+        except Exception:
+            logo_applied = False
+
+    headline = str(campaign_spec.get("headline") or "PREMIUM INFOTAINMENT SYSTEM").strip().upper()
+    compatibility = str(
+        campaign_spec.get("compatibility")
+        or (vehicle_profile or {}).get("explicit_display_name")
+        or "VEHICLE-SPECIFIC FITMENT"
+    ).strip()
+    tagline = str(campaign_spec.get("tagline") or "Smarter Drive. More Control. All in Sight.").strip()
+    ultimate_typography_plan = {
+        "headline": _graphic_typography_plan_v40000(headline, int(W * layout_bp["headline_box"][2]), H * 0.082, H * 0.054, True),
+        "compatibility": _graphic_typography_plan_v40000(compatibility, int(W * layout_bp["compatibility_box"][2]), H * 0.030, H * 0.0145, True),
+        "tagline": _graphic_typography_plan_v40000(tagline, int(W * layout_bp["tagline_box"][2]), H * 0.027, H * 0.018, True),
+    }
+
+    headline_box = layout_bp["headline_box"]
+    compatibility_box = layout_bp["compatibility_box"]
+    tagline_box = layout_bp["tagline_box"]
+    left_x = int(W * headline_box[0])
+    left_w = int(W * headline_box[2])
+    headline_y = int(H * headline_box[1])
+    headline_font = fitted_font(headline, left_w, H * min(0.082, max(0.058, headline_box[3] * 0.86)), H * 0.054, True)
+    headline_lines = _graphic_wrap_text_v3200(draw, headline, headline_font, left_w, 2)
+    line_step = int(H * 0.068)
+    for line in headline_lines:
+        draw.text((left_x, headline_y), line, font=headline_font, fill=navy)
+        headline_y += line_step
+
+    ribbon_y = max(int(H * compatibility_box[1]), headline_y + int(H * 0.004))
+    ribbon_h = int(H * compatibility_box[3])
+    ribbon_w = int(W * compatibility_box[2])
+    ribbon_fit = _graphic_fit_ribbon_copy_v36000(
+        draw,
+        compatibility,
+        ribbon_w,
+        ribbon_h,
+        H * 0.030,
+        H * 0.0155,
+    )
+    # If one-line copy is still too long, permit a bounded ribbon expansion while
+    # keeping the template's left edge and upper-right information grid intact.
+    if not ribbon_fit.get("complete"):
+        max_right = int(W * min(0.555, layout_bp["feature_matrix_box"][0] - 0.012))
+        ribbon_w = max(ribbon_w, max(1, max_right - left_x))
+        ribbon_fit = _graphic_fit_ribbon_copy_v36000(
+            draw, compatibility, ribbon_w, ribbon_h, H * 0.030, H * 0.0145
+        )
+    draw.polygon(
+        [
+            (left_x, ribbon_y),
+            (left_x + ribbon_w, ribbon_y),
+            (left_x + ribbon_w - int(W * 0.018), ribbon_y + ribbon_h),
+            (left_x - int(W * 0.005), ribbon_y + ribbon_h),
+        ],
+        fill=red,
+    )
+    ribbon_lines = list(ribbon_fit.get("lines") or [compatibility])
+    ribbon_font = ribbon_fit.get("font") or _graphic_font(max(12, int(H * 0.016)), True)
+    if len(ribbon_lines) == 1:
+        text_y = ribbon_y + max(1, int((ribbon_h - ribbon_fit.get("font_px", 16)) * 0.44))
+        draw.text((left_x + int(W * 0.015), text_y), ribbon_lines[0], font=ribbon_font, fill=white)
+    else:
+        line_gap = max(1, int(ribbon_fit.get("font_px", 14) * 0.08))
+        total_h = int(ribbon_fit.get("font_px", 14) * 2 + line_gap)
+        text_y = ribbon_y + max(1, int((ribbon_h - total_h) / 2))
+        for line in ribbon_lines:
+            draw.text((left_x + int(W * 0.015), text_y), line, font=ribbon_font, fill=white)
+            text_y += int(ribbon_fit.get("font_px", 14)) + line_gap
+    required_copy_tokens = list(campaign_spec.get("compatibility_required_tokens") or _graphic_copy_required_tokens_v36000(compatibility))
+    rendered_copy_norm = re.sub(r"\s+", "", " ".join(ribbon_lines)).casefold()
+    missing_copy_tokens = [token for token in required_copy_tokens if token not in rendered_copy_norm]
+    copy_fidelity_report = {
+        "authoritative_text": compatibility,
+        "rendered_text": " ".join(ribbon_lines),
+        "required_tokens": required_copy_tokens,
+        "missing_tokens": missing_copy_tokens,
+        "complete": bool(ribbon_fit.get("complete") and not missing_copy_tokens),
+        "font_px": int(ribbon_fit.get("font_px") or 0),
+        "two_line": bool(ribbon_fit.get("two_line")),
+        "ribbon_width_px": ribbon_w,
+        "engine": "v36000-flexible-compatibility-copy",
+    }
+    tag_font = fitted_font(tagline, int(W * tagline_box[2]), H * 0.027, H * 0.018, False)
+    draw.text((int(W * tagline_box[0]), int(H * tagline_box[1])), tagline, font=tag_font, fill=navy)
+
+    # Compact, reference-faithful 4x2 feature matrix.
+    features = list(campaign_spec.get("feature_labels") or [])[:8]
+    feature_registry_v42000 = _graphic_feature_registry_v42000(features, 8)
+    defaults = [
+        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
+        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
+    ]
+    while len(features) < 8:
+        features.append(defaults[len(features)])
+    feature_box = layout_bp["feature_matrix_box"]
+    grid_x, grid_y = int(W * feature_box[0]), int(H * feature_box[1])
+    grid_w, grid_h = int(W * feature_box[2]), int(H * feature_box[3])
+    grid_h = int(grid_h * float(transforms.get("feature_scale", 1.0)))
+    cell_w, cell_h = grid_w / 4.0, grid_h / 2.0
+    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
+    for idx, label in enumerate(features):
+        row, col = divmod(idx, 4)
+        x0 = int(grid_x + col * cell_w)
+        y0 = int(grid_y + row * cell_h)
+        if col:
+            draw.line((x0, y0 + int(H * 0.010), x0, y0 + int(cell_h) - int(H * 0.010)), fill=divider, width=1)
+        if row:
+            draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
+        icon_box = (
+            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
+            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
+        )
+        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, navy)
+        lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
+        ty = int(y0 + cell_h * 0.57)
+        for line in lines:
+            tw = text_width(line, feature_font)
+            draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
+            ty += int(H * 0.0225)
+
+    vehicle_label = str(campaign_spec.get("vehicle_label") or compatibility).upper()
+    vehicle_font = fitted_font(vehicle_label, int(W * 0.31), H * 0.024, H * 0.016, True)
+    label_x, label_y = int(W * 0.67), int(H * 0.815)
+    draw.text((label_x, label_y), vehicle_label, font=vehicle_font, fill=white, stroke_width=2, stroke_fill=(0, 0, 0, 180))
+    underline_w = min(int(W * 0.12), text_width(vehicle_label, vehicle_font))
+    draw.rectangle((label_x, label_y + int(H * 0.034), label_x + underline_w, label_y + int(H * 0.039)), fill=red)
+
+    benefits = list(campaign_spec.get("bottom_benefits") or [])[:5]
+    bottom_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
+    while len(benefits) < 5:
+        benefits.append(bottom_defaults[len(benefits)])
+    bottom_box = layout_bp["bottom_bar_box"]
+    bx, by, bw = int(W * bottom_box[0]), int(H * bottom_box[1]), int(W * bottom_box[2])
+    bh = min(int(H * bottom_box[3]), H - by - int(H * 0.010))
+    draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=int(H * 0.018), fill=brand_lock_v42000["footer"], outline=(255, 255, 255, 85), width=1)
+    cell = bw / 5.0
+    bottom_font = _graphic_font(max(18, int(H * 0.022)), False)
+    for idx, label in enumerate(benefits):
+        x0 = int(bx + idx * cell)
+        if idx:
+            draw.line((x0, by + int(bh * 0.16), x0, by + bh - int(bh * 0.16)), fill=(255, 255, 255, 105), width=1)
+        icon_box = (int(x0 + cell * 0.075), int(by + bh * 0.18), int(x0 + cell * 0.295), int(by + bh * 0.76))
+        _graphic_draw_feature_icon_v3200(draw, icon_box, idx, white)
+        lines = _graphic_wrap_text_v3200(draw, label, bottom_font, int(cell * 0.62), 2)
+        ty = int(by + bh * 0.25)
+        for line in lines:
+            draw.text((int(x0 + cell * 0.34), ty), line, font=bottom_font, fill=white)
+            ty += int(H * 0.024)
+
+    output = io.BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", compress_level=5)
+    product_box = [px, py, product.width, product.height]
+    rendered_aspect = product.width / max(1, product.height)
+    product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
+    engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
+    return output.getvalue(), {
+        "engine": "autotecpro-commercial-composer-v66000-universal-fail-closed-exact-geometry-authority",
+        "exact_product_pixels": True,
+        "v55000_product_pixel_authority": True,
+        "graphic_cache_epoch_v55000": GRAPHIC_V56000_CACHE_EPOCH,  # compatibility alias
+        "graphic_cache_epoch_v56000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v57000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v59000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v60000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v63000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v64000": GRAPHIC_V56000_CACHE_EPOCH,
+        "graphic_cache_epoch_v62000": GRAPHIC_V56000_CACHE_EPOCH,
+        "protected_product_zone_v55000": protected_product_zone_v55000,
+        "lower_housing_fidelity_v55000": lower_housing_fidelity_v55000,
+        "supersampled_product_resize_v56000": supersampled_product_resize_v56000,
+        "bottom_bezel_pixel_lock_v55000": bool(lower_housing_fidelity_v55000.get("passed")),  # compatibility alias
+        "bottom_bezel_pixel_lock_v56000": bool(lower_housing_fidelity_v55000.get("passed")),
+        "bottom_bezel_pixel_lock_v57000": bool(lower_housing_fidelity_v55000.get("passed")) and bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v55000": bool(protected_product_zone_v55000.get("applied")),  # compatibility alias
+        "provider_product_exclusion_v56000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v57000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v63000": bool(protected_product_zone_v55000.get("applied")),
+        "provider_product_exclusion_v62000": bool(protected_product_zone_v55000.get("applied")),
+        "final_bezel_authority_v63000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
+        "conservative_universal_product_geometry_authority_v64000": True,
+        "universal_fail_closed_exact_geometry_authority_v66000": True,
+        "reference_style_mask_authority_v64000": "v47000_border_connected_background_removal",
+        "reference_style_mask_authority_v66000": "multi_candidate_source_geometry_verified_fail_closed",
+        "bezel_absolute_isolation_v62000": bool(protected_product_zone_v55000.get("applied")) and bool(lower_housing_fidelity_v55000.get("passed")),
+        "bottom_bezel_absolute_authority_v57000": bool(protected_product_zone_v55000.get("bottom_bezel_provider_exclusion")) and bool(lower_housing_fidelity_v55000.get("passed")),
+        "bottom_apron_authority_v57000": protected_product_zone_v55000,
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "product_ai_reconstruction_prohibited": True,
+        "deterministic_typography": True,
+        "fixed_production_geometry": True,
+        "official_brand_logo_applied": logo_applied,
+        "vehicle_lock": str((vehicle_profile or {}).get("explicit_display_name") or ""),
+        "campaign_zones": [
+            "logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix",
+            "hero_product", "target_vehicle", "bottom_benefit_bar",
+        ],
+        "critical_product_geometry_preserved": True,
+        "negative_space_lock": [
+            "gap_below_screen", "lower_openings", "side_handle_openings",
+            "bottom_mounting_gaps", "climate_controls", "physical_buttons",
+        ],
+        "product_box": product_box,
+        "product_trim_report": product_trim_report,
+        "product_lighting": product_lighting_report,
+        "product_rgb_fidelity": product_fidelity_report,
+        "product_geometry_fidelity": product_geometry_report,
+        "product_screen_aperture_fidelity": product_screen_aperture_report,
+        "critical_region_visibility": critical_region_visibility,
+        "ultimate_product_fingerprint": ultimate_product_fingerprint,
+        "ultimate_material_fingerprint": ultimate_material_fingerprint,
+        "ultimate_geometry_lock": _graphic_geometry_lock_v40000(product_before_lighting, product),
+        "ultimate_typography_plan": ultimate_typography_plan,
+        "ultimate_layout_intelligence": ultimate_layout_plan,
+        "mechanical_geometry_dna": (product_lighting_report or {}).get("mechanical_geometry_dna") or _graphic_mechanical_geometry_dna_v39000(product_before_lighting),
+        "regional_geometry_fidelity": (product_lighting_report or {}).get("regional_geometry_fidelity") or _graphic_regional_geometry_validator_v39000(product_before_lighting, product),
+        "engineering_pixel_lock": (product_lighting_report or {}).get("engineering_pixel_lock") or {},
+        "screen_aperture_dna": _graphic_screen_aperture_dna_v38100(product_before_lighting),
+        "compatibility_copy_fidelity": copy_fidelity_report,
+        "graphic_design_mode": design_mode,
+        "actual_normalized_boxes": {
+            "logo_box": layout_bp["logo_box"],
+            "headline_box": layout_bp["headline_box"],
+            "compatibility_box": layout_bp["compatibility_box"],
+            "tagline_box": layout_bp["tagline_box"],
+            "feature_matrix_box": layout_bp["feature_matrix_box"],
+            "hero_product_box": [round(px / max(1, W), 6), round(py / max(1, H), 6), round(product.width / max(1, W), 6), round(product.height / max(1, H), 6)],
+            "vehicle_box": layout_bp["vehicle_box"],
+            "bottom_bar_box": layout_bp["bottom_bar_box"],
+        },
+        "product_source_visible_size": source_visible_size,
+        "product_source_visible_aspect_ratio": round(source_visible_aspect, 8),
+        "product_rendered_aspect_ratio": round(rendered_aspect, 8),
+        "product_ratio_relative_error": round(product_ratio_relative_error, 10),
+        "product_ratio_preserved": product_ratio_relative_error <= 0.0025,
+        "premultiplied_alpha_resize": True,
+        "master_bezel_lock": True,
+        "master_bezel_source": "untouched_uploaded_product",
+        "bezel_pixels_regenerated": False,
+        "engineering_landmarks": engineering_landmarks,
+        "bezel_geometry_lock": dict(engineering_landmarks).get("bezel_profile"),
+        "screen_ratio_lock": dict(engineering_landmarks).get("inner_display_aspect_ratio"),
+        "housing_ratio_lock": dict(engineering_landmarks).get("unit_aspect_ratio"),
+        "product_width_ratio": round(product.width / max(1, W), 4),
+        "product_height_ratio": round(product.height / max(1, H), 4),
+        "product_area_ratio": round((product.width * product.height) / max(1, W * H), 4),
+        "brand_template": template_key,
+        "product_dna_active": bool(product_dna),
+        "layout_transforms": transforms,
+        "hero_region": [hero_x0, hero_y0, hero_x1, hero_y1],
+        "canvas_size": [W, H],
+        "reference_layout_blueprint": layout_bp,
+        "reference_content_policy": "geometry_only_no_reference_pixels",
+        "product_source_sha256": (product_source_signature := _graphic_product_source_signature_v9000(product_item)).get("sha256"),
+        "product_source_dimensions": product_source_signature,
+        "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
+        "hero_product_priority": "primary",
+        "reference_style_grid": "reference-locked-commercial-grid-v16200",
+        "brand_color_lock_v42000": brand_lock_v42000,
+        "product_perspective_analysis_v42000": product_perspective_v42000,
+        "multi_reference_fusion_v42000": reference_fusion_v42000,
+        "feature_icon_registry_v42000": feature_registry_v42000,
+        "campaign_contract_v42000": _graphic_campaign_contract_v42000(prompt_text, campaign_spec),
+        "layer_manifest_v42000": _graphic_layer_manifest_v42000((W,H), layout_bp, product_box, _graphic_campaign_contract_v42000(prompt_text, campaign_spec), feature_registry_v42000),
+        "adaptive_fidelity_policy_v48000": detail_policy_v48000,
+        "ui_control_detail_masks_v48000": {k:v for k,v in detail_masks_v48000.items() if k not in {"ui_mask","control_mask"}},
+        "ui_control_detail_restoration_v48000": detail_restoration_v48000,
+        "optical_relighting_v48000": {"lighting_profile": lighting_profile, "report": product_lighting_report, "engine":"bounded-optical-relighting-v48000"},
+        "lens_matching_v48000": {"perspective": product_perspective_v42000, "geometry_warp_allowed": bool(detail_policy_v48000.get("allow_geometry_warp")), "engine":"lens-policy-v48000"},
+        "micro_reflection_v48000": micro_reflection_v48000,
+        "photoreal_glass_engine_v60000": micro_reflection_v48000,
+        "local_hdr_lighting_v60000": lighting_profile,
+        "body_lighting_integration_v60000": product_lighting_report,
+        "automatic_exposure_matching_v60000": background_harmony_v48000,
+        "photoreal_lighting_qa_v60000": photoreal_lighting_qa_v60000,
+        "source_to_final_geometry_qa_v61000": source_to_final_geometry_qa_v61000,
+        "immutable_geometry_transform_v61000": {"uniform_scale_only": True, "perspective_warp": False, "mesh_warp": False, "integer_translation": True},
+        "advanced_glass_optics_v61000": micro_reflection_v48000,
+        "material_aware_lighting_v61000": product_lighting_report,
+        "five_layer_shadow_engine_v61000": shadow_solver_v48000,
+        "terrain_contact_shadow_v66100": {"alpha_contact_aware": True, "source": "lowest_opaque_alpha_runs", "product_pixels_modified": False},
+        "background_derived_glass_reflection_v66100": {"enabled": True, "bounded_by_screen_mask": True, "fail_closed_by_aperture_qa": True},
+        "environment_colour_spill_v66100": {"bounded_to_external_material_masks": True, "ui_and_geometry_protected": True},
+        "unified_high_resolution_policy_v61000": {"complete_canvas_supersampling": "2x-capable", "single_product_resize": True, "single_final_downsample": True},
+        "black_level_preservation_v60000": bool(photoreal_lighting_qa_v60000.get("black_level_mean_rise", 99) <= 9.0),
+        "environment_aware_reflection_v60000": bool(micro_reflection_v48000.get("environment_aware")),
+        "fresnel_glass_v60000": bool(micro_reflection_v48000.get("fresnel")),
+        "material_recognition_v48000": ultimate_material_fingerprint,
+        "shadow_solver_v48000": shadow_solver_v48000,
+        "background_harmony_v48000": background_harmony_v48000,
+        "commercial_detail_qa_v48000": final_detail_qa_v48000,
+        "autotecpro_final_qa_v48000": final_detail_qa_v48000,
+        "deterministic_campaign_builder_v42000": True,
+        "detail_fidelity_engine_v48000": True,
+        "product_cutout_integrity_v53000": dict(get_graphic_project_state().get("last_product_cutout_report_v53000") or {}),
+        "product_cutout_integrity_v54000": dict(get_graphic_project_state().get("last_product_cutout_report_v54000") or {}),
+        "product_cutout_fail_closed_v53000": True,
+        "product_cutout_fail_closed_v54000": True,
+        "lower_housing_geometry_lock_v54000": True,
+        "uniform_transform_only_v54000": True,
+        "product_cutout_integrity_v55000": dict(get_graphic_project_state().get("last_product_cutout_report_v55000") or {}),
+        "product_cutout_fail_closed_v55000": True,
+        "immutable_product_pixels_v55000": design_mode == "reference_template",
+        "lower_housing_geometry_lock_v55000": True,
+        "screen_aperture_pixel_lock_v55000": True,
+        "physical_control_pixel_lock_v55000": True,
+        "ui_pixel_lock_v55000": True,
+        "provider_product_region_cleared_v55000": bool(protected_product_zone_v55000.get("applied")),
+        "v61000_compatibility_scope": ["authentication","roles_permissions","supabase","history","admin","knowledge_upload","product_library","technical","sales","marketing","woocommerce","documents","mobile","downloads"],
+        "v61000_stage_timing": {"local_composition_seconds": round(time.perf_counter()-v61000_compose_started,4)},
+    }
+    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
+        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
+        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
+    )
+
+
+def _graphic_copy_project_state_v68400(state):
+    """Return a bounded reconnect snapshot without duplicating image canvases.
+
+    The active reference/current-product bytes are retained for reconnect recovery.
+    Generated canvases and layer-stack background pixels remain session/chat
+    authorities and are excluded before any JSON serialization, preventing transient
+    Base64 duplication while the snapshot is created.
+    """
+    source = dict(state or {})
+    copied = {}
+
+    active_reference_id = str(source.get("active_reference_id") or "")
+    active_product_id = str(source.get("active_product_id") or "")
+
+    for key, value in source.items():
+        if key == "assets":
+            retained_assets = []
+            for item in value or []:
+                if not isinstance(item, dict):
+                    continue
+                record = dict(item)
+                role = str(record.get("role") or "").casefold()
+                asset_id = str(record.get("id") or "")
+                canonical_role = (
+                    "reference"
+                    if role in {"reference", "style_reference"}
+                    else "product"
+                    if role in {"product", "product_photo"}
+                    else role
+                )
+                is_active = bool(record.get("active_for_generation"))
+                if canonical_role == "reference" and active_reference_id:
+                    is_active = asset_id == active_reference_id
+                elif canonical_role == "product" and active_product_id:
+                    is_active = asset_id == active_product_id
+
+                record["data"] = (
+                    bytes(record.get("data") or b"")
+                    if is_active or canonical_role not in {"reference", "product"}
+                    else b""
+                )
+                retained_assets.append(record)
+            copied[key] = retained_assets[-GRAPHIC_PROJECT_MAX_ASSETS:]
+            continue
+
+        if key == "latest_generated":
+            latest = dict(value or {}) if isinstance(value, dict) else {}
+            latest.pop("data_url", None)
+            latest.pop("background_data_url", None)
+            copied[key] = latest or None
+            continue
+
+        if key == "generation_history":
+            compact_history = []
+            for item in value or []:
+                if not isinstance(item, dict):
+                    continue
+                compact = dict(item)
+                compact.pop("data_url", None)
+                compact.pop("background_data_url", None)
+                compact_history.append(compact)
+            copied[key] = compact_history[-5:]
+            continue
+
+        if key == "layer_stack":
+            # Exclude the heavy background bitmap before serialization. This avoids
+            # the v68812 temporary JSON copy of the complete Base64 background.
+            source_stack = value if isinstance(value, dict) else {}
+            safe_stack = {
+                stack_key: stack_value
+                for stack_key, stack_value in source_stack.items()
+                if stack_key != "layers"
+            }
+            safe_layers = {}
+            source_layers = source_stack.get("layers") or {}
+            if isinstance(source_layers, dict):
+                for layer_name, layer_value in source_layers.items():
+                    if not isinstance(layer_value, dict):
+                        safe_layers[str(layer_name)] = layer_value
+                        continue
+                    safe_layer = {
+                        field: field_value
+                        for field, field_value in layer_value.items()
+                        if not (
+                            str(layer_name) == "background"
+                            and field == "asset"
+                        )
+                    }
+                    if str(layer_name) == "background":
+                        safe_layer["asset_retained_in_recovery"] = False
+                        safe_layer.setdefault(
+                            "asset_source_key",
+                            "latest_generated.background_data_url",
+                        )
+                    safe_layers[str(layer_name)] = safe_layer
+            safe_stack["layers"] = safe_layers
+            try:
+                copied[key] = json.loads(
+                    json.dumps(
+                        safe_stack,
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                )
+            except Exception:
+                copied[key] = safe_stack
+            continue
+
+        try:
+            copied[key] = json.loads(
+                json.dumps(value, ensure_ascii=False, default=str)
+            )
+        except Exception:
+            copied[key] = value
+
+    return copied
+
+
+def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_blueprint, role_items, vehicle_profile, output_size):
+    """Compile Stages 1-4 into the single immutable input consumed by Stage 5."""
+    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)
+    W, H = [int(v) for v in str(output_size or "1536x1024").lower().split("x", 1)]
+    reference = _graphic_reference_intelligence_v43000(reference_blueprint, role_items)
+    product = _graphic_product_intelligence_v43000(product_item)
+    campaign = _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile)
+    layout = _graphic_layout_compiler_v43000(reference, product, (W, H), {"fields": campaign.get("fields") or {}})
+    mode = "reference_template" if reference.get("available") else "autotecpro_studio"
+    scene = _graphic_scene_strategy_v42000(prompt_text, campaign_spec, vehicle_profile, mode)
+    scene["compiled_layout"] = {
+        "vehicle_box": layout.get("normalized_boxes", {}).get("vehicle_box"),
+        "hero_product_box": layout.get("normalized_boxes", {}).get("hero_product_box"),
+        "top_copy_clearance": layout.get("normalized_boxes", {}).get("headline_box"),
+    }
+    return {
+        "stages": {
+            "1_reference_intelligence": reference,
+            "2_product_intelligence": product,
+            "3_campaign_compiler": campaign,
+            "4_layout_compiler": layout,
+        },
+        "scene_strategy": scene,
+        "provider_scope": "background_and_one_scene_vehicle_only",
+        "deterministic_local_layers": ["exact_product", "logo", "headline", "compatibility", "tagline", "feature_grid", "bottom_bar"],
+        "ready": bool(product.get("available") and campaign.get("available") and layout.get("passed")),
+        "version": "five-stage-execution-blueprint-v43000",
+    }
+
+
+def _graphic_feature_registry_v42000(labels, limit=8):
+    """Map verified feature copy to deterministic local icon semantics."""
+    canonical = {
+        "screen": ("display", ("screen", "display", "touch", "qhd", "ips")),
+        "navigation": ("navigation", ("navigation", "gps", "map")),
+        "bluetooth": ("bluetooth", ("bluetooth", "audio")),
+        "carplay": ("carplay", ("carplay", "wireless")),
+        "android_auto": ("android_auto", ("android auto", "android")),
+        "camera": ("camera", ("camera", "backup", "rear")),
+        "oem_fit": ("shield", ("oem", "factory", "fit", "finish", "integration")),
+        "vehicle_data": ("gauge", ("vehicle data", "information", "controls", "real-time")),
+        "plug_play": ("plug", ("plug", "installation")),
+        "brightness": ("sun", ("brightness", "bright")),
+        "apps": ("apps", ("apps", "multimedia", "movies")),
+        "generic": ("generic", ()),
+    }
+    rows=[]
+    for index,label in enumerate(list(labels or [])[:limit]):
+        clean=re.sub(r"\s+"," ",str(label or "")).strip()
+        lower=clean.casefold()
+        semantic="generic"
+        for key,(_icon,terms) in canonical.items():
+            if terms and any(term in lower for term in terms):
+                semantic=key
+                break
+        rows.append({"label":clean,"semantic":semantic,"slot":index,"source":"verified_campaign_spec"})
+    return rows
+
+
+def _graphic_images_api_fallback_v3000(role_items, production_prompt, output_size):
+    """Images API fallback with bounded multi-image and single-image routes."""
+    capabilities = _graphic_sdk_capabilities_v4100()
+    image_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
+    size = _graphic_normalize_output_size_v4000(output_size)
+    errors = []
+
+    product_files = [i.get("file") for i in role_items or [] if i.get("role") == "product_photo" and i.get("file") is not None]
+    style_files = [i.get("file") for i in role_items or [] if i.get("role") == "style_reference" and i.get("file") is not None]
+    edit_files = [i.get("file") for i in role_items or [] if i.get("role") == "edit_base" and i.get("file") is not None]
+    other_files = [i.get("file") for i in role_items or [] if i.get("file") is not None and i.get("role") not in {"product_photo", "style_reference", "edit_base"}]
+
+    groups = []
+    for label, files_group in (
+        ("all", edit_files[:1] + product_files[:1] + style_files[:2] + other_files[:1]),
+        ("product-plus-style", product_files[:1] + style_files[:1]),
+        ("product-only", product_files[:1]),
+        ("edit-only", edit_files[:1]),
+    ):
+        clean = [f for f in files_group if f is not None]
+        signature = tuple(id(f) for f in clean)
+        if clean and signature not in {sig for _, _, sig in groups}:
+            groups.append((label, clean, signature))
+
+    if capabilities.get("images_edit"):
+        for label, files_group, _ in groups[:4]:
+            references = prepare_graphic_reference_images(files_group)
+            if not references:
+                continue
+            image_input = references if len(references) > 1 else references[0]
+            for index, extras in enumerate((
+                {"input_fidelity": "high", "quality": "high"},
+                {},
+            ), start=1):
+                try:
+                    for reference in references:
+                        reference.seek(0)
+                    diagnostic_log("graphic_v4100_images_edit_attempt", route=label, variant=index, reference_count=len(references), fields=sorted(extras))
+                    result = image_client.images.edit(
+                        model=GRAPHIC_IMAGE_MODEL,
+                        image=image_input,
+                        prompt=str(production_prompt or "")[:32000],
+                        n=1,
+                        size=size,
+                        **extras,
+                    )
+                    images = _graphic_collect_result_bytes(result)
+                    if images:
+                        return images, f"images-edit-api-v4100-{label}-{index}"
+                    errors.append(f"edit/{label}/{index}:no-image")
+                except Exception as error:
+                    compact = _graphic_compact_error_v4000(error)
+                    errors.append(f"edit/{label}/{index}:{type(error).__name__}:{compact}")
+                    diagnostic_log("graphic_v4100_images_edit_attempt_failed", route=label, variant=index, error_type=type(error).__name__, error=compact)
+
+    if capabilities.get("images_generate") and not groups:
+        for index, extras in enumerate(({"quality": "high"}, {}), start=1):
+            try:
+                diagnostic_log("graphic_v4100_images_generate_attempt", variant=index, fields=sorted(extras))
+                result = image_client.images.generate(
+                    model=GRAPHIC_IMAGE_MODEL,
+                    prompt=str(production_prompt or "")[:32000],
+                    n=1,
+                    size=size,
+                    **extras,
+                )
+                images = _graphic_collect_result_bytes(result)
+                if images:
+                    return images, f"images-generate-api-v4100-{index}"
+                errors.append(f"generate/{index}:no-image")
+            except Exception as error:
+                compact = _graphic_compact_error_v4000(error)
+                errors.append(f"generate/{index}:{type(error).__name__}:{compact}")
+                diagnostic_log("graphic_v4100_images_generate_attempt_failed", variant=index, error_type=type(error).__name__, error=compact)
+
+    if not capabilities.get("images_edit") and groups:
+        errors.append("installed SDK does not expose images.edit")
+    if not capabilities.get("images_generate") and not groups:
+        errors.append("installed SDK does not expose images.generate")
+    raise RuntimeError("Images API fallback failed: " + " | ".join(errors[-5:]))
+
+
+def _graphic_latest_generated_role_item(prompt_text):
+    """Materialize the current conversation's latest artwork as an edit base."""
+    if not _graphic_is_followup_edit_request(prompt_text):
+        return None
+    latest = (get_graphic_project_state() or {}).get("latest_generated") or {}
+    data_url = str(latest.get("data_url") or "")
+    raw, mime = data_url_to_bytes(data_url)
+    if not raw:
+        return None
+    uploaded = ManagedUploadedFile(
+        raw,
+        str(latest.get("filename") or latest.get("name") or "latest_graphic.png"),
+        mime or "image/png",
+        graphic_role="edit_base",
+        graphic_asset_id=hashlib.sha256(raw).hexdigest(),
+    )
+    return {
+        "file": uploaded,
+        "name": uploaded.name,
+        "role": "edit_base",
+        "reason": "latest generated artwork selected for conversational editing",
+    }
+
+
+def _graphic_mobile_runtime_cache_v68400():
+    """Process-local recovery cache for iOS Safari / websocket reruns.
+
+    This cache stores only the current user's Graphic project and pending job.
+    It supplements Streamlit session_state; it does not replace persistent chat
+    history or Product Library storage.
+    """
+    return {"projects": {}, "jobs": {}}
+
+
+def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
+    """Parse short natural-language edits into an object-level change directive.
+
+    The latest generated artwork remains the active canvas.  This parser separates
+    copy-only edits from product, vehicle, background and layout edits so a request
+    such as ``change the vertical dash display to Tesla infotainment system`` changes
+    the headline/campaign wording instead of hallucinating a different screen UI.
+    """
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    lower = value.casefold()
+    directive = {
+        "is_edit": _graphic_is_followup_edit_request(value),
+        "raw_instruction": value[:1200],
+        "change_targets": [],
+        "preserve_targets": [],
+        "copy_updates": {},
+        "replacement_from": "",
+        "replacement_to": "",
+        "edit_mode": "object_edit",
+    }
+    if not value:
+        return directive
+
+    # Common replacement grammar.  Keep it deliberately conservative and bounded.
+    replacement_patterns = (
+        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)(?:[.!]|$)",
+        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)(?:[.!]|$)",
+    )
+    replacement = None
+    for pattern in replacement_patterns:
+        replacement = re.search(pattern, value, flags=re.IGNORECASE)
+        if replacement:
+            break
+    if replacement:
+        old = re.sub(r"\s+", " ", replacement.group(1)).strip(" .,:;-\"")
+        new = re.sub(r"\s+", " ", replacement.group(2)).strip(" .,:;-\"")
+        directive["replacement_from"] = old
+        directive["replacement_to"] = new
+        directive["strict_preservation"] = True
+        old_lower = old.casefold()
+        # Resolve the explicitly named replacement target before scanning the whole
+        # sentence. Product names often contain words such as “screen”, “Tundra”, or
+        # “display”; those words describe headline copy and must not accidentally
+        # unlock the physical product or vehicle layers.
+        physical_words = ("product photo", "physical product", "hardware", "housing", "unit itself", "device itself", "uploaded product")
+        if any(term in lower for term in physical_words):
+            directive["change_targets"].append("hero_product")
+        elif any(term in old_lower for term in ("background", "scene", "sky", "mountain", "sunset", "lighting")):
+            directive["change_targets"].append("background")
+        elif any(term in old_lower for term in ("truck", "vehicle", "car")):
+            directive["change_targets"].append("vehicle")
+        elif any(term in old_lower for term in ("logo", "brand mark", "website")):
+            directive["change_targets"].append("logo")
+        elif any(term in old_lower for term in ("feature", "icon", "icons")):
+            directive["change_targets"].append("feature_matrix")
+        elif any(term in old_lower for term in ("bottom bar", "benefit bar", "bottom strip")):
+            directive["change_targets"].append("bottom_benefit_bar")
+        elif any(term in old_lower for term in ("layout", "position", "spacing")):
+            directive["change_targets"].append("layout")
+        elif any(term in old_lower for term in ("screen content", "display content", "interface", "screen ui", " ui")):
+            directive["change_targets"].append("requested_object")
+        else:
+            # A bounded X -> Y wording replacement defaults to copy/headline. This
+            # is the safest interpretation and preserves every visual layer.
+            directive["change_targets"].append("headline")
+            directive["copy_updates"]["product_category"] = new.upper()
+            spec = dict(existing_spec or {})
+            size = str(spec.get("screen_size") or "").strip()
+            directive["copy_updates"]["headline"] = f"{size} {new}".strip().upper()
+
+    target_map = {
+        "headline": ("headline", "title", "wording", "text"),
+        "hero_product": ("product", "unit", "screen", "device", "hardware"),
+        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150"),
+        "background": ("background", "mountain", "sky", "scene", "sunset", "lighting"),
+        "logo": ("logo", "branding", "website"),
+        "feature_matrix": ("feature", "icon", "icons"),
+        "bottom_benefit_bar": ("bottom bar", "benefit bar", "bottom strip"),
+        "layout": ("layout", "position", "spacing", "move", "resize", "bigger", "smaller"),
+    }
+    # For an explicit X -> Y replacement, the target was already resolved from X.
+    # Do not scan unrelated words in the replacement value and unlock extra layers.
+    if not replacement:
+        for target, terms in target_map.items():
+            if any(term in lower for term in terms) and target not in directive["change_targets"]:
+                directive["change_targets"].append(target)
+
+    # Default ChatGPT-style behavior: preserve every unmentioned object.
+    all_targets = list(target_map)
+    directive["preserve_targets"] = [x for x in all_targets if x not in directive["change_targets"]]
+    if "keep everything else" in lower or "only" in lower:
+        directive["strict_preservation"] = True
+    else:
+        directive["strict_preservation"] = bool(directive["change_targets"])
+    return directive
+
+
+def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-detect"):
+    """Resolve exactly one active product and one active style reference.
+
+    v68800 closes the persistent-asset authority gap: v16000 recorded
+    ``active_product_id`` and ``active_reference_id`` but the old resolver never
+    consumed those fields. Historical product/reference assets therefore remained in
+    ``role_items`` and downstream code selected the first ``product_photo``. In a
+    reference-first workflow that could make the Ford reference advertisement become
+    the product geometry authority.
+
+    The active project IDs are now authoritative. Historical product/reference
+    records are excluded from generation, while logos/supporting images and the edit
+    base remain available.
+    """
+    effective_files = graphic_project_uploaded_files(uploaded_files or [])
+    role_items = classify_graphic_uploaded_image_roles(
+        effective_files, prompt_text, forced_role=forced_role
+    )
+
+    # Preserve the existing deterministic recovery for projects whose role metadata
+    # predates the persistent-role transport.
+    has_product = any(item.get("role") == "product_photo" for item in role_items)
+    has_style = any(item.get("role") == "style_reference" for item in role_items)
+    if effective_files and (not has_product or not has_style):
+        recovered = _graphic_recover_role_items(
+            effective_files, prompt_text, forced_role=forced_role
+        )
+        if recovered:
+            role_items = recovered
+
+    role_items = _graphic_enforce_reference_product_roles_v8300(
+        role_items, prompt_text
+    )
+
+    project = get_graphic_project_state()
+    active_product_id = str(project.get("active_product_id") or "").strip()
+    active_reference_id = str(project.get("active_reference_id") or "").strip()
+
+    def item_id(item):
+        file_obj = item.get("file") if isinstance(item, dict) else None
+        saved = str(
+            getattr(file_obj, "graphic_asset_id", "") or
+            item.get("graphic_asset_id", "") or
+            item.get("id", "")
+        ).strip()
+        if saved:
+            return saved
+        try:
+            return hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
+        except Exception:
+            return ""
+
+    # Re-label the exact active records by ID before filtering. This prevents a
+    # filename/prompt classifier from overriding authoritative persistent roles.
+    for item in role_items:
+        digest = item_id(item)
+        item["graphic_asset_id"] = digest
+        if active_product_id and digest == active_product_id:
+            item["role"] = "product_photo"
+            item["role_locked_by"] = "v68800_active_product_id"
+        elif active_reference_id and digest == active_reference_id:
+            item["role"] = "style_reference"
+            item["role_locked_by"] = "v68800_active_reference_id"
+
+    filtered = []
+    for item in role_items:
+        role = str(item.get("role") or "")
+        digest = item_id(item)
+
+        if role == "product_photo":
+            if active_product_id and digest != active_product_id:
+                continue
+        elif role == "style_reference":
+            if active_reference_id and digest != active_reference_id:
+                continue
+
+        filtered.append(item)
+
+    role_items = filtered
+
+    # Fail closed against one physical file being both product and reference.
+    if active_product_id and active_reference_id and active_product_id == active_reference_id:
+        raise RuntimeError(
+            "The active product and style reference resolve to the same file. "
+            "Start a new case or re-upload the product photo."
+        )
+
+    product_items = [
+        item for item in role_items
+        if item.get("role") == "product_photo"
+    ]
+    style_items = [
+        item for item in role_items
+        if item.get("role") == "style_reference"
+    ]
+
+    # Current-turn product fallback: if persistent IDs are unavailable, the newest
+    # non-reference current upload remains the product, preserving the established
+    # reference-first/product-second workflow.
+    if effective_files and not product_items:
+        current_ids = []
+        for file_obj in uploaded_files or []:
+            try:
+                current_ids.append(
+                    hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
+                )
+            except Exception:
+                pass
+        candidate = next(
+            (
+                item for item in role_items
+                if item_id(item) in set(current_ids)
+                and item.get("role") not in {
+                    "style_reference", "edit_base", "logo_asset", "background"
+                }
+            ),
+            None,
+        )
+        if candidate is not None:
+            candidate["role"] = "product_photo"
+            candidate["role_locked_by"] = "v68800_current_upload_product_fallback"
+            product_items = [candidate]
+
+    if effective_files and not product_items:
+        raise RuntimeError(
+            "The active uploaded product photo could not be resolved safely. "
+            "The style reference will not be used as product geometry."
+        )
+
+    if len(product_items) > 1:
+        # Keep only the active product. If no active ID is available, keep the first
+        # current-turn product after deterministic ordering.
+        keep = product_items[0]
+        role_items = [
+            item for item in role_items
+            if item.get("role") != "product_photo" or item is keep
+        ]
+        product_items = [keep]
+
+    if len(style_items) > 1:
+        keep = style_items[0]
+        role_items = [
+            item for item in role_items
+            if item.get("role") != "style_reference" or item is keep
+        ]
+        style_items = [keep]
+
+    edit_base = _graphic_latest_generated_role_item(prompt_text)
+    if edit_base:
+        role_items = [
+            edit_base
+        ] + [
+            item for item in role_items
+            if item.get("role") != "edit_base"
+        ]
+
+    role_priority = {
+        "edit_base": 0,
+        "product_photo": 1,
+        "style_reference": 2,
+        "logo_asset": 3,
+        "supporting_image": 4,
+    }
+    role_items = sorted(
+        role_items,
+        key=lambda item: role_priority.get(str(item.get("role") or ""), 9),
+    )
+
+    final_product = next(
+        (item for item in role_items if item.get("role") == "product_photo"),
+        None,
+    )
+    final_reference = next(
+        (item for item in role_items if item.get("role") == "style_reference"),
+        None,
+    )
+    final_product_id = item_id(final_product) if final_product else ""
+    final_reference_id = item_id(final_reference) if final_reference else ""
+
+    if active_product_id and final_product_id != active_product_id:
+        raise RuntimeError(
+            "Product Geometry Authority failed: the selected product does not match "
+            "the active uploaded product ID."
+        )
+    if active_reference_id and final_reference_id != active_reference_id:
+        raise RuntimeError(
+            "Reference authority failed: the selected style reference does not match "
+            "the active reference ID."
+        )
+
+    state = get_graphic_project_state()
+    state["last_role_authority_v68800"] = {
+        "active_product_id": active_product_id,
+        "selected_product_id": final_product_id,
+        "active_reference_id": active_reference_id,
+        "selected_reference_id": final_reference_id,
+        "product_count": sum(
+            1 for item in role_items if item.get("role") == "product_photo"
+        ),
+        "reference_count": sum(
+            1 for item in role_items if item.get("role") == "style_reference"
+        ),
+        "historical_product_reference_assets_excluded": True,
+        "product_geometry_source": "active_product_id",
+    }
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    diagnostic_log(
+        "graphic_v68800_active_role_authority",
+        product_match=(
+            not active_product_id or final_product_id == active_product_id
+        ),
+        reference_match=(
+            not active_reference_id or final_reference_id == active_reference_id
+        ),
+        product_count=state["last_role_authority_v68800"]["product_count"],
+        reference_count=state["last_role_authority_v68800"]["reference_count"],
+    )
+    return role_items
+
+
+def _graphic_reference_blueprint_text(blueprint):
+    """Serialize the strongest reference-analysis fields."""
+    if not isinstance(blueprint, dict) or not blueprint:
+        return ""
+    ordered = (
+        "reference_summary", "layout_archetype", "canvas_zones", "product_scale_percent", "product_position",
+        "product_crop_and_perspective", "background_scene", "vehicle_or_environment_role", "lighting_direction",
+        "color_palette", "typography_system", "headline_zone", "subheadline_zone", "logo_zone", "feature_icon_system",
+        "feature_copy_structure", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",
+        "product_integration_instructions", "must_copy_visual_patterns", "acceptable_variations", "forbidden_transfers",
+        "negative_constraints", "final_generation_blueprint", "confidence_score",
+    )
+    lines = []
+    for key in ordered:
+        value = blueprint.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value, ensure_ascii=False, default=str)
+        lines.append(key.replace("_", " ").upper() + ": " + str(value))
+    return "\n".join(lines)[:14000]
+
+
+def _graphic_reference_fidelity_qa_v34000(result, role_items):
+    """Fail Mode 1 when layout, product pixels, or authoritative copy drift."""
+    base = _graphic_reference_layout_fidelity_gate_v13000(result, role_items)
+    if not base.get("required"):
+        return {"required": False, "passed": True, "score": 1.0, "checks": {}, "issues": [], "engine": "v36000-reference-fidelity-qa"}
+    metadata = dict((result or {}).get("layered_metadata") or {})
+    zones = {str(x) for x in metadata.get("campaign_zones") or []}
+    required = {"logo", "headline", "compatibility_ribbon", "tagline", "feature_matrix", "hero_product", "bottom_benefit_bar"}
+    issues = list(base.get("issues") or [])
+    if not required.issubset(zones):
+        issues.append("one or more deterministic reference zones are missing")
+
+    lighting = dict(metadata.get("product_lighting") or {})
+    rgb = dict(metadata.get("product_rgb_fidelity") or {})
+    copy = dict(metadata.get("compatibility_copy_fidelity") or {})
+    aperture = dict(metadata.get("product_screen_aperture_fidelity") or {})
+    regional = dict(metadata.get("regional_geometry_fidelity") or {})
+    if rgb.get("available") and not rgb.get("passed"):
+        issues.append("product RGB drift exceeded the reference-mode tolerance")
+    if not copy.get("complete", False):
+        missing = ", ".join(copy.get("missing_tokens") or [])
+        issues.append("compatibility copy is incomplete" + (f": {missing}" if missing else ""))
+    if not bool(metadata.get("product_ratio_preserved", False)):
+        issues.append("product aspect ratio was not preserved")
+    if aperture.get("available") and not aperture.get("passed"):
+        issues.append("screen aperture or bezel-width DNA changed")
+    if regional.get("available") and not regional.get("passed"):
+        failed=[k for k,v in (regional.get("checks") or {}).items() if not v]
+        issues.append("regional mechanical geometry changed: " + ", ".join(failed))
+
+    checks = dict(base.get("checks") or {})
+    checks["zone_completeness"] = 1.0 if required.issubset(zones) else 0.0
+    checks["lighting_integrated"] = 1.0 if lighting.get("applied") else 0.92
+    checks["product_rgb_fidelity"] = 1.0 if rgb.get("passed") else 0.0
+    checks["copy_fidelity"] = 1.0 if copy.get("complete") else 0.0
+    checks["screen_aperture_fidelity"] = 1.0 if aperture.get("passed", True) else 0.0
+    checks["regional_mechanical_geometry"] = 1.0 if regional.get("passed", True) else 0.0
+    score = round(
+        float(base.get("score") or 0) * 0.68
+        + checks["zone_completeness"] * 0.07
+        + checks["product_rgb_fidelity"] * 0.09
+        + checks["copy_fidelity"] * 0.07
+        + checks["screen_aperture_fidelity"] * 0.09,
+        4,
+    )
+    passed = bool(base.get("passed") and not issues and score >= 0.86)
+    return {
+        "required": True,
+        "passed": passed,
+        "score": score,
+        "checks": checks,
+        "issues": issues,
+        "threshold": 0.86,
+        "engine": "v38100-reference-fidelity-geometry-aperture-copy-qa",
+    }
+
+
+def _graphic_responses_generate_v3000(role_items, production_prompt, output_size):
+    """Responses route with remembered-success fast path and bounded fallback ladder."""
+    capabilities = _graphic_sdk_capabilities_v4100()
+    if not capabilities.get("responses"):
+        raise RuntimeError("The installed OpenAI SDK does not expose responses.create.")
+    content=[{"type":"input_text","text":str(production_prompt or "")[:30000]}]
+    labels={"edit_base":"CURRENT ARTWORK TO EDIT","product_photo":"PRODUCT SOURCE — preserve this exact product identity","style_reference":"STYLE REFERENCE — copy design language only","logo_asset":"OFFICIAL LOGO ASSET","supporting_image":"SUPPORTING VISUAL ASSET","installation_dashboard_reference":"AUTHORITATIVE UPLOADED OEM DASHBOARD — preserve this exact cabin geometry","installation_ui_reference":"AUTHORITATIVE SCREEN UI REFERENCE"}
+    usable=0
+    for item in role_items or []:
+        url=_graphic_role_data_url(item)
+        if not url: continue
+        usable+=1; content += [{"type":"input_text","text":f"{labels.get(item.get('provider_role') or item.get('role'),'REFERENCE IMAGE')}: {item.get('name') or 'image'}"},{"type":"input_image","image_url":url,"detail":"high"}]
+    action="edit" if usable else "generate"
+    variants=_graphic_responses_tool_variants_v4000(action,output_size,bool(usable))[:3]
+    models=list(_graphic_responses_model_candidates_v4100())
+    preferred=_graphic_v66100_preferred_route(action,output_size,bool(usable))
+    ordered=[]
+    m=re.match(r"responses-image-tool-v4100-(.+)-(\d+)$",preferred)
+    if m:
+        model=m.group(1); idx=int(m.group(2))
+        if model in models and 1<=idx<=len(variants): ordered.append((model,idx,variants[idx-1],True))
+    ordered += [(model,idx,tool,False) for model in models for idx,tool in enumerate(variants,1) if not any(x[0]==model and x[1]==idx for x in ordered)]
+    errors=[]; response_client=client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS,max_retries=0)
+    for model,idx,tool,fast in ordered:
+        request={"model":model,"input":[{"role":"user","content":content}],"tools":[tool],"max_output_tokens":1200}
+        if idx==1: request["tool_choice"]={"type":"image_generation"}
+        started=time.perf_counter()
+        try:
+            response=response_client.responses.create(**request); images=_graphic_response_image_bytes_v4000(response)
+            duration=time.perf_counter()-started
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=bool(images),preferred_fast_path=fast,validation_purpose="generation")
+            if images:
+                route=f"responses-image-tool-v4100-{model}-{idx}"; _graphic_v66100_remember_route(action,output_size,bool(usable),route); return images,route
+            errors.append(f"{model}/variant-{idx}:no-image")
+        except Exception as error:
+            duration=time.perf_counter()-started; compact=_graphic_compact_error_v4000(error)
+            _graphic_v66100_record_attempt(route="responses",model=model,schema_variant=idx,duration_seconds=round(duration,3),success=False,error_class=type(error).__name__,error=compact,preferred_fast_path=fast,validation_purpose="generation")
+            errors.append(f"{model}/variant-{idx}:{type(error).__name__}:{compact}")
+    raise RuntimeError("Responses image generation failed: "+" | ".join(errors[-4:]))
+
+
+def _graphic_restore_project_v68400():
+    cache=_graphic_mobile_runtime_cache_v68400()
+    record={}
+    for key in _graphic_mobile_cache_keys_v68400():
+        record=cache["projects"].get(key) or {}
+        if record: break
+    saved=float(record.get("saved_at") or 0.0)
+    if not saved or time.time()-saved > GRAPHIC_V68400_MOBILE_JOB_TTL_SECONDS:
+        return None
+    state=record.get("state")
+    if not isinstance(state,dict):
+        return None
+    return _graphic_copy_project_state_v68400(state)
+
+
+def _graphic_role_fingerprint_v8200(role_items, roles=None):
+    """Return a stable non-secret fingerprint for selected Graphic assets."""
+    selected=[]
+    allowed=set(roles or [])
+    for item in role_items or []:
+        role=str(item.get("role") or "")
+        if allowed and role not in allowed:
+            continue
+        data=str(item.get("data_url") or "")
+        selected.append({
+            "role": role,
+            "name": str(item.get("name") or ""),
+            "asset_id": str(item.get("asset_id") or item.get("id") or ""),
+            "digest": hashlib.sha256(data.encode("utf-8")).hexdigest()[:20] if data else "",
+        })
+    payload=json.dumps(selected,ensure_ascii=False,sort_keys=True,separators=(",",":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _graphic_safe_reference_blueprint_v16000(blueprint=None):
+    """Guarantee usable commercial geometry when visual analysis is partial."""
+    bp = dict(blueprint or {})
+    defaults = {
+        "logo_box": [0.025, 0.025, 0.205, 0.095],
+        "headline_box": [0.025, 0.135, 0.52, 0.105],
+        "compatibility_box": [0.025, 0.245, 0.43, 0.055],
+        "tagline_box": [0.025, 0.305, 0.50, 0.045],
+        "feature_matrix_box": [0.57, 0.035, 0.395, 0.285],
+        "hero_product_box": [0.035, 0.355, 0.625, 0.515],
+        "vehicle_box": [0.64, 0.39, 0.325, 0.34],
+        "bottom_bar_box": [0.035, 0.885, 0.93, 0.095],
+    }
+    boxes = dict(bp.get("normalized_boxes") or {})
+    for key, default in defaults.items():
+        value = boxes.get(key)
+        valid = isinstance(value, (list, tuple)) and len(value) == 4
+        if valid:
+            try:
+                value = [max(0.0, min(1.0, float(x))) for x in value]
+                valid = value[2] > 0.02 and value[3] > 0.02 and value[0] + value[2] <= 1.03 and value[1] + value[3] <= 1.03
+            except Exception:
+                valid = False
+        boxes[key] = value if valid else list(default)
+    # Enforce the commercial hierarchy that failed in earlier releases.
+    boxes["hero_product_box"][2] = max(float(boxes["hero_product_box"][2]), 0.52)
+    boxes["hero_product_box"][3] = max(float(boxes["hero_product_box"][3]), 0.46)
+    boxes["feature_matrix_box"][2] = max(float(boxes["feature_matrix_box"][2]), 0.34)
+    boxes["feature_matrix_box"][3] = max(float(boxes["feature_matrix_box"][3]), 0.24)
+    boxes["bottom_bar_box"][2] = max(float(boxes["bottom_bar_box"][2]), 0.88)
+    boxes["bottom_bar_box"][3] = max(float(boxes["bottom_bar_box"][3]), 0.085)
+    bp["normalized_boxes"] = boxes
+    bp["layout_repaired_v16000"] = True
+    return bp
+
+
+def _graphic_stage5_execute_v43000(
+    background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+    role_items, execution_blueprint, template_key="", product_dna=None,
+):
+    """Execute the compiled blueprint and perform one local-only repair pass when needed."""
+    ref = dict(((execution_blueprint or {}).get("stages") or {}).get("4_layout_compiler", {}).get("normalized_boxes") or {})
+    composed, metadata = _graphic_compose_reference_campaign_v3200(
+        background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+        role_items, reference_blueprint=ref, template_key=template_key, product_dna=product_dna or {},
+    )
+    score = _graphic_qa_scorecard_v42000(metadata)
+    repair_applied = False
+    if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):
+        repaired_ref = _graphic_local_repair_blueprint_v43000(ref, score.get("critical_failed"))
+        if repaired_ref != ref:
+            composed, metadata = _graphic_compose_reference_campaign_v3200(
+                background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
+                role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},
+            )
+            score = _graphic_qa_scorecard_v42000(metadata)
+            repair_applied = True
+    detail_gate_v48000 = dict(metadata.get("autotecpro_final_qa_v48000") or {})
+    if detail_gate_v48000 and not detail_gate_v48000.get("passed"):
+        score = dict(score or {})
+        score["passed"] = False
+        score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))
+    metadata["five_stage_execution_v43000"] = {
+        "ready": bool((execution_blueprint or {}).get("ready")),
+        "local_repair_applied": repair_applied,
+        "provider_retry_used": False,
+        "final_scorecard": score,
+        "version": "stage5-image-generator-v48000",
+    }
+    return composed, metadata
+
+
+def _graphic_v66100_cache_get(cache_key):
+    session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+    if cache_key in session:
+        return session.get(cache_key)
+    try:
+        result = (supabase.table(GRAPHIC_V66100_CACHE_TABLE)
+                  .select("payload")
+                  .eq("cache_key", cache_key).limit(1).execute())
+        rows = getattr(result, "data", None) or []
+        if rows and isinstance(rows[0].get("payload"), dict):
+            session[cache_key] = rows[0]["payload"]
+            return session[cache_key]
+    except Exception as error:
+        diagnostic_log("graphic_v66100_cache_read_unavailable", error_type=type(error).__name__)
+    return None
+
+
+def _graphic_v66100_cache_put(cache_key, payload):
+    if not isinstance(payload, dict):
+        return False
+    st.session_state.setdefault("graphic_persistent_cache_v66100", {})[cache_key] = payload
+    try:
+        record = {"cache_key": cache_key, "namespace": GRAPHIC_V66100_CACHE_NAMESPACE,
+                  "payload": payload, "updated_at": datetime.now(timezone.utc).isoformat()}
+        try:
+            supabase.table(GRAPHIC_V66100_CACHE_TABLE).upsert(record, on_conflict="cache_key").execute()
+        except Exception:
+            supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+        return True
+    except Exception as error:
+        diagnostic_log("graphic_v66100_cache_write_unavailable", error_type=type(error).__name__)
+        return False
+
+
+def _graphic_v68826_request_key(prompt_text, uploaded_files, arguments):
+    """Build a company-wide key that intentionally excludes user/session data."""
+    payload = {
+        "namespace": GRAPHIC_V68826_SHARED_OUTPUT_NAMESPACE,
+        "engine": str(GRAPHIC_ENGINE_VERSION),
+        "release": str(GRAPHIC_V68300_RELEASE),
+        "prompt": str(prompt_text or "").strip(),
+        "uploads": [
+            _graphic_v68826_uploaded_file_digest(item)
+            for item in (uploaded_files or [])
+        ],
+        "arguments": {key: arguments.get(key) for key in sorted(arguments)},
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":"), default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def analyze_graphic_reference_blueprint(role_items, prompt_text="", style_strength="High"):
+    """Convert current style references into an explicit production blueprint."""
+    items = [item for item in (role_items or []) if isinstance(item, dict)]
+    style_items = [item for item in items if item.get("role") == "style_reference"][:6]
+    product_items = [item for item in items if item.get("role") == "product_photo"][:2]
+    if not style_items:
+        return {}
+
+    content = [{
+        "type": "input_text",
+        "text": (
+            "Analyze these images for an AutoTecPro advertising workflow. Images are labelled PRODUCT SOURCE "
+            "or STYLE REFERENCE. Return one strict JSON object only. Never transfer or substitute the product "
+            "inside a STYLE REFERENCE. Extract the reusable visual system and create a concrete blueprint for "
+            "placing the PRODUCT SOURCE into a new advertisement. Required keys: reference_summary, layout_archetype, "
+            "normalized_boxes, canvas_zones, product_scale_percent, product_position, product_crop_and_perspective, background_scene, "
+            "vehicle_or_environment_role, lighting_direction, color_palette, typography_system, headline_zone, "
+            "subheadline_zone, logo_zone, feature_icon_system, feature_copy_structure, bottom_feature_bar, cta_system, "
+            "spacing_and_margins, depth_and_layering, product_integration_instructions, must_copy_visual_patterns, "
+            "acceptable_variations, forbidden_transfers, negative_constraints, final_generation_blueprint, confidence_score. "
+            "normalized_boxes is mandatory and must contain logo_box, headline_box, compatibility_box, tagline_box, "
+            "feature_matrix_box, hero_product_box, vehicle_box, and bottom_bar_box. Every box must be [x,y,width,height] "
+            "in normalized 0..1 canvas coordinates measured from the STYLE REFERENCE. canvas_zones must also describe "
+            "approximate percentages and positions. Measure the dominant product's visible bounding box, not its source-file canvas. "
+            "final_generation_blueprint must be concise and directly usable by an image model. Requested style strength: " + str(style_strength) + ". Staff request: " + str(prompt_text or "")[:5000]
+        ),
+    }]
+    for item in product_items:
+        url = _graphic_role_data_url(item)
+        if url:
+            content.append({"type": "input_text", "text": "PRODUCT SOURCE — preserve identity: " + str(item.get("name") or "")})
+            content.append({"type": "input_image", "image_url": url})
+    for index, item in enumerate(style_items, 1):
+        url = _graphic_role_data_url(item)
+        if url:
+            content.append({"type": "input_text", "text": f"STYLE REFERENCE {index} — analyze layout/style only; never copy its product: {item.get('name')}"})
+            content.append({"type": "input_image", "image_url": url})
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=(
+                "Act as a senior automotive advertising art director and visual systems analyst. "
+                "Distinguish product identity from reference-ad style. Return JSON only."
+            ),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=3200,
+        )
+        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if isinstance(result, dict):
+            result["analysis_version"] = "v800-reference-blueprint"
+            result["product_filenames"] = [str(x.get("name") or "") for x in product_items]
+            result["style_reference_filenames"] = [str(x.get("name") or "") for x in style_items]
+            return _graphic_safe_reference_blueprint_v16000(result)
+    except Exception as error:
+        diagnostic_log("graphic_reference_blueprint_failed", error_type=type(error).__name__, error=str(error), style_reference_count=len(style_items))
+    return _graphic_safe_reference_blueprint_v16000({
+        "analysis_version": "v16000-reference-blueprint-fallback",
+        "reference_summary": "Use current advertisements as layout and visual-language references only.",
+        "product_integration_instructions": "Place the uploaded product prominently while preserving identity and geometry.",
+        "forbidden_transfers": ["products in style references", "reference claims", "reference watermarks"],
+        "final_generation_blueprint": "Recreate the reference hierarchy with a dominant exact product, large readable typography, a substantial feature grid, the requested vehicle, and a full-width bottom benefit bar.",
+        "confidence_score": 55,
+    })
+
+
+def classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced_role="Auto-detect"):
+    """Classify image uploads into product/style/logo/support roles.
+
+    The classifier is deterministic and conservative so it adds no extra API call.
+    Advanced Designer users may force a role; ordinary Graphic Chat uses prompt and
+    filename signals. The first ordinary uploaded image defaults to Product Photo
+    for generation requests, protecting the actual item from style references.
+    """
+    images = []
+    prompt_lower = str(prompt_text or "").lower()
+    forced = str(forced_role or "Auto-detect").strip().lower()
+    ordered_example_request = (
+        any(token in prompt_lower for token in (
+            "first image", "first photo", "left photo", "left image",
+            "source photo", "source image", "photo i want to submit",
+            "product i want to submit", "original product"
+        ))
+        and any(token in prompt_lower for token in (
+            "other photos", "other images", "two photos", "two images",
+            "examples", "example images", "reference ads", "create like"
+        ))
+    )
+    for index, item in enumerate(uploaded_files or []):
+        mime = str(getattr(item, "type", "") or "").lower()
+        if not mime.startswith("image/"):
+            continue
+        name = Path(str(getattr(item, "name", "") or f"image_{index+1}.png")).name
+        lower_name = name.lower()
+        role = "supporting_image"
+        authoritative_project_role = str(
+            getattr(item, "graphic_role", "") or ""
+        ).strip().casefold()
+        project_role_map = {
+            "reference": "style_reference",
+            "style_reference": "style_reference",
+            "product": "product_photo",
+            "product_photo": "product_photo",
+            "logo": "logo_asset",
+            "logo_asset": "logo_asset",
+            "background": "background",
+            "supporting": "supporting_image",
+            "supporting_image": "supporting_image",
+        }
+        if forced and forced != "auto-detect":
+            role = {
+                "product photo": "product_photo",
+                "style reference": "style_reference",
+                "logo asset": "logo_asset",
+                "background": "background",
+                "supporting image": "supporting_image",
+            }.get(forced, "supporting_image")
+        elif authoritative_project_role in project_role_map:
+            # Conversation-project metadata is authoritative. Never infer a
+            # persistent reference ad from its filename or current prompt again.
+            role = project_role_map[authoritative_project_role]
+        elif ordered_example_request:
+            role = "product_photo" if index == 0 else "style_reference"
+        elif "logo" in lower_name and not any(word in lower_name for word in ("product", "cluster", "screen", "radio", "dashboard")):
+            role = "logo_asset"
+        elif any(word in lower_name for word in ("style", "reference", "sample", "layout", "example", "ad_", "advert")):
+            role = "style_reference"
+        elif any(word in lower_name for word in ("background", "backdrop", "scene")):
+            role = "background"
+        elif index == 0 or any(word in prompt_lower for word in (
+            "product photo", "this product", "uploaded product", "preserve the product",
+            "use this photo", "use this image", "product image"
+        )):
+            role = "product_photo"
+        images.append({"file": item, "name": name, "role": role})
+    return images
+
+
+def graphic_project_uploaded_files(include_current=None):
+    """Materialize usable Graphic assets while preserving authoritative roles.
+
+    Released historical products remain as lightweight project metadata, but empty
+    byte records are never converted into upload objects or sent through downstream
+    role classification.
+    """
+    combined = []
+    seen = set()
+    state_assets = list(get_graphic_project_state().get("assets") or [])
+    role_by_digest = {
+        str(record.get("id") or ""): str(record.get("role") or "supporting")
+        for record in state_assets
+        if str(record.get("id") or "")
+    }
+
+    for item in include_current or []:
+        try:
+            raw = item.getvalue()
+            digest = hashlib.sha256(raw).hexdigest()
+        except Exception:
+            raw = b""
+            digest = str(id(item))
+        if not raw or digest in seen:
+            continue
+        saved_role = role_by_digest.get(digest, "")
+        if saved_role and not str(
+            getattr(item, "graphic_role", "") or ""
+        ).strip():
+            try:
+                item.graphic_role = saved_role
+                item.graphic_asset_id = digest
+            except Exception:
+                item = ManagedUploadedFile(
+                    raw,
+                    getattr(item, "name", "image"),
+                    getattr(item, "type", "image/png"),
+                    graphic_role=saved_role,
+                    graphic_asset_id=digest,
+                )
+        combined.append(item)
+        seen.add(digest)
+
+    for record in state_assets:
+        digest = str(record.get("id") or "")
+        if not digest or digest in seen:
+            continue
+        raw = bytes(record.get("data") or b"")
+        if not raw:
+            continue
+        combined.append(ManagedUploadedFile(
+            raw,
+            record.get("name") or "image",
+            record.get("type") or "image/png",
+            graphic_role=record.get("role") or "supporting",
+            graphic_asset_id=digest,
+        ))
+        seen.add(digest)
+    return combined
+
+
+def normalized_image_data_url(uploaded_file):
+    normalized_bytes, mime_type = normalize_uploaded_image_bytes(uploaded_file)
+    encoded = base64.b64encode(normalized_bytes).decode()
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def review_graphic_output_accuracy(generated_data_url, product_role_items, prompt_text, product_transform_mode="Controlled Product Adaptation", reference_blueprint=None):
+    """Run one bounded vision review of product fidelity and style compliance."""
+    product_payloads = []
+    style_payloads = []
+    for item in product_role_items or []:
+        if item.get("role") != "product_photo":
+            continue
+        try:
+            data_url = normalized_image_data_url(item.get("file"))
+        except Exception:
+            data_url = ""
+        if str(data_url).startswith("data:image/"):
+            product_payloads.append(data_url)
+        if len(product_payloads) >= 2:
+            break
+    for item in product_role_items or []:
+        if item.get("role") != "style_reference":
+            continue
+        url = _graphic_role_data_url(item)
+        if url:
+            style_payloads.append(url)
+        if len(style_payloads) >= 3:
+            break
+    if not product_payloads or not str(generated_data_url or "").startswith("data:image/"):
+        return {}
+    mode = resolve_graphic_product_transform_mode(prompt_text, product_transform_mode, True)
+    threshold = graphic_product_mode_threshold(mode)
+    content = [{
+        "type": "input_text",
+        "text": (
+            f"Compare the generated marketing image with the original product photo(s) under {mode}. "
+            "Return strict JSON only with keys: product_accuracy_score (0-100), "
+            "style_adherence_score (0-100), layout_adherence_score (0-100), text_quality_score (0-100), vehicle_accuracy_score (0-100), content_density_score (0-100), passed (boolean), "
+            "zone_presence (object with boolean keys logo, headline, compatibility_ribbon, tagline, feature_matrix, hero_product, target_vehicle, bottom_benefit_bar), problems (array), correction_prompt (string). Fail the image if any visible product "
+            "identity detail changed, including screen UI/icons, bezel, vents, buttons, knobs, labels, "
+            "trim geometry, openings, brackets, connectors, proportions, or product identity. "
+            "Pay special attention to negative spaces: the horizontal gap directly below the screen, lower rectangular cavities, side handle openings, bottom mounting gaps/tabs, and all holes must remain visibly open and correctly shaped. Filling or deleting any such gap is an automatic product-fidelity failure. "
+            "For Controlled Product Adaptation, do NOT penalize professional background removal, scaling, modest perspective correction, scene-matched lighting/reflections, contact shadows, cleanup, or realistic environmental integration when the product identity and defining geometry remain accurate. "
+            "Read the persistent project vehicle lock from the requested prompt/context. Immediately fail if the generated truck make/model differs from the explicit user vehicle, or if text from the style-reference vehicle leaks into the result. "
+            "Score content_density against the style reference: logo/URL zone, headline, compatibility ribbon, tagline, feature/icon matrix, hero product, target vehicle, and multi-item bottom benefit bar should all be represented when present in the reference. "
+            "For Creative Product Integration, also allow a modest camera-angle change, but still fail invented or redesigned hardware. "
+            "For Exact Product Lock, require near pixel-faithful preservation. Product fidelity has priority over decorative style. "
+            "Immediately fail if the generated hero hardware matches, resembles, or substitutes the product shown in a STYLE REFERENCE rather than the ORIGINAL PRODUCT SOURCE. "
+            "Immediately fail major silhouette/category mismatches such as vertical-vs-horizontal orientation, different screen aspect ratio, different housing outline, different bracket/vent/control architecture, or a gauge cluster replacing an infotainment unit. "
+            f"A passing product score requires at least {threshold}/100 for this mode. When STYLE REFERENCE images are supplied, compare canvas zoning, product scale, typography hierarchy, icon and feature organization, bottom information bar, background depth, and lighting. Do not require copying their product. correction_prompt must explicitly prohibit the reference product and list altered product details and major missing layout patterns, then instruct restoration from the original product and references. "
+            "Reference blueprint: " + _graphic_reference_blueprint_text(reference_blueprint)[:5000] + " Persistent project context: " + _graphic_project_context_text()[:3000] + " Requested prompt: " + str(prompt_text or "")[:3000]
+        ),
+    }]
+    for url in product_payloads:
+        content.append({"type": "input_text", "text": "ORIGINAL PRODUCT SOURCE"})
+        content.append({"type": "input_image", "image_url": url})
+    for url in style_payloads:
+        content.append({"type": "input_text", "text": "STYLE REFERENCE — evaluate composition only, not its product"})
+        content.append({"type": "input_image", "image_url": url})
+    content.append({"type": "input_text", "text": "GENERATED RESULT TO REVIEW"})
+    content.append({"type": "input_image", "image_url": generated_data_url})
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions="Act as a strict automotive product-image quality inspector. Return JSON only.",
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=900,
+        )
+        result = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        return result if isinstance(result, dict) else {}
+    except Exception as error:
+        diagnostic_log("graphic_output_review_failed", error_type=type(error).__name__, error=str(error))
+        return {}
+
+
+def _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
+    """Use the established detector; any uncertainty fails closed to no guidance."""
+    try:
+        context = _graphic_v68000_exact_reference_context(
+            prompt_text, uploaded_files or [], forced_upload_role,
+        )
+        return bool((context or {}).get("exact_reference"))
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68827_reference_detection_failed_closed",
+            error_type=type(error).__name__,
+        )
+        return True
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68790 public generation path.
+
+    Restore the proven v66200/v67610 order:
+
+        advanced professional generation
+        -> usable image exists
+        -> return immediately
+
+    The v3200 deterministic compositor remains recovery only. It is not promoted
+    ahead of the advanced path because doing so allows reference-template hardware
+    to survive behind the uploaded product when the provider background contains a
+    larger product-like structure.
+    """
+    arguments = dict(
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    installed_request = _graphic_installed_intent_hint_v47000(effective_prompt)
+    failures = []
+
+    project = _graphic_repair_project_asset_roles_v15000(
+        get_graphic_project_state()
+    )
+    project = _graphic_active_project_assets_v16000(project)
+    project["stage"] = "generating"
+    project["last_error"] = ""
+    project["generation_started_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = project
+
+    # Stage 1: exact v66200/v68720 professional path, returned immediately when
+    # usable. This generator already performs its own product-source, geometry,
+    # fitment, composition, and QA checks.
+    try:
+        advanced_raw = _generate_graphic_marketing_images_advanced(
+            effective_prompt,
+            uploaded_files,
+            **arguments,
+        )
+        advanced_images = _graphic_v68680_normalize_usable_images(
+            advanced_raw,
+            "advanced-direct-return",
+            failures,
+        )
+        if advanced_images:
+            for image in advanced_images:
+                if isinstance(image, dict):
+                    image["generation_state_machine_v68790"] = {
+                        "success": True,
+                        "accepted_route": "advanced-direct-return",
+                        "advanced_first": True,
+                        "blocking_wrapper_bypassed": True,
+                        "v3200_used_as_recovery_only": True,
+                    }
+            diagnostic_log(
+                "graphic_v68790_advanced_direct_return",
+                image_count=len(advanced_images),
+            )
+            return advanced_images
+
+        failures.append(
+            "advanced-direct-return:route returned no usable image"
+        )
+    except Exception as error:
+        reason = (
+            f"{type(error).__name__}:"
+            f"{_graphic_compact_error_v4000(error)}"
+        )
+        failures.append("advanced-direct-return:" + reason)
+        diagnostic_log(
+            "graphic_v68790_advanced_exception",
+            reason=reason,
+        )
+
+    # Installed View must remain interior-only and fail closed.
+    if installed_request:
+        try:
+            installed_raw = _graphic_installed_view_recovery_v47000(
+                effective_prompt,
+                uploaded_files,
+                output_size="1536x1024",
+                forced_upload_role=forced_upload_role,
+            )
+            installed_images = _graphic_v68680_normalize_usable_images(
+                installed_raw,
+                "installed-view-only-v47000",
+                failures,
+            )
+            if installed_images:
+                for image in installed_images:
+                    if isinstance(image, dict):
+                        image["generation_state_machine_v68790"] = {
+                            "success": True,
+                            "accepted_route": "installed-view-only-v47000",
+                            "advanced_first": True,
+                        }
+                return installed_images
+            failures.append(
+                "installed-view-only-v47000:"
+                "route returned no usable image"
+            )
+        except Exception as error:
+            failures.append(
+                "installed-view-only-v47000:"
+                f"{type(error).__name__}:"
+                f"{_graphic_compact_error_v4000(error)}"
+            )
+
+        state = get_graphic_project_state()
+        state["stage"] = "ready_to_generate"
+        state["last_error"] = " | ".join(failures[-4:])[:1800]
+        st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+        raise RuntimeError(
+            "Installed View failed safely after its dedicated routes. "
+            + " | ".join(failures[-3:])
+        )
+
+    # Stage 2: unchanged v3200 compatibility recovery. It is intentionally not the
+    # primary Reference Mode route.
+    recovery_stages = [
+        (
+            "v3200-compatibility",
+            lambda: _generate_graphic_marketing_images_advanced_v3200(
+                effective_prompt,
+                uploaded_files,
+                **arguments,
+            ),
+        ),
+        (
+            "emergency-provider",
+            lambda: _graphic_emergency_provider_result_v15000(
+                effective_prompt,
+                uploaded_files,
+                style_strength=style_strength,
+                forced_upload_role=forced_upload_role,
+            ),
+        ),
+    ]
+
+    stage_results = []
+    for route_name, runner in recovery_stages:
+        result = _graphic_v68680_stage_result(
+            route_name,
+            runner,
+            prompt_text=effective_prompt,
+            uploaded_files=uploaded_files,
+            forced_upload_role=forced_upload_role,
+            preserve_product=preserve_product,
+            failures=failures,
+        )
+        stage_results.append(result)
+
+        if result.get("success") and result.get("images"):
+            images = result["images"]
+            for image in images:
+                if isinstance(image, dict):
+                    image["generation_state_machine_v68790"] = {
+                        "success": True,
+                        "accepted_route": route_name,
+                        "advanced_first": True,
+                        "advanced_failure": failures[0] if failures else "",
+                        "attempts": [
+                            {
+                                "route": item.get("route"),
+                                "success": bool(item.get("success")),
+                                "blocked": bool(item.get("blocked")),
+                                "reason": str(item.get("reason") or "")[:500],
+                            }
+                            for item in stage_results
+                        ],
+                    }
+            diagnostic_log(
+                "graphic_v68790_recovery_accepted",
+                route=route_name,
+                attempts=len(stage_results),
+            )
+            return images
+
+        reason = str(result.get("reason") or "route failed")
+        failures.append(f"{route_name}:{reason}")
+
+    state = get_graphic_project_state()
+    state["stage"] = "ready_to_generate"
+    state["last_error"] = " | ".join(failures[-6:])[:1800]
+    state["last_failed_stage"] = "all_generation_routes"
+    state["generation_failed_at"] = datetime.now(timezone.utc).isoformat()
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+
+    diagnostic_log(
+        "graphic_v68790_all_routes_failed",
+        failures=failures[-6:],
+    )
+    raise RuntimeError(
+        "All established image-generation routes genuinely failed. "
+        "Your project remains saved. "
+        + " | ".join(failures[-4:])
+    )
+
+
+_GRAPHIC_V68826_UNCACHED_GENERATOR = generate_graphic_marketing_images
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68826 exact reuse plus non-reference-only automatic style guidance."""
+    arguments = {
+        "use_approved_style": use_approved_style,
+        "preserve_product": preserve_product,
+        "style_strength": style_strength,
+        "forced_upload_role": forced_upload_role,
+        "quality_retry": quality_retry,
+        "product_transform_mode": product_transform_mode,
+        "professional_layered_studio": professional_layered_studio,
+    }
+    # Keep v68826's original-request cache identity unchanged.
+    request_key = _graphic_v68826_request_key(prompt_text, uploaded_files, arguments)
+    cached = _graphic_v68826_restore_approved_output(request_key)
+    if cached:
+        diagnostic_log(
+            "graphic_v68827_company_approved_output_hit",
+            request_key=request_key[:16],
+        )
+        return cached
+
+    is_reference = _graphic_v68827_is_reference_mode(
+        prompt_text, uploaded_files, forced_upload_role,
+    )
+    effective_prompt = str(prompt_text or "")
+    intelligence_applied = False
+    if not is_reference and use_approved_style and not graphic_prompt_disables_approved_reference(prompt_text):
+        payload = refresh_graphic_style_intelligence(force=False) or _graphic_v68827_current_intelligence()
+        guidance = _graphic_v68827_guidance_text(payload)
+        if guidance:
+            effective_prompt += guidance
+            intelligence_applied = True
+
+    # Call the untouched pre-v68826 generation pipeline directly. Reference Mode
+    # receives the exact original prompt and arguments with no intelligence text.
+    # Quarantine Reference Mode from every v68826/v68827 shared-learning side
+    # channel. The original v68818 generator still runs unchanged; only the
+    # rejection-memory provider is temporarily restored to exact v68818 behavior.
+    previous_reference_flag = st.session_state.get("_graphic_v68828_reference_pipeline_active")
+    if is_reference:
+        st.session_state["_graphic_v68828_reference_pipeline_active"] = True
+    try:
+        images = _GRAPHIC_V68826_UNCACHED_GENERATOR(
+            effective_prompt, uploaded_files, **arguments
+        )
+    finally:
+        if is_reference:
+            if previous_reference_flag is None:
+                st.session_state.pop("_graphic_v68828_reference_pipeline_active", None)
+            else:
+                st.session_state["_graphic_v68828_reference_pipeline_active"] = previous_reference_flag
+    for image in images or []:
+        if isinstance(image, dict):
+            image["prompt"] = str(prompt_text or "")
+            image["graphic_v68826_request_key"] = request_key
+            image["company_wide_approved_output_hit_v68826"] = False
+            image["automatic_style_intelligence_v68827"] = bool(intelligence_applied)
+            image["reference_mode_intelligence_bypassed_v68827"] = bool(is_reference)
+    return images
+
+
+GRAPHIC_V68829_INSTALLED_ENGINE = "v68829-installed-view-authority"
+_GRAPHIC_V68829_BASE_GENERATOR = generate_graphic_marketing_images
+
+def _graphic_v68829_is_installed_request(prompt_text):
+    """Use the established Installed View detector; never classify Reference Mode."""
+    try:
+        return bool(_graphic_installed_intent_hint_v47000(prompt_text))
+    except Exception:
+        value = str(prompt_text or "").casefold()
+        return bool(re.search(
+            r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|"
+            r"\bshow .{0,45} installed\b|\binstall .{0,70}(?:dashboard|dash|interior|vehicle|car)\b",
+            value,
+        ))
+
+
+def _graphic_v68829_installed_authority_contract():
+    """Return the ten-point Installed View engineering contract."""
+    return {
+        "1_oem_component_transfer": "Extract every retained OEM control as an authoritative donor layer and map it one-to-one into the matching new-bezel aperture. Preserve button count, order, labels, icons, knobs, illumination, orientation and complete panel silhouette. Never invent, duplicate, omit, redraw or leave a required aperture empty.",
+        "2_vehicle_identity": "Lock make, model, model year or year range, trim, dashboard generation, steering side, factory-radio configuration and visible cabin identity. Reject a candidate that changes the requested interior family.",
+        "3_bezel_aperture_geometry": "Detect every receiving aperture as a polygon with type, aspect ratio, corner geometry, anchors and fill requirement. Validate donor-to-aperture compatibility before generation.",
+        "4_installation_homography": "Use one bounded perspective transform per physical donor/product layer. Preserve aspect ratio, controls and geometry; prohibit independent warping of buttons, screen UI or component faces.",
+        "5_boundary_reconstruction": "Repair only the narrow product-to-dashboard and donor-to-aperture seams: recess depth, contact shadow, inner lip, panel gap, ambient occlusion and material edge. Do not regenerate the dashboard or authoritative component face.",
+        "6_occlusion_depth": "Maintain correct foreground/background ordering for steering wheel, console, shifter, trim, hands and bezel lips. No floating product, buried controls or impossible overlap.",
+        "7_lighting_glass_material": "Transfer cabin exposure, colour temperature, black level, reflection direction, glare, Fresnel glass response and material gloss through bounded overlays while preserving source geometry and readable controls.",
+        "8_release_qa": "Apply hard gates for vehicle identity, dashboard preservation, donor identity, aperture completion, button order, product geometry, perspective, functional clearance, depth, lighting, completeness and no hallucinated controls.",
+        "9_targeted_recovery": "Repair only the failed layer or mask. Restore authoritative source pixels for geometry/control failures; retry background, seam, reflection, depth or aperture mapping independently. Never regenerate a passing product or dashboard region.",
+        "10_multiview_consistency": "Persist one installation manifest across views: same vehicle identity, product dimensions, bezel thickness, donor mapping, aperture fill, installation position, UI, lighting family and fitment wording.",
+    }
+
+
+def _graphic_v68829_installed_directive(prompt_text):
+    contract = _graphic_v68829_installed_authority_contract()
+    lines = [
+        "[V68829 INSTALLED VIEW AUTHORITY — AFTER INSTALLATION MODE ONLY]",
+        "This contract is subordinate to explicit user instructions and exact uploaded source evidence, but it is release-blocking for physical correctness.",
+    ]
+    for key, value in contract.items():
+        lines.append(f"{key}: {value}")
+    lines.extend([
+        "Use the existing v51000 OEM donor-to-aperture assembly map, v49000 dashboard pixel lock, v50000 photographic integration, v45000 vehicle validation and existing targeted recovery paths.",
+        "The final result must look like a real completed installation photograph, not a poster, concept image, floating mockup or generic dashboard reconstruction.",
+        "Do not alter Reference Mode behavior, flexible fitment wording, exact-source product authority or any existing shared rendering function.",
+        "[END V68829 INSTALLED VIEW AUTHORITY]",
+    ])
+    return str(prompt_text or "") + "\n\n" + "\n".join(lines)
+
+
+def _graphic_v68829_release_audit(image):
+    """Aggregate existing Installed View validators without making new provider calls."""
+    image = image if isinstance(image, dict) else {}
+    installed = dict(image.get("installed_view_validation") or {})
+    photo = dict(image.get("installed_photographic_validation_v51000") or {})
+    authority = dict(image.get("installed_authority_report_v68817") or image.get("installed_view_authority") or {})
+    checks = {
+        "vehicle_identity": installed.get("passed") if installed.get("available") else None,
+        "oem_component_transfer": photo.get("passed") if photo.get("available") else None,
+        "donor_control_transfer_score": photo.get("donor_control_transfer_score"),
+        "receiving_aperture_completion_score": photo.get("receiving_aperture_completion_score"),
+        "switch_order_identity_score": photo.get("switch_order_identity_score"),
+        "dashboard_authority": authority.get("passed") if authority.get("available") else None,
+        "product_geometry": (image.get("product_geometry_validation") or {}).get("passed") if isinstance(image.get("product_geometry_validation"), dict) else None,
+        "professional_qa": (image.get("professional_qa") or {}).get("passed") if isinstance(image.get("professional_qa"), dict) else None,
+    }
+    explicit_failures = [k for k,v in checks.items() if v is False]
+    for key, minimum in (("donor_control_transfer_score",98),("receiving_aperture_completion_score",100),("switch_order_identity_score",96)):
+        value = checks.get(key)
+        try:
+            if value is not None and float(value) < minimum:
+                explicit_failures.append(key)
+        except Exception:
+            pass
+    return {
+        "engine": GRAPHIC_V68829_INSTALLED_ENGINE,
+        "available": any(v is not None for v in checks.values()),
+        "passed": not explicit_failures,
+        "checks": checks,
+        "failed_categories": sorted(set(explicit_failures)),
+        "new_provider_calls": 0,
+        "reference_mode_untouched": True,
+        "flexible_wording_untouched": True,
+    }
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """Apply v68829 only to Installed View; all other modes call v68828 unchanged."""
+    original_prompt = str(prompt_text or "")
+    is_reference = _graphic_v68827_is_reference_mode(
+        original_prompt, uploaded_files, forced_upload_role,
+    )
+    is_installed = (not is_reference) and _graphic_v68829_is_installed_request(original_prompt)
+
+    # Exact v68828 pass-through for Reference Mode and every non-Installed mode.
+    # No v68829/v68830 prompt mutation, result mutation, metadata injection, QA,
+    # cache change, learning change, or post-processing is allowed on this branch.
+    if not is_installed:
+        return _GRAPHIC_V68829_BASE_GENERATOR(
+            original_prompt, uploaded_files,
+            use_approved_style=use_approved_style,
+            preserve_product=preserve_product,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry,
+            product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+
+    effective_prompt = _graphic_v68829_installed_directive(original_prompt)
+    images = _GRAPHIC_V68829_BASE_GENERATOR(
+        effective_prompt, uploaded_files,
+        use_approved_style=use_approved_style,
+        preserve_product=preserve_product,
+        style_strength=style_strength,
+        forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry,
+        product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        image["prompt"] = original_prompt
+        image["installed_view_authority_engine_v68829"] = True
+        image["installed_view_authority_contract_v68829"] = _graphic_v68829_installed_authority_contract()
+        image["installed_view_release_audit_v68829"] = _graphic_v68829_release_audit(image)
+        image["vehicle_installation_engine_version"] = GRAPHIC_V68829_INSTALLED_ENGINE
+    return images
+
+'''
+
+def _graphic_v68989_build_v68835_namespace():
+    ns = dict(globals())
+    exec(compile(_GRAPHIC_V68835_COMPAT_SOURCE, "<v68835_graphic_compat>", "exec"), ns, ns)
+    return ns
+
+_GRAPHIC_V68835_NS = _graphic_v68989_build_v68835_namespace()
+
+def _graphic_v68989_mode(prompt_text, uploaded_files, forced_upload_role):
+    original_prompt = str(prompt_text or "")
+    try:
+        is_reference = bool(_GRAPHIC_V68835_NS["_graphic_v68827_is_reference_mode"](original_prompt, uploaded_files, forced_upload_role))
+    except Exception:
+        is_reference = True
+    if is_reference:
+        return "reference"
+    try:
+        if bool(_GRAPHIC_V68835_NS["_graphic_v68829_is_installed_request"](original_prompt)):
+            return "installed"
+    except Exception:
+        pass
+    return "other"
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """Route Reference and Installed View through isolated exact v68835 behavior; keep latest engine for every other mode."""
+    mode = _graphic_v68989_mode(prompt_text, uploaded_files, forced_upload_role)
+    engine = _GRAPHIC_V68835_NS["generate_graphic_marketing_images"] if mode in {"reference", "installed"} else _GRAPHIC_V68989_LATEST_ENGINE
+    images = engine(
+        prompt_text, uploaded_files,
+        use_approved_style=use_approved_style, preserve_product=preserve_product,
+        style_strength=style_strength, forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry, product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+    for image in images or []:
+        if isinstance(image, dict):
+            image["graphic_v68989_mode"] = mode
+            image["graphic_v68989_engine"] = GRAPHIC_V68989_COMPAT_ENGINE if mode in {"reference", "installed"} else "v68988-latest"
+            image["v68835_reference_pipeline_active"] = bool(mode == "reference")
+            image["v68835_installed_pipeline_active"] = bool(mode == "installed")
+    return images
