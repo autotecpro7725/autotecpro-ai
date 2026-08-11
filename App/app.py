@@ -45834,13 +45834,13 @@ if (
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
-# AutoTecPro AI v68999 — Website Asset Precision + Canonical Technical Preview
-# Built directly on v68998. Graphic v68835 Reference / v68829 After Install authorities,
+# AutoTecPro AI v69000 — Final Website Precision + Main-Content Hygiene
+# Built directly on v68999. Graphic v68835 Reference / v68829 After Install authorities,
 # the v68995 Graphic runtime layer, and Technical Support text→related-image rendering
-# remain unchanged. This release narrows only website-learning discovery/preview precision:
-# stronger WordPress/CDN asset canonicalization, full-size preference, deterministic site-
-# branding/blank-card suppression, perceptual logo-card rejection, and transparent raw→
-# logical→validated diagnostics while continuing to display every validated technical image.
+# remain unchanged. This release is website-learning-only: it hardens AutoTec/site-brand
+# rejection even when nearby article text is technical, removes header/sidebar/site chrome
+# from learned text, preserves broad WordPress technical-image recall, and keeps every
+# validated technical image visible before approval.
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
 WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 WEBSITE_MAX_EXTRACTED_CHARS = 120000
@@ -45849,6 +45849,7 @@ WEBSITE_MAX_ANALYZED_IMAGES = 200
 WEBSITE_MAX_IMAGE_BYTES = 8 * 1024 * 1024
 WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS = 18
 WEBSITE_AUTO_DISPLAY_MAX_IMAGES = 4
+WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -45863,7 +45864,7 @@ class KnowledgePageHTMLParser(HTMLParser):
 
     SKIP_TAGS = {
         "script", "style", "noscript", "svg", "canvas", "iframe",
-        "nav", "footer", "form", "button",
+        "nav", "header", "footer", "aside", "form", "button",
     }
     BLOCK_TAGS = {
         "article", "section", "main", "header", "div", "p", "br",
@@ -46257,6 +46258,11 @@ def clean_extracted_website_text(raw_text):
         "accept cookies", "reject cookies", "manage cookies",
         "cookie settings", "privacy choices", "skip to content",
         "back to top", "sign in", "log in", "subscribe",
+        # v69000: recurring WordPress/site-chrome labels must never become
+        # vehicle-specific Technical Support knowledge.
+        "shop departments", "about us", "my account", "view cart",
+        "shopping cart", "checkout", "customer service", "contact us",
+        "privacy policy", "terms and conditions",
     }
 
     previous = None
@@ -46267,8 +46273,24 @@ def clean_extracted_website_text(raw_text):
                 lines.append("")
             continue
 
-        if line.lower() in noise_exact:
+        lower_line = line.casefold()
+        if lower_line in noise_exact:
             continue
+
+        # v69000: logo/banner alt text can otherwise leak into the reviewed
+        # technical article as "Image description: AutoTecPro Navigation Systems".
+        if lower_line.startswith("image description:"):
+            image_desc = lower_line.split(":", 1)[1].strip()
+            if (
+                image_desc in {
+                    "autotecpro navigation systems", "autotec navigation systems",
+                    "autotecpro", "autotec", "www.autotecpro.com",
+                }
+                or ("autotecpro" in image_desc and any(
+                    token in image_desc for token in ("logo", "navigation systems", "website", "brand")
+                ))
+            ):
+                continue
 
         # Remove immediate repeated navigation/header lines.
         if line == previous:
@@ -46879,6 +46901,49 @@ def _website_preview_visual_metrics_v68998(image_bytes):
     return metrics
 
 
+def _website_known_brand_asset_v69000(candidate, downloaded=None):
+    """Return a deterministic reason for known AutoTec/site-brand assets.
+
+    This gate is intentionally independent of nearby technical text. A logo placed
+    inside a wiring section must remain a logo; contextual section text cannot promote
+    it into Technical Support knowledge. Genuine technical images are protected when
+    their own filename/alt/title carries installation/settings/wiring semantics.
+    """
+    candidate = dict(candidate or {})
+    downloaded = dict(downloaded or {})
+    url = str(candidate.get("url") or downloaded.get("source_url") or "")
+    basename = _website_asset_basename_v68999(url)
+    alt = re.sub(r"\s+", " ", str(candidate.get("alt") or "")).strip().casefold()
+    title = re.sub(r"\s+", " ", str(candidate.get("title") or "")).strip().casefold()
+    own_text = " ".join((basename, alt, title)).casefold()
+    brand_tokens = (
+        "autotecpro-logo", "autotec-logo", "autotecpro_logo", "autotec_logo",
+        "autotecpro-brand", "autotec-brand", "autotecpro_brand", "autotec_brand",
+        "www.autotecpro.com", "autotecpro.com-logo", "autotecpro navigation systems",
+        "autotec navigation systems", "site-logo", "header-logo", "footer-logo",
+    )
+    # Strong, explicit brand identities win before generic technical words such as
+    # "navigation" are considered; "AutoTecPro Navigation Systems" is the site logo,
+    # not a navigation-setting screenshot.
+    if any(token in own_text for token in brand_tokens):
+        return "known-autotec-site-branding"
+    technical_own_tokens = (
+        "wiring", "diagram", "harness", "connector", "camera", "setting",
+        "settings", "car model", "climate", "protocol", "canbus", "can bus",
+        "amplifier", "audio", "bluetooth", "navigation", "google", "factory",
+        "power", "aux", "lvds", "microphone", "temperature", "screen",
+    )
+    if any(token in own_text for token in technical_own_tokens):
+        return ""
+    # A bare AutoTec/AutoTecPro alt/title is branding unless the asset itself carries
+    # a technical semantic token above. This does not inspect the autotecpro.com host.
+    if alt in {"autotec", "autotecpro", "autotecpro navigation systems"} or title in {
+        "autotec", "autotecpro", "autotecpro navigation systems"
+    }:
+        return "known-autotec-site-branding"
+    return ""
+
+
 def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
     """Reject only deterministic broken/blank/obvious site-chrome candidates.
 
@@ -46900,6 +46965,9 @@ def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
         basename, str(candidate.get("alt") or "").casefold(),
         str(candidate.get("title") or "").casefold(),
     ))
+    brand_reason_v69000 = _website_known_brand_asset_v69000(candidate, downloaded)
+    if brand_reason_v69000:
+        return brand_reason_v69000
     if any(token in identity for token in WEBSITE_PREVIEW_HARD_DECORATIVE_TOKENS_V68998):
         return "obvious-site-chrome"
     if any(token in explicit_brand_identity for token in (
@@ -46923,21 +46991,38 @@ def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
     # foreground mark. This catches branding files whose filename gives no clue.
     # Strong technical context gets a much tighter threshold so small connector crops
     # and settings screenshots are not accidentally removed.
-    if near_white >= 0.68 and foreground_bbox_ratio <= 0.44 and foreground_ratio <= 0.22:
-        if not technical or (foreground_bbox_ratio <= 0.16 and foreground_ratio <= 0.075):
-            return "probable-logo-or-brand-card"
+    # v69000 hard boundary: a highly uniform white card with one isolated low-edge
+    # mark remains decorative even when the surrounding article section is technical.
+    # Genuine settings screenshots normally occupy a broad bounding box and have much
+    # higher edge density, so they remain eligible.
+    if (
+        near_white >= 0.72
+        and foreground_bbox_ratio <= 0.50
+        and foreground_ratio <= 0.20
+        and edge_ratio < 0.16
+    ):
+        return "probable-logo-or-brand-card"
+    # Same principle for non-white logo cards: most pixels match the border/background
+    # and a compact mark carries the only content.
+    if (
+        foreground_ratio <= 0.115
+        and foreground_bbox_ratio <= 0.42
+        and entropy < 4.8
+        and edge_ratio < 0.14
+    ):
+        return "probable-isolated-brand-mark"
     width = int(downloaded.get("width") or 0)
     height = int(downloaded.get("height") or 0)
     ratio = max(width, height) / max(1, min(width, height))
     # Common logos/badges are shallow, low-information and detached from technical text.
     # Never apply this heuristic to candidates carrying real technical context.
     if (
-        not technical
-        and width and height
-        and min(width, height) <= 260
-        and ratio >= 2.4
-        and entropy < 5.2
-        and edge_ratio < 0.22
+        width and height
+        and min(width, height) <= 320
+        and ratio >= 2.5
+        and foreground_ratio <= 0.45
+        and entropy < 5.3
+        and edge_ratio < 0.20
     ):
         return "probable-decorative-branding"
     return ""
@@ -49118,7 +49203,7 @@ def extract_public_webpage(url, page_password=""):
         parser_images = list(getattr(parser, "images", []) if parser is not None else [])
         if parser is not None:
             parser_images.extend(_website_raw_html_image_candidates_v68996(page_text))
-        raw_image_candidate_count_v68999 = len(parser_images)
+        raw_image_candidate_count_v68999 = len(parser_images)  # compatibility key retained by v69000
         image_candidates = _website_image_candidate_urls(
             parser_images,
             final_url,
@@ -49607,7 +49692,7 @@ def render_learn_from_website(database_choice):
     if include_website_images and website_image_candidates:
         st.caption(
             f"Validating all {len(website_image_candidates):,} unique/logical image assets before preview. "
-            "Broken, empty, obvious decorative/site-branding images and exact-byte duplicates are removed; "
+            "Broken, empty, known AutoTec/site-branding images, decorative assets and exact-byte duplicates are removed; "
             "every remaining candidate is shown below and will be eligible for visual analysis on save."
         )
         with st.spinner("Validating website images for preview..."):
