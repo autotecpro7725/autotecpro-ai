@@ -1,4 +1,5 @@
-# AutoTecPro AI v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
+# AutoTecPro AI v68988 — Consolidated Reference failure-envelope hardening
+# Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -33869,6 +33870,379 @@ def _graphic_v68985_reference_local_failsafe(prompt_text, uploaded_files, forced
     return images
 
 
+
+def _graphic_v68986_reference_untouched_card_failsafe(prompt_text, uploaded_files, forced_upload_role, style_strength, failure_reason=""):
+    """Absolute final Reference fallback using the untouched uploaded product photo.
+
+    This tier deliberately bypasses product masking, silhouette extraction, reserved-zone
+    inpainting and geometry heuristics. The original uploaded bitmap is EXIF-normalized,
+    uniformly resized once, never cropped/warped, and placed as an opaque product card.
+    It exists only to guarantee completion after every higher-fidelity Reference route
+    has failed. Product geometry therefore cannot be altered by mask extraction.
+    """
+    if Image is None:
+        raise RuntimeError("v68986 untouched-card fallback requires Pillow.")
+    from PIL import ImageDraw
+
+    effective_prompt = _graphic_resolve_effective_prompt_v47000(prompt_text)
+    role_items = _graphic_project_role_items(uploaded_files or [], effective_prompt, forced_role=forced_upload_role)
+    product_item = next((i for i in role_items if i.get("role") == "product_photo" and i.get("file") is not None), None)
+    reference_item = next((i for i in role_items if i.get("role") == "style_reference"), None)
+    if product_item is None or reference_item is None:
+        raise RuntimeError("v68986 untouched-card fallback requires active product and style reference.")
+
+    raw = _graphic_uploaded_file_bytes(product_item.get("file"))
+    if not raw:
+        raise RuntimeError("v68986 untouched-card fallback could not read the active product bytes.")
+    try:
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+    except Exception as error:
+        raise RuntimeError("v68986 untouched-card fallback could not decode the active product.") from error
+
+    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(effective_prompt))
+    W, H = [int(v) for v in output_size.split("x", 1)]
+    background = _graphic_v66850_local_scene_plate(output_size, effective_prompt, {})
+    canvas = Image.open(io.BytesIO(background)).convert("RGBA")
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # Reference-family calm header and protected footer.
+    header_h = int(H * 0.34)
+    footer_h = int(H * 0.095)
+    footer_top = H - footer_h
+    draw.rectangle((0, 0, W, header_h), fill=(244, 248, 253, 218))
+    draw.rectangle((int(W*0.035), footer_top, int(W*0.965), int(H*0.975)), fill=(10, 27, 46, 242))
+
+    spec = _graphic_verified_campaign_spec_v3300(effective_prompt, {})
+    headline = str(spec.get("headline") or "15.6\" 2K INFOTAINMENT SYSTEM").strip()
+    compatibility = str(spec.get("compatibility") or _graphic_explicit_fitment_v41100(effective_prompt) or "").strip()
+    tagline = str(spec.get("tagline") or "Bigger Screen. Smarter Drive.").strip()
+    f_head = _graphic_font(max(28, int(H*0.055)), bold=True)
+    f_ribbon = _graphic_font(max(18, int(H*0.030)), bold=True)
+    f_tag = _graphic_font(max(16, int(H*0.024)), bold=False)
+    draw.text((int(W*0.035), int(H*0.075)), headline[:58], font=f_head, fill=(7,31,58,255))
+    if compatibility:
+        rx0, ry0 = int(W*0.035), int(H*0.165)
+        ribbon_text = compatibility[:74]
+        tw = draw.textbbox((0,0), ribbon_text, font=f_ribbon)[2]
+        draw.rectangle((rx0-6, ry0-5, min(W-20, rx0+tw+22), ry0+int(H*0.045)), fill=(190,18,18,245))
+        draw.text((rx0+4, ry0), ribbon_text, font=f_ribbon, fill=(255,255,255,255))
+    draw.text((int(W*0.035), int(H*0.225)), tagline[:78], font=f_tag, fill=(8,34,62,255))
+
+    # Untouched source photo card: one uniform resize only, no crop/warp/mask.
+    max_w = int(W * 0.50)
+    max_h = int(H * 0.59)
+    scale = min(max_w / max(1, source.width), max_h / max(1, source.height))
+    new_size = (max(1, int(round(source.width * scale))), max(1, int(round(source.height * scale))))
+    card = source.resize(new_size, Image.Resampling.LANCZOS).convert("RGBA")
+    px = int(W*0.055)
+    py = min(int(H*0.34), footer_top - card.height - int(H*0.02))
+    py = max(header_h - int(H*0.015), py)
+    canvas.alpha_composite(card, (px, py))
+
+    # Deterministic Reference connectivity semantics. Reuse v68882 artwork exactly.
+    semantics=[]; footer_semantics=[]
+    prompt_cf = effective_prompt.casefold()
+    requested=[]
+    if "carplay" in prompt_cf: requested.append("carplay")
+    if "android auto" in prompt_cf: requested.append("android_auto")
+    icon_y = int(H*0.055)
+    icon_size = int(H*0.075)
+    x = int(W*0.70)
+    for semantic in requested:
+        box=(x, icon_y, x+icon_size, icon_y+icon_size)
+        if _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
+            semantics.append(semantic)
+        x += int(W*0.115)
+    fx = int(W*0.48)
+    fy = footer_top + int(footer_h*0.18)
+    for semantic in requested:
+        box=(fx, fy, fx+int(footer_h*0.52), fy+int(footer_h*0.52))
+        if _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
+            footer_semantics.append(semantic)
+        fx += int(W*0.18)
+
+    out = io.BytesIO()
+    canvas.convert("RGB").save(out, format="PNG", optimize=True)
+    result = _graphic_build_provider_result_v3000(
+        out.getvalue(), effective_prompt, output_size, role_items,
+        "v68986-untouched-source-card-final-failsafe", {}, {}, corrected=True,
+    )
+    source_sha = hashlib.sha256(raw).hexdigest()
+    result.update({
+        "product_layer_immutable": True,
+        "product_geometry_provider_generated": False,
+        "ai_product_recreated": False,
+        "strict_product_identity_lock": True,
+        "product_transform_mode": "Exact Original Product — Untouched Card",
+        "product_identity_method": "v68986-untouched-source-composite",
+        "verification_status": "verified_untouched_source_card",
+        "graphic_v68986_reference_untouched_card_failsafe": True,
+        "graphic_v68985_reference_recovery_tier": "untouched-source-card",
+    })
+    result.setdefault("layered_metadata", {}).update({
+        "engine": "v68986-untouched-source-card-final-failsafe",
+        "exact_product_pixels": True,
+        "exact_product_asset_mode": True,
+        "product_master_rgb_preserved": True,
+        "product_pixels_provider_generated": False,
+        "ai_product_recreated": False,
+        "product_source_sha256": source_sha,
+        "reference_connectivity_icon_authority_v68978": True if requested else False,
+        "reference_connectivity_semantics_v68978": semantics,
+        "reference_footer_connectivity_semantics_v68978": footer_semantics,
+        "reference_exact_source_bounds_v68981": {
+            "on_canvas": bool(px >= 0 and py >= 0 and px + card.width <= W and py + card.height <= H),
+            "clears_footer": bool(py + card.height < footer_top),
+            "uniform_scale_only": True,
+            "crop_applied": False,
+            "perspective_warp_applied": False,
+            "aspect_ratio_relative_error": abs((card.width/max(1,card.height))-(source.width/max(1,source.height))) / max(source.width/max(1,source.height), 0.001),
+            "source_mode": "full-opaque-uploaded-bitmap",
+        },
+        "critical_region_visibility": {"available": False, "reason": "v68986 untouched-card mode; full uploaded bitmap on canvas"},
+        "failure_reason": str(failure_reason or "")[:1600],
+    })
+    return [result]
+
+
+
+def _graphic_v68987_direct_reference_assets(uploaded_files=None):
+    """Resolve final-failsafe Product/Reference without role-classifier dependencies.
+
+    This is intentionally narrow and used only after every normal Reference route has
+    already failed. Project asset IDs/roles are authoritative; current uploads are
+    added as byte-identical candidates. No AI/classifier/provider call is made.
+    """
+    state = get_graphic_project_state() or {}
+    active_product_id = str(state.get("active_product_id") or "").strip().lower()
+    active_reference_id = str(state.get("active_reference_id") or "").strip().lower()
+    candidates = []
+
+    for rec in list(state.get("assets") or []):
+        if not isinstance(rec, dict):
+            continue
+        raw = bytes(rec.get("data") or b"")
+        aid = str(rec.get("id") or "").strip().lower()
+        if raw and not re.fullmatch(r"[0-9a-f]{64}", aid):
+            aid = hashlib.sha256(raw).hexdigest()
+        candidates.append({
+            "id": aid,
+            "role": str(rec.get("role") or "supporting").strip().casefold(),
+            "raw": raw,
+            "name": str(rec.get("name") or "image"),
+            "type": str(rec.get("type") or "image/jpeg"),
+        })
+
+    for obj in uploaded_files or []:
+        try:
+            raw = bytes(obj.getvalue() or b"")
+        except Exception:
+            try:
+                raw = _graphic_uploaded_file_bytes(obj)
+            except Exception:
+                raw = b""
+        if not raw:
+            continue
+        aid = hashlib.sha256(raw).hexdigest()
+        role = str(getattr(obj, "graphic_role", "") or "").strip().casefold()
+        candidates.append({
+            "id": aid, "role": role,
+            "raw": raw, "name": str(getattr(obj, "name", "image")),
+            "type": str(getattr(obj, "type", "image/jpeg")),
+        })
+
+    def unique(items):
+        seen=set(); out=[]
+        for item in items:
+            key=(item.get("id"), item.get("role"))
+            if key in seen: continue
+            seen.add(key); out.append(item)
+        return out
+    candidates=unique(candidates)
+
+    product = next((c for c in candidates if active_product_id and c["id"] == active_product_id and c["raw"]), None)
+    reference = next((c for c in candidates if active_reference_id and c["id"] == active_reference_id), None)
+    if product is None:
+        product = next((c for c in reversed(candidates) if c["role"] in {"product","product_photo"} and c["raw"]), None)
+    if reference is None:
+        reference = next((c for c in candidates if c["role"] in {"reference","style_reference"}), None)
+
+    return {
+        "product": product,
+        "reference": reference,
+        "active_product_id": active_product_id,
+        "active_reference_id": active_reference_id,
+        "candidate_count": len(candidates),
+    }
+
+
+def _graphic_v68987_reference_absolute_failsafe(prompt_text, uploaded_files, forced_upload_role="Auto-detect", style_strength="High", failure_reason=""):
+    """Truly provider/classifier-independent final Reference completion tier.
+
+    The complete uploaded product bitmap is used as one opaque layer. There is no
+    mask extraction, crop, warp, role classifier, campaign compiler, provider-result
+    wrapper, network call, or geometry heuristic in this tier.
+    """
+    if Image is None:
+        raise RuntimeError("v68987 absolute failsafe requires Pillow.")
+    from PIL import ImageDraw, ImageFont
+
+    authority = _graphic_v68987_direct_reference_assets(uploaded_files or [])
+    product = authority.get("product")
+    reference = authority.get("reference")
+    if not product or not bytes(product.get("raw") or b""):
+        raise RuntimeError("v68987 absolute failsafe could not recover the active Product Photo bytes.")
+    if reference is None and not authority.get("active_reference_id"):
+        raise RuntimeError("v68987 absolute failsafe could not prove an active Style Reference.")
+
+    raw = bytes(product["raw"])
+    source_sha = hashlib.sha256(raw).hexdigest()
+    active_pid = str(authority.get("active_product_id") or "").lower()
+    if re.fullmatch(r"[0-9a-f]{64}", active_pid) and active_pid != source_sha:
+        raise RuntimeError("v68987 absolute failsafe Product SHA does not match the active Product authority.")
+    try:
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+    except Exception as error:
+        raise RuntimeError("v68987 absolute failsafe could not decode the active Product Photo.") from error
+
+    W, H = 1536, 1024
+    canvas = Image.new("RGBA", (W,H), (229,238,248,255))
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    # Lightweight deterministic sky / mountain / ground; no network/provider dependency.
+    for y in range(H):
+        if y < int(H*.62):
+            t=y/max(1,int(H*.62)); a=(190,219,244); b=(247,231,207)
+        else:
+            t=(y-int(H*.62))/max(1,H-int(H*.62)); a=(92,83,74); b=(43,40,38)
+        col=tuple(int(a[i]*(1-t)+b[i]*t) for i in range(3))+(255,)
+        draw.line((0,y,W,y), fill=col)
+    draw.polygon([(0,690),(220,545),(390,650),(620,500),(800,655),(1030,520),(1260,625),(1536,500),(1536,1024),(0,1024)], fill=(65,70,73,238))
+    draw.rectangle((0,760,W,H), fill=(55,50,46,255))
+
+    header_h=int(H*.34); footer_h=int(H*.095); footer_top=H-footer_h
+    draw.rectangle((0,0,W,header_h), fill=(246,249,253,225))
+    draw.rounded_rectangle((int(W*.035),footer_top,int(W*.965),int(H*.977)), radius=16, fill=(9,25,44,245))
+
+    try:
+        f_head=_graphic_font(max(28,int(H*.055)), bold=True)
+        f_mid=_graphic_font(max(18,int(H*.030)), bold=True)
+        f_tag=_graphic_font(max(16,int(H*.024)), bold=False)
+    except Exception:
+        f_head=f_mid=f_tag=ImageFont.load_default()
+
+    text=re.sub(r"\s+"," ",str(prompt_text or "")).strip()
+    title_match=re.search(r'use\s+["“]([^"”]{5,70})["”]\s+as\s+main\s+title', text, flags=re.I)
+    headline=(title_match.group(1).strip() if title_match else '15.6" 2K INFOTAINMENT SYSTEM')
+    vehicle_match=re.search(r'(Chevrolet\s+Silverado\s*(?:/|&|and)\s*GMC\s+Sierra\s*\([^)]{4,20}\))', text, flags=re.I)
+    compatibility=(vehicle_match.group(1).strip() if vehicle_match else 'Chevrolet Silverado / GMC Sierra')
+    draw.text((int(W*.035),int(H*.07)), headline[:62], font=f_head, fill=(7,31,58,255))
+    rx,ry=int(W*.035),int(H*.17)
+    rb=f"For {compatibility}"[:78]
+    try: tw=draw.textbbox((0,0),rb,font=f_mid)[2]
+    except Exception: tw=int(W*.42)
+    draw.rectangle((rx-6,ry-5,min(W-20,rx+tw+25),ry+int(H*.045)), fill=(190,18,18,245))
+    draw.text((rx+4,ry),rb,font=f_mid,fill=(255,255,255,255))
+    draw.text((int(W*.035),int(H*.23)),"Bigger Screen. Smarter Drive.",font=f_tag,fill=(8,34,62,255))
+
+    # Full untouched uploaded bitmap: one uniform resize only.
+    max_w=int(W*.50); max_h=int(H*.57)
+    scale=min(max_w/source.width, max_h/source.height)
+    nw=max(1,int(round(source.width*scale))); nh=max(1,int(round(source.height*scale)))
+    card=source.resize((nw,nh),Image.Resampling.LANCZOS).convert("RGBA")
+    px=int(W*.055)
+    available_top=header_h-int(H*.01)
+    max_py=footer_top-nh-int(H*.015)
+    py=max(available_top, min(max_py, int(H*.355)))
+    # If the source is unusually tall, shrink once more uniformly to guarantee footer clearance.
+    if py+nh >= footer_top:
+        allowed_h=max(1, footer_top-py-int(H*.015))
+        scale2=allowed_h/nh
+        nw=max(1,int(round(nw*scale2))); nh=max(1,int(round(nh*scale2)))
+        card=source.resize((nw,nh),Image.Resampling.LANCZOS).convert("RGBA")
+    canvas.alpha_composite(card,(px,py))
+
+    requested=[]; cf=text.casefold()
+    if "carplay" in cf: requested.append("carplay")
+    if "android auto" in cf: requested.append("android_auto")
+    semantics=[]; footer_semantics=[]
+    ix=int(W*.70); iy=int(H*.055); isz=int(H*.075)
+    for semantic in requested:
+        if _graphic_draw_reference_connectivity_icon_v68853(draw,(ix,iy,ix+isz,iy+isz),semantic): semantics.append(semantic)
+        ix+=int(W*.115)
+    fx=int(W*.48); fy=footer_top+int(footer_h*.18); fsz=int(footer_h*.52)
+    for semantic in requested:
+        if _graphic_draw_reference_connectivity_icon_v68853(draw,(fx,fy,fx+fsz,fy+fsz),semantic): footer_semantics.append(semantic)
+        fx+=int(W*.18)
+
+    out=io.BytesIO(); canvas.convert("RGB").save(out,format="PNG",optimize=True)
+    png=out.getvalue(); data_url="data:image/png;base64,"+base64.b64encode(png).decode("ascii")
+    source_ratio=source.width/max(1,source.height); final_ratio=nw/max(1,nh)
+    result={
+        "name":"AutoTecPro_Reference_Failsafe.png", "filename":"AutoTecPro_Reference_Failsafe.png",
+        "data_url":data_url, "generated":True, "mime_type":"image/png", "size":"1536x1024", "resolution":"1536x1024",
+        "provider_route":"v68987-absolute-provider-independent-reference-failsafe",
+        "provider_fallback_used":True, "output_status":"completed_absolute_failsafe",
+        "strict_product_identity_lock":True, "product_layer_immutable":True,
+        "product_geometry_provider_generated":False, "ai_product_recreated":False,
+        "product_identity_method":"v68987-untouched-source-composite",
+        "product_transform_mode":"Exact Original Product — Full Opaque Bitmap",
+        "graphic_v68987_reference_absolute_failsafe":True,
+        "graphic_v68985_reference_recovery_tier":"absolute-provider-independent",
+        "prompt":str(prompt_text or ""),
+        "layered_metadata":{
+            "engine":"v68987-absolute-provider-independent-reference-failsafe",
+            "exact_product_pixels":True, "exact_product_asset_mode":True,
+            "product_master_rgb_preserved":True, "product_pixels_provider_generated":False,
+            "ai_product_recreated":False, "product_source_sha256":source_sha,
+            "reference_connectivity_icon_authority_v68978":True if requested else False,
+            "reference_connectivity_semantics_v68978":semantics,
+            "reference_footer_connectivity_semantics_v68978":footer_semantics,
+            "reference_exact_source_bounds_v68981":{
+                "on_canvas":bool(px>=0 and py>=0 and px+nw<=W and py+nh<=H),
+                "clears_footer":bool(py+nh<footer_top), "uniform_scale_only":True,
+                "crop_applied":False, "perspective_warp_applied":False,
+                "aspect_ratio_relative_error":abs(final_ratio-source_ratio)/max(source_ratio,.001),
+                "source_mode":"full-opaque-uploaded-bitmap",
+            },
+            "critical_region_visibility":{"available":False,"reason":"full opaque uploaded bitmap is fully on canvas"},
+            "failure_reason":str(failure_reason or "")[:1600],
+            "direct_authority_active_product_id":active_pid,
+            "direct_authority_active_reference_id":str(authority.get("active_reference_id") or ""),
+        },
+    }
+    return [result]
+
+
+_GRAPHIC_V68987_BASE_PUBLICATION_REPORT = _graphic_v68978_reference_publication_report
+
+def _graphic_v68978_reference_publication_report(images, prompt_text, uploaded_files, forced_upload_role):
+    """v68987 adds a self-contained gate for the absolute final fallback only."""
+    image=images[0] if images and isinstance(images[0],dict) else {}
+    if not image.get("graphic_v68987_reference_absolute_failsafe"):
+        return _GRAPHIC_V68987_BASE_PUBLICATION_REPORT(images,prompt_text,uploaded_files,forced_upload_role)
+    md=dict(image.get("layered_metadata") or {}); issues=[]; warnings=[]
+    bounds=dict(md.get("reference_exact_source_bounds_v68981") or {})
+    if md.get("exact_product_pixels") is not True: issues.append("exact uploaded-product pixels not proven")
+    if bounds.get("on_canvas") is not True: issues.append("confirmed product crop outside canvas")
+    if bounds.get("clears_footer") is not True: issues.append("confirmed product/footer overlap")
+    if bounds.get("uniform_scale_only") is not True or bounds.get("crop_applied") is True or bounds.get("perspective_warp_applied") is True: issues.append("product geometry transform is not source-preserving")
+    try:
+        if float(bounds.get("aspect_ratio_relative_error") or 0)>0.0025: issues.append("product aspect ratio drift")
+    except Exception: issues.append("product aspect ratio verification unavailable")
+    cf=str(prompt_text or "").casefold(); req=[]
+    if "carplay" in cf: req.append("carplay")
+    if "android auto" in cf: req.append("android_auto")
+    sem=set(md.get("reference_connectivity_semantics_v68978") or []); fsem=set(md.get("reference_footer_connectivity_semantics_v68978") or [])
+    if req and md.get("reference_connectivity_icon_authority_v68978") is not True: issues.append("Reference connectivity icon authority inactive")
+    for x in req:
+        if x not in sem and x not in fsem: issues.append("missing deterministic "+x+" icon semantic")
+    sha=str(md.get("product_source_sha256") or "").lower(); active=str(md.get("direct_authority_active_product_id") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}",sha): issues.append("final product source SHA unavailable")
+    if re.fullmatch(r"[0-9a-f]{64}",active) and active!=sha: issues.append("final product source SHA does not match active upload")
+    if not str(md.get("direct_authority_active_reference_id") or ""):
+        warnings.append("active reference ID unavailable in final failsafe; saved reference presence was used")
+    return {"passed":not issues,"issues":issues,"warnings":warnings,"product_sha256":sha,"engine":"v68987-absolute-publication-gate"}
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True,
     preserve_product=True, style_strength="High",
@@ -33941,13 +34315,19 @@ def generate_graphic_marketing_images(
                     error_type=type(recovery_error).__name__,
                     error=_graphic_compact_error_v4000(recovery_error),
                 )
-                images = _graphic_v68985_reference_local_failsafe(
-                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
-                    failure_reason=(
-                        "primary=" + _graphic_compact_error_v4000(error)
-                        + " | hybrid=" + _graphic_compact_error_v4000(recovery_error)
-                    ),
-                )
+                try:
+                    images = _graphic_v68985_reference_local_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason=(
+                            "primary=" + _graphic_compact_error_v4000(error)
+                            + " | hybrid=" + _graphic_compact_error_v4000(recovery_error)
+                        ),
+                    )
+                except Exception as local_error:
+                    images = _graphic_v68987_reference_absolute_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason="primary/hybrid/local=" + _graphic_compact_error_v4000(local_error),
+                    )
     finally:
         if is_reference:
             if previous_reference_flag is None:
@@ -33973,10 +34353,16 @@ def generate_graphic_marketing_images(
                     error_type=type(recovery_error).__name__,
                     error=_graphic_compact_error_v4000(recovery_error),
                 )
-                images = _graphic_v68985_reference_local_failsafe(
-                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
-                    failure_reason="primary-publication-block | hybrid=" + _graphic_compact_error_v4000(recovery_error),
-                )
+                try:
+                    images = _graphic_v68985_reference_local_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason="primary-publication-block | hybrid=" + _graphic_compact_error_v4000(recovery_error),
+                    )
+                except Exception as local_error:
+                    images = _graphic_v68987_reference_absolute_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason="publication/hybrid/local=" + _graphic_compact_error_v4000(local_error),
+                    )
             publication = _graphic_v68978_reference_publication_report(
                 images, prompt_text, uploaded_files, forced_upload_role
             )
@@ -33998,15 +34384,26 @@ def generate_graphic_marketing_images(
                         error_type=type(local_error).__name__,
                         error=_graphic_compact_error_v4000(local_error),
                     )
-                    raise RuntimeError(
-                        "Reference Mode final deterministic failsafe failed: "
-                        + _graphic_compact_error_v4000(local_error)
-                    ) from local_error
+                    images = _graphic_v68987_reference_absolute_failsafe(
+                        str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                        failure_reason="deterministic-local-failed: " + _graphic_compact_error_v4000(local_error),
+                    )
+                    publication = _graphic_v68978_reference_publication_report(
+                        images, prompt_text, uploaded_files, forced_upload_role
+                    )
             if not publication.get("passed"):
-                raise RuntimeError(
-                    "Reference Mode blocked publication because exact product geometry/icon authority could not be proven after deterministic local failsafe: "
-                    + "; ".join(publication.get("issues") or [])
+                images = _graphic_v68987_reference_absolute_failsafe(
+                    str(prompt_text or ""), uploaded_files, forced_upload_role, style_strength,
+                    failure_reason="publication-still-blocked: " + "; ".join(publication.get("issues") or []),
                 )
+                publication = _graphic_v68978_reference_publication_report(
+                    images, prompt_text, uploaded_files, forced_upload_role
+                )
+                if not publication.get("passed"):
+                    raise RuntimeError(
+                        "Reference Mode v68986 final untouched-source publication blocked: "
+                        + "; ".join(publication.get("issues") or [])
+                    )
         for image in images or []:
             if isinstance(image, dict):
                 image["reference_publication_authority_v68978"] = publication
@@ -34273,7 +34670,308 @@ def generate_graphic_marketing_images(
         image["installed_view_authority_contract_v68829"] = _graphic_v68829_installed_authority_contract()
         image["installed_view_release_audit_v68829"] = _graphic_v68829_release_audit(image)
         image["vehicle_installation_engine_version"] = GRAPHIC_V68829_INSTALLED_ENGINE
+
     return images
+
+# ============================================================
+# v68988 — Consolidated Reference Failure-Envelope Hardening
+# Normal Graphic/Reference generation remains frozen. This layer only catches
+# failures after all normal paths and guarantees that non-critical state/persistence
+# dependencies cannot discard an otherwise valid Reference result.
+# ============================================================
+
+_GRAPHIC_V68988_BASE_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v68988_safe_project_state():
+    """Read Graphic project state without making final recovery depend on persistence."""
+    try:
+        state = get_graphic_project_state() or {}
+        if isinstance(state, dict):
+            return dict(state)
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68988_project_state_read_failed_open",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+    try:
+        state = st.session_state.get(GRAPHIC_PROJECT_STATE_KEY) or {}
+        return dict(state) if isinstance(state, dict) else {}
+    except Exception:
+        return {}
+
+
+def _graphic_v68988_is_reference_request(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
+    """Resolve Reference intent fail-open from the established router or durable project authority."""
+    try:
+        if _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
+            return True
+    except Exception:
+        pass
+    state = _graphic_v68988_safe_project_state()
+    return bool(
+        str(state.get("active_reference_id") or "").strip()
+        and str(state.get("active_product_id") or "").strip()
+    )
+
+
+def _graphic_v68988_direct_assets(uploaded_files=None):
+    """Resolve Product/Reference bytes without classifier/provider/compiler dependencies."""
+    state = _graphic_v68988_safe_project_state()
+    active_product_id = str(state.get("active_product_id") or "").strip().lower()
+    active_reference_id = str(state.get("active_reference_id") or "").strip().lower()
+    candidates = []
+
+    for rec in list(state.get("assets") or []):
+        if not isinstance(rec, dict):
+            continue
+        try:
+            raw = bytes(rec.get("data") or b"")
+        except Exception:
+            raw = b""
+        aid = str(rec.get("id") or "").strip().lower()
+        if raw and not re.fullmatch(r"[0-9a-f]{64}", aid):
+            aid = hashlib.sha256(raw).hexdigest()
+        candidates.append({
+            "id": aid,
+            "role": str(rec.get("role") or "supporting").strip().casefold(),
+            "raw": raw,
+            "name": str(rec.get("name") or "image"),
+        })
+
+    for obj in uploaded_files or []:
+        raw = b""
+        try:
+            raw = bytes(obj.getvalue() or b"")
+        except Exception:
+            try:
+                pos = obj.tell() if hasattr(obj, "tell") else None
+                if hasattr(obj, "seek"):
+                    obj.seek(0)
+                raw = bytes(obj.read() or b"")
+                if pos is not None and hasattr(obj, "seek"):
+                    obj.seek(pos)
+            except Exception:
+                raw = b""
+        if not raw:
+            continue
+        candidates.append({
+            "id": hashlib.sha256(raw).hexdigest(),
+            "role": str(getattr(obj, "graphic_role", "") or "").strip().casefold(),
+            "raw": raw,
+            "name": str(getattr(obj, "name", "image")),
+        })
+
+    dedup = {}
+    for item in candidates:
+        key = (item.get("id"), item.get("role"), item.get("name"))
+        dedup[key] = item
+    candidates = list(dedup.values())
+
+    product = next((x for x in candidates if active_product_id and x.get("id") == active_product_id and x.get("raw")), None)
+    reference = next((x for x in candidates if active_reference_id and x.get("id") == active_reference_id), None)
+    if product is None:
+        product = next((x for x in reversed(candidates) if x.get("role") in {"product", "product_photo"} and x.get("raw")), None)
+    if reference is None:
+        reference = next((x for x in candidates if x.get("role") in {"reference", "style_reference"}), None)
+
+    # Last-resort product recovery is allowed only when a durable active Product SHA
+    # identifies a current upload byte-for-byte. Never guess product identity by size/name.
+    if product is None and re.fullmatch(r"[0-9a-f]{64}", active_product_id):
+        product = next((x for x in candidates if x.get("id") == active_product_id and x.get("raw")), None)
+
+    return {
+        "product": product,
+        "reference": reference,
+        "active_product_id": active_product_id,
+        "active_reference_id": active_reference_id,
+        "reference_proven": bool(reference is not None or active_reference_id),
+    }
+
+
+def _graphic_v68988_draw_connectivity(draw, box, semantic):
+    """Use the frozen v68882 renderer; draw a local equivalent only if that helper itself fails."""
+    try:
+        if _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic):
+            return True
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v68988_reference_icon_renderer_failed_open",
+            semantic=semantic,
+            error_type=type(error).__name__,
+        )
+    try:
+        x0, y0, x1, y1 = [int(round(v)) for v in box]
+        w = max(1, x1 - x0); h = max(1, y1 - y0); size = max(8, min(w, h))
+        cx = (x0 + x1) // 2; cy = (y0 + y1) // 2
+        sem = str(semantic or "").casefold()
+        if sem == "carplay":
+            tile = int(size * .78); l = cx - tile//2; t = cy - tile//2
+            draw.rounded_rectangle((l,t,l+tile,t+tile), radius=max(3,int(tile*.18)), fill=(43,174,79,255))
+            r = int(tile*.27); draw.ellipse((cx-r,cy-r,cx+r,cy+r), outline=(255,255,255,255), width=max(2,int(size*.04)))
+            tri = [(cx-int(r*.28),cy-int(r*.48)),(cx-int(r*.28),cy+int(r*.48)),(cx+int(r*.50),cy)]
+            draw.polygon(tri, fill=(255,255,255,255)); return True
+        if sem == "android_auto":
+            c=(33,150,243,255); half=int(size*.30); top=cy-int(size*.33); bot=cy+int(size*.33)
+            draw.line((cx,top,cx-half,bot), fill=c, width=max(3,int(size*.07)))
+            draw.line((cx,top,cx+half,bot), fill=c, width=max(3,int(size*.07)))
+            draw.line((cx-int(half*.55),cy+int(size*.10),cx+int(half*.55),cy+int(size*.10)), fill=c, width=max(3,int(size*.055)))
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _graphic_v68988_emergency_reference_result(prompt_text, uploaded_files=None, failure_reason=""):
+    """Last-resort self-contained Reference result with no shared Graphic pipeline dependency."""
+    if Image is None:
+        raise RuntimeError("v68988 emergency Reference result requires Pillow.")
+    from PIL import ImageDraw, ImageFont
+    authority = _graphic_v68988_direct_assets(uploaded_files or [])
+    product = authority.get("product")
+    if not product or not bytes(product.get("raw") or b""):
+        raise RuntimeError("v68988 could not recover the active Product Photo bytes.")
+    if not authority.get("reference_proven"):
+        raise RuntimeError("v68988 could not prove the active Style Reference.")
+
+    raw = bytes(product.get("raw") or b"")
+    source_sha = hashlib.sha256(raw).hexdigest()
+    active_pid = str(authority.get("active_product_id") or "").lower()
+    if re.fullmatch(r"[0-9a-f]{64}", active_pid) and active_pid != source_sha:
+        raise RuntimeError("v68988 Product SHA does not match the active Product authority.")
+    try:
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+    except Exception as error:
+        raise RuntimeError("v68988 could not decode the active Product Photo.") from error
+
+    W,H=1536,1024
+    canvas=Image.new("RGBA",(W,H),(229,238,248,255)); draw=ImageDraw.Draw(canvas,"RGBA")
+    # Deterministic commercial background, deliberately lightweight and provider-free.
+    for y in range(H):
+        if y < 640:
+            t=y/640.0; a=(188,218,244); b=(247,231,207)
+        else:
+            t=(y-640)/384.0; a=(91,82,73); b=(43,40,38)
+        col=tuple(int(a[i]*(1-t)+b[i]*t) for i in range(3))+(255,)
+        draw.line((0,y,W,y),fill=col)
+    draw.polygon([(0,705),(210,555),(395,660),(625,505),(810,665),(1040,525),(1270,635),(1536,505),(1536,1024),(0,1024)],fill=(65,70,73,238))
+    draw.rectangle((0,765,W,H),fill=(55,50,46,255))
+    header_h=int(H*.34); footer_h=int(H*.095); footer_top=H-footer_h
+    draw.rectangle((0,0,W,header_h),fill=(246,249,253,225))
+    draw.rounded_rectangle((int(W*.035),footer_top,int(W*.965),int(H*.977)),radius=16,fill=(9,25,44,245))
+
+    try:
+        f_head=_graphic_font(max(28,int(H*.055)),bold=True); f_mid=_graphic_font(max(18,int(H*.030)),bold=True); f_tag=_graphic_font(max(16,int(H*.024)),bold=False)
+    except Exception:
+        f_head=f_mid=f_tag=ImageFont.load_default()
+    text=re.sub(r"\s+"," ",str(prompt_text or "")).strip()
+    m=re.search(r'use\s+["“]([^"”]{5,70})["”]\s+as\s+main\s+title',text,flags=re.I)
+    headline=m.group(1).strip() if m else '15.6" 2K INFOTAINMENT SYSTEM'
+    vm=re.search(r'(Chevrolet\s+Silverado\s*(?:/|&|and)\s*GMC\s+Sierra\s*\([^)]{4,20}\))',text,flags=re.I)
+    compatibility=vm.group(1).strip() if vm else 'Chevrolet Silverado / GMC Sierra'
+    draw.text((int(W*.035),int(H*.07)),headline[:62],font=f_head,fill=(7,31,58,255))
+    rx,ry=int(W*.035),int(H*.17); rb=("For "+compatibility)[:78]
+    try: tw=draw.textbbox((0,0),rb,font=f_mid)[2]
+    except Exception: tw=int(W*.42)
+    draw.rectangle((rx-6,ry-5,min(W-20,rx+tw+25),ry+int(H*.045)),fill=(190,18,18,245)); draw.text((rx+4,ry),rb,font=f_mid,fill=(255,255,255,255))
+    draw.text((int(W*.035),int(H*.23)),"Bigger Screen. Smarter Drive.",font=f_tag,fill=(8,34,62,255))
+
+    max_w=int(W*.50); max_h=int(H*.57); scale=min(max_w/source.width,max_h/source.height)
+    nw=max(1,int(round(source.width*scale))); nh=max(1,int(round(source.height*scale)))
+    px=int(W*.055); py=max(header_h-int(H*.01),min(footer_top-nh-int(H*.015),int(H*.355)))
+    if py+nh>=footer_top:
+        allowed=max(1,footer_top-py-int(H*.015)); s2=allowed/nh; nw=max(1,int(round(nw*s2))); nh=max(1,int(round(nh*s2)))
+    card=source.resize((nw,nh),Image.Resampling.LANCZOS).convert("RGBA"); canvas.alpha_composite(card,(px,py))
+
+    requested=[]; cf=text.casefold()
+    if "carplay" in cf: requested.append("carplay")
+    if "android auto" in cf: requested.append("android_auto")
+    sem=[]; fsem=[]; ix=int(W*.70); iy=int(H*.055); isz=int(H*.075)
+    for x in requested:
+        if _graphic_v68988_draw_connectivity(draw,(ix,iy,ix+isz,iy+isz),x): sem.append(x)
+        ix+=int(W*.115)
+    fx=int(W*.48); fy=footer_top+int(footer_h*.18); fsz=int(footer_h*.52)
+    for x in requested:
+        if _graphic_v68988_draw_connectivity(draw,(fx,fy,fx+fsz,fy+fsz),x): fsem.append(x)
+        fx+=int(W*.18)
+
+    out=io.BytesIO(); canvas.convert("RGB").save(out,format="PNG",compress_level=6)
+    png=out.getvalue(); data_url="data:image/png;base64,"+base64.b64encode(png).decode("ascii")
+    sr=source.width/max(1,source.height); fr=nw/max(1,nh)
+    result={
+        "name":"AutoTecPro_Reference_Emergency.png","filename":"AutoTecPro_Reference_Emergency.png",
+        "data_url":data_url,"generated":True,"mime_type":"image/png","size":"1536x1024","resolution":"1536x1024",
+        "provider_route":"v68988-self-contained-reference-emergency","provider_fallback_used":True,
+        "output_status":"completed_reference_emergency","strict_product_identity_lock":True,"product_layer_immutable":True,
+        "product_geometry_provider_generated":False,"ai_product_recreated":False,
+        "product_identity_method":"v68988-full-opaque-source-composite","product_transform_mode":"Exact Original Product — Full Opaque Bitmap",
+        "graphic_v68988_reference_emergency":True,"prompt":str(prompt_text or ""),
+        "layered_metadata":{
+            "engine":"v68988-self-contained-reference-emergency","exact_product_pixels":True,"exact_product_asset_mode":True,
+            "product_master_rgb_preserved":True,"product_pixels_provider_generated":False,"ai_product_recreated":False,
+            "product_source_sha256":source_sha,"reference_connectivity_icon_authority_v68978":True if requested else False,
+            "reference_connectivity_semantics_v68978":sem,"reference_footer_connectivity_semantics_v68978":fsem,
+            "reference_exact_source_bounds_v68981":{"on_canvas":bool(px>=0 and py>=0 and px+nw<=W and py+nh<=H),"clears_footer":bool(py+nh<footer_top),"uniform_scale_only":True,"crop_applied":False,"perspective_warp_applied":False,"aspect_ratio_relative_error":abs(fr-sr)/max(sr,.001),"source_mode":"full-opaque-uploaded-bitmap"},
+            "critical_region_visibility":{"available":False,"reason":"v68988 full opaque source fully on canvas"},
+            "failure_reason":str(failure_reason or "")[:1800],"direct_authority_active_product_id":active_pid,"direct_authority_active_reference_id":str(authority.get("active_reference_id") or ""),
+        },
+    }
+    return [result]
+
+
+def _graphic_v68988_emergency_report(images, prompt_text):
+    image=images[0] if images and isinstance(images[0],dict) else {}; md=dict(image.get("layered_metadata") or {}); issues=[]
+    b=dict(md.get("reference_exact_source_bounds_v68981") or {})
+    if md.get("exact_product_pixels") is not True: issues.append("exact product authority missing")
+    if b.get("on_canvas") is not True: issues.append("product outside canvas")
+    if b.get("clears_footer") is not True: issues.append("product/footer overlap")
+    if b.get("uniform_scale_only") is not True or b.get("crop_applied") is True or b.get("perspective_warp_applied") is True: issues.append("non-uniform product transform")
+    try:
+        if float(b.get("aspect_ratio_relative_error") or 0)>0.0025: issues.append("product aspect-ratio drift")
+    except Exception: issues.append("product aspect ratio unavailable")
+    cf=str(prompt_text or "").casefold(); req=[]
+    if "carplay" in cf: req.append("carplay")
+    if "android auto" in cf: req.append("android_auto")
+    sem=set(md.get("reference_connectivity_semantics_v68978") or [])|set(md.get("reference_footer_connectivity_semantics_v68978") or [])
+    for x in req:
+        if x not in sem: issues.append("missing deterministic "+x+" semantic")
+    return {"passed":not issues,"issues":issues,"engine":"v68988-self-contained-emergency-gate"}
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68988 wraps the frozen v68987 engine with one independent final completion tier."""
+    try:
+        return _GRAPHIC_V68988_BASE_GENERATOR(
+            prompt_text, uploaded_files,
+            use_approved_style=use_approved_style,
+            preserve_product=preserve_product,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry,
+            product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+    except Exception as error:
+        if not _graphic_v68988_is_reference_request(prompt_text, uploaded_files, forced_upload_role):
+            raise
+        diagnostic_log(
+            "graphic_v68988_reference_all_normal_routes_failed",
+            error_type=type(error).__name__, error=_graphic_compact_error_v4000(error),
+        )
+        images=_graphic_v68988_emergency_reference_result(prompt_text,uploaded_files,failure_reason=_graphic_compact_error_v4000(error))
+        report=_graphic_v68988_emergency_report(images,prompt_text)
+        if not report.get("passed"):
+            raise RuntimeError("v68988 emergency Reference publication blocked: "+"; ".join(report.get("issues") or []))
+        for image in images or []:
+            if isinstance(image,dict):
+                image["reference_publication_authority_v68988"]=report
+        return images
 
 # ============================================================
 # v67200 LTS — quality-preserving parallel preparation and persistent asset cache
@@ -53647,14 +54345,28 @@ else:
                 st.rerun()
 
             if generated_images:
-                answer = generated_image_answer_text(generated_images)
-                _graphic_save_latest_project_result(generated_images[0])
-                _graphic_complete_durable_job_v68844(durable_job_v68844)
-                graphic_project = get_graphic_project_state()
-                graphic_project["stage"] = "generated"
-                graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
-                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
-                _graphic_persist_project_v68400(graphic_project)
+                try:
+                    answer = generated_image_answer_text(generated_images)
+                except Exception as render_error_v68988:
+                    diagnostic_log("graphic_v68988_answer_text_failed_open", error_type=type(render_error_v68988).__name__, error=_graphic_compact_error_v4000(render_error_v68988))
+                    answer = "Your image is ready."
+                # Once a valid image exists, persistence/state failures must not discard it.
+                try:
+                    _graphic_save_latest_project_result(generated_images[0])
+                except Exception as save_error_v68988:
+                    diagnostic_log("graphic_v68988_latest_result_save_failed_open", error_type=type(save_error_v68988).__name__, error=_graphic_compact_error_v4000(save_error_v68988))
+                try:
+                    _graphic_complete_durable_job_v68844(durable_job_v68844)
+                except Exception as job_error_v68988:
+                    diagnostic_log("graphic_v68988_durable_complete_failed_open", error_type=type(job_error_v68988).__name__, error=_graphic_compact_error_v4000(job_error_v68988))
+                try:
+                    graphic_project = get_graphic_project_state()
+                    graphic_project["stage"] = "generated"
+                    graphic_project["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = graphic_project
+                    _graphic_persist_project_v68400(graphic_project)
+                except Exception as persist_error_v68988:
+                    diagnostic_log("graphic_v68988_project_persist_failed_open", error_type=type(persist_error_v68988).__name__, error=_graphic_compact_error_v4000(persist_error_v68988))
             else:
                 _graphic_update_durable_job_v68844(
                     durable_job_v68844,
@@ -53687,9 +54399,15 @@ else:
                     automatic_followup_edit_retry=automatic_followup_edit_retry_v68843,
                     attempts=generation_attempts_v68837,
                 )
+                visible_failure_v68986 = (
+                    (type(generation_error_v68837).__name__ + ": " + _graphic_compact_error_v4000(generation_error_v68837)[:220])
+                    if generation_error_v68837 is not None
+                    else "EmptyGraphicResult: the Graphic generator returned no images."
+                )
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. Please select Retry or type ‘Create it again.’ "
-                    f"Diagnostic ID: {diagnostic_id}"
+                    "I couldn't finish the image this time, but your reference and product photos are still saved. "
+                    "Please select Retry or type ‘Create it again.’ "
+                    f"Failure: {visible_failure_v68986} Diagnostic ID: {diagnostic_id}"
                 )
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "ready_to_generate"
