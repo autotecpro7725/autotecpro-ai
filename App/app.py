@@ -45834,17 +45834,18 @@ if (
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
-# AutoTecPro AI v68998 — Website Candidate Validation + Reliable Technical Preview
-# Built directly on v68997. Keeps Graphic v68835 Reference / v68829 After Install
-# authorities, the v68995 Graphic runtime layer, and Technical Support text→image
-# retrieval/rendering unchanged while validating website candidates before preview/save.
-# v68998 removes broken/empty/obvious decorative cards, renders previews from server-
-# validated bytes instead of fragile remote URLs, and reports discovery/filter counts.
+# AutoTecPro AI v68999 — Website Asset Precision + Canonical Technical Preview
+# Built directly on v68998. Graphic v68835 Reference / v68829 After Install authorities,
+# the v68995 Graphic runtime layer, and Technical Support text→related-image rendering
+# remain unchanged. This release narrows only website-learning discovery/preview precision:
+# stronger WordPress/CDN asset canonicalization, full-size preference, deterministic site-
+# branding/blank-card suppression, perceptual logo-card rejection, and transparent raw→
+# logical→validated diagnostics while continuing to display every validated technical image.
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
 WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 WEBSITE_MAX_EXTRACTED_CHARS = 120000
-WEBSITE_MAX_DISCOVERED_IMAGES = 100
-WEBSITE_MAX_ANALYZED_IMAGES = 100
+WEBSITE_MAX_DISCOVERED_IMAGES = 200
+WEBSITE_MAX_ANALYZED_IMAGES = 200
 WEBSITE_MAX_IMAGE_BYTES = 8 * 1024 * 1024
 WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS = 18
 WEBSITE_AUTO_DISPLAY_MAX_IMAGES = 4
@@ -46368,6 +46369,69 @@ def _website_raw_html_image_candidates_v68996(page_html):
     return records
 
 
+
+def _website_asset_identity_v68999(raw_url):
+    """Return a stable logical identity for one WordPress/CDN raster asset.
+
+    Presentation variants are collapsed without changing the URL actually downloaded:
+    WordPress ``-300x200``/``-scaled`` filenames, cache-busting query parameters, and
+    common CDN resize parameters all map to one logical asset. Distinct source files keep
+    distinct identities, so two genuinely different technical images are never merged.
+    """
+    try:
+        normalized = normalize_website_url(raw_url)
+    except Exception:
+        return ("", "", "")
+    parsed = urlparse(normalized)
+    host = str(parsed.hostname or "").casefold().rstrip(".")
+    path = re.sub(r"/{2,}", "/", str(parsed.path or ""))
+    # WordPress responsive variants and generated derivatives.
+    path = re.sub(
+        r"-(?:\d{2,5}x\d{2,5}|scaled|rotated)(?=\.(?:jpe?g|png|webp|avif)$)",
+        "",
+        path,
+        flags=re.I,
+    )
+    # Some optimizers chain a size and scaled marker.
+    path = re.sub(
+        r"-(?:\d{2,5}x\d{2,5})-(?:scaled|rotated)(?=\.(?:jpe?g|png|webp|avif)$)",
+        "",
+        path,
+        flags=re.I,
+    )
+    query_pairs = []
+    for pair in str(parsed.query or "").split("&"):
+        if not pair:
+            continue
+        key = pair.split("=", 1)[0].strip().casefold()
+        if key in {
+            "w", "h", "width", "height", "resize", "fit", "crop", "quality", "q",
+            "auto", "format", "fm", "dpr", "ssl", "ver", "v", "cache", "cb",
+        }:
+            continue
+        query_pairs.append(pair)
+    stable_query = "&".join(sorted(query_pairs))
+    return host, path.casefold(), stable_query.casefold()
+
+
+def _website_asset_basename_v68999(raw_url):
+    try:
+        parsed = urlparse(str(raw_url or ""))
+        return html.unescape(Path(str(parsed.path or "")).name).casefold()
+    except Exception:
+        return ""
+
+
+def _website_variant_resolution_rank_v68999(raw_url):
+    """Prefer full/original WordPress variants, otherwise the largest srcset derivative."""
+    name = _website_asset_basename_v68999(raw_url)
+    match = re.search(r"-(\d{2,5})x(\d{2,5})(?=\.(?:jpe?g|png|webp|avif)$)", name, flags=re.I)
+    if match:
+        return int(match.group(1)) * int(match.group(2))
+    # No explicit responsive suffix normally means original/full-size.
+    return 10**12
+
+
 def _website_image_candidate_urls(parser_images, page_url):
     """Resolve, score, filter, and de-duplicate useful webpage image candidates.
 
@@ -46384,6 +46448,10 @@ def _website_image_candidate_urls(parser_images, page_url):
         "youtube", "tiktok", "tracker", "analytics", "gravatar", "woocommerce",
         "trustpilot", "klarna", "afterpay", "shop-pay", "apple-pay",
         "logo", "header-logo", "footer-logo", "site-logo",
+    )
+    explicit_brand_tokens = (
+        "autotec-logo", "autotecpro-logo", "autotec_brand", "autotecpro_brand",
+        "autotecpro.com", "www.autotecpro.com", "autotec-navigation-logo",
     )
     soft_skip_tokens = (
         "icon", "badge", "pixel", "placeholder", "loading", "spinner",
@@ -46413,6 +46481,8 @@ def _website_image_candidate_urls(parser_images, page_url):
             continue
 
         parsed = urlparse(normalized)
+        # Initial de-duplication is exact-URL only. Responsive/full-size variants must
+        # survive until the later logical-asset resolver can choose the best-quality one.
         identity = (
             str(parsed.scheme or "").lower(),
             str(parsed.netloc or "").lower(),
@@ -46434,12 +46504,19 @@ def _website_image_candidate_urls(parser_images, page_url):
         asset_identity = " ".join(
             part for part in (str(parsed.path or ""), alt, title, source_kind) if part
         ).casefold()
+        asset_basename = _website_asset_basename_v68999(normalized)
         contextual_haystack = " ".join(
             part for part in (asset_identity, nearest_heading, nearby_text) if part
         ).casefold()
         technical_context = any(token in contextual_haystack for token in positive_tokens)
 
         if any(token in asset_identity for token in absolute_skip_tokens):
+            continue
+        # Site-brand tokens are evaluated against the asset filename/alt/title only,
+        # never against the autotecpro.com hostname. This removes logo/banner assets
+        # without suppressing legitimate technical images hosted on the same site.
+        brand_identity = " ".join((asset_basename, alt.casefold(), title.casefold()))
+        if any(token in brand_identity for token in explicit_brand_tokens):
             continue
         # Soft terms such as "icon" can legitimately describe a technical settings
         # screenshot. Skip them only when there is no positive technical evidence.
@@ -46496,6 +46573,7 @@ def _website_image_candidate_urls(parser_images, page_url):
             continue
         rank = (
             int(bool(item.get("full_size_candidate"))),
+            _website_variant_resolution_rank_v68999(str(item.get("url") or "")),
             int(item.get("context_score") or 0),
             -int(item.get("discovery_order") or 0),
         )
@@ -46505,6 +46583,7 @@ def _website_image_candidate_urls(parser_images, page_url):
         else:
             previous_rank = (
                 int(bool(previous.get("full_size_candidate"))),
+                _website_variant_resolution_rank_v68999(str(previous.get("url") or "")),
                 int(previous.get("context_score") or 0),
                 -int(previous.get("discovery_order") or 0),
             )
@@ -46518,20 +46597,11 @@ def _website_image_candidate_urls(parser_images, page_url):
     # serve the same image bytes.
     logical = {}
     for item in results:
-        parsed_item = urlparse(str(item.get("url") or ""))
-        logical_path = re.sub(
-            r"-\d{2,5}x\d{2,5}(?=\.(?:jpe?g|png|webp|avif)$)",
-            "",
-            str(parsed_item.path or ""),
-            flags=re.I,
-        )
-        logical_key = (
-            str(parsed_item.hostname or "").casefold(),
-            logical_path.casefold(),
-        )
+        logical_key = _website_asset_identity_v68999(str(item.get("url") or ""))
         previous = logical.get(logical_key)
         current_rank = (
             int(bool(item.get("full_size_candidate"))),
+            _website_variant_resolution_rank_v68999(str(item.get("url") or "")),
             int(item.get("context_score") or 0),
             -int(item.get("discovery_order") or 0),
         )
@@ -46540,6 +46610,7 @@ def _website_image_candidate_urls(parser_images, page_url):
             continue
         previous_rank = (
             int(bool(previous.get("full_size_candidate"))),
+            _website_variant_resolution_rank_v68999(str(previous.get("url") or "")),
             int(previous.get("context_score") or 0),
             -int(previous.get("discovery_order") or 0),
         )
@@ -46734,6 +46805,8 @@ def _website_preview_visual_metrics_v68998(image_bytes):
     metrics = {
         "valid": False, "entropy": 0.0, "gray_stddev": 0.0,
         "edge_ratio": 0.0, "visible_alpha_ratio": 1.0,
+        "near_white_ratio": 0.0, "foreground_ratio": 1.0,
+        "foreground_bbox_ratio": 1.0, "border_background_difference_ratio": 1.0,
     }
     if Image is None or not image_bytes:
         return metrics
@@ -46758,12 +46831,48 @@ def _website_preview_visual_metrics_v68998(image_bytes):
         edge_hist = edge.histogram()
         edge_pixels = sum(edge_hist[24:])
         edge_ratio = edge_pixels / max(1, sum(edge_hist))
+
+        # Logo-card detection metrics. Use a small thumbnail so validation stays cheap.
+        probe = rgb.copy()
+        probe.thumbnail((360, 360), Image.Resampling.BILINEAR)
+        pw, ph = probe.size
+        pixels = list(probe.getdata())
+        ptotal = max(1, len(pixels))
+        near_white = sum(1 for r, g, b in pixels if r >= 242 and g >= 242 and b >= 242) / ptotal
+        border = []
+        if pw and ph:
+            border.extend(probe.crop((0, 0, pw, 1)).getdata())
+            border.extend(probe.crop((0, max(0, ph-1), pw, ph)).getdata())
+            border.extend(probe.crop((0, 0, 1, ph)).getdata())
+            border.extend(probe.crop((max(0, pw-1), 0, pw, ph)).getdata())
+        if border:
+            br = sorted(x[0] for x in border)[len(border)//2]
+            bg = sorted(x[1] for x in border)[len(border)//2]
+            bb = sorted(x[2] for x in border)[len(border)//2]
+        else:
+            br = bg = bb = 255
+        fg_coords = []
+        bg_diff = 0
+        for idx, (r, g, b) in enumerate(pixels):
+            diff = abs(r-br) + abs(g-bg) + abs(b-bb)
+            if diff >= 54:
+                bg_diff += 1
+                fg_coords.append((idx % max(1, pw), idx // max(1, pw)))
+        foreground_ratio = bg_diff / ptotal
+        bbox_ratio = 0.0
+        if fg_coords:
+            xs = [x for x, _ in fg_coords]; ys = [y for _, y in fg_coords]
+            bbox_ratio = ((max(xs)-min(xs)+1) * (max(ys)-min(ys)+1)) / max(1, pw*ph)
         metrics.update({
             "valid": True,
             "entropy": round(entropy, 4),
             "gray_stddev": round(gray_stddev, 4),
             "edge_ratio": round(edge_ratio, 6),
             "visible_alpha_ratio": round(visible_alpha_ratio, 6),
+            "near_white_ratio": round(near_white, 6),
+            "foreground_ratio": round(foreground_ratio, 6),
+            "foreground_bbox_ratio": round(bbox_ratio, 6),
+            "border_background_difference_ratio": round(foreground_ratio, 6),
         })
     except Exception:
         pass
@@ -46786,8 +46895,18 @@ def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
         str(candidate.get("source_kind") or ""),
     ]).casefold()
     technical = bool(candidate.get("technical_context"))
+    basename = _website_asset_basename_v68999(str(candidate.get("url") or downloaded.get("source_url") or ""))
+    explicit_brand_identity = " ".join((
+        basename, str(candidate.get("alt") or "").casefold(),
+        str(candidate.get("title") or "").casefold(),
+    ))
     if any(token in identity for token in WEBSITE_PREVIEW_HARD_DECORATIVE_TOKENS_V68998):
         return "obvious-site-chrome"
+    if any(token in explicit_brand_identity for token in (
+        "autotec-logo", "autotecpro-logo", "autotec_brand", "autotecpro_brand",
+        "autotecpro.com", "www.autotecpro.com",
+    )):
+        return "autotec-site-branding"
     if not bool(metrics.get("valid")):
         return "invalid-image-bytes"
     if float(metrics.get("visible_alpha_ratio") or 0.0) < 0.015:
@@ -46797,6 +46916,16 @@ def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
     edge_ratio = float(metrics.get("edge_ratio") or 0.0)
     if entropy < 0.55 and stddev < 2.25:
         return "blank-or-near-uniform"
+    near_white = float(metrics.get("near_white_ratio") or 0.0)
+    foreground_ratio = float(metrics.get("foreground_ratio") or 0.0)
+    foreground_bbox_ratio = float(metrics.get("foreground_bbox_ratio") or 0.0)
+    # A logo card is typically a mostly-uniform/white field with a small isolated
+    # foreground mark. This catches branding files whose filename gives no clue.
+    # Strong technical context gets a much tighter threshold so small connector crops
+    # and settings screenshots are not accidentally removed.
+    if near_white >= 0.68 and foreground_bbox_ratio <= 0.44 and foreground_ratio <= 0.22:
+        if not technical or (foreground_bbox_ratio <= 0.16 and foreground_ratio <= 0.075):
+            return "probable-logo-or-brand-card"
     width = int(downloaded.get("width") or 0)
     height = int(downloaded.get("height") or 0)
     ratio = max(width, height) / max(1, min(width, height))
@@ -46814,7 +46943,25 @@ def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
     return ""
 
 
-@st.cache_data(ttl=1800, max_entries=128, show_spinner=False)
+def _website_preview_data_url_v68999(image_bytes, mime_type="image/jpeg"):
+    """Create a lightweight Admin preview without changing the cached analysis bytes."""
+    raw = bytes(image_bytes or b"")
+    if not raw:
+        return ""
+    if Image is None:
+        return f"data:{mime_type or 'image/jpeg'};base64," + base64.b64encode(raw).decode("ascii")
+    try:
+        source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+        source.thumbnail((900, 900), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        source.save(buf, format="JPEG", quality=82, optimize=True)
+        preview = buf.getvalue()
+        return "data:image/jpeg;base64," + base64.b64encode(preview).decode("ascii")
+    except Exception:
+        return f"data:{mime_type or 'image/jpeg'};base64," + base64.b64encode(raw).decode("ascii")
+
+
+@st.cache_data(ttl=1800, max_entries=256, show_spinner=False)
 def _website_preview_candidate_v68998(candidate_json):
     """Server-validate one candidate and return a self-contained preview data URL."""
     try:
@@ -46851,7 +46998,7 @@ def _website_preview_candidate_v68998(candidate_json):
             result["reason"] = reason
             return result
         mime = str(downloaded.get("mime_type") or "image/jpeg")
-        result["preview_data_url"] = f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
+        result["preview_data_url"] = _website_preview_data_url_v68999(raw, mime)
         result["status"] = "display"
         return result
     except Exception as error:
@@ -46860,7 +47007,7 @@ def _website_preview_candidate_v68998(candidate_json):
         return result
 
 
-def _website_validated_preview_records_v68998(candidates):
+def _website_validated_preview_records_v68999(candidates):
     """Validate all discovered candidates, SHA-dedupe them, and build visible cards."""
     records = []
     valid_urls = []
@@ -48971,6 +49118,7 @@ def extract_public_webpage(url, page_password=""):
         parser_images = list(getattr(parser, "images", []) if parser is not None else [])
         if parser is not None:
             parser_images.extend(_website_raw_html_image_candidates_v68996(page_text))
+        raw_image_candidate_count_v68999 = len(parser_images)
         image_candidates = _website_image_candidate_urls(
             parser_images,
             final_url,
@@ -48987,6 +49135,7 @@ def extract_public_webpage(url, page_password=""):
             "word_count": len(cleaned_text.split()),
             "image_candidates": image_candidates,
             "image_candidate_count": len(image_candidates),
+            "raw_image_candidate_count_v68999": int(raw_image_candidate_count_v68999),
             "password_protected_access": bool(clean_page_password),
         }
 
@@ -49457,30 +49606,33 @@ def render_learn_from_website(database_choice):
     website_image_candidates = list(extraction.get("image_candidates") or [])
     if include_website_images and website_image_candidates:
         st.caption(
-            f"Validating all {len(website_image_candidates):,} discovered image candidates before preview. "
+            f"Validating all {len(website_image_candidates):,} unique/logical image assets before preview. "
             "Broken, empty, obvious decorative/site-branding images and exact-byte duplicates are removed; "
             "every remaining candidate is shown below and will be eligible for visual analysis on save."
         )
         with st.spinner("Validating website images for preview..."):
-            preview_records, preview_valid_urls_v68998, preview_stats_v68998 = (
-                _website_validated_preview_records_v68998(website_image_candidates)
+            preview_records, preview_valid_urls_v68999, preview_stats_v68999 = (
+                _website_validated_preview_records_v68999(website_image_candidates)
             )
         extraction = dict(extraction)
-        extraction["preview_validated_urls_v68998"] = list(preview_valid_urls_v68998)
-        extraction["preview_validation_stats_v68998"] = dict(preview_stats_v68998)
+        extraction["preview_validated_urls_v68999"] = list(preview_valid_urls_v68999)
+        extraction["preview_validation_stats_v68999"] = dict(preview_stats_v68999)
         st.session_state["admin_website_extraction"] = extraction
         preview_html = render_image_previews(preview_records)
         if preview_html:
             st.markdown(preview_html, unsafe_allow_html=True)
         else:
             st.info("No valid technical/image candidates remained after preview validation.")
+        raw_discovered_v68999 = int(extraction.get("raw_image_candidate_count_v68999") or len(website_image_candidates))
+        logical_candidates_v68999 = len(website_image_candidates)
         st.caption(
-            f"{preview_stats_v68998.get('discovered', 0):,} discovered  |  "
-            f"{preview_stats_v68998.get('displayed', 0):,} displayed  |  "
-            f"{preview_stats_v68998.get('decorative_filtered', 0):,} decorative/blank filtered  |  "
-            f"{preview_stats_v68998.get('unavailable', 0):,} unavailable/broken  |  "
-            f"{preview_stats_v68998.get('sha_duplicates', 0):,} exact duplicate(s). "
-            f"Up to {WEBSITE_MAX_ANALYZED_IMAGES:,} validated candidates can be analyzed in one save operation."
+            f"{raw_discovered_v68999:,} raw discovered  →  "
+            f"{logical_candidates_v68999:,} unique/logical assets  →  "
+            f"{preview_stats_v68999.get('displayed', 0):,} technical/valid displayed  |  "
+            f"{preview_stats_v68999.get('decorative_filtered', 0):,} decorative/blank/branding filtered  |  "
+            f"{preview_stats_v68999.get('unavailable', 0):,} unavailable/broken  |  "
+            f"{preview_stats_v68999.get('sha_duplicates', 0):,} exact-byte duplicate(s). "
+            f"Every validated candidate is shown; up to {WEBSITE_MAX_ANALYZED_IMAGES:,} can be analyzed in one save operation."
         )
 
     reviewed_content = st.text_area(
@@ -49568,7 +49720,7 @@ def render_learn_from_website(database_choice):
             else "Saving website knowledge..."
         ):
             selected_image_urls_v68998 = (
-                list(extraction.get("preview_validated_urls_v68998") or [])
+                list(extraction.get("preview_validated_urls_v68999") or [])
                 if include_website_images
                 else None
             )
