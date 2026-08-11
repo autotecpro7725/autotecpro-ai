@@ -10213,6 +10213,140 @@ def render_image_previews(images):
     return _render_image_previews_cached(images_json)
 
 
+def render_selectable_website_preview_grid_v69002(preview_records, preview_urls, state_key):
+    """Render website preview cards with a tiny top-right delete icon per image."""
+    records = list(preview_records or [])
+    urls = [str(item or "").strip() for item in (preview_urls or [])]
+    if not records:
+        return {"selected_urls": [], "excluded_urls": [], "displayed_count": 0}
+
+    paired = []
+    for idx, record in enumerate(records):
+        if not isinstance(record, dict):
+            continue
+        url = urls[idx] if idx < len(urls) else ""
+        paired.append((idx, record, url))
+
+    valid_url_set = {url for _, _, url in paired if url}
+    excluded_urls = {
+        str(item or "").strip()
+        for item in (st.session_state.get(state_key, []) or [])
+        if str(item or "").strip()
+    }
+    excluded_urls &= valid_url_set
+    st.session_state[state_key] = sorted(excluded_urls)
+
+    safe_state_prefix = ''.join(ch if ch.isalnum() or ch in ('_', '-') else '-' for ch in state_key)
+    st.markdown(
+        f"""
+        <style>
+        .atp-website-preview-card-v69002 {{
+            position: relative;
+            border: 1px solid rgba(128, 128, 128, 0.22);
+            border-radius: 12px;
+            padding: 0.5rem 0.5rem 0.65rem;
+            background: rgba(255, 255, 255, 0.02);
+            margin-bottom: 0.8rem;
+        }}
+        .atp-website-preview-card-v69002 img {{
+            display: block;
+            width: 100%;
+            height: 220px;
+            object-fit: contain;
+            object-position: center;
+            border-radius: 8px;
+            background: rgba(127, 127, 127, 0.04);
+        }}
+        .atp-website-preview-caption-v69002 {{
+            margin-top: 0.45rem;
+            font-size: 0.86rem;
+            line-height: 1.35;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }}
+        div[class*="st-key-{safe_state_prefix}_del_"] button {{
+            min-height: 1.55rem !important;
+            height: 1.55rem !important;
+            padding: 0 !important;
+            min-width: 1.55rem !important;
+            width: 1.55rem !important;
+            border-radius: 999px !important;
+            font-size: 0.72rem !important;
+            line-height: 1 !important;
+            font-weight: 700 !important;
+            float: right;
+        }}
+        div[class*="st-key-{safe_state_prefix}_restore_all"] button {{
+            min-height: 2rem !important;
+            padding: 0 0.6rem !important;
+            font-size: 0.8rem !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    active_pairs = [(idx, record, url) for idx, record, url in paired if not (url and url in excluded_urls)]
+
+    if excluded_urls:
+        info_left, info_right = st.columns([8, 2], gap="small")
+        with info_left:
+            st.caption(
+                f"{len(excluded_urls):,} image(s) excluded from this preview. "
+                "Excluded images will not be analyzed or saved."
+            )
+        with info_right:
+            if st.button("Restore all", key=f"{state_key}_restore_all", use_container_width=True):
+                st.session_state[state_key] = []
+                st.rerun()
+
+    if not active_pairs:
+        st.info("All preview images are currently excluded. Click Restore all to bring them back.")
+        return {
+            "selected_urls": [],
+            "excluded_urls": sorted(excluded_urls),
+            "displayed_count": 0,
+        }
+
+    column_count = 3
+    rows = [active_pairs[i:i + column_count] for i in range(0, len(active_pairs), column_count)]
+    for row in rows:
+        columns = st.columns(column_count, gap="small")
+        for col_index, column in enumerate(columns):
+            if col_index >= len(row):
+                continue
+            original_index, record, url = row[col_index]
+            with column:
+                top_left, top_right = st.columns([12, 1], gap="small")
+                with top_right:
+                    if st.button(
+                        "✕",
+                        key=f"{state_key}_del_{original_index}",
+                        help="Exclude this image from save/analyze",
+                    ):
+                        if url:
+                            updated = set(st.session_state.get(state_key, []) or [])
+                            updated.add(url)
+                            st.session_state[state_key] = sorted(str(item) for item in updated if str(item).strip())
+                        st.rerun()
+                data_url = html.escape(str(record.get("data_url") or ""), quote=True)
+                name = html.escape(str(record.get("name") or "Website instruction image"), quote=True)
+                st.markdown(
+                    f'<div class="atp-website-preview-card-v69002">'
+                    f'<img src="{data_url}" alt="{name}" loading="lazy">'
+                    f'<div class="atp-website-preview-caption-v69002">🖼️ {name}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+    selected_urls = [url for _, _, url in paired if url and url not in excluded_urls]
+    return {
+        "selected_urls": selected_urls,
+        "excluded_urls": sorted(excluded_urls),
+        "displayed_count": len(active_pairs),
+    }
+
+
 def _product_library_image_download_payload(image_record):
     """Return bytes, filename, and MIME type for one Product Library image."""
     image_record = image_record or {}
@@ -49627,6 +49761,7 @@ def render_learn_from_website(database_choice):
         )
 
     if extract_submitted:
+        st.session_state.pop("admin_website_preview_excluded_urls_v69002", None)
         try:
             with st.spinner("Extracting and cleaning webpage content..."):
                 extraction = extract_public_webpage(
@@ -49637,6 +49772,7 @@ def render_learn_from_website(database_choice):
             st.success("Website content extracted. Review it before saving.")
         except Exception as error:
             st.session_state.pop("admin_website_extraction", None)
+            st.session_state.pop("admin_website_preview_excluded_urls_v69002", None)
             st.error(f"Unable to extract website: {error}")
 
     extraction = st.session_state.get("admin_website_extraction")
@@ -49703,21 +49839,32 @@ def render_learn_from_website(database_choice):
         extraction["preview_validated_urls_v68999"] = list(preview_valid_urls_v68999)
         extraction["preview_validation_stats_v68999"] = dict(preview_stats_v68999)
         st.session_state["admin_website_extraction"] = extraction
-        preview_html = render_image_previews(preview_records)
-        if preview_html:
-            st.markdown(preview_html, unsafe_allow_html=True)
-        else:
+        preview_selection_v69002 = render_selectable_website_preview_grid_v69002(
+            preview_records,
+            preview_valid_urls_v68999,
+            state_key="admin_website_preview_excluded_urls_v69002",
+        )
+        extraction = dict(extraction)
+        extraction["selected_preview_urls_v69002"] = list(
+            preview_selection_v69002.get("selected_urls") or []
+        )
+        extraction["excluded_preview_urls_v69002"] = list(
+            preview_selection_v69002.get("excluded_urls") or []
+        )
+        st.session_state["admin_website_extraction"] = extraction
+        if not preview_selection_v69002.get("displayed_count"):
             st.info("No valid technical/image candidates remained after preview validation.")
         raw_discovered_v68999 = int(extraction.get("raw_image_candidate_count_v68999") or len(website_image_candidates))
         logical_candidates_v68999 = len(website_image_candidates)
         st.caption(
             f"{raw_discovered_v68999:,} raw discovered  →  "
             f"{logical_candidates_v68999:,} unique/logical assets  →  "
-            f"{preview_stats_v68999.get('displayed', 0):,} technical/valid displayed  |  "
+            f"{preview_selection_v69002.get('displayed_count', 0):,} currently selected/displayed  |  "
+            f"{len(preview_selection_v69002.get('excluded_urls') or []):,} manually excluded  |  "
             f"{preview_stats_v68999.get('decorative_filtered', 0):,} decorative/blank/branding filtered  |  "
             f"{preview_stats_v68999.get('unavailable', 0):,} unavailable/broken  |  "
             f"{preview_stats_v68999.get('sha_duplicates', 0):,} exact-byte duplicate(s). "
-            f"Every validated candidate is shown; up to {WEBSITE_MAX_ANALYZED_IMAGES:,} can be analyzed in one save operation."
+            f"Every validated candidate is shown unless you remove it; up to {WEBSITE_MAX_ANALYZED_IMAGES:,} can be analyzed in one save operation."
         )
 
     reviewed_content = st.text_area(
@@ -49805,7 +49952,7 @@ def render_learn_from_website(database_choice):
             else "Saving website knowledge..."
         ):
             selected_image_urls_v68998 = (
-                list(extraction.get("preview_validated_urls_v68999") or [])
+                list(extraction.get("selected_preview_urls_v69002") or [])
                 if include_website_images
                 else None
             )
