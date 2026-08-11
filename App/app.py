@@ -44803,19 +44803,107 @@ _GRAPHIC_V68835_NS = _graphic_v68989_build_v68835_namespace()
 _GRAPHIC_V68835_NS["normalized_image_data_url"] = normalized_image_data_url
 _GRAPHIC_V68835_NS["_graphic_role_fingerprint_v8200"] = _graphic_role_fingerprint_v8200
 
-GRAPHIC_V68992_AUTHORITY_VERSION = "v68992-v68835-runtime-authority"
+GRAPHIC_V68993_AUTHORITY_VERSION = "v68993-v68835-final-production-authority"
+GRAPHIC_V68993_ICON_LAYER_VERSION = "v68993-reference-connectivity-icons"
 
-def _graphic_v68992_project_has_reference_authority(uploaded_files=None):
-    """Return True when the live project proves a Product + Style Reference authority.
+# v68993 — deterministic icon-only enhancement for the frozen v68835 Reference compositor.
+# The original v68835 compositor function remains intact. Only its generic icon callback is
+# intercepted while that compositor is executing, and only slots whose actual copy resolves to
+# CarPlay or Android Auto are replaced by the already-established deterministic colored renderer.
+# ContextVar keeps icon state request-local across concurrent Streamlit sessions.
+import contextvars as _graphic_v68993_contextvars
+_GRAPHIC_V68993_ICON_CONTEXT = _graphic_v68993_contextvars.ContextVar(
+    "graphic_v68993_reference_icon_context", default=None
+)
+_GRAPHIC_V68993_REFERENCE_ICON_ACTIVE = _graphic_v68993_contextvars.ContextVar(
+    "graphic_v68993_reference_icon_active", default=False
+)
+_GRAPHIC_V68993_ORIGINAL_V68835_COMPOSITOR = _GRAPHIC_V68835_NS["_graphic_compose_reference_campaign_v3200"]
+_GRAPHIC_V68993_ORIGINAL_V68835_ICON = _GRAPHIC_V68835_NS["_graphic_draw_feature_icon_v3200"]
 
-    This is intentionally stronger than the old pre-dispatch exact-reference detector.
-    A saved Style Reference may live in project state while the current turn contains
-    only the Product Photo; that workflow must still remain on the v68835 engine.
+
+def _graphic_v68993_connectivity_semantic(label):
+    value = re.sub(r"\s+", " ", str(label or "")).strip().casefold()
+    if "carplay" in value:
+        return "carplay"
+    if "android auto" in value or "androidauto" in value:
+        return "android_auto"
+    return ""
+
+
+def _graphic_v68993_reference_icon_callback(draw, box, index, color):
+    ctx = _GRAPHIC_V68993_ICON_CONTEXT.get()
+    semantic = ""
+    if isinstance(ctx, dict):
+        call_index = int(ctx.get("call_index") or 0)
+        ctx["call_index"] = call_index + 1
+        semantics = list(ctx.get("semantics") or [])
+        if call_index < len(semantics):
+            semantic = str(semantics[call_index] or "")
+    if semantic in {"carplay", "android_auto"}:
+        try:
+            if _graphic_draw_reference_connectivity_icon_v68853(draw, box, semantic, color):
+                return True
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v68993_connectivity_icon_fallback",
+                semantic=semantic,
+                error_type=type(error).__name__,
+            )
+    return _GRAPHIC_V68993_ORIGINAL_V68835_ICON(draw, box, index, color)
+
+
+def _graphic_v68993_reference_compositor(*args, **kwargs):
+    # Installed View remains byte-for-byte visual authority: the icon enhancement is
+    # activated only by the outer dispatcher while mode == "reference".
+    if not bool(_GRAPHIC_V68993_REFERENCE_ICON_ACTIVE.get()):
+        return _GRAPHIC_V68993_ORIGINAL_V68835_COMPOSITOR(*args, **kwargs)
+    campaign_spec = kwargs.get("campaign_spec")
+    if campaign_spec is None and len(args) >= 5:
+        campaign_spec = args[4]
+    campaign_spec = dict(campaign_spec or {})
+    features = [str(x or "") for x in list(campaign_spec.get("feature_labels") or [])[:8]]
+    feature_defaults = [
+        "Large Touchscreen", "Multiple Display Styles", "Real-Time Vehicle Data", "Integrated Climate Control",
+        "Multimedia Interface", "Vehicle Information", "OEM-Style Integration", "High-Brightness Display",
+    ]
+    while len(features) < 8:
+        features.append(feature_defaults[len(features)])
+    benefits = [str(x or "") for x in list(campaign_spec.get("bottom_benefits") or [])[:5]]
+    benefit_defaults = ["Plug and Play", "Vehicle Information", "Multiple Display Styles", "OEM Fit & Finish", "High-Brightness Screen"]
+    while len(benefits) < 5:
+        benefits.append(benefit_defaults[len(benefits)])
+    semantics = [
+        *[_graphic_v68993_connectivity_semantic(label) for label in features],
+        *[_graphic_v68993_connectivity_semantic(label) for label in benefits],
+    ]
+    token = _GRAPHIC_V68993_ICON_CONTEXT.set({"call_index": 0, "semantics": semantics})
+    try:
+        return _GRAPHIC_V68993_ORIGINAL_V68835_COMPOSITOR(*args, **kwargs)
+    finally:
+        _GRAPHIC_V68993_ICON_CONTEXT.reset(token)
+
+
+# Replace only these two lookups inside the isolated compatibility namespace.
+# The original functions are retained above and remain the implementation authority.
+_GRAPHIC_V68835_NS["_graphic_draw_feature_icon_v3200"] = _graphic_v68993_reference_icon_callback
+_GRAPHIC_V68835_NS["_graphic_compose_reference_campaign_v3200"] = _graphic_v68993_reference_compositor
+
+
+def _graphic_v68993_authority_manifest(prompt_text, uploaded_files, forced_upload_role):
+    """Capture one immutable authority decision at the start of a Graphic job.
+
+    Persistent active IDs are deliberately checked before the heavier v68835 image-role detector.
+    This is both faster on normal Reference projects and more stable across Streamlit reruns because
+    a temporarily reconstructed upload list cannot demote an already-proven Product+Reference project.
     """
+    original_prompt = str(prompt_text or "")
     try:
         project = _graphic_repair_project_asset_roles_v15000(get_graphic_project_state())
     except Exception:
-        project = get_graphic_project_state() if isinstance(get_graphic_project_state(), dict) else {}
+        raw_project = get_graphic_project_state()
+        project = raw_project if isinstance(raw_project, dict) else {}
+
     active_reference_id = str((project or {}).get("active_reference_id") or "").strip()
     active_product_id = str((project or {}).get("active_product_id") or "").strip()
     roles = set()
@@ -44825,59 +44913,56 @@ def _graphic_v68992_project_has_reference_authority(uploaded_files=None):
         pass
     has_reference = bool(active_reference_id or ({"reference", "style_reference"} & roles))
     has_product = bool(active_product_id or ({"product", "product_photo"} & roles))
-    if has_reference and has_product:
-        return True
 
-    # Last deterministic recovery: ask the frozen v68835 resolver using the current
-    # uploads plus persistent project assets. Any uncertainty here fails closed to
-    # Reference authority rather than escaping to a newer Reference renderer.
+    # Installed intent remains the highest-priority frozen authority.
+    installed = False
     try:
-        context = _GRAPHIC_V68835_NS["_graphic_v68000_exact_reference_context"](
-            "", uploaded_files or [], "Auto-detect"
-        )
-        return bool((context or {}).get("has_product") and (context or {}).get("has_style"))
+        installed = bool(_GRAPHIC_V68835_NS["_graphic_v68829_is_installed_request"](original_prompt))
     except Exception:
-        return False
-
-
-def _graphic_v68992_mode(prompt_text, uploaded_files, forced_upload_role):
-    """Resolve exclusive Graphic authority before generation.
-
-    Installed intent wins first. Reference authority then uses both the original
-    v68835 detector and persistent Product+Reference project state. Once either
-    frozen authority is selected, there is no fall-through to v6898x failsafes.
-    """
-    original_prompt = str(prompt_text or "")
-    try:
-        if bool(_GRAPHIC_V68835_NS["_graphic_v68829_is_installed_request"](original_prompt)):
-            return "installed"
-    except Exception:
-        # Preserve v68829's conservative wording fallback locally.
         low = original_prompt.casefold()
-        if re.search(
+        installed = bool(re.search(
             r"\bafter[ -]?installation\b|\binstalled (?:view|photo|image|render|result)\b|"
             r"\bshow .{0,45} installed\b|\binstall .{0,70}(?:dashboard|dash|interior|vehicle|car)\b",
             low,
-        ):
-            return "installed"
+        ))
 
-    try:
-        if bool(_GRAPHIC_V68835_NS["_graphic_v68827_is_reference_mode"](
-            original_prompt, uploaded_files, forced_upload_role
-        )):
-            return "reference"
-    except Exception:
-        # The original detector is fail-closed. Keep that property at the outer
-        # authority boundary as well.
-        return "reference"
+    detector_used = False
+    detector_reference = False
+    if installed:
+        mode = "installed"
+    elif has_reference and has_product:
+        # Fast path: authoritative persistent project state is sufficient proof.
+        mode = "reference"
+    else:
+        detector_used = True
+        try:
+            detector_reference = bool(_GRAPHIC_V68835_NS["_graphic_v68827_is_reference_mode"](
+                original_prompt, uploaded_files, forced_upload_role
+            ))
+        except Exception:
+            # Preserve the verified detector's fail-closed behavior.
+            detector_reference = True
+        mode = "reference" if detector_reference else "other"
 
-    if _graphic_v68992_project_has_reference_authority(uploaded_files):
-        return "reference"
-    return "other"
+    manifest_payload = {
+        "mode": mode,
+        "active_reference_id": active_reference_id,
+        "active_product_id": active_product_id,
+        "has_reference": bool(has_reference),
+        "has_product": bool(has_product),
+        "detector_used": bool(detector_used),
+        "detector_reference": bool(detector_reference),
+        "forced_upload_role": str(forced_upload_role or ""),
+    }
+    manifest_sha = hashlib.sha256(
+        json.dumps(manifest_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    manifest_payload["sha256"] = manifest_sha
+    return manifest_payload
 
 
-def _graphic_v68992_assert_frozen_authority(images, mode):
-    """Reject any newer Reference failsafe result from a frozen authority lane."""
+def _graphic_v68993_assert_frozen_authority(images, mode):
+    """Fail closed if any newer Reference failsafe leaks into a frozen lane."""
     if mode not in {"reference", "installed"}:
         return
     if not images:
@@ -44890,10 +44975,8 @@ def _graphic_v68992_assert_frozen_authority(images, mode):
         if not isinstance(image, dict):
             raise RuntimeError(f"{mode.title()} authority returned an invalid image payload.")
         fingerprint = " ".join([
-            str(image.get("name") or ""),
-            str(image.get("filename") or ""),
-            str(image.get("provider_route") or ""),
-            str(image.get("generation_route") or ""),
+            str(image.get("name") or ""), str(image.get("filename") or ""),
+            str(image.get("provider_route") or ""), str(image.get("generation_route") or ""),
             str(image.get("output_status") or ""),
             str(image.get("graphic_v68985_reference_recovery_tier") or ""),
         ]).casefold()
@@ -44904,39 +44987,514 @@ def _graphic_v68992_assert_frozen_authority(images, mode):
                 "Frozen v68835/v68829 Graphic authority rejected a newer Reference failsafe result."
             )
 
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True,
     preserve_product=True, style_strength="High",
     forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    """v68992: install v68835 Reference and v68829 Installed authority before UI execution."""
-    mode = _graphic_v68992_mode(prompt_text, uploaded_files, forced_upload_role)
+    """v68993 final authority: frozen v68835 Reference + v68829 Installed, latest for other modes."""
+    manifest = _graphic_v68993_authority_manifest(prompt_text, uploaded_files, forced_upload_role)
+    mode = str(manifest.get("mode") or "other")
     frozen = mode in {"reference", "installed"}
     engine = _GRAPHIC_V68835_NS["generate_graphic_marketing_images"] if frozen else _GRAPHIC_V68989_LATEST_ENGINE
-    images = engine(
-        prompt_text, uploaded_files,
-        use_approved_style=use_approved_style, preserve_product=preserve_product,
-        style_strength=style_strength, forced_upload_role=forced_upload_role,
-        quality_retry=quality_retry, product_transform_mode=product_transform_mode,
-        professional_layered_studio=professional_layered_studio,
-    )
-    _graphic_v68992_assert_frozen_authority(images, mode)
+    icon_token = None
+    if mode == "reference":
+        icon_token = _GRAPHIC_V68993_REFERENCE_ICON_ACTIVE.set(True)
+    try:
+        images = engine(
+            prompt_text, uploaded_files,
+            use_approved_style=use_approved_style, preserve_product=preserve_product,
+            style_strength=style_strength, forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry, product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+    finally:
+        if icon_token is not None:
+            _GRAPHIC_V68993_REFERENCE_ICON_ACTIVE.reset(icon_token)
+    _graphic_v68993_assert_frozen_authority(images, mode)
     for image in images or []:
         if not isinstance(image, dict):
             continue
-        image["graphic_v68992_mode"] = mode
-        image["graphic_v68992_authority"] = (
+        image["graphic_v68993_mode"] = mode
+        image["graphic_v68993_authority"] = (
             "v68835-reference" if mode == "reference"
             else "v68829-installed" if mode == "installed"
             else "v68988-latest-other-mode"
         )
-        image["graphic_v68992_authority_version"] = GRAPHIC_V68992_AUTHORITY_VERSION
-        image["graphic_v68989_mode"] = mode
-        image["graphic_v68989_engine"] = GRAPHIC_V68989_COMPAT_ENGINE if frozen else "v68988-latest"
+        image["graphic_v68993_authority_version"] = GRAPHIC_V68993_AUTHORITY_VERSION
+        image["graphic_v68993_authority_manifest"] = dict(manifest)
+        image["graphic_v68993_icon_layer"] = (
+            GRAPHIC_V68993_ICON_LAYER_VERSION if mode == "reference" else "unchanged"
+        )
         image["v68835_reference_pipeline_active"] = bool(mode == "reference")
         image["v68835_installed_pipeline_active"] = bool(mode == "installed")
+        image["graphic_v68989_mode"] = mode
+        image["graphic_v68989_engine"] = GRAPHIC_V68989_COMPAT_ENGINE if frozen else "v68988-latest"
     return images
+
+
+# ============================================================
+# v68994 — Frozen Graphic Authority + Reference Semantic Icon Authority
+# ============================================================
+# This layer fixes the protected-lane authority gaps found by the v68993 deepest
+# runtime audit and adds deterministic semantic icon rendering for Reference Style.
+# The verified v68835 Reference compositor/provider/geometry/QA/recovery functions
+# and v68829 Installed View functions remain unchanged. Only request-local authority
+# detectors, performance helper bindings, and deterministic local icon callbacks are
+# overridden around that frozen engine.
+GRAPHIC_V68994_AUTHORITY_VERSION = "v68994-v68835-v68829-frozen-authority"
+GRAPHIC_V68994_ICON_VERSION = "v68994-v68843-semantic-reference-icons"
+
+_GRAPHIC_V68994_FORCED_MODE = _graphic_v68993_contextvars.ContextVar(
+    "graphic_v68994_forced_frozen_mode", default=""
+)
+_GRAPHIC_V68994_AUTHORITY_PROOF = _graphic_v68993_contextvars.ContextVar(
+    "graphic_v68994_authority_proof", default=None
+)
+_GRAPHIC_V68994_ICON_CONTEXT = _graphic_v68993_contextvars.ContextVar(
+    "graphic_v68994_reference_icon_context", default=None
+)
+
+_GRAPHIC_V68994_ORIGINAL_REFERENCE_DETECTOR = _GRAPHIC_V68835_NS["_graphic_v68827_is_reference_mode"]
+_GRAPHIC_V68994_ORIGINAL_INSTALLED_DETECTOR = _GRAPHIC_V68835_NS["_graphic_v68829_is_installed_request"]
+_GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR = _GRAPHIC_V68993_ORIGINAL_V68835_COMPOSITOR
+_GRAPHIC_V68994_ORIGINAL_V68835_ICON = _GRAPHIC_V68993_ORIGINAL_V68835_ICON
+
+
+def _graphic_v68994_reference_detector(prompt_text, uploaded_files, forced_upload_role):
+    forced = str(_GRAPHIC_V68994_FORCED_MODE.get() or "")
+    proof = _GRAPHIC_V68994_AUTHORITY_PROOF.get()
+    if forced == "reference":
+        if isinstance(proof, dict):
+            proof["reference_detector_forced_true"] = int(proof.get("reference_detector_forced_true") or 0) + 1
+        return True
+    if forced == "installed":
+        if isinstance(proof, dict):
+            proof["reference_detector_forced_false"] = int(proof.get("reference_detector_forced_false") or 0) + 1
+        return False
+    return _GRAPHIC_V68994_ORIGINAL_REFERENCE_DETECTOR(prompt_text, uploaded_files, forced_upload_role)
+
+
+def _graphic_v68994_installed_detector(prompt_text):
+    forced = str(_GRAPHIC_V68994_FORCED_MODE.get() or "")
+    proof = _GRAPHIC_V68994_AUTHORITY_PROOF.get()
+    if forced == "installed":
+        if isinstance(proof, dict):
+            proof["installed_detector_forced_true"] = int(proof.get("installed_detector_forced_true") or 0) + 1
+        return True
+    if forced == "reference":
+        if isinstance(proof, dict):
+            proof["installed_detector_forced_false"] = int(proof.get("installed_detector_forced_false") or 0) + 1
+        return False
+    return _GRAPHIC_V68994_ORIGINAL_INSTALLED_DETECTOR(prompt_text)
+
+
+# The frozen wrappers resolve these names from their isolated namespace at call time.
+# ContextVar keeps forced authority request-local and concurrency-safe.
+_GRAPHIC_V68835_NS["_graphic_v68827_is_reference_mode"] = _graphic_v68994_reference_detector
+_GRAPHIC_V68835_NS["_graphic_v68829_is_installed_request"] = _graphic_v68994_installed_detector
+
+
+def _graphic_v68994_normalized_image_data_url(uploaded_file):
+    """Output-identical normalization with the v68979 immutable-upload cache restored."""
+    try:
+        raw = uploaded_file.getvalue()
+        original_mime_type = getattr(uploaded_file, "type", "image/jpeg")
+        return _normalized_image_data_url_cached_v68979(raw, original_mime_type)
+    except Exception:
+        normalized_bytes, mime_type = normalize_uploaded_image_bytes(uploaded_file)
+        encoded = base64.b64encode(normalized_bytes).decode()
+        return f"data:{mime_type};base64,{encoded}"
+
+
+def _graphic_v68994_role_fingerprint(role_items, roles=None):
+    """Output-identical fingerprint with cached 20-char data-url digests."""
+    selected = []
+    allowed = set(roles or [])
+    for item in role_items or []:
+        role = str(item.get("role") or "")
+        if allowed and role not in allowed:
+            continue
+        data = str(item.get("data_url") or "")
+        digest = ""
+        if data:
+            cached_digest = str(item.get("_data_url_digest_v68983") or "")
+            if re.fullmatch(r"[0-9a-f]{20}", cached_digest):
+                digest = cached_digest
+            else:
+                digest = hashlib.sha256(data.encode("utf-8")).hexdigest()[:20]
+                try:
+                    item["_data_url_digest_v68983"] = digest
+                except Exception:
+                    pass
+        selected.append({
+            "role": role,
+            "name": str(item.get("name") or ""),
+            "asset_id": str(item.get("asset_id") or item.get("id") or ""),
+            "digest": digest,
+        })
+    payload = json.dumps(selected, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+# Correct the duplicate-definition regression found by the v68993 audit.
+_GRAPHIC_V68835_NS["normalized_image_data_url"] = _graphic_v68994_normalized_image_data_url
+_GRAPHIC_V68835_NS["_graphic_role_fingerprint_v8200"] = _graphic_v68994_role_fingerprint
+
+
+def _graphic_v68994_icon_semantic(label):
+    """v68843-style semantic registry with deterministic coverage for all Reference icons."""
+    value = re.sub(r"\s+", " ", str(label or "")).strip().casefold()
+    if "carplay" in value:
+        return "carplay"
+    if "android auto" in value or "androidauto" in value:
+        return "android_auto"
+    if "bluetooth" in value:
+        return "bluetooth"
+    if "gps" in value or "navigation" in value or "map" in value:
+        return "navigation"
+    if "backup" in value or "rear camera" in value or "camera" in value:
+        return "camera"
+    if "steering" in value or "oem controls" in value or "factory controls" in value:
+        return "steering"
+    if "plug" in value or "installation" in value:
+        return "plug"
+    if "brightness" in value or "bright" in value:
+        return "sun"
+    if "oem" in value or "fit" in value or "finish" in value or "integration" in value:
+        return "shield"
+    if "fuel" in value:
+        return "fuel"
+    if "temperature" in value or "temp" in value:
+        return "thermometer"
+    if "hill" in value or "descent" in value:
+        return "hill"
+    if "off-road" in value or "off road" in value or "axle" in value:
+        return "axles"
+    if "mileage" in value or "vehicle data" in value or "real-time" in value or "information" in value:
+        return "gauge"
+    if any(token in value for token in ("screen", "display", "touch", "qhd", "ips", "2k", "hd")):
+        return "display"
+    if any(token in value for token in ("apps", "multimedia", "movies")):
+        return "apps"
+    return "generic"
+
+
+def _graphic_v68994_draw_semantic_icon(draw, box, semantic, color):
+    """Draw one fixed icon family. CarPlay/Android Auto keep their approved colors."""
+    x0, y0, x1, y1 = [int(v) for v in box]
+    w, h = max(1, x1-x0), max(1, y1-y0)
+    cx, cy = (x0+x1)//2, (y0+y1)//2
+    s = max(2, int(min(w, h) * 0.065))
+    fg = color
+    sem = str(semantic or "generic")
+    try:
+        if sem in {"carplay", "android_auto"}:
+            return bool(_graphic_draw_reference_connectivity_icon_v68853(draw, box, sem, color))
+        if sem == "display":
+            r=max(4,s*2)
+            draw.rounded_rectangle((x0+w*.12,y0+h*.12,x1-w*.12,y1-h*.18),radius=r,outline=fg,width=s)
+            draw.line((cx-w*.12,y1-h*.10,cx+w*.12,y1-h*.10),fill=fg,width=s)
+            draw.line((cx,y1-h*.18,cx,y1-h*.10),fill=fg,width=s)
+            return True
+        if sem == "bluetooth":
+            draw.line((cx, y0+h*.10, cx, y1-h*.10), fill=fg, width=s)
+            draw.line((cx, y0+h*.10, x1-w*.18, cy-h*.08, cx, cy, x1-w*.18, cy+h*.08, cx, y1-h*.10), fill=fg, width=s)
+            draw.line((x0+w*.24, y0+h*.25, x1-w*.18, cy+h*.08), fill=fg, width=s)
+            draw.line((x0+w*.24, y1-h*.25, x1-w*.18, cy-h*.08), fill=fg, width=s)
+            return True
+        if sem == "navigation":
+            r=min(w,h)*.25
+            draw.ellipse((cx-r, y0+h*.10, cx+r, y0+h*.10+2*r), outline=fg, width=s)
+            draw.line((cx-r, y0+h*.10+r*1.15, cx, y1-h*.10, cx+r, y0+h*.10+r*1.15), fill=fg, width=s)
+            draw.ellipse((cx-s*1.4,y0+h*.10+r*.72,cx+s*1.4,y0+h*.10+r*.72+s*2.8),fill=fg)
+            return True
+        if sem == "camera":
+            draw.rounded_rectangle((x0+w*.10,y0+h*.28,x1-w*.10,y1-h*.18),radius=max(4,s*2),outline=fg,width=s)
+            draw.rectangle((x0+w*.28,y0+h*.20,x0+w*.48,y0+h*.30),outline=fg,width=s)
+            rr=min(w,h)*.13
+            draw.ellipse((cx-rr,cy-rr*.55,cx+rr,cy+rr*1.45),outline=fg,width=s)
+            return True
+        if sem == "shield":
+            pts=[(cx,y0+h*.08),(x1-w*.12,y0+h*.23),(x1-w*.20,y1-h*.25),(cx,y1-h*.08),(x0+w*.20,y1-h*.25),(x0+w*.12,y0+h*.23)]
+            draw.line(pts+[pts[0]],fill=fg,width=s,joint="curve")
+            draw.line((cx-w*.13,cy,cx-w*.02,cy+h*.12,cx+w*.18,cy-h*.15),fill=fg,width=s)
+            return True
+        if sem == "plug":
+            draw.arc((x0+w*.08,y0+h*.16,x1-w*.22,y1-h*.08),180,520,fill=fg,width=s)
+            draw.rectangle((cx-w*.10,y0+h*.20,cx+w*.10,cy+h*.04),outline=fg,width=s)
+            draw.line((cx-w*.055,y0+h*.09,cx-w*.055,y0+h*.20),fill=fg,width=s)
+            draw.line((cx+w*.055,y0+h*.09,cx+w*.055,y0+h*.20),fill=fg,width=s)
+            draw.line((cx,cy+h*.04,cx,cy+h*.20),fill=fg,width=s)
+            return True
+        if sem == "sun":
+            r=min(w,h)*.16
+            draw.ellipse((cx-r,cy-r,cx+r,cy+r),outline=fg,width=s)
+            for ang in range(0,360,45):
+                a=math.radians(ang)
+                draw.line((cx+math.cos(a)*r*1.35,cy+math.sin(a)*r*1.35,cx+math.cos(a)*r*1.85,cy+math.sin(a)*r*1.85),fill=fg,width=s)
+            return True
+        if sem == "steering":
+            r=min(w,h)*.30
+            draw.ellipse((cx-r,cy-r,cx+r,cy+r),outline=fg,width=s)
+            draw.ellipse((cx-r*.28,cy-r*.28,cx+r*.28,cy+r*.28),outline=fg,width=s)
+            draw.line((cx-r*.28,cy,cx-r*.88,cy-r*.14),fill=fg,width=s)
+            draw.line((cx+r*.28,cy,cx+r*.88,cy-r*.14),fill=fg,width=s)
+            draw.line((cx,cy+r*.28,cx,cy+r*.88),fill=fg,width=s)
+            return True
+        if sem == "gauge":
+            draw.arc((x0+w*.12,y0+h*.15,x1-w*.12,y1-h*.08),190,350,fill=fg,width=s)
+            draw.line((cx,cy,cx+w*.18,cy-h*.17),fill=fg,width=s)
+            draw.ellipse((cx-s*1.6,cy-s*1.6,cx+s*1.6,cy+s*1.6),fill=fg)
+            return True
+        if sem == "fuel":
+            draw.rectangle((x0+w*.18,y0+h*.16,cx+w*.02,y1-h*.14),outline=fg,width=s)
+            draw.rectangle((x0+w*.25,y0+h*.24,cx-w*.05,y0+h*.42),outline=fg,width=max(1,s-1))
+            draw.line((cx+w*.02,y0+h*.28,x1-w*.20,y0+h*.38,x1-w*.18,y1-h*.18),fill=fg,width=s)
+            return True
+        if sem == "thermometer":
+            draw.rounded_rectangle((cx-w*.07,y0+h*.12,cx+w*.07,y1-h*.28),radius=max(3,s*2),outline=fg,width=s)
+            draw.ellipse((cx-w*.13,y1-h*.34,cx+w*.13,y1-h*.08),outline=fg,width=s)
+            draw.line((cx,y0+h*.26,cx,y1-h*.23),fill=fg,width=s)
+            return True
+        if sem == "hill":
+            draw.line((x0+w*.12,y1-h*.18,cx-w*.02,cy-h*.08,x1-w*.12,y1-h*.18),fill=fg,width=s)
+            draw.rounded_rectangle((cx+w*.02,cy-h*.12,x1-w*.18,cy+h*.08),radius=max(2,s),outline=fg,width=s)
+            draw.ellipse((cx+w*.06,cy+h*.04,cx+w*.06+s*3,cy+h*.04+s*3),fill=fg)
+            draw.ellipse((x1-w*.28,cy+h*.04,x1-w*.28+s*3,cy+h*.04+s*3),fill=fg)
+            return True
+        if sem == "axles":
+            for yy in (cy-h*.16, cy+h*.16):
+                draw.line((x0+w*.22,yy,x1-w*.22,yy),fill=fg,width=s)
+                for xx in (x0+w*.22,x1-w*.22):
+                    draw.ellipse((xx-s*2,yy-s*2,xx+s*2,yy+s*2),outline=fg,width=s)
+            draw.line((cx,cy-h*.16,cx,cy+h*.16),fill=fg,width=s)
+            return True
+        if sem == "apps":
+            rr=max(2,s)
+            for row in range(2):
+                for col in range(2):
+                    ax=x0+w*(.24+.30*col); ay=y0+h*(.24+.30*row)
+                    draw.rounded_rectangle((ax,ay,ax+w*.18,ay+h*.18),radius=rr,outline=fg,width=s)
+            return True
+        # Generic icon: same stable rounded diamond on every image.
+        pts=[(cx,y0+h*.12),(x1-w*.12,cy),(cx,y1-h*.12),(x0+w*.12,cy)]
+        draw.line(pts+[pts[0]],fill=fg,width=s,joint="curve")
+        draw.ellipse((cx-s*1.4,cy-s*1.4,cx+s*1.4,cy+s*1.4),fill=fg)
+        return True
+    except Exception:
+        return False
+
+
+def _graphic_v68994_reference_icon_callback(draw, box, index, color):
+    ctx = _GRAPHIC_V68994_ICON_CONTEXT.get()
+    semantic = "generic"
+    if isinstance(ctx, dict):
+        call_index = int(ctx.get("call_index") or 0)
+        ctx["call_index"] = call_index + 1
+        semantics = list(ctx.get("semantics") or [])
+        if call_index < len(semantics):
+            semantic = str(semantics[call_index] or "generic")
+    if _graphic_v68994_draw_semantic_icon(draw, box, semantic, color):
+        return True
+    return _GRAPHIC_V68994_ORIGINAL_V68835_ICON(draw, box, index, color)
+
+
+def _graphic_v68994_reference_compositor(*args, **kwargs):
+    if str(_GRAPHIC_V68994_FORCED_MODE.get() or "") != "reference":
+        return _GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR(*args, **kwargs)
+
+    args_list = list(args)
+    campaign_spec = kwargs.get("campaign_spec")
+    if campaign_spec is None and len(args_list) >= 5:
+        campaign_spec = args_list[4]
+    prompt_text = kwargs.get("prompt_text")
+    if prompt_text is None and len(args_list) >= 3:
+        prompt_text = args_list[2]
+
+    spec = dict(campaign_spec or {})
+    # v68843 feature authority: fixed category-appropriate semantic plan gives the
+    # same icon identity/ordering across every Reference-style campaign.
+    try:
+        features = list(_graphic_v67900_clean_feature_plan(spec, prompt_text) or [])[:8]
+    except Exception:
+        features = list(spec.get("feature_labels") or [])[:8]
+    try:
+        benefits = list(_graphic_v67900_footer_plan(spec, prompt_text) or [])[:5]
+    except Exception:
+        benefits = list(spec.get("bottom_benefits") or [])[:5]
+    if features:
+        spec["feature_labels"] = features
+    if benefits:
+        spec["bottom_benefits"] = benefits
+
+    semantics = [
+        *[_graphic_v68994_icon_semantic(label) for label in list(spec.get("feature_labels") or [])[:8]],
+        *[_graphic_v68994_icon_semantic(label) for label in list(spec.get("bottom_benefits") or [])[:5]],
+    ]
+    icon_token = _GRAPHIC_V68994_ICON_CONTEXT.set({"call_index": 0, "semantics": semantics})
+    try:
+        if "campaign_spec" in kwargs:
+            kwargs = dict(kwargs)
+            kwargs["campaign_spec"] = spec
+        elif len(args_list) >= 5:
+            args_list[4] = spec
+        return _GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR(*args_list, **kwargs)
+    finally:
+        _GRAPHIC_V68994_ICON_CONTEXT.reset(icon_token)
+
+
+_GRAPHIC_V68835_NS["_graphic_draw_feature_icon_v3200"] = _graphic_v68994_reference_icon_callback
+_GRAPHIC_V68835_NS["_graphic_compose_reference_campaign_v3200"] = _graphic_v68994_reference_compositor
+
+
+def _graphic_v68994_persisted_authority_hint(prompt_text):
+    hint = st.session_state.get("_graphic_v68994_durable_authority_hint")
+    if not isinstance(hint, dict):
+        return {}
+    prompt_sha = hashlib.sha256(str(prompt_text or "").encode("utf-8")).hexdigest()
+    if str(hint.get("prompt_sha256") or "") != prompt_sha:
+        return {}
+    if str(hint.get("mode") or "") not in {"reference", "installed"}:
+        return {}
+    return dict(hint)
+
+
+def _graphic_v68994_authority_manifest(prompt_text, uploaded_files, forced_upload_role):
+    """One immutable authority decision, preferring durable proof and persistent IDs."""
+    original_prompt = str(prompt_text or "")
+    durable = _graphic_v68994_persisted_authority_hint(original_prompt)
+    if durable:
+        payload = {
+            "mode": str(durable.get("mode")),
+            "active_reference_id": str(durable.get("active_reference_id") or ""),
+            "active_product_id": str(durable.get("active_product_id") or ""),
+            "has_reference": bool(durable.get("has_reference")),
+            "has_product": bool(durable.get("has_product")),
+            "detector_used": False,
+            "detector_reference": False,
+            "forced_upload_role": str(forced_upload_role or ""),
+            "durable_authority_restored": True,
+        }
+    else:
+        payload = _graphic_v68993_authority_manifest(original_prompt, uploaded_files, forced_upload_role)
+        payload = dict(payload or {})
+        payload["durable_authority_restored"] = False
+    payload.pop("sha256", None)
+    payload["sha256"] = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return payload
+
+
+def _graphic_v68994_assert_positive_authority(images, mode, proof):
+    _graphic_v68993_assert_frozen_authority(images, mode)
+    if mode == "reference":
+        if int((proof or {}).get("reference_detector_forced_true") or 0) < 1:
+            raise RuntimeError("Reference authority proof failed: frozen v68827 detector was not forced true.")
+        for image in images or []:
+            if not isinstance(image, dict):
+                raise RuntimeError("Reference authority returned an invalid image payload.")
+            if image.get("automatic_style_intelligence_v68827") is True:
+                raise RuntimeError("Reference authority rejected non-Reference style intelligence contamination.")
+    elif mode == "installed":
+        if int((proof or {}).get("reference_detector_forced_false") or 0) < 1:
+            raise RuntimeError("Installed authority proof failed: inner Reference detector was not forced false.")
+        if int((proof or {}).get("installed_detector_forced_true") or 0) < 1:
+            raise RuntimeError("Installed authority proof failed: v68829 detector was not forced true.")
+        for image in images or []:
+            if not isinstance(image, dict) or not bool(image.get("installed_view_authority_engine_v68829")):
+                raise RuntimeError("Installed authority proof failed: v68829 Installed branch metadata is missing.")
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True,
+    preserve_product=True, style_strength="High",
+    forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    """v68994 final Graphic authority with positive inner proof and semantic icons."""
+    manifest = _graphic_v68994_authority_manifest(prompt_text, uploaded_files, forced_upload_role)
+    mode = str(manifest.get("mode") or "other")
+    frozen = mode in {"reference", "installed"}
+    engine = _GRAPHIC_V68835_NS["generate_graphic_marketing_images"] if frozen else _GRAPHIC_V68989_LATEST_ENGINE
+    proof = {}
+    mode_token = _GRAPHIC_V68994_FORCED_MODE.set(mode if frozen else "")
+    proof_token = _GRAPHIC_V68994_AUTHORITY_PROOF.set(proof)
+    try:
+        images = engine(
+            prompt_text, uploaded_files,
+            use_approved_style=use_approved_style,
+            preserve_product=preserve_product,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+            quality_retry=quality_retry,
+            product_transform_mode=product_transform_mode,
+            professional_layered_studio=professional_layered_studio,
+        )
+    finally:
+        _GRAPHIC_V68994_AUTHORITY_PROOF.reset(proof_token)
+        _GRAPHIC_V68994_FORCED_MODE.reset(mode_token)
+    _graphic_v68994_assert_positive_authority(images, mode, proof)
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        image["graphic_v68994_mode"] = mode
+        image["graphic_v68994_authority"] = (
+            "v68835-reference" if mode == "reference"
+            else "v68829-installed" if mode == "installed"
+            else "v68988-latest-other-mode"
+        )
+        image["graphic_v68994_authority_version"] = GRAPHIC_V68994_AUTHORITY_VERSION
+        image["graphic_v68994_authority_manifest"] = dict(manifest)
+        image["graphic_v68994_authority_proof"] = dict(proof)
+        image["graphic_v68994_icon_layer"] = GRAPHIC_V68994_ICON_VERSION if mode == "reference" else "unchanged"
+        image["graphic_v68994_semantic_icons"] = bool(mode == "reference")
+        image["v68835_reference_pipeline_active"] = bool(mode == "reference")
+        image["v68835_installed_pipeline_active"] = bool(mode == "installed")
+    st.session_state.pop("_graphic_v68994_durable_authority_hint", None)
+    return images
+
+
+# Persist protected authority into durable jobs so retries/resumes cannot reclassify
+# a previously proven Reference/Installed request after Streamlit/worker state loss.
+_GRAPHIC_V68994_BASE_QUEUE_DURABLE_JOB = _graphic_queue_durable_job_v68844
+_GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB = _graphic_pending_durable_job_v68844
+
+
+def _graphic_queue_durable_job_v68844(prompt_text, files, *, structured_options=None, intent="generate", max_attempts=1):
+    manifest = _graphic_v68994_authority_manifest(
+        prompt_text, files, (structured_options or {}).get("forced_upload_role", "Auto-detect")
+    )
+    job = _GRAPHIC_V68994_BASE_QUEUE_DURABLE_JOB(
+        prompt_text, files, structured_options=structured_options, intent=intent, max_attempts=max_attempts
+    )
+    if isinstance(job, dict):
+        protected = {
+            "mode": str(manifest.get("mode") or "other"),
+            "active_reference_id": str(manifest.get("active_reference_id") or ""),
+            "active_product_id": str(manifest.get("active_product_id") or ""),
+            "has_reference": bool(manifest.get("has_reference")),
+            "has_product": bool(manifest.get("has_product")),
+            "prompt_sha256": hashlib.sha256(str(prompt_text or "").encode("utf-8")).hexdigest(),
+            "manifest_sha256": str(manifest.get("sha256") or ""),
+        }
+        job["authority_manifest_v68994"] = protected
+        st.session_state["_graphic_v68994_durable_authority_hint"] = dict(protected)
+        job = _graphic_update_durable_job_v68844(job, status=job.get("status")) or job
+    return job
+
+
+def _graphic_pending_durable_job_v68844():
+    job = _GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB()
+    if isinstance(job, dict):
+        hint = job.get("authority_manifest_v68994")
+        if isinstance(hint, dict) and str(hint.get("mode") or "") in {"reference", "installed"}:
+            st.session_state["_graphic_v68994_durable_authority_hint"] = dict(hint)
+    return job
+
 
 # Chat History Sidebar
 # ============================================================
