@@ -10124,6 +10124,10 @@ def extract_images_from_message_content(content):
             "storage_path",
             "content_type",
             "archive_web_url",
+            "website_image_index_v68883",
+            "website_image_sha256",
+            "website_image_match_score_v68883",
+            "website_image_recovery_v68975",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -45506,7 +45510,7 @@ def _graphic_pending_durable_job_v68844():
 
 
 # ============================================================
-# v68996 — Frozen Dependency Closure + Persistent Reference Connectivity Pair Anchor
+# v68995 — Frozen Dependency Closure + Adaptive Reference Icon Manifest
 # ============================================================
 # Approved visual exception: Reference Style may adapt feature semantics to the
 # current product category, following the v68843 feature-planning principle, while
@@ -45515,11 +45519,8 @@ def _graphic_pending_durable_job_v68844():
 # a semantic slot manifest. Later images from the same Reference Style reuse that
 # order whenever the features remain applicable. CarPlay and Android Auto are the
 # only branded-color icons; all other icons remain monochrome.
-GRAPHIC_V68996_AUTHORITY_VERSION = "v68996-frozen-closure-reference-connectivity-pair-anchor"
-GRAPHIC_V68996_ICON_MANIFEST_VERSION = "v68996-reference-style-semantic-slot-pair-manifest"
-# Backward-compatible aliases used by the v68995 manifest helper names below.
-GRAPHIC_V68995_AUTHORITY_VERSION = GRAPHIC_V68996_AUTHORITY_VERSION
-GRAPHIC_V68995_ICON_MANIFEST_VERSION = GRAPHIC_V68996_ICON_MANIFEST_VERSION
+GRAPHIC_V68995_AUTHORITY_VERSION = "v68995-frozen-closure-adaptive-reference-manifest"
+GRAPHIC_V68995_ICON_MANIFEST_VERSION = "v68995-reference-style-semantic-slot-manifest"
 _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256 = 'a73ca920d969d0646ace18b00524c971c51f05143a951539de0603d558e66fc1'
 _GRAPHIC_V68995_FROZEN_DEPENDENCY_SOURCE = 'def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_blueprint, role_items, vehicle_profile, output_size):\n    """Compile Stages 1-4 into the single immutable input consumed by Stage 5."""\n    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)\n    W, H = [int(v) for v in str(output_size or "1536x1024").lower().split("x", 1)]\n    reference = _graphic_reference_intelligence_v43000(reference_blueprint, role_items)\n    product = _graphic_product_intelligence_v43000(product_item)\n    campaign = _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile)\n    layout = _graphic_layout_compiler_v43000(reference, product, (W, H), {"fields": campaign.get("fields") or {}})\n    mode = "reference_template" if reference.get("available") else "autotecpro_studio"\n    scene = _graphic_scene_strategy_v42000(prompt_text, campaign_spec, vehicle_profile, mode)\n    scene["compiled_layout"] = {\n        "vehicle_box": layout.get("normalized_boxes", {}).get("vehicle_box"),\n        "hero_product_box": layout.get("normalized_boxes", {}).get("hero_product_box"),\n        "top_copy_clearance": layout.get("normalized_boxes", {}).get("headline_box"),\n    }\n    return {\n        "stages": {\n            "1_reference_intelligence": reference,\n            "2_product_intelligence": product,\n            "3_campaign_compiler": campaign,\n            "4_layout_compiler": layout,\n        },\n        "scene_strategy": scene,\n        "provider_scope": "background_and_one_scene_vehicle_only",\n        "deterministic_local_layers": ["exact_product", "logo", "headline", "compatibility", "tagline", "feature_grid", "bottom_bar"],\n        "ready": bool(product.get("available") and campaign.get("available") and layout.get("passed")),\n        "version": "five-stage-execution-blueprint-v43000",\n    }\n\n\ndef _graphic_reference_blueprint_text(blueprint):\n    """Serialize the strongest reference-analysis fields."""\n    if not isinstance(blueprint, dict) or not blueprint:\n        return ""\n    ordered = (\n        "reference_summary", "layout_archetype", "canvas_zones", "product_scale_percent", "product_position",\n        "product_crop_and_perspective", "background_scene", "vehicle_or_environment_role", "lighting_direction",\n        "color_palette", "typography_system", "headline_zone", "subheadline_zone", "logo_zone", "feature_icon_system",\n        "feature_copy_structure", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",\n        "product_integration_instructions", "must_copy_visual_patterns", "acceptable_variations", "forbidden_transfers",\n        "negative_constraints", "final_generation_blueprint", "confidence_score",\n    )\n    lines = []\n    for key in ordered:\n        value = blueprint.get(key)\n        if value in (None, "", [], {}):\n            continue\n        if isinstance(value, (dict, list)):\n            value = json.dumps(value, ensure_ascii=False, default=str)\n        lines.append(key.replace("_", " ").upper() + ": " + str(value))\n    return "\\n".join(lines)[:14000]\n\n\ndef _graphic_safe_reference_blueprint_v16000(blueprint=None):\n    """Guarantee usable commercial geometry when visual analysis is partial."""\n    bp = dict(blueprint or {})\n    defaults = {\n        "logo_box": [0.025, 0.025, 0.205, 0.095],\n        "headline_box": [0.025, 0.135, 0.52, 0.105],\n        "compatibility_box": [0.025, 0.245, 0.43, 0.055],\n        "tagline_box": [0.025, 0.305, 0.50, 0.045],\n        "feature_matrix_box": [0.57, 0.035, 0.395, 0.285],\n        "hero_product_box": [0.035, 0.355, 0.625, 0.515],\n        "vehicle_box": [0.64, 0.39, 0.325, 0.34],\n        "bottom_bar_box": [0.035, 0.885, 0.93, 0.095],\n    }\n    boxes = dict(bp.get("normalized_boxes") or {})\n    for key, default in defaults.items():\n        value = boxes.get(key)\n        valid = isinstance(value, (list, tuple)) and len(value) == 4\n        if valid:\n            try:\n                value = [max(0.0, min(1.0, float(x))) for x in value]\n                valid = value[2] > 0.02 and value[3] > 0.02 and value[0] + value[2] <= 1.03 and value[1] + value[3] <= 1.03\n            except Exception:\n                valid = False\n        boxes[key] = value if valid else list(default)\n    # Enforce the commercial hierarchy that failed in earlier releases.\n    boxes["hero_product_box"][2] = max(float(boxes["hero_product_box"][2]), 0.52)\n    boxes["hero_product_box"][3] = max(float(boxes["hero_product_box"][3]), 0.46)\n    boxes["feature_matrix_box"][2] = max(float(boxes["feature_matrix_box"][2]), 0.34)\n    boxes["feature_matrix_box"][3] = max(float(boxes["feature_matrix_box"][3]), 0.24)\n    boxes["bottom_bar_box"][2] = max(float(boxes["bottom_bar_box"][2]), 0.88)\n    boxes["bottom_bar_box"][3] = max(float(boxes["bottom_bar_box"][3]), 0.085)\n    bp["normalized_boxes"] = boxes\n    bp["layout_repaired_v16000"] = True\n    return bp\n\n\ndef _graphic_stage5_execute_v43000(\n    background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n    role_items, execution_blueprint, template_key="", product_dna=None,\n):\n    """Execute the compiled blueprint and perform one local-only repair pass when needed."""\n    ref = dict(((execution_blueprint or {}).get("stages") or {}).get("4_layout_compiler", {}).get("normalized_boxes") or {})\n    composed, metadata = _graphic_compose_reference_campaign_v3200(\n        background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n        role_items, reference_blueprint=ref, template_key=template_key, product_dna=product_dna or {},\n    )\n    score = _graphic_qa_scorecard_v42000(metadata)\n    repair_applied = False\n    if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):\n        repaired_ref = _graphic_local_repair_blueprint_v43000(ref, score.get("critical_failed"))\n        if repaired_ref != ref:\n            composed, metadata = _graphic_compose_reference_campaign_v3200(\n                background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n                role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},\n            )\n            score = _graphic_qa_scorecard_v42000(metadata)\n            repair_applied = True\n    detail_gate_v48000 = dict(metadata.get("autotecpro_final_qa_v48000") or {})\n    if detail_gate_v48000 and not detail_gate_v48000.get("passed"):\n        score = dict(score or {})\n        score["passed"] = False\n        score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))\n    metadata["five_stage_execution_v43000"] = {\n        "ready": bool((execution_blueprint or {}).get("ready")),\n        "local_repair_applied": repair_applied,\n        "provider_retry_used": False,\n        "final_scorecard": score,\n        "version": "stage5-image-generator-v48000",\n    }\n    return composed, metadata\n\n\ndef classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced_role="Auto-detect"):\n    """Classify image uploads into product/style/logo/support roles.\n\n    The classifier is deterministic and conservative so it adds no extra API call.\n    Advanced Designer users may force a role; ordinary Graphic Chat uses prompt and\n    filename signals. The first ordinary uploaded image defaults to Product Photo\n    for generation requests, protecting the actual item from style references.\n    """\n    images = []\n    prompt_lower = str(prompt_text or "").lower()\n    forced = str(forced_role or "Auto-detect").strip().lower()\n    ordered_example_request = (\n        any(token in prompt_lower for token in (\n            "first image", "first photo", "left photo", "left image",\n            "source photo", "source image", "photo i want to submit",\n            "product i want to submit", "original product"\n        ))\n        and any(token in prompt_lower for token in (\n            "other photos", "other images", "two photos", "two images",\n            "examples", "example images", "reference ads", "create like"\n        ))\n    )\n    for index, item in enumerate(uploaded_files or []):\n        mime = str(getattr(item, "type", "") or "").lower()\n        if not mime.startswith("image/"):\n            continue\n        name = Path(str(getattr(item, "name", "") or f"image_{index+1}.png")).name\n        lower_name = name.lower()\n        role = "supporting_image"\n        authoritative_project_role = str(\n            getattr(item, "graphic_role", "") or ""\n        ).strip().casefold()\n        project_role_map = {\n            "reference": "style_reference",\n            "style_reference": "style_reference",\n            "product": "product_photo",\n            "product_photo": "product_photo",\n            "logo": "logo_asset",\n            "logo_asset": "logo_asset",\n            "background": "background",\n            "supporting": "supporting_image",\n            "supporting_image": "supporting_image",\n        }\n        if forced and forced != "auto-detect":\n            role = {\n                "product photo": "product_photo",\n                "style reference": "style_reference",\n                "logo asset": "logo_asset",\n                "background": "background",\n                "supporting image": "supporting_image",\n            }.get(forced, "supporting_image")\n        elif authoritative_project_role in project_role_map:\n            # Conversation-project metadata is authoritative. Never infer a\n            # persistent reference ad from its filename or current prompt again.\n            role = project_role_map[authoritative_project_role]\n        elif ordered_example_request:\n            role = "product_photo" if index == 0 else "style_reference"\n        elif "logo" in lower_name and not any(word in lower_name for word in ("product", "cluster", "screen", "radio", "dashboard")):\n            role = "logo_asset"\n        elif any(word in lower_name for word in ("style", "reference", "sample", "layout", "example", "ad_", "advert")):\n            role = "style_reference"\n        elif any(word in lower_name for word in ("background", "backdrop", "scene")):\n            role = "background"\n        elif index == 0 or any(word in prompt_lower for word in (\n            "product photo", "this product", "uploaded product", "preserve the product",\n            "use this photo", "use this image", "product image"\n        )):\n            role = "product_photo"\n        images.append({"file": item, "name": name, "role": role})\n    return images\n\n\ndef graphic_project_uploaded_files(include_current=None):\n    """Materialize usable Graphic assets while preserving authoritative roles.\n\n    Released historical products remain as lightweight project metadata, but empty\n    byte records are never converted into upload objects or sent through downstream\n    role classification.\n    """\n    combined = []\n    seen = set()\n    state_assets = list(get_graphic_project_state().get("assets") or [])\n    role_by_digest = {\n        str(record.get("id") or ""): str(record.get("role") or "supporting")\n        for record in state_assets\n        if str(record.get("id") or "")\n    }\n\n    for item in include_current or []:\n        try:\n            raw = item.getvalue()\n            digest = hashlib.sha256(raw).hexdigest()\n        except Exception:\n            raw = b""\n            digest = str(id(item))\n        if not raw or digest in seen:\n            continue\n        saved_role = role_by_digest.get(digest, "")\n        if saved_role and not str(\n            getattr(item, "graphic_role", "") or ""\n        ).strip():\n            try:\n                item.graphic_role = saved_role\n                item.graphic_asset_id = digest\n            except Exception:\n                item = ManagedUploadedFile(\n                    raw,\n                    getattr(item, "name", "image"),\n                    getattr(item, "type", "image/png"),\n                    graphic_role=saved_role,\n                    graphic_asset_id=digest,\n                )\n        combined.append(item)\n        seen.add(digest)\n\n    for record in state_assets:\n        digest = str(record.get("id") or "")\n        if not digest or digest in seen:\n            continue\n        raw = bytes(record.get("data") or b"")\n        if not raw:\n            continue\n        combined.append(ManagedUploadedFile(\n            raw,\n            record.get("name") or "image",\n            record.get("type") or "image/png",\n            graphic_role=record.get("role") or "supporting",\n            graphic_asset_id=digest,\n        ))\n        seen.add(digest)\n    return combined\n'
 if hashlib.sha256(_GRAPHIC_V68995_FROZEN_DEPENDENCY_SOURCE.encode("utf-8")).hexdigest() != _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256:
@@ -45620,66 +45621,6 @@ def _graphic_v68995_reconcile_slots(previous_labels, valid_labels, limit):
             output[idx] = remaining.pop(0)
     return [x for x in output if x][:limit]
 
-def _graphic_v68996_reference_pair_slots(prior_manifest=None, limit=8):
-    """Return the persisted CarPlay/Android Auto pair slots when valid.
-
-    Reference Style uses a 4-column upper grid. The branded connectivity pair must
-    remain adjacent, in the same row, and in CarPlay -> Android Auto order. If a
-    legacy manifest split the pair across rows, migrate it to the reference-faithful
-    default at the right side of the first row (slots 3 and 4, zero-based 2/3).
-    """
-    limit = max(2, int(limit or 8))
-    prior = dict(prior_manifest or {})
-    candidates = prior.get("connectivity_pair_slots")
-    if not isinstance(candidates, (list, tuple)) or len(candidates) != 2:
-        semantics = list(prior.get("upper_semantics") or [])[:limit]
-        try:
-            cp = semantics.index("carplay")
-            aa = semantics.index("android_auto")
-            candidates = [cp, aa]
-        except ValueError:
-            candidates = None
-    if isinstance(candidates, (list, tuple)) and len(candidates) == 2:
-        try:
-            a, b = int(candidates[0]), int(candidates[1])
-        except Exception:
-            a, b = -1, -1
-        if (
-            0 <= a < limit and 0 <= b < limit and b == a + 1
-            and (a // 4) == (b // 4)
-        ):
-            return [a, b]
-    # Reference-faithful 4x2 default: the colored pair finishes the first row.
-    if limit >= 4:
-        return [2, 3]
-    return [0, 1]
-
-
-def _graphic_v68996_anchor_connectivity_pair(labels, prior_manifest=None, limit=8):
-    """Keep CarPlay + Android Auto adjacent and stable without freezing other features.
-
-    Only the two branded connectivity semantics are protected. Every other slot
-    continues to use the adaptive v68843 product-category feature plan and may change
-    when a product requires different truthful features.
-    """
-    limit = max(2, int(limit or 8))
-    source = [_graphic_v68995_normalize_label(x) for x in (labels or []) if _graphic_v68995_normalize_label(x)][:limit]
-    cp_label = next((x for x in source if _graphic_v68994_icon_semantic(x) == "carplay"), None)
-    aa_label = next((x for x in source if _graphic_v68994_icon_semantic(x) == "android_auto"), None)
-    slots = _graphic_v68996_reference_pair_slots(prior_manifest, limit)
-    if not (cp_label and aa_label):
-        return source, slots, False
-
-    others = [x for x in source if _graphic_v68994_icon_semantic(x) not in {"carplay", "android_auto"}]
-    output = [None] * limit
-    output[slots[0]] = cp_label
-    output[slots[1]] = aa_label
-    it = iter(others)
-    for idx in range(limit):
-        if output[idx] is None:
-            output[idx] = next(it, None)
-    return [x for x in output if x][:limit], slots, True
-
 def _graphic_v68995_reference_compositor(*args, **kwargs):
     if str(_GRAPHIC_V68994_FORCED_MODE.get() or "") != "reference":
         return _GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR(*args, **kwargs)
@@ -45710,12 +45651,6 @@ def _graphic_v68995_reference_compositor(*args, **kwargs):
     style_key = _graphic_v68995_reference_style_key(reference_id, category)
     prior = _graphic_v68995_load_slot_manifest(style_key) if reference_id else {}
     features = _graphic_v68995_reconcile_slots(prior.get("upper_labels"), valid_features, 8) if prior else valid_features
-    # v68996: CarPlay + Android Auto are a protected branded pair in the upper grid.
-    # They remain adjacent, same-row, and in the same persisted slots for this
-    # Reference Style + product category. All non-connectivity slots remain adaptive.
-    features, connectivity_pair_slots, connectivity_pair_applied = _graphic_v68996_anchor_connectivity_pair(
-        features, prior_manifest=prior, limit=8
-    )
     benefits = _graphic_v68995_reconcile_slots(prior.get("footer_labels"), valid_benefits, 5) if prior else valid_benefits
     if features: spec["feature_labels"] = features
     if benefits: spec["bottom_benefits"] = benefits
@@ -45730,10 +45665,6 @@ def _graphic_v68995_reference_compositor(*args, **kwargs):
         "footer_labels": list(spec.get("bottom_benefits") or [])[:5],
         "footer_semantics": [_graphic_v68994_icon_semantic(x) for x in list(spec.get("bottom_benefits") or [])[:5]],
         "carplay_android_anchor": True,
-        "connectivity_pair_slots": list(connectivity_pair_slots),
-        "connectivity_pair_order": ["carplay", "android_auto"],
-        "connectivity_pair_same_row": True,
-        "connectivity_pair_applied": bool(connectivity_pair_applied),
         "color_policy": "carplay-android-only",
         "created_from_existing_manifest": bool(prior),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -45784,14 +45715,7 @@ def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_a
             image["graphic_v68995_authority_version"] = GRAPHIC_V68995_AUTHORITY_VERSION
             image["graphic_v68995_reference_icon_manifest"] = dict(pending_manifest or {}) if mode == "reference" else {}
             image["graphic_v68995_only_carplay_android_colored"] = bool(mode == "reference")
-            image["graphic_v68996_authority_version"] = GRAPHIC_V68996_AUTHORITY_VERSION
-            image["graphic_v68996_reference_icon_manifest"] = dict(pending_manifest or {}) if mode == "reference" else {}
-            image["graphic_v68996_only_carplay_android_colored"] = bool(mode == "reference")
-            image["graphic_v68996_connectivity_pair_slots"] = list((pending_manifest or {}).get("connectivity_pair_slots") or []) if mode == "reference" else []
-            image["graphic_v68996_connectivity_pair_order"] = list((pending_manifest or {}).get("connectivity_pair_order") or []) if mode == "reference" else []
-            image["graphic_v68996_connectivity_pair_locked"] = bool(mode == "reference" and (pending_manifest or {}).get("connectivity_pair_applied"))
             image["graphic_v68995_dependency_closure_sha256"] = _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256
-            image["graphic_v68996_dependency_closure_sha256"] = _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256
     return images
 
 def process_pending_graphic_regeneration():
@@ -45910,18 +45834,29 @@ if (
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
+# AutoTecPro AI v68997 — Website Learning + Technical Image Runtime Finalization
+# Built directly on v68996. Keeps Graphic v68835 Reference / v68829 After Install
+# authorities and the v68995 Graphic runtime layer unchanged while closing website
+# text-cleanliness, image-archive parity, fitment matching, and history provenance gaps.
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
 WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 WEBSITE_MAX_EXTRACTED_CHARS = 120000
-WEBSITE_MAX_DISCOVERED_IMAGES = 40
-WEBSITE_MAX_ANALYZED_IMAGES = 28
+WEBSITE_MAX_DISCOVERED_IMAGES = 100
+WEBSITE_MAX_ANALYZED_IMAGES = 100
 WEBSITE_MAX_IMAGE_BYTES = 8 * 1024 * 1024
 WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS = 18
 WEBSITE_AUTO_DISPLAY_MAX_IMAGES = 4
 
 
 class KnowledgePageHTMLParser(HTMLParser):
-    """Extract readable page text while excluding common non-content areas."""
+    """Extract readable page text plus high-recall website image candidates.
+
+    v68996 keeps the existing readable-text behavior while expanding image discovery
+    for WordPress/WPBakery/lazy-load pages. It records normal ``img`` sources,
+    ``picture/source`` srcsets, full-size lightbox links, common WordPress data
+    attributes, and inline/CSS background-image URLs. Candidate filtering remains a
+    later step so discovery itself does not silently discard technical images.
+    """
 
     SKIP_TAGS = {
         "script", "style", "noscript", "svg", "canvas", "iframe",
@@ -45933,6 +45868,13 @@ class KnowledgePageHTMLParser(HTMLParser):
         "h1", "h2", "h3", "h4", "h5", "h6",
         "blockquote", "pre", "title",
     }
+    IMAGE_DATA_ATTRIBUTES = (
+        "data-src", "data-lazy-src", "data-original", "data-lazy",
+        "data-large-file", "data-orig-file", "data-full", "data-full-src",
+        "data-image", "data-image-url", "data-url", "data-bg",
+        "data-background", "data-background-image", "data-thumb", "data-thumbnail",
+    )
+    SRCSET_ATTRIBUTES = ("data-srcset", "srcset")
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -45942,14 +45884,117 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._inside_title = False
         self.images = []
 
-        # v68871: structural context used to bind each image to its section.
         self._current_heading_level = ""
         self._current_heading_parts = []
         self._last_heading = ""
         self._recent_text_chunks = []
+        self._anchor_stack = []
+        self._picture_depth = 0
+        self._picture_sources = []
+        self._picture_had_img = False
+        self._image_group_counter = 0
+
+    @staticmethod
+    def _srcset_urls(value):
+        rows = []
+        for order, part in enumerate(str(value or "").split(",")):
+            item = part.strip()
+            if not item:
+                continue
+            pieces = item.split()
+            url = pieces[0].strip(" \t\r\n\"'") if pieces else ""
+            descriptor = pieces[1] if len(pieces) > 1 else ""
+            rank = 0.0
+            match = re.fullmatch(r"([0-9.]+)(w|x)", descriptor, flags=re.I)
+            if match:
+                try:
+                    rank = float(match.group(1)) * (100000.0 if match.group(2).lower() == "x" else 1.0)
+                except Exception:
+                    rank = 0.0
+            if url:
+                rows.append((rank, -order, url))
+        rows.sort(reverse=True)
+        return [row[2] for row in rows]
+
+    @staticmethod
+    def _style_urls(value):
+        return [
+            html.unescape(str(match[1] or "").strip(" \t\r\n\"'"))
+            for match in re.findall(
+                r"url\(\s*(['\"]?)(.*?)\1\s*\)",
+                str(value or ""),
+                flags=re.I | re.S,
+            )
+            if str(match[1] or "").strip()
+        ]
+
+    @staticmethod
+    def _looks_image_like(value):
+        text = html.unescape(str(value or "").strip())
+        if not text or text.startswith(("data:", "blob:", "javascript:")):
+            return False
+        return bool(
+            re.search(r"\.(?:jpe?g|png|webp|avif)(?:$|[?#])", text, flags=re.I)
+            or re.search(r"/(?:uploads|images?|media|gallery|photos?)/", text, flags=re.I)
+        )
+
+    def _context(self):
+        nearby_text = " ".join(
+            chunk for chunk in self._recent_text_chunks[-8:] if chunk
+        )
+        nearby_text = re.sub(r"\s+", " ", nearby_text).strip()
+        return {
+            "nearest_heading": self._last_heading,
+            "heading_level": self._current_heading_level,
+            "nearby_text": nearby_text[-1800:],
+        }
+
+    def _append_image(self, src, *, alt="", title="", source_kind="html", full_size=False, origin_group=""):
+        src = html.unescape(str(src or "").strip())
+        if not src:
+            return
+        record = {
+            "src": src,
+            "alt": re.sub(r"\s+", " ", str(alt or "")).strip(),
+            "title": re.sub(r"\s+", " ", str(title or "")).strip(),
+            "source_kind": str(source_kind or "html"),
+            "full_size_candidate": bool(full_size),
+            "origin_group": str(origin_group or ""),
+            **self._context(),
+        }
+        self.images.append(record)
 
     def handle_starttag(self, tag, attrs):
         tag = str(tag or "").lower()
+        attributes = dict(attrs or [])
+
+        # Collect image-bearing attributes before skipping textual content. This lets
+        # technical background/lazy assets survive even on wrapper elements.
+        style_value = str(attributes.get("style") or "")
+        for bg_url in self._style_urls(style_value):
+            self._append_image(bg_url, source_kind="inline-background")
+
+        if tag not in {"img", "source"}:
+            for name in self.IMAGE_DATA_ATTRIBUTES:
+                value = str(attributes.get(name) or "").strip()
+                if value and self._looks_image_like(value):
+                    self._append_image(value, source_kind=name)
+
+        if tag == "picture":
+            self._picture_depth += 1
+            if self._picture_depth == 1:
+                self._picture_sources = []
+                self._picture_had_img = False
+
+        if tag == "a":
+            href = str(attributes.get("href") or "").strip()
+            self._anchor_stack.append(href)
+
+        if tag == "source" and self._picture_depth:
+            for attr_name in self.SRCSET_ATTRIBUTES:
+                for src in self._srcset_urls(attributes.get(attr_name)):
+                    self._picture_sources.append(src)
+
         if tag in self.SKIP_TAGS:
             self._skip_depth += 1
             return
@@ -45968,49 +46013,68 @@ class KnowledgePageHTMLParser(HTMLParser):
             self._parts.append("\n")
 
         if tag == "img":
-            attributes = dict(attrs or [])
+            self._image_group_counter += 1
+            origin_group = f"img-{self._image_group_counter}"
+            if self._picture_depth:
+                self._picture_had_img = True
             alt_text = str(attributes.get("alt") or "").strip()
             title_text = str(attributes.get("title") or "").strip()
-            candidate_src = (
-                attributes.get("data-src")
-                or attributes.get("data-lazy-src")
-                or attributes.get("data-original")
-                or attributes.get("src")
-                or ""
-            )
-            srcset = str(
-                attributes.get("data-srcset")
-                or attributes.get("srcset")
-                or ""
-            ).strip()
-            if srcset:
-                # Prefer the largest/right-most candidate from a standard srcset.
-                candidates = [
-                    part.strip().split()[0]
-                    for part in srcset.split(",")
-                    if part.strip()
-                ]
-                if candidates:
-                    candidate_src = candidates[-1]
-            candidate_src = str(candidate_src or "").strip()
-            if candidate_src:
-                nearby_text = " ".join(
-                    chunk for chunk in self._recent_text_chunks[-6:] if chunk
+
+            urls = []
+            # Prefer full-resolution WordPress attributes and largest srcsets, but
+            # retain all distinct forms so later URL/SHA dedupe can choose safely.
+            for name in (
+                "data-orig-file", "data-large-file", "data-full", "data-full-src",
+                "data-src", "data-lazy-src", "data-original", "data-lazy", "src",
+            ):
+                value = str(attributes.get(name) or "").strip()
+                if value:
+                    urls.append((value, name, name in {"data-orig-file", "data-large-file", "data-full", "data-full-src"}))
+            for attr_name in self.SRCSET_ATTRIBUTES:
+                srcset_urls = self._srcset_urls(attributes.get(attr_name))
+                for src in srcset_urls:
+                    urls.append((src, f"img-{attr_name}", True))
+            for src in self._picture_sources:
+                urls.append((src, "picture-source", True))
+
+            anchor_href = self._anchor_stack[-1] if self._anchor_stack else ""
+            if anchor_href and self._looks_image_like(anchor_href):
+                urls.insert(0, (anchor_href, "linked-full-image", True))
+
+            seen_local = set()
+            for candidate_src, source_kind, full_size in urls:
+                candidate_src = html.unescape(str(candidate_src or "").strip())
+                if not candidate_src or candidate_src in seen_local:
+                    continue
+                seen_local.add(candidate_src)
+                self._append_image(
+                    candidate_src,
+                    alt=alt_text,
+                    title=title_text,
+                    source_kind=source_kind,
+                    full_size=full_size,
+                    origin_group=origin_group,
                 )
-                nearby_text = re.sub(r"\s+", " ", nearby_text).strip()
-                self.images.append({
-                    "src": candidate_src,
-                    "alt": alt_text,
-                    "title": title_text,
-                    "nearest_heading": self._last_heading,
-                    "heading_level": self._current_heading_level,
-                    "nearby_text": nearby_text[-1400:],
-                })
+
             if alt_text:
                 self._parts.append(f"\nImage description: {alt_text}\n")
 
     def handle_endtag(self, tag):
         tag = str(tag or "").lower()
+
+        if tag == "a" and self._anchor_stack:
+            self._anchor_stack.pop()
+        if tag == "picture":
+            self._picture_depth = max(0, self._picture_depth - 1)
+            if self._picture_depth == 0:
+                if self._picture_sources and not self._picture_had_img:
+                    self._append_image(
+                        self._picture_sources[0],
+                        source_kind="picture-source-only",
+                        full_size=True,
+                    )
+                self._picture_sources = []
+                self._picture_had_img = False
 
         if tag in self.SKIP_TAGS:
             if self._skip_depth:
@@ -46024,11 +46088,7 @@ class KnowledgePageHTMLParser(HTMLParser):
             self._inside_title = False
 
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
-            heading = re.sub(
-                r"\s+",
-                " ",
-                " ".join(self._current_heading_parts),
-            ).strip()
+            heading = re.sub(r"\s+", " ", " ".join(self._current_heading_parts)).strip()
             if heading:
                 self._last_heading = heading
                 self._recent_text_chunks.append(heading)
@@ -46040,6 +46100,9 @@ class KnowledgePageHTMLParser(HTMLParser):
             self._parts.append("\n")
 
     def handle_data(self, data):
+        # Style/script text is excluded by SKIP_TAGS. CSS image URLs are recovered
+        # separately from the raw HTML candidate scan, so stylesheet text never
+        # contaminates searchable website knowledge.
         if self._skip_depth:
             return
 
@@ -46061,7 +46124,6 @@ class KnowledgePageHTMLParser(HTMLParser):
 
     def text(self):
         return "".join(self._parts)
-
 
 def normalize_website_url(raw_url):
     """Validate and normalize one public HTTP(S) webpage URL."""
@@ -46223,28 +46285,118 @@ def clean_extracted_website_text(raw_text):
 
 
 
+def _website_raw_html_image_candidates_v68996(page_html):
+    """Recover image URLs that may not be attached to a normal ``img`` tag.
+
+    This is intentionally bounded to recognizable image-bearing attributes, CSS
+    ``url(...)`` values, and direct image links. It does not scrape arbitrary quoted
+    strings from JavaScript, which would create excessive false positives.
+    """
+    value = str(page_html or "")
+    records = []
+    attr_names = (
+        "data-src", "data-lazy-src", "data-original", "data-lazy",
+        "data-large-file", "data-orig-file", "data-full", "data-full-src",
+        "data-image", "data-image-url", "data-url", "data-bg",
+        "data-background", "data-background-image", "href", "src", "poster", "content",
+    )
+    attr_pattern = "|".join(re.escape(x) for x in attr_names)
+    for match in re.finditer(
+        rf"\b({attr_pattern})\s*=\s*([\"'])(.*?)\2",
+        value,
+        flags=re.I | re.S,
+    ):
+        name = str(match.group(1) or "").lower()
+        candidate = html.unescape(str(match.group(3) or "").strip())
+        if not candidate or candidate.startswith(("data:", "blob:", "javascript:")):
+            continue
+        if not (
+            re.search(r"\.(?:jpe?g|png|webp|avif)(?:$|[?#])", candidate, flags=re.I)
+            or re.search(r"/(?:uploads|images?|media|gallery|photos?)/", candidate, flags=re.I)
+        ):
+            continue
+        records.append({
+            "src": candidate,
+            "alt": "",
+            "title": "",
+            "nearest_heading": "",
+            "heading_level": "",
+            "nearby_text": "",
+            "source_kind": f"raw-{name}",
+            "full_size_candidate": name in {"data-large-file", "data-orig-file", "data-full", "data-full-src", "href"},
+        })
+
+    # JSON/JavaScript gallery payloads commonly embed direct raster URLs rather than
+    # attaching them to an HTML image attribute. Recover only URL-shaped values with
+    # a recognized raster extension to keep the candidate pool bounded.
+    js_scan_value = value.replace("\\/", "/")
+    for match in re.finditer(
+        r"(?:(?:https?:)?//|/)[^\s\"'<>]+?\.(?:jpe?g|png|webp|avif)(?:\?[^\s\"'<>]*)?",
+        js_scan_value,
+        flags=re.I,
+    ):
+        candidate = html.unescape(str(match.group(0) or "").strip())
+        records.append({
+            "src": candidate,
+            "alt": "",
+            "title": "",
+            "nearest_heading": "",
+            "heading_level": "",
+            "nearby_text": "",
+            "source_kind": "raw-script-or-markup-image-url",
+            "full_size_candidate": False,
+        })
+
+    # CSS background-image / url(...) support, including URLs inside <style> blocks.
+    for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", value, flags=re.I | re.S):
+        candidate = html.unescape(str(match.group(2) or "").strip())
+        if not candidate or candidate.startswith(("data:", "blob:", "javascript:")):
+            continue
+        if re.search(r"\.(?:jpe?g|png|webp|avif)(?:$|[?#])", candidate, flags=re.I):
+            records.append({
+                "src": candidate,
+                "alt": "",
+                "title": "",
+                "nearest_heading": "",
+                "heading_level": "",
+                "nearby_text": "",
+                "source_kind": "css-background",
+                "full_size_candidate": False,
+            })
+    return records
+
+
 def _website_image_candidate_urls(parser_images, page_url):
-    """Resolve, score, filter, and de-duplicate meaningful webpage image candidates."""
+    """Resolve, score, filter, and de-duplicate useful webpage image candidates.
+
+    v68996 favors recall for technical/installation pages while still suppressing
+    obvious site chrome. Full-size/lightbox and WordPress original-file URLs win over
+    thumbnails when multiple markup forms point to the same logical asset.
+    """
     results = []
     seen = set()
 
-    hard_skip_tokens = (
-        "logo", "favicon", "icon", "sprite", "avatar", "emoji", "badge",
-        "payment", "paypal", "visa", "mastercard", "amex",
-        "social", "facebook", "instagram", "twitter", "youtube", "tiktok",
-        "pixel", "tracker", "analytics", "placeholder", "loading", "spinner",
-        "gravatar", "header-logo", "footer-logo", "site-logo", "woocommerce",
+    absolute_skip_tokens = (
+        "favicon", "sprite", "avatar", "emoji", "payment", "paypal", "visa",
+        "mastercard", "amex", "social", "facebook", "instagram", "twitter",
+        "youtube", "tiktok", "tracker", "analytics", "gravatar", "woocommerce",
         "trustpilot", "klarna", "afterpay", "shop-pay", "apple-pay",
+        "logo", "header-logo", "footer-logo", "site-logo",
+    )
+    soft_skip_tokens = (
+        "icon", "badge", "pixel", "placeholder", "loading", "spinner",
     )
     positive_tokens = (
         "install", "installation", "instruction", "camera", "reverse", "harness",
         "wiring", "connector", "cable", "protocol", "setting", "settings",
         "dip", "switch", "aux", "lvds", "usb", "factory", "radio",
         "screen", "module", "adapter", "canbus", "can bus", "diagram",
-        "connection", "plug", "socket", "port", "rear entertainment",
+        "connection", "plug", "socket", "port", "rear entertainment", "amplifier",
+        "amp wire", "microphone", "audio", "car model", "climate", "ac settings",
+        "power supply", "pin", "pinout", "steering", "backup camera",
     )
 
-    for raw in parser_images or []:
+    for order_index, raw in enumerate(parser_images or []):
         if not isinstance(raw, dict):
             continue
 
@@ -46252,7 +46404,7 @@ def _website_image_candidate_urls(parser_images, page_url):
         if not src or src.startswith(("data:", "blob:", "javascript:")):
             continue
 
-        resolved = urljoin(page_url, src)
+        resolved = urljoin(page_url, html.unescape(src))
         try:
             normalized = normalize_website_url(resolved)
         except Exception:
@@ -46271,63 +46423,142 @@ def _website_image_candidate_urls(parser_images, page_url):
 
         alt = re.sub(r"\s+", " ", str(raw.get("alt") or "")).strip()
         title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
-        nearest_heading = re.sub(
-            r"\s+",
-            " ",
-            str(raw.get("nearest_heading") or ""),
-        ).strip()
-        nearby_text = re.sub(
-            r"\s+",
-            " ",
-            str(raw.get("nearby_text") or ""),
-        ).strip()
+        nearest_heading = re.sub(r"\s+", " ", str(raw.get("nearest_heading") or "")).strip()
+        nearby_text = re.sub(r"\s+", " ", str(raw.get("nearby_text") or "")).strip()
+        source_kind = str(raw.get("source_kind") or "img").strip()
+        full_size_candidate = bool(raw.get("full_size_candidate"))
+        origin_group = str(raw.get("origin_group") or "").strip()
 
         asset_identity = " ".join(
-            part for part in (
-                str(parsed.path or ""), alt, title
-            ) if part
+            part for part in (str(parsed.path or ""), alt, title, source_kind) if part
         ).casefold()
         contextual_haystack = " ".join(
-            part for part in (
-                asset_identity, nearest_heading, nearby_text
-            ) if part
+            part for part in (asset_identity, nearest_heading, nearby_text) if part
         ).casefold()
+        technical_context = any(token in contextual_haystack for token in positive_tokens)
 
-        # Reject decorative assets based on the asset itself, not surrounding page
-        # copy. This prevents a valid installation image from being discarded just
-        # because nearby header text mentions PayPal, a logo, or social links.
-        if any(token in asset_identity for token in hard_skip_tokens):
+        if any(token in asset_identity for token in absolute_skip_tokens):
+            continue
+        # Soft terms such as "icon" can legitimately describe a technical settings
+        # screenshot. Skip them only when there is no positive technical evidence.
+        if any(token in asset_identity for token in soft_skip_tokens) and not technical_context:
             continue
 
         score = 0
-        if any(token in contextual_haystack for token in positive_tokens):
-            score += 4
+        if technical_context:
+            score += 6
         if nearest_heading:
             score += 2
         if nearby_text:
             score += 1
         if alt:
             score += 1
-        if re.search(r"\.(?:jpg|jpeg|png|webp)(?:$|\?)", normalized, flags=re.I):
+        if title:
+            score += 1
+        if full_size_candidate:
+            score += 2
+        if source_kind.startswith(("picture-", "img-srcset", "data-orig-file", "data-large-file", "data-full", "linked-full-image")):
+            score += 2
+        if re.search(r"\.(?:jpg|jpeg|png|webp|avif)(?:$|[?#])", normalized, flags=re.I):
             score += 1
 
-        if score <= 0:
+        # High-recall fallback: a normal raster image URL is allowed into the candidate
+        # pool even without nearby text. Vision analysis later decides whether to keep it.
+        if score <= 0 and not re.search(r"\.(?:jpg|jpeg|png|webp|avif)(?:$|[?#])", normalized, flags=re.I):
             continue
+        score = max(score, 1)
 
         results.append({
             "url": normalized,
             "alt": alt,
             "title": title,
             "nearest_heading": nearest_heading,
-            "nearby_text": nearby_text[-1400:],
+            "nearby_text": nearby_text[-1800:],
             "context_score": score,
+            "technical_context": bool(technical_context),
+            "source_kind": source_kind,
+            "full_size_candidate": full_size_candidate,
+            "origin_group": origin_group,
+            "discovery_order": int(order_index),
         })
 
+    # First collapse all alternate URLs emitted by one <img>/<picture> element.
+    # A WordPress image can expose src, srcset, data-large-file, and a lightbox href;
+    # those are representations of one page image, not four separate instructions.
+    grouped = {}
+    ungrouped = []
+    for item in results:
+        group = str(item.get("origin_group") or "")
+        if not group:
+            ungrouped.append(item)
+            continue
+        rank = (
+            int(bool(item.get("full_size_candidate"))),
+            int(item.get("context_score") or 0),
+            -int(item.get("discovery_order") or 0),
+        )
+        previous = grouped.get(group)
+        if previous is None:
+            grouped[group] = item
+        else:
+            previous_rank = (
+                int(bool(previous.get("full_size_candidate"))),
+                int(previous.get("context_score") or 0),
+                -int(previous.get("discovery_order") or 0),
+            )
+            if rank > previous_rank:
+                grouped[group] = item
+    results = list(grouped.values()) + ungrouped
+
+    # Collapse WordPress thumbnail/srcset variants to one logical asset, preferring
+    # original/full-size URLs and the candidate with the strongest context. Exact
+    # byte-level SHA dedupe still runs after download because different URLs can also
+    # serve the same image bytes.
+    logical = {}
+    for item in results:
+        parsed_item = urlparse(str(item.get("url") or ""))
+        logical_path = re.sub(
+            r"-\d{2,5}x\d{2,5}(?=\.(?:jpe?g|png|webp|avif)$)",
+            "",
+            str(parsed_item.path or ""),
+            flags=re.I,
+        )
+        logical_key = (
+            str(parsed_item.hostname or "").casefold(),
+            logical_path.casefold(),
+        )
+        previous = logical.get(logical_key)
+        current_rank = (
+            int(bool(item.get("full_size_candidate"))),
+            int(item.get("context_score") or 0),
+            -int(item.get("discovery_order") or 0),
+        )
+        if previous is None:
+            logical[logical_key] = item
+            continue
+        previous_rank = (
+            int(bool(previous.get("full_size_candidate"))),
+            int(previous.get("context_score") or 0),
+            -int(previous.get("discovery_order") or 0),
+        )
+        if current_rank > previous_rank:
+            # Preserve richer nearby context from the earlier record when the chosen
+            # full-size URL itself came from a sparse lightbox/data attribute.
+            if not item.get("nearest_heading") and previous.get("nearest_heading"):
+                item["nearest_heading"] = previous.get("nearest_heading")
+            if not item.get("nearby_text") and previous.get("nearby_text"):
+                item["nearby_text"] = previous.get("nearby_text")
+            if not item.get("alt") and previous.get("alt"):
+                item["alt"] = previous.get("alt")
+            logical[logical_key] = item
+
+    results = list(logical.values())
     results.sort(
         key=lambda item: (
+            -int(bool(item.get("technical_context"))),
+            int(item.get("discovery_order") or 0),
+            -int(bool(item.get("full_size_candidate"))),
             -int(item.get("context_score") or 0),
-            str(item.get("nearest_heading") or ""),
-            str(item.get("url") or ""),
         )
     )
     return results[:WEBSITE_MAX_DISCOVERED_IMAGES]
@@ -46368,9 +46599,39 @@ def _public_request_with_validated_redirects(
     raise ValueError("Website redirect validation failed.")
 
 
+def _website_image_size_policy_v68996(width, height, context_score=0, technical_context=False):
+    """Return whether dimensions are useful enough for website technical analysis."""
+    width = max(0, int(width or 0))
+    height = max(0, int(height or 0))
+    strong_context = bool(technical_context) or int(context_score or 0) >= 6
+    min_w = 90 if strong_context else 180
+    min_h = 70 if strong_context else 120
+    min_pixels = 12000 if strong_context else 30000
+    max_ratio = 12 if strong_context else 8
+    passed = bool(
+        width >= min_w
+        and height >= min_h
+        and (width * height) >= min_pixels
+        and width / max(1, height) <= max_ratio
+        and height / max(1, width) <= max_ratio
+    )
+    return {
+        "passed": passed,
+        "strong_context": strong_context,
+        "min_width": min_w,
+        "min_height": min_h,
+        "min_pixels": min_pixels,
+        "max_aspect_ratio": max_ratio,
+    }
+
+
 @st.cache_data(ttl=1800, max_entries=64, show_spinner=False)
-def _download_public_website_image(image_url):
-    """Fetch and validate one public website image for vision analysis."""
+def _download_public_website_image(image_url, context_score=0, technical_context=False):
+    """Fetch and validate one public website image for vision analysis.
+
+    v68996 retains strict decorative filtering but allows smaller connector/settings
+    crops when the webpage context is strongly technical.
+    """
     normalized_url = normalize_website_url(image_url)
     validate_public_website_host(normalized_url)
 
@@ -46426,11 +46687,13 @@ def _download_public_website_image(image_url):
         try:
             source = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
             width, height = source.size
-            # Tiny assets are almost always icons, bullets, or tracking graphics.
-            if width < 180 or height < 120 or (width * height) < 30000:
-                raise ValueError("Image is too small to contain useful technical knowledge.")
-            if width / max(1, height) > 8 or height / max(1, width) > 8:
-                raise ValueError("Extremely narrow decorative image skipped.")
+            size_policy = _website_image_size_policy_v68996(
+                width, height, context_score=context_score, technical_context=technical_context
+            )
+            if not size_policy.get("passed"):
+                raise ValueError(
+                    "Image dimensions are too small or too narrow for useful technical knowledge."
+                )
 
             work = source.convert("RGB")
             work.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
@@ -46528,7 +46791,11 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             continue
         attempted += 1
         try:
-            downloaded = _download_public_website_image(candidate.get("url"))
+            downloaded = _download_public_website_image(
+                candidate.get("url"),
+                context_score=int(candidate.get("context_score") or 0),
+                technical_context=bool(candidate.get("technical_context")),
+            )
             digest = str(downloaded.get("sha256") or "")
             if digest and digest in seen_hashes:
                 skipped += 1
@@ -46560,6 +46827,9 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "title": str(candidate.get("title") or "").strip(),
                 "nearest_heading": str(candidate.get("nearest_heading") or "").strip(),
                 "nearby_text": str(candidate.get("nearby_text") or "").strip(),
+                "source_kind": str(candidate.get("source_kind") or "").strip(),
+                "context_score": int(candidate.get("context_score") or 0),
+                "technical_context": bool(candidate.get("technical_context")),
                 "analysis": analysis,
                 "sha256": digest,
                 "width": int(downloaded.get("width") or 0),
@@ -46805,7 +47075,11 @@ def _website_archive_and_index_images_v68883(
         archive_path = ""
         archive_mime = ""
         try:
-            downloaded = _download_public_website_image(image_item.get("url"))
+            downloaded = _download_public_website_image(
+                image_item.get("url"),
+                context_score=int(image_item.get("context_score") or 0),
+                technical_context=bool(image_item.get("technical_context")),
+            )
             raw = bytes(downloaded.get("bytes") or b"")
             archive_mime = str(downloaded.get("mime_type") or "image/jpeg")
             if raw:
@@ -47548,9 +47822,86 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
 
 
 
+
+def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+    """Reject a clearly different vehicle/year image while failing open on sparse metadata.
+
+    Section-local year evidence (heading/nearby/caption/vision) outranks broad page-title
+    ranges. Brand checks are conservative and apply only when both the user prompt and
+    candidate expose an explicit known brand token.
+    """
+    if not isinstance(payload, dict):
+        return False
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not prompt:
+        return True
+
+    section_text = " ".join((
+        str(payload.get("section_heading") or ""),
+        str(payload.get("nearby_instruction_text") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+    )).casefold()
+    page_text = " ".join((
+        str(payload.get("page_title") or ""),
+        str(payload.get("source_page") or ""),
+        str(payload.get("keywords") or ""),
+    )).casefold()
+
+    requested_years = {
+        int(value) for value in re.findall(r"\b(?:19|20)\d{2}\b", prompt)
+    }
+
+    def year_evidence(value):
+        ranges = []
+        covered = set()
+        for match in re.finditer(
+            r"\b((?:19|20)\d{2})\s*(?:-|–|—|/|to|through)\s*((?:19|20)\d{2})\b",
+            value,
+            flags=re.I,
+        ):
+            start, end = int(match.group(1)), int(match.group(2))
+            if end < start:
+                start, end = end, start
+            ranges.append((start, end))
+            covered.update(range(start, end + 1))
+        singles = {
+            int(v) for v in re.findall(r"\b(?:19|20)\d{2}\b", value)
+        }
+        return ranges, singles, covered
+
+    if requested_years:
+        section_ranges, section_singles, section_covered = year_evidence(section_text)
+        page_ranges, page_singles, page_covered = year_evidence(page_text)
+        if section_ranges or section_singles:
+            if not any(year in section_covered or year in section_singles for year in requested_years):
+                return False
+        elif page_ranges or page_singles:
+            if not any(year in page_covered or year in page_singles for year in requested_years):
+                return False
+
+    known_brands = {
+        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet", "chrysler",
+        "dodge", "ford", "gmc", "honda", "hyundai", "infiniti", "jeep", "kia",
+        "lexus", "lincoln", "mazda", "mercedes", "nissan", "porsche", "ram",
+        "subaru", "tesla", "toyota", "volkswagen", "volvo",
+    }
+    prompt_tokens = set(re.findall(r"[a-z0-9]+", prompt))
+    candidate_tokens = set(re.findall(r"[a-z0-9]+", section_text + " " + page_text))
+    requested_brands = prompt_tokens & known_brands
+    candidate_brands = candidate_tokens & known_brands
+    if requested_brands and candidate_brands and not (requested_brands & candidate_brands):
+        return False
+
+    return True
+
+
 def _website_image_final_payload_gate_v68885(prompt_text, payload):
     """Final deterministic eligibility gate for a structured website-image payload."""
     if not isinstance(payload, dict):
+        return False
+    if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
         return False
     if not _website_image_section_gate_v68884(prompt_text, payload):
         return False
@@ -47675,6 +48026,9 @@ def _website_image_rank_v68883(prompt_text, payload):
     score += 1.0 * len((context_tokens - current_tokens) & candidate_tokens)
 
     normalized_current = re.sub(r"\s+", " ", current.casefold())
+
+    if not _website_image_vehicle_fitment_gate_v68997(current, payload):
+        return -1200.0
 
     # v68884: subsection/visual-role authority outranks broad page similarity.
     query_role_v68884 = _website_image_query_role_v68884(current)
@@ -47866,6 +48220,8 @@ def _website_image_lookup_v68883(prompt_text):
         recovery_ranked_v68975 = []
         for payload in _website_image_index_rows_v68883():
             if str(payload.get("database_choice") or "") != "Technical Support Database":
+                continue
+            if not _website_image_vehicle_fitment_gate_v68997(effective_prompt_v68890, payload):
                 continue
             if not _website_image_section_role_match_v68890(query_role_v68884, payload):
                 continue
@@ -48429,8 +48785,11 @@ def extract_public_webpage(url, page_password=""):
         content_hash = hashlib.sha256(
             cleaned_text.encode("utf-8")
         ).hexdigest()
+        parser_images = list(getattr(parser, "images", []) if parser is not None else [])
+        if parser is not None:
+            parser_images.extend(_website_raw_html_image_candidates_v68996(page_text))
         image_candidates = _website_image_candidate_urls(
-            getattr(parser, "images", []) if parser is not None else [],
+            parser_images,
             final_url,
         )
 
@@ -48915,12 +49274,13 @@ def render_learn_from_website(database_choice):
     website_image_candidates = list(extraction.get("image_candidates") or [])
     if include_website_images and website_image_candidates:
         st.caption(
-            "Image candidates discovered on this page. Useful images are validated "
-            "and analyzed only when you click Approve and Save."
+            f"All {len(website_image_candidates):,} discovered image candidates are shown below. "
+            "Useful images are validated, SHA-de-duplicated, and visually analyzed only when "
+            "you click Approve and Save."
         )
         preview_records = []
-        for item in website_image_candidates[:12]:
-            if not str((item or {}).get("url") or "").startswith("https://"):
+        for item in website_image_candidates:
+            if not str((item or {}).get("url") or "").startswith(("https://", "http://")):
                 continue
             section = str((item or {}).get("nearest_heading") or "").strip()
             alt = str((item or {}).get("alt") or (item or {}).get("title") or "").strip()
@@ -48932,6 +49292,10 @@ def render_learn_from_website(database_choice):
         preview_html = render_image_previews(preview_records)
         if preview_html:
             st.markdown(preview_html, unsafe_allow_html=True)
+        st.caption(
+            f"Displayed {len(preview_records):,} of {len(website_image_candidates):,} discovered candidates. "
+            f"Up to {WEBSITE_MAX_ANALYZED_IMAGES:,} candidates can be analyzed in one save operation."
+        )
 
     reviewed_content = st.text_area(
         "Review extracted content",
