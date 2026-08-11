@@ -1,5 +1,3 @@
-# AutoTecPro AI v68988 — Consolidated Reference failure-envelope hardening
-# Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -35711,8 +35709,17 @@ def render_generated_image_actions(images, message_index=None):
                     type="secondary",
                 ):
                     _graphic_v68848_save_action_state(result_id_v68848, regeneration_status="requested")
+                    _regen_manifest_v68995 = dict(
+                        image.get("graphic_v68994_authority_manifest")
+                        or image.get("graphic_v68993_authority_manifest")
+                        or {}
+                    )
                     st.session_state.pending_graphic_regeneration = {
                         "prompt": str(image.get("prompt") or "").strip(),
+                        "mode": str(image.get("graphic_v68994_mode") or image.get("graphic_v68993_mode") or _regen_manifest_v68995.get("mode") or ""),
+                        "authority_manifest": _regen_manifest_v68995,
+                        "active_reference_id": str(_regen_manifest_v68995.get("active_reference_id") or ""),
+                        "active_product_id": str(_regen_manifest_v68995.get("active_product_id") or ""),
                     }
                     # v68845: this row is no longer a fragment, so a full rerun
                     # safely hands the saved request to process_pending_graphic_regeneration.
@@ -45494,6 +45501,253 @@ def _graphic_pending_durable_job_v68844():
         if isinstance(hint, dict) and str(hint.get("mode") or "") in {"reference", "installed"}:
             st.session_state["_graphic_v68994_durable_authority_hint"] = dict(hint)
     return job
+
+
+# ============================================================
+# v68995 — Frozen Dependency Closure + Adaptive Reference Icon Manifest
+# ============================================================
+# Approved visual exception: Reference Style may adapt feature semantics to the
+# current product category, following the v68843 feature-planning principle, while
+# preserving the verified v68835 provider/layout/product/QA/recovery pipeline.
+# The first successful adaptation for one Reference Style + product category stores
+# a semantic slot manifest. Later images from the same Reference Style reuse that
+# order whenever the features remain applicable. CarPlay and Android Auto are the
+# only branded-color icons; all other icons remain monochrome.
+GRAPHIC_V68995_AUTHORITY_VERSION = "v68995-frozen-closure-adaptive-reference-manifest"
+GRAPHIC_V68995_ICON_MANIFEST_VERSION = "v68995-reference-style-semantic-slot-manifest"
+_GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256 = 'a73ca920d969d0646ace18b00524c971c51f05143a951539de0603d558e66fc1'
+_GRAPHIC_V68995_FROZEN_DEPENDENCY_SOURCE = 'def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_blueprint, role_items, vehicle_profile, output_size):\n    """Compile Stages 1-4 into the single immutable input consumed by Stage 5."""\n    product_item = next((item for item in role_items or [] if item.get("role") == "product_photo"), None)\n    W, H = [int(v) for v in str(output_size or "1536x1024").lower().split("x", 1)]\n    reference = _graphic_reference_intelligence_v43000(reference_blueprint, role_items)\n    product = _graphic_product_intelligence_v43000(product_item)\n    campaign = _graphic_campaign_compiler_v43000(prompt_text, campaign_spec, vehicle_profile)\n    layout = _graphic_layout_compiler_v43000(reference, product, (W, H), {"fields": campaign.get("fields") or {}})\n    mode = "reference_template" if reference.get("available") else "autotecpro_studio"\n    scene = _graphic_scene_strategy_v42000(prompt_text, campaign_spec, vehicle_profile, mode)\n    scene["compiled_layout"] = {\n        "vehicle_box": layout.get("normalized_boxes", {}).get("vehicle_box"),\n        "hero_product_box": layout.get("normalized_boxes", {}).get("hero_product_box"),\n        "top_copy_clearance": layout.get("normalized_boxes", {}).get("headline_box"),\n    }\n    return {\n        "stages": {\n            "1_reference_intelligence": reference,\n            "2_product_intelligence": product,\n            "3_campaign_compiler": campaign,\n            "4_layout_compiler": layout,\n        },\n        "scene_strategy": scene,\n        "provider_scope": "background_and_one_scene_vehicle_only",\n        "deterministic_local_layers": ["exact_product", "logo", "headline", "compatibility", "tagline", "feature_grid", "bottom_bar"],\n        "ready": bool(product.get("available") and campaign.get("available") and layout.get("passed")),\n        "version": "five-stage-execution-blueprint-v43000",\n    }\n\n\ndef _graphic_reference_blueprint_text(blueprint):\n    """Serialize the strongest reference-analysis fields."""\n    if not isinstance(blueprint, dict) or not blueprint:\n        return ""\n    ordered = (\n        "reference_summary", "layout_archetype", "canvas_zones", "product_scale_percent", "product_position",\n        "product_crop_and_perspective", "background_scene", "vehicle_or_environment_role", "lighting_direction",\n        "color_palette", "typography_system", "headline_zone", "subheadline_zone", "logo_zone", "feature_icon_system",\n        "feature_copy_structure", "bottom_feature_bar", "cta_system", "spacing_and_margins", "depth_and_layering",\n        "product_integration_instructions", "must_copy_visual_patterns", "acceptable_variations", "forbidden_transfers",\n        "negative_constraints", "final_generation_blueprint", "confidence_score",\n    )\n    lines = []\n    for key in ordered:\n        value = blueprint.get(key)\n        if value in (None, "", [], {}):\n            continue\n        if isinstance(value, (dict, list)):\n            value = json.dumps(value, ensure_ascii=False, default=str)\n        lines.append(key.replace("_", " ").upper() + ": " + str(value))\n    return "\\n".join(lines)[:14000]\n\n\ndef _graphic_safe_reference_blueprint_v16000(blueprint=None):\n    """Guarantee usable commercial geometry when visual analysis is partial."""\n    bp = dict(blueprint or {})\n    defaults = {\n        "logo_box": [0.025, 0.025, 0.205, 0.095],\n        "headline_box": [0.025, 0.135, 0.52, 0.105],\n        "compatibility_box": [0.025, 0.245, 0.43, 0.055],\n        "tagline_box": [0.025, 0.305, 0.50, 0.045],\n        "feature_matrix_box": [0.57, 0.035, 0.395, 0.285],\n        "hero_product_box": [0.035, 0.355, 0.625, 0.515],\n        "vehicle_box": [0.64, 0.39, 0.325, 0.34],\n        "bottom_bar_box": [0.035, 0.885, 0.93, 0.095],\n    }\n    boxes = dict(bp.get("normalized_boxes") or {})\n    for key, default in defaults.items():\n        value = boxes.get(key)\n        valid = isinstance(value, (list, tuple)) and len(value) == 4\n        if valid:\n            try:\n                value = [max(0.0, min(1.0, float(x))) for x in value]\n                valid = value[2] > 0.02 and value[3] > 0.02 and value[0] + value[2] <= 1.03 and value[1] + value[3] <= 1.03\n            except Exception:\n                valid = False\n        boxes[key] = value if valid else list(default)\n    # Enforce the commercial hierarchy that failed in earlier releases.\n    boxes["hero_product_box"][2] = max(float(boxes["hero_product_box"][2]), 0.52)\n    boxes["hero_product_box"][3] = max(float(boxes["hero_product_box"][3]), 0.46)\n    boxes["feature_matrix_box"][2] = max(float(boxes["feature_matrix_box"][2]), 0.34)\n    boxes["feature_matrix_box"][3] = max(float(boxes["feature_matrix_box"][3]), 0.24)\n    boxes["bottom_bar_box"][2] = max(float(boxes["bottom_bar_box"][2]), 0.88)\n    boxes["bottom_bar_box"][3] = max(float(boxes["bottom_bar_box"][3]), 0.085)\n    bp["normalized_boxes"] = boxes\n    bp["layout_repaired_v16000"] = True\n    return bp\n\n\ndef _graphic_stage5_execute_v43000(\n    background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n    role_items, execution_blueprint, template_key="", product_dna=None,\n):\n    """Execute the compiled blueprint and perform one local-only repair pass when needed."""\n    ref = dict(((execution_blueprint or {}).get("stages") or {}).get("4_layout_compiler", {}).get("normalized_boxes") or {})\n    composed, metadata = _graphic_compose_reference_campaign_v3200(\n        background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n        role_items, reference_blueprint=ref, template_key=template_key, product_dna=product_dna or {},\n    )\n    score = _graphic_qa_scorecard_v42000(metadata)\n    repair_applied = False\n    if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):\n        repaired_ref = _graphic_local_repair_blueprint_v43000(ref, score.get("critical_failed"))\n        if repaired_ref != ref:\n            composed, metadata = _graphic_compose_reference_campaign_v3200(\n                background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,\n                role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},\n            )\n            score = _graphic_qa_scorecard_v42000(metadata)\n            repair_applied = True\n    detail_gate_v48000 = dict(metadata.get("autotecpro_final_qa_v48000") or {})\n    if detail_gate_v48000 and not detail_gate_v48000.get("passed"):\n        score = dict(score or {})\n        score["passed"] = False\n        score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))\n    metadata["five_stage_execution_v43000"] = {\n        "ready": bool((execution_blueprint or {}).get("ready")),\n        "local_repair_applied": repair_applied,\n        "provider_retry_used": False,\n        "final_scorecard": score,\n        "version": "stage5-image-generator-v48000",\n    }\n    return composed, metadata\n\n\ndef classify_graphic_uploaded_image_roles(uploaded_files, prompt_text="", forced_role="Auto-detect"):\n    """Classify image uploads into product/style/logo/support roles.\n\n    The classifier is deterministic and conservative so it adds no extra API call.\n    Advanced Designer users may force a role; ordinary Graphic Chat uses prompt and\n    filename signals. The first ordinary uploaded image defaults to Product Photo\n    for generation requests, protecting the actual item from style references.\n    """\n    images = []\n    prompt_lower = str(prompt_text or "").lower()\n    forced = str(forced_role or "Auto-detect").strip().lower()\n    ordered_example_request = (\n        any(token in prompt_lower for token in (\n            "first image", "first photo", "left photo", "left image",\n            "source photo", "source image", "photo i want to submit",\n            "product i want to submit", "original product"\n        ))\n        and any(token in prompt_lower for token in (\n            "other photos", "other images", "two photos", "two images",\n            "examples", "example images", "reference ads", "create like"\n        ))\n    )\n    for index, item in enumerate(uploaded_files or []):\n        mime = str(getattr(item, "type", "") or "").lower()\n        if not mime.startswith("image/"):\n            continue\n        name = Path(str(getattr(item, "name", "") or f"image_{index+1}.png")).name\n        lower_name = name.lower()\n        role = "supporting_image"\n        authoritative_project_role = str(\n            getattr(item, "graphic_role", "") or ""\n        ).strip().casefold()\n        project_role_map = {\n            "reference": "style_reference",\n            "style_reference": "style_reference",\n            "product": "product_photo",\n            "product_photo": "product_photo",\n            "logo": "logo_asset",\n            "logo_asset": "logo_asset",\n            "background": "background",\n            "supporting": "supporting_image",\n            "supporting_image": "supporting_image",\n        }\n        if forced and forced != "auto-detect":\n            role = {\n                "product photo": "product_photo",\n                "style reference": "style_reference",\n                "logo asset": "logo_asset",\n                "background": "background",\n                "supporting image": "supporting_image",\n            }.get(forced, "supporting_image")\n        elif authoritative_project_role in project_role_map:\n            # Conversation-project metadata is authoritative. Never infer a\n            # persistent reference ad from its filename or current prompt again.\n            role = project_role_map[authoritative_project_role]\n        elif ordered_example_request:\n            role = "product_photo" if index == 0 else "style_reference"\n        elif "logo" in lower_name and not any(word in lower_name for word in ("product", "cluster", "screen", "radio", "dashboard")):\n            role = "logo_asset"\n        elif any(word in lower_name for word in ("style", "reference", "sample", "layout", "example", "ad_", "advert")):\n            role = "style_reference"\n        elif any(word in lower_name for word in ("background", "backdrop", "scene")):\n            role = "background"\n        elif index == 0 or any(word in prompt_lower for word in (\n            "product photo", "this product", "uploaded product", "preserve the product",\n            "use this photo", "use this image", "product image"\n        )):\n            role = "product_photo"\n        images.append({"file": item, "name": name, "role": role})\n    return images\n\n\ndef graphic_project_uploaded_files(include_current=None):\n    """Materialize usable Graphic assets while preserving authoritative roles.\n\n    Released historical products remain as lightweight project metadata, but empty\n    byte records are never converted into upload objects or sent through downstream\n    role classification.\n    """\n    combined = []\n    seen = set()\n    state_assets = list(get_graphic_project_state().get("assets") or [])\n    role_by_digest = {\n        str(record.get("id") or ""): str(record.get("role") or "supporting")\n        for record in state_assets\n        if str(record.get("id") or "")\n    }\n\n    for item in include_current or []:\n        try:\n            raw = item.getvalue()\n            digest = hashlib.sha256(raw).hexdigest()\n        except Exception:\n            raw = b""\n            digest = str(id(item))\n        if not raw or digest in seen:\n            continue\n        saved_role = role_by_digest.get(digest, "")\n        if saved_role and not str(\n            getattr(item, "graphic_role", "") or ""\n        ).strip():\n            try:\n                item.graphic_role = saved_role\n                item.graphic_asset_id = digest\n            except Exception:\n                item = ManagedUploadedFile(\n                    raw,\n                    getattr(item, "name", "image"),\n                    getattr(item, "type", "image/png"),\n                    graphic_role=saved_role,\n                    graphic_asset_id=digest,\n                )\n        combined.append(item)\n        seen.add(digest)\n\n    for record in state_assets:\n        digest = str(record.get("id") or "")\n        if not digest or digest in seen:\n            continue\n        raw = bytes(record.get("data") or b"")\n        if not raw:\n            continue\n        combined.append(ManagedUploadedFile(\n            raw,\n            record.get("name") or "image",\n            record.get("type") or "image/png",\n            graphic_role=record.get("role") or "supporting",\n            graphic_asset_id=digest,\n        ))\n        seen.add(digest)\n    return combined\n'
+if hashlib.sha256(_GRAPHIC_V68995_FROZEN_DEPENDENCY_SOURCE.encode("utf-8")).hexdigest() != _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256:
+    raise RuntimeError("v68995 frozen dependency source digest mismatch")
+exec(compile(_GRAPHIC_V68995_FROZEN_DEPENDENCY_SOURCE, "<v68835_frozen_dependency_closure>", "exec"), _GRAPHIC_V68835_NS, _GRAPHIC_V68835_NS)
+
+# Re-apply only output-neutral performance helpers after the exact dependency freeze.
+_GRAPHIC_V68835_NS["normalized_image_data_url"] = _graphic_v68994_normalized_image_data_url
+_GRAPHIC_V68835_NS["_graphic_role_fingerprint_v8200"] = _graphic_v68994_role_fingerprint
+
+# Protected modes must never short-circuit through a shared approved-output cache
+# before the frozen inner detector/provenance path executes. Other modes are unchanged.
+_GRAPHIC_V68995_ORIGINAL_APPROVED_RESTORE = _GRAPHIC_V68835_NS.get("_graphic_v68826_restore_approved_output")
+def _graphic_v68995_approved_restore(request_key):
+    if str(_GRAPHIC_V68994_FORCED_MODE.get() or "") in {"reference", "installed"}:
+        return None
+    if callable(_GRAPHIC_V68995_ORIGINAL_APPROVED_RESTORE):
+        return _GRAPHIC_V68995_ORIGINAL_APPROVED_RESTORE(request_key)
+    return None
+_GRAPHIC_V68835_NS["_graphic_v68826_restore_approved_output"] = _graphic_v68995_approved_restore
+
+_GRAPHIC_V68995_PLAN_CONTEXT = _graphic_v68993_contextvars.ContextVar("graphic_v68995_reference_plan_context", default=None)
+
+def _graphic_v68995_product_category(spec, prompt_text):
+    designation = str((spec or {}).get("product_designation") or "").strip().upper()
+    if not designation:
+        try:
+            designation = str((_graphic_v67900_prompt_product_designation(prompt_text) or {}).get("designation") or "").strip().upper()
+        except Exception:
+            designation = ""
+    if "CLUSTER" in designation or "GAUGE" in designation:
+        return "digital_cluster"
+    if any(token in designation for token in ("TOUCHSCREEN", "INFOTAINMENT", "RADIO", "DISPLAY")):
+        return "infotainment"
+    value = str(prompt_text or "").casefold()
+    if any(token in value for token in ("cluster", "gauge cluster", "instrument cluster")):
+        return "digital_cluster"
+    if any(token in value for token in ("infotainment", "carplay", "android auto", "touchscreen", "navigation", "radio")):
+        return "infotainment"
+    return "generic"
+
+def _graphic_v68995_reference_style_key(reference_id, category):
+    ref = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(reference_id or "").strip()) or "unknown-reference"
+    cat = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(category or "generic").strip()) or "generic"
+    return f"{ref}::{cat}"
+
+def _graphic_v68995_manifest_cache_key(style_key):
+    return "reference-icon-manifest-v68995:" + hashlib.sha256(str(style_key).encode("utf-8")).hexdigest()
+
+def _graphic_v68995_load_slot_manifest(style_key):
+    state = get_graphic_project_state()
+    local = dict(state.get("reference_icon_manifests_v68995") or {}).get(style_key)
+    if isinstance(local, dict):
+        return dict(local)
+    try:
+        cached = _graphic_v66100_cache_get(_graphic_v68995_manifest_cache_key(style_key))
+    except Exception:
+        cached = None
+    if isinstance(cached, dict) and str(cached.get("version") or "") == GRAPHIC_V68995_ICON_MANIFEST_VERSION:
+        return dict(cached)
+    return {}
+
+def _graphic_v68995_commit_slot_manifest(manifest):
+    if not isinstance(manifest, dict) or not manifest.get("style_key"):
+        return False
+    style_key = str(manifest.get("style_key"))
+    state = get_graphic_project_state()
+    records = dict(state.get("reference_icon_manifests_v68995") or {})
+    records[style_key] = dict(manifest)
+    state["reference_icon_manifests_v68995"] = dict(list(records.items())[-24:])
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+    try:
+        _graphic_v66100_cache_put(_graphic_v68995_manifest_cache_key(style_key), dict(manifest))
+    except Exception:
+        pass
+    return True
+
+def _graphic_v68995_normalize_label(label):
+    return re.sub(r"\s+", " ", str(label or "")).strip()
+
+def _graphic_v68995_reconcile_slots(previous_labels, valid_labels, limit):
+    """Preserve prior slots when still valid; replace only no-longer-valid features."""
+    valid = [_graphic_v68995_normalize_label(x) for x in (valid_labels or []) if _graphic_v68995_normalize_label(x)]
+    valid_by_sem = {}
+    for label in valid:
+        sem = _graphic_v68994_icon_semantic(label)
+        valid_by_sem.setdefault(sem, []).append(label)
+    used = set(); output = [None] * int(limit)
+    for idx, old_label in enumerate(list(previous_labels or [])[:limit]):
+        sem = _graphic_v68994_icon_semantic(old_label)
+        candidates = valid_by_sem.get(sem) or []
+        pick = next((x for x in candidates if x not in used), None)
+        if pick:
+            output[idx] = pick; used.add(pick)
+    remaining = [x for x in valid if x not in used]
+    for idx in range(int(limit)):
+        if output[idx] is None and remaining:
+            output[idx] = remaining.pop(0)
+    return [x for x in output if x][:limit]
+
+def _graphic_v68995_reference_compositor(*args, **kwargs):
+    if str(_GRAPHIC_V68994_FORCED_MODE.get() or "") != "reference":
+        return _GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR(*args, **kwargs)
+    args_list = list(args)
+    campaign_spec = kwargs.get("campaign_spec")
+    if campaign_spec is None and len(args_list) >= 5:
+        campaign_spec = args_list[4]
+    prompt_text = kwargs.get("prompt_text")
+    if prompt_text is None and len(args_list) >= 3:
+        prompt_text = args_list[2]
+    spec = dict(campaign_spec or {})
+    try:
+        valid_features = list(_graphic_v67900_clean_feature_plan(spec, prompt_text) or [])[:8]
+    except Exception:
+        valid_features = list(spec.get("feature_labels") or [])[:8]
+    try:
+        valid_benefits = list(_graphic_v67900_footer_plan(spec, prompt_text) or [])[:5]
+    except Exception:
+        valid_benefits = list(spec.get("bottom_benefits") or [])[:5]
+    plan_ctx = _GRAPHIC_V68995_PLAN_CONTEXT.get()
+    reference_id = str(plan_ctx.get("active_reference_id") or "") if isinstance(plan_ctx, dict) else ""
+    if not reference_id:
+        try:
+            reference_id = str((get_graphic_project_state() or {}).get("active_reference_id") or "")
+        except Exception:
+            reference_id = ""
+    category = _graphic_v68995_product_category(spec, prompt_text)
+    style_key = _graphic_v68995_reference_style_key(reference_id, category)
+    prior = _graphic_v68995_load_slot_manifest(style_key) if reference_id else {}
+    features = _graphic_v68995_reconcile_slots(prior.get("upper_labels"), valid_features, 8) if prior else valid_features
+    benefits = _graphic_v68995_reconcile_slots(prior.get("footer_labels"), valid_benefits, 5) if prior else valid_benefits
+    if features: spec["feature_labels"] = features
+    if benefits: spec["bottom_benefits"] = benefits
+    semantics = [*[_graphic_v68994_icon_semantic(label) for label in list(spec.get("feature_labels") or [])[:8]], *[_graphic_v68994_icon_semantic(label) for label in list(spec.get("bottom_benefits") or [])[:5]]]
+    pending_manifest = {
+        "version": GRAPHIC_V68995_ICON_MANIFEST_VERSION,
+        "style_key": style_key,
+        "active_reference_id": reference_id,
+        "product_category": category,
+        "upper_labels": list(spec.get("feature_labels") or [])[:8],
+        "upper_semantics": [_graphic_v68994_icon_semantic(x) for x in list(spec.get("feature_labels") or [])[:8]],
+        "footer_labels": list(spec.get("bottom_benefits") or [])[:5],
+        "footer_semantics": [_graphic_v68994_icon_semantic(x) for x in list(spec.get("bottom_benefits") or [])[:5]],
+        "carplay_android_anchor": True,
+        "color_policy": "carplay-android-only",
+        "created_from_existing_manifest": bool(prior),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if isinstance(plan_ctx, dict):
+        plan_ctx["pending_manifest"] = pending_manifest
+    icon_token = _GRAPHIC_V68994_ICON_CONTEXT.set({"call_index": 0, "semantics": semantics})
+    try:
+        if "campaign_spec" in kwargs:
+            kwargs = dict(kwargs); kwargs["campaign_spec"] = spec
+        elif len(args_list) >= 5:
+            args_list[4] = spec
+        return _GRAPHIC_V68994_ORIGINAL_V68835_COMPOSITOR(*args_list, **kwargs)
+    finally:
+        _GRAPHIC_V68994_ICON_CONTEXT.reset(icon_token)
+
+_GRAPHIC_V68835_NS["_graphic_draw_feature_icon_v3200"] = _graphic_v68994_reference_icon_callback
+_GRAPHIC_V68835_NS["_graphic_compose_reference_campaign_v3200"] = _graphic_v68995_reference_compositor
+
+_GRAPHIC_V68995_BASE_GENERATOR = generate_graphic_marketing_images
+def generate_graphic_marketing_images(prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True, style_strength="High", forced_upload_role="Auto-detect", quality_retry=True, product_transform_mode="Auto", professional_layered_studio=True):
+    # The v68994 authority wrapper remains the single mode decision-maker. This layer
+    # only supplies the current Reference ID to the icon-manifest compositor.
+    try:
+        _project_v68995 = get_graphic_project_state() or {}
+    except Exception:
+        _project_v68995 = {}
+    plan_context = {
+        "active_reference_id": str(_project_v68995.get("active_reference_id") or ""),
+        "active_product_id": str(_project_v68995.get("active_product_id") or ""),
+        "pending_manifest": None,
+    }
+    token = _GRAPHIC_V68995_PLAN_CONTEXT.set(plan_context)
+    try:
+        images = _GRAPHIC_V68995_BASE_GENERATOR(prompt_text, uploaded_files, use_approved_style=use_approved_style, preserve_product=preserve_product, style_strength=style_strength, forced_upload_role=forced_upload_role, quality_retry=quality_retry, product_transform_mode=product_transform_mode, professional_layered_studio=professional_layered_studio)
+    finally:
+        _GRAPHIC_V68995_PLAN_CONTEXT.reset(token)
+    mode = "other"
+    for _image_v68995 in images or []:
+        if isinstance(_image_v68995, dict) and _image_v68995.get("graphic_v68994_mode"):
+            mode = str(_image_v68995.get("graphic_v68994_mode") or "other")
+            break
+    pending_manifest = plan_context.get("pending_manifest")
+    if mode == "reference" and images and isinstance(pending_manifest, dict):
+        _graphic_v68995_commit_slot_manifest(pending_manifest)
+    for image in images or []:
+        if isinstance(image, dict):
+            image["graphic_v68995_authority_version"] = GRAPHIC_V68995_AUTHORITY_VERSION
+            image["graphic_v68995_reference_icon_manifest"] = dict(pending_manifest or {}) if mode == "reference" else {}
+            image["graphic_v68995_only_carplay_android_colored"] = bool(mode == "reference")
+            image["graphic_v68995_dependency_closure_sha256"] = _GRAPHIC_V68995_FROZEN_DEPENDENCY_SHA256
+    return images
+
+def process_pending_graphic_regeneration():
+    pending = st.session_state.pop("pending_graphic_regeneration", None)
+    if not pending: return False
+    prompt_text = str((pending or {}).get("prompt") or "").strip()
+    if not prompt_text:
+        st.warning("The original generation prompt is unavailable."); return False
+    authority_hint = dict((pending or {}).get("authority_manifest") or {})
+    protected_mode = str((pending or {}).get("mode") or authority_hint.get("mode") or "")
+    if protected_mode in {"reference", "installed"}:
+        authority_hint["mode"] = protected_mode
+        authority_hint["prompt_sha256"] = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
+        st.session_state["_graphic_v68994_durable_authority_hint"] = authority_hint
+    try:
+        generation_files = graphic_project_uploaded_files()
+    except Exception:
+        generation_files = []
+    if protected_mode == "reference":
+        roles = {str(getattr(x, "graphic_role", "") or "").casefold() for x in generation_files or []}
+        if not ({"reference", "style_reference"} & roles and {"product", "product_photo"} & roles):
+            st.warning("This Reference Style regeneration cannot safely restore its Product + Reference assets. Re-open the project or upload the required assets; the app will not fall back to another Graphic engine.")
+            st.session_state.pop("_graphic_v68994_durable_authority_hint", None); return False
+    if protected_mode == "installed" and not generation_files:
+        st.warning("This After Install regeneration cannot safely restore its source assets. Re-open the project or upload the required assets; the app will not fall back to another Graphic engine.")
+        st.session_state.pop("_graphic_v68994_durable_authority_hint", None); return False
+    try:
+        with st.spinner("Creating another image version..."):
+            images = generate_graphic_marketing_images(prompt_text, generation_files)
+            answer_text = generated_image_answer_text(images, regenerated=True)
+            stored_content = answer_text + serialize_images_marker(images)
+            st.session_state.messages.append({"role": "assistant", "content": stored_content})
+            if history_is_enabled():
+                try: save_message(st.session_state.conversation_id, "assistant", stored_content)
+                except Exception as error: st.warning(f"Generated image was not saved to history: {error}")
+            return True
+    except Exception as error:
+        st.error(f"Could not regenerate image: {error}"); return False
 
 
 # Chat History Sidebar
