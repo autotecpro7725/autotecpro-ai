@@ -45834,10 +45834,12 @@ if (
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 
-# AutoTecPro AI v68997 — Website Learning + Technical Image Runtime Finalization
-# Built directly on v68996. Keeps Graphic v68835 Reference / v68829 After Install
-# authorities and the v68995 Graphic runtime layer unchanged while closing website
-# text-cleanliness, image-archive parity, fitment matching, and history provenance gaps.
+# AutoTecPro AI v68998 — Website Candidate Validation + Reliable Technical Preview
+# Built directly on v68997. Keeps Graphic v68835 Reference / v68829 After Install
+# authorities, the v68995 Graphic runtime layer, and Technical Support text→image
+# retrieval/rendering unchanged while validating website candidates before preview/save.
+# v68998 removes broken/empty/obvious decorative cards, renders previews from server-
+# validated bytes instead of fragile remote URLs, and reports discovery/filter counts.
 WEBSITE_FETCH_TIMEOUT_SECONDS = 25
 WEBSITE_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 WEBSITE_MAX_EXTRACTED_CHARS = 120000
@@ -46625,7 +46627,7 @@ def _website_image_size_policy_v68996(width, height, context_score=0, technical_
     }
 
 
-@st.cache_data(ttl=1800, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=1800, max_entries=128, show_spinner=False)
 def _download_public_website_image(image_url, context_score=0, technical_context=False):
     """Fetch and validate one public website image for vision analysis.
 
@@ -46715,6 +46717,187 @@ def _download_public_website_image(image_url, context_score=0, technical_context
         "height": height,
         "sha256": hashlib.sha256(raw).hexdigest(),
     }
+
+
+WEBSITE_PREVIEW_HARD_DECORATIVE_TOKENS_V68998 = (
+    "favicon", "sprite", "avatar", "emoji", "payment", "paypal", "visa",
+    "mastercard", "amex", "social", "facebook", "instagram", "twitter",
+    "youtube", "tiktok", "tracker", "analytics", "gravatar", "trustpilot",
+    "klarna", "afterpay", "shop-pay", "apple-pay", "header-logo",
+    "footer-logo", "site-logo", "brand-logo", "autotecpro_brand_logo",
+    "/logo.", "/logo-", "/logo_", "/logos/",
+)
+
+
+def _website_preview_visual_metrics_v68998(image_bytes):
+    """Return deterministic metrics used only to suppress blank/decorative previews."""
+    metrics = {
+        "valid": False, "entropy": 0.0, "gray_stddev": 0.0,
+        "edge_ratio": 0.0, "visible_alpha_ratio": 1.0,
+    }
+    if Image is None or not image_bytes:
+        return metrics
+    try:
+        from PIL import ImageStat, ImageFilter
+        source = Image.open(io.BytesIO(bytes(image_bytes)))
+        rgba = ImageOps.exif_transpose(source).convert("RGBA")
+        alpha = rgba.getchannel("A")
+        alpha_hist = alpha.histogram()
+        visible = sum(alpha_hist[8:])
+        total = max(1, sum(alpha_hist))
+        visible_alpha_ratio = visible / total
+        rgb = rgba.convert("RGB")
+        gray = rgb.convert("L")
+        stat = ImageStat.Stat(gray)
+        gray_stddev = float(stat.stddev[0] if stat.stddev else 0.0)
+        try:
+            entropy = float(gray.entropy())
+        except Exception:
+            entropy = 0.0
+        edge = gray.filter(ImageFilter.FIND_EDGES)
+        edge_hist = edge.histogram()
+        edge_pixels = sum(edge_hist[24:])
+        edge_ratio = edge_pixels / max(1, sum(edge_hist))
+        metrics.update({
+            "valid": True,
+            "entropy": round(entropy, 4),
+            "gray_stddev": round(gray_stddev, 4),
+            "edge_ratio": round(edge_ratio, 6),
+            "visible_alpha_ratio": round(visible_alpha_ratio, 6),
+        })
+    except Exception:
+        pass
+    return metrics
+
+
+def _website_preview_decorative_reason_v68998(candidate, downloaded, metrics):
+    """Reject only deterministic broken/blank/obvious site-chrome candidates.
+
+    This is intentionally conservative. Ambiguous photographs/screenshots remain visible
+    and the existing AI SKIP_IMAGE gate decides usefulness only after staff approval.
+    """
+    candidate = dict(candidate or {})
+    downloaded = dict(downloaded or {})
+    identity = " ".join([
+        str(candidate.get("url") or ""),
+        str(downloaded.get("source_url") or ""),
+        str(candidate.get("alt") or ""),
+        str(candidate.get("title") or ""),
+        str(candidate.get("source_kind") or ""),
+    ]).casefold()
+    technical = bool(candidate.get("technical_context"))
+    if any(token in identity for token in WEBSITE_PREVIEW_HARD_DECORATIVE_TOKENS_V68998):
+        return "obvious-site-chrome"
+    if not bool(metrics.get("valid")):
+        return "invalid-image-bytes"
+    if float(metrics.get("visible_alpha_ratio") or 0.0) < 0.015:
+        return "effectively-transparent"
+    entropy = float(metrics.get("entropy") or 0.0)
+    stddev = float(metrics.get("gray_stddev") or 0.0)
+    edge_ratio = float(metrics.get("edge_ratio") or 0.0)
+    if entropy < 0.55 and stddev < 2.25:
+        return "blank-or-near-uniform"
+    width = int(downloaded.get("width") or 0)
+    height = int(downloaded.get("height") or 0)
+    ratio = max(width, height) / max(1, min(width, height))
+    # Common logos/badges are shallow, low-information and detached from technical text.
+    # Never apply this heuristic to candidates carrying real technical context.
+    if (
+        not technical
+        and width and height
+        and min(width, height) <= 260
+        and ratio >= 2.4
+        and entropy < 5.2
+        and edge_ratio < 0.22
+    ):
+        return "probable-decorative-branding"
+    return ""
+
+
+@st.cache_data(ttl=1800, max_entries=128, show_spinner=False)
+def _website_preview_candidate_v68998(candidate_json):
+    """Server-validate one candidate and return a self-contained preview data URL."""
+    try:
+        candidate = json.loads(candidate_json) if isinstance(candidate_json, str) else dict(candidate_json or {})
+    except Exception:
+        candidate = {}
+    url = str(candidate.get("url") or "").strip()
+    result = {
+        "url": url, "status": "unavailable", "reason": "",
+        "preview_data_url": "", "sha256": "", "width": 0, "height": 0,
+        "source_url": "", "metrics": {},
+    }
+    if not url.startswith(("https://", "http://")):
+        result["reason"] = "unsupported-url"
+        return result
+    try:
+        downloaded = _download_public_website_image(
+            url,
+            context_score=int(candidate.get("context_score") or 0),
+            technical_context=bool(candidate.get("technical_context")),
+        )
+        raw = bytes(downloaded.get("bytes") or b"")
+        metrics = _website_preview_visual_metrics_v68998(raw)
+        reason = _website_preview_decorative_reason_v68998(candidate, downloaded, metrics)
+        result.update({
+            "sha256": str(downloaded.get("sha256") or ""),
+            "width": int(downloaded.get("width") or 0),
+            "height": int(downloaded.get("height") or 0),
+            "source_url": str(downloaded.get("source_url") or url),
+            "metrics": metrics,
+        })
+        if reason:
+            result["status"] = "filtered"
+            result["reason"] = reason
+            return result
+        mime = str(downloaded.get("mime_type") or "image/jpeg")
+        result["preview_data_url"] = f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
+        result["status"] = "display"
+        return result
+    except Exception as error:
+        result["status"] = "unavailable"
+        result["reason"] = f"{type(error).__name__}: {str(error)[:240]}"
+        return result
+
+
+def _website_validated_preview_records_v68998(candidates):
+    """Validate all discovered candidates, SHA-dedupe them, and build visible cards."""
+    records = []
+    valid_urls = []
+    seen_sha = set()
+    stats = {
+        "discovered": len(list(candidates or [])),
+        "displayed": 0, "decorative_filtered": 0, "unavailable": 0,
+        "sha_duplicates": 0,
+    }
+    for item in candidates or []:
+        if not isinstance(item, dict):
+            continue
+        payload = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str)
+        check = _website_preview_candidate_v68998(payload)
+        status = str(check.get("status") or "")
+        if status == "filtered":
+            stats["decorative_filtered"] += 1
+            continue
+        if status != "display":
+            stats["unavailable"] += 1
+            continue
+        digest = str(check.get("sha256") or "")
+        if digest and digest in seen_sha:
+            stats["sha_duplicates"] += 1
+            continue
+        if digest:
+            seen_sha.add(digest)
+        section = str(item.get("nearest_heading") or "").strip()
+        alt = str(item.get("alt") or item.get("title") or "").strip()
+        records.append({
+            "name": section or alt or "Website instruction image",
+            "data_url": str(check.get("preview_data_url") or ""),
+            "source": "website_knowledge",
+        })
+        valid_urls.append(str(item.get("url") or ""))
+    stats["displayed"] = len(records)
+    return records, valid_urls, stats
 
 
 @st.cache_data(ttl=86400, max_entries=256, show_spinner=False)
@@ -49274,27 +49457,30 @@ def render_learn_from_website(database_choice):
     website_image_candidates = list(extraction.get("image_candidates") or [])
     if include_website_images and website_image_candidates:
         st.caption(
-            f"All {len(website_image_candidates):,} discovered image candidates are shown below. "
-            "Useful images are validated, SHA-de-duplicated, and visually analyzed only when "
-            "you click Approve and Save."
+            f"Validating all {len(website_image_candidates):,} discovered image candidates before preview. "
+            "Broken, empty, obvious decorative/site-branding images and exact-byte duplicates are removed; "
+            "every remaining candidate is shown below and will be eligible for visual analysis on save."
         )
-        preview_records = []
-        for item in website_image_candidates:
-            if not str((item or {}).get("url") or "").startswith(("https://", "http://")):
-                continue
-            section = str((item or {}).get("nearest_heading") or "").strip()
-            alt = str((item or {}).get("alt") or (item or {}).get("title") or "").strip()
-            preview_records.append({
-                "name": section or alt or "Website instruction image",
-                "data_url": str((item or {}).get("url") or ""),
-                "source": "website_knowledge",
-            })
+        with st.spinner("Validating website images for preview..."):
+            preview_records, preview_valid_urls_v68998, preview_stats_v68998 = (
+                _website_validated_preview_records_v68998(website_image_candidates)
+            )
+        extraction = dict(extraction)
+        extraction["preview_validated_urls_v68998"] = list(preview_valid_urls_v68998)
+        extraction["preview_validation_stats_v68998"] = dict(preview_stats_v68998)
+        st.session_state["admin_website_extraction"] = extraction
         preview_html = render_image_previews(preview_records)
         if preview_html:
             st.markdown(preview_html, unsafe_allow_html=True)
+        else:
+            st.info("No valid technical/image candidates remained after preview validation.")
         st.caption(
-            f"Displayed {len(preview_records):,} of {len(website_image_candidates):,} discovered candidates. "
-            f"Up to {WEBSITE_MAX_ANALYZED_IMAGES:,} candidates can be analyzed in one save operation."
+            f"{preview_stats_v68998.get('discovered', 0):,} discovered  |  "
+            f"{preview_stats_v68998.get('displayed', 0):,} displayed  |  "
+            f"{preview_stats_v68998.get('decorative_filtered', 0):,} decorative/blank filtered  |  "
+            f"{preview_stats_v68998.get('unavailable', 0):,} unavailable/broken  |  "
+            f"{preview_stats_v68998.get('sha_duplicates', 0):,} exact duplicate(s). "
+            f"Up to {WEBSITE_MAX_ANALYZED_IMAGES:,} validated candidates can be analyzed in one save operation."
         )
 
     reviewed_content = st.text_area(
@@ -49381,11 +49567,17 @@ def render_learn_from_website(database_choice):
             if include_website_images
             else "Saving website knowledge..."
         ):
+            selected_image_urls_v68998 = (
+                list(extraction.get("preview_validated_urls_v68998") or [])
+                if include_website_images
+                else None
+            )
             save_result = save_website_knowledge_package(
                 reviewed_extraction,
                 database_choice,
                 reviewed_content=reviewed_content,
                 include_images=include_website_images,
+                selected_image_urls=selected_image_urls_v68998,
             )
 
         image_count = len(save_result.get("images") or [])
