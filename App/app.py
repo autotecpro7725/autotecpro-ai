@@ -508,6 +508,68 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
+# v69004: browser-print layout. Expand the full Streamlit document instead of
+# printing only the visible/scrollable viewport; hide navigation/composer chrome.
+st.markdown(
+    """
+    <style>
+    @media print {
+        html, body, .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        .main, .block-container {
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            position: static !important;
+        }
+        [data-testid="stMainBlockContainer"], .block-container {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 12mm !important;
+            margin: 0 !important;
+        }
+        section[data-testid="stSidebar"],
+        header[data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stBottom"],
+        [data-testid="stChatInput"],
+        div[data-testid="stChatInput"] {
+            display: none !important;
+        }
+        [data-testid="stVerticalBlock"],
+        [data-testid="stElementContainer"],
+        [data-testid="stMarkdownContainer"] {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        .chat-image-grid,
+        .chat-image-card,
+        .chat-generated-image-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        .chat-image-card img,
+        .chat-generated-image-card img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 
 def _render_auth_transition_overlay():
     """Cover stale Streamlit DOM while login/logout reruns are completing."""
@@ -48490,6 +48552,48 @@ def _website_image_section_role_match_v68890(query_role, payload):
     return any(term in context for term in role_terms.get(query_role, ()))
 
 
+def _website_image_car_model_visual_specificity_v69004(payload):
+    """Score whether the image itself depicts the Car Model/A/C selection state.
+
+    Section metadata remains useful, but physical wiring/camera imagery must not
+    become a Car Model screenshot merely because it sits under the same heading.
+    """
+    if not isinstance(payload, dict):
+        return 0.0
+    caption = re.sub(r"\s+", " ", str(payload.get("caption") or "")).strip().casefold()
+    analysis = re.sub(r"\s+", " ", str(payload.get("visual_analysis") or "")).strip().casefold()
+    image_url = unquote(str(payload.get("image_url") or "")).casefold()
+    visual = " ".join((caption, analysis, image_url))
+
+    strong_terms = (
+        "car model / a/c", "car model / ac", "car model/ac", "car model selection",
+        "grand cherokee h", "grand cherokee l", "jeep grand cherokee",
+        "vehicle manufacturer", "vehicle model", "model selection list",
+        "protocol simple", "protocol selection", "simple protocol",
+    )
+    screen_terms = (
+        "settings screen", "setting screen", "screen showing", "menu screen",
+        "selection screen", "setting guide", "dropdown", "list of vehicle",
+    )
+    physical_conflicts = (
+        "rca", "cvbs", "vga", "camera connector", "reverse camera",
+        "yellow connector", "red connector", "video connector", "aux cable",
+        "aux harness", "wiring harness", "wire harness", "power harness",
+        "connector photo", "wiring photo", "camera wiring", "cable harness",
+    )
+
+    strong_hits = sum(1 for term in strong_terms if term in visual)
+    screen_hits = sum(1 for term in screen_terms if term in visual)
+    conflict_hits = sum(1 for term in physical_conflicts if term in visual)
+
+    score = min(strong_hits, 4) * 16.0 + min(screen_hits, 2) * 6.0
+    if conflict_hits and strong_hits == 0:
+        score -= min(conflict_hits, 3) * 28.0
+    elif conflict_hits and strong_hits:
+        score -= min(conflict_hits, 2) * 6.0
+    return score
+
+
 def _website_image_visual_state_gate_v68885(prompt_text, payload):
     """Validate that the image depicts the requested function, not merely a menu row."""
     effective_prompt_v68890 = _website_image_effective_query_v68890(prompt_text)
@@ -48510,6 +48614,12 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
         return False
 
     if query_role == "car_model_ac":
+        visual_specificity_v69004 = _website_image_car_model_visual_specificity_v69004(payload)
+        # v69004: physical wiring/camera imagery cannot inherit Car Model authority
+        # from a shared webpage section heading. This is the exact RAM wrong-image fix.
+        if visual_specificity_v69004 <= -28.0:
+            return False
+
         # Keep the v68885 hard rejection: a screenshot selected on another
         # setting must never be shown as a Car Model/A/C reference.
         conflicting_selected = (
@@ -48556,8 +48666,9 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
         if menu_row_only:
             return False
 
-        # Strong filename/caption identity remains authoritative.
-        if asset_role == "car_model_ac":
+        # Strong filename/caption identity remains authoritative, and direct
+        # visual evidence now outranks section-only association.
+        if asset_role == "car_model_ac" or visual_specificity_v69004 >= 20.0:
             return True
 
         # v68890 root fix:
@@ -48567,7 +48678,13 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
         # Car Model/A/C section. Accept that authoritative section association
         # when there is no filename contradiction or conflicting selected state.
         if _website_image_section_role_match_v68890(query_role, payload):
-            return True
+            # Fail open only when visual metadata is genuinely sparse. If the
+            # analysis clearly describes another physical function, section text
+            # alone is no longer sufficient authority.
+            sparse_visual_v69004 = len(visual_only.strip()) < 55
+            if sparse_visual_v69004:
+                return True
+            return visual_specificity_v69004 > -1.0 and strong_visual
 
         return strong_visual
 
@@ -48795,6 +48912,8 @@ def _website_image_rank_v68883(prompt_text, payload):
     ):
         return -900.0
     score += role_score_v68884
+    if query_role_v68884 == "car_model_ac":
+        score += _website_image_car_model_visual_specificity_v69004(payload)
     topic_boosts = {
         "carmodel": ("car model", "carmodel", "car model setting", "ac model"),
         "protocol": ("protocol", "xinbasi", "canbus"),
