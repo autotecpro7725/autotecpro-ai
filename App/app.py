@@ -1,4 +1,4 @@
-# AutoTecPro AI v69023 — Global Workspace Transition Stability; v69022 Technical provenance + protected Graphic engine preserved
+# AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -46652,6 +46652,10 @@ WEBSITE_IMAGE_FETCH_TIMEOUT_SECONDS = 18
 WEBSITE_AUTO_DISPLAY_MAX_IMAGES = 4
 WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 
+# v69024: website-learning provenance authority. This deliberately invalidates
+# older image-QA reuse when page-zone/product provenance was not part of approval.
+WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69024-source-zone-provenance-1"
+
 
 class KnowledgePageHTMLParser(HTMLParser):
     """Extract readable page text plus high-recall website image candidates.
@@ -46961,6 +46965,179 @@ class KnowledgePageHTMLParser(HTMLParser):
     def text(self):
         return "".join(self._parts)
 
+
+# ============================================================
+# v69024 — Source-Zone Website Knowledge Provenance Engine
+# ============================================================
+
+def _website_page_type_v69024(page_url, page_html=""):
+    """Classify a learned webpage before image/text extraction."""
+    parsed = urlparse(str(page_url or ""))
+    path = str(parsed.path or "").casefold()
+    if "/product/" in path:
+        return "woocommerce_product"
+    technical_tokens = (
+        "installation-instruction", "installation_instruction", "technical-information",
+        "technical-inforamtion", "technical_information", "installation", "instruction",
+    )
+    if any(token in path for token in technical_tokens):
+        return "technical_article"
+    html_value = str(page_html or "").casefold()
+    if "woocommerce-product-gallery" in html_value and "product_title" in html_value:
+        return "woocommerce_product"
+    return "generic_article"
+
+
+def _website_dom_attr_text_v69024(attrs):
+    values = []
+    for key, value in (attrs or []):
+        key = str(key or "").casefold()
+        if key in {"class", "id", "role", "itemprop", "data-block-name", "aria-label"} or key.startswith("data-"):
+            values.append(str(value or ""))
+    value = " ".join(values).casefold().replace("_", " ").replace("-", " ")
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _website_source_zone_is_excluded_v69024(zone):
+    return str(zone or "").strip().casefold() in {
+        "related_products", "upsells", "cross_sells", "recommendations",
+        "review_media", "previous_next_product", "site_chrome",
+    }
+
+
+def _website_dom_zone_v69024(tag, attrs, page_type, parent_zone=""):
+    """Return deterministic source-zone provenance for one DOM node."""
+    tag = str(tag or "").casefold()
+    page_type = str(page_type or "generic_article").strip().casefold()
+    parent_zone = str(parent_zone or "").strip() or (
+        "product_content" if page_type == "woocommerce_product" else "article_body"
+    )
+    attr_text = _website_dom_attr_text_v69024(attrs)
+    haystack = f" {attr_text} "
+
+    # Non-authoritative WooCommerce/WordPress zones are excluded before text/image QA.
+    if re.search(r"\brelated\s+(?:products?|posts?|articles?)\b|\b(?:products?|posts?|articles?)\s+related\b", haystack):
+        return "related_products"
+    if re.search(r"\bupsells?\b|\bup\s+sells?\b", haystack):
+        return "upsells"
+    if re.search(r"\bcross\s+sells?\b|\bcrosssells?\b", haystack):
+        return "cross_sells"
+    if re.search(r"\brecommend(?:ed|ations?)\b|\brecently\s+viewed\b|\byou\s+may\s+also\s+like\b", haystack):
+        return "recommendations"
+    if re.search(r"\bwoocommerce\s+reviews\b|\bcustomer\s+reviews\b|\breview\s+media\b", haystack):
+        return "review_media"
+    if re.search(r"\bpost\s+navigation\b|\bprevious\s+product\b|\bnext\s+product\b", haystack):
+        return "previous_next_product"
+    if re.search(r"\bsite\s+(?:header|footer|branding|navigation)\b|\bsidebar\b|\bmega\s+menu\b", haystack):
+        return "site_chrome"
+
+    if page_type == "woocommerce_product":
+        if re.search(r"\bwoocommerce\s+product\s+gallery\b|\bproduct\s+gallery\b|\bproduct\s+images?\b", haystack):
+            return "product_gallery"
+        if re.search(r"\bentry\s+summary\b|\bproduct\s+summary\b|\bproduct\s+meta\b|\bshort\s+description\b", haystack):
+            return "product_summary"
+        if re.search(r"\bwoocommerce\s+tabs\b|\bproduct\s+description\b|\btabs?\s+panel\b|\bdescription\s+tab\b", haystack):
+            return "product_description"
+        if re.search(r"\btechnical\b|\binstallation\b|\binstruction\b|\bspecification\b|\bfeatures?\b", haystack):
+            return "product_technical_content"
+        return parent_zone if parent_zone not in {"root", "article_body"} else "product_content"
+
+    if page_type == "technical_article":
+        if re.search(r"\bentry\s+content\b|\bpost\s+content\b|\barticle\s+content\b|\bmain\s+content\b|\bwpb\s+content\s+wrapper\b", haystack):
+            return "technical_section"
+        return parent_zone if parent_zone != "root" else "article_body"
+
+    return parent_zone if parent_zone != "root" else "article_body"
+
+
+class KnowledgePageHTMLParserV69024(KnowledgePageHTMLParser):
+    """Zone-aware parser: excluded page areas never enter learned text or image candidates."""
+
+    _VOID_TAGS_V69024 = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+        "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self, page_url="", page_type=""):
+        super().__init__()
+        self.page_url_v69024 = str(page_url or "")
+        self.page_type_v69024 = str(page_type or "").strip() or _website_page_type_v69024(page_url)
+        base_zone = "product_content" if self.page_type_v69024 == "woocommerce_product" else "article_body"
+        self._zone_stack_v69024 = [{"tag": "__root__", "zone": base_zone, "excluded": False}]
+        self._void_zone_v69024 = ""
+        self.excluded_zone_nodes_v69024 = 0
+        self.excluded_image_nodes_v69024 = 0
+
+    def _zone_state_v69024(self):
+        return self._zone_stack_v69024[-1] if self._zone_stack_v69024 else {"zone": "article_body", "excluded": False}
+
+    def _context(self):
+        value = super()._context()
+        state = self._zone_state_v69024()
+        value["source_zone_v69024"] = self._void_zone_v69024 or str(state.get("zone") or "")
+        value["page_type_v69024"] = self.page_type_v69024
+        value["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
+        return value
+
+    def handle_starttag(self, tag, attrs):
+        tag = str(tag or "").casefold()
+        parent = self._zone_state_v69024()
+        zone = _website_dom_zone_v69024(tag, attrs, self.page_type_v69024, parent.get("zone"))
+        excluded = bool(parent.get("excluded")) or _website_source_zone_is_excluded_v69024(zone)
+        is_void = tag in self._VOID_TAGS_V69024
+        if not is_void:
+            self._zone_stack_v69024.append({"tag": tag, "zone": zone, "excluded": excluded})
+        if excluded:
+            if not bool(parent.get("excluded")):
+                self.excluded_zone_nodes_v69024 += 1
+            if tag in {"img", "source"}:
+                self.excluded_image_nodes_v69024 += 1
+            return
+        previous_void = self._void_zone_v69024
+        if is_void:
+            self._void_zone_v69024 = zone
+        try:
+            super().handle_starttag(tag, attrs)
+        finally:
+            self._void_zone_v69024 = previous_void
+
+    def handle_endtag(self, tag):
+        tag = str(tag or "").casefold()
+        state = self._zone_state_v69024()
+        # Theme-independent fallback: some WooCommerce themes omit useful class/id
+        # tokens but still use a standard section heading. Once such a heading closes,
+        # quarantine its parent container before any product-card images are parsed.
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"} and not bool(state.get("excluded")):
+            heading_v69024 = re.sub(r"\s+", " ", " ".join(getattr(self, "_current_heading_parts", []) or [])).strip().casefold()
+            heading_zone_v69024 = ""
+            if re.fullmatch(r"related\s+(?:products?|posts?|articles?)", heading_v69024):
+                heading_zone_v69024 = "related_products"
+            elif re.fullmatch(r"(?:you may also like|recommended products?|recommendations?)", heading_v69024):
+                heading_zone_v69024 = "recommendations"
+            elif re.fullmatch(r"(?:upsells?|cross[- ]?sells?)", heading_v69024):
+                heading_zone_v69024 = "upsells" if "up" in heading_v69024 else "cross_sells"
+            if heading_zone_v69024 and len(self._zone_stack_v69024) >= 2:
+                parent_v69024 = self._zone_stack_v69024[-2]
+                if not bool(parent_v69024.get("excluded")):
+                    parent_v69024["zone"] = heading_zone_v69024
+                    parent_v69024["excluded"] = True
+                    self.excluded_zone_nodes_v69024 += 1
+        if not bool(state.get("excluded")):
+            super().handle_endtag(tag)
+        # HTMLParser may emit an end callback for self-closing/void tags. Only pop
+        # the semantic container when the closing tag matches the stack top.
+        if len(self._zone_stack_v69024) > 1 and str(state.get("tag") or "") == tag:
+            self._zone_stack_v69024.pop()
+
+    def handle_data(self, data):
+        if bool(self._zone_state_v69024().get("excluded")):
+            return
+        super().handle_data(data)
+
+
+# All later learning and legacy-parser call sites bind to the provenance-aware parser.
+KnowledgePageHTMLParser = KnowledgePageHTMLParserV69024
+
 def normalize_website_url(raw_url):
     """Validate and normalize one public HTTP(S) webpage URL."""
     value = str(raw_url or "").strip()
@@ -47095,6 +47272,8 @@ def clean_extracted_website_text(raw_text):
         "shop departments", "about us", "my account", "view cart",
         "shopping cart", "checkout", "customer service", "contact us",
         "privacy policy", "terms and conditions",
+        "related products", "related product", "related posts", "related articles",
+        "you may also like", "recommended products", "recommendations",
     }
 
     previous = None
@@ -47221,6 +47400,56 @@ def _website_raw_html_image_candidates_v68996(page_html):
                 "full_size_candidate": False,
             })
     return records
+
+
+
+def _website_scoped_raw_html_image_candidates_v69024(page_html, page_url, page_type, parser_images):
+    """Recover alternate raw URLs without introducing new assets from excluded zones."""
+    raw_records = _website_raw_html_image_candidates_v68996(page_html)
+    if str(page_type or "").strip() not in {"woocommerce_product", "technical_article"}:
+        return raw_records
+
+    authoritative = {}
+    for item in parser_images or []:
+        if not isinstance(item, dict):
+            continue
+        zone = str(item.get("source_zone_v69024") or "").strip()
+        if _website_source_zone_is_excluded_v69024(zone):
+            continue
+        src = str(item.get("src") or "").strip()
+        if not src:
+            continue
+        try:
+            key = _website_asset_identity_v68999(urljoin(page_url, src))
+        except Exception:
+            continue
+        if key and any(key):
+            authoritative[key] = dict(item)
+
+    output = []
+    for item in raw_records:
+        if not isinstance(item, dict):
+            continue
+        src = str(item.get("src") or "").strip()
+        if not src:
+            continue
+        try:
+            key = _website_asset_identity_v68999(urljoin(page_url, src))
+        except Exception:
+            continue
+        context = authoritative.get(key)
+        if not context:
+            continue
+        merged = dict(item)
+        for field in (
+            "alt", "title", "nearest_heading", "heading_level", "nearby_text",
+            "context_before_text_v69017", "context_after_text_v69017", "origin_group",
+            "source_zone_v69024", "page_type_v69024", "ingestion_authority_version_v69024",
+        ):
+            if not merged.get(field) and context.get(field):
+                merged[field] = context.get(field)
+        output.append(merged)
+    return output
 
 
 
@@ -47356,6 +47585,10 @@ def _website_image_candidate_urls(parser_images, page_url):
         source_kind = str(raw.get("source_kind") or "img").strip()
         full_size_candidate = bool(raw.get("full_size_candidate"))
         origin_group = str(raw.get("origin_group") or "").strip()
+        source_zone_v69024 = str(raw.get("source_zone_v69024") or "").strip()
+        page_type_v69024 = str(raw.get("page_type_v69024") or "").strip()
+        if _website_source_zone_is_excluded_v69024(source_zone_v69024):
+            continue
 
         asset_identity = " ".join(
             part for part in (str(parsed.path or ""), alt, title, source_kind) if part
@@ -47396,6 +47629,11 @@ def _website_image_candidate_urls(parser_images, page_url):
             score += 2
         if re.search(r"\.(?:jpg|jpeg|png|webp|avif)(?:$|[?#])", normalized, flags=re.I):
             score += 1
+        score += int({
+            "product_gallery": 7, "product_technical_content": 7,
+            "product_description": 5, "technical_section": 7,
+            "product_summary": 3, "product_content": 2, "article_body": 2,
+        }.get(source_zone_v69024, 0))
 
         # High-recall fallback: a normal raster image URL is allowed into the candidate
         # pool even without nearby text. Vision analysis later decides whether to keep it.
@@ -47416,6 +47654,9 @@ def _website_image_candidate_urls(parser_images, page_url):
             "source_kind": source_kind,
             "full_size_candidate": full_size_candidate,
             "origin_group": origin_group,
+            "source_zone_v69024": source_zone_v69024,
+            "page_type_v69024": page_type_v69024,
+            "ingestion_authority_version_v69024": str(raw.get("ingestion_authority_version_v69024") or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024),
             "discovery_order": int(order_index),
         })
 
@@ -48209,6 +48450,9 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                     existing_digest_v69005
                     and str(existing_payload_v69005.get("visual_analysis") or "").strip()
                     and str(existing_payload_v69005.get("ingestion_qa_version_v69017") or "").strip()
+                    and str(existing_payload_v69005.get("ingestion_authority_version_v69024") or "").strip() == WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
+                    and str(existing_payload_v69005.get("page_identity_sha256_v69024") or "").strip()
+                    == str((extraction.get("page_identity_v69024") or {}).get("identity_sha256") or "").strip()
                 ):
                     existing_by_digest_v69005[existing_digest_v69005] = existing_payload_v69005
     except Exception:
@@ -48242,6 +48486,9 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 seen_hashes.add(digest)
 
             existing_payload_v69005 = existing_by_digest_v69005.get(digest.lower()) if digest else None
+            if existing_payload_v69005:
+                if str(candidate.get("source_zone_v69024") or "").strip() != str(existing_payload_v69005.get("source_zone_v69024") or "").strip():
+                    existing_payload_v69005 = None
             if existing_payload_v69005:
                 analysis = str(existing_payload_v69005.get("visual_analysis") or "").strip()
                 reused += 1
@@ -48294,6 +48541,10 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "image_structured_metadata_v69017": dict(qa_v69017.get("extracted") or {}),
                 "image_qa_reason_v69017": str(qa_v69017.get("reason") or "").strip(),
                 "source_kind": str(candidate.get("source_kind") or "").strip(),
+                "source_zone_v69024": str(candidate.get("source_zone_v69024") or "").strip(),
+                "page_type_v69024": str(extraction.get("page_type_v69024") or candidate.get("page_type_v69024") or "").strip(),
+                "page_identity_v69024": dict(extraction.get("page_identity_v69024") or {}),
+                "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
                 "context_score": int(candidate.get("context_score") or 0),
                 "technical_context": bool(candidate.get("technical_context")),
                 "analysis": analysis,
@@ -48345,6 +48596,9 @@ def build_website_knowledge_package_document(
         f"Final source URL: {extraction.get('source_url')}",
         f"Extracted at (UTC): {extraction.get('extracted_at')}",
         f"Page content SHA-256: {extraction.get('content_hash')}",
+        f"Page type v69024: {extraction.get('page_type_v69024')}",
+        f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
+        f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
         f"Useful website images analyzed: {len(images)}",
         "",
         "WEBPAGE TEXT",
@@ -48377,6 +48631,10 @@ def build_website_knowledge_package_document(
                 f"CONTEXT_AFTER_IMAGE: {str(item.get('context_after_text_v69017') or '').strip()}",
                 f"IMAGE_RELATIONSHIP: {str(item.get('image_relationship_v69017') or '').strip()}",
                 f"IMAGE_RELATIONSHIP_CONFIDENCE: {item.get('image_relationship_confidence_v69017')}",
+                f"SOURCE_ZONE_V69024: {str(item.get('source_zone_v69024') or '').strip()}",
+                f"PAGE_TYPE_V69024: {str(item.get('page_type_v69024') or extraction.get('page_type_v69024') or '').strip()}",
+                f"INGESTION_AUTHORITY_VERSION_V69024: {str(item.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024).strip()}",
+                f"PAGE_IDENTITY_JSON_V69024: {json.dumps(item.get('page_identity_v69024') or extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
                 f"INGESTION_QA_VERSION: {str(item.get('ingestion_qa_version_v69017') or '').strip()}",
                 f"IMAGE_STRUCTURED_METADATA_JSON: {json.dumps(item.get('image_structured_metadata_v69017') or {}, ensure_ascii=False, separators=(',', ':'))}",
                 f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
@@ -48464,6 +48722,11 @@ def _website_image_index_record_v68883(
         "ingestion_qa_version_v69017": str(image_item.get("ingestion_qa_version_v69017") or "").strip(),
         "image_structured_metadata_v69017": dict(image_item.get("image_structured_metadata_v69017") or {}),
         "image_qa_reason_v69017": str(image_item.get("image_qa_reason_v69017") or "").strip(),
+        "source_zone_v69024": str(image_item.get("source_zone_v69024") or "").strip(),
+        "page_type_v69024": str(image_item.get("page_type_v69024") or extraction.get("page_type_v69024") or "").strip(),
+        "page_identity_v69024": dict(image_item.get("page_identity_v69024") or extraction.get("page_identity_v69024") or {}),
+        "page_identity_sha256_v69024": str((image_item.get("page_identity_v69024") or extraction.get("page_identity_v69024") or {}).get("identity_sha256") or "").strip(),
+        "ingestion_authority_version_v69024": str(image_item.get("ingestion_authority_version_v69024") or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024).strip(),
         "width": int(image_item.get("width") or 0),
         "height": int(image_item.get("height") or 0),
         "archive_storage_path": str(archive_path or "").strip(),
@@ -49717,11 +49980,16 @@ def _website_image_payload_identity_text_v69022(payload):
     structured = " ".join(str(metadata.get(k) or "") for k in (
         "vehicle_make", "vehicle_model", "year_range", "system_or_variant", "topic", "variant",
     ))
+    page_identity_v69024 = payload.get("page_identity_v69024") if isinstance(payload.get("page_identity_v69024"), dict) else {}
+    identity_v69024 = " ".join(
+        str(value or "") for key in ("brands", "vehicle_families", "years", "systems", "screen_sizes", "sku", "title")
+        for value in ([page_identity_v69024.get(key)] if not isinstance(page_identity_v69024.get(key), list) else page_identity_v69024.get(key))
+    )
     provenance = " ".join(str(payload.get(k) or "") for k in (
         "page_title", "source_page", "section_heading", "nearby_instruction_text",
         "caption", "visual_analysis", "keywords",
     )) if isinstance(payload, dict) else ""
-    return re.sub(r"\s+", " ", structured + " " + provenance).strip()
+    return re.sub(r"\s+", " ", structured + " " + identity_v69024 + " " + provenance).strip()
 
 
 def _website_resolved_subject_identity_v69022(prompt_text, answer_text=""):
@@ -49751,7 +50019,7 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
     structured_text = " ".join(str(metadata.get(k) or "") for k in (
         "vehicle_make", "vehicle_model", "year_range", "system_or_variant", "variant",
     ))
-    identity_text = structured_text.strip() or candidate_text
+    identity_text = re.sub(r"\s+", " ", (structured_text + " " + candidate_text)).strip()
 
     candidate_brands = _website_identity_brand_set_v69022(identity_text)
     candidate_families = _website_identity_vehicle_families_v69022(identity_text)
@@ -49963,6 +50231,10 @@ def _website_model_control_payload_v69010(image_record):
         "nearby_instruction_text": nearby,
         "visual_analysis": visual,
         "image_structured_metadata_v69017": dict(image_record.get("website_structured_metadata_v69017") or {}),
+        "source_zone_v69024": str(image_record.get("website_source_zone_v69024") or "").strip(),
+        "page_type_v69024": str(image_record.get("website_page_type_v69024") or "").strip(),
+        "page_identity_v69024": dict(image_record.get("website_page_identity_v69024") or {}),
+        "ingestion_authority_version_v69024": str(image_record.get("website_ingestion_authority_v69024") or "").strip(),
         "page_title": page_title,
         "source_page": source_page,
         "keywords": " ".join((section, nearby, page_title)),
@@ -50011,6 +50283,14 @@ def _website_file_full_text_v69012(file_id):
         return ""
 
 
+def _website_safe_json_dict_v69024(value):
+    try:
+        parsed = json.loads(str(value or ""))
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
 def _website_structured_image_payloads_from_file_v69012(text_value, filename="", file_id=""):
     """Parse IMAGE/AUTO_DISPLAY_IMAGE records directly from a learned website package."""
     value = str(text_value or "")
@@ -50054,6 +50334,10 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
             "visual_analysis": analysis,
             "image_structured_metadata_v69017": structured_metadata_v69022,
+            "source_zone_v69024": field("SOURCE_ZONE_V69024"),
+            "page_type_v69024": field("PAGE_TYPE_V69024"),
+            "ingestion_authority_version_v69024": field("INGESTION_AUTHORITY_VERSION_V69024"),
+            "page_identity_v69024": _website_safe_json_dict_v69024(field("PAGE_IDENTITY_JSON_V69024")),
             "page_title": page_title,
             "source_page": source_page,
             "keywords": " ".join((page_title, field("SECTION_HEADING"), field("NEARBY_INSTRUCTION_TEXT"))),
@@ -50068,16 +50352,21 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
     value = str(text_value or "")
     if not re.search(r"<(?:img|picture|source|a)\b", value, flags=re.I):
         return []
-    parser = KnowledgePageHTMLParser()
+    source_page = _website_file_source_url_v69012(value)
+    base_url = source_page or "https://autotecpro.com/"
+    page_type_v69024 = _website_page_type_v69024(base_url, value)
+    parser = KnowledgePageHTMLParser(base_url, page_type_v69024)
     try:
         parser.feed(value)
+        parser.close()
+        parser.finalize_image_contexts_v69017()
     except Exception:
         return []
-    source_page = _website_file_source_url_v69012(value)
     page_title = _website_file_title_v69012(value, filename) or str(getattr(parser, "title", "") or "")
     raw_images = list(getattr(parser, "images", None) or [])
-    raw_images.extend(_website_raw_html_image_candidates_v68996(value))
-    base_url = source_page or "https://autotecpro.com/"
+    raw_images.extend(_website_scoped_raw_html_image_candidates_v69024(
+        value, base_url, page_type_v69024, raw_images
+    ))
     candidates = _website_image_candidate_urls(raw_images, base_url)
     payloads = []
     for item in candidates:
@@ -50095,6 +50384,9 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
             "section_heading": section,
             "nearby_instruction_text": nearby,
             "visual_analysis": "",
+            "source_zone_v69024": str(item.get("source_zone_v69024") or "").strip(),
+            "page_type_v69024": page_type_v69024,
+            "ingestion_authority_version_v69024": str(item.get("ingestion_authority_version_v69024") or "").strip(),
             "page_title": page_title,
             "source_page": source_page,
             "keywords": " ".join((page_title, section, nearby)),
@@ -50464,6 +50756,10 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
             "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+            "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
+            "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
+            "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
+            "website_ingestion_authority_v69024": str(payload.get("ingestion_authority_version_v69024") or "").strip(),
             "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
             "website_file_search_deterministic_v69012": True,
             "website_file_search_universal_v69014": True,
@@ -50601,6 +50897,10 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
             "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+            "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
+            "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
+            "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
+            "website_ingestion_authority_v69024": str(payload.get("ingestion_authority_version_v69024") or "").strip(),
             "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
             "website_file_search_deterministic_v69012": True,
             "website_file_id_v69012": str(file_id or "").strip(),
@@ -50961,6 +51261,9 @@ def _website_image_rank_v68883(prompt_text, payload):
         str(payload.get("keywords") or ""),
     ]).casefold()
     candidate_tokens = set(_website_image_tokens_v68883(candidate))
+    source_zone_v69024 = str(payload.get("source_zone_v69024") or "").strip()
+    if _website_source_zone_is_excluded_v69024(source_zone_v69024):
+        return -2000.0
 
     score = 0.0
     score += 4.0 * len(current_tokens & candidate_tokens)
@@ -50983,6 +51286,11 @@ def _website_image_rank_v68883(prompt_text, payload):
     ):
         return -900.0
     score += role_score_v68884
+    score += {
+        "product_gallery": 7.0, "product_technical_content": 8.0,
+        "product_description": 6.0, "technical_section": 8.0,
+        "product_summary": 3.0, "product_content": 2.0, "article_body": 2.0,
+    }.get(source_zone_v69024, 0.0)
     if query_role_v68884 == "car_model_ac":
         score += _website_image_car_model_visual_specificity_v69004(payload)
     topic_boosts = {
@@ -51095,6 +51403,10 @@ def _website_image_record_for_chat_v68883(payload):
         "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
         "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
         "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+        "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
+        "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
+        "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
+        "website_ingestion_authority_v69024": str(payload.get("ingestion_authority_version_v69024") or "").strip(),
     }
 
 
@@ -51718,6 +52030,38 @@ def _website_decode_response_v68891(response, raw_bytes):
     return bytes(raw_bytes or b"").decode(encoding, errors="replace")
 
 
+
+
+def _website_page_identity_v69024(source_url, title, content, page_type=""):
+    """Create deterministic page/product identity attached to every approved image."""
+    source_url = str(source_url or "")
+    title = re.sub(r"\s+", " ", str(title or "")).strip()
+    content = re.sub(r"\s+", " ", str(content or "")).strip()
+    identity_text = " ".join((title, source_url, content[:18000]))
+    systems_v69024 = set(_website_identity_systems_v69022(identity_text))
+    if "no_sync" in systems_v69024:
+        # A non-SYNC product page often mentions "Original SYNC 2" only to direct
+        # those customers to another product. Do not let that warning cross-link
+        # the current non-SYNC product into the SYNC 2 identity pool.
+        systems_v69024 = {item for item in systems_v69024 if item == "no_sync" or not item.startswith("sync_")}
+    payload = {
+        "page_type": str(page_type or "").strip(),
+        "canonical_source": canonical_website_url_identity(source_url) if source_url else "",
+        "brands": sorted(_website_identity_brand_set_v69022(identity_text)),
+        "vehicle_families": sorted(_website_identity_vehicle_families_v69022(identity_text)),
+        "years": sorted(_website_identity_years_v69022(identity_text)),
+        "systems": sorted(systems_v69024),
+        "screen_sizes": sorted(set(re.findall(r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b", identity_text.casefold()))),
+        "sku": "",
+        "title": title[:300],
+    }
+    sku_match = re.search(r"\bSKU\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9._/-]{2,40})", identity_text, flags=re.I)
+    if sku_match:
+        payload["sku"] = str(sku_match.group(1) or "").strip()
+    packed = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    payload["identity_sha256"] = hashlib.sha256(packed.encode("utf-8")).hexdigest()
+    return payload
+
 def extract_public_webpage(url, page_password=""):
     """Download and extract readable knowledge from one public webpage.
 
@@ -51811,11 +52155,12 @@ def extract_public_webpage(url, page_password=""):
                 )
 
         title = ""
+        page_type_v69024 = _website_page_type_v69024(final_url, page_text)
         if "text/plain" in content_type:
             extracted_text = page_text
             parser = None
         else:
-            parser = KnowledgePageHTMLParser()
+            parser = KnowledgePageHTMLParser(final_url, page_type_v69024)
             parser.feed(page_text)
             parser.close()
             title = parser.title
@@ -51848,11 +52193,16 @@ def extract_public_webpage(url, page_password=""):
                 )
         parser_images = list(getattr(parser, "images", []) if parser is not None else [])
         if parser is not None:
-            parser_images.extend(_website_raw_html_image_candidates_v68996(page_text))
+            parser_images.extend(_website_scoped_raw_html_image_candidates_v69024(
+                page_text, final_url, page_type_v69024, parser_images
+            ))
         raw_image_candidate_count_v68999 = len(parser_images)  # compatibility key retained by v69000
         image_candidates = _website_image_candidate_urls(
             parser_images,
             final_url,
+        )
+        page_identity_v69024 = _website_page_identity_v69024(
+            final_url, page_title, cleaned_text, page_type_v69024
         )
 
         return {
@@ -51867,6 +52217,11 @@ def extract_public_webpage(url, page_password=""):
             "image_candidates": image_candidates,
             "image_candidate_count": len(image_candidates),
             "raw_image_candidate_count_v68999": int(raw_image_candidate_count_v68999),
+            "page_type_v69024": page_type_v69024,
+            "page_identity_v69024": page_identity_v69024,
+            "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
+            "excluded_zone_count_v69024": int(getattr(parser, "excluded_zone_nodes_v69024", 0) if parser is not None else 0),
+            "excluded_image_count_v69024": int(getattr(parser, "excluded_image_nodes_v69024", 0) if parser is not None else 0),
             "password_protected_access": bool(clean_page_password),
         }
 
@@ -51910,6 +52265,8 @@ def _website_knowledge_version_hash_v68892(
                 " ",
                 str(item.get("nearby_text") or ""),
             ).strip(),
+            "source_zone_v69024": str(item.get("source_zone_v69024") or "").strip(),
+            "ingestion_authority_version_v69024": str(item.get("ingestion_authority_version_v69024") or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024).strip(),
         })
 
     stable_images.sort(
@@ -51925,6 +52282,9 @@ def _website_knowledge_version_hash_v68892(
         "database_choice": str(database_choice or "").strip(),
         "url_identity": _website_knowledge_url_identity_v68892(extraction),
         "reviewed_content": clean_extracted_website_text(reviewed_content),
+        "page_type_v69024": str(extraction.get("page_type_v69024") or "").strip(),
+        "page_identity_v69024": dict(extraction.get("page_identity_v69024") or {}),
+        "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
         "images": stable_images,
     }
     packed = json.dumps(
@@ -52331,16 +52691,16 @@ def render_learn_from_website(database_choice):
         value=True,
         key="stable_admin_website_include_images",
         help=(
-            "Product photos, connector photos, diagrams, screenshots, and installation "
-            "images are analyzed into searchable knowledge. Tiny icons, logos, tracking "
-            "pixels, and decorative images are filtered automatically."
+            "Only authoritative current-page product/technical zones are eligible. "
+            "Related products, upsells, cross-sells, recommendations, reviews/site chrome, "
+            "tiny icons, logos, tracking pixels, and decorative assets are excluded before analysis."
         ),
     )
     website_image_candidates = list(extraction.get("image_candidates") or [])
     if include_website_images and website_image_candidates:
         st.caption(
-            f"Validating all {len(website_image_candidates):,} unique/logical image assets before preview. "
-            "Broken, empty, known AutoTec/site-branding images, decorative assets and exact-byte duplicates are removed; "
+            f"Validating {len(website_image_candidates):,} authoritative-zone unique/logical image assets before preview. "
+            "Related products/recommendations are excluded before this stage; broken, empty, branding, decorative assets and exact-byte duplicates are removed; "
             "every remaining candidate is shown below and will be eligible for visual analysis on save."
         )
         with st.spinner("Validating website images for preview..."):
