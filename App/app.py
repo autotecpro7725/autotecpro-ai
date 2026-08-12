@@ -1,4 +1,4 @@
-# AutoTecPro AI v69021 — Related Reference Image Authority + Fallback Precedence Fix; v69020 performance/print preserved
+# AutoTecPro AI v69023 — Global Workspace Transition Stability; v69022 Technical provenance + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -7109,6 +7109,78 @@ st.sidebar.markdown(
 )
 
 
+def _workspace_slug_from_assistant_v69023(assistant_name):
+    """Return the stable workspace slug used by transition state."""
+    clean = str(assistant_name or "").strip()
+    for slug, icon, label in all_workspace_items:
+        if f"{icon} {label}" == clean:
+            return str(slug)
+    return "technical"
+
+
+def _workspace_begin_manual_transition_v69023(source_assistant, target_assistant):
+    """
+    Create one cross-workspace transition epoch and quarantine stale transient work.
+
+    The epoch is intentionally global across Technical, Sales, Marketing, Graphic,
+    Knowledge, Product Library and Admin. Persistent conversation/history records
+    and durable Graphic job manifests are not deleted here.
+    """
+    epoch = int(st.session_state.get("_workspace_transition_epoch_v69023", 0) or 0) + 1
+    source_slug = _workspace_slug_from_assistant_v69023(source_assistant)
+    target_slug = _workspace_slug_from_assistant_v69023(target_assistant)
+
+    st.session_state["_workspace_transition_epoch_v69023"] = epoch
+    st.session_state["_workspace_transition_source_v69023"] = source_slug
+    st.session_state["_workspace_transition_target_v69023"] = target_slug
+    st.session_state["_workspace_transition_started_at_v69023"] = time.time()
+    st.session_state["_workspace_transition_first_render_v69023"] = True
+
+    # A queued Regenerate action is a UI action from the Graphic workspace, not a
+    # durable job. Never let it leak across a manual navigation boundary.
+    st.session_state.pop("pending_graphic_regeneration", None)
+
+    # Technical clarification state belongs to the case/workspace that produced it.
+    st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
+
+    # The Graphic durable manifest itself is preserved for genuine reconnect/retry,
+    # but manual entry must never resume it on the first destination paint.
+    if target_slug == "graphic":
+        st.session_state["_graphic_manual_entry_block_resume_v69022"] = True
+    else:
+        st.session_state.pop("_graphic_manual_entry_block_resume_v69022", None)
+
+    diagnostic_log(
+        "workspace_transition_started_v69023",
+        epoch=epoch,
+        source=source_slug,
+        target=target_slug,
+    )
+    return epoch
+
+
+def _workspace_first_destination_render_v69023(active_assistant=None):
+    """True only on the first completed render after a manual workspace switch."""
+    if not st.session_state.get("_workspace_transition_first_render_v69023"):
+        return False
+    target_slug = str(st.session_state.get("_workspace_transition_target_v69023") or "")
+    active_slug = _workspace_slug_from_assistant_v69023(
+        active_assistant or st.session_state.get("current_assistant")
+    )
+    return bool(target_slug and target_slug == active_slug)
+
+
+def _workspace_complete_first_render_v69023(active_assistant=None):
+    """Mark the manual transition stable after the destination UI has been emitted."""
+    if not _workspace_first_destination_render_v69023(active_assistant):
+        return
+    st.session_state["_workspace_transition_first_render_v69023"] = False
+    diagnostic_log(
+        "workspace_transition_first_render_completed_v69023",
+        epoch=int(st.session_state.get("_workspace_transition_epoch_v69023", 0) or 0),
+        target=str(st.session_state.get("_workspace_transition_target_v69023") or ""),
+    )
+
 def switch_workspace(assistant_name):
     """
     Update workspace state before Streamlit's normal button rerun.
@@ -7120,9 +7192,17 @@ def switch_workspace(assistant_name):
     if st.session_state.get("current_assistant") == assistant_name:
         return
 
+    source_assistant_v69023 = st.session_state.get("current_assistant")
+    _workspace_begin_manual_transition_v69023(
+        source_assistant_v69023,
+        assistant_name,
+    )
+
     st.session_state["_workspace_nav_started_v68880"] = time.perf_counter()
     st.session_state["_workspace_nav_mobile_collapse_v68880"] = time.time_ns()
     st.session_state["_workspace_auth_refresh_pending_v68880"] = assistant_name
+    st.session_state["_workspace_manual_entry_target_v69022"] = assistant_name
+    st.session_state["_workspace_manual_entry_at_v69022"] = time.time()
 
     st.session_state.messages = []
     st.session_state.conversation_id = None
@@ -36317,6 +36397,7 @@ def render_generated_image_actions(images, message_index=None):
                         or {}
                     )
                     st.session_state.pending_graphic_regeneration = {
+                        "requested_at_v69022": time.time(),
                         "prompt": str(image.get("prompt") or "").strip(),
                         "mode": str(image.get("graphic_v68994_mode") or image.get("graphic_v68993_mode") or _regen_manifest_v68995.get("mode") or ""),
                         "authority_manifest": _regen_manifest_v68995,
@@ -49517,6 +49598,210 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
 
 
 
+
+def _website_image_structured_metadata_v69022(payload):
+    """Return normalized v69017 structured image metadata when available."""
+    if not isinstance(payload, dict):
+        return {}
+    value = payload.get("image_structured_metadata_v69017")
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _website_identity_brand_set_v69022(value):
+    """Return conservative positive manufacturer identities from Technical text."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return set()
+    aliases = {
+        "chevy": "chevrolet", "chevrolet": "chevrolet", "gmc": "gmc",
+        "ford": "ford", "dodge": "dodge", "ram": "ram", "jeep": "jeep",
+        "toyota": "toyota", "honda": "honda", "nissan": "nissan",
+        "infiniti": "infiniti", "lexus": "lexus", "acura": "acura",
+        "bmw": "bmw", "audi": "audi", "mercedes": "mercedes",
+        "porsche": "porsche", "cadillac": "cadillac", "buick": "buick",
+        "chrysler": "chrysler", "hyundai": "hyundai", "kia": "kia",
+        "lincoln": "lincoln", "mazda": "mazda", "subaru": "subaru",
+        "tesla": "tesla", "volkswagen": "volkswagen", "volvo": "volvo",
+    }
+    scores = {}
+    for token, canonical in aliases.items():
+        for match in re.finditer(rf"\b{re.escape(token)}\b", text):
+            before = text[max(0, match.start() - 90):match.start()]
+            negative = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|not\s+the|wrong|avoid|instead\s+of|rather\s+than|do\s+not\s+apply)[^.;:]{0,70}$",
+                before,
+            ))
+            scores[canonical] = scores.get(canonical, 0.0) + (-5.0 if negative else 2.0)
+    positive = {k: v for k, v in scores.items() if v > 0}
+    if not positive:
+        return set()
+    peak = max(positive.values())
+    return {k for k, v in positive.items() if v >= max(1.0, peak - 1.0)}
+
+
+def _website_identity_vehicle_families_v69022(value):
+    """Return conservative positive vehicle-family tokens for hard mismatch rejection."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return set()
+    scores = {}
+
+    def add_family(name, start):
+        before = text[max(0, int(start) - 90):int(start)]
+        negative = bool(re.search(
+            r"(?:do\s+not\s+use|don't\s+use|not\s+for|not\s+the|wrong|avoid|instead\s+of|rather\s+than|do\s+not\s+apply)[^.;:]{0,70}$",
+            before,
+        ))
+        scores[name] = scores.get(name, 0.0) + (-5.0 if negative else 2.0)
+
+    for match in re.finditer(r"\b([fe])[-\s]?(150|250|350|450|550|650)\b", text):
+        add_family(f"{match.group(1)}{match.group(2)}", match.start())
+    for match in re.finditer(r"\bram\s*(1500|2500|3500)?\b", text):
+        add_family("ram" + str(match.group(1) or ""), match.start())
+    named = (
+        "explorer", "fusion", "mustang", "expedition", "edge", "escape",
+        "tundra", "tacoma", "4runner", "silverado", "sierra", "suburban",
+        "tahoe", "yukon", "escalade", "q50", "q60", "wrangler",
+        "grand cherokee", "cherokee", "charger", "challenger", "durango",
+    )
+    for name in named:
+        for match in re.finditer(rf"\b{re.escape(name)}\b", text):
+            add_family(name.replace(" ", "_"), match.start())
+    positive = {k: v for k, v in scores.items() if v > 0}
+    if not positive:
+        return set()
+    peak = max(positive.values())
+    return {k for k, v in positive.items() if v >= max(1.0, peak - 1.0)}
+
+def _website_identity_years_v69022(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    years = set()
+    for match in re.finditer(
+        r"\b((?:19|20)\d{2})\s*(?:-|–|—|/|to|through)\s*((?:19|20)\d{2})\b",
+        text,
+        flags=re.I,
+    ):
+        a, b = int(match.group(1)), int(match.group(2))
+        if b < a:
+            a, b = b, a
+        if 1950 <= a <= 2100 and 1950 <= b <= 2100 and b - a <= 40:
+            years.update(range(a, b + 1))
+    years.update(int(x) for x in re.findall(r"\b(?:19|20)\d{2}\b", text))
+    return years
+
+
+def _website_identity_systems_v69022(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    systems = set()
+    if re.search(r"\bno[-\s]?sync\b", text):
+        systems.add("no_sync")
+    for number in re.findall(r"\bsync\s*([123])\b", text):
+        systems.add("sync_" + number)
+    if "5th generation" in text or "5th-gen" in text or "5th gen" in text or "new body" in text or "new-body" in text:
+        systems.add("new_body")
+    if "classic" in text and "ram" in text:
+        systems.add("ram_classic")
+    return systems
+
+
+def _website_image_payload_identity_text_v69022(payload):
+    metadata = _website_image_structured_metadata_v69022(payload)
+    structured = " ".join(str(metadata.get(k) or "") for k in (
+        "vehicle_make", "vehicle_model", "year_range", "system_or_variant", "topic", "variant",
+    ))
+    provenance = " ".join(str(payload.get(k) or "") for k in (
+        "page_title", "source_page", "section_heading", "nearby_instruction_text",
+        "caption", "visual_analysis", "keywords",
+    )) if isinstance(payload, dict) else ""
+    return re.sub(r"\s+", " ", structured + " " + provenance).strip()
+
+
+def _website_resolved_subject_identity_v69022(prompt_text, answer_text=""):
+    """Resolve Technical identity from explicit prompt first, then verified answer."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    prompt_brands = _website_identity_brand_set_v69022(prompt)
+    prompt_families = _website_identity_vehicle_families_v69022(prompt)
+    prompt_years = _website_identity_years_v69022(prompt)
+    prompt_systems = _website_identity_systems_v69022(prompt)
+    return {
+        "brands": prompt_brands or _website_identity_brand_set_v69022(answer),
+        "families": prompt_families or _website_identity_vehicle_families_v69022(answer),
+        "years": prompt_years or _website_identity_years_v69022(answer),
+        "systems": prompt_systems or _website_identity_systems_v69022(answer),
+        "product_codes": _website_image_product_codes_v69020(prompt),
+    }
+
+
+def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payload):
+    """Hard final provenance gate using the resolved Technical subject identity."""
+    if not isinstance(payload, dict):
+        return False
+    subject = _website_resolved_subject_identity_v69022(prompt_text, answer_text)
+    candidate_text = _website_image_payload_identity_text_v69022(payload)
+    metadata = _website_image_structured_metadata_v69022(payload)
+    structured_text = " ".join(str(metadata.get(k) or "") for k in (
+        "vehicle_make", "vehicle_model", "year_range", "system_or_variant", "variant",
+    ))
+    identity_text = structured_text.strip() or candidate_text
+
+    candidate_brands = _website_identity_brand_set_v69022(identity_text)
+    candidate_families = _website_identity_vehicle_families_v69022(identity_text)
+    candidate_years = _website_identity_years_v69022(identity_text)
+    candidate_systems = _website_identity_systems_v69022(identity_text)
+    candidate_codes = _website_image_product_codes_v69020(candidate_text)
+
+    requested_brands = set(subject.get("brands") or set())
+    requested_families = set(subject.get("families") or set())
+    requested_years = set(subject.get("years") or set())
+    requested_systems = set(subject.get("systems") or set())
+    requested_codes = set(subject.get("product_codes") or set())
+
+    if requested_brands and candidate_brands and not (requested_brands & candidate_brands):
+        return False
+    if requested_families and candidate_families and not (requested_families & candidate_families):
+        return False
+    if requested_years and candidate_years and not (requested_years & candidate_years):
+        return False
+    sync_requested = {x for x in requested_systems if x.startswith("sync_") or x == "no_sync"}
+    sync_candidate = {x for x in candidate_systems if x.startswith("sync_") or x == "no_sync"}
+    if sync_requested and sync_candidate and not (sync_requested & sync_candidate):
+        return False
+    if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
+        return False
+
+    if requested_codes and not candidate_codes:
+        strong_identity_match = bool(
+            (requested_brands and candidate_brands and requested_brands & candidate_brands)
+            or (requested_families and candidate_families and requested_families & candidate_families)
+            or (sync_requested and sync_candidate and sync_requested & sync_candidate)
+            or (requested_years and candidate_years and requested_years & candidate_years)
+        )
+        if answer_text and (requested_brands or requested_families or sync_requested or requested_years) and not strong_identity_match:
+            return False
+    return True
+
+
+def _website_image_resolved_record_gate_v69022(prompt_text, answer_text, image_record):
+    if not isinstance(image_record, dict):
+        return False
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return True
+    payload = _website_image_payload_for_chat_record_v69005(image_record)
+    if not payload:
+        payload = _website_model_control_payload_v69010(image_record)
+    if not payload:
+        return False
+    return _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payload)
+
 def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     """Reject a clearly different vehicle/year image while failing open on sparse metadata.
 
@@ -49677,6 +49962,7 @@ def _website_model_control_payload_v69010(image_record):
         "section_heading": section,
         "nearby_instruction_text": nearby,
         "visual_analysis": visual,
+        "image_structured_metadata_v69017": dict(image_record.get("website_structured_metadata_v69017") or {}),
         "page_title": page_title,
         "source_page": source_page,
         "keywords": " ".join((section, nearby, page_title)),
@@ -49749,6 +50035,15 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             continue
         analysis_match = re.search(r"(?ims)^IMAGE_ANALYSIS:\s*(.*?)(?=\n\s*IMAGE\s+\d+\s*$|\Z)", block)
         analysis = re.sub(r"\s+", " ", str(analysis_match.group(1) or "")).strip() if analysis_match else ""
+        structured_metadata_v69022 = {}
+        structured_raw_v69022 = field("IMAGE_STRUCTURED_METADATA_JSON")
+        if structured_raw_v69022:
+            try:
+                parsed_v69022 = json.loads(structured_raw_v69022)
+                if isinstance(parsed_v69022, dict):
+                    structured_metadata_v69022 = dict(parsed_v69022)
+            except Exception:
+                structured_metadata_v69022 = {}
         payloads.append({
             "database_choice": "Technical Support Database",
             "image_url": image_url,
@@ -49758,6 +50053,7 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             "section_heading": field("SECTION_HEADING"),
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
             "visual_analysis": analysis,
+            "image_structured_metadata_v69017": structured_metadata_v69022,
             "page_title": page_title,
             "source_page": source_page,
             "keywords": " ".join((page_title, field("SECTION_HEADING"), field("NEARBY_INSTRUCTION_TEXT"))),
@@ -49874,6 +50170,10 @@ def _website_image_universal_relation_score_v69014(
         return -2000.0
     if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
         return -1200.0
+    if answer_text and not _website_image_resolved_payload_gate_v69022(
+        prompt_text, answer_text, payload
+    ):
+        return -1250.0
 
     query_role = _website_image_query_role_v68884(prompt_text)
     if query_role:
@@ -50163,6 +50463,7 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+            "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
             "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
             "website_file_search_deterministic_v69012": True,
             "website_file_search_universal_v69014": True,
@@ -50299,6 +50600,7 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+            "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
             "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
             "website_file_search_deterministic_v69012": True,
             "website_file_id_v69012": str(file_id or "").strip(),
@@ -50576,6 +50878,10 @@ def _website_image_final_authority_v68885(
     for item in deterministic_images:
         if not _website_model_control_gate_v68885(effective_prompt_v69020, item):
             continue
+        if not _website_image_resolved_record_gate_v69022(
+            effective_prompt_v69020, answer_text, item
+        ):
+            continue
         tier = _website_image_publication_tier_v69021(
             effective_prompt_v69020, answer_text, item
         )
@@ -50607,6 +50913,10 @@ def _website_image_final_authority_v68885(
         )
 
         if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
+            continue
+        if not _website_image_resolved_record_gate_v69022(
+            effective_prompt_v69020, answer_text, image
+        ):
             continue
 
         tier = _website_image_publication_tier_v69021(
@@ -50779,6 +51089,12 @@ def _website_image_record_for_chat_v68883(payload):
         "generated": False,
         "website_image_index_v68883": True,
         "website_image_sha256": str(payload.get("image_sha256") or ""),
+        "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+        "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+        "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
+        "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+        "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+        "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
     }
 
 
@@ -50812,6 +51128,10 @@ def _website_image_lookup_v68883(prompt_text, ranking_context_v69008=""):
         if not _website_image_final_payload_gate_v68885(
             effective_prompt_v68890,
             payload,
+        ):
+            continue
+        if context_v69008 and not _website_image_resolved_payload_gate_v69022(
+            effective_prompt_v68890, context_v69008, payload
         ):
             continue
         score = _website_image_rank_v68883(
@@ -60463,7 +60783,17 @@ else:
         )
 
     if assistant == "🎨 Graphic Marketing":
-        process_pending_graphic_regeneration()
+        pending_regen_v69022 = st.session_state.get("pending_graphic_regeneration")
+        manual_entry_at_v69022 = float(st.session_state.get("_workspace_manual_entry_at_v69022") or 0.0)
+        if (
+            st.session_state.get("_graphic_manual_entry_block_resume_v69022")
+            and isinstance(pending_regen_v69022, dict)
+            and float(pending_regen_v69022.get("requested_at_v69022") or 0.0) <= manual_entry_at_v69022
+        ):
+            st.session_state.pop("pending_graphic_regeneration", None)
+            diagnostic_log("graphic_v69022_stale_regeneration_blocked_on_manual_entry")
+        else:
+            process_pending_graphic_regeneration()
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
@@ -60488,11 +60818,24 @@ else:
         or (isinstance(graphic_tool_request, dict) and graphic_tool_request.get("prompt"))
         or (isinstance(marketing_tool_request, dict) and marketing_tool_request.get("prompt"))
     )
+    graphic_manual_entry_block_v69022 = bool(
+        assistant == "🎨 Graphic Marketing"
+        and st.session_state.get("_graphic_manual_entry_block_resume_v69022")
+    )
+    if assistant == "🎨 Graphic Marketing" and fresh_graphic_submission_v68851:
+        st.session_state.pop("_graphic_manual_entry_block_resume_v69022", None)
+        graphic_manual_entry_block_v69022 = False
     graphic_resume_job_v68844 = (
         _graphic_pending_durable_job_v68844()
-        if assistant == "🎨 Graphic Marketing" and not fresh_graphic_submission_v68851
+        if (
+            assistant == "🎨 Graphic Marketing"
+            and not fresh_graphic_submission_v68851
+            and not graphic_manual_entry_block_v69022
+        )
         else None
     )
+    if graphic_manual_entry_block_v69022:
+        diagnostic_log("graphic_v69022_manual_entry_resume_skipped")
 
     if isinstance(graphic_resume_job_v68844, dict):
         prompt = str(graphic_resume_job_v68844.get("prompt") or "")
@@ -62377,9 +62720,23 @@ else:
         st.rerun()
 
 # Process maintenance only after the completed answer has already been
-# persisted and displayed on the previous run. Neither task delays first token.
-process_pending_history_trim_v68864()
-process_pending_ai_postprocess()
+# persisted and displayed on the previous run. On the first destination render
+# after any manual workspace switch, defer prior-workspace maintenance so the
+# destination can settle without unrelated Supabase/OpenAI work on its paint path.
+_workspace_transition_first_render_v69023 = _workspace_first_destination_render_v69023(
+    st.session_state.get("current_assistant")
+)
+if _workspace_transition_first_render_v69023:
+    diagnostic_log(
+        "workspace_transition_maintenance_deferred_v69023",
+        epoch=int(st.session_state.get("_workspace_transition_epoch_v69023", 0) or 0),
+        target=str(st.session_state.get("_workspace_transition_target_v69023") or ""),
+        pending_history_trim=bool(st.session_state.get("_pending_history_trim_v68864")),
+        pending_ai_postprocess=bool(st.session_state.get("pending_ai_postprocess")),
+    )
+else:
+    process_pending_history_trim_v68864()
+    process_pending_ai_postprocess()
 
 # ============================================================
 # FINAL HISTORY NAVIGATION OVERRIDE
@@ -63123,6 +63480,13 @@ if _pending_workspace_auth_refresh_v68880:
                 "workspace_auth_refresh_failed",
                 error=str(error),
             )
+
+# v69023: only after the destination UI and deferred workspace-cookie refresh
+# have been emitted do we release the global first-render quarantine. This makes
+# every manual workspace switch use the same stable lifecycle.
+_workspace_complete_first_render_v69023(
+    st.session_state.get("current_assistant")
+)
 
 # v69006: render one print-only transcript after all chat processing for this
 # Streamlit run. This includes restored History messages and any answer appended
