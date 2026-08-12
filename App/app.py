@@ -508,14 +508,15 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# v69006: browser-print transcript authority. Browser print must not depend on
-# Streamlit's viewport/scroll DOM (especially for restored History conversations).
-# A separate transcript is built from persistent st.session_state.messages and is
-# the only main-content element published in print media.
+# v69007: browser-print flow/color hardening built only on the v69006 print layer.
+# The dedicated transcript remains sourced from persistent st.session_state.messages,
+# but every Streamlit layout ancestor is flattened for print and the transcript uses
+# a theme-independent light print palette. No Technical, Graphic, retrieval, provider,
+# image-authority, same-URL, upload, persistence, or business pipeline is modified.
 st.markdown(
     """
     <style>
-    .atp-print-transcript-v69006 {
+    .atp-print-transcript-v69007 {
         display: none;
     }
 
@@ -525,26 +526,54 @@ st.markdown(
             margin: 12mm 11mm 14mm;
         }
 
-        html, body, .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"],
-        .main, .block-container {
-            width: 100% !important;
+        /* Browser pagination must see a normal document, not Streamlit's viewport
+           / flex / scroll tree. Reset every known ancestor that can constrain the
+           transcript to one screen. */
+        html, body {
+            display: block !important;
+            width: auto !important;
             height: auto !important;
-            max-height: none !important;
             min-height: 0 !important;
+            max-height: none !important;
             overflow: visible !important;
             position: static !important;
             transform: none !important;
             contain: none !important;
+            background: #ffffff !important;
+        }
+
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
+        .main, .block-container {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
         }
 
-        /* Hide application chrome and every normal Streamlit content element.
-           The dedicated transcript below is explicitly restored. */
+        /* Hide app chrome and all normal Streamlit content. The dedicated print
+           transcript is restored explicitly below. */
         section[data-testid="stSidebar"],
         header[data-testid="stHeader"],
         [data-testid="stToolbar"],
@@ -557,53 +586,108 @@ st.markdown(
             display: none !important;
         }
 
-        /* Streamlit wraps the print transcript in one stElementContainer. Keep
-           that wrapper and every HTML descendant inside it in normal flow. */
+        /* Restore the transcript element and every Streamlit wrapper on its direct
+           ancestry. :has() is supported by the Chromium print engine used here. */
         [data-testid="stMainBlockContainer"]
-        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69006) {
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007),
+        [data-testid="stVerticalBlock"]:has(.atp-print-transcript-v69007),
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.atp-print-transcript-v69007) {
             display: block !important;
+            float: none !important;
+            flex: none !important;
             width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
             position: static !important;
+            inset: auto !important;
+            transform: none !important;
             contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
         }
 
         [data-testid="stMainBlockContainer"]
-        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69006)
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007)
         [data-testid="stMarkdownContainer"] {
             display: block !important;
+            float: none !important;
+            flex: none !important;
             width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
             position: static !important;
+            inset: auto !important;
+            transform: none !important;
             contain: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        .atp-print-transcript-v69006 {
-            display: block !important;
-            width: 100% !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            position: static !important;
-            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
             margin: 0 !important;
             padding: 0 !important;
             color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: #ffffff !important;
+        }
+
+        .atp-print-transcript-v69007 {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
             background: #ffffff !important;
             font-family: Arial, Helvetica, sans-serif !important;
             font-size: 10.5pt !important;
             line-height: 1.45 !important;
         }
 
-        .atp-print-header-v69006 {
+        /* Hard reset app-theme paint inside the print transcript. v69006 only
+           changed the parent color, so descendant text-fill/background rules from
+           the dark application theme could still win. */
+        .atp-print-transcript-v69007 * {
+            box-sizing: border-box !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+            filter: none !important;
+            opacity: 1 !important;
+        }
+
+        .atp-print-header-v69007 {
             display: block !important;
             margin: 0 0 8mm !important;
             padding: 0 0 4mm !important;
@@ -611,92 +695,114 @@ st.markdown(
             break-after: avoid !important;
             page-break-after: avoid !important;
         }
-        .atp-print-brand-v69006 {
+        .atp-print-brand-v69007 {
             color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
             font-size: 18pt !important;
             font-weight: 800 !important;
             line-height: 1.15 !important;
         }
-        .atp-print-workspace-v69006 {
+        .atp-print-workspace-v69007 {
             margin-top: 1.5mm !important;
             color: #475569 !important;
+            -webkit-text-fill-color: #475569 !important;
             font-size: 10pt !important;
             font-weight: 650 !important;
         }
 
-        .atp-print-conversation-v69006 {
+        .atp-print-conversation-v69007,
+        .atp-print-message-v69007,
+        .atp-print-body-v69007 {
             display: block !important;
+            float: none !important;
+            flex: none !important;
             width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
+            position: static !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: transparent !important;
         }
-        .atp-print-message-v69006 {
-            display: block !important;
-            width: 100% !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
+        .atp-print-message-v69007 {
             margin: 0 0 6mm !important;
             padding: 0 !important;
             break-inside: auto !important;
             page-break-inside: auto !important;
         }
-        .atp-print-role-v69006 {
+        .atp-print-role-v69007 {
             margin: 0 0 1.5mm !important;
             color: #334155 !important;
+            -webkit-text-fill-color: #334155 !important;
             font-size: 9pt !important;
             font-weight: 800 !important;
             text-transform: uppercase !important;
             letter-spacing: .02em !important;
         }
-        .atp-print-body-v69006 {
-            display: block !important;
-            width: 100% !important;
+
+        .atp-print-body-v69007 p,
+        .atp-print-body-v69007 div,
+        .atp-print-body-v69007 ul,
+        .atp-print-body-v69007 ol,
+        .atp-print-body-v69007 li,
+        .atp-print-body-v69007 blockquote,
+        .atp-print-body-v69007 pre,
+        .atp-print-body-v69007 table {
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
-            color: #111827 !important;
-        }
-        .atp-print-body-v69006 p,
-        .atp-print-body-v69006 ul,
-        .atp-print-body-v69006 ol,
-        .atp-print-body-v69006 blockquote,
-        .atp-print-body-v69006 pre,
-        .atp-print-body-v69006 table {
             break-inside: auto !important;
             page-break-inside: auto !important;
+            orphans: 2;
+            widows: 2;
         }
-        .atp-print-body-v69006 table {
+
+        .atp-print-body-v69007 table {
             width: 100% !important;
             border-collapse: collapse !important;
             margin: 2mm 0 4mm !important;
+            background: #ffffff !important;
         }
-        .atp-print-body-v69006 th,
-        .atp-print-body-v69006 td {
+        .atp-print-body-v69007 th,
+        .atp-print-body-v69007 td {
             border: 1px solid #cbd5e1 !important;
             padding: 1.5mm 2mm !important;
             vertical-align: top !important;
             color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
             background: #ffffff !important;
         }
-        .atp-print-body-v69006 h1,
-        .atp-print-body-v69006 h2,
-        .atp-print-body-v69006 h3,
-        .atp-print-body-v69006 h4 {
+        .atp-print-body-v69007 h1,
+        .atp-print-body-v69007 h2,
+        .atp-print-body-v69007 h3,
+        .atp-print-body-v69007 h4 {
             color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: transparent !important;
             break-after: avoid !important;
             page-break-after: avoid !important;
         }
 
-        .atp-print-image-v69006 {
+        .atp-print-image-v69007 {
             display: block !important;
             max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
             margin: 4mm 0 !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-        .atp-print-image-v69006 img {
+        .atp-print-image-v69007 img {
             display: block !important;
             max-width: 100% !important;
             max-height: 220mm !important;
@@ -704,10 +810,12 @@ st.markdown(
             height: auto !important;
             object-fit: contain !important;
             margin: 0 !important;
+            background: transparent !important;
         }
-        .atp-print-image-v69006 figcaption {
+        .atp-print-image-v69007 figcaption {
             margin-top: 1.5mm !important;
             color: #64748b !important;
+            -webkit-text-fill-color: #64748b !important;
             font-size: 8.5pt !important;
         }
 
@@ -5389,7 +5497,7 @@ def render_chat_message(
         )
 
 
-def _build_print_transcript_html_v69006(messages, assistant_label="Technical Support"):
+def _build_print_transcript_html_v69007(messages, assistant_label="Technical Support"):
     """Build a self-contained print transcript from persistent chat history."""
     rows = []
     for index, message in enumerate(list(messages or []), start=1):
@@ -5420,7 +5528,7 @@ def _build_print_transcript_html_v69006(messages, assistant_label="Technical Sup
                 quote=True,
             )
             image_html.append(
-                '<figure class="atp-print-image-v69006">'
+                '<figure class="atp-print-image-v69007">'
                 f'<img src="{safe_source}" alt="{caption}">'
                 f'<figcaption>{caption}</figcaption>'
                 '</figure>'
@@ -5430,10 +5538,10 @@ def _build_print_transcript_html_v69006(messages, assistant_label="Technical Sup
             continue
 
         rows.append(
-            f'<section class="atp-print-message-v69006 {role_class}" '
+            f'<section class="atp-print-message-v69007 {role_class}" '
             f'data-message-index="{index}">'
-            f'<div class="atp-print-role-v69006">{html.escape(role_label)}</div>'
-            f'<div class="atp-print-body-v69006">{body_html}{"".join(image_html)}</div>'
+            f'<div class="atp-print-role-v69007">{html.escape(role_label)}</div>'
+            f'<div class="atp-print-body-v69007">{body_html}{"".join(image_html)}</div>'
             '</section>'
         )
 
@@ -5442,20 +5550,20 @@ def _build_print_transcript_html_v69006(messages, assistant_label="Technical Sup
 
     safe_label = html.escape(str(assistant_label or "Technical Support"), quote=True)
     return (
-        '<div class="atp-print-transcript-v69006">'
-        '<header class="atp-print-header-v69006">'
-        '<div class="atp-print-brand-v69006">AutoTecPro AI</div>'
-        f'<div class="atp-print-workspace-v69006">{safe_label}</div>'
+        '<div class="atp-print-transcript-v69007">'
+        '<header class="atp-print-header-v69007">'
+        '<div class="atp-print-brand-v69007">AutoTecPro AI</div>'
+        f'<div class="atp-print-workspace-v69007">{safe_label}</div>'
         '</header>'
-        '<main class="atp-print-conversation-v69006">'
+        '<div class="atp-print-conversation-v69007">'
         + ''.join(rows)
-        + '</main></div>'
+        + '</div></div>'
     )
 
 
-def render_print_transcript_v69006(messages, assistant_label="Technical Support"):
+def render_print_transcript_v69007(messages, assistant_label="Technical Support"):
     """Render the persistent conversation only for browser/PDF print output."""
-    transcript_html = _build_print_transcript_html_v69006(messages, assistant_label)
+    transcript_html = _build_print_transcript_html_v69007(messages, assistant_label)
     if transcript_html:
         st.markdown(transcript_html, unsafe_allow_html=True)
 
@@ -49337,14 +49445,28 @@ def _website_image_record_for_chat_v68883(payload):
     }
 
 
-def _website_image_lookup_v68883(prompt_text):
-    """Deterministically retrieve approved website images for Technical Support."""
+def _website_image_lookup_v68883(prompt_text, ranking_context_v69008=""):
+    """Deterministically retrieve approved website images for Technical Support.
+
+    v69008 may provide already-generated answer text only as additional ranking
+    context after the first lookup returns no image. Vehicle/year/section/visual
+    eligibility continues to be gated exclusively by the original user prompt,
+    so this recovery cannot weaken Technical image authority.
+    """
     if str(assistant or "") != "🔧 Technical Support":
         return []
     if not _website_image_visual_intent_v68883(prompt_text):
         return []
 
     effective_prompt_v68890 = _website_image_effective_query_v68890(prompt_text)
+    ranking_prompt_v69008 = effective_prompt_v68890
+    context_v69008 = re.sub(r"\s+", " ", str(ranking_context_v69008 or "")).strip()
+    if context_v69008:
+        ranking_prompt_v69008 = (
+            effective_prompt_v68890
+            + "\n\n[VERIFIED ANSWER CONTEXT — ranking only]\n"
+            + context_v69008[:5000]
+        )
 
     ranked = []
     for payload in _website_image_index_rows_v68883():
@@ -49356,7 +49478,7 @@ def _website_image_lookup_v68883(prompt_text):
         ):
             continue
         score = _website_image_rank_v68883(
-            effective_prompt_v68890,
+            ranking_prompt_v69008,
             payload,
         )
         if score >= 8.0:
@@ -60163,6 +60285,47 @@ else:
                     f"document could not be created: {document_error}"
                 )
 
+        # v69008: if an automatic Technical visual topic was recognized but the
+        # first deterministic lookup had no eligible image, make one second
+        # deterministic lookup using the completed answer only as ranking context.
+        # The original user prompt remains the sole vehicle/year/section/visual
+        # authority gate inside _website_image_lookup_v68883. This recovers approved
+        # images whose indexed metadata is sparse without allowing a different or
+        # weakly-related image to bypass the existing fail-closed authority rules.
+        if assistant == "🔧 Technical Support":
+            existing_website_images_v69008 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            auto_visual_topic_v69008 = _website_image_auto_topic_v68888(
+                technical_request_prompt_v68879
+            )
+            if auto_visual_topic_v69008 and not existing_website_images_v69008 and str(answer or "").strip():
+                try:
+                    answer_context_images_v69008 = _website_image_lookup_v68883(
+                        technical_request_prompt_v68879,
+                        ranking_context_v69008=answer,
+                    )
+                    if answer_context_images_v69008:
+                        generated_images.extend(answer_context_images_v69008)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=answer_context_images_v69008,
+                        )
+                        diagnostic_log(
+                            "website_image_answer_context_recovery_v69008",
+                            topic=auto_visual_topic_v69008,
+                            recovered=len(answer_context_images_v69008),
+                        )
+                except Exception as error:
+                    diagnostic_log(
+                        "website_image_answer_context_recovery_failed_v69008",
+                        error_type=type(error).__name__,
+                        error=str(error)[:500],
+                    )
+
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
@@ -61133,7 +61296,7 @@ try:
             "🧠 Knowledge Submission",
         }
     ):
-        render_print_transcript_v69006(
+        render_print_transcript_v69007(
             _print_messages_v69006,
             assistant_label=_print_assistant_v69006,
         )
