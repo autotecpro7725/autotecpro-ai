@@ -1,4 +1,4 @@
-# AutoTecPro AI v69019 — Final Print/Export Provenance Fix; v69017 learning + Graphic engine preserved
+# AutoTecPro AI v69020 — Unified Technical Image Authority + Performance + Print Isolation; Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -1003,7 +1003,7 @@ MAX_AI_AUTO_CONTINUATIONS = 3
 # Re-rendering the entire accumulated response too frequently becomes expensive
 # for long catalogue/document outputs. Keep the live preview responsive without
 # rebuilding thousands of words many times per second.
-AI_STREAM_RENDER_INTERVAL_SECONDS = 0.75
+AI_STREAM_RENDER_INTERVAL_SECONDS = 0.20
 
 
 def safe_json_response(response):
@@ -48768,7 +48768,7 @@ def _website_archive_and_index_images_v68883(
     }
 
 
-@st.cache_data(ttl=60, max_entries=4, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=4, show_spinner=False)
 def _website_image_index_rows_v68883():
     """Load durable approved website-image metadata without touching file_search."""
     rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
@@ -50073,7 +50073,7 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
         "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
         "tool_choice": "required",
         "include": ["file_search_call.results"],
-        "max_output_tokens": 120,
+        "max_output_tokens": 32,
     }
     try:
         response = client.responses.create(**request)
@@ -50110,12 +50110,22 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
         if key in seen_files:
             continue
         seen_files.add(key)
-        full_text = _website_file_full_text_v69012(file_id) if file_id else ""
-        file_text = full_text or result_text
-        if not file_text:
+        # v69020 performance: parse the exact file_search result text first. A
+        # full OpenAI file download is only needed when the returned evidence does
+        # not contain image payloads. This preserves retrieval authority while
+        # removing sequential network reads from the common path.
+        file_text = result_text
+        payloads = []
+        if file_text:
+            payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
+            payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
+        if not payloads and file_id:
+            full_text = _website_file_full_text_v69012(file_id)
+            if full_text:
+                payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
+                payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
+        if not payloads:
             continue
-        payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
-        payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
         for payload in payloads:
             passed, score = _website_image_universal_payload_pass_v69014(
                 prompt_text, answer_text, payload, float(row.get("score") or 0.0)
@@ -50244,12 +50254,22 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
         if key in seen_files:
             continue
         seen_files.add(key)
-        full_text = _website_file_full_text_v69012(file_id) if file_id else ""
-        file_text = full_text or result_text
-        if not file_text:
+        # v69020 performance: parse the exact file_search result text first. A
+        # full OpenAI file download is only needed when the returned evidence does
+        # not contain image payloads. This preserves retrieval authority while
+        # removing sequential network reads from the common path.
+        file_text = result_text
+        payloads = []
+        if file_text:
+            payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
+            payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
+        if not payloads and file_id:
+            full_text = _website_file_full_text_v69012(file_id)
+            if full_text:
+                payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
+                payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
+        if not payloads:
             continue
-        payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
-        payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
         for payload in payloads:
             if not _website_image_final_payload_gate_v68885(prompt_text, payload):
                 continue
@@ -50289,26 +50309,147 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
     return output
 
 
-def _website_model_control_gate_v68885(prompt_text, image_record):
-    """Gate legacy/model-selected website images by strong filename contradiction."""
+
+def _website_image_product_codes_v69020(value):
+    """Return likely AutoTecPro 3-digit product codes, excluding vehicle names.
+
+    v69019 treated the numeric part of vehicle names such as F-250/F350/F450 as
+    competing product codes. That could hard-reject a valid image for a prompt
+    such as "model 726" even when the candidate contained no different ATP model.
+    Keep the safety gate, but only compare genuinely standalone three-digit codes.
+    """
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return set()
+    # Mask common vehicle/chassis forms before extracting standalone product codes.
+    # This is intentionally narrow: it fixes F-250/F350/F450/E-350 style names
+    # without treating ordinary prose such as "for 726" as a vehicle prefix.
+    masked = re.sub(r"\b(?:f|e)[\s-]?\d{3}\b", " ", text, flags=re.I)
+    return set(re.findall(r"\b\d{3}\b", masked))
+
+
+def _website_image_effective_answer_context_v69020(prompt_text, answer_text=""):
+    """Carry the prior Technical conclusion into generic visual follow-ups.
+
+    A follow-up such as "do you have a photo" must not become more permissive
+    than the original Technical question. The prior assistant answer is context
+    only for image publication; it does not modify the visible answer pipeline.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = clean_visible_chat_text(str(answer_text or ""))
+    parts = [answer] if answer.strip() else []
+    if (
+        current
+        and _website_image_explicit_visual_request_v68888(current)
+        and not _website_image_query_role_v68884(current)
+    ):
+        for message in reversed(list(st.session_state.get("messages") or [])[-10:]):
+            if not isinstance(message, dict):
+                continue
+            if str(message.get("role") or "").strip().lower() != "assistant":
+                continue
+            visible, _ = extract_images_from_message_content(str(message.get("content") or ""))
+            visible = clean_visible_chat_text(visible)
+            visible = re.sub(r"\s+", " ", str(visible or "")).strip()
+            if visible:
+                parts.insert(0, visible[:5000])
+                break
+    return "\n\n".join(part for part in parts if str(part or "").strip())
+
+
+def _website_image_answer_consistency_gate_v69020(prompt_text, answer_text, image_record):
+    """Block automatic images that overstate or contradict the Technical answer.
+
+    This is the single answer-aware safety layer shared by deterministic,
+    file-search, model-control, and explicit-photo publication paths. It never
+    approves an image by itself; all existing vehicle/year/section/visual gates
+    still run first.
+    """
     if not isinstance(image_record, dict):
         return False
     if str(image_record.get("source") or "") != "website_knowledge":
         return True
 
-    # v69014: app-side universal retrieval carries a positive answer/section
-    # relationship proof. Unknown/new Technical topics therefore remain fail-closed
-    # without requiring a hard-coded role entry.
+    effective_prompt = _website_image_effective_query_v68890(prompt_text)
+    role = _website_image_query_role_v68884(effective_prompt)
+    if not role:
+        return True
+
+    answer_context = _website_image_effective_answer_context_v69020(
+        prompt_text, answer_text
+    ).casefold()
+    if not answer_context.strip():
+        return True
+
+    high_risk = {
+        "car_model_ac", "protocol", "factory_camera", "cargo_bed_camera",
+        "aftermarket_camera", "dashboard_fitment", "climate", "harness", "audio",
+    }
+    uncertainty_phrases = (
+        "not confirmed in the retrieved", "not confirmed in the technical",
+        "not confirmed for", "not verified", "do not have a verified",
+        "i do not have a verified", "i did not find a verified",
+        "did not find a verified", "do not guess", "don't guess",
+        "don’t guess", "before confirming the exact", "without confirmation",
+    )
+    if role in high_risk and any(term in answer_context for term in uncertainty_phrases):
+        return False
+
+    image_text = " ".join((
+        str(image_record.get("name") or ""),
+        str(image_record.get("website_section_heading_v69010") or ""),
+        str(image_record.get("website_nearby_instruction_text_v69010") or ""),
+        str(image_record.get("website_visual_analysis_v69010") or ""),
+        str(image_record.get("archive_web_url") or ""),
+    )).casefold()
+
+    # Strong protocol contradiction protection. A screenshot showing Simple must
+    # never auto-publish when the final answer says Xinbasi (and vice versa).
+    answer_xinbasi = "xinbasi" in answer_context
+    answer_simple = bool(re.search(r"\bprotocol\s*(?:is|:)?\s*simple\b|\bset\s+(?:the\s+)?protocol\s+to\s+simple\b", answer_context))
+    image_xinbasi = "xinbasi" in image_text
+    image_simple = bool(re.search(r"\bprotocol\s*(?:is|:)?\s*simple\b|\bsimple\b", image_text))
+    if answer_xinbasi and image_simple and not image_xinbasi:
+        return False
+    if answer_simple and image_xinbasi and not image_simple:
+        return False
+
+    # Respect explicit negative instructions in the answer.
+    negative_pairs = (
+        (r"do not use.{0,80}simple", "simple"),
+        (r"do not use.{0,100}grand cherokee", "grand cherokee"),
+        (r"do not use.{0,100}f150", "f150"),
+        (r"do not use.{0,100}s2 auto", "s2 auto"),
+    )
+    for pattern, image_term in negative_pairs:
+        if re.search(pattern, answer_context, flags=re.I | re.S) and image_term in image_text:
+            return False
+
+    return True
+
+def _website_model_control_gate_v68885(prompt_text, image_record):
+    """Gate every model/file-search website image with one effective subject."""
+    if not isinstance(image_record, dict):
+        return False
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return True
+
+    effective_prompt_v69020 = _website_image_effective_query_v68890(prompt_text)
+    query_role = _website_image_query_role_v68884(effective_prompt_v69020)
+
+    # v69020: use the same threshold that the universal relation classifier used.
+    # v69019 accepted a classified candidate at score >=6 and then silently raised
+    # the publication requirement to 12 here, creating a false-negative path.
     if bool(image_record.get("website_file_search_universal_v69014")):
         if not bool(image_record.get("website_universal_relation_pass_v69014")):
             return False
         try:
-            if float(image_record.get("website_universal_relation_score_v69014") or 0.0) < 12.0:
+            required = 6.0 if query_role else 12.0
+            if float(image_record.get("website_universal_relation_score_v69014") or 0.0) < required:
                 return False
         except Exception:
             return False
 
-    query_role = _website_image_query_role_v68884(prompt_text)
     if not query_role:
         return True
 
@@ -50318,7 +50459,6 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
     )
     caption = str(image_record.get("name") or "")
     asset_role = _website_image_url_role_v68885(image_url, caption)
-
     if _website_image_roles_conflict_v68885(query_role, asset_role):
         return False
 
@@ -50327,26 +50467,16 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
         "aftermarket_camera", "dashboard_fitment",
     }
     if query_role in high_risk_roles_v69005:
-        # v69005: a model/file_search image control must resolve back to the
-        # approved durable image index and pass the same vehicle/section/visual
-        # authority gate as deterministic lookup. This closes the fallback path
-        # that could still publish a wrong RAM image when deterministic lookup
-        # returned no record.
         payload_v69005 = _website_image_payload_for_chat_record_v69005(image_record)
         if payload_v69005:
-            return _website_image_final_payload_gate_v68885(prompt_text, payload_v69005)
-
-        # v69010: legacy learned website packages can still contain the exact
-        # approved image record even when no durable image-index row exists.
-        # v69005 rejected that path unconditionally, which is the deployed
-        # text-without-image regression. Validate copied file_search provenance
-        # through the SAME final payload gate instead of trusting URL alone.
+            return _website_image_final_payload_gate_v68885(
+                effective_prompt_v69020, payload_v69005
+            )
         provenance_payload_v69010 = _website_model_control_payload_v69010(image_record)
         if not provenance_payload_v69010:
             return False
         return _website_image_final_payload_gate_v68885(
-            prompt_text,
-            provenance_payload_v69010,
+            effective_prompt_v69020, provenance_payload_v69010,
         )
 
     return True
@@ -50356,13 +50486,9 @@ def _website_image_final_authority_v68885(
     prompt_text,
     images,
     deterministic_images=None,
+    answer_text="",
 ):
-    """One final authority gate for all website images before display/save.
-
-    If the deterministic image index has a verified result for an explicit
-    subsection request, it is the sole website-image authority. Legacy
-    file_search/model controls cannot add or replace another website image.
-    """
+    """One final answer-aware authority for every website image publication path."""
     deterministic_images = [
         item for item in (deterministic_images or [])
         if isinstance(item, dict)
@@ -50377,23 +50503,19 @@ def _website_image_final_authority_v68885(
     }
     deterministic_keys.discard("")
 
-    query_role = _website_image_query_role_v68884(prompt_text)
+    effective_prompt_v69020 = _website_image_effective_query_v68890(prompt_text)
+    query_role = _website_image_query_role_v68884(effective_prompt_v69020)
     explicit_role = query_role in {
-        "car_model_ac",
-        "factory_camera",
-        "cargo_bed_camera",
-        "aftermarket_camera",
-        "dashboard_fitment",
+        "car_model_ac", "factory_camera", "cargo_bed_camera",
+        "aftermarket_camera", "dashboard_fitment",
     }
 
     output = []
     seen = set()
-
     for image in images or []:
         if not isinstance(image, dict):
             output.append(image)
             continue
-
         if str(image.get("source") or "") != "website_knowledge":
             output.append(image)
             continue
@@ -50404,20 +50526,23 @@ def _website_image_final_authority_v68885(
             or str(image.get("data_url") or "").strip()
         )
 
-        # Deterministic authority wins for explicit visual roles.
         if explicit_role and deterministic_keys:
             if key not in deterministic_keys:
                 continue
         else:
-            if not _website_model_control_gate_v68885(prompt_text, image):
+            if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
                 continue
+
+        if not _website_image_answer_consistency_gate_v69020(
+            effective_prompt_v69020, answer_text, image
+        ):
+            continue
 
         if key and key in seen:
             continue
         if key:
             seen.add(key)
         output.append(image)
-
     return output
 
 
@@ -50472,11 +50597,13 @@ def _website_image_rank_v68883(prompt_text, payload):
             if any(alias.strip() in candidate for alias in aliases):
                 score += 8.0
 
-    # Strict gate only when the *current user prompt* explicitly names a 3-digit
-    # product/model code. Recent assistant alternatives do not force a mismatch.
-    explicit_codes = set(re.findall(r"\b\d{3}\b", normalized_current))
+    # v69020: compare actual ATP product codes, not the numeric part of vehicle
+    # names such as F-250/F350/F450. Also ignore the appended answer-ranking block
+    # when deciding which code the user explicitly requested.
+    prompt_only_v69020 = current.split("[VERIFIED ANSWER CONTEXT", 1)[0]
+    explicit_codes = _website_image_product_codes_v69020(prompt_only_v69020)
     if explicit_codes:
-        candidate_codes = set(re.findall(r"\b\d{3}\b", candidate))
+        candidate_codes = _website_image_product_codes_v69020(candidate)
         if candidate_codes and not (explicit_codes & candidate_codes):
             return -1000.0
 
@@ -61601,6 +61728,7 @@ else:
                         else interaction_prompt,
                         _dedupe_website_chat_images_v68883(generated_images),
                         deterministic_images=website_index_images_v68883,
+                        answer_text=streamed_answer_clean_v68870,
                     )
                     answer_body = clean_visible_chat_text(
                         streamed_answer_clean_v68870
@@ -61647,6 +61775,7 @@ else:
                         else interaction_prompt,
                         _dedupe_website_chat_images_v68883(generated_images),
                         deterministic_images=website_index_images_v68883,
+                        answer_text=partial_stream_clean_v68870,
                     )
                     partial_answer_body = clean_visible_chat_text(
                         partial_stream_clean_v68870
@@ -61802,6 +61931,7 @@ else:
                             technical_request_prompt_v68879,
                             _dedupe_website_chat_images_v68883(generated_images),
                             deterministic_images=answer_context_images_v69008,
+                            answer_text=answer,
                         )
                         diagnostic_log(
                             "website_image_answer_context_recovery_v69008",
@@ -61860,7 +61990,7 @@ else:
                     ):
                         try:
                             prefetched_rows_v69015 = list(
-                                technical_image_prefetch_future_active_v69015.result() or []
+                                technical_image_prefetch_future_active_v69015.result(timeout=1.0) or []
                             )
                             if prefetched_rows_v69015:
                                 _technical_image_prefetch_cache_set_v69016(
@@ -61907,6 +62037,7 @@ else:
                             technical_request_prompt_v68879,
                             _dedupe_website_chat_images_v68883(generated_images),
                             deterministic_images=website_index_images_v68883,
+                            answer_text=answer,
                         )
                         diagnostic_log(
                             "website_universal_related_image_recovery_v69014",
@@ -62952,6 +63083,25 @@ def _render_final_print_authority_v69009():
         @media print {
             @page { size: auto; margin: 12mm 11mm 14mm; }
 
+            /* v69020 strict print isolation: only the dedicated transcript branch
+               may paint. This prevents faint Admin/date/statistics UI from leaking
+               through Streamlit wrapper changes. */
+            body * {
+                visibility: hidden !important;
+            }
+            body *:has(.atp-print-transcript-v69007),
+            .atp-print-transcript-v69007,
+            .atp-print-transcript-v69007 * {
+                visibility: visible !important;
+            }
+            body *::before, body *::after {
+                visibility: hidden !important;
+            }
+            .atp-print-transcript-v69007 *::before,
+            .atp-print-transcript-v69007 *::after {
+                visibility: visible !important;
+            }
+
             html, body, #root,
             html:has(.atp-print-transcript-v69007),
             body:has(.atp-print-transcript-v69007),
@@ -63061,6 +63211,65 @@ def _render_final_print_authority_v69009():
                 contain: none !important;
                 break-inside: auto !important;
                 page-break-inside: auto !important;
+            }
+
+            /* v69020 polished pagination: short customer-reply blocks and image
+               units stay intact, while normal long Technical text remains
+               fragmentable across pages. */
+            html body .atp-print-body-v69007 blockquote.atp-customer-reply-box {
+                display: block !important;
+                break-inside: avoid-page !important;
+                page-break-inside: avoid !important;
+                margin: 2.5mm 0 4mm !important;
+                padding: 3mm 4mm !important;
+                border-left: 2.5px solid #f59e0b !important;
+                background: #f8fafc !important;
+                line-height: 1.5 !important;
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+            html body .atp-print-message-v69007.user {
+                break-inside: avoid-page !important;
+                page-break-inside: avoid !important;
+                margin: 0 0 5mm !important;
+                padding: 3mm 4mm !important;
+                border-left: 2px solid #94a3b8 !important;
+                background: #f8fafc !important;
+            }
+            html body .atp-print-message-v69007.assistant {
+                margin-bottom: 7mm !important;
+            }
+            html body .atp-print-body-v69007 h1 {
+                font-size: 18pt !important;
+                line-height: 1.18 !important;
+                margin: 3.5mm 0 2.5mm !important;
+            }
+            html body .atp-print-body-v69007 h2 {
+                font-size: 14.5pt !important;
+                line-height: 1.2 !important;
+                margin: 3.5mm 0 2mm !important;
+            }
+            html body .atp-print-body-v69007 h3,
+            html body .atp-print-body-v69007 h4 {
+                font-size: 12pt !important;
+                line-height: 1.25 !important;
+                margin: 3mm 0 1.8mm !important;
+            }
+            html body .atp-print-body-v69007 p {
+                margin: 0 0 2.4mm !important;
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+            html body .atp-print-image-v69007,
+            html body .atp-print-image-v69007 figcaption {
+                break-inside: avoid-page !important;
+                page-break-inside: avoid !important;
+            }
+            html body .atp-print-image-v69007 figcaption {
+                text-align: center !important;
+                color: #64748b !important;
+                font-size: 8.5pt !important;
+                margin-top: 1.5mm !important;
             }
 
             html body .atp-print-body-v69007 table {
