@@ -38041,22 +38041,28 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
             "- When information is not supported by Technical knowledge, say what is "
             "missing instead of guessing.\n"
             "- Website knowledge may contain SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
-            "IMAGE_ANALYSIS, and an exact AUTO_DISPLAY_IMAGE URL. Prefer images whose section "
-            "heading and nearby instruction text match the exact installation step being "
-            "answered. When one directly supports the current answer, append up to 4 internal "
-            "control lines at the END of the response, each exactly in this format: "
+            "IMAGE_ANALYSIS, an exact AUTO_DISPLAY_IMAGE URL, or older raw HTML with an exact "
+            "<img src=...> inside the same Technical section. Prefer images whose section heading "
+            "and nearby instruction text match the exact installation step being answered. For a "
+            "legacy raw-HTML image, use it only when the <img> belongs to the SAME matching section "
+            "(after that section's relevant instructions and before the next section heading). "
+            "When one directly supports the current answer, append up to 4 internal control lines "
+            "at the END of the response, each exactly in this format: "
             "[[ATP_WEB_IMAGE_JSON:{\"url\":\"EXACT_AUTO_DISPLAY_IMAGE_URL\","
             "\"caption\":\"short factual caption\","
             "\"source_page\":\"EXACT Final source URL from the retrieved package\","
             "\"page_title\":\"EXACT Page title from the retrieved package\","
             "\"section_heading\":\"EXACT SECTION_HEADING\","
             "\"nearby_instruction_text\":\"EXACT NEARBY_INSTRUCTION_TEXT\","
-            "\"visual_analysis\":\"EXACT IMAGE_ANALYSIS text\"}]]. "
-            "Copy those provenance fields only from the same retrieved image record/package; "
-            "do not summarize or invent them. Use only an exact URL retrieved from Technical "
-            "file_search knowledge. Never invent, rewrite, guess, or use an image merely because "
-            "it is from the same webpage. If no retrieved image directly supports the answer, "
-            "append no image control line."
+            "\"visual_analysis\":\"EXACT IMAGE_ANALYSIS text or empty string for a legacy HTML image\","
+            "\"legacy_html_section_bound\":false}]]. "
+            "For an older raw-HTML image with no IMAGE_ANALYSIS, copy its exact <img src> URL, exact "
+            "source page/title, exact matching section heading and nearby instructions, set "
+            "visual_analysis to an empty string, and set legacy_html_section_bound to true. "
+            "Copy provenance only from the SAME retrieved image/HTML section; do not summarize or "
+            "invent it. Use only an exact URL retrieved from Technical file_search knowledge. Never "
+            "invent, rewrite, guess, or use an image merely because it is from the same webpage. "
+            "If no retrieved image directly supports the answer, append no image control line."
         )
     if is_sales_workspace(selected_assistant):
         return (
@@ -38188,7 +38194,80 @@ def _build_ai_request(
     }
     if tools:
         request["tools"] = tools
+        # v69012: Technical automatic image recovery must use the exact file_search
+        # evidence returned for this answer instead of depending on the model to emit
+        # a hidden image-control line. The Responses API can include those result
+        # records in the final response without adding another search call.
+        if assistant == "🔧 Technical Support" and any(
+            isinstance(tool, dict) and tool.get("type") == "file_search"
+            for tool in tools
+        ):
+            request["include"] = ["file_search_call.results"]
     return request
+
+
+
+def _response_file_search_results_v69012(response):
+    """Return exact file_search result records included in one Responses result.
+
+    This is deliberately tolerant of SDK object/dict shapes. Only file id/name,
+    relevance score, and retrieved text are retained; no user prompt or secrets are
+    persisted. These records let Technical image recovery inspect the exact knowledge
+    that supported the answer instead of asking the model to reproduce image metadata.
+    """
+    if response is None:
+        return []
+
+    output = response.get("output") if isinstance(response, dict) else getattr(response, "output", None)
+    rows = []
+    for item in list(output or []):
+        item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", "")
+        if str(item_type or "") != "file_search_call":
+            continue
+        results = item.get("results") if isinstance(item, dict) else getattr(item, "results", None)
+        for result in list(results or []):
+            def value(name, default=""):
+                if isinstance(result, dict):
+                    return result.get(name, default)
+                return getattr(result, name, default)
+            file_id = str(value("file_id") or "").strip()
+            filename = str(value("filename") or value("file_name") or "").strip()
+            text = str(value("text") or "")
+            try:
+                score = float(value("score", 0.0) or 0.0)
+            except Exception:
+                score = 0.0
+            if not (file_id or text):
+                continue
+            rows.append({
+                "file_id": file_id,
+                "filename": filename,
+                "score": score,
+                "text": text,
+            })
+    return rows
+
+
+def _capture_response_file_search_results_v69012(response):
+    """Accumulate exact Technical file_search evidence for the current AI turn."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return
+    incoming = _response_file_search_results_v69012(response)
+    if not incoming:
+        return
+    existing = list(st.session_state.get("_technical_file_search_results_v69012") or [])
+    seen = {
+        (str(row.get("file_id") or ""), str(row.get("text") or ""))
+        for row in existing if isinstance(row, dict)
+    }
+    for row in incoming:
+        key = (str(row.get("file_id") or ""), str(row.get("text") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        existing.append(row)
+    existing.sort(key=lambda row: float((row or {}).get("score") or 0.0), reverse=True)
+    st.session_state["_technical_file_search_results_v69012"] = existing[:24]
 
 
 def _response_incomplete_reason(response):
@@ -38281,6 +38360,30 @@ def _request_without_file_search(request):
         retry_request["tools"] = tools
     else:
         retry_request.pop("tools", None)
+    # v69012: an include path for file_search results is invalid once the tool is
+    # removed. Strip only that optional field while preserving any unrelated include.
+    include_values = [
+        value for value in (retry_request.get("include") or [])
+        if str(value or "") != "file_search_call.results"
+    ]
+    if include_values:
+        retry_request["include"] = include_values
+    else:
+        retry_request.pop("include", None)
+    return retry_request
+
+
+def _request_without_file_search_results_include_v69012(request):
+    """Retry the same tool request without optional file_search result expansion."""
+    retry_request = dict(request or {})
+    include_values = [
+        value for value in (retry_request.get("include") or [])
+        if str(value or "") != "file_search_call.results"
+    ]
+    if include_values:
+        retry_request["include"] = include_values
+    else:
+        retry_request.pop("include", None)
     return retry_request
 
 
@@ -38295,6 +38398,7 @@ def _stream_one_ai_response(request):
     """
     active_request = dict(request or {})
     retried_without_file_search = False
+    retried_without_file_search_results_include_v69012 = False
 
     while True:
         try:
@@ -38317,19 +38421,30 @@ def _stream_one_ai_response(request):
                 isinstance(tool, dict) and tool.get("type") == "file_search"
                 for tool in (active_request.get("tools") or [])
             )
-            if (
-                _is_openai_bad_request(error)
-                and has_file_search
-                and not retried_without_file_search
-            ):
-                diagnostic_log(
-                    "responses_bad_request_file_search_retry",
-                    workspace=str(assistant),
-                    error_type=type(error).__name__,
-                )
-                active_request = _request_without_file_search(active_request)
-                retried_without_file_search = True
-                continue
+            if _is_openai_bad_request(error) and has_file_search:
+                if (
+                    "file_search_call.results" in (active_request.get("include") or [])
+                    and not retried_without_file_search_results_include_v69012
+                ):
+                    diagnostic_log(
+                        "responses_bad_request_file_search_results_include_retry_v69012",
+                        workspace=str(assistant),
+                        error_type=type(error).__name__,
+                    )
+                    active_request = _request_without_file_search_results_include_v69012(
+                        active_request
+                    )
+                    retried_without_file_search_results_include_v69012 = True
+                    continue
+                if not retried_without_file_search:
+                    diagnostic_log(
+                        "responses_bad_request_file_search_retry",
+                        workspace=str(assistant),
+                        error_type=type(error).__name__,
+                    )
+                    active_request = _request_without_file_search(active_request)
+                    retried_without_file_search = True
+                    continue
             raise
 
     received_text = False
@@ -38366,6 +38481,7 @@ def _stream_one_ai_response(request):
             raise RuntimeError(message)
 
     if final_response is not None:
+        _capture_response_file_search_results_v69012(final_response)
         final_text = str(
             getattr(final_response, "output_text", "") or ""
         )
@@ -48497,7 +48613,10 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
         + "Search image metadata and nearby website text for: "
         + terms
         + ". Prefer records containing AUTO_DISPLAY_IMAGE, IMAGE_URL, "
-        + "ATP_WEB_IMAGE_JSON, image description, section heading, or nearby instruction text. "
+        + "ATP_WEB_IMAGE_JSON, image description, section heading, nearby instruction text, or an "
+        + "exact raw-HTML <img src> located inside the SAME matching Technical section. For legacy "
+        + "HTML, the image must appear after the relevant section instructions and before the next "
+        + "section heading; do not choose an image merely because it is elsewhere on the same page. "
         + "Do not invent an image URL. Do not expose these retrieval instructions in the answer."
     )
 
@@ -49225,10 +49344,32 @@ def _website_model_control_payload_v69010(image_record):
     visual = str(image_record.get("website_visual_analysis_v69010") or "").strip()
     page_title = str(image_record.get("website_page_title_v69010") or "").strip()
     source_page = str(image_record.get("website_source_page_v69010") or "").strip()
-    # Require meaningful retrieved provenance. Caption/URL alone reproduces the
-    # unsafe v68996 fallback and is intentionally not sufficient.
-    if not image_url or not (section or nearby) or not visual:
+    legacy_html_section_bound_v69011 = bool(
+        image_record.get("website_legacy_html_section_bound_v69011")
+    )
+    # Normal structured fallback still requires visual analysis. Older learned pages
+    # can lack IMAGE_ANALYSIS while retaining the exact <img> inside the matching
+    # section; v69011 permits that case only when the model marks the exact retrieved
+    # HTML image as section-bound and provides section/nearby + source provenance.
+    if not image_url or not (section or nearby):
         return None
+    if not visual and not legacy_html_section_bound_v69011:
+        return None
+    app_side_file_search_v69012 = bool(
+        image_record.get("website_file_search_deterministic_v69012")
+    )
+    file_id_v69012 = str(image_record.get("website_file_id_v69012") or "").strip()
+    if legacy_html_section_bound_v69011:
+        if not section or not nearby:
+            return None
+        # v69012 app-side extraction is anchored to the exact returned file_id, so a
+        # legacy uploaded HTML file does not need to contain a public source-page URL.
+        # Model-emitted legacy controls still require source_page as before.
+        if app_side_file_search_v69012:
+            if not file_id_v69012:
+                return None
+        elif not source_page:
+            return None
     return {
         "database_choice": "Technical Support Database",
         "image_url": image_url,
@@ -49239,7 +49380,201 @@ def _website_model_control_payload_v69010(image_record):
         "page_title": page_title,
         "source_page": source_page,
         "keywords": " ".join((section, nearby, page_title)),
+        "legacy_html_section_bound_v69011": legacy_html_section_bound_v69011,
     }
+
+
+
+def _website_file_source_url_v69012(text_value):
+    value = str(text_value or "")
+    for label in ("Final source URL:", "Requested URL:", "Source page:"):
+        match = re.search(rf"(?im)^{re.escape(label)}\s*(https?://\S+)", value)
+        if match:
+            return str(match.group(1) or "").strip().rstrip(".,;)")
+    patterns = (
+        r'<link\b[^>]*\brel=["\'][^"\']*canonical[^"\']*["\'][^>]*\bhref=["\']([^"\']+)',
+        r'<meta\b[^>]*\bproperty=["\']og:url["\'][^>]*\bcontent=["\']([^"\']+)',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, value, flags=re.I | re.S)
+        if match and str(match.group(1) or "").strip().startswith("https://"):
+            return html.unescape(str(match.group(1) or "").strip())
+    return ""
+
+
+def _website_file_title_v69012(text_value, filename=""):
+    value = str(text_value or "")
+    match = re.search(r"(?im)^Page title:\s*(.+?)\s*$", value)
+    if match:
+        return re.sub(r"\s+", " ", str(match.group(1) or "")).strip()
+    match = re.search(r"<title\b[^>]*>(.*?)</title>", value, flags=re.I | re.S)
+    if match:
+        return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", match.group(1)))).strip()
+    return re.sub(r"[_\-]+", " ", str(filename or "")).strip()
+
+
+@st.cache_data(ttl=900, max_entries=96, show_spinner=False)
+def _website_file_full_text_v69012(file_id):
+    """Read one retrieved Technical file by exact OpenAI file id, with a bounded cache."""
+    clean_id = str(file_id or "").strip()
+    if not clean_id:
+        return ""
+    try:
+        return str(_website_openai_file_text_v68892(clean_id) or "")[:WEBSITE_MAX_EXTRACTED_CHARS * 3]
+    except Exception:
+        return ""
+
+
+def _website_structured_image_payloads_from_file_v69012(text_value, filename="", file_id=""):
+    """Parse IMAGE/AUTO_DISPLAY_IMAGE records directly from a learned website package."""
+    value = str(text_value or "")
+    if "AUTO_DISPLAY_IMAGE:" not in value:
+        return []
+    page_title = _website_file_title_v69012(value, filename)
+    source_page = _website_file_source_url_v69012(value)
+    starts = [m.start() for m in re.finditer(r"(?im)^IMAGE\s+\d+\s*$", value)]
+    if not starts:
+        starts = [0]
+    starts.append(len(value))
+    payloads = []
+    for idx in range(len(starts) - 1):
+        block = value[starts[idx]:starts[idx + 1]]
+        def field(label):
+            match = re.search(rf"(?im)^{re.escape(label)}\s*:\s*(.*?)\s*$", block)
+            return re.sub(r"\s+", " ", str(match.group(1) or "")).strip() if match else ""
+        image_url = field("AUTO_DISPLAY_IMAGE")
+        if not image_url.startswith("https://"):
+            continue
+        analysis_match = re.search(r"(?ims)^IMAGE_ANALYSIS:\s*(.*?)(?=\n\s*IMAGE\s+\d+\s*$|\Z)", block)
+        analysis = re.sub(r"\s+", " ", str(analysis_match.group(1) or "")).strip() if analysis_match else ""
+        payloads.append({
+            "database_choice": "Technical Support Database",
+            "image_url": image_url,
+            "caption": field("IMAGE_CAPTION"),
+            "section_heading": field("SECTION_HEADING"),
+            "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
+            "visual_analysis": analysis,
+            "page_title": page_title,
+            "source_page": source_page,
+            "keywords": " ".join((page_title, field("SECTION_HEADING"), field("NEARBY_INSTRUCTION_TEXT"))),
+            "file_id_v69012": str(file_id or ""),
+            "legacy_html_section_bound_v69011": False,
+        })
+    return payloads
+
+
+def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file_id=""):
+    """Recover exact section-bound images from older raw HTML Technical files."""
+    value = str(text_value or "")
+    if not re.search(r"<(?:img|picture|source|a)\b", value, flags=re.I):
+        return []
+    parser = KnowledgePageHTMLParser()
+    try:
+        parser.feed(value)
+    except Exception:
+        return []
+    source_page = _website_file_source_url_v69012(value)
+    page_title = _website_file_title_v69012(value, filename) or str(getattr(parser, "title", "") or "")
+    raw_images = list(getattr(parser, "images", None) or [])
+    raw_images.extend(_website_raw_html_image_candidates_v68996(value))
+    base_url = source_page or "https://autotecpro.com/"
+    candidates = _website_image_candidate_urls(raw_images, base_url)
+    payloads = []
+    for item in candidates:
+        image_url = str(item.get("url") or "").strip()
+        if not image_url.startswith("https://"):
+            continue
+        section = re.sub(r"\s+", " ", str(item.get("nearest_heading") or "")).strip()
+        nearby = re.sub(r"\s+", " ", str(item.get("nearby_text") or "")).strip()
+        if not section or not nearby:
+            continue
+        payloads.append({
+            "database_choice": "Technical Support Database",
+            "image_url": image_url,
+            "caption": re.sub(r"\s+", " ", str(item.get("alt") or item.get("title") or "")).strip(),
+            "section_heading": section,
+            "nearby_instruction_text": nearby,
+            "visual_analysis": "",
+            "page_title": page_title,
+            "source_page": source_page,
+            "keywords": " ".join((page_title, section, nearby)),
+            "file_id_v69012": str(file_id or ""),
+            "legacy_html_section_bound_v69011": True,
+        })
+    return payloads
+
+
+def _website_file_search_images_v69012(prompt_text, result_rows):
+    """Deterministically recover approved related images from exact file_search evidence.
+
+    The model is not an authority here. We inspect the files actually returned by
+    file_search, normalize both modern structured packages and old raw HTML into the
+    same payload, and run every candidate through the existing vehicle/year/section/
+    visual gates. This closes the cross-model text-without-image regression.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    if not _website_image_visual_intent_v68883(prompt_text):
+        return []
+
+    ranked = []
+    seen_files = set()
+    ordered = sorted(
+        [row for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+    for row in ordered[:8]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        result_text = str(row.get("text") or "")
+        key = file_id or (filename + "|" + result_text[:200])
+        if key in seen_files:
+            continue
+        seen_files.add(key)
+        full_text = _website_file_full_text_v69012(file_id) if file_id else ""
+        file_text = full_text or result_text
+        if not file_text:
+            continue
+        payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
+        payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
+        for payload in payloads:
+            if not _website_image_final_payload_gate_v68885(prompt_text, payload):
+                continue
+            score = _website_image_rank_v68883(prompt_text, payload)
+            if score < 6.0:
+                continue
+            score += max(0.0, min(float(row.get("score") or 0.0), 1.0)) * 12.0
+            ranked.append((score, payload, file_id))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    output = []
+    seen_urls = set()
+    for score, payload, file_id in ranked:
+        url = str(payload.get("image_url") or "").strip()
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        output.append({
+            "name": str(payload.get("caption") or "Relevant instruction image").strip(),
+            "data_url": url,
+            "source": "website_knowledge",
+            "asset_type": "website_instruction_image",
+            "archive_web_url": url,
+            "generated": False,
+            "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+            "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+            "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
+            "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+            "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+            "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
+            "website_file_search_deterministic_v69012": True,
+            "website_file_id_v69012": str(file_id or "").strip(),
+            "website_image_match_score_v68883": float(score),
+        })
+        if len(output) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
+            break
+    return output
 
 
 def _website_model_control_gate_v68885(prompt_text, image_record):
@@ -50009,6 +50344,7 @@ def extract_website_image_controls_v68870(text_value):
             "website_section_heading_v69010": re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip(),
             "website_nearby_instruction_text_v69010": re.sub(r"\s+", " ", str(payload.get("nearby_instruction_text") or "")).strip(),
             "website_visual_analysis_v69010": re.sub(r"\s+", " ", str(payload.get("visual_analysis") or "")).strip(),
+            "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound")),
         })
         if len(records) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
             break
@@ -60106,7 +60442,11 @@ else:
                         "ATP_WEB_IMAGE_JSON control so the app can display it after the text answer. "
                         "Include the exact source_page, page_title, section_heading, nearby_instruction_text, "
                         "and visual_analysis from that SAME retrieved image package in the hidden control; "
-                        "copy them verbatim rather than inventing or summarizing provenance. "
+                        "copy them verbatim rather than inventing or summarizing provenance. If the older "
+                        "retrieved knowledge has no structured image record but contains an exact raw-HTML "
+                        "<img src> inside the SAME matching section, you may use that exact URL: copy the exact "
+                        "section/nearby/source provenance, use an empty visual_analysis, and set "
+                        "legacy_html_section_bound=true. Do not use an image from another section of the page. "
                         "Do not invent an image URL, do not use an unrelated image, and do not claim an image "
                         "exists if the retrieved approved knowledge does not provide one. The app's existing "
                         "final website-image authority gate will validate the image before display.\n"
@@ -60117,6 +60457,9 @@ else:
                         has_uploaded_images=has_uploaded_images,
                     )
                     ai_request_prompt += build_graphic_project_context()
+
+                if assistant == "🔧 Technical Support":
+                    st.session_state["_technical_file_search_results_v69012"] = []
 
                 try:
                     diagnostic_log(
@@ -60394,6 +60737,55 @@ else:
                 except Exception as error:
                     diagnostic_log(
                         "website_image_answer_context_recovery_failed_v69008",
+                        error_type=type(error).__name__,
+                        error=str(error)[:500],
+                    )
+
+        # v69012: authoritative app-side fallback over the exact file_search evidence.
+        # Run after both index passes. If the durable index produced no image, this
+        # deterministically inspects the files that actually supported the answer and
+        # normalizes modern image packages + legacy section-bound HTML images. This
+        # removes dependence on the model emitting ATP_WEB_IMAGE_JSON.
+        if assistant == "🔧 Technical Support" and _website_image_visual_intent_v68883(
+            technical_request_prompt_v68879
+        ):
+            indexed_website_images_v69012 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+                and bool(image.get("website_image_index_v68883"))
+            ]
+            if not indexed_website_images_v69012:
+                try:
+                    file_search_images_v69012 = _website_file_search_images_v69012(
+                        technical_request_prompt_v68879,
+                        st.session_state.get("_technical_file_search_results_v69012") or [],
+                    )
+                    if file_search_images_v69012:
+                        # App-side file_search evidence outranks model-emitted legacy
+                        # controls. Preserve non-website assets and replace only the
+                        # non-index website-image fallback set.
+                        generated_images = [
+                            image for image in (generated_images or [])
+                            if not (
+                                isinstance(image, dict)
+                                and str(image.get("source") or "") == "website_knowledge"
+                                and not bool(image.get("website_image_index_v68883"))
+                            )
+                        ]
+                        generated_images.extend(file_search_images_v69012)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=website_index_images_v68883,
+                        )
+                        diagnostic_log(
+                            "website_file_search_image_recovery_v69012",
+                            recovered=len(file_search_images_v69012),
+                        )
+                except Exception as error:
+                    diagnostic_log(
+                        "website_file_search_image_recovery_failed_v69012",
                         error_type=type(error).__name__,
                         error=str(error)[:500],
                     )
