@@ -1,4 +1,4 @@
-# AutoTecPro AI v69020 — Unified Technical Image Authority + Performance + Print Isolation; Graphic engine preserved
+# AutoTecPro AI v69021 — Related Reference Image Authority + Fallback Precedence Fix; v69020 performance/print preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -50357,42 +50357,46 @@ def _website_image_effective_answer_context_v69020(prompt_text, answer_text=""):
     return "\n\n".join(part for part in parts if str(part or "").strip())
 
 
-def _website_image_answer_consistency_gate_v69020(prompt_text, answer_text, image_record):
-    """Block automatic images that overstate or contradict the Technical answer.
-
-    This is the single answer-aware safety layer shared by deterministic,
-    file-search, model-control, and explicit-photo publication paths. It never
-    approves an image by itself; all existing vehicle/year/section/visual gates
-    still run first.
-    """
-    if not isinstance(image_record, dict):
+def _website_image_answer_uncertain_v69021(answer_text):
+    """Return True when the visible Technical conclusion explicitly lacks exact confirmation."""
+    answer_context = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip().casefold()
+    if not answer_context:
         return False
-    if str(image_record.get("source") or "") != "website_knowledge":
-        return True
-
-    effective_prompt = _website_image_effective_query_v68890(prompt_text)
-    role = _website_image_query_role_v68884(effective_prompt)
-    if not role:
-        return True
-
-    answer_context = _website_image_effective_answer_context_v69020(
-        prompt_text, answer_text
-    ).casefold()
-    if not answer_context.strip():
-        return True
-
-    high_risk = {
-        "car_model_ac", "protocol", "factory_camera", "cargo_bed_camera",
-        "aftermarket_camera", "dashboard_fitment", "climate", "harness", "audio",
-    }
     uncertainty_phrases = (
         "not confirmed in the retrieved", "not confirmed in the technical",
         "not confirmed for", "not verified", "do not have a verified",
         "i do not have a verified", "i did not find a verified",
         "did not find a verified", "do not guess", "don't guess",
         "don’t guess", "before confirming the exact", "without confirmation",
+        "do not currently have a verified", "no verified exact",
     )
-    if role in high_risk and any(term in answer_context for term in uncertainty_phrases):
+    return any(term in answer_context for term in uncertainty_phrases)
+
+
+def _website_image_answer_conflict_v69021(prompt_text, answer_text, image_record):
+    """Return True only when an image would contradict or overstate a stated setting.
+
+    v69020 treated any uncertainty sentence as a reason to suppress every image,
+    including safe same-topic reference images. v69021 separates uncertainty from
+    contradiction: uncertainty changes the publication tier, while explicit model,
+    role, protocol, and negative-setting conflicts still fail closed.
+    """
+    if not isinstance(image_record, dict):
+        return True
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return False
+
+    effective_prompt = _website_image_effective_query_v68890(prompt_text)
+    role = _website_image_query_role_v68884(effective_prompt)
+    if not role:
+        return False
+
+    answer_context = _website_image_effective_answer_context_v69020(
+        prompt_text, answer_text
+    ).casefold()
+    if not answer_context.strip():
         return False
 
     image_text = " ".join((
@@ -50404,17 +50408,23 @@ def _website_image_answer_consistency_gate_v69020(prompt_text, answer_text, imag
     )).casefold()
 
     # Strong protocol contradiction protection. A screenshot showing Simple must
-    # never auto-publish when the final answer says Xinbasi (and vice versa).
+    # never publish when the answer positively instructs Xinbasi, and vice versa.
     answer_xinbasi = "xinbasi" in answer_context
-    answer_simple = bool(re.search(r"\bprotocol\s*(?:is|:)?\s*simple\b|\bset\s+(?:the\s+)?protocol\s+to\s+simple\b", answer_context))
+    answer_simple = bool(re.search(
+        r"\bprotocol\s*(?:is|:)?\s*simple\b|\bset\s+(?:the\s+)?protocol\s+to\s+simple\b",
+        answer_context,
+    ))
     image_xinbasi = "xinbasi" in image_text
-    image_simple = bool(re.search(r"\bprotocol\s*(?:is|:)?\s*simple\b|\bsimple\b", image_text))
+    image_simple = bool(re.search(
+        r"\bprotocol\s*(?:is|:)?\s*simple\b|\bsimple\b", image_text
+    ))
     if answer_xinbasi and image_simple and not image_xinbasi:
-        return False
+        return True
     if answer_simple and image_xinbasi and not image_simple:
-        return False
+        return True
 
-    # Respect explicit negative instructions in the answer.
+    # Respect explicit negative instructions in the answer. These are true
+    # contradictions, so they block both exact and reference-tier publication.
     negative_pairs = (
         (r"do not use.{0,80}simple", "simple"),
         (r"do not use.{0,100}grand cherokee", "grand cherokee"),
@@ -50423,9 +50433,58 @@ def _website_image_answer_consistency_gate_v69020(prompt_text, answer_text, imag
     )
     for pattern, image_term in negative_pairs:
         if re.search(pattern, answer_context, flags=re.I | re.S) and image_term in image_text:
-            return False
+            return True
 
-    return True
+    return False
+
+
+def _website_image_publication_tier_v69021(prompt_text, answer_text, image_record):
+    """Classify one already-related website image as exact, reference, or reject.
+
+    Existing model/vehicle/year/role/visual gates remain authoritative and run
+    before this function. This layer only decides whether an otherwise-approved
+    candidate may be presented as exact instructional evidence or as a clearly
+    labeled related reference when the final answer lacks exact confirmation.
+    """
+    if not isinstance(image_record, dict):
+        return "reject"
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return "exact_instructional"
+    if _website_image_answer_conflict_v69021(prompt_text, answer_text, image_record):
+        return "reject"
+    if _website_image_answer_uncertain_v69021(answer_text):
+        return "related_reference"
+    return "exact_instructional"
+
+
+def _website_image_apply_reference_label_v69021(image_record):
+    """Return a defensive copy carrying an explicit non-authoritative reference label."""
+    image = dict(image_record or {})
+    original_name = re.sub(r"\s+", " ", str(image.get("name") or "")).strip()
+    if original_name.casefold().startswith("related reference"):
+        label = original_name
+    elif original_name:
+        label = f"Related reference — {original_name}"
+    else:
+        label = "Related reference image"
+    image["name"] = label
+    image["website_publication_tier_v69021"] = "related_reference"
+    image["website_reference_only_v69021"] = True
+    image["website_reference_notice_v69021"] = (
+        "Related reference only — the exact setting is not confirmed by this image."
+    )
+    return image
+
+
+def _website_image_answer_consistency_gate_v69020(prompt_text, answer_text, image_record):
+    """Backward-compatible boolean authority retained for existing callers/tests.
+
+    v69021 no longer equates an uncertain answer with an image contradiction.
+    Safe related-reference images return True; the final authority labels them.
+    """
+    return _website_image_publication_tier_v69021(
+        prompt_text, answer_text, image_record
+    ) != "reject"
 
 def _website_model_control_gate_v68885(prompt_text, image_record):
     """Gate every model/file-search website image with one effective subject."""
@@ -50488,20 +50547,20 @@ def _website_image_final_authority_v68885(
     deterministic_images=None,
     answer_text="",
 ):
-    """One final answer-aware authority for every website image publication path."""
+    """One final answer-aware authority for every website image publication path.
+
+    v69021 fixes two production defects:
+    1) uncertainty no longer removes a safe same-topic reference image;
+    2) deterministic precedence is derived only from deterministic candidates that
+       actually survive model-control + final answer classification. A rejected
+       early deterministic candidate cannot suppress a safer universal fallback.
+    """
     deterministic_images = [
         item for item in (deterministic_images or [])
         if isinstance(item, dict)
         and str(item.get("source") or "") == "website_knowledge"
         and bool(item.get("website_image_index_v68883"))
     ]
-    deterministic_keys = {
-        str(item.get("website_image_sha256") or "").strip()
-        or str(item.get("archive_web_url") or "").strip()
-        or str(item.get("data_url") or "").strip()
-        for item in deterministic_images
-    }
-    deterministic_keys.discard("")
 
     effective_prompt_v69020 = _website_image_effective_query_v68890(prompt_text)
     query_role = _website_image_query_role_v68884(effective_prompt_v69020)
@@ -50510,33 +50569,65 @@ def _website_image_final_authority_v68885(
         "aftermarket_camera", "dashboard_fitment",
     }
 
+    # v69021: precedence comes only from deterministic candidates that survive
+    # every current authority. Reference-tier deterministic images do not exclude
+    # a later exact fallback; only surviving exact deterministic evidence does.
+    surviving_exact_deterministic_keys = set()
+    for item in deterministic_images:
+        if not _website_model_control_gate_v68885(effective_prompt_v69020, item):
+            continue
+        tier = _website_image_publication_tier_v69021(
+            effective_prompt_v69020, answer_text, item
+        )
+        if tier != "exact_instructional":
+            continue
+        key = (
+            str(item.get("website_image_sha256") or "").strip()
+            or str(item.get("archive_web_url") or "").strip()
+            or str(item.get("data_url") or "").strip()
+        )
+        if key:
+            surviving_exact_deterministic_keys.add(key)
+
     output = []
     seen = set()
-    for image in images or []:
-        if not isinstance(image, dict):
-            output.append(image)
+    for raw_image in images or []:
+        if not isinstance(raw_image, dict):
+            output.append(raw_image)
             continue
-        if str(image.get("source") or "") != "website_knowledge":
-            output.append(image)
+        if str(raw_image.get("source") or "") != "website_knowledge":
+            output.append(raw_image)
             continue
 
+        image = raw_image
         key = (
             str(image.get("website_image_sha256") or "").strip()
             or str(image.get("archive_web_url") or "").strip()
             or str(image.get("data_url") or "").strip()
         )
 
-        if explicit_role and deterministic_keys:
-            if key not in deterministic_keys:
-                continue
-        else:
-            if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
+        if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
+            continue
+
+        tier = _website_image_publication_tier_v69021(
+            effective_prompt_v69020, answer_text, image
+        )
+        if tier == "reject":
+            continue
+
+        if explicit_role and surviving_exact_deterministic_keys:
+            # Exact deterministic evidence remains authoritative over competing
+            # fallbacks. A deterministic candidate that was rejected or only
+            # reference-tier does not create a stale key lock.
+            if key not in surviving_exact_deterministic_keys:
                 continue
 
-        if not _website_image_answer_consistency_gate_v69020(
-            effective_prompt_v69020, answer_text, image
-        ):
-            continue
+        if tier == "related_reference":
+            image = _website_image_apply_reference_label_v69021(image)
+        else:
+            image = dict(image)
+            image["website_publication_tier_v69021"] = "exact_instructional"
+            image["website_reference_only_v69021"] = False
 
         if key and key in seen:
             continue
@@ -50544,7 +50635,6 @@ def _website_image_final_authority_v68885(
             seen.add(key)
         output.append(image)
     return output
-
 
 def _website_image_rank_v68883(prompt_text, payload):
     current = str(prompt_text or "")
