@@ -48457,7 +48457,8 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
             "Climate Control; A/C setting; automatic climate; manual climate"
         ),
         "harness": (
-            "Harness connection; connector; wiring; cable"
+            "Harness connection; power harness; main power harness; power connector; "
+            "different-year power harness; connector; wiring; cable"
         ),
         "audio": (
             "Audio Setup; AUX; Bluetooth audio; Factory AMP"
@@ -49073,10 +49074,14 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
             # alone is no longer sufficient authority.
             sparse_visual_v69004 = len(visual_only.strip()) < 55
             if sparse_visual_v69004:
-                # v69005: for high-risk Car Model/A/C lookup, section text alone
-                # is not enough to display a generic legacy image. Failing closed
-                # is safer than showing a wiring/camera photo as a setting screen.
-                return False
+                # v69009: restore the proven v68996 legacy-image behavior without
+                # removing the later RAM safety gates. At this point the candidate
+                # has already passed vehicle/year fitment, subsection-role matching,
+                # filename/caption role-conflict rejection, the physical wiring/
+                # camera specificity rejection above, and conflicting-selected-state
+                # rejection. A genuinely sparse approved legacy record may therefore
+                # use its authoritative Car Model/A/C webpage association again.
+                return True
             return visual_specificity_v69004 > -1.0 and strong_visual
 
         return strong_visual
@@ -61306,6 +61311,163 @@ except Exception as _print_transcript_error_v69006:
         error_type=type(_print_transcript_error_v69006).__name__,
         error=str(_print_transcript_error_v69006)[:500],
     )
+
+# v69009: final browser-print authority. This stylesheet is intentionally emitted
+# after all application UI and after the dedicated print transcript so no later
+# dark-theme/UI rule can override print colors. The universal :has() ancestry
+# selector removes the dependency on Streamlit's changing anonymous wrapper tree:
+# every actual ancestor of the transcript becomes normal, fragmentable document
+# flow, including #root and any Emotion/layout wrapper Streamlit inserts.
+def _render_final_print_authority_v69009():
+    st.markdown(
+        r"""
+        <style>
+        @media print {
+            @page { size: auto; margin: 12mm 11mm 14mm; }
+
+            html, body, #root,
+            html:has(.atp-print-transcript-v69007),
+            body:has(.atp-print-transcript-v69007),
+            body *:has(.atp-print-transcript-v69007) {
+                display: block !important;
+                float: none !important;
+                flex: none !important;
+                flex-basis: auto !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                overflow-x: visible !important;
+                overflow-y: visible !important;
+                position: static !important;
+                inset: auto !important;
+                transform: none !important;
+                contain: none !important;
+                clip: auto !important;
+                clip-path: none !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                background: #ffffff !important;
+                color-scheme: light !important;
+            }
+
+            /* Keep normal app elements hidden. Re-open only the transcript branch. */
+            [data-testid="stMainBlockContainer"] div[data-testid="stElementContainer"] {
+                display: none !important;
+            }
+            [data-testid="stMainBlockContainer"]
+            div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007) {
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                contain: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+
+            section[data-testid="stSidebar"],
+            header[data-testid="stHeader"],
+            [data-testid="stToolbar"],
+            [data-testid="stDecoration"],
+            [data-testid="stStatusWidget"],
+            [data-testid="stBottom"],
+            [data-testid="stChatInput"],
+            div[data-testid="stChatInput"] {
+                display: none !important;
+            }
+
+            html body .atp-print-transcript-v69007,
+            html body .atp-print-transcript-v69007 * {
+                box-sizing: border-box !important;
+                color: #111827 !important;
+                -webkit-text-fill-color: #111827 !important;
+                background-color: transparent !important;
+                background-image: none !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+                filter: none !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                color-scheme: light !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            html body .atp-print-transcript-v69007 {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                contain: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                font-family: Arial, Helvetica, sans-serif !important;
+                font-size: 10.5pt !important;
+                line-height: 1.45 !important;
+            }
+
+            html body .atp-print-message-v69007,
+            html body .atp-print-body-v69007,
+            html body .atp-print-body-v69007 p,
+            html body .atp-print-body-v69007 div,
+            html body .atp-print-body-v69007 ul,
+            html body .atp-print-body-v69007 ol,
+            html body .atp-print-body-v69007 li,
+            html body .atp-print-body-v69007 blockquote,
+            html body .atp-print-body-v69007 pre,
+            html body .atp-print-body-v69007 table {
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                contain: none !important;
+                break-inside: auto !important;
+                page-break-inside: auto !important;
+            }
+
+            html body .atp-print-body-v69007 table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                background: #ffffff !important;
+            }
+            html body .atp-print-body-v69007 th,
+            html body .atp-print-body-v69007 td {
+                color: #111827 !important;
+                -webkit-text-fill-color: #111827 !important;
+                background: #ffffff !important;
+                border: 1px solid #cbd5e1 !important;
+            }
+            html body .atp-print-image-v69007 {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+            html body .atp-print-image-v69007 img {
+                max-width: 100% !important;
+                max-height: 220mm !important;
+                width: auto !important;
+                height: auto !important;
+                object-fit: contain !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_render_final_print_authority_v69009()
+
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
 # the fixed cover until this point prevents stale login or authenticated DOM
