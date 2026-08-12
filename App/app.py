@@ -1,4 +1,4 @@
-# AutoTecPro AI v68988 — Consolidated Reference failure-envelope hardening
+# AutoTecPro AI v69017 — Knowledge Accuracy Engine; v69016 runtime/output + Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -38596,6 +38596,7 @@ def ask_ai_stream(
     request = original_request
     for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
         response = client.responses.create(**request)
+        _capture_response_file_search_results_v69012(response)
         fallback_text = str(getattr(response, "output_text", "") or "")
         if fallback_text:
             yield fallback_text
@@ -46544,6 +46545,11 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._current_heading_parts = []
         self._last_heading = ""
         self._recent_text_chunks = []
+        # v69017 ingestion accuracy: retain ordered text blocks so every image can
+        # be associated with both the instructions before it and the instructions
+        # immediately after it. This is ingestion-only metadata and does not change
+        # the Technical answer/output pipeline.
+        self._text_sequence_v69017 = []
         self._anchor_stack = []
         self._picture_depth = 0
         self._picture_sources = []
@@ -46616,6 +46622,7 @@ class KnowledgePageHTMLParser(HTMLParser):
             "source_kind": str(source_kind or "html"),
             "full_size_candidate": bool(full_size),
             "origin_group": str(origin_group or ""),
+            "text_sequence_index_v69017": len(self._text_sequence_v69017),
             **self._context(),
         }
         self.images.append(record)
@@ -46775,8 +46782,33 @@ class KnowledgePageHTMLParser(HTMLParser):
         if not self._inside_title:
             self._recent_text_chunks.append(value)
             self._recent_text_chunks = self._recent_text_chunks[-12:]
+            self._text_sequence_v69017.append(value)
 
         self._parts.append(value + " ")
+
+    def finalize_image_contexts_v69017(self):
+        """Attach section-local text before and after each discovered image.
+
+        Installation pages frequently place the explanation after the photo. Older
+        ingestion only retained preceding text, which could make a correct image look
+        unrelated. Keep a bounded bidirectional context window instead.
+        """
+        sequence = [re.sub(r"\s+", " ", str(x or "")).strip() for x in self._text_sequence_v69017]
+        for record in self.images:
+            try:
+                idx = max(0, min(len(sequence), int(record.get("text_sequence_index_v69017") or 0)))
+            except Exception:
+                idx = 0
+            before = " ".join(x for x in sequence[max(0, idx - 8):idx] if x)
+            after = " ".join(x for x in sequence[idx:min(len(sequence), idx + 8)] if x)
+            before = re.sub(r"\s+", " ", before).strip()[-1800:]
+            after = re.sub(r"\s+", " ", after).strip()[:1800]
+            record["context_before_text_v69017"] = before
+            record["context_after_text_v69017"] = after
+            heading = re.sub(r"\s+", " ", str(record.get("nearest_heading") or "")).strip()
+            combined = " ".join(x for x in (heading, before, after) if x)
+            record["nearby_text"] = re.sub(r"\s+", " ", combined).strip()[:3600]
+        return self.images
 
     def text(self):
         return "".join(self._parts)
@@ -47171,6 +47203,8 @@ def _website_image_candidate_urls(parser_images, page_url):
         title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
         nearest_heading = re.sub(r"\s+", " ", str(raw.get("nearest_heading") or "")).strip()
         nearby_text = re.sub(r"\s+", " ", str(raw.get("nearby_text") or "")).strip()
+        context_before_v69017 = re.sub(r"\s+", " ", str(raw.get("context_before_text_v69017") or "")).strip()
+        context_after_v69017 = re.sub(r"\s+", " ", str(raw.get("context_after_text_v69017") or "")).strip()
         source_kind = str(raw.get("source_kind") or "img").strip()
         full_size_candidate = bool(raw.get("full_size_candidate"))
         origin_group = str(raw.get("origin_group") or "").strip()
@@ -47226,7 +47260,9 @@ def _website_image_candidate_urls(parser_images, page_url):
             "alt": alt,
             "title": title,
             "nearest_heading": nearest_heading,
-            "nearby_text": nearby_text[-1800:],
+            "nearby_text": nearby_text[:3600],
+            "context_before_text_v69017": context_before_v69017[-1800:],
+            "context_after_text_v69017": context_after_v69017[:1800],
             "context_score": score,
             "technical_context": bool(technical_context),
             "source_kind": source_kind,
@@ -47295,6 +47331,10 @@ def _website_image_candidate_urls(parser_images, page_url):
                 item["nearest_heading"] = previous.get("nearest_heading")
             if not item.get("nearby_text") and previous.get("nearby_text"):
                 item["nearby_text"] = previous.get("nearby_text")
+            if not item.get("context_before_text_v69017") and previous.get("context_before_text_v69017"):
+                item["context_before_text_v69017"] = previous.get("context_before_text_v69017")
+            if not item.get("context_after_text_v69017") and previous.get("context_after_text_v69017"):
+                item["context_after_text_v69017"] = previous.get("context_after_text_v69017")
             if not item.get("alt") and previous.get("alt"):
                 item["alt"] = previous.get("alt")
             logical[logical_key] = item
@@ -47784,40 +47824,69 @@ def _website_validated_preview_records_v68999(candidates):
     return records, valid_urls, stats
 
 
-@st.cache_data(ttl=86400, max_entries=256, show_spinner=False)
-def _analyze_website_image_cached(
+def _ingestion_json_object_v69017(value):
+    """Parse one fail-closed JSON object from a model response."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S).strip()
+    candidates = [text]
+    start, end = text.find("{"), text.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(text[start:end + 1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            continue
+    return None
+
+
+def _ingestion_image_structured_extract_v69017(
     image_data_url,
-    page_url,
-    image_url,
+    *,
+    source_label,
     page_title,
+    section_heading,
+    context_before,
+    context_after,
     alt_text,
-    nearest_heading,
-    nearby_text,
     database_choice,
 ):
-    """Turn one website image into retrievable Technical/Sales/Marketing knowledge."""
+    """Extract image knowledge as structured evidence instead of free prose."""
     instructions = (
-        "You are AutoTecPro's internal website-image knowledge extraction specialist. "
-        "Analyze only what the image actually supports. If the image is merely decorative, "
-        "a generic vehicle photo, logo, banner ornament, icon, or contains no reusable "
-        "product/installation/technical/sales/marketing knowledge, return exactly SKIP_IMAGE. "
-        "Otherwise return concise searchable plain text. Preserve visible connector details, "
-        "labels, settings, diagrams, installation relationships, product identity, vehicle "
-        "identity, warnings, and visible text. Never invent compatibility or hidden details."
+        "You are AutoTecPro's ingestion evidence extractor. Analyze only what is visible "
+        "in the image and what is explicitly supported by the supplied source context. "
+        "Never invent compatibility, vehicle years, settings, part numbers, or hidden wiring. "
+        "Return ONLY one JSON object and no markdown."
     )
-    prompt = (
-        f"Destination: {database_choice}\n"
-        f"Source page: {page_url}\n"
-        f"Page title: {page_title}\n"
-        f"Nearest section heading: {nearest_heading or '(none)'}\n"
-        f"Nearby webpage instruction text: {nearby_text or '(none)'}\n"
-        f"Image URL: {image_url}\n"
-        f"Image alt text: {alt_text or '(none)'}\n\n"
-        "Extract reusable knowledge from this website image. Explicitly connect the "
-        "visual evidence to the nearest heading and nearby instruction text when they "
-        "describe the same step. If the surrounding text is unrelated, say so rather "
-        "than forcing an association."
-    )
+    prompt = f"""Destination: {database_choice}
+Source: {source_label}
+Page/document title: {page_title}
+Section heading: {section_heading or '(none)'}
+Text immediately BEFORE image: {context_before or '(none)'}
+Text immediately AFTER image: {context_after or '(none)'}
+Alt/caption text: {alt_text or '(none)'}
+
+Return exactly these JSON keys:
+keep_image: boolean
+visual_summary: concise searchable description
+visible_text: array of important labels/text actually visible
+vehicle_make: string or empty
+vehicle_model: string or empty
+year_range: string or empty
+system_or_variant: string or empty
+topic: concise technical/sales/marketing topic
+relationship: one of direct, contextual, unrelated
+context_conflict: boolean
+confidence: number from 0 to 1
+reason: concise evidence-based reason
+
+Use keep_image=false for decorative, branding, generic vehicle photography, blank, duplicate-looking,
+or otherwise non-reusable images. relationship=direct only when the image directly illustrates the
+same instruction/setting/component described by the local context."""
     response = client.responses.create(
         model="gpt-5.5",
         instructions=instructions,
@@ -47829,8 +47898,132 @@ def _analyze_website_image_cached(
             ],
         }],
     )
-    return clean_visible_chat_text(response.output_text).strip()
+    return _ingestion_json_object_v69017(getattr(response, "output_text", ""))
 
+
+def _ingestion_image_relation_verify_v69017(
+    image_data_url,
+    *,
+    source_label,
+    page_title,
+    section_heading,
+    context_before,
+    context_after,
+    alt_text,
+    extracted,
+):
+    """Independent second-pass verifier for image ↔ section relationships."""
+    extracted = dict(extracted or {})
+    instructions = (
+        "You are AutoTecPro's independent ingestion QA verifier. Do not trust the first-pass "
+        "conclusion. Re-evaluate the image and local source context yourself. Approve automatic "
+        "knowledge linkage only when the image is genuinely useful and the relationship to the "
+        "section/instruction is supported. Return ONLY JSON."
+    )
+    prompt = f"""Source: {source_label}
+Title: {page_title}
+Section: {section_heading or '(none)'}
+Text BEFORE: {context_before or '(none)'}
+Text AFTER: {context_after or '(none)'}
+Alt/caption: {alt_text or '(none)'}
+First-pass extraction (evidence only, not authority): {json.dumps(extracted, ensure_ascii=False)}
+
+Return exactly:
+approved: boolean
+relationship: one of direct, contextual, unrelated
+confidence: number 0 to 1
+vehicle_or_year_conflict: boolean
+section_conflict: boolean
+reason: concise explanation
+
+Fail closed if the image cannot be confidently tied to useful source knowledge."""
+    response = client.responses.create(
+        model="gpt-5.5",
+        instructions=instructions,
+        input=[{
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": prompt},
+                {"type": "input_image", "image_url": image_data_url, "detail": "high"},
+            ],
+        }],
+    )
+    return _ingestion_json_object_v69017(getattr(response, "output_text", ""))
+
+
+def _analyze_ingestion_image_with_qa_v69017(
+    image_data_url,
+    *,
+    source_label,
+    page_title,
+    section_heading,
+    context_before,
+    context_after,
+    alt_text,
+    database_choice,
+):
+    """Two-pass ingestion authority used by website and embedded-document images."""
+    extracted = _ingestion_image_structured_extract_v69017(
+        image_data_url,
+        source_label=source_label,
+        page_title=page_title,
+        section_heading=section_heading,
+        context_before=context_before,
+        context_after=context_after,
+        alt_text=alt_text,
+        database_choice=database_choice,
+    )
+    if not extracted or not bool(extracted.get("keep_image")):
+        return {"approved": False, "reason": "extractor_rejected_or_invalid", "extracted": extracted or {}}
+    try:
+        extract_conf = float(extracted.get("confidence") or 0.0)
+    except Exception:
+        extract_conf = 0.0
+    if bool(extracted.get("context_conflict")) or str(extracted.get("relationship") or "").lower() == "unrelated" or extract_conf < 0.72:
+        return {"approved": False, "reason": "extractor_low_confidence_or_conflict", "extracted": extracted}
+
+    verified = _ingestion_image_relation_verify_v69017(
+        image_data_url,
+        source_label=source_label,
+        page_title=page_title,
+        section_heading=section_heading,
+        context_before=context_before,
+        context_after=context_after,
+        alt_text=alt_text,
+        extracted=extracted,
+    )
+    try:
+        verify_conf = float((verified or {}).get("confidence") or 0.0)
+    except Exception:
+        verify_conf = 0.0
+    approved = bool(verified and verified.get("approved"))
+    approved = approved and verify_conf >= 0.80
+    approved = approved and not bool(verified.get("vehicle_or_year_conflict"))
+    approved = approved and not bool(verified.get("section_conflict"))
+    approved = approved and str(verified.get("relationship") or "").lower() in {"direct", "contextual"}
+
+    visible_text = extracted.get("visible_text") or []
+    if not isinstance(visible_text, list):
+        visible_text = [str(visible_text)]
+    search_parts = [
+        str(extracted.get("visual_summary") or ""),
+        "Visible labels: " + "; ".join(str(x) for x in visible_text if str(x).strip()),
+        "Vehicle: " + " ".join(x for x in (str(extracted.get("vehicle_make") or ""), str(extracted.get("vehicle_model") or ""), str(extracted.get("year_range") or "")) if x),
+        "System/variant: " + str(extracted.get("system_or_variant") or ""),
+        "Topic: " + str(extracted.get("topic") or ""),
+        "Relationship: " + str((verified or {}).get("relationship") or extracted.get("relationship") or ""),
+    ]
+    search_text = re.sub(r"\s+", " ", " ".join(x for x in search_parts if x and not x.endswith(": "))).strip()
+    return {
+        "approved": bool(approved),
+        "analysis": search_text,
+        "extracted": extracted,
+        "verified": verified or {},
+        "relationship_confidence": round(min(extract_conf, verify_conf), 4),
+        "relationship": str((verified or {}).get("relationship") or extracted.get("relationship") or "").lower(),
+        "qa_version": "v69017-two-pass",
+        "reason": str((verified or {}).get("reason") or extracted.get("reason") or "").strip(),
+    }
 
 def analyze_website_images(extraction, database_choice, selected_urls=None):
     """Download, filter, analyze, and de-duplicate useful images from one page.
@@ -47864,7 +48057,11 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             for existing_entry_v69005 in existing_rows_v69005:
                 existing_payload_v69005 = dict(existing_entry_v69005.get("payload") or {})
                 existing_digest_v69005 = str(existing_payload_v69005.get("image_sha256") or "").strip().lower()
-                if existing_digest_v69005 and str(existing_payload_v69005.get("visual_analysis") or "").strip():
+                if (
+                    existing_digest_v69005
+                    and str(existing_payload_v69005.get("visual_analysis") or "").strip()
+                    and str(existing_payload_v69005.get("ingestion_qa_version_v69017") or "").strip()
+                ):
                     existing_by_digest_v69005[existing_digest_v69005] = existing_payload_v69005
     except Exception:
         existing_by_digest_v69005 = {}
@@ -47905,20 +48102,35 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                     f"data:{downloaded.get('mime_type') or 'image/jpeg'};base64,"
                     + base64.b64encode(downloaded.get("bytes") or b"").decode("ascii")
                 )
-                provider_calls += 1
-                analysis = _analyze_website_image_cached(
+                provider_calls += 2
+                qa_v69017 = _analyze_ingestion_image_with_qa_v69017(
                     data_url,
-                    str(extraction.get("source_url") or ""),
-                    str(downloaded.get("source_url") or candidate.get("url") or ""),
-                    str(extraction.get("title") or ""),
-                    str(candidate.get("alt") or candidate.get("title") or ""),
-                    str(candidate.get("nearest_heading") or ""),
-                    str(candidate.get("nearby_text") or ""),
-                    str(database_choice or ""),
+                    source_label=str(extraction.get("source_url") or ""),
+                    page_title=str(extraction.get("title") or ""),
+                    section_heading=str(candidate.get("nearest_heading") or ""),
+                    context_before=str(candidate.get("context_before_text_v69017") or candidate.get("nearby_text") or ""),
+                    context_after=str(candidate.get("context_after_text_v69017") or ""),
+                    alt_text=str(candidate.get("alt") or candidate.get("title") or ""),
+                    database_choice=str(database_choice or ""),
                 )
+                if not qa_v69017.get("approved"):
+                    skipped += 1
+                    continue
+                analysis = str(qa_v69017.get("analysis") or "").strip()
             if not analysis or analysis.strip().upper() == "SKIP_IMAGE":
                 skipped += 1
                 continue
+
+            if existing_payload_v69005:
+                qa_v69017 = {
+                    "approved": True,
+                    "relationship": str(existing_payload_v69005.get("image_relationship_v69017") or "direct"),
+                    "relationship_confidence": float(existing_payload_v69005.get("image_relationship_confidence_v69017") or 1.0),
+                    "qa_version": str(existing_payload_v69005.get("ingestion_qa_version_v69017") or "v69017-two-pass"),
+                    "extracted": existing_payload_v69005.get("image_structured_metadata_v69017") or {},
+                    "verified": {},
+                    "reason": "durable_v69017_reuse",
+                }
 
             learned.append({
                 "url": str(downloaded.get("source_url") or candidate.get("url") or ""),
@@ -47926,6 +48138,13 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "title": str(candidate.get("title") or "").strip(),
                 "nearest_heading": str(candidate.get("nearest_heading") or "").strip(),
                 "nearby_text": str(candidate.get("nearby_text") or "").strip(),
+                "context_before_text_v69017": str(candidate.get("context_before_text_v69017") or "").strip(),
+                "context_after_text_v69017": str(candidate.get("context_after_text_v69017") or "").strip(),
+                "image_relationship_v69017": str(qa_v69017.get("relationship") or "").strip(),
+                "image_relationship_confidence_v69017": float(qa_v69017.get("relationship_confidence") or 0.0),
+                "ingestion_qa_version_v69017": str(qa_v69017.get("qa_version") or "").strip(),
+                "image_structured_metadata_v69017": dict(qa_v69017.get("extracted") or {}),
+                "image_qa_reason_v69017": str(qa_v69017.get("reason") or "").strip(),
                 "source_kind": str(candidate.get("source_kind") or "").strip(),
                 "context_score": int(candidate.get("context_score") or 0),
                 "technical_context": bool(candidate.get("technical_context")),
@@ -48006,6 +48225,12 @@ def build_website_knowledge_package_document(
                 f"IMAGE {index}",
                 f"SECTION_HEADING: {str(item.get('nearest_heading') or '').strip()}",
                 f"NEARBY_INSTRUCTION_TEXT: {str(item.get('nearby_text') or '').strip()}",
+                f"CONTEXT_BEFORE_IMAGE: {str(item.get('context_before_text_v69017') or '').strip()}",
+                f"CONTEXT_AFTER_IMAGE: {str(item.get('context_after_text_v69017') or '').strip()}",
+                f"IMAGE_RELATIONSHIP: {str(item.get('image_relationship_v69017') or '').strip()}",
+                f"IMAGE_RELATIONSHIP_CONFIDENCE: {item.get('image_relationship_confidence_v69017')}",
+                f"INGESTION_QA_VERSION: {str(item.get('ingestion_qa_version_v69017') or '').strip()}",
+                f"IMAGE_STRUCTURED_METADATA_JSON: {json.dumps(item.get('image_structured_metadata_v69017') or {}, ensure_ascii=False, separators=(',', ':'))}",
                 f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
                 f"IMAGE_CAPTION: {caption}",
                 f"IMAGE_SHA256: {item.get('sha256')}",
@@ -48084,6 +48309,13 @@ def _website_image_index_record_v68883(
             image_item.get("alt") or image_item.get("title") or ""
         ).strip(),
         "visual_analysis": str(image_item.get("analysis") or "").strip(),
+        "context_before_image_v69017": str(image_item.get("context_before_text_v69017") or "").strip(),
+        "context_after_image_v69017": str(image_item.get("context_after_text_v69017") or "").strip(),
+        "image_relationship_v69017": str(image_item.get("image_relationship_v69017") or "").strip(),
+        "image_relationship_confidence_v69017": float(image_item.get("image_relationship_confidence_v69017") or 0.0),
+        "ingestion_qa_version_v69017": str(image_item.get("ingestion_qa_version_v69017") or "").strip(),
+        "image_structured_metadata_v69017": dict(image_item.get("image_structured_metadata_v69017") or {}),
+        "image_qa_reason_v69017": str(image_item.get("image_qa_reason_v69017") or "").strip(),
         "width": int(image_item.get("width") or 0),
         "height": int(image_item.get("height") or 0),
         "archive_storage_path": str(archive_path or "").strip(),
@@ -49389,7 +49621,7 @@ def _website_model_control_payload_v69010(image_record):
 def _website_file_source_url_v69012(text_value):
     value = str(text_value or "")
     for label in ("Final source URL:", "Requested URL:", "Source page:"):
-        match = re.search(rf"(?im)^{re.escape(label)}\s*(https?://\S+)", value)
+        match = re.search(rf"(?im)^{re.escape(label)}\s*((?:https?://|document://)\S+)", value)
         if match:
             return str(match.group(1) or "").strip().rstrip(".,;)")
     patterns = (
@@ -49444,13 +49676,17 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             match = re.search(rf"(?im)^{re.escape(label)}\s*:\s*(.*?)\s*$", block)
             return re.sub(r"\s+", " ", str(match.group(1) or "")).strip() if match else ""
         image_url = field("AUTO_DISPLAY_IMAGE")
-        if not image_url.startswith("https://"):
+        archive_storage_path_v69017 = field("ARCHIVE_STORAGE_PATH")
+        archive_mime_type_v69017 = field("ARCHIVE_MIME_TYPE") or "image/jpeg"
+        if not image_url.startswith("https://") and not archive_storage_path_v69017:
             continue
         analysis_match = re.search(r"(?ims)^IMAGE_ANALYSIS:\s*(.*?)(?=\n\s*IMAGE\s+\d+\s*$|\Z)", block)
         analysis = re.sub(r"\s+", " ", str(analysis_match.group(1) or "")).strip() if analysis_match else ""
         payloads.append({
             "database_choice": "Technical Support Database",
             "image_url": image_url,
+            "archive_storage_path_v69017": archive_storage_path_v69017,
+            "archive_mime_type_v69017": archive_mime_type_v69017,
             "caption": field("IMAGE_CAPTION"),
             "section_heading": field("SECTION_HEADING"),
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
@@ -49664,14 +49900,18 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     )
 
 
-def _website_image_prefetch_file_search_results_v69015(prompt_text):
+def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_label="🔧 Technical Support"):
     """Prefetch universal Technical image evidence while the text answer streams.
 
     This is a latency-only optimization. It does not select or approve an image.
     The returned rows still pass through the unchanged v69014 universal relation,
     vehicle/year, section, and final authority gates after the answer is complete.
+
+    v69016 binds the workspace explicitly at submission time instead of reading the
+    mutable module-level ``assistant`` value from a worker thread. This preserves
+    cross-session authority while leaving image selection/ranking unchanged.
     """
-    if str(assistant or "") != "🔧 Technical Support":
+    if str(workspace_label or "") != "🔧 Technical Support":
         return []
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
@@ -49695,7 +49935,7 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text):
         "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
         "tool_choice": "required",
         "include": ["file_search_call.results"],
-        "max_output_tokens": 80,
+        "max_output_tokens": 32,
     }
     try:
         response = client.responses.create(**request)
@@ -49711,6 +49951,46 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text):
         result_count=len(rows),
     )
     return rows
+
+
+def _technical_image_prefetch_cache_key_v69016(prompt_text):
+    """Session-local cache key for raw prefetch evidence; never approves an image."""
+    normalized = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    stores = "|".join(_configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID))
+    return hashlib.sha256((stores + "\n" + normalized).encode("utf-8")).hexdigest()
+
+
+def _technical_image_prefetch_cache_get_v69016(prompt_text, ttl_seconds=300):
+    """Return recent raw prefetch rows from this Streamlit session only."""
+    try:
+        key = _technical_image_prefetch_cache_key_v69016(prompt_text)
+        cache = st.session_state.get("_technical_image_prefetch_cache_v69016") or {}
+        item = cache.get(key) if isinstance(cache, dict) else None
+        if not isinstance(item, dict):
+            return []
+        if (time.time() - float(item.get("saved_at") or 0.0)) > float(ttl_seconds):
+            return []
+        return [dict(row) for row in (item.get("rows") or []) if isinstance(row, dict)]
+    except Exception:
+        return []
+
+
+def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
+    """Store only raw file-search evidence in the current user's session."""
+    try:
+        key = _technical_image_prefetch_cache_key_v69016(prompt_text)
+        cache = st.session_state.get("_technical_image_prefetch_cache_v69016")
+        cache = dict(cache) if isinstance(cache, dict) else {}
+        cache[key] = {
+            "saved_at": time.time(),
+            "rows": [dict(row) for row in (rows or []) if isinstance(row, dict)][:24],
+        }
+        if len(cache) > 12:
+            ordered = sorted(cache.items(), key=lambda item: float((item[1] or {}).get("saved_at") or 0.0), reverse=True)
+            cache = dict(ordered[:12])
+        st.session_state["_technical_image_prefetch_cache_v69016"] = cache
+    except Exception:
+        pass
 
 
 def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
@@ -49781,12 +50061,22 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
     output, seen_urls = [], set()
     for score, payload, file_id in ranked:
         url = str(payload.get("image_url") or "").strip()
-        if not url or url in seen_urls:
+        archive_path_v69017 = str(payload.get("archive_storage_path_v69017") or "").strip()
+        identity_v69017 = url or ("archive://" + archive_path_v69017 if archive_path_v69017 else "")
+        if not identity_v69017 or identity_v69017 in seen_urls:
             continue
-        seen_urls.add(url)
+        display_url_v69017 = url if url.startswith("https://") else ""
+        if archive_path_v69017:
+            raw_v69017 = _website_storage_bytes_v68883(archive_path_v69017)
+            if raw_v69017:
+                mime_v69017 = str(payload.get("archive_mime_type_v69017") or "image/jpeg")
+                display_url_v69017 = f"data:{mime_v69017};base64," + base64.b64encode(raw_v69017).decode("ascii")
+        if not display_url_v69017:
+            continue
+        seen_urls.add(identity_v69017)
         output.append({
             "name": str(payload.get("caption") or payload.get("section_heading") or "Relevant instruction image").strip(),
-            "data_url": url,
+            "data_url": display_url_v69017,
             "source": "website_knowledge",
             "asset_type": "website_instruction_image",
             "archive_web_url": url,
@@ -50943,6 +51233,15 @@ def extract_public_webpage(url, page_password=""):
         content_hash = hashlib.sha256(
             cleaned_text.encode("utf-8")
         ).hexdigest()
+        if parser is not None:
+            try:
+                parser.finalize_image_contexts_v69017()
+            except Exception as error:
+                diagnostic_log(
+                    "website_bidirectional_context_finalize_failed_v69017",
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
         parser_images = list(getattr(parser, "images", []) if parser is not None else [])
         if parser is not None:
             parser_images.extend(_website_raw_html_image_candidates_v68996(page_text))
@@ -51697,6 +51996,274 @@ def invalidate_admin_read_caches():
 
 
 @_admin_upload_fragment_decorator
+
+def is_rich_document_visual_file_v69017(uploaded_file):
+    return Path(str(getattr(uploaded_file, "name", ""))).suffix.lower() in {".pdf", ".docx"}
+
+
+def _document_visual_events_pdf_v69017(file_bytes):
+    records, text_blocks = [], []
+    try:
+        import fitz
+    except Exception:
+        return records, text_blocks
+    document = fitz.open(stream=file_bytes, filetype="pdf")
+    try:
+        for page_index in range(len(document)):
+            page = document[page_index]
+            blocks = list((page.get_text("dict") or {}).get("blocks") or [])
+            page_text_events = []
+            for block_index, block in enumerate(blocks):
+                if int(block.get("type") or 0) == 0:
+                    parts = []
+                    for line in block.get("lines") or []:
+                        for span in line.get("spans") or []:
+                            value = re.sub(r"\s+", " ", str(span.get("text") or "")).strip()
+                            if value:
+                                parts.append(value)
+                    text = re.sub(r"\s+", " ", " ".join(parts)).strip()
+                    if text:
+                        page_text_events.append((block_index, text))
+                        text_blocks.append(f"Page {page_index + 1}: {text}")
+            for block_index, block in enumerate(blocks):
+                if int(block.get("type") or 0) != 1:
+                    continue
+                raw = bytes(block.get("image") or b"")
+                if not raw:
+                    continue
+                before = " ".join(text for idx, text in page_text_events if idx < block_index)[-1800:]
+                after = " ".join(text for idx, text in page_text_events if idx > block_index)[:1800]
+                records.append({
+                    "bytes": raw,
+                    "mime_type": "image/png" if str(block.get("ext") or "").lower() == "png" else "image/jpeg",
+                    "page": page_index + 1,
+                    "section_heading": f"Page {page_index + 1}",
+                    "context_before": before,
+                    "context_after": after,
+                    "alt": "",
+                })
+    finally:
+        document.close()
+    return records, text_blocks
+
+
+def _document_visual_events_docx_v69017(file_bytes):
+    records, text_blocks = [], []
+    ns = {
+        "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+        "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "pr": "http://schemas.openxmlformats.org/package/2006/relationships",
+    }
+    with zipfile.ZipFile(io.BytesIO(file_bytes), "r") as archive:
+        document_xml = ET.fromstring(archive.read("word/document.xml"))
+        rels = {}
+        try:
+            rel_root = ET.fromstring(archive.read("word/_rels/document.xml.rels"))
+            for rel in list(rel_root):
+                rid = rel.attrib.get("Id", "")
+                target = rel.attrib.get("Target", "")
+                if rid and target:
+                    rels[rid] = target
+        except Exception:
+            pass
+        events = []
+        body = document_xml.find("w:body", ns)
+        current_heading = ""
+        if body is None:
+            return records, text_blocks
+        for child in list(body):
+            texts = [re.sub(r"\s+", " ", str(node.text or "")).strip() for node in child.findall(".//w:t", ns)]
+            text = re.sub(r"\s+", " ", " ".join(x for x in texts if x)).strip()
+            style_node = child.find(".//w:pPr/w:pStyle", ns)
+            style_value = ""
+            if style_node is not None:
+                style_value = str(style_node.attrib.get("{%s}val" % ns["w"], ""))
+            if text:
+                if style_value.lower().startswith("heading"):
+                    current_heading = text
+                events.append({"type": "text", "text": text, "heading": current_heading})
+                text_blocks.append(text)
+            for blip in child.findall(".//a:blip", ns):
+                rid = str(blip.attrib.get("{%s}embed" % ns["r"], ""))
+                target = rels.get(rid, "")
+                if not target:
+                    continue
+                normalized = str(Path("word") / target).replace("\\", "/")
+                while "/../" in normalized:
+                    normalized = re.sub(r"[^/]+/\.\./", "", normalized, count=1)
+                try:
+                    raw = archive.read(normalized)
+                except Exception:
+                    continue
+                suffix = Path(target).suffix.lower()
+                mime = "image/png" if suffix == ".png" else "image/jpeg"
+                events.append({"type": "image", "bytes": raw, "mime_type": mime, "heading": current_heading})
+        for idx, event in enumerate(events):
+            if event.get("type") != "image":
+                continue
+            before = " ".join(x.get("text", "") for x in events[max(0, idx - 6):idx] if x.get("type") == "text")[-1800:]
+            after = " ".join(x.get("text", "") for x in events[idx + 1:idx + 7] if x.get("type") == "text")[:1800]
+            records.append({
+                "bytes": bytes(event.get("bytes") or b""),
+                "mime_type": str(event.get("mime_type") or "image/jpeg"),
+                "page": 0,
+                "section_heading": str(event.get("heading") or ""),
+                "context_before": before,
+                "context_after": after,
+                "alt": "",
+            })
+    return records, text_blocks
+
+
+def _document_visual_archive_path_v69017(original_name, digest, mime_type):
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(original_name).stem).strip("-") or "document"
+    extension = ".png" if "png" in str(mime_type or "").casefold() else ".jpg"
+    return f"document_knowledge/{safe}/{digest[:2]}/{digest}{extension}"
+
+
+def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, admin_context=""):
+    """Create a structured companion for embedded PDF/DOCX images.
+
+    The original document remains the authoritative text upload. This companion only
+    adds QA-approved visual relationships and therefore preserves existing document
+    answer behavior while improving image-aware retrieval.
+    """
+    original_name = Path(str(getattr(uploaded_file, "name", "document"))).name
+    file_bytes = uploaded_file.getvalue()
+    extension = Path(original_name).suffix.lower()
+    if extension == ".pdf":
+        raw_images, text_blocks = _document_visual_events_pdf_v69017(file_bytes)
+    elif extension == ".docx":
+        raw_images, text_blocks = _document_visual_events_docx_v69017(file_bytes)
+    else:
+        return None
+    if not raw_images:
+        return None
+
+    page_title = original_name
+    source_label = f"document://{original_name}"
+    approved = []
+    seen = set()
+    max_images = min(80, WEBSITE_MAX_ANALYZED_IMAGES)
+    for raw_item in raw_images[:max_images]:
+        raw = bytes(raw_item.get("bytes") or b"")
+        if not raw:
+            continue
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest in seen:
+            continue
+        seen.add(digest)
+        mime = str(raw_item.get("mime_type") or "image/jpeg")
+        data_url = f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
+        qa = _analyze_ingestion_image_with_qa_v69017(
+            data_url,
+            source_label=source_label,
+            page_title=page_title,
+            section_heading=str(raw_item.get("section_heading") or ""),
+            context_before=(str(admin_context or "") + " " + str(raw_item.get("context_before") or "")).strip(),
+            context_after=str(raw_item.get("context_after") or ""),
+            alt_text=str(raw_item.get("alt") or ""),
+            database_choice=str(database_choice or ""),
+        )
+        if not qa.get("approved"):
+            continue
+        archive_path = _document_visual_archive_path_v69017(original_name, digest, mime)
+        try:
+            _product_library_storage_upload(archive_path, raw, mime)
+        except Exception as error:
+            diagnostic_log("document_visual_archive_failed_v69017", file=original_name, error_type=type(error).__name__, error=str(error)[:500])
+            continue
+        approved.append({
+            "url": f"archive://{archive_path}",
+            "archive_storage_path": archive_path,
+            "archive_mime_type": mime,
+            "sha256": digest,
+            "nearest_heading": str(raw_item.get("section_heading") or "").strip(),
+            "nearby_text": re.sub(r"\s+", " ", " ".join(x for x in (str(raw_item.get("context_before") or ""), str(raw_item.get("context_after") or "")) if x)).strip()[:3600],
+            "context_before_text_v69017": str(raw_item.get("context_before") or "").strip(),
+            "context_after_text_v69017": str(raw_item.get("context_after") or "").strip(),
+            "alt": f"{original_name} embedded image" + (f" page {raw_item.get('page')}" if raw_item.get("page") else ""),
+            "title": "",
+            "analysis": str(qa.get("analysis") or ""),
+            "image_relationship_v69017": str(qa.get("relationship") or ""),
+            "image_relationship_confidence_v69017": float(qa.get("relationship_confidence") or 0.0),
+            "ingestion_qa_version_v69017": str(qa.get("qa_version") or ""),
+            "image_structured_metadata_v69017": dict(qa.get("extracted") or {}),
+            "image_qa_reason_v69017": str(qa.get("reason") or ""),
+            "width": 0,
+            "height": 0,
+            "context_score": 10,
+            "technical_context": True,
+        })
+
+    if not approved:
+        return None
+
+    lines = [
+        "AUTOTECPRO DOCUMENT VISUAL KNOWLEDGE COMPANION",
+        f"Destination: {database_choice}",
+        f"Page title: {original_name}",
+        f"Final source URL: {source_label}",
+        f"Original document: {original_name}",
+        f"Document SHA-256: {hashlib.sha256(file_bytes).hexdigest()}",
+        f"QA-approved embedded images: {len(approved)}",
+        "",
+        "IMPORTANT: These image records are supplemental to the original uploaded document. Use only images whose section/context directly supports the answer.",
+        "",
+    ]
+    for index, item in enumerate(approved, start=1):
+        lines.extend([
+            f"IMAGE {index}",
+            f"SECTION_HEADING: {item.get('nearest_heading')}",
+            f"NEARBY_INSTRUCTION_TEXT: {item.get('nearby_text')}",
+            f"CONTEXT_BEFORE_IMAGE: {item.get('context_before_text_v69017')}",
+            f"CONTEXT_AFTER_IMAGE: {item.get('context_after_text_v69017')}",
+            f"IMAGE_RELATIONSHIP: {item.get('image_relationship_v69017')}",
+            f"IMAGE_RELATIONSHIP_CONFIDENCE: {item.get('image_relationship_confidence_v69017')}",
+            f"INGESTION_QA_VERSION: {item.get('ingestion_qa_version_v69017')}",
+            f"ARCHIVE_STORAGE_PATH: {item.get('archive_storage_path')}",
+            f"ARCHIVE_MIME_TYPE: {item.get('archive_mime_type')}",
+            f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
+            f"IMAGE_CAPTION: {item.get('alt')}",
+            f"IMAGE_SHA256: {item.get('sha256')}",
+            "IMAGE_ANALYSIS:",
+            str(item.get("analysis") or ""),
+            "",
+        ])
+    companion_text = "\n".join(lines).strip() + "\n"
+    digest12 = hashlib.sha256(file_bytes).hexdigest()[:12]
+    companion = ManagedUploadedFile(
+        companion_text.encode("utf-8"),
+        f"{Path(original_name).stem}__visual_knowledge_{digest12}.txt",
+        "text/plain",
+    )
+    extraction = {
+        "title": original_name,
+        "source_url": source_label,
+        "requested_url": source_label,
+    }
+    if str(database_choice or "") == "Technical Support Database":
+        for item in approved:
+            try:
+                payload = _website_image_index_record_v68883(
+                    extraction,
+                    database_choice,
+                    item,
+                    archive_path=str(item.get("archive_storage_path") or ""),
+                    archive_mime_type=str(item.get("archive_mime_type") or ""),
+                )
+                _website_image_index_upsert_v68883(payload)
+            except Exception as error:
+                diagnostic_log("document_visual_index_failed_v69017", file=original_name, error_type=type(error).__name__, error=str(error)[:500])
+    return {
+        "companion_file": companion,
+        "companion_text": companion_text,
+        "approved_images": approved,
+        "raw_image_count": len(raw_images),
+        "approved_image_count": len(approved),
+    }
+
 def render_admin_upload_knowledge_tab():
     st.markdown("### Upload Documents to Knowledge Base")
     st.caption(
@@ -51833,9 +52400,26 @@ def render_admin_upload_knowledge_tab():
                             admin_file,
                             selected_vector_store_id
                         )
+                        visual_companion_v69017 = None
+                        if is_rich_document_visual_file_v69017(admin_file):
+                            with st.spinner(f"Analyzing embedded document images: {admin_file.name}"):
+                                visual_companion_v69017 = convert_document_visual_knowledge_v69017(
+                                    admin_file,
+                                    database_choice,
+                                    admin_context,
+                                )
+                            if visual_companion_v69017:
+                                companion_file_v69017 = visual_companion_v69017.get("companion_file")
+                                companion_name_v69017 = str(getattr(companion_file_v69017, "name", ""))
+                                if companion_file_v69017 and not vector_store_has_filename(selected_vector_store_id, companion_name_v69017):
+                                    upload_to_vector_store(companion_file_v69017, selected_vector_store_id)
                         st.success(
                             f"Uploaded: {admin_file.name} "
                             f"| File ID: {file_id}"
+                            + (
+                                f" | Embedded images: {visual_companion_v69017.get('approved_image_count', 0)}/{visual_companion_v69017.get('raw_image_count', 0)} QA-approved"
+                                if visual_companion_v69017 else ""
+                            )
                         )
 
                 except Exception as error:
@@ -60019,6 +60603,55 @@ else:
         response_mode = execution_plan["response_mode"]
         use_file_search = bool(execution_plan["use_file_search"])
 
+        # v69016: begin Technical image evidence work at the earliest safe point,
+        # immediately after routing has authoritatively decided file_search. This
+        # overlaps Product Library/context preparation and the full text response.
+        # Selection/ranking remains in the unchanged v69014 authority gates.
+        technical_early_index_images_v69016 = []
+        technical_image_prefetch_executor_v69015 = None
+        technical_image_prefetch_future_v69015 = None
+        technical_image_prefetch_cached_rows_v69016 = []
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(use_file_search)
+            and str(technical_request_prompt_v68879 or "").strip()
+        ):
+            try:
+                technical_early_index_images_v69016 = _website_image_lookup_v68883(
+                    technical_request_prompt_v68879
+                )
+            except Exception as error:
+                diagnostic_log(
+                    "website_image_early_lookup_failed_v69016",
+                    error_type=type(error).__name__, error=str(error)[:500],
+                )
+                technical_early_index_images_v69016 = []
+
+            if not technical_early_index_images_v69016:
+                technical_image_prefetch_cached_rows_v69016 = (
+                    _technical_image_prefetch_cache_get_v69016(technical_request_prompt_v68879)
+                )
+                if not technical_image_prefetch_cached_rows_v69016:
+                    try:
+                        from concurrent.futures import ThreadPoolExecutor
+                        technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
+                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
+                        )
+                        technical_image_prefetch_future_v69015 = (
+                            technical_image_prefetch_executor_v69015.submit(
+                                _website_image_prefetch_file_search_results_v69015,
+                                technical_request_prompt_v68879,
+                                assistant,
+                            )
+                        )
+                    except Exception as error:
+                        technical_image_prefetch_executor_v69015 = None
+                        technical_image_prefetch_future_v69015 = None
+                        diagnostic_log(
+                            "website_image_prefetch_start_failed_v69016",
+                            error_type=type(error).__name__, error=str(error)[:500],
+                        )
+
         document_generation_requested = bool(
             not explicit_learning_requested
             and document_generation_request
@@ -60736,52 +61369,11 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                website_index_images_v68883 = []
-                if assistant == "🔧 Technical Support":
-                    try:
-                        website_index_images_v68883 = _website_image_lookup_v68883(
-                            technical_request_prompt_v68879
-                        )
-                    except Exception as error:
-                        diagnostic_log(
-                            "website_image_lookup_failed_v68883",
-                            error_type=type(error).__name__,
-                            error=str(error)[:500],
-                        )
-                        website_index_images_v68883 = []
-
-                    if website_index_images_v68883:
-                        generated_images.extend(website_index_images_v68883)
-
-                # v69015: overlap the fallback Technical image search with the text
-                # response instead of waiting until the answer has fully rendered.
-                # This changes latency only; all image approval remains in v69014 gates.
-                technical_image_prefetch_executor_v69015 = None
-                technical_image_prefetch_future_v69015 = None
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(use_file_search)
-                    and not website_index_images_v68883
-                    and str(technical_request_prompt_v68879 or "").strip()
-                ):
-                    try:
-                        from concurrent.futures import ThreadPoolExecutor
-                        technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
-                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
-                        )
-                        technical_image_prefetch_future_v69015 = (
-                            technical_image_prefetch_executor_v69015.submit(
-                                _website_image_prefetch_file_search_results_v69015,
-                                technical_request_prompt_v68879,
-                            )
-                        )
-                    except Exception as error:
-                        technical_image_prefetch_executor_v69015 = None
-                        technical_image_prefetch_future_v69015 = None
-                        diagnostic_log(
-                            "website_image_prefetch_start_failed_v69015",
-                            error_type=type(error).__name__, error=str(error)[:500],
-                        )
+                website_index_images_v68883 = list(
+                    locals().get("technical_early_index_images_v69016") or []
+                )
+                if assistant == "🔧 Technical Support" and website_index_images_v68883:
+                    generated_images.extend(website_index_images_v68883)
 
                 base_ai_prompt_v68879 = (
                     technical_request_prompt_v68879
@@ -61163,15 +61755,25 @@ else:
                     # v69015 fast path: the same independent image search that used to
                     # start here was launched while the text was streaming. Consume its
                     # rows now and run the unchanged universal/final authority gates.
-                    prefetched_rows_v69015 = []
+                    prefetched_rows_v69015 = list(
+                        locals().get("technical_image_prefetch_cached_rows_v69016") or []
+                    )
                     technical_image_prefetch_future_active_v69015 = locals().get(
                         "technical_image_prefetch_future_v69015"
                     )
-                    if not universal_images_v69014 and technical_image_prefetch_future_active_v69015 is not None:
+                    if (
+                        not universal_images_v69014
+                        and not prefetched_rows_v69015
+                        and technical_image_prefetch_future_active_v69015 is not None
+                    ):
                         try:
                             prefetched_rows_v69015 = list(
                                 technical_image_prefetch_future_active_v69015.result() or []
                             )
+                            if prefetched_rows_v69015:
+                                _technical_image_prefetch_cache_set_v69016(
+                                    technical_request_prompt_v68879, prefetched_rows_v69015
+                                )
                         except Exception as error:
                             diagnostic_log(
                                 "website_image_prefetch_consume_failed_v69015",
