@@ -794,22 +794,23 @@ st.markdown(
 
         .atp-print-image-v69007 {
             display: block !important;
-            max-width: 100% !important;
+            width: fit-content !important;
+            max-width: 125mm !important;
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
-            margin: 4mm 0 !important;
+            margin: 4mm auto !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
         .atp-print-image-v69007 img {
             display: block !important;
-            max-width: 100% !important;
-            max-height: 220mm !important;
+            max-width: 125mm !important;
+            max-height: 115mm !important;
             width: auto !important;
             height: auto !important;
             object-fit: contain !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             background: transparent !important;
         }
         .atp-print-image-v69007 figcaption {
@@ -49663,6 +49664,55 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     )
 
 
+def _website_image_prefetch_file_search_results_v69015(prompt_text):
+    """Prefetch universal Technical image evidence while the text answer streams.
+
+    This is a latency-only optimization. It does not select or approve an image.
+    The returned rows still pass through the unchanged v69014 universal relation,
+    vehicle/year, section, and final authority gates after the answer is complete.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return []
+    vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not vector_store_ids:
+        return []
+    request = {
+        "model": "gpt-5.5",
+        "input": (
+            "AUTOTECPRO TECHNICAL RELATED-IMAGE PREFETCH ONLY.\n"
+            "Use file_search to locate learned AutoTecPro source files/sections containing "
+            "images directly related to this Technical inquiry. This is universal and must "
+            "not depend on a predefined topic. Prefer the exact vehicle/year/model/version "
+            "and the exact relevant Technical section. Prefer records containing "
+            "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
+            "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags in that same section. "
+            "Do not broaden to unrelated sections or another fitment.\n\n"
+            f"USER REQUEST:\n{prompt[:2600]}\n"
+        ),
+        "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
+        "tool_choice": "required",
+        "include": ["file_search_call.results"],
+        "max_output_tokens": 80,
+    }
+    try:
+        response = client.responses.create(**request)
+    except Exception as error:
+        diagnostic_log(
+            "website_image_prefetch_failed_v69015",
+            error_type=type(error).__name__, error=str(error)[:500],
+        )
+        return []
+    rows = _response_file_search_results_v69012(response)
+    diagnostic_log(
+        "website_image_prefetch_complete_v69015",
+        result_count=len(rows),
+    )
+    return rows
+
+
 def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
     """Run universal independent Technical image retrieval after the answer exists."""
     if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
@@ -60703,6 +60753,36 @@ else:
                     if website_index_images_v68883:
                         generated_images.extend(website_index_images_v68883)
 
+                # v69015: overlap the fallback Technical image search with the text
+                # response instead of waiting until the answer has fully rendered.
+                # This changes latency only; all image approval remains in v69014 gates.
+                technical_image_prefetch_executor_v69015 = None
+                technical_image_prefetch_future_v69015 = None
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
+                    and not website_index_images_v68883
+                    and str(technical_request_prompt_v68879 or "").strip()
+                ):
+                    try:
+                        from concurrent.futures import ThreadPoolExecutor
+                        technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
+                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
+                        )
+                        technical_image_prefetch_future_v69015 = (
+                            technical_image_prefetch_executor_v69015.submit(
+                                _website_image_prefetch_file_search_results_v69015,
+                                technical_request_prompt_v68879,
+                            )
+                        )
+                    except Exception as error:
+                        technical_image_prefetch_executor_v69015 = None
+                        technical_image_prefetch_future_v69015 = None
+                        diagnostic_log(
+                            "website_image_prefetch_start_failed_v69015",
+                            error_type=type(error).__name__, error=str(error)[:500],
+                        )
+
                 base_ai_prompt_v68879 = (
                     technical_request_prompt_v68879
                     if assistant == "🔧 Technical Support"
@@ -61079,8 +61159,34 @@ else:
                     universal_images_v69014 = _website_file_search_images_v69014(
                         technical_request_prompt_v68879, answer, answer_result_rows_v69014
                     )
-                    # The ordinary answer search may not return the image-bearing source.
-                    # Only then perform the independent universal image search.
+
+                    # v69015 fast path: the same independent image search that used to
+                    # start here was launched while the text was streaming. Consume its
+                    # rows now and run the unchanged universal/final authority gates.
+                    prefetched_rows_v69015 = []
+                    technical_image_prefetch_future_active_v69015 = locals().get(
+                        "technical_image_prefetch_future_v69015"
+                    )
+                    if not universal_images_v69014 and technical_image_prefetch_future_active_v69015 is not None:
+                        try:
+                            prefetched_rows_v69015 = list(
+                                technical_image_prefetch_future_active_v69015.result() or []
+                            )
+                        except Exception as error:
+                            diagnostic_log(
+                                "website_image_prefetch_consume_failed_v69015",
+                                error_type=type(error).__name__, error=str(error)[:500],
+                            )
+                            prefetched_rows_v69015 = []
+                    if prefetched_rows_v69015 and not universal_images_v69014:
+                        universal_images_v69014 = _website_file_search_images_v69014(
+                            technical_request_prompt_v68879,
+                            answer,
+                            answer_result_rows_v69014 + prefetched_rows_v69015,
+                        )
+
+                    # If the prompt-only prefetch was not precise enough, preserve the
+                    # existing answer-aware dedicated search as the fail-safe fallback.
                     if not universal_images_v69014:
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
                             technical_request_prompt_v68879, answer
@@ -61089,7 +61195,7 @@ else:
                             universal_images_v69014 = _website_file_search_images_v69014(
                                 technical_request_prompt_v68879,
                                 answer,
-                                answer_result_rows_v69014 + dedicated_rows_v69014,
+                                answer_result_rows_v69014 + prefetched_rows_v69015 + dedicated_rows_v69014,
                             )
                     if universal_images_v69014:
                         # Replace only non-index legacy/model website fallbacks. Durable index
@@ -61117,6 +61223,15 @@ else:
                         "website_universal_related_image_recovery_failed_v69014",
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
+
+        technical_image_prefetch_executor_active_v69015 = locals().get(
+            "technical_image_prefetch_executor_v69015"
+        )
+        if technical_image_prefetch_executor_active_v69015 is not None:
+            try:
+                technical_image_prefetch_executor_active_v69015.shutdown(wait=False)
+            except Exception:
+                pass
 
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
@@ -62236,15 +62351,21 @@ def _render_final_print_authority_v69009():
                 border: 1px solid #cbd5e1 !important;
             }
             html body .atp-print-image-v69007 {
+                display: block !important;
+                width: fit-content !important;
+                max-width: 125mm !important;
+                margin: 4mm auto !important;
                 break-inside: avoid !important;
                 page-break-inside: avoid !important;
             }
             html body .atp-print-image-v69007 img {
-                max-width: 100% !important;
-                max-height: 220mm !important;
+                display: block !important;
+                max-width: 125mm !important;
+                max-height: 115mm !important;
                 width: auto !important;
                 height: auto !important;
                 object-fit: contain !important;
+                margin: 0 auto !important;
             }
         }
         </style>
