@@ -49504,6 +49504,311 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
     return payloads
 
 
+
+def _website_image_dedicated_search_query_v69013(prompt_text, answer_text=""):
+    """Build a second, image-specific Technical retrieval query.
+
+    v69012 inspected only the ordinary answer file_search hits. That search is
+    optimized for factual text relevance, so a correct answer could be supported
+    by a manual/text chunk while the companion website-image package never entered
+    the returned evidence. v69013 separates those objectives: this query exists only
+    to locate the source file/section that owns an approved related image.
+    """
+    topic = _website_image_auto_topic_v68888(prompt_text) or _website_image_query_role_v68884(prompt_text)
+    enriched = _website_image_retrieval_query_v68889(prompt_text, topic) if topic else str(prompt_text or "")
+    answer_context = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()[:2200]
+    return (
+        "AUTOTECPRO TECHNICAL IMAGE RETRIEVAL ONLY.\n"
+        "Use file_search to find the learned AutoTecPro source file that contains the "
+        "approved related image for the exact vehicle/year/topic in the request. Prioritize "
+        "website knowledge records containing AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, "
+        "SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, ATP_WEB_IMAGE_JSON, or legacy raw HTML "
+        "<img> tags inside the matching Technical section. Search for the matching source "
+        "file even when a different manual/text file already supplied the factual answer. "
+        "Do not broaden to another vehicle, year range, camera type, harness type, or section.\n\n"
+        f"USER REQUEST:\n{enriched}\n\n"
+        + (f"ANSWER CONTEXT FOR MATCHING ONLY:\n{answer_context}\n" if answer_context else "")
+    )
+
+
+def _website_image_universal_technical_candidate_v69014(prompt_text, answer_text=""):
+    """Return True for any substantive Technical answer that may have related imagery.
+
+    v69014 intentionally does not require a hard-coded topic/role. Image discovery is
+    answer/section driven so new Technical subjects can display learned related images
+    without a code release.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    if not prompt or not answer:
+        return False
+    # Avoid spending a second retrieval call on obvious non-answers/refusals/errors.
+    lower = answer.casefold()
+    if len(answer) < 24:
+        return False
+    if any(token in lower for token in (
+        "i can't help with that", "i cannot help with that",
+        "technical support is unavailable", "an error occurred",
+    )):
+        return False
+    return True
+
+
+def _website_image_universal_relation_score_v69014(
+    prompt_text, answer_text, payload, file_score=0.0
+):
+    """Score whether an image is related to the *actual Technical answer section*.
+
+    Known high-risk roles keep all existing v68885 gates. Unknown/new subjects use
+    section-local lexical evidence from heading/nearby/caption/visual analysis, while
+    vehicle/year fitment remains mandatory. Broad page-title similarity alone cannot
+    make an image related.
+    """
+    if not isinstance(payload, dict):
+        return -2000.0
+    if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+        return -1200.0
+
+    query_role = _website_image_query_role_v68884(prompt_text)
+    if query_role:
+        if not _website_image_final_payload_gate_v68885(prompt_text, payload):
+            return -1000.0
+        base = _website_image_rank_v68883(prompt_text, payload)
+    else:
+        base = 0.0
+
+    prompt_tokens = set(_website_image_tokens_v68883(prompt_text))
+    answer_tokens = set(_website_image_tokens_v68883(answer_text))
+    section_text = " ".join((
+        str(payload.get("section_heading") or ""),
+        str(payload.get("nearby_instruction_text") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+    ))
+    section_tokens = set(_website_image_tokens_v68883(section_text))
+    heading_tokens = set(_website_image_tokens_v68883(payload.get("section_heading") or ""))
+
+    prompt_overlap = prompt_tokens & section_tokens
+    answer_overlap = answer_tokens & section_tokens
+    heading_prompt_overlap = prompt_tokens & heading_tokens
+    heading_answer_overlap = answer_tokens & heading_tokens
+
+    # Page/source metadata is fitment evidence, never enough by itself to prove
+    # image relevance. A candidate needs section-local relationship evidence.
+    if not section_tokens:
+        return -800.0
+    if query_role:
+        if not prompt_overlap and len(answer_overlap) < 2:
+            return -700.0
+    else:
+        # Universal/new topics need stronger section-local proof than a generic
+        # verb such as "connect". Require either two direct question concepts,
+        # or a heading concept plus supporting overlap with the actual answer.
+        if not (
+            len(prompt_overlap) >= 2
+            or (len(heading_prompt_overlap) >= 1 and len(answer_overlap) >= 2)
+        ):
+            return -700.0
+
+    score = float(base)
+    score += 6.0 * len(prompt_overlap)
+    score += 1.5 * min(len(answer_overlap), 12)
+    score += 4.0 * len(heading_prompt_overlap)
+    score += 2.0 * min(len(heading_answer_overlap), 6)
+    score += max(0.0, min(float(file_score or 0.0), 1.0)) * 10.0
+
+    # Strong phrase alignment between the question/answer and section heading is
+    # particularly useful for new topics that have never been hard-coded.
+    heading = re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip().casefold()
+    combined = re.sub(r"\s+", " ", (str(prompt_text or "") + " " + str(answer_text or ""))).casefold()
+    heading_words = [w for w in _website_image_tokens_v68883(heading) if len(w) >= 4]
+    if heading_words and sum(1 for w in heading_words if w in combined) >= min(2, len(heading_words)):
+        score += 10.0
+
+    return score
+
+
+def _website_image_universal_payload_pass_v69014(
+    prompt_text, answer_text, payload, file_score=0.0
+):
+    """Fail-closed universal relevance decision for a Technical image payload."""
+    score = _website_image_universal_relation_score_v69014(
+        prompt_text, answer_text, payload, file_score
+    )
+    query_role = _website_image_query_role_v68884(prompt_text)
+    # Existing classified roles already passed their stricter role gates above.
+    # New/unclassified topics require stronger section-local evidence.
+    threshold = 6.0 if query_role else 12.0
+    return score >= threshold, score
+
+
+def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
+    """Universal image-specific retrieval query based on the actual answer context."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:2200]
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()[:3600]
+    return (
+        "AUTOTECPRO TECHNICAL RELATED-IMAGE RETRIEVAL ONLY.\n"
+        "Use file_search to find learned AutoTecPro source files/sections containing one or more "
+        "images directly related to the Technical answer below. This is UNIVERSAL: do not require "
+        "a predefined topic such as car model, camera, harness, audio, climate, or wiring. Match the "
+        "exact section/nearby instructions that support the answer. Prefer records containing "
+        "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
+        "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags inside that same relevant section. "
+        "Do not select an image merely because it is on the same vehicle page. Do not broaden to "
+        "another vehicle/year/model/version or unrelated section.\n\n"
+        f"USER REQUEST:\n{prompt}\n\n"
+        f"FINAL TECHNICAL ANSWER CONTEXT:\n{answer}\n"
+    )
+
+
+def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
+    """Run universal independent Technical image retrieval after the answer exists."""
+    if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
+        return []
+    vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not vector_store_ids:
+        return []
+    request = {
+        "model": "gpt-5.5",
+        "input": _website_image_dedicated_search_query_v69014(prompt_text, answer_text),
+        "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
+        "tool_choice": "required",
+        "include": ["file_search_call.results"],
+        "max_output_tokens": 120,
+    }
+    try:
+        response = client.responses.create(**request)
+    except Exception as error:
+        diagnostic_log(
+            "website_image_universal_search_failed_v69014",
+            error_type=type(error).__name__, error=str(error)[:500],
+        )
+        return []
+    rows = _response_file_search_results_v69012(response)
+    diagnostic_log(
+        "website_image_universal_search_complete_v69014",
+        result_count=len(rows),
+    )
+    return rows
+
+
+def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
+    """Recover any answer-related Technical images without a hard-coded topic list."""
+    if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
+        return []
+
+    ranked = []
+    seen_files = set()
+    ordered = sorted(
+        [row for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0), reverse=True,
+    )
+    for row in ordered[:12]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        result_text = str(row.get("text") or "")
+        key = file_id or (filename + "|" + result_text[:200])
+        if key in seen_files:
+            continue
+        seen_files.add(key)
+        full_text = _website_file_full_text_v69012(file_id) if file_id else ""
+        file_text = full_text or result_text
+        if not file_text:
+            continue
+        payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
+        payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
+        for payload in payloads:
+            passed, score = _website_image_universal_payload_pass_v69014(
+                prompt_text, answer_text, payload, float(row.get("score") or 0.0)
+            )
+            if not passed:
+                continue
+            ranked.append((float(score), payload, file_id))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    output, seen_urls = [], set()
+    for score, payload, file_id in ranked:
+        url = str(payload.get("image_url") or "").strip()
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        output.append({
+            "name": str(payload.get("caption") or payload.get("section_heading") or "Relevant instruction image").strip(),
+            "data_url": url,
+            "source": "website_knowledge",
+            "asset_type": "website_instruction_image",
+            "archive_web_url": url,
+            "generated": False,
+            "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+            "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+            "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
+            "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+            "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+            "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
+            "website_file_search_deterministic_v69012": True,
+            "website_file_search_universal_v69014": True,
+            "website_universal_relation_pass_v69014": True,
+            "website_universal_relation_score_v69014": float(score),
+            "website_file_id_v69012": str(file_id or "").strip(),
+            "website_image_match_score_v68883": float(score),
+        })
+        if len(output) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
+            break
+    return output
+
+
+def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text=""):
+    """Run an independent Technical file_search dedicated to image-source discovery.
+
+    This is intentionally invoked only after the durable image index and the ordinary
+    answer-evidence recovery both miss. The call is read-only, uses the existing
+    Technical vector stores, requires a tool call, and returns only file_search result
+    records. It never generates or selects the final image; the existing deterministic
+    vehicle/year/section/visual authority gates remain final.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    if not _website_image_visual_intent_v68883(prompt_text):
+        return []
+
+    vector_store_ids = _configured_vector_store_ids(
+        TECHNICAL_VECTOR_STORE_ID,
+    )
+    if not vector_store_ids:
+        return []
+
+    request = {
+        "model": "gpt-5.5",
+        "input": _website_image_dedicated_search_query_v69013(prompt_text, answer_text),
+        "tools": [{
+            "type": "file_search",
+            "vector_store_ids": vector_store_ids,
+        }],
+        "tool_choice": "required",
+        "include": ["file_search_call.results"],
+        "max_output_tokens": 120,
+    }
+
+    try:
+        response = client.responses.create(**request)
+    except Exception as error:
+        diagnostic_log(
+            "website_image_dedicated_search_failed_v69013",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return []
+
+    rows = _response_file_search_results_v69012(response)
+    diagnostic_log(
+        "website_image_dedicated_search_complete_v69013",
+        result_count=len(rows),
+        topic=_website_image_auto_topic_v68888(prompt_text) or _website_image_query_role_v68884(prompt_text),
+    )
+    return rows
+
 def _website_file_search_images_v69012(prompt_text, result_rows):
     """Deterministically recover approved related images from exact file_search evidence.
 
@@ -49583,6 +49888,18 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
         return False
     if str(image_record.get("source") or "") != "website_knowledge":
         return True
+
+    # v69014: app-side universal retrieval carries a positive answer/section
+    # relationship proof. Unknown/new Technical topics therefore remain fail-closed
+    # without requiring a hard-coded role entry.
+    if bool(image_record.get("website_file_search_universal_v69014")):
+        if not bool(image_record.get("website_universal_relation_pass_v69014")):
+            return False
+        try:
+            if float(image_record.get("website_universal_relation_score_v69014") or 0.0) < 12.0:
+                return False
+        except Exception:
+            return False
 
     query_role = _website_image_query_role_v68884(prompt_text)
     if not query_role:
@@ -60438,18 +60755,11 @@ else:
                         "After answering the question in text, automatically look in the retrieved approved "
                         "AutoTecPro website knowledge for the single most relevant verified image for this "
                         "exact topic, exactly as if the user had also asked to see the photo. "
-                        "If a verified image control is available in the retrieved knowledge, emit the existing "
-                        "ATP_WEB_IMAGE_JSON control so the app can display it after the text answer. "
-                        "Include the exact source_page, page_title, section_heading, nearby_instruction_text, "
-                        "and visual_analysis from that SAME retrieved image package in the hidden control; "
-                        "copy them verbatim rather than inventing or summarizing provenance. If the older "
-                        "retrieved knowledge has no structured image record but contains an exact raw-HTML "
-                        "<img src> inside the SAME matching section, you may use that exact URL: copy the exact "
-                        "section/nearby/source provenance, use an empty visual_analysis, and set "
-                        "legacy_html_section_bound=true. Do not use an image from another section of the page. "
-                        "Do not invent an image URL, do not use an unrelated image, and do not claim an image "
-                        "exists if the retrieved approved knowledge does not provide one. The app's existing "
-                        "final website-image authority gate will validate the image before display.\n"
+                        "The application independently retrieves and validates the related image after the text "
+                        "answer, so do not claim that no photo is available merely because the answer-oriented "
+                        "file_search did not return an image-bearing chunk. Do not invent or recommend a website "
+                        "image URL. If the app finds an approved image, it will display it below the answer through "
+                        "the deterministic vehicle/year/section/visual authority gate.\n"
                     )
                 if assistant == "🎨 Graphic Marketing":
                     ai_request_prompt += build_graphic_conversation_guardrail(
@@ -60741,30 +61051,49 @@ else:
                         error=str(error)[:500],
                     )
 
-        # v69012: authoritative app-side fallback over the exact file_search evidence.
-        # Run after both index passes. If the durable index produced no image, this
-        # deterministically inspects the files that actually supported the answer and
-        # normalizes modern image packages + legacy section-bound HTML images. This
-        # removes dependence on the model emitting ATP_WEB_IMAGE_JSON.
-        if assistant == "🔧 Technical Support" and _website_image_visual_intent_v68883(
-            technical_request_prompt_v68879
+        # v69014 FINAL: universal Technical related-image recovery.
+        # This runs after ANY substantive Technical answer, not only hard-coded topics.
+        # Text retrieval and image retrieval are independent objectives. Candidate images
+        # must be related to the exact answer-supporting section and still pass vehicle/year
+        # authority; broad same-page similarity alone is never sufficient.
+        if assistant == "🔧 Technical Support" and _website_image_universal_technical_candidate_v69014(
+            technical_request_prompt_v68879, answer
         ):
-            indexed_website_images_v69012 = [
+            indexed_website_images_v69014 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict)
                 and str(image.get("source") or "") == "website_knowledge"
                 and bool(image.get("website_image_index_v68883"))
             ]
-            if not indexed_website_images_v69012:
+            existing_universal_v69014 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+                and bool(image.get("website_file_search_universal_v69014"))
+            ]
+            if not indexed_website_images_v69014 and not existing_universal_v69014:
                 try:
-                    file_search_images_v69012 = _website_file_search_images_v69012(
-                        technical_request_prompt_v68879,
-                        st.session_state.get("_technical_file_search_results_v69012") or [],
+                    answer_result_rows_v69014 = list(
+                        st.session_state.get("_technical_file_search_results_v69012") or []
                     )
-                    if file_search_images_v69012:
-                        # App-side file_search evidence outranks model-emitted legacy
-                        # controls. Preserve non-website assets and replace only the
-                        # non-index website-image fallback set.
+                    universal_images_v69014 = _website_file_search_images_v69014(
+                        technical_request_prompt_v68879, answer, answer_result_rows_v69014
+                    )
+                    # The ordinary answer search may not return the image-bearing source.
+                    # Only then perform the independent universal image search.
+                    if not universal_images_v69014:
+                        dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
+                            technical_request_prompt_v68879, answer
+                        )
+                        if dedicated_rows_v69014:
+                            universal_images_v69014 = _website_file_search_images_v69014(
+                                technical_request_prompt_v68879,
+                                answer,
+                                answer_result_rows_v69014 + dedicated_rows_v69014,
+                            )
+                    if universal_images_v69014:
+                        # Replace only non-index legacy/model website fallbacks. Durable index
+                        # results keep priority. Non-website assets are untouched.
                         generated_images = [
                             image for image in (generated_images or [])
                             if not (
@@ -60773,21 +61102,20 @@ else:
                                 and not bool(image.get("website_image_index_v68883"))
                             )
                         ]
-                        generated_images.extend(file_search_images_v69012)
+                        generated_images.extend(universal_images_v69014)
                         generated_images = _website_image_final_authority_v68885(
                             technical_request_prompt_v68879,
                             _dedupe_website_chat_images_v68883(generated_images),
                             deterministic_images=website_index_images_v68883,
                         )
                         diagnostic_log(
-                            "website_file_search_image_recovery_v69012",
-                            recovered=len(file_search_images_v69012),
+                            "website_universal_related_image_recovery_v69014",
+                            recovered=len(universal_images_v69014),
                         )
                 except Exception as error:
                     diagnostic_log(
-                        "website_file_search_image_recovery_failed_v69012",
-                        error_type=type(error).__name__,
-                        error=str(error)[:500],
+                        "website_universal_related_image_recovery_failed_v69014",
+                        error_type=type(error).__name__, error=str(error)[:500],
                     )
 
         # Product Library photos are stored with the assistant message just like
