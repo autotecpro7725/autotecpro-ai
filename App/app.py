@@ -508,29 +508,43 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# v69004: browser-print layout. Expand the full Streamlit document instead of
-# printing only the visible/scrollable viewport; hide navigation/composer chrome.
+# v69006: browser-print transcript authority. Browser print must not depend on
+# Streamlit's viewport/scroll DOM (especially for restored History conversations).
+# A separate transcript is built from persistent st.session_state.messages and is
+# the only main-content element published in print media.
 st.markdown(
     """
     <style>
+    .atp-print-transcript-v69006 {
+        display: none;
+    }
+
     @media print {
+        @page {
+            size: auto;
+            margin: 12mm 11mm 14mm;
+        }
+
         html, body, .stApp,
         [data-testid="stAppViewContainer"],
         [data-testid="stMain"],
         [data-testid="stMainBlockContainer"],
         .main, .block-container {
+            width: 100% !important;
             height: auto !important;
             max-height: none !important;
             min-height: 0 !important;
             overflow: visible !important;
             position: static !important;
-        }
-        [data-testid="stMainBlockContainer"], .block-container {
-            width: 100% !important;
-            max-width: none !important;
-            padding: 12mm !important;
+            transform: none !important;
+            contain: none !important;
             margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
         }
+
+        /* Hide application chrome and every normal Streamlit content element.
+           The dedicated transcript below is explicitly restored. */
         section[data-testid="stSidebar"],
         header[data-testid="stHeader"],
         [data-testid="stToolbar"],
@@ -538,27 +552,165 @@ st.markdown(
         [data-testid="stStatusWidget"],
         [data-testid="stBottom"],
         [data-testid="stChatInput"],
-        div[data-testid="stChatInput"] {
+        div[data-testid="stChatInput"],
+        [data-testid="stMainBlockContainer"] div[data-testid="stElementContainer"] {
             display: none !important;
         }
-        [data-testid="stVerticalBlock"],
-        [data-testid="stElementContainer"],
+
+        /* Streamlit wraps the print transcript in one stElementContainer. Keep
+           that wrapper and every HTML descendant inside it in normal flow. */
+        [data-testid="stMainBlockContainer"]
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69006) {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            contain: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        [data-testid="stMainBlockContainer"]
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69006)
         [data-testid="stMarkdownContainer"] {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            contain: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .atp-print-transcript-v69006 {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            contain: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #111827 !important;
+            background: #ffffff !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+            font-size: 10.5pt !important;
+            line-height: 1.45 !important;
+        }
+
+        .atp-print-header-v69006 {
+            display: block !important;
+            margin: 0 0 8mm !important;
+            padding: 0 0 4mm !important;
+            border-bottom: 1px solid #cbd5e1 !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+        .atp-print-brand-v69006 {
+            color: #111827 !important;
+            font-size: 18pt !important;
+            font-weight: 800 !important;
+            line-height: 1.15 !important;
+        }
+        .atp-print-workspace-v69006 {
+            margin-top: 1.5mm !important;
+            color: #475569 !important;
+            font-size: 10pt !important;
+            font-weight: 650 !important;
+        }
+
+        .atp-print-conversation-v69006 {
+            display: block !important;
+            width: 100% !important;
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
         }
-        .chat-image-grid,
-        .chat-image-card,
-        .chat-generated-image-card {
+        .atp-print-message-v69006 {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            margin: 0 0 6mm !important;
+            padding: 0 !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        .atp-print-role-v69006 {
+            margin: 0 0 1.5mm !important;
+            color: #334155 !important;
+            font-size: 9pt !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: .02em !important;
+        }
+        .atp-print-body-v69006 {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            color: #111827 !important;
+        }
+        .atp-print-body-v69006 p,
+        .atp-print-body-v69006 ul,
+        .atp-print-body-v69006 ol,
+        .atp-print-body-v69006 blockquote,
+        .atp-print-body-v69006 pre,
+        .atp-print-body-v69006 table {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        .atp-print-body-v69006 table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 2mm 0 4mm !important;
+        }
+        .atp-print-body-v69006 th,
+        .atp-print-body-v69006 td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 1.5mm 2mm !important;
+            vertical-align: top !important;
+            color: #111827 !important;
+            background: #ffffff !important;
+        }
+        .atp-print-body-v69006 h1,
+        .atp-print-body-v69006 h2,
+        .atp-print-body-v69006 h3,
+        .atp-print-body-v69006 h4 {
+            color: #111827 !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        .atp-print-image-v69006 {
+            display: block !important;
+            max-width: 100% !important;
+            margin: 4mm 0 !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-        .chat-image-card img,
-        .chat-generated-image-card img {
+        .atp-print-image-v69006 img {
+            display: block !important;
             max-width: 100% !important;
+            max-height: 220mm !important;
+            width: auto !important;
             height: auto !important;
+            object-fit: contain !important;
+            margin: 0 !important;
         }
+        .atp-print-image-v69006 figcaption {
+            margin-top: 1.5mm !important;
+            color: #64748b !important;
+            font-size: 8.5pt !important;
+        }
+
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -5235,6 +5387,78 @@ def render_chat_message(
             regular_final_images,
             message_index=message_index,
         )
+
+
+def _build_print_transcript_html_v69006(messages, assistant_label="Technical Support"):
+    """Build a self-contained print transcript from persistent chat history."""
+    rows = []
+    for index, message in enumerate(list(messages or []), start=1):
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "assistant").strip().lower()
+        content = str(message.get("content") or "")
+        content_without_documents, _stored_documents = extract_documents_from_message_content(content)
+        visible_content, stored_images = extract_images_from_message_content(content_without_documents)
+        visible_content = clean_visible_chat_text(visible_content)
+        if role != "user":
+            visible_content = format_learning_record_for_display(visible_content)
+
+        role_label = "You" if role == "user" else "AutoTecPro AI"
+        role_class = "user" if role == "user" else "assistant"
+        body_html = html_from_text(visible_content, assistant_mode=(role != "user"))
+
+        image_html = []
+        for image_index, image in enumerate(list(stored_images or []), start=1):
+            if not isinstance(image, dict):
+                continue
+            source = str(image.get("data_url") or image.get("url") or "").strip()
+            if not source.startswith(("data:image/", "https://")):
+                continue
+            safe_source = html.escape(source, quote=True)
+            caption = html.escape(
+                str(image.get("name") or image.get("filename") or "Related image"),
+                quote=True,
+            )
+            image_html.append(
+                '<figure class="atp-print-image-v69006">'
+                f'<img src="{safe_source}" alt="{caption}">'
+                f'<figcaption>{caption}</figcaption>'
+                '</figure>'
+            )
+
+        if not visible_content.strip() and not image_html:
+            continue
+
+        rows.append(
+            f'<section class="atp-print-message-v69006 {role_class}" '
+            f'data-message-index="{index}">'
+            f'<div class="atp-print-role-v69006">{html.escape(role_label)}</div>'
+            f'<div class="atp-print-body-v69006">{body_html}{"".join(image_html)}</div>'
+            '</section>'
+        )
+
+    if not rows:
+        return ""
+
+    safe_label = html.escape(str(assistant_label or "Technical Support"), quote=True)
+    return (
+        '<div class="atp-print-transcript-v69006">'
+        '<header class="atp-print-header-v69006">'
+        '<div class="atp-print-brand-v69006">AutoTecPro AI</div>'
+        f'<div class="atp-print-workspace-v69006">{safe_label}</div>'
+        '</header>'
+        '<main class="atp-print-conversation-v69006">'
+        + ''.join(rows)
+        + '</main></div>'
+    )
+
+
+def render_print_transcript_v69006(messages, assistant_label="Technical Support"):
+    """Render the persistent conversation only for browser/PDF print output."""
+    transcript_html = _build_print_transcript_html_v69006(messages, assistant_label)
+    if transcript_html:
+        st.markdown(transcript_html, unsafe_allow_html=True)
+
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
 REMEMBER_CREDENTIAL_DAYS = 30
@@ -47377,24 +47601,49 @@ def _analyze_website_image_cached(
 
 
 def analyze_website_images(extraction, database_choice, selected_urls=None):
-    """Download, filter, analyze, and de-duplicate useful images from one page."""
+    """Download, filter, analyze, and de-duplicate useful images from one page.
+
+    v69005 distinguishes "no selection supplied" from an explicitly empty
+    selection. An explicit empty list means the reviewer removed every image and
+    must never fall back to analyzing all discovered candidates.
+    """
+    selection_provided_v69005 = selected_urls is not None
     selected_set = {
         str(item or "").strip()
         for item in (selected_urls or [])
         if str(item or "").strip()
     }
     candidates = list(extraction.get("image_candidates") or [])
-    if selected_set:
+    if selection_provided_v69005:
         candidates = [
             item for item in candidates
             if str((item or {}).get("url") or "") in selected_set
         ]
+
+    # Reuse durable visual analysis for byte-identical images already approved
+    # on this same canonical page/database. This makes same-URL updates truly
+    # incremental and avoids provider drift deleting an unchanged image.
+    existing_by_digest_v69005 = {}
+    try:
+        existing_rows_v69005, existing_loaded_v69005 = (
+            _website_image_index_rows_for_page_v69003(extraction, database_choice)
+        )
+        if existing_loaded_v69005:
+            for existing_entry_v69005 in existing_rows_v69005:
+                existing_payload_v69005 = dict(existing_entry_v69005.get("payload") or {})
+                existing_digest_v69005 = str(existing_payload_v69005.get("image_sha256") or "").strip().lower()
+                if existing_digest_v69005 and str(existing_payload_v69005.get("visual_analysis") or "").strip():
+                    existing_by_digest_v69005[existing_digest_v69005] = existing_payload_v69005
+    except Exception:
+        existing_by_digest_v69005 = {}
 
     learned = []
     seen_hashes = set()
     attempted = 0
     skipped = 0
     failures = 0
+    reused = 0
+    provider_calls = 0
 
     for candidate in candidates:
         if len(learned) >= WEBSITE_MAX_ANALYZED_IMAGES:
@@ -47415,20 +47664,26 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             if digest:
                 seen_hashes.add(digest)
 
-            data_url = (
-                f"data:{downloaded.get('mime_type') or 'image/jpeg'};base64,"
-                + base64.b64encode(downloaded.get("bytes") or b"").decode("ascii")
-            )
-            analysis = _analyze_website_image_cached(
-                data_url,
-                str(extraction.get("source_url") or ""),
-                str(downloaded.get("source_url") or candidate.get("url") or ""),
-                str(extraction.get("title") or ""),
-                str(candidate.get("alt") or candidate.get("title") or ""),
-                str(candidate.get("nearest_heading") or ""),
-                str(candidate.get("nearby_text") or ""),
-                str(database_choice or ""),
-            )
+            existing_payload_v69005 = existing_by_digest_v69005.get(digest.lower()) if digest else None
+            if existing_payload_v69005:
+                analysis = str(existing_payload_v69005.get("visual_analysis") or "").strip()
+                reused += 1
+            else:
+                data_url = (
+                    f"data:{downloaded.get('mime_type') or 'image/jpeg'};base64,"
+                    + base64.b64encode(downloaded.get("bytes") or b"").decode("ascii")
+                )
+                provider_calls += 1
+                analysis = _analyze_website_image_cached(
+                    data_url,
+                    str(extraction.get("source_url") or ""),
+                    str(downloaded.get("source_url") or candidate.get("url") or ""),
+                    str(extraction.get("title") or ""),
+                    str(candidate.get("alt") or candidate.get("title") or ""),
+                    str(candidate.get("nearest_heading") or ""),
+                    str(candidate.get("nearby_text") or ""),
+                    str(database_choice or ""),
+                )
             if not analysis or analysis.strip().upper() == "SKIP_IMAGE":
                 skipped += 1
                 continue
@@ -47462,6 +47717,9 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
         "attempted": attempted,
         "skipped": skipped,
         "failures": failures,
+        "reused": reused,
+        "provider_calls": provider_calls,
+        "selection_provided_v69005": bool(selection_provided_v69005),
         "discovered": len(candidates),
         "limited": len(candidates) > WEBSITE_MAX_ANALYZED_IMAGES,
     }
@@ -47700,25 +47958,61 @@ def _website_image_index_upsert_v68883(payload):
     return True
 
 
+def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows=20000):
+    """Load website-image index rows in bounded pages and report completeness.
+
+    v69004 used a single 1,500-row window. Once the global website-image index
+    exceeded that size, old page rows could become invisible to retrieval/sync,
+    and shared-archive reference checks could become unsafe. v69005 paginates and
+    fails closed when the safety ceiling is reached.
+    """
+    rows = []
+    batch_size = 1000
+    complete = True
+    for start in range(0, int(max_rows), batch_size):
+        try:
+            query = (
+                supabase.table("learned_knowledge")
+                .select(columns)
+                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            )
+            if order_recent:
+                query = query.order("updated_at", desc=True)
+            else:
+                # Stable ordering is required for offset/range pagination.
+                query = query.order("id", desc=False)
+            range_method = getattr(query, "range", None)
+            if callable(range_method):
+                query = range_method(start, start + batch_size - 1)
+            else:
+                if start:
+                    complete = False
+                    break
+                query = query.limit(batch_size)
+            page = list(query.execute().data or [])
+        except Exception:
+            return rows, False
+        rows.extend(page)
+        if len(page) < batch_size:
+            return rows, True
+    if len(rows) >= int(max_rows):
+        complete = False
+    return rows, complete
+
+
 def _website_image_index_rows_for_page_v69003(extraction, database_choice):
     """Load durable website-image rows for one canonical page and one destination database."""
     target_page = _website_image_page_identity_v69003(extraction)
     target_database = str(database_choice or "").strip().casefold()
     matches = []
-    try:
-        result = (
-            supabase.table("learned_knowledge")
-            .select("id,issue,solution,approved_answer,source_type")
-            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
-            .execute()
-        )
-        rows = list(result.data or [])
-    except Exception as error:
+    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
+        "id,issue,solution,approved_answer,source_type",
+        max_rows=20000,
+    )
+    if not rows_complete_v69005:
         diagnostic_log(
-            "website_image_page_sync_load_failed_v69003",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
+            "website_image_page_sync_load_incomplete_v69005",
+            loaded=len(rows),
         )
         return [], False
 
@@ -47745,16 +48039,11 @@ def _website_archive_path_is_referenced_v69003(archive_path):
     target = str(archive_path or "").strip()
     if not target:
         return False, True
-    try:
-        result = (
-            supabase.table("learned_knowledge")
-            .select("solution,approved_answer,source_type")
-            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
-            .execute()
-        )
-        rows = list(result.data or [])
-    except Exception:
+    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
+        "id,solution,approved_answer,source_type",
+        max_rows=20000,
+    )
+    if not rows_complete_v69005:
         return True, False
     for row in rows:
         raw = str(row.get("solution") or row.get("approved_answer") or "")
@@ -47951,23 +48240,16 @@ def _website_archive_and_index_images_v68883(
 @st.cache_data(ttl=60, max_entries=4, show_spinner=False)
 def _website_image_index_rows_v68883():
     """Load durable approved website-image metadata without touching file_search."""
-    try:
-        result = (
-            supabase.table("learned_knowledge")
-            .select("id,issue,vehicle,solution,approved_answer,keywords,source_type,updated_at")
-            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            .order("updated_at", desc=True)
-            .limit(WEBSITE_IMAGE_INDEX_MAX_ROWS_V68883)
-            .execute()
-        )
-        rows = list(result.data or [])
-    except Exception as error:
+    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
+        "id,issue,vehicle,solution,approved_answer,keywords,source_type,updated_at",
+        order_recent=True,
+        max_rows=20000,
+    )
+    if not rows_complete_v69005:
         diagnostic_log(
-            "website_image_index_load_failed_v68883",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
+            "website_image_index_load_incomplete_v69005",
+            loaded=len(rows),
         )
-        return []
 
     parsed = []
     for row in rows:
@@ -48683,7 +48965,10 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
             # alone is no longer sufficient authority.
             sparse_visual_v69004 = len(visual_only.strip()) < 55
             if sparse_visual_v69004:
-                return True
+                # v69005: for high-risk Car Model/A/C lookup, section text alone
+                # is not enough to display a generic legacy image. Failing closed
+                # is safer than showing a wiring/camera photo as a setting screen.
+                return False
             return visual_specificity_v69004 > -1.0 and strong_visual
 
         return strong_visual
@@ -48780,6 +49065,26 @@ def _website_image_final_payload_gate_v68885(prompt_text, payload):
     return True
 
 
+def _website_image_payload_for_chat_record_v69005(image_record):
+    """Resolve a model-emitted website image back to its approved durable payload."""
+    if not isinstance(image_record, dict):
+        return None
+    digest = str(image_record.get("website_image_sha256") or "").strip().lower()
+    candidate_urls = {
+        str(image_record.get("archive_web_url") or "").strip(),
+        str(image_record.get("data_url") or "").strip(),
+    }
+    candidate_urls.discard("")
+    for payload in _website_image_index_rows_v68883():
+        payload_digest = str(payload.get("image_sha256") or "").strip().lower()
+        payload_url = str(payload.get("image_url") or "").strip()
+        if digest and payload_digest and digest == payload_digest:
+            return payload
+        if payload_url and payload_url in candidate_urls:
+            return payload
+    return None
+
+
 def _website_model_control_gate_v68885(prompt_text, image_record):
     """Gate legacy/model-selected website images by strong filename contradiction."""
     if not isinstance(image_record, dict):
@@ -48801,8 +49106,21 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
     if _website_image_roles_conflict_v68885(query_role, asset_role):
         return False
 
-    # For high-risk explicit roles, model-only controls are not allowed to
-    # override a deterministic image-index decision.
+    high_risk_roles_v69005 = {
+        "car_model_ac", "factory_camera", "cargo_bed_camera",
+        "aftermarket_camera", "dashboard_fitment",
+    }
+    if query_role in high_risk_roles_v69005:
+        # v69005: a model/file_search image control must resolve back to the
+        # approved durable image index and pass the same vehicle/section/visual
+        # authority gate as deterministic lookup. This closes the fallback path
+        # that could still publish a wrong RAM image when deterministic lookup
+        # returned no record.
+        payload_v69005 = _website_image_payload_for_chat_record_v69005(image_record)
+        if not payload_v69005:
+            return False
+        return _website_image_final_payload_gate_v68885(prompt_text, payload_v69005)
+
     return True
 
 
@@ -49108,6 +49426,8 @@ def _website_image_lookup_v68883(prompt_text):
             role_score_v68975 = _website_image_role_score_v68884(
                 query_role_v68884, payload
             )
+            if query_role_v68884 == "car_model_ac":
+                role_score_v68975 += _website_image_car_model_visual_specificity_v69004(payload)
             if role_score_v68975 < 6.0:
                 continue
             recovery_ranked_v68975.append((float(role_score_v68975), payload))
@@ -49228,24 +49548,34 @@ def save_website_knowledge_package(
 
     # Stable exact duplicate check happens before package timestamp can vary.
     if vector_store_has_filename(selected_vector_store_id, filename):
-        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-            extraction,
-            database_choice,
-            list(image_analysis.get("images") or []),
-        )
-        website_image_sync_v69003 = {
-            "completed": False,
-            "skipped_reason": "image-analysis-or-index-failure",
-        }
-        if (
-            int(image_analysis.get("failures") or 0) == 0
-            and int(website_image_index_stats_v68883.get("failures") or 0) == 0
-        ):
-            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+        if include_images:
+            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
                 extraction,
                 database_choice,
                 list(image_analysis.get("images") or []),
             )
+            website_image_sync_v69003 = {
+                "completed": False,
+                "skipped_reason": "image-analysis-or-index-failure",
+            }
+            if (
+                int(image_analysis.get("failures") or 0) == 0
+                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
+            ):
+                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                    extraction,
+                    database_choice,
+                    list(image_analysis.get("images") or []),
+                )
+        else:
+            website_image_index_stats_v68883 = {
+                "indexed": 0, "archived": 0, "failures": 0,
+                "preserved_existing_v69005": True,
+            }
+            website_image_sync_v69003 = {
+                "completed": True,
+                "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
+            }
         return {
             "already_saved": True,
             "updated_existing_url": False,
@@ -49324,27 +49654,37 @@ def save_website_knowledge_package(
     cleanup_pending_v68892 = False
 
     if str(indexing_status_v68892 or "").lower() == "completed":
-        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-            extraction,
-            database_choice,
-            list(image_analysis.get("images") or []),
-        )
-        image_sync_safe_v69003 = (
-            int(image_analysis.get("failures") or 0) == 0
-            and int(website_image_index_stats_v68883.get("failures") or 0) == 0
-        )
-        if image_sync_safe_v69003:
-            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+        if include_images:
+            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
                 extraction,
                 database_choice,
                 list(image_analysis.get("images") or []),
             )
+            image_sync_safe_v69003 = (
+                int(image_analysis.get("failures") or 0) == 0
+                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
+            )
+            if image_sync_safe_v69003:
+                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                    extraction,
+                    database_choice,
+                    list(image_analysis.get("images") or []),
+                )
+            else:
+                website_image_sync_v69003 = {
+                    "completed": False,
+                    "skipped_reason": "image-analysis-or-index-failure",
+                    "image_analysis_failures": int(image_analysis.get("failures") or 0),
+                    "image_index_failures": int(website_image_index_stats_v68883.get("failures") or 0),
+                }
         else:
+            website_image_index_stats_v68883 = {
+                "indexed": 0, "archived": 0, "failures": 0,
+                "preserved_existing_v69005": True,
+            }
             website_image_sync_v69003 = {
-                "completed": False,
-                "skipped_reason": "image-analysis-or-index-failure",
-                "image_analysis_failures": int(image_analysis.get("failures") or 0),
-                "image_index_failures": int(website_image_index_stats_v68883.get("failures") or 0),
+                "completed": True,
+                "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
             }
 
         # Remove the superseded vector package only after the image knowledge
@@ -60777,6 +61117,32 @@ if _pending_workspace_auth_refresh_v68880:
                 "workspace_auth_refresh_failed",
                 error=str(error),
             )
+
+# v69006: render one print-only transcript after all chat processing for this
+# Streamlit run. This includes restored History messages and any answer appended
+# during the current run, while remaining completely hidden on screen.
+try:
+    _print_messages_v69006 = list(st.session_state.get("messages") or [])
+    _print_assistant_v69006 = str(locals().get("assistant") or "Technical Support")
+    if (
+        st.session_state.get("logged_in", False)
+        and _print_messages_v69006
+        and _print_assistant_v69006 not in {
+            "⚙️ Admin Panel",
+            "📦 Product Library",
+            "🧠 Knowledge Submission",
+        }
+    ):
+        render_print_transcript_v69006(
+            _print_messages_v69006,
+            assistant_label=_print_assistant_v69006,
+        )
+except Exception as _print_transcript_error_v69006:
+    diagnostic_log(
+        "print_transcript_render_failed_v69006",
+        error_type=type(_print_transcript_error_v69006).__name__,
+        error=str(_print_transcript_error_v69006)[:500],
+    )
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
 # the fixed cover until this point prevents stale login or authenticated DOM
