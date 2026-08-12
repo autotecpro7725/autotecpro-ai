@@ -1,4 +1,4 @@
-# AutoTecPro AI v69017 — Knowledge Accuracy Engine; v69016 runtime/output + Graphic engine preserved
+# AutoTecPro AI v69019 — Final Print/Export Provenance Fix; v69017 learning + Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -5562,11 +5562,21 @@ def _build_print_transcript_html_v69007(messages, assistant_label="Technical Sup
     )
 
 
-def render_print_transcript_v69007(messages, assistant_label="Technical Support"):
-    """Render the persistent conversation only for browser/PDF print output."""
+def render_print_transcript_v69007(messages, assistant_label="Technical Support", target=None):
+    """Render the persistent conversation only for browser/PDF print output.
+
+    v69018 may supply a stable ``st.empty()`` placeholder so the same hidden
+    transcript DOM node can be refreshed immediately when a message is committed,
+    before the response lifecycle triggers ``st.rerun()``. Normal callers remain
+    fully backward compatible.
+    """
     transcript_html = _build_print_transcript_html_v69007(messages, assistant_label)
     if transcript_html:
-        st.markdown(transcript_html, unsafe_allow_html=True)
+        renderer = getattr(target, "markdown", None) if target is not None else None
+        if callable(renderer):
+            renderer(transcript_html, unsafe_allow_html=True)
+        else:
+            st.markdown(transcript_html, unsafe_allow_html=True)
 
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
@@ -9219,6 +9229,10 @@ def _document_request_uses_previous_response(prompt_text):
         "turn this into a pdf",
         "export this as pdf",
         "export this as a pdf",
+        "export this to pdf",
+        "export this to a pdf",
+        "export this into pdf",
+        "export this into a pdf",
         "save this as pdf",
         "save this as a pdf",
         "convert this to word",
@@ -9237,7 +9251,17 @@ def _document_request_uses_previous_response(prompt_text):
         "export this as a document",
         "save this as a document",
     )
-    return any(phrase in value for phrase in response_references + direct_followups)
+    if any(phrase in value for phrase in response_references + direct_followups):
+        return True
+    # v69019: tolerate natural follow-up wording without reopening broad document routing.
+    # The request still has to reference the current result (this/it/response/answer) and
+    # a supported export format, so ordinary questions containing “pdf” are unaffected.
+    return bool(re.search(
+        r"\b(?:export|save|convert|turn|download|make)\b.{0,28}"
+        r"\b(?:this|it|response|answer)\b.{0,28}"
+        r"\b(?:to|into|as|a|an)?\s*(?:pdf|word|docx|document)\b",
+        value,
+    ))
 
 
 def _previous_assistant_document_text(messages):
@@ -9254,6 +9278,49 @@ def _previous_assistant_document_text(messages):
         if content and content.lower() != "your document is ready.":
             return content
     return ""
+
+
+def _previous_assistant_document_payload_v69018(messages):
+    """Return the latest assistant text plus the exact images shown with it.
+
+    Document export must use the already-published assistant result as its source
+    of truth.  It must never ask the AI to regenerate a second "PDF-ready" answer.
+    """
+    for message in reversed(list(messages or [])):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(message.get("content") or "")
+        content, _ = extract_documents_from_message_content(content)
+        visible, images = extract_images_from_message_content(content)
+        visible = clean_visible_chat_text(visible).strip()
+        if visible and visible.lower() != "your document is ready.":
+            return visible, list(images or [])
+    return "", []
+
+
+def _conversation_document_images_v69018(messages):
+    """Collect unique assistant images already published in the requested chat."""
+    output = []
+    seen = set()
+    for message in list(messages or []):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(message.get("content") or "")
+        content, _ = extract_documents_from_message_content(content)
+        _, images = extract_images_from_message_content(content)
+        for image in list(images or []):
+            if not isinstance(image, dict):
+                continue
+            data_url = str(image.get("data_url") or "").strip()
+            if not data_url or data_url in seen:
+                continue
+            seen.add(data_url)
+            output.append(dict(image))
+    return output
 
 
 def _document_widget_prefix(workspace):
@@ -60160,6 +60227,24 @@ else:
             message_index=message_index,
         )
 
+    # v69018: create the browser-print transcript during the normal chat render,
+    # not at the very end of the Streamlit run.  The same placeholder is updated
+    # again immediately after a new assistant message is committed, so native
+    # browser Print/Ctrl+P never needs a second attempt to see the full transcript.
+    _print_transcript_placeholder_v69018 = st.empty()
+    try:
+        render_print_transcript_v69007(
+            list(st.session_state.get("messages") or []),
+            assistant_label=assistant,
+            target=_print_transcript_placeholder_v69018,
+        )
+    except Exception as _early_print_error_v69018:
+        diagnostic_log(
+            "print_transcript_early_render_failed_v69018",
+            error_type=type(_early_print_error_v69018).__name__,
+            error=str(_early_print_error_v69018)[:500],
+        )
+
     if assistant == "🎨 Graphic Marketing":
         process_pending_graphic_regeneration()
 
@@ -61644,17 +61729,23 @@ else:
         if document_generation_requested and not is_graphic_generation:
             try:
                 document_source_text = answer
+                document_source_images_v69018 = []
                 prior_messages = list(st.session_state.messages[:-1])
                 if _document_request_uses_conversation(prompt):
                     document_source_text = _conversation_document_text(
                         prior_messages,
                         current_answer="",
                     ) or answer
-                elif _document_request_uses_previous_response(prompt):
-                    document_source_text = (
-                        _previous_assistant_document_text(prior_messages)
-                        or answer
+                    document_source_images_v69018 = _conversation_document_images_v69018(
+                        prior_messages
                     )
+                elif _document_request_uses_previous_response(prompt):
+                    (
+                        previous_text_v69018,
+                        previous_images_v69018,
+                    ) = _previous_assistant_document_payload_v69018(prior_messages)
+                    document_source_text = previous_text_v69018 or answer
+                    document_source_images_v69018 = previous_images_v69018
 
                 generated_documents = [
                     create_document_record(
@@ -61672,6 +61763,7 @@ else:
                                 "Markham, Ontario, Canada • "
                                 "www.AutoTecPro.com • info@autotecpro.com"
                             ),
+                            "content_images": list(document_source_images_v69018 or []),
                         },
                     )
                 ]
@@ -61909,6 +62001,27 @@ else:
             "role": "assistant",
             "content": assistant_content_to_save
         })
+
+        # v69018: refresh the already-mounted hidden print transcript *now*, before
+        # Supabase/title/postprocess work and before the mandatory st.rerun(). This
+        # closes the first-click print race that previously left Chrome with only
+        # the transcript from the prior completed run.
+        try:
+            _print_placeholder_active_v69018 = locals().get(
+                "_print_transcript_placeholder_v69018"
+            )
+            if _print_placeholder_active_v69018 is not None:
+                render_print_transcript_v69007(
+                    list(st.session_state.get("messages") or []),
+                    assistant_label=assistant,
+                    target=_print_placeholder_active_v69018,
+                )
+        except Exception as _commit_print_error_v69018:
+            diagnostic_log(
+                "print_transcript_commit_refresh_failed_v69018",
+                error_type=type(_commit_print_error_v69018).__name__,
+                error=str(_commit_print_error_v69018)[:500],
+            )
 
         if history_is_enabled():
             # v68872: for a brand-new non-Graphic text case, create the persistent
@@ -62805,10 +62918,20 @@ try:
             "🧠 Knowledge Submission",
         }
     ):
-        render_print_transcript_v69007(
-            _print_messages_v69006,
-            assistant_label=_print_assistant_v69006,
+        _existing_print_placeholder_v69018 = locals().get(
+            "_print_transcript_placeholder_v69018"
         )
+        if _existing_print_placeholder_v69018 is not None:
+            render_print_transcript_v69007(
+                _print_messages_v69006,
+                assistant_label=_print_assistant_v69006,
+                target=_existing_print_placeholder_v69018,
+            )
+        else:
+            render_print_transcript_v69007(
+                _print_messages_v69006,
+                assistant_label=_print_assistant_v69006,
+            )
 except Exception as _print_transcript_error_v69006:
     diagnostic_log(
         "print_transcript_render_failed_v69006",
