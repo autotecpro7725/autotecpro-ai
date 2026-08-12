@@ -38046,10 +38046,17 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
             "answered. When one directly supports the current answer, append up to 4 internal "
             "control lines at the END of the response, each exactly in this format: "
             "[[ATP_WEB_IMAGE_JSON:{\"url\":\"EXACT_AUTO_DISPLAY_IMAGE_URL\","
-            "\"caption\":\"short factual caption\"}]]. Use only an exact URL retrieved "
-            "from Technical file_search knowledge. Never invent, rewrite, guess, or use an "
-            "image merely because it is from the same webpage. If no retrieved image directly "
-            "supports the answer, append no image control line."
+            "\"caption\":\"short factual caption\","
+            "\"source_page\":\"EXACT Final source URL from the retrieved package\","
+            "\"page_title\":\"EXACT Page title from the retrieved package\","
+            "\"section_heading\":\"EXACT SECTION_HEADING\","
+            "\"nearby_instruction_text\":\"EXACT NEARBY_INSTRUCTION_TEXT\","
+            "\"visual_analysis\":\"EXACT IMAGE_ANALYSIS text\"}]]. "
+            "Copy those provenance fields only from the same retrieved image record/package; "
+            "do not summarize or invent them. Use only an exact URL retrieved from Technical "
+            "file_search knowledge. Never invent, rewrite, guess, or use an image merely because "
+            "it is from the same webpage. If no retrieved image directly supports the answer, "
+            "append no image control line."
         )
     if is_sales_workspace(selected_assistant):
         return (
@@ -49198,6 +49205,43 @@ def _website_image_payload_for_chat_record_v69005(image_record):
     return None
 
 
+def _website_model_control_payload_v69010(image_record):
+    """Build a fail-closed payload from exact hidden file_search provenance.
+
+    This is used only when an older learned website image is present in the
+    Technical vector package but its durable website-image-index row cannot be
+    resolved. It never trusts URL alone: section/nearby/visual provenance must
+    be present so the existing vehicle/year/section/visual authority gates can
+    validate the candidate before display.
+    """
+    if not isinstance(image_record, dict):
+        return None
+    image_url = (
+        str(image_record.get("archive_web_url") or "").strip()
+        or str(image_record.get("data_url") or "").strip()
+    )
+    section = str(image_record.get("website_section_heading_v69010") or "").strip()
+    nearby = str(image_record.get("website_nearby_instruction_text_v69010") or "").strip()
+    visual = str(image_record.get("website_visual_analysis_v69010") or "").strip()
+    page_title = str(image_record.get("website_page_title_v69010") or "").strip()
+    source_page = str(image_record.get("website_source_page_v69010") or "").strip()
+    # Require meaningful retrieved provenance. Caption/URL alone reproduces the
+    # unsafe v68996 fallback and is intentionally not sufficient.
+    if not image_url or not (section or nearby) or not visual:
+        return None
+    return {
+        "database_choice": "Technical Support Database",
+        "image_url": image_url,
+        "caption": str(image_record.get("name") or "").strip(),
+        "section_heading": section,
+        "nearby_instruction_text": nearby,
+        "visual_analysis": visual,
+        "page_title": page_title,
+        "source_page": source_page,
+        "keywords": " ".join((section, nearby, page_title)),
+    }
+
+
 def _website_model_control_gate_v68885(prompt_text, image_record):
     """Gate legacy/model-selected website images by strong filename contradiction."""
     if not isinstance(image_record, dict):
@@ -49230,9 +49274,21 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
         # that could still publish a wrong RAM image when deterministic lookup
         # returned no record.
         payload_v69005 = _website_image_payload_for_chat_record_v69005(image_record)
-        if not payload_v69005:
+        if payload_v69005:
+            return _website_image_final_payload_gate_v68885(prompt_text, payload_v69005)
+
+        # v69010: legacy learned website packages can still contain the exact
+        # approved image record even when no durable image-index row exists.
+        # v69005 rejected that path unconditionally, which is the deployed
+        # text-without-image regression. Validate copied file_search provenance
+        # through the SAME final payload gate instead of trusting URL alone.
+        provenance_payload_v69010 = _website_model_control_payload_v69010(image_record)
+        if not provenance_payload_v69010:
             return False
-        return _website_image_final_payload_gate_v68885(prompt_text, payload_v69005)
+        return _website_image_final_payload_gate_v68885(
+            prompt_text,
+            provenance_payload_v69010,
+        )
 
     return True
 
@@ -49945,6 +50001,14 @@ def extract_website_image_controls_v68870(text_value):
             "asset_type": "website_instruction_image",
             "archive_web_url": url,
             "generated": False,
+            # v69010: preserve exact file_search provenance inside the hidden
+            # control so a previously learned website image can still be
+            # authority-validated when its durable image-index row is absent.
+            "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+            "website_page_title_v69010": re.sub(r"\s+", " ", str(payload.get("page_title") or "")).strip(),
+            "website_section_heading_v69010": re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip(),
+            "website_nearby_instruction_text_v69010": re.sub(r"\s+", " ", str(payload.get("nearby_instruction_text") or "")).strip(),
+            "website_visual_analysis_v69010": re.sub(r"\s+", " ", str(payload.get("visual_analysis") or "")).strip(),
         })
         if len(records) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
             break
@@ -60040,6 +60104,9 @@ else:
                         "exact topic, exactly as if the user had also asked to see the photo. "
                         "If a verified image control is available in the retrieved knowledge, emit the existing "
                         "ATP_WEB_IMAGE_JSON control so the app can display it after the text answer. "
+                        "Include the exact source_page, page_title, section_heading, nearby_instruction_text, "
+                        "and visual_analysis from that SAME retrieved image package in the hidden control; "
+                        "copy them verbatim rather than inventing or summarizing provenance. "
                         "Do not invent an image URL, do not use an unrelated image, and do not claim an image "
                         "exists if the retrieved approved knowledge does not provide one. The app's existing "
                         "final website-image authority gate will validate the image before display.\n"
