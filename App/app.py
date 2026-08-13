@@ -4129,7 +4129,7 @@ def _rerun_upload_region():
     _rerun_fragment_or_app()
 
 
-@st.cache_data(max_entries=32, show_spinner=False)
+@st.cache_data(max_entries=256, show_spinner=False)
 def _managed_image_data_url(file_type, file_bytes):
     """Return a compact cached thumbnail instead of embedding the full upload.
 
@@ -7318,10 +7318,9 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-# v69054: this state key is consumed by Streamlit workspace callbacks registered
-# near the top of the script. It must be bound before those callbacks can run;
-# defining it later in the Technical implementation creates an intermittent
-# NameError during cold starts, reconnects and callback-prefix reruns.
+# v69055 emergency containment: bind the existing Technical context state key
+# before Streamlit registers workspace callbacks. No Technical, Graphic, Sales,
+# Marketing, authentication, learning, provider or rendering logic is changed.
 TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
 
 
@@ -9021,7 +9020,7 @@ def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90
         return b"", "image/jpeg"
 
 
-@st.cache_data(ttl=900, max_entries=24, show_spinner=False)
+@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
 def _normalized_image_data_url_cached_v68979(raw, original_mime_type, max_dimension=2200, quality=90):
     """Return the exact normalized data URL once per immutable upload payload.
 
@@ -9298,7 +9297,7 @@ def clean_visible_chat_text(text):
     return value.strip()
 
 
-@st.cache_data(ttl=900, max_entries=24, show_spinner=False)
+@st.cache_data(ttl=900, max_entries=64, show_spinner=False)
 def _make_image_preview_data_url_cached(
     raw,
     original_mime_type,
@@ -10910,9 +10909,6 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
-            "website_workspace_full_file_restored_v69051",
-            "website_workspace_exact_destination_authority_v69051",
-            "website_workspace_user_subject_restored_v69053",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -16893,7 +16889,7 @@ def image_bytes_to_png(image_bytes):
         return raw
 
 
-@st.cache_data(max_entries=16, show_spinner=False)
+@st.cache_data(max_entries=64, show_spinner=False)
 def _cached_generated_jpg_export(image_sha256, quality, _image_bytes):
     """Encode one JPG export once per PNG master and quality setting.
 
@@ -27156,10 +27152,10 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
     return defaults
 
 
-# v69054: one bounded cache only. The prior stacked 128-entry and 96-entry
-# decorators retained duplicate multi-megabyte masks for 24 hours and could
-# exhaust a shared Streamlit Cloud worker during sustained Graphic use.
-@st.cache_data(ttl=3600, max_entries=16, show_spinner=False)
+# v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
+@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
+
+@st.cache_data(ttl=86400, max_entries=96, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
     """v66000 multi-candidate, fail-closed exact-geometry background removal.
 
@@ -52847,12 +52843,7 @@ def _workspace_file_search_payloads_v69051(
                 )
 
         # If complete metadata was restored, never re-add the incomplete chunk.
-        full_target_payloads_v69053 = [
-            payload for payload in full_payloads
-            if isinstance(payload, dict)
-            and str(payload.get("database_choice") or "").strip() == target
-        ]
-        if full_target_payloads_v69053:
+        if full_payloads:
             continue
         add_payloads(
             chunk_payloads,
@@ -52861,112 +52852,6 @@ def _workspace_file_search_payloads_v69051(
             exact_store=bool(exact_destination_authority and file_id),
         )
     return output
-
-
-def _workspace_image_screen_sizes_v69053(value):
-    """Return explicit AutoTecPro display sizes from user/candidate evidence."""
-    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
-    return set(re.findall(
-        r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
-        text,
-    ))
-
-
-def _workspace_image_user_subject_present_v69053(value):
-    """Require at least one user-supplied product/fitment identity dimension."""
-    text = re.sub(r"\s+", " ", str(value or "")).strip()
-    return bool(
-        _website_identity_brand_set_v69022(text)
-        or _website_identity_vehicle_families_v69022(text)
-        or _website_identity_years_v69022(text)
-        or _website_identity_systems_v69022(text)
-        or _website_image_product_codes_v69020(text)
-        or _workspace_image_screen_sizes_v69053(text)
-    )
-
-
-def _workspace_image_generic_followup_v69053(prompt_text):
-    """Recognize a short visual follow-up that needs prior user-confirmed subject."""
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if not prompt or len(prompt) > 180:
-        return False
-    visual = bool(re.search(
-        r"\b(?:photo|photos|image|images|picture|pictures|show|display|installed|before\s+and\s+after)\b",
-        prompt,
-        flags=re.I,
-    ))
-    return bool(visual and not _workspace_image_user_subject_present_v69053(prompt))
-
-
-def _workspace_effective_image_prompt_v69053(
-    workspace_label, prompt_text, prior_messages=None
-):
-    """Restore only prior *user-confirmed* Sales/Marketing subject evidence.
-
-    Assistant answers never create authority.  On generic visual follow-ups, scan
-    the current conversation's recent user messages and carry the nearest explicit
-    vehicle/year/product/size statement into image retrieval and final gates.
-    Conversation loading is already user-owned, so this state cannot cross users.
-    """
-    workspace = str(workspace_label or "")
-    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if not (
-        (is_sales_workspace(workspace) or is_marketing_workspace(workspace))
-        and _workspace_image_generic_followup_v69053(current)
-    ):
-        return current
-    messages = list(
-        prior_messages
-        if prior_messages is not None
-        else st.session_state.get("messages") or []
-    )
-    subjects = []
-    for message in reversed(messages[-12:]):
-        if not isinstance(message, dict):
-            continue
-        if str(message.get("role") or "").strip().casefold() != "user":
-            continue
-        visible, _ = extract_images_from_message_content(
-            str(message.get("content") or "")
-        )
-        visible = re.sub(
-            r"\s+", " ", clean_visible_chat_text(str(visible or ""))
-        ).strip()
-        if not visible or visible == current:
-            continue
-        if _workspace_image_user_subject_present_v69053(visible):
-            subjects.append(visible[:1200])
-            # The nearest explicit user turn is authoritative. A second earlier
-            # turn may supply a missing size/SKU, but older cases are excluded.
-            if len(subjects) >= 2:
-                break
-    if not subjects:
-        return current
-    restored = "\n".join(reversed(subjects))
-    return current + "\n\n[USER-CONFIRMED PRIOR SUBJECT]\n" + restored
-
-
-def _workspace_image_product_identity_gate_v69053(prompt_text, payload):
-    """Hard-reject explicit screen-size, product-code and body-style conflicts."""
-    if not isinstance(payload, dict):
-        return False
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    candidate = _website_image_payload_identity_text_v69022(payload)
-    requested_sizes = _workspace_image_screen_sizes_v69053(prompt)
-    candidate_sizes = _workspace_image_screen_sizes_v69053(candidate)
-    if requested_sizes and candidate_sizes and not (requested_sizes & candidate_sizes):
-        return False
-    requested_codes = _website_image_product_codes_v69020(prompt)
-    candidate_codes = _website_image_product_codes_v69020(candidate)
-    if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
-        return False
-    requested_systems = _website_identity_systems_v69022(prompt)
-    candidate_systems = _website_identity_systems_v69022(candidate)
-    body_requested = requested_systems & {"new_body", "ram_classic"}
-    body_candidate = candidate_systems & {"new_body", "ram_classic"}
-    if body_requested and body_candidate and not (body_requested & body_candidate):
-        return False
-    return True
 
 
 def _workspace_website_images_from_file_search_v69040(
@@ -53058,8 +52943,6 @@ def _workspace_website_images_from_file_search_v69040(
         # Sales and Marketing publication. Answer text is useful for ranking,
         # but it must never make an incompatible learned product image eligible.
         if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
-            continue
-        if not _workspace_image_product_identity_gate_v69053(prompt_text, payload):
             continue
         evidence = " ".join((
             str(payload.get("page_title") or ""),
@@ -53160,25 +53043,6 @@ def _workspace_image_dedicated_search_query_v69050(
     )
 
 
-def _workspace_image_response_rows_with_retry_v69053(request, event_name):
-    """Sales/Marketing-only recovery for successful-but-empty expansions.
-
-    The shared v69047 helper remains frozen for Technical.  This wrapper reuses
-    its existing HTTP-400 recovery, then performs a bounded same-store direct
-    search only when a Sales/Marketing dedicated response returns zero rows.
-    """
-    rows = _website_image_response_rows_with_retry_v69047(request, event_name)
-    if rows:
-        return rows
-    direct_rows = _website_request_vector_search_rows_v69047(request)
-    diagnostic_log(
-        str(event_name or "workspace_image_search")
-        + "_successful_empty_direct_retry_v69053",
-        result_count=len(direct_rows or []),
-    )
-    return direct_rows or []
-
-
 def _workspace_image_dedicated_file_search_results_v69050(
     workspace_label, prompt_text, answer_text=""
 ):
@@ -53212,7 +53076,7 @@ def _workspace_image_dedicated_file_search_results_v69050(
         "max_output_tokens": 32,
     }
     try:
-        rows = _workspace_image_response_rows_with_retry_v69053(
+        rows = _website_image_response_rows_with_retry_v69047(
             request,
             "workspace_image_dedicated_search_v69050",
         )
@@ -53243,13 +53107,7 @@ def _workspace_automatic_image_recovery_v69050(
         return []
     if is_graphic_workspace(workspace):
         return []
-    prompt = _workspace_effective_image_prompt_v69053(
-        workspace,
-        re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
-    )
-    user_subject_restored_v69053 = bool(
-        "[USER-CONFIRMED PRIOR SUBJECT]" in prompt
-    )
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     answer = re.sub(
         r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
     ).strip()
@@ -53268,11 +53126,6 @@ def _workspace_automatic_image_recovery_v69050(
         recovered=len(recovered or []),
     )
     if recovered:
-        for record in recovered:
-            if isinstance(record, dict):
-                record["website_workspace_user_subject_restored_v69053"] = (
-                    user_subject_restored_v69053
-                )
         return recovered
 
     dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
@@ -53297,11 +53150,6 @@ def _workspace_automatic_image_recovery_v69050(
         result_count=len(dedicated_rows),
         recovered=len(recovered or []),
     )
-    for record in recovered or []:
-        if isinstance(record, dict):
-            record["website_workspace_user_subject_restored_v69053"] = (
-                user_subject_restored_v69053
-            )
     return recovered or []
 
 
