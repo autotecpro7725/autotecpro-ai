@@ -61583,6 +61583,42 @@ if (
             "and continuous improvement."
         )
 
+        # v69037: iPhone/Safari Admin filter selected-value text fix.
+        # The shared mobile CSS still targets a legacy role-select key, while the
+        # current Users page uses admin_user_role_filter/admin_user_active_filter.
+        # Scope this override to those two current widgets and mobile only.
+        st.markdown(
+            """
+            <style>
+            @media (max-width: 768px) {
+                html body div[class*="st-key-admin_user_role_filter"]
+                div[data-baseweb="select"],
+                html body div[class*="st-key-admin_user_role_filter"]
+                div[data-baseweb="select"] > div,
+                html body div[class*="st-key-admin_user_role_filter"]
+                div[data-baseweb="select"] *:not(svg):not(path),
+                html body div[class*="st-key-admin_user_role_filter"]
+                [role="combobox"],
+                html body div[class*="st-key-admin_user_role_filter"] input,
+                html body div[class*="st-key-admin_user_active_filter"]
+                div[data-baseweb="select"],
+                html body div[class*="st-key-admin_user_active_filter"]
+                div[data-baseweb="select"] > div,
+                html body div[class*="st-key-admin_user_active_filter"]
+                div[data-baseweb="select"] *:not(svg):not(path),
+                html body div[class*="st-key-admin_user_active_filter"]
+                [role="combobox"],
+                html body div[class*="st-key-admin_user_active_filter"] input {
+                    color: #f8fafc !important;
+                    -webkit-text-fill-color: #f8fafc !important;
+                    opacity: 1 !important;
+                }
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         # v69028: persistent single-section Admin navigation.  st.tabs executes
         # every tab body on every rerun and visually falls back to its first tab
         # while the frontend reconciles.  That caused Users -> Upload Knowledge
