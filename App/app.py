@@ -61615,10 +61615,43 @@ if (
             """
             <style>
             .st-key-atp_admin_nav_v69032 {
+                position: relative !important;
                 margin-top: 0.12rem !important;
                 margin-bottom: 0.48rem !important;
+                padding-right: 1.18rem !important;
+            }
+            /* v69034: reproduce the former Streamlit tab-strip appearance
+               without restoring st.tabs() runtime execution. */
+            .st-key-atp_admin_nav_v69032::before {
+                content: "" !important;
+                position: absolute !important;
+                left: 0 !important;
+                right: 1.18rem !important;
+                bottom: 0.02rem !important;
+                height: 1px !important;
+                background: rgba(255,255,255,0.28) !important;
+                pointer-events: none !important;
+            }
+            .st-key-atp_admin_nav_v69032::after {
+                content: "›" !important;
+                position: absolute !important;
+                right: 0.12rem !important;
+                bottom: 0.02rem !important;
+                width: 0.9rem !important;
+                height: 1.35rem !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                color: rgba(255,255,255,0.82) !important;
+                font-size: 1.08rem !important;
+                font-weight: 700 !important;
+                line-height: 1 !important;
+                background: transparent !important;
+                pointer-events: none !important;
             }
             .st-key-atp_admin_nav_v69032 [data-testid="stHorizontalBlock"] {
+                position: relative !important;
+                z-index: 1 !important;
                 flex-wrap: nowrap !important;
                 gap: 0.12rem !important;
                 align-items: flex-end !important;
