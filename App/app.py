@@ -61606,7 +61606,7 @@ if (
         if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
             st.session_state[_admin_state_key_v69028] = "👥 Users"
 
-        # v69032: slim horizontal tab-bar navigation matching the legacy
+        # v69033: slim horizontal tab-bar navigation matching the legacy
         # professional Admin appearance while preserving v69028 single-section
         # runtime authority. All tabs use the same Streamlit button widget type so
         # the active tab cannot drift vertically from inactive tabs. Do NOT restore
@@ -61625,7 +61625,13 @@ if (
                 overflow-x: auto !important;
                 overflow-y: hidden !important;
                 padding: 0 0 0.14rem 0 !important;
-                scrollbar-width: thin !important;
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+            .st-key-atp_admin_nav_v69032 [data-testid="stHorizontalBlock"]::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
             }
             .st-key-atp_admin_nav_v69032 [data-testid="stColumn"] {
                 flex: 0 0 auto !important;
@@ -61652,15 +61658,15 @@ if (
             }
             .st-key-atp_admin_nav_v69032 .stButton > button:hover {
                 color: rgba(255,255,255,0.98) !important;
-                border-bottom-color: rgba(255,95,110,0.42) !important;
+                border-bottom-color: rgba(255,122,0,0.46) !important;
                 transform: none !important;
             }
             .st-key-atp_admin_nav_v69032 .stButton > button[kind="primary"],
             .st-key-atp_admin_nav_v69032 .stButton > button[data-testid="stBaseButton-primary"],
             .st-key-atp_admin_nav_v69032 [data-testid="stBaseButton-primary"] {
-                color: #ffffff !important;
+                color: #ff7a00 !important;
                 font-weight: 700 !important;
-                border-bottom-color: #ff5f6e !important;
+                border-bottom-color: #ff7a00 !important;
                 background: transparent !important;
             }
             @media (max-width: 900px) {
