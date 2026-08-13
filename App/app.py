@@ -51549,8 +51549,20 @@ def _website_storage_bytes_v68883(path):
 
 
 def _website_image_record_for_chat_v68883(payload):
-    archive_path = str(payload.get("archive_storage_path") or "").strip()
-    mime = str(payload.get("archive_mime_type") or "image/jpeg").strip()
+    # v69032: file_search-reconstructed website payloads carry the v69017 archive
+    # field names while durable index rows use the legacy names.  Accept both so
+    # the final automatic-image bridge can publish the exact same archived asset
+    # regardless of which approved Technical evidence source recovered it.
+    archive_path = str(
+        payload.get("archive_storage_path")
+        or payload.get("archive_storage_path_v69017")
+        or ""
+    ).strip()
+    mime = str(
+        payload.get("archive_mime_type")
+        or payload.get("archive_mime_type_v69017")
+        or "image/jpeg"
+    ).strip()
     data_url = ""
     if archive_path:
         raw = _website_storage_bytes_v68883(archive_path)
@@ -51892,7 +51904,72 @@ def _website_image_related_reference_lookup_v69025r1(prompt_text, answer_text=""
 
 
 
-def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3):
+def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
+    """Reconstruct approved website-image payloads from Technical file_search rows.
+
+    This helper does not approve an image.  It only reconstructs payloads from the
+    Technical vector-store evidence already returned by file_search.  The caller
+    still sends every payload through the same v69022/v69027 identity, fitment,
+    topic, and publication authority used for durable image-index rows.
+    """
+    payloads_out = []
+    seen = set()
+    ordered = sorted(
+        [row for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+    for row in ordered[:16]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        result_text = str(row.get("text") or "")
+        payloads = []
+        if result_text:
+            payloads.extend(
+                _website_structured_image_payloads_from_file_v69012(
+                    result_text, filename, file_id
+                )
+            )
+            payloads.extend(
+                _website_legacy_html_payloads_from_file_v69012(
+                    result_text, filename, file_id
+                )
+            )
+        if not payloads and file_id:
+            full_text = _website_file_full_text_v69012(file_id)
+            if full_text:
+                payloads.extend(
+                    _website_structured_image_payloads_from_file_v69012(
+                        full_text, filename, file_id
+                    )
+                )
+                payloads.extend(
+                    _website_legacy_html_payloads_from_file_v69012(
+                        full_text, filename, file_id
+                    )
+                )
+        for payload in payloads:
+            if not isinstance(payload, dict):
+                continue
+            payload = dict(payload)
+            payload["_technical_file_search_extra_v69032"] = True
+            payload["_technical_file_search_score_v69032"] = float(row.get("score") or 0.0)
+            payload["_technical_file_id_v69032"] = file_id
+            identity = (
+                str(payload.get("image_sha256") or "").strip().lower()
+                or str(payload.get("image_url") or "").strip()
+                or str(payload.get("archive_storage_path_v69017") or "").strip()
+                or str(payload.get("archive_storage_path") or "").strip()
+            )
+            if identity and identity in seen:
+                continue
+            if identity:
+                seen.add(identity)
+            payloads_out.append(payload)
+    return payloads_out
+
+
+def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3, extra_payloads=None):
     """Return safe inquiry-related Technical images after exact-image recovery is exhausted.
 
     v69025R2 generalizes the R1 722-S2 fallback to the production requirement:
@@ -51970,11 +52047,30 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
 
     topic_ranked = []
     general_ranked = []
-    for payload in _website_image_index_rows_v68883():
+    candidate_payloads_v69032 = list(_website_image_index_rows_v68883() or [])
+    candidate_payloads_v69032.extend(
+        dict(item) for item in (extra_payloads or []) if isinstance(item, dict)
+    )
+    seen_candidate_payloads_v69032 = set()
+    for payload in candidate_payloads_v69032:
         if not isinstance(payload, dict):
             continue
-        if str(payload.get("database_choice") or "") != "Technical Support Database":
+        is_file_search_extra_v69032 = bool(payload.get("_technical_file_search_extra_v69032"))
+        if (
+            str(payload.get("database_choice") or "") != "Technical Support Database"
+            and not is_file_search_extra_v69032
+        ):
             continue
+        payload_identity_v69032 = (
+            str(payload.get("image_sha256") or "").strip().lower()
+            or str(payload.get("image_url") or "").strip()
+            or str(payload.get("archive_storage_path_v69017") or "").strip()
+            or str(payload.get("archive_storage_path") or "").strip()
+        )
+        if payload_identity_v69032 and payload_identity_v69032 in seen_candidate_payloads_v69032:
+            continue
+        if payload_identity_v69032:
+            seen_candidate_payloads_v69032.add(payload_identity_v69032)
         source_zone = str(payload.get("source_zone_v69024") or "").strip().casefold()
         if source_zone and source_zone not in allowed_zones:
             continue
@@ -52048,7 +52144,11 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
 
         role_score = _website_image_role_score_v68884(query_role, payload) if query_role else 0.0
         topic_score = (lexical_overlap * 2.5) + (topic_hits * 18.0) + max(-12.0, min(float(role_score), 24.0))
-        total_score = identity_score + topic_score
+        file_search_score_v69032 = max(
+            0.0,
+            min(float(payload.get("_technical_file_search_score_v69032") or 0.0), 1.0),
+        ) * 5.0
+        total_score = identity_score + topic_score + file_search_score_v69032
 
         # A topic-specific related image must carry real section/caption/visual evidence.
         is_topic_related = bool(topic_hits) or lexical_overlap >= 1 or role_score >= 8.0
@@ -61506,34 +61606,34 @@ if (
         if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
             st.session_state[_admin_state_key_v69028] = "👥 Users"
 
-        # v69031: slim horizontal tab-bar navigation that matches the legacy
-        # professional Admin appearance while preserving the v69028 single-
-        # section runtime authority.  Do NOT restore st.tabs(): Streamlit
-        # executes every tab body on every rerun, which caused the Users flash
-        # and duplicated Upload Knowledge widgets.
+        # v69032: slim horizontal tab-bar navigation matching the legacy
+        # professional Admin appearance while preserving v69028 single-section
+        # runtime authority. All tabs use the same Streamlit button widget type so
+        # the active tab cannot drift vertically from inactive tabs. Do NOT restore
+        # st.tabs(), which executes every Admin body on every rerun.
         st.markdown(
             """
             <style>
-            .st-key-atp_admin_nav_v69031 {
-                margin-top: 0.15rem !important;
-                margin-bottom: 0.45rem !important;
+            .st-key-atp_admin_nav_v69032 {
+                margin-top: 0.12rem !important;
+                margin-bottom: 0.48rem !important;
             }
-            .st-key-atp_admin_nav_v69031 [data-testid="stHorizontalBlock"] {
+            .st-key-atp_admin_nav_v69032 [data-testid="stHorizontalBlock"] {
                 flex-wrap: nowrap !important;
-                gap: 0.18rem !important;
+                gap: 0.12rem !important;
                 align-items: flex-end !important;
                 overflow-x: auto !important;
                 overflow-y: hidden !important;
-                padding: 0 0 0.15rem 0 !important;
+                padding: 0 0 0.14rem 0 !important;
                 scrollbar-width: thin !important;
             }
-            .st-key-atp_admin_nav_v69031 [data-testid="stColumn"] {
+            .st-key-atp_admin_nav_v69032 [data-testid="stColumn"] {
                 flex: 0 0 auto !important;
                 width: auto !important;
                 min-width: max-content !important;
                 padding: 0 !important;
             }
-            .st-key-atp_admin_nav_v69031 .stButton > button {
+            .st-key-atp_admin_nav_v69032 .stButton > button {
                 background: transparent !important;
                 border: none !important;
                 border-bottom: 2px solid transparent !important;
@@ -61542,34 +61642,31 @@ if (
                 box-shadow: none !important;
                 min-height: 0 !important;
                 height: auto !important;
-                padding: 0.22rem 0.38rem 0.32rem 0.38rem !important;
+                padding: 0.22rem 0.36rem 0.32rem 0.36rem !important;
                 line-height: 1.05 !important;
-                font-size: 0.76rem !important;
+                font-size: 0.75rem !important;
                 font-weight: 600 !important;
                 white-space: nowrap !important;
                 text-align: center !important;
                 justify-content: center !important;
             }
-            .st-key-atp_admin_nav_v69031 .stButton > button:hover {
+            .st-key-atp_admin_nav_v69032 .stButton > button:hover {
                 color: rgba(255,255,255,0.98) !important;
-                border-bottom-color: rgba(255,95,110,0.45) !important;
+                border-bottom-color: rgba(255,95,110,0.42) !important;
                 transform: none !important;
             }
-            .st-key-atp_admin_nav_v69031 .atp-admin-tab-active-v69031 {
-                display: inline-block !important;
-                white-space: nowrap !important;
+            .st-key-atp_admin_nav_v69032 .stButton > button[kind="primary"],
+            .st-key-atp_admin_nav_v69032 .stButton > button[data-testid="stBaseButton-primary"],
+            .st-key-atp_admin_nav_v69032 [data-testid="stBaseButton-primary"] {
                 color: #ffffff !important;
-                font-size: 0.76rem !important;
                 font-weight: 700 !important;
-                line-height: 1.05 !important;
-                padding: 0.22rem 0.38rem 0.32rem 0.38rem !important;
-                border-bottom: 2px solid #ff5f6e !important;
+                border-bottom-color: #ff5f6e !important;
+                background: transparent !important;
             }
             @media (max-width: 900px) {
-                .st-key-atp_admin_nav_v69031 .stButton > button,
-                .st-key-atp_admin_nav_v69031 .atp-admin-tab-active-v69031 {
-                    font-size: 0.73rem !important;
-                    padding: 0.20rem 0.34rem 0.30rem 0.34rem !important;
+                .st-key-atp_admin_nav_v69032 .stButton > button {
+                    font-size: 0.72rem !important;
+                    padding: 0.20rem 0.32rem 0.29rem 0.32rem !important;
                 }
             }
             </style>
@@ -61578,33 +61675,29 @@ if (
         )
 
         admin_section_v69028 = str(st.session_state.get(_admin_state_key_v69028) or "👥 Users")
-        with st.container(key="atp_admin_nav_v69031"):
-            _admin_nav_cols_v69031 = st.columns(
+        with st.container(key="atp_admin_nav_v69032"):
+            _admin_nav_cols_v69032 = st.columns(
                 len(_admin_sections_v69028),
                 gap="small",
             )
-            for _admin_nav_col_v69031, _admin_nav_label_v69031 in zip(
-                _admin_nav_cols_v69031, _admin_sections_v69028
+            for _admin_nav_col_v69032, _admin_nav_label_v69032 in zip(
+                _admin_nav_cols_v69032, _admin_sections_v69028
             ):
-                with _admin_nav_col_v69031:
-                    _admin_nav_active_v69031 = (
-                        _admin_nav_label_v69031 == admin_section_v69028
+                with _admin_nav_col_v69032:
+                    _admin_nav_active_v69032 = (
+                        _admin_nav_label_v69032 == admin_section_v69028
                     )
-                    if _admin_nav_active_v69031:
-                        st.markdown(
-                            f'<div class="atp-admin-tab-active-v69031">{html.escape(_admin_nav_label_v69031)}</div>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        if st.button(
-                            _admin_nav_label_v69031,
-                            key=(
-                                "admin_nav_v69031_"
-                                + re.sub(r"[^a-z0-9]+", "_", _admin_nav_label_v69031.lower()).strip("_")
-                            ),
-                            use_container_width=False,
-                        ):
-                            st.session_state[_admin_state_key_v69028] = _admin_nav_label_v69031
+                    if st.button(
+                        _admin_nav_label_v69032,
+                        key=(
+                            "admin_nav_v69032_"
+                            + re.sub(r"[^a-z0-9]+", "_", _admin_nav_label_v69032.lower()).strip("_")
+                        ),
+                        type="primary" if _admin_nav_active_v69032 else "secondary",
+                        use_container_width=False,
+                    ):
+                        if not _admin_nav_active_v69032:
+                            st.session_state[_admin_state_key_v69028] = _admin_nav_label_v69032
                             st.rerun()
 
         # Re-read after navigation setup so the value below always comes from
@@ -63749,11 +63842,54 @@ else:
             ]
             if not existing_website_images_v69025r1:
                 try:
+                    # v69032: first use the durable image index.  If it has no
+                    # eligible image, bridge already-retrieved Technical file_search
+                    # evidence into the same strict R2 authority.  This closes the
+                    # production gap where an explicit "do you have a photo?" search
+                    # could find an approved image while the automatic path stayed
+                    # text-only because the durable image-index row was missing/stale.
                     related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
                         technical_request_prompt_v68879,
                         answer,
                         max_images=3,
                     )
+                    if not related_reference_images_v69025r1:
+                        related_rows_v69032 = list(
+                            st.session_state.get("_technical_file_search_results_v69012") or []
+                        )
+                        related_rows_v69032.extend(
+                            _technical_image_prefetch_cache_get_v69016(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                        # Reuse the answer-aware dedicated rows already fetched by
+                        # the universal path in this same turn before issuing any
+                        # additional provider request.
+                        related_rows_v69032.extend(
+                            list(locals().get("dedicated_rows_v69014") or [])
+                        )
+                        extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
+                            related_rows_v69032
+                        )
+                        if not extra_payloads_v69032:
+                            dedicated_rows_v69032 = _website_image_dedicated_file_search_results_v69014(
+                                technical_request_prompt_v68879, answer
+                            )
+                            extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
+                                dedicated_rows_v69032
+                            )
+                        if extra_payloads_v69032:
+                            related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
+                                technical_request_prompt_v68879,
+                                answer,
+                                max_images=3,
+                                extra_payloads=extra_payloads_v69032,
+                            )
+                            diagnostic_log(
+                                "website_related_evidence_file_search_bridge_v69032",
+                                payload_count=len(extra_payloads_v69032),
+                                recovered=len(related_reference_images_v69025r1 or []),
+                            )
                     diagnostic_log(
                         "website_related_evidence_lookup_completed_v69027",
                         recovered=len(related_reference_images_v69025r1 or []),
