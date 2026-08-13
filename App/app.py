@@ -61606,138 +61606,207 @@ if (
         if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
             st.session_state[_admin_state_key_v69028] = "👥 Users"
 
-        # v69033: slim horizontal tab-bar navigation matching the legacy
-        # professional Admin appearance while preserving v69028 single-section
-        # runtime authority. All tabs use the same Streamlit button widget type so
-        # the active tab cannot drift vertically from inactive tabs. Do NOT restore
+        # v69035: native-looking slim tab strip with a real server-authoritative
+        # overflow arrow.  Preserve v69028 single-section execution; never restore
         # st.tabs(), which executes every Admin body on every rerun.
+        _admin_nav_visible_count_v69035 = 10
+        _admin_nav_max_offset_v69035 = max(
+            0,
+            len(_admin_sections_v69028) - _admin_nav_visible_count_v69035,
+        )
+        _admin_nav_offset_key_v69035 = "admin_nav_offset_v69035"
+        try:
+            _admin_nav_offset_v69035 = int(
+                st.session_state.get(_admin_nav_offset_key_v69035, 0) or 0
+            )
+        except Exception:
+            _admin_nav_offset_v69035 = 0
+        _admin_nav_offset_v69035 = max(
+            0,
+            min(_admin_nav_offset_v69035, _admin_nav_max_offset_v69035),
+        )
+
+        admin_section_v69028 = str(
+            st.session_state.get(_admin_state_key_v69028) or "👥 Users"
+        )
+        try:
+            _admin_nav_active_index_v69035 = _admin_sections_v69028.index(
+                admin_section_v69028
+            )
+        except ValueError:
+            _admin_nav_active_index_v69035 = 0
+
+        # Keep the active section visible after direct restores/history/reruns.
+        if _admin_nav_active_index_v69035 < _admin_nav_offset_v69035:
+            _admin_nav_offset_v69035 = _admin_nav_active_index_v69035
+        elif _admin_nav_active_index_v69035 >= (
+            _admin_nav_offset_v69035 + _admin_nav_visible_count_v69035
+        ):
+            _admin_nav_offset_v69035 = min(
+                _admin_nav_max_offset_v69035,
+                _admin_nav_active_index_v69035
+                - _admin_nav_visible_count_v69035
+                + 1,
+            )
+        st.session_state[_admin_nav_offset_key_v69035] = _admin_nav_offset_v69035
+
+        _admin_nav_active_slug_v69035 = re.sub(
+            r"[^a-z0-9]+", "_", admin_section_v69028.lower()
+        ).strip("_")
         st.markdown(
-            """
+            f"""
             <style>
-            .st-key-atp_admin_nav_v69032 {
+            .st-key-atp_admin_nav_v69035 {{
                 position: relative !important;
                 margin-top: 0.12rem !important;
                 margin-bottom: 0.48rem !important;
-                padding-right: 1.18rem !important;
-            }
-            /* v69034: reproduce the former Streamlit tab-strip appearance
-               without restoring st.tabs() runtime execution. */
-            .st-key-atp_admin_nav_v69032::before {
+                padding-bottom: 0.12rem !important;
+            }}
+            .st-key-atp_admin_nav_v69035::before {{
                 content: "" !important;
                 position: absolute !important;
                 left: 0 !important;
-                right: 1.18rem !important;
+                right: 0 !important;
                 bottom: 0.02rem !important;
                 height: 1px !important;
-                background: rgba(255,255,255,0.28) !important;
+                background: rgba(255,255,255,0.30) !important;
                 pointer-events: none !important;
-            }
-            .st-key-atp_admin_nav_v69032::after {
-                content: "›" !important;
-                position: absolute !important;
-                right: 0.12rem !important;
-                bottom: 0.02rem !important;
-                width: 0.9rem !important;
-                height: 1.35rem !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                color: rgba(255,255,255,0.82) !important;
-                font-size: 1.08rem !important;
-                font-weight: 700 !important;
-                line-height: 1 !important;
-                background: transparent !important;
-                pointer-events: none !important;
-            }
-            .st-key-atp_admin_nav_v69032 [data-testid="stHorizontalBlock"] {
+                z-index: 0 !important;
+            }}
+            .st-key-atp_admin_nav_v69035 [data-testid="stHorizontalBlock"] {{
+                gap: 0.10rem !important;
+                align-items: flex-end !important;
+                overflow: visible !important;
+                padding: 0 !important;
                 position: relative !important;
                 z-index: 1 !important;
-                flex-wrap: nowrap !important;
-                gap: 0.12rem !important;
-                align-items: flex-end !important;
-                overflow-x: auto !important;
-                overflow-y: hidden !important;
-                padding: 0 0 0.14rem 0 !important;
-                scrollbar-width: none !important;
-                -ms-overflow-style: none !important;
-            }
-            .st-key-atp_admin_nav_v69032 [data-testid="stHorizontalBlock"]::-webkit-scrollbar {
-                display: none !important;
-                width: 0 !important;
-                height: 0 !important;
-            }
-            .st-key-atp_admin_nav_v69032 [data-testid="stColumn"] {
-                flex: 0 0 auto !important;
-                width: auto !important;
-                min-width: max-content !important;
+            }}
+            .st-key-atp_admin_nav_v69035 [data-testid="stColumn"] {{
+                min-width: 0 !important;
                 padding: 0 !important;
-            }
-            .st-key-atp_admin_nav_v69032 .stButton > button {
+            }}
+            .st-key-atp_admin_nav_v69035 .stButton > button {{
                 background: transparent !important;
                 border: none !important;
                 border-bottom: 2px solid transparent !important;
                 border-radius: 0 !important;
-                color: rgba(255,255,255,0.82) !important;
                 box-shadow: none !important;
+                color: rgba(255,255,255,0.84) !important;
                 min-height: 0 !important;
                 height: auto !important;
-                padding: 0.22rem 0.36rem 0.32rem 0.36rem !important;
+                padding: 0.22rem 0.30rem 0.32rem 0.30rem !important;
                 line-height: 1.05 !important;
-                font-size: 0.75rem !important;
+                font-size: 0.74rem !important;
                 font-weight: 600 !important;
                 white-space: nowrap !important;
                 text-align: center !important;
                 justify-content: center !important;
-            }
-            .st-key-atp_admin_nav_v69032 .stButton > button:hover {
-                color: rgba(255,255,255,0.98) !important;
-                border-bottom-color: rgba(255,122,0,0.46) !important;
                 transform: none !important;
-            }
-            .st-key-atp_admin_nav_v69032 .stButton > button[kind="primary"],
-            .st-key-atp_admin_nav_v69032 .stButton > button[data-testid="stBaseButton-primary"],
-            .st-key-atp_admin_nav_v69032 [data-testid="stBaseButton-primary"] {
+            }}
+            .st-key-atp_admin_nav_v69035 .stButton > button * {{
+                color: inherit !important;
+                -webkit-text-fill-color: currentColor !important;
+            }}
+            .st-key-atp_admin_nav_v69035 .stButton > button:hover {{
+                color: rgba(255,255,255,0.98) !important;
+                border-bottom-color: rgba(255,122,0,0.45) !important;
+                background: transparent !important;
+            }}
+            /* Active selection is keyed directly instead of depending on
+               Streamlit's internal primary-button DOM attributes. */
+            .st-key-admin_nav_v69035_{_admin_nav_active_slug_v69035} button,
+            .st-key-admin_nav_v69035_{_admin_nav_active_slug_v69035} button *,
+            .st-key-admin_nav_v69035_{_admin_nav_active_slug_v69035} [data-testid^="stBaseButton"] {{
                 color: #ff7a00 !important;
+                -webkit-text-fill-color: #ff7a00 !important;
                 font-weight: 700 !important;
                 border-bottom-color: #ff7a00 !important;
                 background: transparent !important;
-            }
-            @media (max-width: 900px) {
-                .st-key-atp_admin_nav_v69032 .stButton > button {
-                    font-size: 0.72rem !important;
-                    padding: 0.20rem 0.32rem 0.29rem 0.32rem !important;
-                }
-            }
+            }}
+            .st-key-admin_nav_arrow_v69035 button,
+            .st-key-admin_nav_arrow_v69035 button * {{
+                color: rgba(255,255,255,0.90) !important;
+                -webkit-text-fill-color: rgba(255,255,255,0.90) !important;
+                border-bottom-color: transparent !important;
+                font-size: 1.02rem !important;
+                font-weight: 800 !important;
+                padding-left: 0.12rem !important;
+                padding-right: 0.12rem !important;
+            }}
+            .st-key-admin_nav_arrow_v69035 button:hover,
+            .st-key-admin_nav_arrow_v69035 button:hover * {{
+                color: #ff7a00 !important;
+                -webkit-text-fill-color: #ff7a00 !important;
+                border-bottom-color: transparent !important;
+            }}
+            @media (max-width: 900px) {{
+                .st-key-atp_admin_nav_v69035 .stButton > button {{
+                    font-size: 0.71rem !important;
+                    padding: 0.20rem 0.24rem 0.29rem 0.24rem !important;
+                }}
+            }}
             </style>
             """,
             unsafe_allow_html=True,
         )
 
-        admin_section_v69028 = str(st.session_state.get(_admin_state_key_v69028) or "👥 Users")
-        with st.container(key="atp_admin_nav_v69032"):
-            _admin_nav_cols_v69032 = st.columns(
+        with st.container(key="atp_admin_nav_v69035"):
+            _admin_nav_end_v69035 = min(
                 len(_admin_sections_v69028),
+                _admin_nav_offset_v69035 + _admin_nav_visible_count_v69035,
+            )
+            _admin_nav_visible_v69035 = _admin_sections_v69028[
+                _admin_nav_offset_v69035:_admin_nav_end_v69035
+            ]
+            # The final narrow column is a real arrow control. At the right edge
+            # it becomes a left arrow so the user can move back to the first tabs.
+            _admin_nav_weights_v69035 = [1.0] * len(_admin_nav_visible_v69035) + [0.30]
+            _admin_nav_cols_v69035 = st.columns(
+                _admin_nav_weights_v69035,
                 gap="small",
             )
-            for _admin_nav_col_v69032, _admin_nav_label_v69032 in zip(
-                _admin_nav_cols_v69032, _admin_sections_v69028
+            for _admin_nav_col_v69035, _admin_nav_label_v69035 in zip(
+                _admin_nav_cols_v69035[:-1], _admin_nav_visible_v69035
             ):
-                with _admin_nav_col_v69032:
-                    _admin_nav_active_v69032 = (
-                        _admin_nav_label_v69032 == admin_section_v69028
+                with _admin_nav_col_v69035:
+                    _admin_nav_slug_v69035 = re.sub(
+                        r"[^a-z0-9]+", "_", _admin_nav_label_v69035.lower()
+                    ).strip("_")
+                    _admin_nav_active_v69035 = (
+                        _admin_nav_label_v69035 == admin_section_v69028
                     )
                     if st.button(
-                        _admin_nav_label_v69032,
-                        key=(
-                            "admin_nav_v69032_"
-                            + re.sub(r"[^a-z0-9]+", "_", _admin_nav_label_v69032.lower()).strip("_")
-                        ),
-                        type="primary" if _admin_nav_active_v69032 else "secondary",
+                        _admin_nav_label_v69035,
+                        key="admin_nav_v69035_" + _admin_nav_slug_v69035,
                         use_container_width=False,
                     ):
-                        if not _admin_nav_active_v69032:
-                            st.session_state[_admin_state_key_v69028] = _admin_nav_label_v69032
+                        if not _admin_nav_active_v69035:
+                            st.session_state[_admin_state_key_v69028] = _admin_nav_label_v69035
                             st.rerun()
+
+            with _admin_nav_cols_v69035[-1]:
+                _admin_nav_can_move_right_v69035 = (
+                    _admin_nav_offset_v69035 < _admin_nav_max_offset_v69035
+                )
+                _admin_nav_arrow_label_v69035 = (
+                    "›" if _admin_nav_can_move_right_v69035 else "‹"
+                )
+                if st.button(
+                    _admin_nav_arrow_label_v69035,
+                    key="admin_nav_arrow_v69035",
+                    help=(
+                        "More Admin sections"
+                        if _admin_nav_can_move_right_v69035
+                        else "Earlier Admin sections"
+                    ),
+                    use_container_width=False,
+                ):
+                    st.session_state[_admin_nav_offset_key_v69035] = (
+                        _admin_nav_max_offset_v69035
+                        if _admin_nav_can_move_right_v69035
+                        else 0
+                    )
+                    st.rerun()
 
         # Re-read after navigation setup so the value below always comes from
         # the server-authoritative persistent state.
