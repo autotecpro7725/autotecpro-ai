@@ -5779,8 +5779,6 @@ def process_pending_login_cookie_action():
 AUTH_SESSION_COOKIE = "atp_authenticated_session_v1"
 AUTH_SESSION_HOURS = 12
 AUTH_COOKIE_ACTION_MAX_ATTEMPTS_V69042 = 4
-AUTH_BOOTSTRAP_ATTEMPTS_V69042 = 4
-AUTH_BOOTSTRAP_RETRY_SECONDS_V69042 = 0.16
 
 
 def _auth_session_signing_key():
@@ -6036,45 +6034,6 @@ def restore_login_session():
         return None
 
 
-def _wait_for_mobile_auth_bootstrap_v69042(reason="cookie_mount"):
-    """Keep Login hidden while the browser cookie component finishes mounting."""
-    attempts = int(st.session_state.get("_auth_bootstrap_attempt_v69042", 0) or 0)
-    if attempts >= AUTH_BOOTSTRAP_ATTEMPTS_V69042:
-        return False
-    st.session_state["_auth_bootstrap_attempt_v69042"] = attempts + 1
-    st.session_state["_auth_transition"] = "login"
-    recovery_overlay = _render_auth_transition_overlay()
-    diagnostic_log(
-        "mobile_auth_bootstrap_wait_v69042",
-        attempt=attempts + 1,
-        reason=str(reason or "cookie_mount"),
-    )
-    time.sleep(AUTH_BOOTSTRAP_RETRY_SECONDS_V69042)
-    # Keep the overlay mounted across the controlled rerun. It prevents the
-    # login form from flashing while CookieController hydrates on mobile Safari.
-    if recovery_overlay is not None:
-        st.session_state["_auth_transition"] = "login"
-    st.rerun()
-    return True
-
-
-def _render_mobile_auth_recovery_error_v69042():
-    """Fail closed without exposing Login during a transient restore outage."""
-    st.warning(
-        "Your secure session is temporarily reconnecting. "
-        "Your login has not been removed."
-    )
-    if st.button(
-        "Retry connection",
-        key="mobile_auth_recovery_retry_v69042",
-        use_container_width=True,
-    ):
-        st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
-        st.session_state["_auth_transition"] = "login"
-        st.rerun()
-    st.stop()
-
-
 def logout_user():
     """
     Log out cleanly and prevent authenticated fragments from flashing behind
@@ -6303,7 +6262,7 @@ if "logged_in" not in st.session_state:
 # login flag in an otherwise recoverable browser session. Restore only when this
 # is not an explicit logout transition. Cookie deletion is browser-side and may
 # require one or more reruns before the old signed cookie disappears.
-_auth_restore_result_v69042 = True if bool(
+_auth_restore_result_v69043 = True if bool(
     st.session_state.get("logged_in")
 ) else False
 if not bool(st.session_state.get("logged_in")):
@@ -6324,23 +6283,21 @@ if not bool(st.session_state.get("logged_in")):
         else:
             st.session_state.pop("_explicit_logout_pending", None)
     else:
-        _auth_restore_result_v69042 = restore_login_session()
-
-        if _auth_restore_result_v69042 is True:
+        _auth_restore_result_v69043 = restore_login_session()
+        if _auth_restore_result_v69043 is True:
             st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
-        elif _auth_restore_result_v69042 is None:
-            # Signed-session recovery was temporarily unavailable. Preserve the
-            # cookie and retry behind the loading cover instead of showing Login.
-            if not _wait_for_mobile_auth_bootstrap_v69042("transient_restore"):
-                _render_mobile_auth_recovery_error_v69042()
-        else:
-            # CookieController is a browser component. A fresh Streamlit Python
-            # session can execute before the first component value reaches the
-            # server, especially after iOS suspends and reconnects the tab.
-            _wait_for_mobile_auth_bootstrap_v69042("cookie_mount")
 
 if not bool(st.session_state.get("logged_in")):
+    # v69043 production hotfix: an empty or temporarily unavailable first cookie
+    # read must never block a real user behind an authentication overlay. Render
+    # Login immediately; CookieController may still trigger a later safe rerun.
     st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
+    st.session_state.pop("_auth_transition", None)
+    if _auth_transition_placeholder is not None:
+        try:
+            _auth_transition_placeholder.empty()
+        except Exception:
+            pass
     login_screen()
     # The destination login UI is now complete; remove the transition cover
     # before stopping execution so authenticated content cannot render below it.
