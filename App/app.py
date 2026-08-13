@@ -5810,7 +5810,9 @@ def _auth_credential_fingerprint(stored_password):
 
 def _load_active_user_record(username):
     result = (
-        supabase.table("users").select("*")
+        supabase.table("users").select(
+            "username,password,role,active,workspace_permissions,feature_permissions"
+        )
         .eq("username", str(username or "").strip())
         .eq("active", True).limit(1).execute()
     )
@@ -6081,6 +6083,73 @@ def logout_user():
 # ============================================================
 
 
+def _install_login_interaction_fastpath_v69044():
+    """Event-driven login form polish with no auth, cookie, or submit authority."""
+    components.html(
+        """
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpLoginInteractionFastpathV69044";
+          try { root[KEY]?.cleanup?.(); } catch (error) {}
+
+          let observer = null;
+          let submitButton = null;
+          let submitted = false;
+
+          function configure() {
+            const form = doc.querySelector(
+              'form[data-testid="stForm"], div[data-testid="stForm"]'
+            );
+            if (!form) return false;
+            const inputs = Array.from(form.querySelectorAll("input"));
+            const username = inputs.find((input) => input.type === "text");
+            const password = inputs.find((input) => input.type === "password");
+            submitButton = form.querySelector('button[type="submit"]');
+            if (!username || !password || !submitButton) return false;
+
+            form.setAttribute("autocomplete", "off");
+            username.setAttribute("autocomplete", "off");
+            username.setAttribute("autocapitalize", "none");
+            username.setAttribute("spellcheck", "false");
+            password.setAttribute("autocomplete", "new-password");
+
+            submitButton.addEventListener("click", () => {
+              if (submitted || !username.value.trim() || !password.value) return;
+              submitted = true;
+              submitButton.setAttribute("aria-busy", "true");
+              submitButton.style.cursor = "wait";
+              const label = submitButton.querySelector("p, span");
+              if (label) label.textContent = "Signing in…";
+            }, { once: true });
+            return true;
+          }
+
+          if (!configure()) {
+            observer = new MutationObserver(() => {
+              if (configure() && observer) {
+                observer.disconnect();
+                observer = null;
+              }
+            });
+            observer.observe(doc.documentElement, { childList: true, subtree: true });
+          }
+
+          function cleanup() {
+            try { observer?.disconnect(); } catch (error) {}
+            observer = null;
+          }
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 
 def login_screen():
     apply_login_layout_css()
@@ -6133,7 +6202,7 @@ def login_screen():
             unsafe_allow_html=True,
         )
 
-        install_login_autofill_support()
+        _install_login_interaction_fastpath_v69044()
 
         with st.form("login_form"):
             username = st.text_input(
@@ -6173,7 +6242,9 @@ def login_screen():
             result = (
                 supabase
                 .table("users")
-                .select("*")
+                .select(
+                    "username,password,role,active,workspace_permissions,feature_permissions"
+                )
                 .eq("username", username)
                 .eq("active", True)
                 .limit(1)
