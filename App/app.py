@@ -52727,8 +52727,131 @@ def _workspace_durable_image_payloads_v69041(destination):
     ]
 
 
+def _workspace_file_search_payloads_v69051(
+    destination, result_rows, exact_destination_authority=False
+):
+    """Restore destination/source metadata before workspace image selection.
+
+    Production file_search commonly returns an image-local chunk containing an
+    exact URL but omits the file header (Destination, page title and source URL).
+    The legacy parser then defaults that chunk to Technical and Sales/Marketing
+    correctly reject it.  Mirror Technical's successful full-file restoration:
+    inspect the complete exact file whenever the returned chunk lacks an explicit
+    destination or does not reconstruct a candidate owned by this destination.
+
+    Dedicated rows are produced from exactly one destination vector store.  That
+    store membership may restore ownership when the file-content endpoint is
+    temporarily unavailable, but it never bypasses URL, QA, relevance or fitment
+    gates in the final selector.
+    """
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"}:
+        return []
+    output, seen = [], set()
+    full_reads = set()
+    ordered = sorted(
+        [dict(row) for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+
+    def add_payloads(payloads, row, *, full_file=False, exact_store=False):
+        for raw_payload in payloads or []:
+            if not isinstance(raw_payload, dict):
+                continue
+            payload = dict(raw_payload)
+            image_url = str(payload.get("image_url") or "").strip()
+            archive_path = str(
+                payload.get("archive_storage_path")
+                or payload.get("archive_storage_path_v69017")
+                or ""
+            ).strip()
+            if not image_url and not archive_path:
+                continue
+            if exact_store:
+                payload["database_choice"] = target
+                payload["_workspace_exact_destination_authority_v69051"] = True
+            if str(payload.get("database_choice") or "").strip() != target:
+                continue
+            payload["_workspace_full_file_restored_v69051"] = bool(full_file)
+            payload["_technical_file_search_score_v69032"] = float(
+                row.get("score") or payload.get("_technical_file_search_score_v69032") or 0.0
+            )
+            payload["_technical_file_id_v69032"] = str(
+                row.get("file_id") or payload.get("_technical_file_id_v69032") or ""
+            ).strip()
+            identity = (
+                str(payload.get("image_sha256") or "").strip().casefold()
+                or image_url
+                or archive_path
+            )
+            if identity and identity in seen:
+                continue
+            if identity:
+                seen.add(identity)
+            output.append(payload)
+
+    for row in ordered[:16]:
+        file_id = str(row.get("file_id") or "").strip()
+        chunk_text = str(row.get("text") or "")
+        explicit_destination_match = re.search(
+            r"(?im)^Destination:\s*(.+?)\s*$", chunk_text
+        )
+        explicit_destination = re.sub(
+            r"\s+", " ",
+            str(explicit_destination_match.group(1) or "")
+        ).strip() if explicit_destination_match else ""
+        chunk_payloads = _website_file_search_payloads_for_related_evidence_v69032([row])
+        chunk_has_target = any(
+            str(payload.get("database_choice") or "").strip() == target
+            for payload in chunk_payloads if isinstance(payload, dict)
+        )
+
+        # Technical-style authority restoration: a URL-bearing chunk is not
+        # complete evidence when its header/source identity is absent.
+        needs_full = bool(
+            file_id
+            and (
+                explicit_destination != target
+                or not chunk_has_target
+                or not re.search(
+                    r"(?im)^(?:Requested URL|Final source URL|Source page):\s*(?:https?://|document://)",
+                    chunk_text,
+                )
+            )
+        )
+        full_payloads = []
+        if needs_full and file_id not in full_reads:
+            full_reads.add(file_id)
+            full_text = str(_website_file_full_text_v69012(file_id) or "")
+            if full_text:
+                full_row = dict(row)
+                full_row["text"] = full_text
+                full_payloads = _website_file_search_payloads_for_related_evidence_v69032(
+                    [full_row]
+                )
+                add_payloads(
+                    full_payloads,
+                    row,
+                    full_file=True,
+                    exact_store=False,
+                )
+
+        # If complete metadata was restored, never re-add the incomplete chunk.
+        if full_payloads:
+            continue
+        add_payloads(
+            chunk_payloads,
+            row,
+            full_file=False,
+            exact_store=bool(exact_destination_authority and file_id),
+        )
+    return output
+
+
 def _workspace_website_images_from_file_search_v69040(
-    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3,
+    exact_destination_authority_v69051=False,
 ):
     """Publish only destination-owned, QA-grounded Sales/Marketing images.
 
@@ -52765,8 +52888,10 @@ def _workspace_website_images_from_file_search_v69040(
             if identity_v69041:
                 durable_by_identity_v69041[identity_v69041] = durable_v69041
 
-    primary_payloads_v69041 = _website_file_search_payloads_for_related_evidence_v69032(
-        result_rows
+    primary_payloads_v69041 = _workspace_file_search_payloads_v69051(
+        destination,
+        result_rows,
+        exact_destination_authority=bool(exact_destination_authority_v69051),
     )
     candidates_v69041 = []
     for primary_v69041 in primary_payloads_v69041:
@@ -52794,7 +52919,12 @@ def _workspace_website_images_from_file_search_v69040(
     # Degraded-provider recovery: exact destination-only durable rows are eligible
     # when expanded file-search evidence is unavailable. Higher overlap is required
     # because no primary retrieval score is available.
-    if not primary_payloads_v69041:
+    target_primary_payloads_v69051 = [
+        payload for payload in primary_payloads_v69041
+        if isinstance(payload, dict)
+        and str(payload.get("database_choice") or "").strip() == destination
+    ]
+    if not target_primary_payloads_v69051:
         for durable_v69041 in durable_payloads_v69041:
             payload_v69041 = dict(durable_v69041)
             payload_v69041["_workspace_durable_fallback_v69041"] = True
@@ -52820,6 +52950,15 @@ def _workspace_website_images_from_file_search_v69040(
         overlap = len(query_tokens & evidence_tokens)
         prompt_overlap_v69041 = len(prompt_tokens_v69041 & evidence_tokens)
         durable_fallback_v69041 = bool(payload.get("_workspace_durable_fallback_v69041"))
+        exact_destination_v69051 = bool(
+            payload.get("_workspace_exact_destination_authority_v69051")
+        )
+        full_file_destination_v69051 = bool(
+            payload.get("_workspace_full_file_restored_v69051")
+        )
+        destination_authoritative_v69051 = bool(
+            exact_destination_v69051 or full_file_destination_v69051
+        )
         row_score = float(payload.get("_technical_file_search_score_v69032") or 0.0)
         has_qa_provenance = bool(
             str(payload.get("visual_analysis") or "").strip()
@@ -52833,7 +52972,15 @@ def _workspace_website_images_from_file_search_v69040(
             not has_qa_provenance
             or overlap < required_overlap_v69041
             or (durable_fallback_v69041 and prompt_overlap_v69041 < 2)
-            or (not durable_fallback_v69041 and row_score < 0.15)
+            or (
+                not durable_fallback_v69041
+                and not destination_authoritative_v69051
+                and row_score < 0.15
+            )
+            or (
+                destination_authoritative_v69051
+                and prompt_overlap_v69041 < 2
+            )
         ):
             continue
         record = _website_image_record_for_chat_v68883(payload)
@@ -52847,6 +52994,12 @@ def _workspace_website_images_from_file_search_v69040(
         record["website_workspace_durable_fallback_v69041"] = durable_fallback_v69041
         record["website_workspace_archive_resolved_v69041"] = bool(
             str(payload.get("archive_storage_path") or "").strip()
+        )
+        record["website_workspace_full_file_restored_v69051"] = bool(
+            payload.get("_workspace_full_file_restored_v69051")
+        )
+        record["website_workspace_exact_destination_authority_v69051"] = (
+            exact_destination_v69051
         )
         ranked.append((record["website_workspace_match_score_v69040"], record))
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -52979,8 +53132,12 @@ def _workspace_automatic_image_recovery_v69050(
         workspace,
         prompt,
         answer,
-        ordinary_rows + dedicated_rows,
+        # Dedicated rows come from exactly one active destination store. Do not
+        # mix the ordinary answer's broader Sales/Technical or
+        # Marketing/Sales/Technical rows into this ownership-authoritative pass.
+        dedicated_rows,
         max_images=max_images,
+        exact_destination_authority_v69051=True,
     )
     diagnostic_log(
         "workspace_image_post_gate_dedicated_v69050",
