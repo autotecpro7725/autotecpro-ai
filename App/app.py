@@ -61506,13 +61506,110 @@ if (
         if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
             st.session_state[_admin_state_key_v69028] = "👥 Users"
 
-        admin_section_v69028 = st.radio(
-            "Admin section",
-            _admin_sections_v69028,
-            key=_admin_state_key_v69028,
-            horizontal=True,
-            label_visibility="collapsed",
+        # v69031: slim horizontal tab-bar navigation that matches the legacy
+        # professional Admin appearance while preserving the v69028 single-
+        # section runtime authority.  Do NOT restore st.tabs(): Streamlit
+        # executes every tab body on every rerun, which caused the Users flash
+        # and duplicated Upload Knowledge widgets.
+        st.markdown(
+            """
+            <style>
+            .st-key-atp_admin_nav_v69031 {
+                margin-top: 0.15rem !important;
+                margin-bottom: 0.45rem !important;
+            }
+            .st-key-atp_admin_nav_v69031 [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                gap: 0.18rem !important;
+                align-items: flex-end !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                padding: 0 0 0.15rem 0 !important;
+                scrollbar-width: thin !important;
+            }
+            .st-key-atp_admin_nav_v69031 [data-testid="stColumn"] {
+                flex: 0 0 auto !important;
+                width: auto !important;
+                min-width: max-content !important;
+                padding: 0 !important;
+            }
+            .st-key-atp_admin_nav_v69031 .stButton > button {
+                background: transparent !important;
+                border: none !important;
+                border-bottom: 2px solid transparent !important;
+                border-radius: 0 !important;
+                color: rgba(255,255,255,0.82) !important;
+                box-shadow: none !important;
+                min-height: 0 !important;
+                height: auto !important;
+                padding: 0.22rem 0.38rem 0.32rem 0.38rem !important;
+                line-height: 1.05 !important;
+                font-size: 0.76rem !important;
+                font-weight: 600 !important;
+                white-space: nowrap !important;
+                text-align: center !important;
+                justify-content: center !important;
+            }
+            .st-key-atp_admin_nav_v69031 .stButton > button:hover {
+                color: rgba(255,255,255,0.98) !important;
+                border-bottom-color: rgba(255,95,110,0.45) !important;
+                transform: none !important;
+            }
+            .st-key-atp_admin_nav_v69031 .atp-admin-tab-active-v69031 {
+                display: inline-block !important;
+                white-space: nowrap !important;
+                color: #ffffff !important;
+                font-size: 0.76rem !important;
+                font-weight: 700 !important;
+                line-height: 1.05 !important;
+                padding: 0.22rem 0.38rem 0.32rem 0.38rem !important;
+                border-bottom: 2px solid #ff5f6e !important;
+            }
+            @media (max-width: 900px) {
+                .st-key-atp_admin_nav_v69031 .stButton > button,
+                .st-key-atp_admin_nav_v69031 .atp-admin-tab-active-v69031 {
+                    font-size: 0.73rem !important;
+                    padding: 0.20rem 0.34rem 0.30rem 0.34rem !important;
+                }
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
         )
+
+        admin_section_v69028 = str(st.session_state.get(_admin_state_key_v69028) or "👥 Users")
+        with st.container(key="atp_admin_nav_v69031"):
+            _admin_nav_cols_v69031 = st.columns(
+                len(_admin_sections_v69028),
+                gap="small",
+            )
+            for _admin_nav_col_v69031, _admin_nav_label_v69031 in zip(
+                _admin_nav_cols_v69031, _admin_sections_v69028
+            ):
+                with _admin_nav_col_v69031:
+                    _admin_nav_active_v69031 = (
+                        _admin_nav_label_v69031 == admin_section_v69028
+                    )
+                    if _admin_nav_active_v69031:
+                        st.markdown(
+                            f'<div class="atp-admin-tab-active-v69031">{html.escape(_admin_nav_label_v69031)}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        if st.button(
+                            _admin_nav_label_v69031,
+                            key=(
+                                "admin_nav_v69031_"
+                                + re.sub(r"[^a-z0-9]+", "_", _admin_nav_label_v69031.lower()).strip("_")
+                            ),
+                            use_container_width=False,
+                        ):
+                            st.session_state[_admin_state_key_v69028] = _admin_nav_label_v69031
+                            st.rerun()
+
+        # Re-read after navigation setup so the value below always comes from
+        # the server-authoritative persistent state.
+        admin_section_v69028 = str(st.session_state.get(_admin_state_key_v69028) or "👥 Users")
 
         # Analytics are expensive (up to 4,000 rows). Load them only for the
         # sections that actually consume them instead of on every Admin paint.
