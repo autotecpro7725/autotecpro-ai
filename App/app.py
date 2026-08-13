@@ -47529,6 +47529,84 @@ def _website_scoped_raw_html_image_candidates_v69024(page_html, page_url, page_t
 
 
 
+
+def _website_woocommerce_authoritative_raw_recovery_v69029(page_html, page_url, page_type):
+    """Recover current-product raster assets when the normal DOM parser found none.
+
+    This is a fail-closed WooCommerce-only safety net. It starts at the current
+    product/gallery root and stops before Related Products / upsells / cross-sells /
+    recommendations. It is used only when the normal provenance-aware path produced
+    zero candidates, so it cannot broaden pages that already parse correctly.
+    """
+    if str(page_type or "").strip().casefold() != "woocommerce_product":
+        return []
+    value = str(page_html or "")
+    if not value:
+        return []
+    lower = value.casefold()
+
+    start_patterns = (
+        r'<[^>]+\bid\s*=\s*["\']product-\d+',
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\bwoocommerce-product-gallery\b',
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\bproduct-gallery\b',
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\bsingle-product\b',
+    )
+    start = None
+    # Prefer the actual product node/gallery over a body-level single-product class.
+    for pattern in start_patterns:
+        match = re.search(pattern, value, flags=re.I | re.S)
+        if match:
+            start = int(match.start())
+            break
+    if start is None:
+        return []
+
+    tail = value[start:]
+    end_patterns = (
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\brelated(?:\s+products?)?\b',
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\bupsells?\b',
+        r'<[^>]+\bclass\s*=\s*["\'][^"\']*\bcross[-_ ]?sells?\b',
+        r'>\s*related\s+products?\s*<',
+        r'>\s*you\s+may\s+also\s+like\s*<',
+    )
+    ends = []
+    for pattern in end_patterns:
+        match = re.search(pattern, tail, flags=re.I | re.S)
+        if match and int(match.start()) > 0:
+            ends.append(int(match.start()))
+    end = min(ends) if ends else len(tail)
+    # Keep the bounded current-product region only. Do not scan the page header or
+    # anything after Related Products / recommendation sections.
+    region = tail[:end]
+    raw_records = _website_raw_html_image_candidates_v68996(region)
+    output = []
+    seen = set()
+    for item in raw_records:
+        if not isinstance(item, dict):
+            continue
+        src = str(item.get("src") or "").strip()
+        if not src:
+            continue
+        try:
+            absolute = normalize_website_url(urljoin(page_url, src))
+            key = _website_asset_identity_v68999(absolute)
+        except Exception:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        record = dict(item)
+        record["src"] = absolute
+        record["source_kind"] = "authoritative-product-raw-v69029:" + str(record.get("source_kind") or "raw")
+        record["source_zone_v69024"] = "product_content"
+        record["page_type_v69024"] = "woocommerce_product"
+        record["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
+        output.append(record)
+        if len(output) >= WEBSITE_MAX_DISCOVERED_IMAGES:
+            break
+    return output
+
+
 def _website_asset_identity_v68999(raw_url):
     """Return a stable logical identity for one WordPress/CDN raster asset.
 
@@ -51837,9 +51915,16 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
     req_years = set(subject.get("years") or set())
     req_systems = set(subject.get("systems") or set())
     req_codes = set(subject.get("product_codes") or set())
-    strong_subject = bool(req_codes) or bool(
-        req_brands and req_families and req_systems and (req_years or len(req_families) == 1)
-    )
+    # v69027: not every vehicle family has a Ford-style named factory-system token.
+    # Chevrolet/Toyota/Honda/etc. can still be safely resolved by make + family + year.
+    # Require an exact ATP code or at least three populated identity dimensions.
+    identity_dimension_count_v69027 = sum((
+        bool(req_brands),
+        bool(req_families),
+        bool(req_years),
+        bool(req_systems),
+    ))
+    strong_subject = bool(req_codes) or identity_dimension_count_v69027 >= 3
     if not strong_subject:
         return []
 
@@ -51894,6 +51979,18 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         if source_zone and source_zone not in allowed_zones:
             continue
         if not _website_image_resolved_payload_gate_v69022(prompt, answer, payload):
+            continue
+        # v69027: image-local year evidence outranks broad parent-page fitment.
+        # Use the prompt when it carries a year; otherwise use the verified answer.
+        # This blocks a 2015+ Tahoe screenshot from a 2007 Tahoe inquiry even when
+        # the parent GM page also mentions the 2007-2013 platform.
+        fitment_prompt_v69027 = prompt
+        if not _website_identity_years_v69022(fitment_prompt_v69027):
+            fitment_prompt_v69027 = answer
+        if not _website_image_vehicle_fitment_gate_v68997(
+            fitment_prompt_v69027,
+            payload,
+        ):
             continue
 
         candidate_text = _website_image_payload_identity_text_v69022(payload)
@@ -52023,6 +52120,7 @@ def save_website_knowledge_package(
     reviewed_content=None,
     include_images=True,
     selected_image_urls=None,
+    image_analysis_override_v69029=None,
 ):
     """Save website knowledge with same-URL upsert semantics.
 
@@ -52044,22 +52142,26 @@ def save_website_knowledge_package(
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
     }[database_choice]
 
-    image_analysis = (
-        analyze_website_images(
-            extraction,
-            database_choice,
-            selected_urls=selected_image_urls,
+    if include_images and image_analysis_override_v69029 is not None:
+        image_analysis = dict(image_analysis_override_v69029 or {})
+        image_analysis["shared_analysis_reused_v69029"] = True
+    else:
+        image_analysis = (
+            analyze_website_images(
+                extraction,
+                database_choice,
+                selected_urls=selected_image_urls,
+            )
+            if include_images
+            else {
+                "images": [],
+                "attempted": 0,
+                "skipped": 0,
+                "failures": 0,
+                "discovered": 0,
+                "limited": False,
+            }
         )
-        if include_images
-        else {
-            "images": [],
-            "attempted": 0,
-            "skipped": 0,
-            "failures": 0,
-            "discovered": 0,
-            "limited": False,
-        }
-    )
 
     version_hash_v68892 = _website_knowledge_version_hash_v68892(
         extraction,
@@ -52635,6 +52737,28 @@ def extract_public_webpage(url, page_password=""):
             parser_images,
             final_url,
         )
+        # v69029: some WooCommerce/theme combinations expose the real current-product
+        # gallery in markup forms that the strict zone-aware parser does not surface.
+        # Recover only from the bounded current-product root, and only when the normal
+        # authoritative path found zero candidates. This restores product/gallery
+        # assets without reopening Related Products contamination.
+        if not image_candidates and page_type_v69024 == "woocommerce_product":
+            recovered_product_images_v69029 = _website_woocommerce_authoritative_raw_recovery_v69029(
+                page_text, final_url, page_type_v69024
+            )
+            if recovered_product_images_v69029:
+                fallback_candidates_v69029 = _website_image_candidate_urls(
+                    recovered_product_images_v69029, final_url
+                )
+                if fallback_candidates_v69029:
+                    image_candidates = list(fallback_candidates_v69029)
+                    raw_image_candidate_count_v68999 += len(recovered_product_images_v69029)
+                    diagnostic_log(
+                        "website_woocommerce_zero_candidate_recovered_v69029",
+                        source_url=final_url[:1000],
+                        recovered_raw=len(recovered_product_images_v69029),
+                        recovered_candidates=len(fallback_candidates_v69029),
+                    )
         page_identity_v69024 = _website_page_identity_v69024(
             final_url, page_title, cleaned_text, page_type_v69024
         )
@@ -53029,13 +53153,145 @@ def vector_store_has_filename(vector_store_id, filename):
     return False
 
 
+
+WEBSITE_DATABASE_ALL_V69029 = "All Databases"
+WEBSITE_DATABASE_DESTINATIONS_V69029 = (
+    "Technical Support Database",
+    "Sales Database",
+    "Marketing Database",
+)
+
+
+def _website_database_destinations_v69029(selection):
+    value = str(selection or "").strip()
+    if value == WEBSITE_DATABASE_ALL_V69029:
+        return list(WEBSITE_DATABASE_DESTINATIONS_V69029)
+    if value in WEBSITE_DATABASE_DESTINATIONS_V69029:
+        return [value]
+    raise ValueError("Invalid website knowledge database selection.")
+
+
+def _website_database_vector_store_v69029(database_choice):
+    mapping = {
+        "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
+        "Sales Database": SALES_VECTOR_STORE_ID,
+        "Marketing Database": MARKETING_VECTOR_STORE_ID,
+    }
+    value = str(mapping.get(str(database_choice or "")) or "").strip()
+    if not value.startswith("vs_"):
+        raise ValueError(f"{database_choice} is not configured with a valid vector store.")
+    return value
+
+
+def save_website_knowledge_to_destinations_v69029(
+    extraction,
+    destination_selection,
+    *,
+    reviewed_content,
+    include_images=True,
+    selected_image_urls=None,
+):
+    """Save one reviewed extraction to one or all supported website databases.
+
+    Extraction and visual QA run once. Each destination then uses the existing
+    transactional same-URL replacement path independently. Partial failure is safe
+    and retryable: successful destinations remain idempotent while failed ones can
+    be retried without deleting the page or duplicating the successful packages.
+    """
+    destinations = _website_database_destinations_v69029(destination_selection)
+    # Fail before any mutation if a requested destination is not configured.
+    for destination in destinations:
+        _website_database_vector_store_v69029(destination)
+
+    if include_images:
+        # Technical Support is the authoritative durable image-QA/index source.
+        # Reuse that one analysis for All Databases so same-URL resubmits can reuse
+        # existing byte-identical QA instead of re-running provider vision three times.
+        analysis_label = (
+            "Technical Support Database" if len(destinations) > 1 else destinations[0]
+        )
+        shared_analysis = analyze_website_images(
+            extraction,
+            analysis_label,
+            selected_urls=selected_image_urls,
+        )
+    else:
+        shared_analysis = {
+            "images": [], "attempted": 0, "skipped": 0, "failures": 0,
+            "discovered": 0, "limited": False,
+        }
+
+    results = {}
+    failures = {}
+    for destination in destinations:
+        try:
+            results[destination] = save_website_knowledge_package(
+                extraction,
+                destination,
+                reviewed_content=reviewed_content,
+                include_images=include_images,
+                selected_image_urls=selected_image_urls,
+                image_analysis_override_v69029=shared_analysis,
+            )
+        except Exception as error:
+            failures[destination] = {
+                "error_type": type(error).__name__,
+                "error": str(error),
+            }
+            diagnostic_log(
+                "website_multi_database_save_failed_v69029",
+                destination=destination,
+                error_type=type(error).__name__,
+                error=str(error)[:1000],
+            )
+
+    return {
+        "destination_selection": str(destination_selection or ""),
+        "destinations": destinations,
+        "results": results,
+        "failures": failures,
+        "shared_image_analysis": shared_analysis,
+        "completed": len(results) == len(destinations) and not failures,
+        "partial_success": bool(results) and bool(failures),
+    }
+
+
 def render_learn_from_website(database_choice):
     """Render the isolated Extract → Review → Approve website workflow."""
     st.markdown("---")
     st.markdown("### Learn from Website")
     st.caption(
-        "Extract one public webpage, review the cleaned content, then approve "
-        "it for the selected knowledge database above."
+        "Extract one public webpage once, review the cleaned content, then approve "
+        "it for Technical Support, Sales, Marketing, or all three databases."
+    )
+
+    website_database_options_v69029 = [
+        WEBSITE_DATABASE_ALL_V69029,
+        "Technical Support Database",
+        "Sales Database",
+        "Marketing Database",
+    ]
+    # Website destination is independent from the document-upload selector above.
+    # Default to Technical Support and persist the website-specific choice thereafter.
+    default_website_database_v69029 = "Technical Support Database"
+    if str(st.session_state.get("stable_admin_website_database_choice_v69029") or "") not in website_database_options_v69029:
+        st.session_state["stable_admin_website_database_choice_v69029"] = default_website_database_v69029
+    website_database_choice_v69029 = st.selectbox(
+        "Learn website to database",
+        website_database_options_v69029,
+        key="stable_admin_website_database_choice_v69029",
+        help=(
+            "All Databases extracts/analyzes the webpage once, then publishes the approved "
+            "knowledge to Technical Support, Sales, and Marketing. Graphic Marketing is not "
+            "included in All Databases."
+        ),
+    )
+    website_destination_labels_v69029 = _website_database_destinations_v69029(website_database_choice_v69029)
+    st.caption(
+        "Will save to: " + " · ".join(
+            ("Technical Support" if x == "Technical Support Database" else "Sales" if x == "Sales Database" else "Marketing")
+            for x in website_destination_labels_v69029
+        )
     )
 
     website_url = st.text_input(
@@ -53082,8 +53338,35 @@ def render_learn_from_website(database_choice):
             st.error(f"Unable to extract website: {error}")
 
     extraction = st.session_state.get("admin_website_extraction")
+
+    # v69029: save results must remain visible even after a successful save clears
+    # the extraction state. v69028 displayed notices only below the extraction early
+    # return, which made successful completion feedback disappear on the stable rerun.
+    website_save_notice = st.session_state.pop("admin_website_save_notice", None)
+    if website_save_notice:
+        notice_type = str(website_save_notice.get("type") or "info")
+        notice_message = str(website_save_notice.get("message") or "")
+        if notice_type == "success":
+            st.success(notice_message)
+        elif notice_type == "warning":
+            st.warning(notice_message)
+        elif notice_type == "error":
+            st.error(notice_message)
+        else:
+            st.info(notice_message)
+
     if not extraction:
         return
+
+    # v69028: establish save state before rendering the expensive preview grid.
+    # The button callback creates an intermediate rerun; during that rerun the
+    # preview must not be rebuilt or its per-image delete widgets can coexist
+    # transiently with the previous frontend tree.
+    if "admin_website_save_in_progress" not in st.session_state:
+        st.session_state.admin_website_save_in_progress = False
+    website_save_in_progress = bool(
+        st.session_state.get("admin_website_save_in_progress", False)
+    )
 
     # Prevent stale content from being saved only when the user actually edits
     # the URL field after extraction. Compare against the originally entered
@@ -53131,7 +53414,7 @@ def render_learn_from_website(database_choice):
         ),
     )
     website_image_candidates = list(extraction.get("image_candidates") or [])
-    if include_website_images and website_image_candidates:
+    if include_website_images and website_image_candidates and not website_save_in_progress:
         st.caption(
             f"Validating {len(website_image_candidates):,} authoritative-zone unique/logical image assets before preview. "
             "Related products/recommendations are excluded before this stage; broken, empty, branding, decorative assets and exact-byte duplicates are removed; "
@@ -53173,6 +53456,9 @@ def render_learn_from_website(database_choice):
             f"Every validated candidate is shown unless you remove it; up to {WEBSITE_MAX_ANALYZED_IMAGES:,} can be analyzed in one save operation."
         )
 
+    if website_save_in_progress and include_website_images and website_image_candidates:
+        st.info("Saving website knowledge. The image preview is temporarily paused to keep this rerun stable.")
+
     reviewed_content = st.text_area(
         "Review extracted content",
         value=str(extraction.get("content") or ""),
@@ -53187,35 +53473,12 @@ def render_learn_from_website(database_choice):
         ),
     )
 
-    # Show any result from the previous save-processing rerun.
-    website_save_notice = st.session_state.pop(
-        "admin_website_save_notice",
-        None,
-    )
-    if website_save_notice:
-        notice_type = str(website_save_notice.get("type") or "info")
-        notice_message = str(website_save_notice.get("message") or "")
-        if notice_type == "success":
-            st.success(notice_message)
-        elif notice_type == "warning":
-            st.warning(notice_message)
-        elif notice_type == "error":
-            st.error(notice_message)
-        else:
-            st.info(notice_message)
-
-    if "admin_website_save_in_progress" not in st.session_state:
-        st.session_state.admin_website_save_in_progress = False
-
     def begin_website_knowledge_save():
         """Set the processing state before Streamlit renders the next run."""
         if not st.session_state.get("admin_website_save_in_progress", False):
             st.session_state.admin_website_save_in_progress = True
 
-    website_save_in_progress = bool(
-        st.session_state.get("admin_website_save_in_progress", False)
-    )
-
+    # website_save_in_progress was captured before preview rendering on this run.
     save_left, save_center, save_right = st.columns(
         [3, 4, 3],
         gap="small",
@@ -53263,69 +53526,84 @@ def render_learn_from_website(database_choice):
         reviewed_extraction["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
 
         with st.spinner(
-            "Saving website text and analyzing useful images..."
-            if include_website_images
-            else "Saving website knowledge..."
+            (
+                "Saving website knowledge to "
+                + ("Technical Support, Sales, and Marketing" if website_database_choice_v69029 == WEBSITE_DATABASE_ALL_V69029 else website_database_choice_v69029.replace(" Database", ""))
+                + (" and analyzing useful images once..." if include_website_images else "...")
+            )
         ):
             selected_image_urls_v68998 = (
                 list(extraction.get("selected_preview_urls_v69002") or [])
                 if include_website_images
                 else None
             )
-            save_result = save_website_knowledge_package(
+            multi_save_v69029 = save_website_knowledge_to_destinations_v69029(
                 reviewed_extraction,
-                database_choice,
+                website_database_choice_v69029,
                 reviewed_content=reviewed_content,
                 include_images=include_website_images,
                 selected_image_urls=selected_image_urls_v68998,
             )
 
-        image_count = len(save_result.get("images") or [])
-        analysis_stats = dict(save_result.get("image_analysis") or {})
-        if save_result.get("already_saved"):
+        results_v69029 = dict(multi_save_v69029.get("results") or {})
+        failures_v69029 = dict(multi_save_v69029.get("failures") or {})
+        analysis_stats = dict(multi_save_v69029.get("shared_image_analysis") or {})
+        image_count = len(analysis_stats.get("images") or [])
+        destination_names_v69029 = list(multi_save_v69029.get("destinations") or [])
+        short_name_v69029 = lambda value: (
+            "Technical Support" if value == "Technical Support Database"
+            else "Sales" if value == "Sales Database"
+            else "Marketing" if value == "Marketing Database"
+            else str(value)
+        )
+        saved_names_v69029 = [short_name_v69029(x) for x in results_v69029]
+        failed_names_v69029 = [short_name_v69029(x) for x in failures_v69029]
+        cleanup_pending_v69029 = any(
+            bool((result or {}).get("replacement_cleanup_pending"))
+            for result in results_v69029.values()
+        )
+        all_already_saved_v69029 = bool(results_v69029) and all(
+            bool((result or {}).get("already_saved"))
+            for result in results_v69029.values()
+        ) and not failures_v69029
+        file_ids_v69029 = [
+            f"{short_name_v69029(destination)}={str((result or {}).get('file_id') or 'existing')}"
+            for destination, result in results_v69029.items()
+        ]
+
+        if failures_v69029:
+            # Keep extraction + preview state so retrying is safe. Destinations that
+            # already succeeded are checksum/idempotency protected on the next click.
             st.session_state.admin_website_save_notice = {
-                "type": "info",
+                "type": "warning",
                 "message": (
-                    "This exact reviewed webpage knowledge package is already saved "
-                    f"in {database_choice}."
+                    ("Saved to " + ", ".join(saved_names_v69029) + ". " if saved_names_v69029 else "")
+                    + "Failed for " + ", ".join(failed_names_v69029) + ". "
+                    + "The reviewed extraction is preserved so you can retry safely; successful destinations will not be duplicated."
                 ),
             }
             return
 
-        if save_result.get("updated_existing_url"):
-            replacement_count = int(save_result.get("replaced_file_count") or 0)
-            cleanup_pending = bool(
-                save_result.get("replacement_cleanup_pending")
-            )
-            replacement_text = (
-                f" Replaced {replacement_count} older version(s) of this same URL."
-                if replacement_count
-                else ""
-            )
-            if cleanup_pending:
-                replacement_text += (
-                    " The new version is saved, but an older version is being kept "
-                    "temporarily because replacement indexing/cleanup was not fully "
-                    "confirmed; resubmitting later can complete cleanup safely."
-                )
+        if all_already_saved_v69029:
+            st.session_state.admin_website_save_notice = {
+                "type": "info",
+                "message": (
+                    "This exact reviewed webpage knowledge package is already saved in "
+                    + ", ".join(saved_names_v69029) + "."
+                ),
+            }
         else:
-            replacement_text = ""
-
-        st.session_state.admin_website_save_notice = {
-            "type": (
-                "warning"
-                if save_result.get("replacement_cleanup_pending")
-                else "success"
-            ),
-            "message": (
-                f"Website knowledge saved to {database_choice}."
-                f"{replacement_text} "
-                f"Analyzed and saved {image_count} useful image(s) "
-                f"from {analysis_stats.get('attempted', 0)} checked image(s). "
-                f"File ID: {save_result.get('file_id')}."
-            ),
-        }
+            st.session_state.admin_website_save_notice = {
+                "type": "warning" if cleanup_pending_v69029 else "success",
+                "message": (
+                    "Website knowledge saved to " + ", ".join(saved_names_v69029) + ". "
+                    + f"Images were analyzed once: {image_count} useful image(s) from {analysis_stats.get('attempted', 0)} checked image(s). "
+                    + ("Older same-URL cleanup is pending for at least one destination. " if cleanup_pending_v69029 else "")
+                    + ("File IDs: " + "; ".join(file_ids_v69029) if file_ids_v69029 else "")
+                ),
+            }
         st.session_state.pop("admin_website_extraction", None)
+        st.session_state.pop("admin_website_preview_excluded_urls_v69002", None)
 
     except Exception as error:
         st.session_state.admin_website_save_notice = {
@@ -53335,6 +53613,8 @@ def render_learn_from_website(database_choice):
 
     finally:
         st.session_state.admin_website_save_in_progress = False
+        # v69028: the persistent Admin-section widget keeps Upload Knowledge
+        # selected across this rerun; do not mutate an instantiated widget key.
         st.rerun()
 
 
@@ -53675,8 +53955,8 @@ def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, adm
 def render_admin_upload_knowledge_tab():
     st.markdown("### Upload Documents to Knowledge Base")
     st.caption(
-        "Choose the target database, add optional image context, then upload. "
-        "Changing the database no longer reruns the entire Admin Panel."
+        "Choose the target database for document/image uploads, add optional image context, then upload. "
+        "Website learning below has its own independent destination selector."
     )
 
     database_choice = st.selectbox(
@@ -61203,10 +61483,12 @@ if (
             "and continuous improvement."
         )
 
-        (
-            tab1, tab2, tab3, tab4, tab5, tab6,
-            tab7, tab8, tab9, tab10, tab11, tab12
-        ) = st.tabs([
+        # v69028: persistent single-section Admin navigation.  st.tabs executes
+        # every tab body on every rerun and visually falls back to its first tab
+        # while the frontend reconciles.  That caused Users -> Upload Knowledge
+        # bounce, duplicated preview controls during website save reruns, and a
+        # heavy Admin destination render.  Render exactly one Admin section.
+        _admin_sections_v69028 = [
             "👥 Users",
             "📚 Upload Knowledge",
             "📥 Pending Submissions",
@@ -61218,29 +61500,47 @@ if (
             "📊 AI Analytics",
             "📈 Learning Analytics",
             "🔌 Live Integrations",
-            "🎨 Graphic Intelligence"
-        ])
+            "🎨 Graphic Intelligence",
+        ]
+        _admin_state_key_v69028 = "admin_active_section_v69028"
+        if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
+            st.session_state[_admin_state_key_v69028] = "👥 Users"
 
-        # Streamlit evaluates every tab body during a rerun. Reuse these large
-        # datasets briefly instead of downloading up to 4,000 rows repeatedly.
-        analytics_rows, learned_rows_for_analytics = (
-            load_admin_analytics_rows()
-        )
-        analytics_rows = list(analytics_rows or [])
-        learned_rows_for_analytics = list(
-            learned_rows_for_analytics or []
+        admin_section_v69028 = st.radio(
+            "Admin section",
+            _admin_sections_v69028,
+            key=_admin_state_key_v69028,
+            horizontal=True,
+            label_visibility="collapsed",
         )
 
-        with tab1:
+        # Analytics are expensive (up to 4,000 rows). Load them only for the
+        # sections that actually consume them instead of on every Admin paint.
+        _admin_analytics_sections_v69028 = {
+            "🧠 AI Learning",
+            "🚗 Vehicle Analytics",
+            "📦 Product Analytics",
+            "🔧 Technical Analytics",
+            "📊 AI Analytics",
+            "📈 Learning Analytics",
+        }
+        analytics_rows = []
+        learned_rows_for_analytics = []
+        if admin_section_v69028 in _admin_analytics_sections_v69028:
+            analytics_rows, learned_rows_for_analytics = load_admin_analytics_rows()
+            analytics_rows = list(analytics_rows or [])
+            learned_rows_for_analytics = list(learned_rows_for_analytics or [])
+
+        if admin_section_v69028 == "👥 Users":
             render_admin_user_management_fragment()
 
-        with tab2:
+        elif admin_section_v69028 == "📚 Upload Knowledge":
             render_admin_upload_knowledge_tab()
 
-        with tab3:
+        elif admin_section_v69028 == "📥 Pending Submissions":
             render_pending_knowledge_review()
 
-        with tab4:
+        elif admin_section_v69028 == "🧠 AI Learning":
             st.markdown("### 🧠 AI Learning")
             st.caption("Automatic knowledge extraction, duplicate detection, self-improving records, confidence score, and vector sync.")
 
@@ -61269,7 +61569,7 @@ if (
 
             render_admin_latest_learned_fragment()
 
-        with tab5:
+        elif admin_section_v69028 == "📦 Product Library":
             st.markdown("### 📦 Product Library")
             st.caption(
                 "Manage Product Library archive providers, storage connections, "
@@ -61277,7 +61577,7 @@ if (
             )
             render_product_library_storage_settings()
 
-        with tab6:
+        elif admin_section_v69028 == "🚗 Vehicle Analytics":
             st.markdown("### 🚗 Vehicle Analytics")
             st.caption("Most common makes, models, years, and vehicle-related questions.")
 
@@ -61301,7 +61601,7 @@ if (
             st.markdown("#### Most Common Vehicle Strings")
             render_count_table("Vehicle Models / Platforms", top_counts(combined_rows, "vehicle", 20), "Vehicle")
 
-        with tab7:
+        elif admin_section_v69028 == "📦 Product Analytics":
             st.markdown("### 📦 Product Analytics")
             st.caption("Products staff search most often, and products associated with the most issues.")
 
@@ -61326,7 +61626,7 @@ if (
             else:
                 st.info("No product issue data yet.")
 
-        with tab8:
+        elif admin_section_v69028 == "🔧 Technical Analytics":
             st.markdown("### 🔧 Technical Analytics")
             st.caption("Recurring technical issues, successful solutions, unanswered questions, and resolution tracking.")
 
@@ -61377,7 +61677,7 @@ if (
             else:
                 st.success("No unanswered questions logged yet.")
 
-        with tab9:
+        elif admin_section_v69028 == "📊 AI Analytics":
             st.markdown("### 📊 AI Analytics")
             st.caption("Confidence trend, token usage, response time, assistant usage, and duplicate questions.")
 
@@ -61430,7 +61730,7 @@ if (
             else:
                 st.info("No reused knowledge yet.")
 
-        with tab10:
+        elif admin_section_v69028 == "📈 Learning Analytics":
             st.markdown("### 📈 Learning Analytics")
             st.caption("Auto-extracted knowledge, new vectors, search success, learning accuracy, and continuous improvement metrics.")
 
@@ -61473,7 +61773,7 @@ if (
 
 
 
-        with tab11:
+        elif admin_section_v69028 == "🔌 Live Integrations":
             st.markdown("### 🔌 Live Integrations")
             st.caption(
                 "Connection status only. Secret values are never displayed. "
@@ -61503,7 +61803,7 @@ if (
             )
 
 
-        with tab12:
+        elif admin_section_v69028 == "🎨 Graphic Intelligence":
             render_graphic_intelligence_center()
 
 
@@ -63356,6 +63656,17 @@ else:
                         technical_request_prompt_v68879,
                         answer,
                         max_images=3,
+                    )
+                    diagnostic_log(
+                        "website_related_evidence_lookup_completed_v69027",
+                        recovered=len(related_reference_images_v69025r1 or []),
+                        role=_website_image_query_role_v68884(technical_request_prompt_v68879),
+                        prompt_years=sorted(_website_identity_years_v69022(technical_request_prompt_v68879)),
+                        resolved_years=sorted(
+                            _website_resolved_subject_identity_v69022(
+                                technical_request_prompt_v68879, answer
+                            ).get("years") or []
+                        ),
                     )
                     if related_reference_images_v69025r1:
                         generated_images.extend(related_reference_images_v69025r1)
