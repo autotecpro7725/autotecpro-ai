@@ -60668,6 +60668,57 @@ def render_admin_user_management_fragment():
     if delete_success:
         st.success(delete_success)
 
+    st.markdown(
+        """
+        <style>
+        @media (max-width: 768px) {
+            html body div[class*="st-key-admin_user_search"] input,
+            html body div[class*="st-key-admin_user_search"] textarea,
+            html body div[class*="st-key-stable_admin_username_"] input,
+            html body div[class*="st-key-stable_admin_username_"] textarea,
+            html body div[class*="st-key-stable_admin_password_"] input,
+            html body div[class*="st-key-stable_admin_password_"] textarea {
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                caret-color: #ffffff !important;
+                opacity: 1 !important;
+            }
+
+            html body div[class*="st-key-admin_user_search"] input::placeholder,
+            html body div[class*="st-key-admin_user_search"] textarea::placeholder,
+            html body div[class*="st-key-stable_admin_username_"] input::placeholder,
+            html body div[class*="st-key-stable_admin_username_"] textarea::placeholder,
+            html body div[class*="st-key-stable_admin_password_"] input::placeholder,
+            html body div[class*="st-key-stable_admin_password_"] textarea::placeholder {
+                color: rgba(255,255,255,0.45) !important;
+                -webkit-text-fill-color: rgba(255,255,255,0.45) !important;
+            }
+
+            html body div[class*="st-key-admin_user_search"] input:-webkit-autofill,
+            html body div[class*="st-key-stable_admin_username_"] input:-webkit-autofill,
+            html body div[class*="st-key-stable_admin_password_"] input:-webkit-autofill {
+                -webkit-text-fill-color: #ffffff !important;
+                caret-color: #ffffff !important;
+                box-shadow: 0 0 0 1000px rgba(15, 23, 42, 0.92) inset !important;
+                -webkit-box-shadow: 0 0 0 1000px rgba(15, 23, 42, 0.92) inset !important;
+                transition: background-color 99999s ease-in-out 0s !important;
+            }
+
+            html body div[class*="st-key-admin_user_search"] input::selection,
+            html body div[class*="st-key-stable_admin_username_"] input::selection,
+            html body div[class*="st-key-stable_admin_password_"] input::selection,
+            html body div[class*="st-key-admin_user_search"] textarea::selection,
+            html body div[class*="st-key-stable_admin_username_"] textarea::selection,
+            html body div[class*="st-key-stable_admin_password_"] textarea::selection {
+                color: #ffffff !important;
+                background: rgba(255, 122, 0, 0.28) !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     users = list(load_admin_users() or [])
     all_users = list(users)
     user_filter_columns = st.columns([2.0, 1.0, 1.0], gap="small")
