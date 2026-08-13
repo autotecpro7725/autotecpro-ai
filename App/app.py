@@ -47047,7 +47047,7 @@ class KnowledgePageHTMLParser(HTMLParser):
 
     SKIP_TAGS = {
         "script", "style", "noscript", "svg", "canvas", "iframe",
-        "nav", "header", "footer", "aside", "form", "button",
+        "nav", "header", "footer", "aside", "button",
     }
     BLOCK_TAGS = {
         "article", "section", "main", "header", "div", "p", "br",
@@ -47393,6 +47393,17 @@ def _website_dom_zone_v69024(tag, attrs, page_type, parent_zone=""):
     attr_text = _website_dom_attr_text_v69024(attrs)
     haystack = f" {attr_text} "
 
+    # v69048: WooCommerce stores authoritative product choices and explanatory
+    # labels inside ``form.cart`` / ``variations_form``.  Treat only those forms as
+    # product content; search, login, review, currency and checkout forms remain
+    # site chrome.  ``form`` is intentionally no longer a base SKIP_TAG because the
+    # zone authority below already quarantines every non-product form before text is
+    # passed to the readable-content parser.
+    if page_type == "woocommerce_product" and tag == "form":
+        if re.search(r"\bvariations?\s+form\b|\bcart\b", haystack):
+            return "product_summary"
+        return "site_chrome"
+
     # v69025: classify site-chrome by tag before the legacy base parser can
     # inspect wrapper style/data attributes.  This closes header/footer/nav/aside
     # background-image leakage while preserving ordinary article/product content.
@@ -47412,7 +47423,16 @@ def _website_dom_zone_v69024(tag, attrs, page_type, parent_zone=""):
         return "review_media"
     if re.search(r"\bpost\s+navigation\b|\bprevious\s+product\b|\bnext\s+product\b", haystack):
         return "previous_next_product"
-    if re.search(r"\bsite\s+(?:header|footer|branding|navigation)\b|\bsidebar\b|\bmega\s+menu\b", haystack):
+    # ``layout-sidebar-none`` is the current-product root in the AutoTecPro theme,
+    # not a sidebar.  The old broad ``\bsidebar\b`` match classified that entire
+    # wrapper as site chrome, producing the observed 77-word title/breadcrumb-only
+    # extraction while image discovery continued independently.
+    if re.search(
+        r"\bsite\s+(?:header|footer|branding|navigation)\b|"
+        r"\bsidebar\b(?!\s+(?:none|false|disabled|off)\b)|"
+        r"\bmega\s+menu\b",
+        haystack,
+    ):
         return "site_chrome"
 
     if page_type == "woocommerce_product":
@@ -53020,7 +53040,6 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         "published": 0,
         "self_healed": 0,
     }
-    seen_candidate_payloads_v69032 = set()
     for payload in candidate_payloads_v69032:
         if not isinstance(payload, dict):
             continue
@@ -53034,16 +53053,12 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         ):
             audit_v69047["rejected_destination"] += 1
             continue
-        payload_identity_v69032 = (
-            str(payload.get("image_sha256") or "").strip().lower()
-            or str(payload.get("image_url") or "").strip()
-            or str(payload.get("archive_storage_path_v69017") or "").strip()
-            or str(payload.get("archive_storage_path") or "").strip()
-        )
-        if payload_identity_v69032 and payload_identity_v69032 in seen_candidate_payloads_v69032:
-            continue
-        if payload_identity_v69032:
-            seen_candidate_payloads_v69032.add(payload_identity_v69032)
+        # v69048: do not reserve an image identity before authority evaluation.
+        # Production can contain a stale durable-index row followed by the exact
+        # file_search reconstruction for the same URL.  The old early dedupe let the
+        # stale row reserve the URL, fail a safety gate, and silently suppress the
+        # authoritative vector candidate.  Rank every candidate first; final-output
+        # dedupe below keeps only the highest-scoring safe payload.
         source_zone = str(payload.get("source_zone_v69024") or "").strip().casefold()
         if source_zone and source_zone not in allowed_zones:
             audit_v69047["rejected_zone"] += 1
@@ -53147,7 +53162,7 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
     _sort(topic_ranked)
     _sort(general_ranked)
 
-    selected = topic_ranked[:max(1, int(max_images or 3))]
+    selected = topic_ranked
     if not selected and general_ranked:
         # Precision-first final fallback: one same-product/system image proves there is
         # a related visual without pretending it depicts the exact requested operation.
@@ -53156,15 +53171,23 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
     records = []
     seen = set()
     for score, payload, topic_related in selected:
-        digest = str(payload.get("image_sha256") or payload.get("image_url") or "").strip()
-        if digest and digest in seen:
+        identities_v69048 = {
+            str(value or "").strip().lower()
+            for value in (
+                payload.get("image_sha256"),
+                payload.get("image_url"),
+                payload.get("archive_storage_path_v69017"),
+                payload.get("archive_storage_path"),
+            )
+            if str(value or "").strip()
+        }
+        if identities_v69048 & seen:
             continue
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
             audit_v69047["record_build_failed"] += 1
             continue
-        if digest:
-            seen.add(digest)
+        seen.update(identities_v69048)
         original_name = str(record.get("name") or "Technical image").strip()
         prefix = "Related image — " if topic_related else "Related product reference — "
         record["name"] = (prefix + original_name)[:180]
@@ -53178,6 +53201,8 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
                 audit_v69047["self_healed"] += 1
         records.append(record)
         audit_v69047["published"] += 1
+        if len(records) >= max(1, int(max_images or 3)):
+            break
     diagnostic_log("website_related_evidence_authority_v69047", **audit_v69047)
     return records
 
