@@ -1003,7 +1003,8 @@ MAX_AI_AUTO_CONTINUATIONS = 3
 # Re-rendering the entire accumulated response too frequently becomes expensive
 # for long catalogue/document outputs. Keep the live preview responsive without
 # rebuilding thousands of words many times per second.
-AI_STREAM_RENDER_INTERVAL_SECONDS = 0.20
+AI_STREAM_RENDER_INTERVAL_SECONDS = 0.55
+AI_STREAM_RENDER_MIN_NEW_CHARS_V69026 = 96
 
 
 def safe_json_response(response):
@@ -5786,7 +5787,7 @@ def _load_active_user_record(username):
     return result.data[0] if result.data else None
 
 
-def save_authenticated_session(username, remember=False, workspace=None):
+def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None):
     """
     Save a signed browser session so Streamlit websocket/session resets do not
     unexpectedly return an authenticated user to the login page.
@@ -5821,8 +5822,22 @@ def save_authenticated_session(username, remember=False, workspace=None):
         "expires_at": issued_at + lifetime_seconds,
         "remember": bool(remember),
         # v68843: preserve the active workspace across websocket/session recovery.
-        # This changes navigation restoration only; no assistant pipeline is altered.
+        # v69026: text workspaces also checkpoint the active conversation so an
+        # iPhone/WebSocket reconnect returns to the in-flight case instead of the
+        # workspace home. Graphic keeps its existing durable-job recovery path.
         "workspace": active_workspace,
+        "conversation_id": (
+            str(
+                conversation_id
+                if conversation_id is not None
+                else (
+                    st.session_state.get("conversation_id")
+                    if active_workspace != "🎨 Graphic Marketing"
+                    else ""
+                )
+            ).strip()
+            or None
+        ),
     }
     payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     envelope = {
@@ -5932,6 +5947,9 @@ def restore_login_session():
         restored_workspace = str(payload.get("workspace") or "").strip()
         if restored_workspace:
             st.session_state["_restored_workspace_assistant_v68843"] = restored_workspace
+        restored_conversation_v69026 = str(payload.get("conversation_id") or "").strip()
+        if restored_conversation_v69026:
+            st.session_state["_restored_conversation_id_v69026"] = restored_conversation_v69026
         diagnostic_log(
             "login_session_restored",
             username=username,
@@ -7102,6 +7120,38 @@ if (
         if restored_workspace_v68843 in valid_assistants
         else valid_assistants[0]
     )
+
+# v69026: restore the exact durable text conversation after a websocket/session
+# replacement. Ownership is re-verified before any messages are loaded. Graphic
+# Marketing remains on its existing durable-project/job recovery path.
+_restored_conversation_id_v69026 = str(
+    st.session_state.pop("_restored_conversation_id_v69026", "") or ""
+).strip()
+if (
+    _restored_conversation_id_v69026
+    and st.session_state.current_assistant != "🎨 Graphic Marketing"
+    and not st.session_state.get("conversation_id")
+):
+    try:
+        if _conversation_owned_by_user_cached(
+            str(st.session_state.get("username") or "").strip(),
+            _restored_conversation_id_v69026,
+        ):
+            st.session_state.conversation_id = _restored_conversation_id_v69026
+            st.session_state.messages = load_messages(_restored_conversation_id_v69026)
+            st.session_state.scroll_to_bottom = True
+            diagnostic_log(
+                "mobile_conversation_restored_v69026",
+                conversation_id=_restored_conversation_id_v69026,
+                workspace=st.session_state.current_assistant,
+            )
+    except Exception as _restore_conversation_error_v69026:
+        diagnostic_log(
+            "mobile_conversation_restore_failed_v69026",
+            conversation_id=_restored_conversation_id_v69026,
+            error_type=type(_restore_conversation_error_v69026).__name__,
+            error=str(_restore_conversation_error_v69026)[:500],
+        )
 
 st.sidebar.markdown(
     '<div class="workspace-title">AutoTecPro AI</div>',
@@ -10670,6 +10720,23 @@ def extract_images_from_message_content(content):
             "website_image_sha256",
             "website_image_match_score_v68883",
             "website_image_recovery_v68975",
+            # v69025: preserve website provenance through history/rerun
+            # reconstruction so downstream render/export/revalidation can prove
+            # the same source authority that existed at publication time.
+            "website_source_page_v69010",
+            "website_page_title_v69010",
+            "website_section_heading_v69010",
+            "website_nearby_instruction_text_v69010",
+            "website_structured_metadata_v69017",
+            "website_source_zone_v69024",
+            "website_page_type_v69024",
+            "website_page_identity_v69024",
+            "website_ingestion_authority_v69024",
+            "website_related_reference_v69025r1",
+            "website_related_reference_score_v69025r1",
+            "website_related_reference_role_v69025r1",
+            "website_related_evidence_v69025r2",
+            "website_related_evidence_topic_match_v69025r2",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -10679,7 +10746,7 @@ def extract_images_from_message_content(content):
     return visible_text, clean_images
 
 
-@st.cache_data(ttl=900, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=180, max_entries=16, show_spinner=False)
 def _render_image_previews_cached(images_json):
     """Build deterministic image-preview HTML with click-to-enlarge lightboxes."""
     try:
@@ -42121,7 +42188,7 @@ def _require_owned_conversation(conversation_id):
     return username
 
 
-@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=45, max_entries=64, show_spinner=False)
 def _load_messages_cached(username, conversation_id):
     """Load selected-conversation messages with a short cache."""
     username = str(username or "").strip()
@@ -46654,7 +46721,7 @@ WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 
 # v69024: website-learning provenance authority. This deliberately invalidates
 # older image-QA reuse when page-zone/product provenance was not part of approval.
-WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69024-source-zone-provenance-1"
+WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69025-source-zone-provenance-2"
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -47014,6 +47081,12 @@ def _website_dom_zone_v69024(tag, attrs, page_type, parent_zone=""):
     )
     attr_text = _website_dom_attr_text_v69024(attrs)
     haystack = f" {attr_text} "
+
+    # v69025: classify site-chrome by tag before the legacy base parser can
+    # inspect wrapper style/data attributes.  This closes header/footer/nav/aside
+    # background-image leakage while preserving ordinary article/product content.
+    if tag in {"header", "footer", "nav", "aside", "form", "button"}:
+        return "site_chrome"
 
     # Non-authoritative WooCommerce/WordPress zones are excluded before text/image QA.
     if re.search(r"\brelated\s+(?:products?|posts?|articles?)\b|\b(?:products?|posts?|articles?)\s+related\b", haystack):
@@ -47404,10 +47477,13 @@ def _website_raw_html_image_candidates_v68996(page_html):
 
 
 def _website_scoped_raw_html_image_candidates_v69024(page_html, page_url, page_type, parser_images):
-    """Recover alternate raw URLs without introducing new assets from excluded zones."""
+    """Recover alternate raw URLs without introducing new assets from excluded zones.
+
+    v69025 applies the same provenance rule to *all* parsed webpage types, including
+    generic articles.  A raw/script/CSS URL may enrich an already-authoritative DOM
+    asset, but it may not create a brand-new learned asset with no approved zone.
+    """
     raw_records = _website_raw_html_image_candidates_v68996(page_html)
-    if str(page_type or "").strip() not in {"woocommerce_product", "technical_article"}:
-        return raw_records
 
     authoritative = {}
     for item in parser_images or []:
@@ -49962,12 +50038,32 @@ def _website_identity_years_v69022(value):
 
 
 def _website_identity_systems_v69022(value):
+    """Polarity-aware factory-system parser used by page, subject, and candidate identity.
+
+    v69025: negative phrases such as "without Original SYNC 2" must never be
+    interpreted as positive SYNC 2 evidence.  The legacy public function name is
+    preserved so all existing call sites receive the hardened semantics.
+    """
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
     systems = set()
-    if re.search(r"\bno[-\s]?sync\b", text):
-        systems.add("no_sync")
-    for number in re.findall(r"\bsync\s*([123])\b", text):
+
+    negative_patterns = (
+        r"\bno[-\s]?sync(?:\s*[123])?\b",
+        r"\bnon[-\s]?sync(?:\s*[123])?\b",
+        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+    )
+    positive_text = text
+    for pattern in negative_patterns:
+        if re.search(pattern, positive_text, flags=re.I):
+            systems.add("no_sync")
+        positive_text = re.sub(pattern, " ", positive_text, flags=re.I)
+
+    for number in re.findall(r"\bsync\s*([123])\b", positive_text):
         systems.add("sync_" + number)
+
     if "5th generation" in text or "5th-gen" in text or "5th gen" in text or "new body" in text or "new-body" in text:
         systems.add("new_body")
     if "classic" in text and "ram" in text:
@@ -50041,6 +50137,13 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
         return False
     sync_requested = {x for x in requested_systems if x.startswith("sync_") or x == "no_sync"}
     sync_candidate = {x for x in candidate_systems if x.startswith("sync_") or x == "no_sync"}
+    # v69025 fail-closed polarity rule: explicit NO-SYNC evidence conflicts with
+    # any requested SYNC generation (and vice versa), even if broad page text also
+    # mentions that generation in a warning/cross-reference.
+    if "no_sync" in sync_candidate and any(x.startswith("sync_") for x in sync_requested):
+        return False
+    if "no_sync" in sync_requested and any(x.startswith("sync_") for x in sync_candidate):
+        return False
     if sync_requested and sync_candidate and not (sync_requested & sync_candidate):
         return False
     if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
@@ -51559,6 +51662,337 @@ def _website_image_lookup_v68883(prompt_text, ranking_context_v69008=""):
     return records
 
 
+
+def _website_image_related_reference_lookup_v69025r1(prompt_text, answer_text="", max_images=1):
+    """Return one safe *related-reference* image when no exact topic image exists.
+
+    v69025R1 closes the remaining automatic-publication gap exposed by 722-S2:
+    an approved image from the exact product/vehicle/year/system could be found by an
+    explicit broad image request, yet the implicit Car Model path correctly rejected
+    it as an *exact* Car Model screenshot and then published nothing.  This fallback
+    is intentionally a separate authority tier.  It NEVER claims that the image shows
+    the requested setting screen.  It requires resolved product/vehicle/system
+    provenance and labels the result as a related reference.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    if not prompt or not answer:
+        return []
+
+    subject = _website_resolved_subject_identity_v69022(prompt, answer)
+    req_brands = set(subject.get("brands") or set())
+    req_families = set(subject.get("families") or set())
+    req_years = set(subject.get("years") or set())
+    req_systems = set(subject.get("systems") or set())
+    req_codes = set(subject.get("product_codes") or set())
+
+    # A related-reference fallback is allowed only when the answer resolved a strong
+    # subject.  Product code is strongest; otherwise require vehicle + system context.
+    strong_subject = bool(req_codes) or bool(
+        req_brands and req_families and req_systems and (req_years or len(req_families) == 1)
+    )
+    if not strong_subject:
+        return []
+
+    allowed_zones = {
+        "product_gallery", "product_summary", "product_content",
+        "product_description", "product_technical_content",
+        "article_body", "technical_section",
+    }
+    query_role = _website_image_query_role_v68884(prompt)
+    ranked = []
+
+    for payload in _website_image_index_rows_v68883():
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("database_choice") or "") != "Technical Support Database":
+            continue
+        source_zone = str(payload.get("source_zone_v69024") or "").strip().casefold()
+        if source_zone and source_zone not in allowed_zones:
+            continue
+        if not _website_image_resolved_payload_gate_v69022(prompt, answer, payload):
+            continue
+
+        candidate_text = _website_image_payload_identity_text_v69022(payload)
+        cand_codes = _website_image_product_codes_v69020(candidate_text)
+        cand_brands = _website_identity_brand_set_v69022(candidate_text)
+        cand_families = _website_identity_vehicle_families_v69022(candidate_text)
+        cand_years = _website_identity_years_v69022(candidate_text)
+        cand_systems = _website_identity_systems_v69022(candidate_text)
+
+        # When both sides carry a product code, it must be the same code.
+        if req_codes and cand_codes and not (req_codes & cand_codes):
+            continue
+
+        identity_score = 0.0
+        if req_codes and cand_codes and (req_codes & cand_codes):
+            identity_score += 55.0
+        if req_brands and cand_brands and (req_brands & cand_brands):
+            identity_score += 18.0
+        if req_families and cand_families and (req_families & cand_families):
+            identity_score += 24.0
+        if req_years and cand_years and (req_years & cand_years):
+            identity_score += 18.0
+        if req_systems and cand_systems and (req_systems & cand_systems):
+            identity_score += 24.0
+
+        # Do not accept a code-less candidate on only one weak matching dimension.
+        strong_identity_dimensions = sum((
+            bool(req_brands and cand_brands and (req_brands & cand_brands)),
+            bool(req_families and cand_families and (req_families & cand_families)),
+            bool(req_years and cand_years and (req_years & cand_years)),
+            bool(req_systems and cand_systems and (req_systems & cand_systems)),
+        ))
+        if not (req_codes and cand_codes and (req_codes & cand_codes)) and strong_identity_dimensions < 3:
+            continue
+
+        # Prefer authoritative v69025 provenance, then technical/product zones.
+        authority = str(payload.get("ingestion_authority_version_v69024") or "").strip().casefold()
+        if authority.startswith("v69025-"):
+            identity_score += 8.0
+        identity_score += {
+            "technical_section": 10.0,
+            "product_technical_content": 9.0,
+            "product_gallery": 7.0,
+            "product_description": 6.0,
+            "article_body": 5.0,
+            "product_summary": 4.0,
+            "product_content": 3.0,
+        }.get(source_zone, 0.0)
+
+        # Exact-topic evidence still wins. Different-topic images remain eligible only
+        # as explicitly labelled references, never as exact setting screenshots.
+        role_score = _website_image_role_score_v68884(query_role, payload) if query_role else 0.0
+        identity_score += max(-12.0, min(float(role_score), 24.0))
+        visual_specificity = (
+            _website_image_car_model_visual_specificity_v69004(payload)
+            if query_role == "car_model_ac" else 0.0
+        )
+        if query_role == "car_model_ac" and visual_specificity <= -28.0:
+            # Physical wiring/camera photos are allowed only when they are strongly
+            # tied to the exact product code; otherwise they are too weak to publish.
+            if not (req_codes and cand_codes and (req_codes & cand_codes)):
+                continue
+            identity_score -= 8.0
+        else:
+            identity_score += max(0.0, min(float(visual_specificity), 18.0))
+
+        if identity_score < 58.0:
+            continue
+        ranked.append((identity_score, payload))
+
+    ranked.sort(
+        key=lambda item: (
+            float(item[0]),
+            str(item[1].get("indexed_at") or ""),
+        ),
+        reverse=True,
+    )
+
+    records = []
+    seen = set()
+    for score, payload in ranked:
+        digest = str(payload.get("image_sha256") or payload.get("image_url") or "").strip()
+        if digest and digest in seen:
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        if digest:
+            seen.add(digest)
+        original_name = str(record.get("name") or "Technical image").strip()
+        record["name"] = ("Related reference — " + original_name)[:180]
+        record["website_related_reference_v69025r1"] = True
+        record["website_related_reference_score_v69025r1"] = round(float(score), 3)
+        record["website_related_reference_role_v69025r1"] = str(query_role or "")
+        records.append(record)
+        if len(records) >= max(1, int(max_images or 1)):
+            break
+    return records
+
+
+
+def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3):
+    """Return safe inquiry-related Technical images after exact-image recovery is exhausted.
+
+    v69025R2 generalizes the R1 722-S2 fallback to the production requirement:
+    whenever learned Technical knowledge contains a safe image related to the resolved
+    inquiry (settings, wiring, harness, connector, camera, module, audio, etc.), publish
+    it automatically. Identity/provenance remains mandatory. Topic-specific evidence is
+    preferred; only when no topic-specific candidate survives may one clearly-labelled
+    same-product reference be returned.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    if not prompt or not answer:
+        return []
+
+    subject = _website_resolved_subject_identity_v69022(prompt, answer)
+    req_brands = set(subject.get("brands") or set())
+    req_families = set(subject.get("families") or set())
+    req_years = set(subject.get("years") or set())
+    req_systems = set(subject.get("systems") or set())
+    req_codes = set(subject.get("product_codes") or set())
+    strong_subject = bool(req_codes) or bool(
+        req_brands and req_families and req_systems and (req_years or len(req_families) == 1)
+    )
+    if not strong_subject:
+        return []
+
+    allowed_zones = {
+        "product_gallery", "product_summary", "product_content",
+        "product_description", "product_technical_content",
+        "article_body", "technical_section",
+    }
+    query_role = _website_image_query_role_v68884(prompt)
+    prompt_cf = prompt.casefold()
+    answer_cf = answer.casefold()
+    query_tokens = set(_website_image_tokens_v68883(prompt))
+    identity_token_text = " ".join(
+        list(req_brands) + list(req_families) + [str(y) for y in sorted(req_years)]
+        + list(req_systems) + list(req_codes)
+    )
+    identity_tokens = set(_website_image_tokens_v68883(identity_token_text))
+    generic_tokens = {
+        "what", "whats", "where", "which", "how", "does", "do", "is", "are",
+        "the", "a", "an", "for", "to", "of", "on", "in", "with", "this",
+        "that", "show", "me", "please", "image", "photo", "picture", "related",
+    }
+    query_topic_tokens = query_tokens - identity_tokens - generic_tokens
+
+    topic_groups = {
+        "car_model_settings": ("car model", "car model / a/c", "car model/ac", "ac setting", "a/c setting", "protocol setting", "canbus setting", "can bus setting", "screen parameter", "setting guide"),
+        "settings": ("setting", "settings", "menu option", "selection"),
+        "wiring": ("wire", "wiring", "connector", "connect", "cable", "harness", "plug", "pin", "pinout", "adapter", "lvds", "rca", "aux"),
+        "module": ("apim", "module", "control module"),
+        "camera": ("camera", "reverse", "backup camera", "cargo camera", "bed camera"),
+        "audio": ("audio", "amplifier", "amp", "speaker", "aux", "rca", "sony", "bose"),
+        "climate": ("climate", "hvac", "heated", "ventilated", "a/c", "ac control"),
+        "carplay": ("carplay", "android auto", "bluetooth", "wifi", "wireless"),
+        "navigation": ("navigation", "gps", "antenna"),
+    }
+    requested_topics = {
+        topic for topic, terms in topic_groups.items()
+        if any(term in prompt_cf for term in terms)
+    }
+    if "car model" in prompt_cf or "car model/ac" in prompt_cf or "car model / a/c" in prompt_cf:
+        requested_topics.discard("settings")
+        requested_topics.add("car_model_settings")
+
+    topic_ranked = []
+    general_ranked = []
+    for payload in _website_image_index_rows_v68883():
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("database_choice") or "") != "Technical Support Database":
+            continue
+        source_zone = str(payload.get("source_zone_v69024") or "").strip().casefold()
+        if source_zone and source_zone not in allowed_zones:
+            continue
+        if not _website_image_resolved_payload_gate_v69022(prompt, answer, payload):
+            continue
+
+        candidate_text = _website_image_payload_identity_text_v69022(payload)
+        cand_codes = _website_image_product_codes_v69020(candidate_text)
+        cand_brands = _website_identity_brand_set_v69022(candidate_text)
+        cand_families = _website_identity_vehicle_families_v69022(candidate_text)
+        cand_years = _website_identity_years_v69022(candidate_text)
+        cand_systems = _website_identity_systems_v69022(candidate_text)
+        if req_codes and cand_codes and not (req_codes & cand_codes):
+            continue
+
+        identity_score = 0.0
+        exact_code = bool(req_codes and cand_codes and (req_codes & cand_codes))
+        if exact_code:
+            identity_score += 60.0
+        brand_match = bool(req_brands and cand_brands and (req_brands & cand_brands))
+        family_match = bool(req_families and cand_families and (req_families & cand_families))
+        year_match = bool(req_years and cand_years and (req_years & cand_years))
+        system_match = bool(req_systems and cand_systems and (req_systems & cand_systems))
+        identity_score += 18.0 if brand_match else 0.0
+        identity_score += 24.0 if family_match else 0.0
+        identity_score += 18.0 if year_match else 0.0
+        identity_score += 24.0 if system_match else 0.0
+        strong_dims = sum((brand_match, family_match, year_match, system_match))
+        if not exact_code and strong_dims < 3:
+            continue
+
+        authority = str(payload.get("ingestion_authority_version_v69024") or "").strip().casefold()
+        if authority.startswith("v69025-"):
+            identity_score += 8.0
+        identity_score += {
+            "technical_section": 12.0,
+            "product_technical_content": 10.0,
+            "product_gallery": 7.0,
+            "product_description": 6.0,
+            "article_body": 5.0,
+            "product_summary": 4.0,
+            "product_content": 3.0,
+        }.get(source_zone, 0.0)
+
+        evidence_text = " ".join((
+            str(payload.get("section_heading") or ""),
+            str(payload.get("nearby_instruction_text") or ""),
+            str(payload.get("caption") or ""),
+            str(payload.get("visual_analysis") or ""),
+            json.dumps(payload.get("image_structured_metadata_v69017") or {}, ensure_ascii=False),
+        ))
+        evidence_cf = evidence_text.casefold()
+        evidence_tokens = set(_website_image_tokens_v68883(evidence_text))
+        lexical_overlap = len(query_topic_tokens & evidence_tokens)
+        topic_hits = 0
+        for topic in requested_topics:
+            if any(term in evidence_cf for term in topic_groups[topic]):
+                topic_hits += 1
+
+        role_score = _website_image_role_score_v68884(query_role, payload) if query_role else 0.0
+        topic_score = (lexical_overlap * 2.5) + (topic_hits * 18.0) + max(-12.0, min(float(role_score), 24.0))
+        total_score = identity_score + topic_score
+
+        # A topic-specific related image must carry real section/caption/visual evidence.
+        is_topic_related = bool(topic_hits) or lexical_overlap >= 1 or role_score >= 8.0
+        bucket = topic_ranked if is_topic_related else general_ranked
+        bucket.append((total_score, payload, is_topic_related))
+
+    def _sort(rows):
+        rows.sort(key=lambda item: (float(item[0]), str(item[1].get("indexed_at") or "")), reverse=True)
+        return rows
+    _sort(topic_ranked)
+    _sort(general_ranked)
+
+    selected = topic_ranked[:max(1, int(max_images or 3))]
+    if not selected and general_ranked:
+        # Precision-first final fallback: one same-product/system image proves there is
+        # a related visual without pretending it depicts the exact requested operation.
+        selected = general_ranked[:1]
+
+    records = []
+    seen = set()
+    for score, payload, topic_related in selected:
+        digest = str(payload.get("image_sha256") or payload.get("image_url") or "").strip()
+        if digest and digest in seen:
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        if digest:
+            seen.add(digest)
+        original_name = str(record.get("name") or "Technical image").strip()
+        prefix = "Related image — " if topic_related else "Related product reference — "
+        record["name"] = (prefix + original_name)[:180]
+        record["website_related_reference_v69025r1"] = True
+        record["website_related_evidence_v69025r2"] = True
+        record["website_related_evidence_topic_match_v69025r2"] = bool(topic_related)
+        record["website_related_reference_score_v69025r1"] = round(float(score), 3)
+        record["website_related_reference_role_v69025r1"] = str(query_role or "")
+        records.append(record)
+    return records
+
+
 def _dedupe_website_chat_images_v68883(images):
     """Remove duplicates between deterministic index hits and model control hits."""
     output = []
@@ -52817,6 +53251,16 @@ def render_learn_from_website(database_choice):
         reviewed_extraction["content_hash"] = hashlib.sha256(
             reviewed_content.encode("utf-8")
         ).hexdigest()
+        # v69025: the staff-reviewed text is the final knowledge authority.
+        # Recompute product/page identity after manual edits so removed vehicle,
+        # year, or SYNC wording cannot survive in stale image provenance.
+        reviewed_extraction["page_identity_v69024"] = _website_page_identity_v69024(
+            reviewed_extraction.get("source_url") or reviewed_extraction.get("requested_url") or "",
+            reviewed_extraction.get("title") or "",
+            reviewed_content,
+            reviewed_extraction.get("page_type_v69024") or "",
+        )
+        reviewed_extraction["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
 
         with st.spinner(
             "Saving website text and analyzing useful images..."
@@ -61117,7 +61561,21 @@ else:
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     install_global_chat_file_dropzone()
 
-    for message_index, msg in enumerate(st.session_state.messages):
+    # v69026: bound the live DOM on long conversations. Persistent history is
+    # unchanged; only the newest messages are mounted into the active browser DOM.
+    # This materially reduces Safari memory/DOM pressure without deleting history.
+    _chat_messages_all_v69026 = list(st.session_state.get("messages") or [])
+    _chat_render_limit_v69026 = 150
+    _chat_render_start_v69026 = max(0, len(_chat_messages_all_v69026) - _chat_render_limit_v69026)
+    if _chat_render_start_v69026 > 0:
+        st.caption(
+            f"Showing the latest {_chat_render_limit_v69026} messages in this case. "
+            "Earlier messages remain saved in History."
+        )
+    for message_index, msg in enumerate(
+        _chat_messages_all_v69026[_chat_render_start_v69026:],
+        start=_chat_render_start_v69026,
+    ):
         render_chat_message(
             msg["role"],
             msg["content"],
@@ -61502,22 +61960,15 @@ else:
             })
             render_chat_message("user", user_display, uploaded_image_previews)
 
-            deferred_new_conversation_v68872 = bool(
-                history_is_enabled()
-                and st.session_state.conversation_id is None
-                and assistant != "🎨 Graphic Marketing"
-            )
+            deferred_new_conversation_v68872 = False
+            user_message_persisted_preflight_v69026 = False
 
-            # Graphic Marketing keeps the existing synchronous conversation binding
-            # because its durable project/job recovery architecture uses the real
-            # conversation ID during generation. Text workspaces can safely create
-            # the persistent case after the visible answer because their AI context
-            # comes from local session messages, not the Supabase row.
-            if (
-                history_is_enabled()
-                and st.session_state.conversation_id is None
-                and not deferred_new_conversation_v68872
-            ):
+            # v69026 mobile resilience: every potentially long text turn receives
+            # a durable conversation and durable user message *before* provider
+            # execution. If Safari/5G replaces the Streamlit websocket, the signed
+            # cookie can restore this exact case instead of returning to workspace
+            # home. Graphic Marketing keeps its existing durable job architecture.
+            if history_is_enabled() and st.session_state.conversation_id is None:
                 try:
                     conversation_title_seed = user_display.strip()
                     if not conversation_title_seed and uploaded_files:
@@ -61536,10 +61987,48 @@ else:
                     st.error(f"Could not create chat history case: {e}")
                     st.session_state.conversation_id = None
 
-            # v68872: do not block first-token latency on the Supabase user-message
-            # write. The active AI turn already reads this exact message from local
-            # session state. The identical history row is persisted after the answer
-            # is rendered, before the assistant row is saved.
+            if (
+                history_is_enabled()
+                and assistant != "🎨 Graphic Marketing"
+                and not is_graphic_resume_v68844
+                and st.session_state.conversation_id
+            ):
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "user",
+                        user_content_to_save,
+                        touch_conversation=False,
+                    )
+                    user_message_persisted_preflight_v69026 = True
+                except Exception as _user_preflight_save_error_v69026:
+                    diagnostic_log(
+                        "mobile_user_preflight_save_failed_v69026",
+                        conversation_id=st.session_state.get("conversation_id"),
+                        error_type=type(_user_preflight_save_error_v69026).__name__,
+                        error=str(_user_preflight_save_error_v69026)[:500],
+                    )
+
+            # Checkpoint the active text conversation into the signed session cookie
+            # before long provider/tool work. This is recovery metadata only.
+            if assistant != "🎨 Graphic Marketing":
+                _checkpoint_username_v69026 = str(
+                    st.session_state.get("username") or ""
+                ).strip()
+                if _checkpoint_username_v69026:
+                    try:
+                        save_authenticated_session(
+                            _checkpoint_username_v69026,
+                            remember=bool(st.session_state.get("_atp_session_remembered")),
+                            workspace=assistant,
+                            conversation_id=st.session_state.get("conversation_id"),
+                        )
+                    except Exception as _mobile_checkpoint_error_v69026:
+                        diagnostic_log(
+                            "mobile_conversation_checkpoint_failed_v69026",
+                            error_type=type(_mobile_checkpoint_error_v69026).__name__,
+                            error=str(_mobile_checkpoint_error_v69026)[:500],
+                        )
 
         generated_images = list(product_library_images)
         generated_documents = []
@@ -62346,6 +62835,7 @@ else:
                 loading_status_placeholder = st.empty()
                 streamed_answer = ""
                 last_stream_update = 0.0
+                last_stream_render_chars_v69026 = 0
                 first_stream_delta_received = False
                 analysis_heading = (
                     "Technical Support"
@@ -62500,15 +62990,23 @@ else:
                             )
 
                         now_value = time.monotonic()
+                        new_stream_chars_v69026 = max(
+                            0, len(combined_stream) - int(last_stream_render_chars_v69026 or 0)
+                        )
                         if (
                             now_value - last_stream_update
                             >= AI_STREAM_RENDER_INTERVAL_SECONDS
+                            and (
+                                new_stream_chars_v69026 >= AI_STREAM_RENDER_MIN_NEW_CHARS_V69026
+                                or last_stream_render_chars_v69026 == 0
+                            )
                         ):
                             stream_placeholder.markdown(
                                 _assistant_stream_html(combined_stream),
                                 unsafe_allow_html=True,
                             )
                             last_stream_update = now_value
+                            last_stream_render_chars_v69026 = len(combined_stream)
 
                     streamed_answer_clean_v68870, auto_website_images_v68870 = (
                         extract_website_image_controls_v68870(streamed_answer)
@@ -62842,6 +63340,37 @@ else:
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
 
+        # v69025R2: if exact-topic Technical image publication still produced no
+        # website image, publish safe inquiry-related evidence for the exact resolved
+        # product/vehicle/year/system. Topic-specific images are preferred; otherwise
+        # one clearly labelled same-product reference may be used.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            existing_website_images_v69025r1 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if not existing_website_images_v69025r1:
+                try:
+                    related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
+                        technical_request_prompt_v68879,
+                        answer,
+                        max_images=3,
+                    )
+                    if related_reference_images_v69025r1:
+                        generated_images.extend(related_reference_images_v69025r1)
+                        generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                        diagnostic_log(
+                            "website_related_evidence_auto_publication_v69025r2",
+                            recovered=len(related_reference_images_v69025r1),
+                            role=_website_image_query_role_v68884(technical_request_prompt_v68879),
+                        )
+                except Exception as error:
+                    diagnostic_log(
+                        "website_related_evidence_auto_publication_failed_v69025r2",
+                        error_type=type(error).__name__, error=str(error)[:500],
+                    )
+
         technical_image_prefetch_executor_active_v69015 = locals().get(
             "technical_image_prefetch_executor_v69015"
         )
@@ -62952,29 +63481,16 @@ else:
             # conversation only after the answer is already visible. This removes
             # the Supabase conversation insert from first-token latency while
             # preserving the same durable history rows and title workflow.
+            # v69026 normally persisted the user turn before provider execution.
+            # Retain a bounded fallback only if that preflight write failed.
             if (
-                st.session_state.conversation_id is None
-                and locals().get("deferred_new_conversation_v68872", False)
+                not is_graphic_resume_v68844
+                and st.session_state.conversation_id
+                and (
+                    assistant == "🎨 Graphic Marketing"
+                    or not locals().get("user_message_persisted_preflight_v69026", False)
+                )
             ):
-                try:
-                    conversation_title_seed = user_display.strip()
-                    if not conversation_title_seed and uploaded_files:
-                        conversation_title_seed = "Uploaded " + ", ".join(
-                            str(getattr(file, "name", "attachment"))
-                            for file in uploaded_files[:3]
-                        )
-                    st.session_state.conversation_id = create_conversation(
-                        st.session_state.username,
-                        assistant,
-                        conversation_title_seed or "New attachment conversation"
-                    )
-                except Exception as e:
-                    st.warning(f"Chat history case could not be created after the response: {e}")
-                    st.session_state.conversation_id = None
-
-            # Preserve durable history ordering (user then assistant) while keeping
-            # the user Supabase write outside the first-token critical path.
-            if not is_graphic_resume_v68844 and st.session_state.conversation_id:
                 try:
                     save_message(
                         st.session_state.conversation_id,
