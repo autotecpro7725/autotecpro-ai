@@ -5727,28 +5727,60 @@ def queue_login_cookie_action(action, username="", password="", remember=False):
 
 
 def process_pending_login_cookie_action():
-    """Execute a queued remembered-login/session action without forcing a rerun."""
-    pending = st.session_state.pop("_atp_pending_login_cookie_action", None)
+    """Execute a queued login-cookie action and retain it across transient failures.
+
+    v69042: mobile component mounting and a Streamlit websocket reconnect can make
+    the first browser-cookie write fail or arrive too late.  Do not discard the
+    queued action until every required cookie operation has completed.
+    """
+    pending = st.session_state.get("_atp_pending_login_cookie_action")
     if not isinstance(pending, dict):
         return
     action = str(pending.get("action") or "").strip().lower()
     username = str(pending.get("username") or "").strip()
-    if action == "save" and username:
-        save_login_credentials(username)
-        save_authenticated_session(username, remember=True)
-        clear_legacy_browser_login_data()
-    elif action == "session" and username:
-        save_authenticated_session(username, remember=bool(pending.get("remember")))
-    elif action == "clear":
-        clear_browser_login_profile()
-        if username:
-            save_authenticated_session(username, remember=False)
+    try:
+        if action == "save" and username:
+            save_login_credentials(username)
+            save_authenticated_session(username, remember=True)
+            clear_legacy_browser_login_data()
+        elif action == "session" and username:
+            save_authenticated_session(username, remember=bool(pending.get("remember")))
+        elif action == "clear":
+            clear_browser_login_profile()
+            if username:
+                save_authenticated_session(username, remember=False)
+        else:
+            st.session_state.pop("_atp_pending_login_cookie_action", None)
+            return
+        st.session_state.pop("_atp_pending_login_cookie_action", None)
+        st.session_state.pop("_atp_login_cookie_retry_error_v69042", None)
+    except Exception as error:
+        attempts = int(pending.get("attempts", 0) or 0) + 1
+        pending["attempts"] = attempts
+        st.session_state["_atp_login_cookie_retry_error_v69042"] = type(error).__name__
+        if attempts >= AUTH_COOKIE_ACTION_MAX_ATTEMPTS_V69042:
+            st.session_state.pop("_atp_pending_login_cookie_action", None)
+        else:
+            st.session_state["_atp_pending_login_cookie_action"] = pending
+        diagnostic_log(
+            (
+                "login_cookie_action_exhausted_v69042"
+                if attempts >= AUTH_COOKIE_ACTION_MAX_ATTEMPTS_V69042
+                else "login_cookie_action_retry_v69042"
+            ),
+            action=action,
+            attempts=attempts,
+            error_type=type(error).__name__,
+        )
 
 
 
 
 AUTH_SESSION_COOKIE = "atp_authenticated_session_v1"
 AUTH_SESSION_HOURS = 12
+AUTH_COOKIE_ACTION_MAX_ATTEMPTS_V69042 = 4
+AUTH_BOOTSTRAP_ATTEMPTS_V69042 = 4
+AUTH_BOOTSTRAP_RETRY_SECONDS_V69042 = 0.16
 
 
 def _auth_session_signing_key():
@@ -5912,9 +5944,17 @@ def restore_login_session():
     """
     try:
         raw_value = auth_cookie_controller.get(AUTH_SESSION_COOKIE)
-        if not raw_value:
-            return False
+    except Exception as error:
+        diagnostic_log(
+            "login_session_cookie_read_transient_v69042",
+            error_type=type(error).__name__,
+        )
+        return None
 
+    if not raw_value:
+        return False
+
+    try:
         envelope = raw_value if isinstance(raw_value, dict) else json.loads(str(raw_value))
         if not isinstance(envelope, dict):
             raise ValueError("Invalid auth-session envelope")
@@ -5938,11 +5978,40 @@ def restore_login_session():
 
         username = str(payload.get("username") or "").strip()
         credential_fingerprint = str(payload.get("credential_fingerprint") or "").strip()
-        if not username or not credential_fingerprint or not _load_authenticated_user(
-            username, expected_credential_fingerprint=credential_fingerprint
-        ):
+        if not username or not credential_fingerprint:
             raise ValueError("User is inactive, missing, or session was revoked")
 
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        # Structurally invalid, expired or tampered cookies are definitive.  Only
+        # these cases may delete the browser session during startup recovery.
+        diagnostic_log("login_session_restore_rejected_v69042", error=str(error))
+        remove_authenticated_session()
+        return False
+
+    try:
+        restored_user = _load_authenticated_user(
+            username,
+            expected_credential_fingerprint=credential_fingerprint,
+        )
+    except Exception as error:
+        # A temporary Supabase/network failure is not proof that the signed
+        # session is invalid. Preserve it so mobile reconnect can retry safely.
+        diagnostic_log(
+            "login_session_user_lookup_transient_v69042",
+            username=username,
+            error_type=type(error).__name__,
+        )
+        return None
+
+    if not restored_user:
+        diagnostic_log(
+            "login_session_restore_rejected_v69042",
+            error="User is inactive, missing, or session was revoked",
+        )
+        remove_authenticated_session()
+        return False
+
+    try:
         st.session_state["_atp_session_remembered"] = bool(payload.get("remember"))
         restored_workspace = str(payload.get("workspace") or "").strip()
         if restored_workspace:
@@ -5957,9 +6026,53 @@ def restore_login_session():
         )
         return True
     except Exception as error:
-        diagnostic_log("login_session_restore_failed", error=str(error))
-        remove_authenticated_session()
+        # Session-state publication is retryable and must never revoke a valid
+        # signed cookie.
+        diagnostic_log(
+            "login_session_publish_transient_v69042",
+            username=username,
+            error_type=type(error).__name__,
+        )
+        return None
+
+
+def _wait_for_mobile_auth_bootstrap_v69042(reason="cookie_mount"):
+    """Keep Login hidden while the browser cookie component finishes mounting."""
+    attempts = int(st.session_state.get("_auth_bootstrap_attempt_v69042", 0) or 0)
+    if attempts >= AUTH_BOOTSTRAP_ATTEMPTS_V69042:
         return False
+    st.session_state["_auth_bootstrap_attempt_v69042"] = attempts + 1
+    st.session_state["_auth_transition"] = "login"
+    recovery_overlay = _render_auth_transition_overlay()
+    diagnostic_log(
+        "mobile_auth_bootstrap_wait_v69042",
+        attempt=attempts + 1,
+        reason=str(reason or "cookie_mount"),
+    )
+    time.sleep(AUTH_BOOTSTRAP_RETRY_SECONDS_V69042)
+    # Keep the overlay mounted across the controlled rerun. It prevents the
+    # login form from flashing while CookieController hydrates on mobile Safari.
+    if recovery_overlay is not None:
+        st.session_state["_auth_transition"] = "login"
+    st.rerun()
+    return True
+
+
+def _render_mobile_auth_recovery_error_v69042():
+    """Fail closed without exposing Login during a transient restore outage."""
+    st.warning(
+        "Your secure session is temporarily reconnecting. "
+        "Your login has not been removed."
+    )
+    if st.button(
+        "Retry connection",
+        key="mobile_auth_recovery_retry_v69042",
+        use_container_width=True,
+    ):
+        st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
+        st.session_state["_auth_transition"] = "login"
+        st.rerun()
+    st.stop()
 
 
 def logout_user():
@@ -6139,6 +6252,8 @@ def login_screen():
                 )
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
+                st.session_state["_atp_session_remembered"] = bool(remember_me)
+                st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
 
                 if remember_me:
                     queue_login_cookie_action(
@@ -6188,6 +6303,9 @@ if "logged_in" not in st.session_state:
 # login flag in an otherwise recoverable browser session. Restore only when this
 # is not an explicit logout transition. Cookie deletion is browser-side and may
 # require one or more reruns before the old signed cookie disappears.
+_auth_restore_result_v69042 = True if bool(
+    st.session_state.get("logged_in")
+) else False
 if not bool(st.session_state.get("logged_in")):
     explicit_logout_pending = bool(
         st.session_state.get("_explicit_logout_pending")
@@ -6206,9 +6324,23 @@ if not bool(st.session_state.get("logged_in")):
         else:
             st.session_state.pop("_explicit_logout_pending", None)
     else:
-        restore_login_session()
+        _auth_restore_result_v69042 = restore_login_session()
+
+        if _auth_restore_result_v69042 is True:
+            st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
+        elif _auth_restore_result_v69042 is None:
+            # Signed-session recovery was temporarily unavailable. Preserve the
+            # cookie and retry behind the loading cover instead of showing Login.
+            if not _wait_for_mobile_auth_bootstrap_v69042("transient_restore"):
+                _render_mobile_auth_recovery_error_v69042()
+        else:
+            # CookieController is a browser component. A fresh Streamlit Python
+            # session can execute before the first component value reaches the
+            # server, especially after iOS suspends and reconnects the tab.
+            _wait_for_mobile_auth_bootstrap_v69042("cookie_mount")
 
 if not bool(st.session_state.get("logged_in")):
+    st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
     login_screen()
     # The destination login UI is now complete; remove the transition cover
     # before stopping execution so authenticated content cannot render below it.
@@ -10737,6 +10869,13 @@ def extract_images_from_message_content(content):
             "website_related_reference_role_v69025r1",
             "website_related_evidence_v69025r2",
             "website_related_evidence_topic_match_v69025r2",
+            # v69041: preserve Sales/Marketing destination authority and match
+            # provenance across Streamlit reruns and saved-history restoration.
+            "website_workspace_destination_v69040",
+            "website_workspace_auto_display_v69040",
+            "website_workspace_match_score_v69040",
+            "website_workspace_durable_fallback_v69041",
+            "website_workspace_archive_resolved_v69041",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -38414,7 +38553,7 @@ def _build_ai_request(
         # evidence returned for this answer instead of depending on the model to emit
         # a hidden image-control line. The Responses API can include those result
         # records in the final response without adding another search call.
-        if assistant == "🔧 Technical Support" and any(
+        if not is_graphic_workspace(assistant) and any(
             isinstance(tool, dict) and tool.get("type") == "file_search"
             for tool in tools
         ):
@@ -38465,13 +38604,13 @@ def _response_file_search_results_v69012(response):
 
 
 def _capture_response_file_search_results_v69012(response):
-    """Accumulate exact Technical file_search evidence for the current AI turn."""
-    if str(assistant or "") != "🔧 Technical Support":
+    """Accumulate exact workspace file_search evidence for the current AI turn."""
+    if is_graphic_workspace(assistant):
         return
     incoming = _response_file_search_results_v69012(response)
     if not incoming:
         return
-    existing = list(st.session_state.get("_technical_file_search_results_v69012") or [])
+    existing = list(st.session_state.get("_workspace_file_search_results_v69040") or [])
     seen = {
         (str(row.get("file_id") or ""), str(row.get("text") or ""))
         for row in existing if isinstance(row, dict)
@@ -38483,7 +38622,9 @@ def _capture_response_file_search_results_v69012(response):
         seen.add(key)
         existing.append(row)
     existing.sort(key=lambda row: float((row or {}).get("score") or 0.0), reverse=True)
-    st.session_state["_technical_file_search_results_v69012"] = existing[:24]
+    st.session_state["_workspace_file_search_results_v69040"] = existing[:24]
+    if str(assistant or "") == "🔧 Technical Support":
+        st.session_state["_technical_file_search_results_v69012"] = existing[:24]
 
 
 def _response_incomplete_reason(response):
@@ -39357,6 +39498,10 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
     try:
         vector_store_has_filename.clear()
+    except Exception:
+        pass
+    try:
+        _vector_store_file_catalog_v69040.clear()
     except Exception:
         pass
     return openai_file.id
@@ -48741,6 +48886,12 @@ def build_website_knowledge_package_document(
     )
     image_analysis = image_analysis or {}
     images = list(image_analysis.get("images") or [])
+    approved_image_origins_v69040 = sorted({
+        str(urlparse(str(item.get("url") or "")).hostname or "").strip().casefold()
+        for item in images if isinstance(item, dict)
+        and str(item.get("url") or "").startswith("https://")
+        and str(urlparse(str(item.get("url") or "")).hostname or "").strip()
+    })
 
     lines = [
         "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE",
@@ -48754,6 +48905,7 @@ def build_website_knowledge_package_document(
         f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
         f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
         f"Useful website images analyzed: {len(images)}",
+        "APPROVED_IMAGE_ORIGINS_V69040: " + ",".join(approved_image_origins_v69040),
         "",
         "WEBPAGE TEXT",
         "============",
@@ -48958,8 +49110,14 @@ def _website_image_index_upsert_v68883(payload):
         ensure_ascii=False,
         separators=(",", ":"),
     )
+    database_choice_v69040 = str(payload.get("database_choice") or "")
+    assistant_label_v69040 = {
+        "Technical Support Database": "Technical Support",
+        "Sales Database": "Sales",
+        "Marketing Database": "Marketing",
+    }.get(database_choice_v69040, "Technical Support")
     row = {
-        "assistant": "Technical Support",
+        "assistant": assistant_label_v69040,
         "record_type": "website_image",
         "vehicle": str(payload.get("page_title") or "")[:240],
         "issue": issue,
@@ -48984,6 +49142,10 @@ def _website_image_index_upsert_v68883(payload):
         )
     else:
         safe_insert_row("learned_knowledge", clean_row)
+    try:
+        _workspace_durable_image_payloads_v69041.clear()
+    except Exception:
+        pass
     return True
 
 
@@ -49185,6 +49347,10 @@ def _website_sync_page_image_index_v69003(extraction, database_choice, image_ite
         _website_image_index_rows_v68883.clear()
     except Exception:
         pass
+    try:
+        _workspace_durable_image_payloads_v69041.clear()
+    except Exception:
+        pass
     return stats
 
 
@@ -49289,7 +49455,10 @@ def _website_image_index_rows_v68883():
             payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
         except Exception:
             continue
-        if isinstance(payload, dict) and str(payload.get("image_url") or "").startswith("https://"):
+        if isinstance(payload, dict) and (
+            str(payload.get("image_url") or "").startswith("https://")
+            or str(payload.get("archive_storage_path") or "").strip()
+        ):
             parsed.append(payload)
     return parsed
 
@@ -50452,6 +50621,14 @@ def _website_file_title_v69012(text_value, filename=""):
     return re.sub(r"[_\-]+", " ", str(filename or "")).strip()
 
 
+def _website_file_destination_v69040(text_value):
+    match = re.search(r"(?im)^Destination:\s*(.+?)\s*$", str(text_value or ""))
+    value = re.sub(r"\s+", " ", str(match.group(1) or "")).strip() if match else ""
+    return value if value in {
+        "Technical Support Database", "Sales Database", "Marketing Database"
+    } else "Technical Support Database"
+
+
 @st.cache_data(ttl=900, max_entries=96, show_spinner=False)
 def _website_file_full_text_v69012(file_id):
     """Read one retrieved Technical file by exact OpenAI file id, with a bounded cache."""
@@ -50479,6 +50656,7 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
         return []
     page_title = _website_file_title_v69012(value, filename)
     source_page = _website_file_source_url_v69012(value)
+    database_choice_v69040 = _website_file_destination_v69040(value)
     starts = [m.start() for m in re.finditer(r"(?im)^IMAGE\s+\d+\s*$", value)]
     if not starts:
         starts = [0]
@@ -50506,7 +50684,7 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             except Exception:
                 structured_metadata_v69022 = {}
         payloads.append({
-            "database_choice": "Technical Support Database",
+            "database_choice": database_choice_v69040,
             "image_url": image_url,
             "archive_storage_path_v69017": archive_storage_path_v69017,
             "archive_mime_type_v69017": archive_mime_type_v69017,
@@ -50534,6 +50712,7 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
     if not re.search(r"<(?:img|picture|source|a)\b", value, flags=re.I):
         return []
     source_page = _website_file_source_url_v69012(value)
+    database_choice_v69040 = _website_file_destination_v69040(value)
     base_url = source_page or "https://autotecpro.com/"
     page_type_v69024 = _website_page_type_v69024(base_url, value)
     parser = KnowledgePageHTMLParser(base_url, page_type_v69024)
@@ -50559,7 +50738,7 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
         if not section or not nearby:
             continue
         payloads.append({
-            "database_choice": "Technical Support Database",
+            "database_choice": database_choice_v69040,
             "image_url": image_url,
             "caption": re.sub(r"\s+", " ", str(item.get("alt") or item.get("title") or "")).strip(),
             "section_heading": section,
@@ -51904,6 +52083,113 @@ def _website_image_related_reference_lookup_v69025r1(prompt_text, answer_text=""
 
 
 
+
+def _website_plain_file_search_image_payloads_v69039(text_value, filename="", file_id=""):
+    """Recover exact AutoTecPro upload-image URLs from retrieved Technical text.
+
+    This is a reconstruction helper only.  It does not approve/publicize an image.
+    Every returned payload is still passed through the existing v69022/v69027
+    resolved-identity, local-year/vehicle fitment, topic, and publication gates.
+
+    This closes the remaining case where a learned website package contains a
+    literal wp-content/uploads image link in its searchable text, so file_search
+    can quote the exact link, but no AUTO_DISPLAY_IMAGE structured record survived
+    ingestion for that asset.
+    """
+    value = str(text_value or "")
+    if not value:
+        return []
+    page_title = _website_file_title_v69012(value, filename)
+    source_page = _website_file_source_url_v69012(value)
+    database_choice_v69040 = _website_file_destination_v69040(value)
+    source_host = str(urlparse(source_page).hostname or "").strip().casefold()
+    # Legacy packages without an explicit origin manifest remain first-party
+    # only. v69040 packages can authorize exact QA-approved CDN/source origins.
+
+    approved_origins_v69040 = set()
+    origins_match_v69040 = re.search(
+        r"(?im)^APPROVED_IMAGE_ORIGINS_V69040:\s*(.*?)\s*$", value
+    )
+    if origins_match_v69040:
+        approved_origins_v69040 = {
+            str(host or "").strip().casefold().rstrip(".")
+            for host in str(origins_match_v69040.group(1) or "").split(",")
+            if str(host or "").strip()
+        }
+    if (
+        source_host
+        and source_host not in {"autotecpro.com", "www.autotecpro.com"}
+        and not approved_origins_v69040
+    ):
+        return []
+    pattern = re.compile(
+        r"https://[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)(?:\?[^\s<>\"'\)\]]*)?",
+        flags=re.I,
+    )
+    matches = list(pattern.finditer(value))
+    if not matches:
+        return []
+
+    payloads = []
+    seen = set()
+    for match in matches[:24]:
+        image_url = html.unescape(str(match.group(0) or "").strip()).rstrip(".,;:")
+        if not image_url or image_url in seen:
+            continue
+        image_host_v69040 = str(urlparse(image_url).hostname or "").strip().casefold().rstrip(".")
+        legacy_first_party_v69040 = bool(
+            image_host_v69040 in {"autotecpro.com", "www.autotecpro.com"}
+            and str(urlparse(image_url).path or "").casefold().startswith("/wp-content/uploads/")
+        )
+        # Third-party/CDN literals are accepted only when the learned package
+        # explicitly records that exact origin after successful image QA.
+        if not legacy_first_party_v69040 and image_host_v69040 not in approved_origins_v69040:
+            continue
+        seen.add(image_url)
+
+        # Keep only a bounded local evidence window.  This gives the existing
+        # fitment/topic gates image-local text instead of an entire broad page.
+        start = max(0, match.start() - 900)
+        end = min(len(value), match.end() + 900)
+        local = re.sub(r"\s+", " ", value[start:end]).strip()
+        before = re.sub(r"\s+", " ", value[max(0, match.start()-500):match.start()]).strip()
+        after = re.sub(r"\s+", " ", value[match.end():min(len(value), match.end()+500)]).strip()
+
+        # Best-effort nearest heading from the retrieved package/chunk.  It is
+        # evidence only; the downstream authority still decides eligibility.
+        heading = ""
+        prior_lines = value[max(0, match.start()-1800):match.start()].splitlines()
+        for raw_line in reversed(prior_lines):
+            candidate = re.sub(r"\s+", " ", str(raw_line or "")).strip(" #-:\\t")
+            if 3 <= len(candidate) <= 180 and not candidate.lower().startswith((
+                "http://", "https://", "image link", "auto_display_image"
+            )):
+                heading = candidate
+                break
+
+        payloads.append({
+            "database_choice": database_choice_v69040,
+            "image_url": image_url,
+            "caption": heading or Path(urlparse(image_url).path).name or "Technical reference image",
+            "section_heading": heading,
+            "nearby_instruction_text": local,
+            "context_before_image_v69017": before,
+            "context_after_image_v69017": after,
+            "visual_analysis": "",
+            "image_structured_metadata_v69017": {},
+            "source_zone_v69024": "technical_section",
+            "page_type_v69024": "technical_article",
+            "page_identity_v69024": {},
+            "ingestion_authority_version_v69024": "v69039-file-search-literal-image-url",
+            "page_title": page_title,
+            "source_page": source_page,
+            "keywords": " ".join((page_title, heading, local)),
+            "file_id_v69012": str(file_id or ""),
+            "website_plain_file_search_image_v69039": True,
+        })
+    return payloads
+
+
 def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
     """Reconstruct approved website-image payloads from Technical file_search rows.
 
@@ -51919,10 +52205,15 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
         key=lambda row: float(row.get("score") or 0.0),
         reverse=True,
     )
+    seen_files_v69041 = set()
     for row in ordered[:16]:
         file_id = str(row.get("file_id") or "").strip()
         filename = str(row.get("filename") or "").strip()
         result_text = str(row.get("text") or "")
+        file_key_v69041 = file_id or (filename + "|" + result_text[:300])
+        if file_key_v69041 in seen_files_v69041:
+            continue
+        seen_files_v69041.add(file_key_v69041)
         payloads = []
         if result_text:
             payloads.extend(
@@ -51932,6 +52223,11 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
             )
             payloads.extend(
                 _website_legacy_html_payloads_from_file_v69012(
+                    result_text, filename, file_id
+                )
+            )
+            payloads.extend(
+                _website_plain_file_search_image_payloads_v69039(
                     result_text, filename, file_id
                 )
             )
@@ -51945,6 +52241,11 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
                 )
                 payloads.extend(
                     _website_legacy_html_payloads_from_file_v69012(
+                        full_text, filename, file_id
+                    )
+                )
+                payloads.extend(
+                    _website_plain_file_search_image_payloads_v69039(
                         full_text, filename, file_id
                     )
                 )
@@ -51967,6 +52268,153 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
                 seen.add(identity)
             payloads_out.append(payload)
     return payloads_out
+
+
+@st.cache_data(ttl=120, max_entries=4, show_spinner=False)
+def _workspace_durable_image_payloads_v69041(destination):
+    """Return QA-approved durable payloads for exactly one non-Graphic database."""
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"}:
+        return []
+    return [
+        dict(payload) for payload in (_website_image_index_rows_v68883() or [])
+        if isinstance(payload, dict)
+        and str(payload.get("database_choice") or "").strip() == target
+        and (
+            str(payload.get("archive_storage_path") or "").strip()
+            or str(payload.get("image_url") or "").startswith("https://")
+        )
+    ]
+
+
+def _workspace_website_images_from_file_search_v69040(
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+):
+    """Publish only destination-owned, QA-grounded Sales/Marketing images.
+
+    Graphic is explicitly excluded. Technical continues through its stricter
+    vehicle/year/product authority and never calls this function.
+    """
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database" if is_sales_workspace(workspace)
+        else "Marketing Database" if is_marketing_workspace(workspace)
+        else ""
+    )
+    if not destination or is_graphic_workspace(workspace):
+        return []
+    query_text = re.sub(
+        r"\s+", " ", clean_visible_chat_text(
+            str(prompt_text or "") + " " + str(answer_text or "")
+        )
+    ).strip()
+    query_tokens = set(_website_image_tokens_v68883(query_text))
+    generic = {
+        "what", "which", "show", "tell", "about", "image", "photo", "the",
+        "for", "and", "with", "from", "this", "that", "your", "can", "you",
+    }
+    query_tokens -= generic
+    prompt_tokens_v69041 = set(_website_image_tokens_v68883(str(prompt_text or ""))) - generic
+    durable_payloads_v69041 = _workspace_durable_image_payloads_v69041(destination)
+    durable_by_identity_v69041 = {}
+    for durable_v69041 in durable_payloads_v69041:
+        for identity_v69041 in (
+            str(durable_v69041.get("image_sha256") or "").strip().casefold(),
+            str(durable_v69041.get("image_url") or "").strip(),
+        ):
+            if identity_v69041:
+                durable_by_identity_v69041[identity_v69041] = durable_v69041
+
+    primary_payloads_v69041 = _website_file_search_payloads_for_related_evidence_v69032(
+        result_rows
+    )
+    candidates_v69041 = []
+    for primary_v69041 in primary_payloads_v69041:
+        payload_v69041 = dict(primary_v69041 or {})
+        durable_match_v69041 = None
+        for identity_v69041 in (
+            str(payload_v69041.get("image_sha256") or "").strip().casefold(),
+            str(payload_v69041.get("image_url") or "").strip(),
+        ):
+            if identity_v69041 and identity_v69041 in durable_by_identity_v69041:
+                durable_match_v69041 = dict(durable_by_identity_v69041[identity_v69041])
+                break
+        if durable_match_v69041:
+            durable_match_v69041.update({
+                "_technical_file_search_score_v69032": float(
+                    payload_v69041.get("_technical_file_search_score_v69032") or 0.0
+                ),
+                "_workspace_primary_evidence_v69041": True,
+            })
+            candidates_v69041.append(durable_match_v69041)
+        else:
+            payload_v69041["_workspace_primary_evidence_v69041"] = True
+            candidates_v69041.append(payload_v69041)
+
+    # Degraded-provider recovery: exact destination-only durable rows are eligible
+    # when expanded file-search evidence is unavailable. Higher overlap is required
+    # because no primary retrieval score is available.
+    if not primary_payloads_v69041:
+        for durable_v69041 in durable_payloads_v69041:
+            payload_v69041 = dict(durable_v69041)
+            payload_v69041["_workspace_durable_fallback_v69041"] = True
+            candidates_v69041.append(payload_v69041)
+
+    ranked = []
+    for payload in candidates_v69041:
+        if str(payload.get("database_choice") or "").strip() != destination:
+            continue
+        evidence = " ".join((
+            str(payload.get("page_title") or ""),
+            str(payload.get("section_heading") or ""),
+            str(payload.get("nearby_instruction_text") or ""),
+            str(payload.get("visual_analysis") or ""),
+            str(payload.get("keywords") or ""),
+        ))
+        evidence_tokens = set(_website_image_tokens_v68883(evidence))
+        overlap = len(query_tokens & evidence_tokens)
+        prompt_overlap_v69041 = len(prompt_tokens_v69041 & evidence_tokens)
+        durable_fallback_v69041 = bool(payload.get("_workspace_durable_fallback_v69041"))
+        row_score = float(payload.get("_technical_file_search_score_v69032") or 0.0)
+        has_qa_provenance = bool(
+            str(payload.get("visual_analysis") or "").strip()
+            or str(payload.get("archive_storage_path_v69017") or "").strip()
+            or str(payload.get("archive_storage_path") or "").strip()
+            or dict(payload.get("image_structured_metadata_v69017") or {})
+            or bool(payload.get("website_plain_file_search_image_v69039"))
+        )
+        required_overlap_v69041 = 3 if durable_fallback_v69041 else 2
+        if (
+            not has_qa_provenance
+            or overlap < required_overlap_v69041
+            or (durable_fallback_v69041 and prompt_overlap_v69041 < 2)
+            or (not durable_fallback_v69041 and row_score < 0.15)
+        ):
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        record["website_workspace_destination_v69040"] = destination
+        record["website_workspace_auto_display_v69040"] = True
+        record["website_workspace_match_score_v69040"] = round(
+            overlap * 5.0 + row_score * 10.0 - (2.0 if durable_fallback_v69041 else 0.0), 3
+        )
+        record["website_workspace_durable_fallback_v69041"] = durable_fallback_v69041
+        record["website_workspace_archive_resolved_v69041"] = bool(
+            str(payload.get("archive_storage_path") or "").strip()
+        )
+        ranked.append((record["website_workspace_match_score_v69040"], record))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    output, seen = [], set()
+    for _, record in ranked:
+        identity = str(record.get("website_image_sha256") or record.get("data_url") or "")
+        if identity in seen:
+            continue
+        seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    return output
 
 
 def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3, extra_payloads=None):
@@ -53003,68 +53451,15 @@ def build_website_knowledge_document(extraction, database_choice):
 
 def _website_vector_store_file_rows_v68892(vector_store_id):
     """Return vector-store file IDs + filenames for website replacement checks."""
-    rows = []
     try:
-        after = None
-        for _ in range(100):
-            request = {
-                "vector_store_id": vector_store_id,
-                "limit": 100,
-            }
-            if after:
-                request["after"] = after
-
-            page = client.vector_stores.files.list(**request)
-            records = list(getattr(page, "data", None) or [])
-            for record in records:
-                file_id = (
-                    getattr(record, "file_id", None)
-                    or getattr(record, "id", None)
-                    or (
-                        record.get("file_id") or record.get("id")
-                        if isinstance(record, dict)
-                        else None
-                    )
-                )
-                file_id = str(file_id or "").strip()
-                if not file_id:
-                    continue
-
-                filename = ""
-                try:
-                    file_record = client.files.retrieve(file_id)
-                    filename = str(
-                        getattr(file_record, "filename", "") or ""
-                    ).strip()
-                except Exception:
-                    pass
-
-                rows.append({
-                    "file_id": file_id,
-                    "filename": filename,
-                })
-
-            if not bool(getattr(page, "has_more", False)) or not records:
-                break
-
-            last_record = records[-1]
-            after = (
-                getattr(last_record, "id", None)
-                or (
-                    last_record.get("id")
-                    if isinstance(last_record, dict)
-                    else None
-                )
-            )
-            if not after:
-                break
+        return [dict(row) for row in _vector_store_file_catalog_v69040(vector_store_id)]
     except Exception as error:
         diagnostic_log(
             "website_v68892_vector_list_failed",
             error_type=type(error).__name__,
             error=str(error)[:500],
         )
-    return rows
+    return []
 
 
 def _website_openai_file_text_v68892(file_id):
@@ -53103,6 +53498,53 @@ def _website_openai_file_text_v68892(file_id):
             pass
 
     return ""
+
+
+@st.cache_data(ttl=300, max_entries=16, show_spinner=False)
+def _vector_store_file_catalog_v69040(vector_store_id):
+    """Return one cached ID/filename catalog instead of repeated N+1 scans."""
+    clean_store = str(vector_store_id or "").strip()
+    if not clean_store.startswith("vs_"):
+        return []
+    rows = []
+    after = None
+    for _ in range(100):
+        request = {"vector_store_id": clean_store, "limit": 100}
+        if after:
+            request["after"] = after
+        page = client.vector_stores.files.list(**request)
+        records = list(getattr(page, "data", None) or [])
+        for record in records:
+            file_id = (
+                getattr(record, "file_id", None)
+                or getattr(record, "id", None)
+                or (record.get("file_id") or record.get("id") if isinstance(record, dict) else None)
+            )
+            file_id = str(file_id or "").strip()
+            if not file_id:
+                continue
+            filename = str(
+                getattr(record, "filename", "")
+                or (record.get("filename") if isinstance(record, dict) else "")
+                or ""
+            ).strip()
+            if not filename:
+                try:
+                    filename = str(getattr(client.files.retrieve(file_id), "filename", "") or "").strip()
+                except Exception:
+                    filename = ""
+            rows.append({"file_id": file_id, "filename": filename})
+        if not bool(getattr(page, "has_more", False)) or not records:
+            break
+        last = records[-1]
+        after = str(
+            getattr(last, "id", None)
+            or (last.get("id") if isinstance(last, dict) else "")
+            or ""
+        ).strip()
+        if not after:
+            break
+    return rows
 
 
 def _website_package_url_identities_v68892(package_text):
@@ -53184,6 +53626,11 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
     except Exception:
         # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
         pass
+    try:
+        _vector_store_file_catalog_v69040.clear()
+        vector_store_has_filename.clear()
+    except Exception:
+        pass
     return True
 
 
@@ -53195,55 +53642,11 @@ def vector_store_has_filename(vector_store_id, filename):
     API errors do not block saving; they are logged and upload continues.
     """
     try:
-        after = None
-        for _ in range(100):
-            request = {
-                "vector_store_id": vector_store_id,
-                "limit": 100,
-            }
-            if after:
-                request["after"] = after
-
-            page = client.vector_stores.files.list(**request)
-            records = list(getattr(page, "data", None) or [])
-
-            for record in records:
-                file_id = (
-                    getattr(record, "file_id", None)
-                    or getattr(record, "id", None)
-                    or (
-                        record.get("file_id") or record.get("id")
-                        if isinstance(record, dict)
-                        else None
-                    )
-                )
-                if not file_id:
-                    continue
-
-                try:
-                    file_record = client.files.retrieve(file_id)
-                    existing_name = str(
-                        getattr(file_record, "filename", "") or ""
-                    )
-                    if existing_name == filename:
-                        return True
-                except Exception:
-                    continue
-
-            if not bool(getattr(page, "has_more", False)) or not records:
-                break
-
-            last_record = records[-1]
-            after = (
-                getattr(last_record, "id", None)
-                or (
-                    last_record.get("id")
-                    if isinstance(last_record, dict)
-                    else None
-                )
-            )
-            if not after:
-                break
+        target = str(filename or "").strip()
+        return any(
+            str(row.get("filename") or "").strip() == target
+            for row in _vector_store_file_catalog_v69040(vector_store_id)
+        )
     except Exception as error:
         print(
             f"[WEBSITE DUPLICATE CHECK] Unable to inspect vector store: {error}",
@@ -53281,6 +53684,37 @@ def _website_database_vector_store_v69029(database_choice):
     if not value.startswith("vs_"):
         raise ValueError(f"{database_choice} is not configured with a valid vector store.")
     return value
+
+
+def _website_destination_image_analysis_v69040(shared_analysis, database_choice):
+    """Project one verified visual analysis into destination-specific retrieval text.
+
+    Pixel QA remains single-pass.  This projection changes no approval decision and
+    adds no provider call; it prevents Technical phrasing from becoming the only
+    searchable framing in Sales/Marketing destinations.
+    """
+    result = dict(shared_analysis or {})
+    projected = []
+    destination = str(database_choice or "").strip()
+    focus = {
+        "Technical Support Database": "Technical focus: installation, wiring, compatibility, settings, troubleshooting, vehicle/year/system identity.",
+        "Sales Database": "Sales focus: confirmed product identity, compatibility, retained features, customer benefit and supported configuration.",
+        "Marketing Database": "Marketing focus: confirmed product identity, visible features, compatibility and customer-facing presentation; do not infer unsupported claims.",
+    }.get(destination, "")
+    for item in list(result.get("images") or []):
+        if not isinstance(item, dict):
+            continue
+        record = dict(item)
+        record["destination_semantic_focus_v69040"] = focus
+        record["destination_database_v69040"] = destination
+        if focus:
+            record["analysis"] = re.sub(
+                r"\s+", " ", (focus + " " + str(record.get("analysis") or "")).strip()
+            )
+        projected.append(record)
+    result["images"] = projected
+    result["destination_projection_v69040"] = destination
+    return result
 
 
 def save_website_knowledge_to_destinations_v69029(
@@ -53325,13 +53759,16 @@ def save_website_knowledge_to_destinations_v69029(
     failures = {}
     for destination in destinations:
         try:
+            destination_analysis_v69040 = _website_destination_image_analysis_v69040(
+                shared_analysis, destination
+            )
             results[destination] = save_website_knowledge_package(
                 extraction,
                 destination,
                 reviewed_content=reviewed_content,
                 include_images=include_images,
                 selected_image_urls=selected_image_urls,
-                image_analysis_override_v69029=shared_analysis,
+                image_analysis_override_v69029=destination_analysis_v69040,
             )
         except Exception as error:
             failures[destination] = {
@@ -53789,12 +54226,48 @@ def is_rich_document_visual_file_v69017(uploaded_file):
     return Path(str(getattr(uploaded_file, "name", ""))).suffix.lower() in {".pdf", ".docx"}
 
 
+def _normalize_ingestion_visual_bytes_v69040(raw, filename="", declared_mime=""):
+    """Detect image type from bytes and normalize it for vision/storage."""
+    data = bytes(raw or b"")
+    if not data:
+        return b"", ""
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            source.load()
+            has_alpha = source.mode in {"RGBA", "LA"} or (
+                source.mode == "P" and "transparency" in source.info
+            )
+            output = io.BytesIO()
+            if has_alpha:
+                source.convert("RGBA").save(output, format="PNG", optimize=True)
+                return output.getvalue(), "image/png"
+            source.convert("RGB").save(
+                output, format="JPEG", quality=92, optimize=True, progressive=True
+            )
+            return output.getvalue(), "image/jpeg"
+    except Exception:
+        mime = str(declared_mime or "").casefold()
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return data, "image/png"
+        if data.startswith(b"\xff\xd8\xff"):
+            return data, "image/jpeg"
+        if "svg" in mime or str(filename or "").casefold().endswith(".svg"):
+            try:
+                import cairosvg
+                return cairosvg.svg2png(bytestring=data), "image/png"
+            except Exception:
+                return b"", ""
+    return b"", ""
+
+
 def _document_visual_events_pdf_v69017(file_bytes):
     records, text_blocks = [], []
     try:
         import fitz
     except Exception:
-        return records, text_blocks
+        raise RuntimeError(
+            "PDF text upload can continue, but embedded-image learning requires PyMuPDF (fitz)."
+        )
     document = fitz.open(stream=file_bytes, filetype="pdf")
     try:
         for page_index in range(len(document)):
@@ -53830,6 +54303,38 @@ def _document_visual_events_pdf_v69017(file_bytes):
                     "context_after": after,
                     "alt": "",
                 })
+            # Vector diagrams and compound screenshots are not always represented
+            # by one raster block. Render only pages with drawing objects or pages
+            # whose visual structure produced no extractable raster image.
+            page_raster_count_v69040 = sum(
+                1 for item in records if int(item.get("page") or 0) == page_index + 1
+            )
+            try:
+                has_drawings_v69040 = bool(page.get_drawings())
+            except Exception:
+                has_drawings_v69040 = False
+            if has_drawings_v69040 or (page_text_events and page_raster_count_v69040 == 0):
+                try:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0), alpha=False)
+                    rendered = bytes(pix.tobytes("png"))
+                    if rendered:
+                        records.append({
+                            "bytes": rendered,
+                            "mime_type": "image/png",
+                            "page": page_index + 1,
+                            "section_heading": f"Page {page_index + 1} rendered visual",
+                            "context_before": " ".join(text for _, text in page_text_events)[:3600],
+                            "context_after": "",
+                            "alt": "Rendered PDF page containing compound or vector visual content",
+                            "rendered_page_v69040": True,
+                        })
+                except Exception as error:
+                    diagnostic_log(
+                        "document_pdf_page_render_failed_v69040",
+                        page=page_index + 1,
+                        error_type=type(error).__name__,
+                        error=str(error)[:500],
+                    )
     finally:
         document.close()
     return records, text_blocks
@@ -53901,6 +54406,42 @@ def _document_visual_events_docx_v69017(file_bytes):
                 "context_after": after,
                 "alt": "",
             })
+        # Cover header/footer, legacy VML, floating and otherwise unreferenced
+        # media. Relationship-local context is unavailable for these assets, so
+        # they remain subject to the same fail-closed two-pass visual QA.
+        known_digests_v69040 = {
+            hashlib.sha256(bytes(item.get("bytes") or b"")).hexdigest()
+            for item in records if bytes(item.get("bytes") or b"")
+        }
+        for media_name_v69040 in sorted(
+            name for name in archive.namelist() if name.startswith("word/media/")
+        ):
+            try:
+                media_raw_v69040 = bytes(archive.read(media_name_v69040) or b"")
+            except Exception:
+                continue
+            if not media_raw_v69040:
+                continue
+            media_digest_v69040 = hashlib.sha256(media_raw_v69040).hexdigest()
+            if media_digest_v69040 in known_digests_v69040:
+                continue
+            known_digests_v69040.add(media_digest_v69040)
+            suffix_v69040 = Path(media_name_v69040).suffix.casefold()
+            declared_v69040 = {
+                ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".gif": "image/gif", ".bmp": "image/bmp", ".tif": "image/tiff",
+                ".tiff": "image/tiff", ".webp": "image/webp", ".svg": "image/svg+xml",
+            }.get(suffix_v69040, "application/octet-stream")
+            records.append({
+                "bytes": media_raw_v69040,
+                "mime_type": declared_v69040,
+                "page": 0,
+                "section_heading": "Document header, footer, floating shape, or legacy visual",
+                "context_before": " ".join(text_blocks[:20])[:1800],
+                "context_after": " ".join(text_blocks[-20:])[-1800:],
+                "alt": Path(media_name_v69040).name,
+                "docx_supplemental_media_v69040": True,
+            })
     return records, text_blocks
 
 
@@ -53910,7 +54451,9 @@ def _document_visual_archive_path_v69017(original_name, digest, mime_type):
     return f"document_knowledge/{safe}/{digest[:2]}/{digest}{extension}"
 
 
-def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, admin_context=""):
+def convert_document_visual_knowledge_v69017(
+    uploaded_file, database_choice, admin_context="", *, commit_index_v69040=False
+):
     """Create a structured companion for embedded PDF/DOCX images.
 
     The original document remains the authoritative text upload. This companion only
@@ -53935,14 +54478,18 @@ def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, adm
     seen = set()
     max_images = min(80, WEBSITE_MAX_ANALYZED_IMAGES)
     for raw_item in raw_images[:max_images]:
-        raw = bytes(raw_item.get("bytes") or b"")
+        raw, normalized_mime_v69040 = _normalize_ingestion_visual_bytes_v69040(
+            raw_item.get("bytes"),
+            filename=str(raw_item.get("alt") or original_name),
+            declared_mime=str(raw_item.get("mime_type") or ""),
+        )
         if not raw:
             continue
         digest = hashlib.sha256(raw).hexdigest()
         if digest in seen:
             continue
         seen.add(digest)
-        mime = str(raw_item.get("mime_type") or "image/jpeg")
+        mime = str(normalized_mime_v69040 or "image/jpeg")
         data_url = f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
         qa = _analyze_ingestion_image_with_qa_v69017(
             data_url,
@@ -54031,7 +54578,9 @@ def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, adm
         "source_url": source_label,
         "requested_url": source_label,
     }
-    if str(database_choice or "") == "Technical Support Database":
+    if commit_index_v69040 and str(database_choice or "") in {
+        "Technical Support Database", "Sales Database", "Marketing Database"
+    }:
         for item in approved:
             try:
                 payload = _website_image_index_record_v68883(
@@ -54050,6 +54599,210 @@ def convert_document_visual_knowledge_v69017(uploaded_file, database_choice, adm
         "approved_images": approved,
         "raw_image_count": len(raw_images),
         "approved_image_count": len(approved),
+        "extraction_v69040": extraction,
+        "index_committed_v69040": bool(commit_index_v69040),
+    }
+
+
+def prepare_standalone_image_visual_knowledge_v69040(
+    uploaded_file, database_choice, admin_context, extracted_text
+):
+    """Archive a standalone image and build an auto-display companion."""
+    original_name = Path(str(getattr(uploaded_file, "name", "image"))).name
+    raw, mime = _normalize_ingestion_visual_bytes_v69040(
+        uploaded_file.getvalue(), original_name, str(getattr(uploaded_file, "type", ""))
+    )
+    if not raw:
+        raise ValueError("The uploaded image format could not be normalized safely.")
+    digest = hashlib.sha256(raw).hexdigest()
+    source_label = f"document://{original_name}"
+    data_url = f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
+    qa = _analyze_ingestion_image_with_qa_v69017(
+        data_url,
+        source_label=source_label,
+        page_title=original_name,
+        section_heading=str(admin_context or "Standalone reference image"),
+        context_before=str(admin_context or ""),
+        context_after=str(extracted_text or "")[:3600],
+        alt_text=original_name,
+        database_choice=str(database_choice or ""),
+    )
+    if not qa.get("approved"):
+        raise ValueError(
+            "The image text was extracted, but automatic visual linkage failed QA: "
+            + str(qa.get("reason") or "insufficient relationship evidence")
+        )
+    archive_path = _document_visual_archive_path_v69017(original_name, digest, mime)
+    _product_library_storage_upload(archive_path, raw, mime)
+    item = {
+        "url": f"archive://{archive_path}",
+        "archive_storage_path": archive_path,
+        "archive_mime_type": mime,
+        "sha256": digest,
+        "nearest_heading": str(admin_context or "Standalone reference image"),
+        "nearby_text": re.sub(r"\s+", " ", str(extracted_text or "")).strip()[:3600],
+        "context_before_text_v69017": str(admin_context or ""),
+        "context_after_text_v69017": str(extracted_text or "")[:3600],
+        "alt": original_name,
+        "analysis": str(qa.get("analysis") or ""),
+        "image_relationship_v69017": str(qa.get("relationship") or ""),
+        "image_relationship_confidence_v69017": float(qa.get("relationship_confidence") or 0.0),
+        "ingestion_qa_version_v69017": str(qa.get("qa_version") or ""),
+        "image_structured_metadata_v69017": dict(qa.get("extracted") or {}),
+        "image_qa_reason_v69017": str(qa.get("reason") or ""),
+        "source_zone_v69024": "standalone_knowledge_image",
+        "page_type_v69024": "uploaded_document",
+    }
+    extraction = {
+        "title": original_name, "source_url": source_label,
+        "requested_url": source_label, "page_type_v69024": "uploaded_document",
+    }
+    lines = [
+        "AUTOTECPRO STANDALONE VISUAL KNOWLEDGE",
+        f"Destination: {database_choice}",
+        f"Page title: {original_name}",
+        f"Final source URL: {source_label}",
+        f"IMAGE 1",
+        f"SECTION_HEADING: {item['nearest_heading']}",
+        f"NEARBY_INSTRUCTION_TEXT: {item['nearby_text']}",
+        f"CONTEXT_BEFORE_IMAGE: {item['context_before_text_v69017']}",
+        f"CONTEXT_AFTER_IMAGE: {item['context_after_text_v69017']}",
+        f"ARCHIVE_STORAGE_PATH: {archive_path}",
+        f"ARCHIVE_MIME_TYPE: {mime}",
+        f"AUTO_DISPLAY_IMAGE: archive://{archive_path}",
+        f"IMAGE_CAPTION: {original_name}",
+        f"IMAGE_SHA256: {digest}",
+        "IMAGE_ANALYSIS:", str(item["analysis"]), "",
+    ]
+    companion_text = "\n".join(lines)
+    companion = ManagedUploadedFile(
+        companion_text.encode("utf-8"),
+        f"{Path(original_name).stem}__standalone_visual_{digest[:12]}.txt",
+        "text/plain",
+    )
+    return {
+        "companion_file": companion, "companion_text": companion_text,
+        "approved_images": [item], "approved_image_count": 1,
+        "raw_image_count": 1, "extraction_v69040": extraction,
+    }
+
+
+def _commit_visual_knowledge_v69040(prepared, database_choice):
+    """Activate visual index rows only after all required vectors are ready."""
+    prepared = dict(prepared or {})
+    extraction = dict(prepared.get("extraction_v69040") or {})
+    images = list(prepared.get("approved_images") or [])
+    prior_entries_v69040, prior_loaded_v69040 = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    if not prior_loaded_v69040:
+        raise RuntimeError("Existing visual index state could not be loaded safely.")
+    committed = 0
+    try:
+        for item in images:
+            payload = _website_image_index_record_v68883(
+                extraction,
+                database_choice,
+                item,
+                archive_path=str(item.get("archive_storage_path") or ""),
+                archive_mime_type=str(item.get("archive_mime_type") or ""),
+            )
+            if _website_image_index_upsert_v68883(payload):
+                committed += 1
+        sync = _website_sync_page_image_index_v69003(extraction, database_choice, images)
+        if not bool(sync.get("completed")):
+            raise RuntimeError("Visual index activation did not complete safely.")
+    except Exception:
+        # Restore the exact pre-transaction page index. This is metadata rollback;
+        # archive cleanup is reference-checked by the outer transaction.
+        current_entries_v69040, current_loaded_v69040 = _website_image_index_rows_for_page_v69003(
+            extraction, database_choice
+        )
+        if current_loaded_v69040:
+            for entry in current_entries_v69040:
+                row_id = str((entry.get("row") or {}).get("id") or "").strip()
+                if row_id:
+                    supabase.table("learned_knowledge").delete().eq("id", row_id).execute()
+            for entry in prior_entries_v69040:
+                _website_image_index_upsert_v68883(dict(entry.get("payload") or {}))
+        raise
+    return {"committed": committed, "sync": sync}
+
+
+def _knowledge_artifact_prefix_v69040(original_name, database_choice):
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original_name).stem).strip("._-") or "document"
+    destination_hash = hashlib.sha256(str(database_choice or "").encode("utf-8")).hexdigest()[:8]
+    return f"knowledge_v69040_{destination_hash}_{safe}_"
+
+
+def _upload_knowledge_transaction_v69040(
+    original_file, vector_store_id, database_choice, *, prepared_visual=None,
+    upload_original=True, searchable_override=None
+):
+    """Stage vectors, verify readiness, activate images, then remove old versions."""
+    original_name = Path(str(getattr(original_file, "name", "knowledge"))).name
+    original_bytes = bytes(original_file.getvalue() or b"")
+    digest = hashlib.sha256(original_bytes).hexdigest()
+    prefix = _knowledge_artifact_prefix_v69040(original_name, database_choice)
+    staged = []
+    uploaded_ids = []
+    if searchable_override is not None:
+        override_bytes = bytes(searchable_override.getvalue() or b"")
+        staged.append(ManagedUploadedFile(
+            override_bytes, f"{prefix}{digest[:16]}__search.txt", "text/plain"
+        ))
+    elif upload_original:
+        staged.append(ManagedUploadedFile(
+            original_bytes, f"{prefix}{digest[:16]}{Path(original_name).suffix.lower()}",
+            str(getattr(original_file, "type", "") or "application/octet-stream"),
+        ))
+    if prepared_visual and prepared_visual.get("companion_file"):
+        companion_bytes = bytes(prepared_visual["companion_file"].getvalue() or b"")
+        staged.append(ManagedUploadedFile(
+            companion_bytes, f"{prefix}{digest[:16]}__visual.txt", "text/plain"
+        ))
+    if not staged:
+        raise RuntimeError("No knowledge artifact was prepared for upload.")
+    try:
+        for artifact in staged:
+            file_id = upload_to_vector_store(artifact, vector_store_id)
+            uploaded_ids.append(file_id)
+            status = _wait_for_vector_store_file(vector_store_id, file_id, timeout_seconds=45)
+            if str(status or "").casefold() != "completed":
+                raise RuntimeError(f"Vector indexing did not complete for {artifact.name}: {status}")
+        activation = (
+            _commit_visual_knowledge_v69040(prepared_visual, database_choice)
+            if prepared_visual else {"committed": 0, "sync": {"completed": True}}
+        )
+    except Exception:
+        for file_id in uploaded_ids:
+            _website_remove_vector_file_v68892(vector_store_id, file_id)
+        for item in list((prepared_visual or {}).get("approved_images") or []):
+            archive_path = str((item or {}).get("archive_storage_path") or "").strip()
+            if not archive_path:
+                continue
+            referenced, checked = _website_archive_path_is_referenced_v69003(archive_path)
+            if checked and not referenced:
+                try:
+                    _product_library_storage_remove([archive_path])
+                except Exception:
+                    pass
+        raise
+    old_rows = [
+        row for row in _vector_store_file_catalog_v69040(vector_store_id)
+        if str(row.get("filename") or "").startswith(prefix)
+        and str(row.get("file_id") or "") not in set(uploaded_ids)
+    ]
+    removed, cleanup_pending = 0, False
+    for row in old_rows:
+        if _website_remove_vector_file_v68892(vector_store_id, row.get("file_id")):
+            removed += 1
+        else:
+            cleanup_pending = True
+    return {
+        "file_ids": uploaded_ids, "filename_prefix": prefix,
+        "activated_images": int(activation.get("committed") or 0),
+        "superseded_removed": removed, "cleanup_pending": cleanup_pending,
     }
 
 def render_admin_upload_knowledge_tab():
@@ -54136,15 +54889,26 @@ def render_admin_upload_knowledge_tab():
                                 admin_context
                             )
 
-                            file_id = upload_to_vector_store(
-                                searchable_file,
-                                selected_vector_store_id
+                            standalone_visual_v69040 = prepare_standalone_image_visual_knowledge_v69040(
+                                admin_file,
+                                database_choice,
+                                admin_context,
+                                extracted_text,
+                            )
+                            image_transaction_v69040 = _upload_knowledge_transaction_v69040(
+                                admin_file,
+                                selected_vector_store_id,
+                                database_choice,
+                                prepared_visual=standalone_visual_v69040,
+                                upload_original=False,
+                                searchable_override=searchable_file,
                             )
 
                         st.success(
                             f"Image converted and uploaded: {admin_file.name} "
                             f"| Search file: {searchable_file.name} "
-                            f"| File ID: {file_id}"
+                            f"| File IDs: {', '.join(image_transaction_v69040.get('file_ids') or [])} "
+                            f"| Auto-display image indexed: {image_transaction_v69040.get('activated_images', 0)}"
                         )
 
                         with st.expander(
@@ -54184,31 +54948,44 @@ def render_admin_upload_knowledge_tab():
                                 preview += "\n\n[Preview truncated; the complete structured file was uploaded.]"
                             st.text(preview)
                     else:
-                        file_id = upload_to_vector_store(
-                            admin_file,
-                            selected_vector_store_id
-                        )
                         visual_companion_v69017 = None
+                        visual_warning_v69040 = ""
                         if is_rich_document_visual_file_v69017(admin_file):
-                            with st.spinner(f"Analyzing embedded document images: {admin_file.name}"):
-                                visual_companion_v69017 = convert_document_visual_knowledge_v69017(
-                                    admin_file,
-                                    database_choice,
-                                    admin_context,
+                            try:
+                                with st.spinner(f"Analyzing embedded document images: {admin_file.name}"):
+                                    visual_companion_v69017 = convert_document_visual_knowledge_v69017(
+                                        admin_file,
+                                        database_choice,
+                                        admin_context,
+                                        commit_index_v69040=False,
+                                    )
+                            except RuntimeError as visual_error_v69040:
+                                visual_warning_v69040 = str(visual_error_v69040)
+                                diagnostic_log(
+                                    "document_visual_extraction_unavailable_v69040",
+                                    file=str(admin_file.name),
+                                    error=visual_warning_v69040[:500],
                                 )
-                            if visual_companion_v69017:
-                                companion_file_v69017 = visual_companion_v69017.get("companion_file")
-                                companion_name_v69017 = str(getattr(companion_file_v69017, "name", ""))
-                                if companion_file_v69017 and not vector_store_has_filename(selected_vector_store_id, companion_name_v69017):
-                                    upload_to_vector_store(companion_file_v69017, selected_vector_store_id)
+                        document_transaction_v69040 = _upload_knowledge_transaction_v69040(
+                            admin_file,
+                            selected_vector_store_id,
+                            database_choice,
+                            prepared_visual=visual_companion_v69017,
+                            upload_original=True,
+                        )
                         st.success(
                             f"Uploaded: {admin_file.name} "
-                            f"| File ID: {file_id}"
+                            f"| File IDs: {', '.join(document_transaction_v69040.get('file_ids') or [])}"
                             + (
                                 f" | Embedded images: {visual_companion_v69017.get('approved_image_count', 0)}/{visual_companion_v69017.get('raw_image_count', 0)} QA-approved"
                                 if visual_companion_v69017 else ""
                             )
                         )
+                        if visual_warning_v69040:
+                            st.warning(
+                                "The document text was uploaded, but visual extraction was unavailable: "
+                                + visual_warning_v69040
+                            )
 
                 except Exception as error:
                     st.error(
@@ -63659,6 +64436,8 @@ else:
 
                 if assistant == "🔧 Technical Support":
                     st.session_state["_technical_file_search_results_v69012"] = []
+                if not is_graphic_workspace(assistant):
+                    st.session_state["_workspace_file_search_results_v69040"] = []
 
                 try:
                     diagnostic_log(
@@ -64146,6 +64925,33 @@ else:
                         "website_related_evidence_auto_publication_failed_v69025r2",
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
+
+        # v69040: Sales and Marketing publish only images retrieved from their
+        # own learned destination package for this exact completed answer.
+        if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+            try:
+                workspace_images_v69040 = _workspace_website_images_from_file_search_v69040(
+                    assistant,
+                    interaction_prompt,
+                    answer,
+                    list(st.session_state.get("_workspace_file_search_results_v69040") or []),
+                    max_images=3,
+                )
+                if workspace_images_v69040:
+                    generated_images.extend(workspace_images_v69040)
+                    generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                    diagnostic_log(
+                        "workspace_website_auto_publication_v69040",
+                        workspace=str(assistant),
+                        recovered=len(workspace_images_v69040),
+                    )
+            except Exception as error:
+                diagnostic_log(
+                    "workspace_website_auto_publication_failed_v69040",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
 
         technical_image_prefetch_executor_active_v69015 = locals().get(
             "technical_image_prefetch_executor_v69015"
