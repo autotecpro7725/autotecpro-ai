@@ -4129,7 +4129,7 @@ def _rerun_upload_region():
     _rerun_fragment_or_app()
 
 
-@st.cache_data(max_entries=256, show_spinner=False)
+@st.cache_data(max_entries=32, show_spinner=False)
 def _managed_image_data_url(file_type, file_bytes):
     """Return a compact cached thumbnail instead of embedding the full upload.
 
@@ -7318,6 +7318,12 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
+# v69054: this state key is consumed by Streamlit workspace callbacks registered
+# near the top of the script. It must be bound before those callbacks can run;
+# defining it later in the Technical implementation creates an intermittent
+# NameError during cold starts, reconnects and callback-prefix reruns.
+TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
+
 
 def _workspace_slug_from_assistant_v69023(assistant_name):
     """Return the stable workspace slug used by transition state."""
@@ -9015,7 +9021,7 @@ def normalize_uploaded_image_bytes(uploaded_file, max_dimension=2200, quality=90
         return b"", "image/jpeg"
 
 
-@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=900, max_entries=24, show_spinner=False)
 def _normalized_image_data_url_cached_v68979(raw, original_mime_type, max_dimension=2200, quality=90):
     """Return the exact normalized data URL once per immutable upload payload.
 
@@ -9292,7 +9298,7 @@ def clean_visible_chat_text(text):
     return value.strip()
 
 
-@st.cache_data(ttl=900, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=900, max_entries=24, show_spinner=False)
 def _make_image_preview_data_url_cached(
     raw,
     original_mime_type,
@@ -16887,7 +16893,7 @@ def image_bytes_to_png(image_bytes):
         return raw
 
 
-@st.cache_data(max_entries=64, show_spinner=False)
+@st.cache_data(max_entries=16, show_spinner=False)
 def _cached_generated_jpg_export(image_sha256, quality, _image_bytes):
     """Encode one JPG export once per PNG master and quality setting.
 
@@ -27150,10 +27156,10 @@ def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
     return defaults
 
 
-# v23000: restored v20100 visual-baseline behavior for _graphic_white_background_mask_v3300.
-@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
-
-@st.cache_data(ttl=86400, max_entries=96, show_spinner=False)
+# v69054: one bounded cache only. The prior stacked 128-entry and 96-entry
+# decorators retained duplicate multi-megabyte masks for 24 hours and could
+# exhaust a shared Streamlit Cloud worker during sustained Graphic use.
+@st.cache_data(ttl=3600, max_entries=16, show_spinner=False)
 def _graphic_white_background_mask_v3300(raw_bytes, cache_version=GRAPHIC_MASK_CACHE_VERSION):
     """v66000 multi-candidate, fail-closed exact-geometry background removal.
 
@@ -59644,9 +59650,6 @@ def _product_library_candidate_label(product):
         details = details[:117].rstrip() + "..."
 
     return f"{code} — {name}" + (f" — {details}" if details else "")
-
-
-TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
 
 
 def _technical_photo_context_v68879():
