@@ -38772,6 +38772,138 @@ def _request_without_file_search_results_include_v69012(request):
     return retry_request
 
 
+def _website_request_vector_search_rows_v69047(request, max_results=12):
+    """Use the SDK vector-search endpoint when optional result expansion is rejected."""
+    request = dict(request or {})
+    vector_store_ids = []
+    for tool in request.get("tools") or []:
+        if not isinstance(tool, dict) or tool.get("type") != "file_search":
+            continue
+        vector_store_ids.extend(tool.get("vector_store_ids") or [])
+    vector_store_ids = _configured_vector_store_ids(*vector_store_ids)
+    search_method = getattr(getattr(client, "vector_stores", None), "search", None)
+    if not vector_store_ids or not callable(search_method):
+        return []
+
+    text_parts = []
+    def collect(value):
+        if isinstance(value, str):
+            if value.strip():
+                text_parts.append(value.strip())
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"text", "content", "input"}:
+                    collect(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                collect(child)
+    collect(request.get("input"))
+    query = re.sub(r"\s+", " ", " ".join(text_parts)).strip()[:6000]
+    if not query:
+        return []
+
+    rows = []
+    for vector_store_id in vector_store_ids[:3]:
+        try:
+            response = search_method(
+                vector_store_id=vector_store_id,
+                query=query,
+                max_num_results=max(1, min(int(max_results or 12), 50)),
+            )
+        except Exception as error:
+            diagnostic_log(
+                "website_vector_search_fallback_failed_v69047",
+                error_type=type(error).__name__,
+                error=str(error)[:300],
+            )
+            continue
+        data = response.get("data") if isinstance(response, dict) else getattr(response, "data", None)
+        for result in list(data or []):
+            def field(name, default=None):
+                return result.get(name, default) if isinstance(result, dict) else getattr(result, name, default)
+            content_parts = []
+            for item in list(field("content", []) or []):
+                item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", "")
+                item_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", "")
+                if str(item_type or "") == "text" and str(item_text or "").strip():
+                    content_parts.append(str(item_text))
+            file_id = str(field("file_id", "") or "").strip()
+            filename = str(field("filename", "") or "").strip()
+            try:
+                score = float(field("score", 0.0) or 0.0)
+            except Exception:
+                score = 0.0
+            text_value = "\n".join(content_parts)
+            if file_id or text_value:
+                rows.append({
+                    "file_id": file_id,
+                    "filename": filename,
+                    "score": score,
+                    "text": text_value,
+                })
+    rows.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
+    output = []
+    seen = set()
+    for row in rows:
+        key = (str(row.get("file_id") or ""), str(row.get("text") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(row)
+        if len(output) >= max(1, int(max_results or 12)):
+            break
+    diagnostic_log(
+        "website_vector_search_fallback_complete_v69047",
+        result_count=len(output),
+        store_count=len(vector_store_ids),
+    )
+    return output
+
+
+def _capture_file_search_rows_v69047(rows):
+    """Capture direct-search rows using the same bounded per-session evidence state."""
+    if is_graphic_workspace(assistant):
+        return
+    existing = list(st.session_state.get("_workspace_file_search_results_v69040") or [])
+    seen = {
+        (str(row.get("file_id") or ""), str(row.get("text") or ""))
+        for row in existing if isinstance(row, dict)
+    }
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = (str(row.get("file_id") or ""), str(row.get("text") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        existing.append(dict(row))
+    existing.sort(key=lambda row: float((row or {}).get("score") or 0.0), reverse=True)
+    existing = existing[:24]
+    st.session_state["_workspace_file_search_results_v69040"] = existing
+    if str(assistant or "") == "🔧 Technical Support":
+        st.session_state["_technical_file_search_results_v69012"] = existing
+
+
+def _website_image_response_rows_with_retry_v69047(request, event_name):
+    """Return image-search rows, falling back to direct vector search on include rejection."""
+    try:
+        response = client.responses.create(**dict(request or {}))
+    except Exception as error:
+        if (
+            _is_openai_bad_request(error)
+            and "file_search_call.results" in (dict(request or {}).get("include") or [])
+        ):
+            rows = _website_request_vector_search_rows_v69047(request)
+            diagnostic_log(
+                str(event_name or "website_image_search") + "_direct_retry_v69047",
+                result_count=len(rows),
+                error_type=type(error).__name__,
+            )
+            return rows
+        raise
+    return _response_file_search_results_v69012(response)
+
+
 def _stream_one_ai_response(request):
     """
     Yield text for one Responses API call and return its final response object.
@@ -38811,10 +38943,16 @@ def _stream_one_ai_response(request):
                     "file_search_call.results" in (active_request.get("include") or [])
                     and not retried_without_file_search_results_include_v69012
                 ):
+                    fallback_rows_v69047 = _website_request_vector_search_rows_v69047(
+                        active_request
+                    )
+                    if fallback_rows_v69047:
+                        _capture_file_search_rows_v69047(fallback_rows_v69047)
                     diagnostic_log(
                         "responses_bad_request_file_search_results_include_retry_v69012",
                         workspace=str(assistant),
                         error_type=type(error).__name__,
+                        recovered_rows=len(fallback_rows_v69047),
                     )
                     active_request = _request_without_file_search_results_include_v69012(
                         active_request
@@ -50380,6 +50518,71 @@ def _website_resolved_subject_identity_v69022(prompt_text, answer_text=""):
     }
 
 
+def _website_image_exact_supporting_page_range_authority_v69046(prompt_text, payload):
+    """Recognize a shared settings screenshot on its exact retrieved fitment page.
+
+    A section can use one model year as an example even though the setting applies to
+    the full vehicle generation named by the page. This authority is deliberately
+    narrow: it is available only to Car Model/A/C requests, only for a durable image
+    hydrated from the exact file-search page that supported the answer, and only when
+    that page has an explicit range covering the requested year plus the same vehicle
+    family. It does not authorize a different vehicle, uncovered year, system, image
+    role, or a page/section that explicitly excludes the requested year.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if not bool(
+        payload.get("_technical_supporting_page_hydration_v69045")
+        or payload.get("_technical_supporting_page_vector_authority_v69047")
+    ):
+        return False
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if _website_image_query_role_v68884(prompt) != "car_model_ac":
+        return False
+    requested_years = {
+        int(value) for value in re.findall(r"\b(?:19|20)\d{2}\b", prompt)
+    }
+    if not requested_years:
+        return False
+
+    page_text = " ".join((
+        str(payload.get("page_title") or ""),
+        str(payload.get("source_page") or ""),
+    )).casefold()
+    covered_years = set()
+    for match in re.finditer(
+        r"\b((?:19|20)\d{2})\s*(?:-|–|—|/|to|through)\s*((?:19|20)\d{2})\b",
+        page_text,
+        flags=re.I,
+    ):
+        start, end = int(match.group(1)), int(match.group(2))
+        if end < start:
+            start, end = end, start
+        if end - start <= 40:
+            covered_years.update(range(start, end + 1))
+    if not requested_years.issubset(covered_years):
+        return False
+
+    requested_families = _website_identity_vehicle_families_v69022(prompt)
+    page_families = _website_identity_vehicle_families_v69022(page_text)
+    if not requested_families or not page_families or not (requested_families & page_families):
+        return False
+    requested_brands = _website_identity_brand_set_v69022(prompt)
+    page_brands = _website_identity_brand_set_v69022(page_text)
+    if requested_brands and page_brands and not (requested_brands & page_brands):
+        return False
+
+    for year in requested_years:
+        year_text = str(year)
+        negative_patterns = (
+            rf"(?:not|except|exclude(?:s|d)?|incompatible\s+with|does\s+not\s+fit).{{0,40}}\b{year_text}\b",
+            rf"\b{year_text}\b.{{0,40}}(?:not\s+supported|not\s+compatible|excluded|does\s+not\s+fit)",
+        )
+        if any(re.search(pattern, page_text, flags=re.I) for pattern in negative_patterns):
+            return False
+    return True
+
+
 def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payload):
     """Hard final provenance gate using the resolved Technical subject identity."""
     if not isinstance(payload, dict):
@@ -50408,7 +50611,14 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
         return False
     if requested_families and candidate_families and not (requested_families & candidate_families):
         return False
-    if requested_years and candidate_years and not (requested_years & candidate_years):
+    if (
+        requested_years
+        and candidate_years
+        and not (requested_years & candidate_years)
+        and not _website_image_exact_supporting_page_range_authority_v69046(
+            prompt_text, payload
+        )
+    ):
         return False
     sync_requested = {x for x in requested_systems if x.startswith("sync_") or x == "no_sync"}
     sync_candidate = {x for x in candidate_systems if x.startswith("sync_") or x == "no_sync"}
@@ -50500,7 +50710,12 @@ def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
         section_ranges, section_singles, section_covered = year_evidence(section_text)
         page_ranges, page_singles, page_covered = year_evidence(page_text)
         if section_ranges or section_singles:
-            if not any(year in section_covered or year in section_singles for year in requested_years):
+            if (
+                not any(year in section_covered or year in section_singles for year in requested_years)
+                and not _website_image_exact_supporting_page_range_authority_v69046(
+                    prompt_text, payload
+                )
+            ):
                 return False
         elif page_ranges or page_singles:
             if not any(year in page_covered or year in page_singles for year in requested_years):
@@ -50985,14 +51200,16 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
         "max_output_tokens": 32,
     }
     try:
-        response = client.responses.create(**request)
+        rows = _website_image_response_rows_with_retry_v69047(
+            request,
+            "website_image_prefetch_v69015",
+        )
     except Exception as error:
         diagnostic_log(
             "website_image_prefetch_failed_v69015",
             error_type=type(error).__name__, error=str(error)[:500],
         )
         return []
-    rows = _response_file_search_results_v69012(response)
     diagnostic_log(
         "website_image_prefetch_complete_v69015",
         result_count=len(rows),
@@ -51056,14 +51273,16 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
         "max_output_tokens": 32,
     }
     try:
-        response = client.responses.create(**request)
+        rows = _website_image_response_rows_with_retry_v69047(
+            request,
+            "website_image_universal_search_v69014",
+        )
     except Exception as error:
         diagnostic_log(
             "website_image_universal_search_failed_v69014",
             error_type=type(error).__name__, error=str(error)[:500],
         )
         return []
-    rows = _response_file_search_results_v69012(response)
     diagnostic_log(
         "website_image_universal_search_complete_v69014",
         result_count=len(rows),
@@ -51194,7 +51413,10 @@ def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text
     }
 
     try:
-        response = client.responses.create(**request)
+        rows = _website_image_response_rows_with_retry_v69047(
+            request,
+            "website_image_dedicated_search_v69013",
+        )
     except Exception as error:
         diagnostic_log(
             "website_image_dedicated_search_failed_v69013",
@@ -51202,8 +51424,6 @@ def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text
             error=str(error)[:500],
         )
         return []
-
-    rows = _response_file_search_results_v69012(response)
     diagnostic_log(
         "website_image_dedicated_search_complete_v69013",
         result_count=len(rows),
@@ -52383,6 +52603,93 @@ def _website_durable_payloads_for_supporting_pages_v69045(result_rows):
     return output
 
 
+def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
+    """Bind reconstructed vector payloads to their exact Technical source page.
+
+    This is the non-durable counterpart to v69045 hydration. It grants only the
+    narrow page-range authority consumed by the existing vehicle/year gate. The
+    payload must come from the same returned file id, that file must explicitly
+    declare Technical ownership, and its canonical source page must equal the
+    payload source page. All resolved identity, role, visual and final gates still
+    decide whether the image can be published.
+    """
+    owned_sources_by_file = {}
+    full_reads = set()
+    ordered = sorted(
+        [row for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+    for row in ordered[:16]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        if not file_id or (filename and not filename.startswith("website_")):
+            continue
+        chunks = [str(row.get("text") or "")]
+        combined = chunks[0]
+        needs_full = bool(
+            not re.search(
+                r"(?im)^Destination\s*:\s*Technical Support Database\s*$",
+                combined,
+            )
+            or not re.search(
+                r"(?im)^(?:Requested URL|Final source URL)\s*:\s*https?://",
+                combined,
+            )
+        )
+        if needs_full and file_id not in full_reads:
+            full_reads.add(file_id)
+            chunks.append(str(_website_file_full_text_v69012(file_id) or ""))
+            combined = "\n".join(chunks)
+        destinations = {
+            re.sub(r"\s+", " ", str(value or "")).strip()
+            for value in re.findall(r"(?im)^Destination\s*:\s*([^\r\n]+)", combined)
+        }
+        if destinations != {"Technical Support Database"}:
+            continue
+        identities = set()
+        for raw_url in re.findall(
+            r"(?im)^(?:Requested URL|Final source URL)\s*:\s*(https?://\S+)",
+            combined,
+        ):
+            try:
+                identities.add(canonical_website_url_identity(raw_url.rstrip(".,;")))
+            except Exception:
+                continue
+        if identities:
+            owned_sources_by_file[file_id] = identities
+
+    output = []
+    for raw_payload in payloads or []:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        file_id = str(
+            payload.get("_technical_file_id_v69032")
+            or payload.get("file_id_v69012")
+            or ""
+        ).strip()
+        source_page = str(payload.get("source_page") or "").strip()
+        source_identity = ""
+        if source_page:
+            try:
+                source_identity = canonical_website_url_identity(source_page)
+            except Exception:
+                source_identity = ""
+        if (
+            file_id
+            and source_identity
+            and str(payload.get("database_choice") or "").strip()
+            == "Technical Support Database"
+            and source_identity in owned_sources_by_file.get(file_id, set())
+        ):
+            payload["_technical_file_search_extra_v69032"] = True
+            payload["_technical_supporting_page_vector_authority_v69047"] = True
+            payload["_technical_supporting_page_vector_file_id_v69047"] = file_id
+        output.append(payload)
+    return output
+
+
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
     """Return QA-approved durable payloads for exactly one non-Graphic database."""
@@ -52530,6 +52837,94 @@ def _workspace_website_images_from_file_search_v69040(
     return output
 
 
+def _website_image_self_heal_index_v69047(prompt_text, payload):
+    """Persist one already-approved exact-page vector image for future fast lookup.
+
+    This function never selects or approves an image. It is called only after the
+    existing resolved identity, fitment, role/visual and R2 scoring authority has
+    selected a payload carrying v69047's exact Technical file/page binding.
+    Failures are diagnostic-only and never suppress the current safe publication.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if not bool(payload.get("_technical_supporting_page_vector_authority_v69047")):
+        return False
+    if str(payload.get("database_choice") or "").strip() != "Technical Support Database":
+        return False
+    structured_metadata = payload.get("image_structured_metadata_v69017")
+    has_prior_image_qa = bool(
+        str(payload.get("visual_analysis") or "").strip()
+        or (isinstance(structured_metadata, dict) and structured_metadata)
+    )
+    if not has_prior_image_qa:
+        return False
+    if not _website_image_final_payload_gate_v68885(prompt_text, payload):
+        return False
+    image_url = str(payload.get("image_url") or "").strip()
+    source_page = str(payload.get("source_page") or "").strip()
+    file_id = str(payload.get("_technical_supporting_page_vector_file_id_v69047") or "").strip()
+    if not image_url.startswith("https://") or not source_page.startswith("https://") or not file_id:
+        return False
+
+    attempt_key = hashlib.sha256(
+        (source_page + "\n" + image_url).encode("utf-8")
+    ).hexdigest()
+    try:
+        attempted = set(st.session_state.get("_website_image_self_heal_attempts_v69047") or [])
+    except Exception:
+        attempted = set()
+    if attempt_key in attempted:
+        return False
+    attempted.add(attempt_key)
+    try:
+        st.session_state["_website_image_self_heal_attempts_v69047"] = list(attempted)[-64:]
+    except Exception:
+        pass
+
+    durable = {
+        key: value for key, value in dict(payload).items()
+        if not str(key).startswith("_")
+    }
+    durable["database_choice"] = "Technical Support Database"
+    durable["image_sha256"] = str(durable.get("image_sha256") or "").strip().lower() or hashlib.sha256(
+        image_url.encode("utf-8")
+    ).hexdigest()
+    durable["archive_storage_path"] = str(
+        durable.get("archive_storage_path")
+        or durable.get("archive_storage_path_v69017")
+        or ""
+    ).strip()
+    durable["archive_mime_type"] = str(
+        durable.get("archive_mime_type")
+        or durable.get("archive_mime_type_v69017")
+        or ""
+    ).strip()
+    durable["ingestion_authority_version_v69024"] = "v69047-exact-vector-self-heal"
+    durable["self_healed_from_exact_vector_v69047"] = True
+    durable["self_healed_at_v69047"] = datetime.now(timezone.utc).isoformat()
+    try:
+        saved = bool(_website_image_index_upsert_v68883(durable))
+        if saved:
+            try:
+                _website_image_index_rows_v68883.clear()
+            except Exception:
+                pass
+        diagnostic_log(
+            "website_image_index_self_heal_v69047",
+            saved=saved,
+            has_archive=bool(durable.get("archive_storage_path")),
+            source_exact=True,
+        )
+        return saved
+    except Exception as error:
+        diagnostic_log(
+            "website_image_index_self_heal_failed_v69047",
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        return False
+
+
 def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3, extra_payloads=None):
     """Return safe inquiry-related Technical images after exact-image recovery is exhausted.
 
@@ -52612,15 +53007,32 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
     candidate_payloads_v69032.extend(
         dict(item) for item in (extra_payloads or []) if isinstance(item, dict)
     )
+    audit_v69047 = {
+        "candidates": 0,
+        "exact_vector": 0,
+        "rejected_destination": 0,
+        "rejected_zone": 0,
+        "rejected_identity": 0,
+        "rejected_fitment": 0,
+        "rejected_product": 0,
+        "rejected_strength": 0,
+        "record_build_failed": 0,
+        "published": 0,
+        "self_healed": 0,
+    }
     seen_candidate_payloads_v69032 = set()
     for payload in candidate_payloads_v69032:
         if not isinstance(payload, dict):
             continue
+        audit_v69047["candidates"] += 1
+        if payload.get("_technical_supporting_page_vector_authority_v69047"):
+            audit_v69047["exact_vector"] += 1
         is_file_search_extra_v69032 = bool(payload.get("_technical_file_search_extra_v69032"))
         if (
             str(payload.get("database_choice") or "") != "Technical Support Database"
             and not is_file_search_extra_v69032
         ):
+            audit_v69047["rejected_destination"] += 1
             continue
         payload_identity_v69032 = (
             str(payload.get("image_sha256") or "").strip().lower()
@@ -52634,8 +53046,10 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             seen_candidate_payloads_v69032.add(payload_identity_v69032)
         source_zone = str(payload.get("source_zone_v69024") or "").strip().casefold()
         if source_zone and source_zone not in allowed_zones:
+            audit_v69047["rejected_zone"] += 1
             continue
         if not _website_image_resolved_payload_gate_v69022(prompt, answer, payload):
+            audit_v69047["rejected_identity"] += 1
             continue
         # v69027: image-local year evidence outranks broad parent-page fitment.
         # Use the prompt when it carries a year; otherwise use the verified answer.
@@ -52648,6 +53062,7 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             fitment_prompt_v69027,
             payload,
         ):
+            audit_v69047["rejected_fitment"] += 1
             continue
 
         candidate_text = _website_image_payload_identity_text_v69022(payload)
@@ -52657,6 +53072,7 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         cand_years = _website_identity_years_v69022(candidate_text)
         cand_systems = _website_identity_systems_v69022(candidate_text)
         if req_codes and cand_codes and not (req_codes & cand_codes):
+            audit_v69047["rejected_product"] += 1
             continue
 
         identity_score = 0.0
@@ -52665,7 +53081,15 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             identity_score += 60.0
         brand_match = bool(req_brands and cand_brands and (req_brands & cand_brands))
         family_match = bool(req_families and cand_families and (req_families & cand_families))
-        year_match = bool(req_years and cand_years and (req_years & cand_years))
+        year_match = bool(
+            req_years
+            and (
+                (cand_years and (req_years & cand_years))
+                or _website_image_exact_supporting_page_range_authority_v69046(
+                    prompt, payload
+                )
+            )
+        )
         system_match = bool(req_systems and cand_systems and (req_systems & cand_systems))
         identity_score += 18.0 if brand_match else 0.0
         identity_score += 24.0 if family_match else 0.0
@@ -52673,6 +53097,7 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         identity_score += 24.0 if system_match else 0.0
         strong_dims = sum((brand_match, family_match, year_match, system_match))
         if not exact_code and strong_dims < 3:
+            audit_v69047["rejected_strength"] += 1
             continue
 
         authority = str(payload.get("ingestion_authority_version_v69024") or "").strip().casefold()
@@ -52736,6 +53161,7 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             continue
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
+            audit_v69047["record_build_failed"] += 1
             continue
         if digest:
             seen.add(digest)
@@ -52747,7 +53173,12 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         record["website_related_evidence_topic_match_v69025r2"] = bool(topic_related)
         record["website_related_reference_score_v69025r1"] = round(float(score), 3)
         record["website_related_reference_role_v69025r1"] = str(query_role or "")
+        if payload.get("_technical_supporting_page_vector_authority_v69047"):
+            if _website_image_self_heal_index_v69047(prompt, payload):
+                audit_v69047["self_healed"] += 1
         records.append(record)
+        audit_v69047["published"] += 1
+    diagnostic_log("website_related_evidence_authority_v69047", **audit_v69047)
     return records
 
 
@@ -65141,6 +65572,10 @@ else:
                         extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
                             related_rows_v69032
                         )
+                        extra_payloads_v69032 = _website_bind_exact_supporting_page_payloads_v69047(
+                            extra_payloads_v69032,
+                            related_rows_v69032,
+                        )
                         extra_payloads_v69032.extend(
                             _website_durable_payloads_for_supporting_pages_v69045(
                                 related_rows_v69032
@@ -65152,6 +65587,10 @@ else:
                             )
                             extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
                                 dedicated_rows_v69032
+                            )
+                            extra_payloads_v69032 = _website_bind_exact_supporting_page_payloads_v69047(
+                                extra_payloads_v69032,
+                                dedicated_rows_v69032,
                             )
                             extra_payloads_v69032.extend(
                                 _website_durable_payloads_for_supporting_pages_v69045(
