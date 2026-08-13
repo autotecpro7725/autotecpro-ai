@@ -52804,6 +52804,11 @@ def _workspace_website_images_from_file_search_v69040(
     for payload in candidates_v69041:
         if str(payload.get("database_choice") or "").strip() != destination:
             continue
+        # v69050: the user's explicit vehicle/year remains authoritative for
+        # Sales and Marketing publication. Answer text is useful for ranking,
+        # but it must never make an incompatible learned product image eligible.
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            continue
         evidence = " ".join((
             str(payload.get("page_title") or ""),
             str(payload.get("section_heading") or ""),
@@ -52855,6 +52860,135 @@ def _workspace_website_images_from_file_search_v69040(
         if len(output) >= max(1, int(max_images or 1)):
             break
     return output
+
+
+def _workspace_image_dedicated_search_query_v69050(
+    destination, prompt_text, answer_text=""
+):
+    """Build a destination-isolated learned-image retrieval request."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:2200]
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()[:3600]
+    return (
+        "AUTOTECPRO LEARNED IMAGE RETRIEVAL ONLY.\n"
+        f"Search only the {destination}. Find approved learned AutoTecPro image "
+        "records directly related to the user's inquiry and completed answer. "
+        "The vehicle, year, product, and configuration explicitly stated by the "
+        "user outrank anything inferred in the answer. Prefer records containing "
+        "AUTO_DISPLAY_IMAGE, ATP_WEB_IMAGE_JSON, IMAGE_ANALYSIS, SECTION_HEADING, "
+        "NEARBY_INSTRUCTION_TEXT, or an exact learned AutoTecPro image URL. Do not "
+        "broaden to another destination, vehicle, year range, product, or unrelated "
+        "page. Return file_search evidence only; never invent an image URL.\n\n"
+        f"USER REQUEST:\n{prompt}\n\n"
+        f"COMPLETED ANSWER CONTEXT:\n{answer}\n"
+    )
+
+
+def _workspace_image_dedicated_file_search_results_v69050(
+    workspace_label, prompt_text, answer_text=""
+):
+    """Search exactly one Sales/Marketing vector store for learned images."""
+    workspace = str(workspace_label or "")
+    if is_graphic_workspace(workspace):
+        return []
+    if is_sales_workspace(workspace):
+        destination = "Sales Database"
+        configured_store = SALES_VECTOR_STORE_ID
+    elif is_marketing_workspace(workspace):
+        destination = "Marketing Database"
+        configured_store = MARKETING_VECTOR_STORE_ID
+    else:
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    vector_store_ids = _configured_vector_store_ids(configured_store)
+    if not prompt or not answer or not vector_store_ids:
+        return []
+    request = {
+        "model": "gpt-5.5",
+        "input": _workspace_image_dedicated_search_query_v69050(
+            destination, prompt, answer
+        ),
+        "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
+        "tool_choice": "required",
+        "include": ["file_search_call.results"],
+        "max_output_tokens": 32,
+    }
+    try:
+        rows = _website_image_response_rows_with_retry_v69047(
+            request,
+            "workspace_image_dedicated_search_v69050",
+        )
+    except Exception as error:
+        diagnostic_log(
+            "workspace_image_dedicated_search_failed_v69050",
+            workspace=workspace,
+            destination=destination,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return []
+    diagnostic_log(
+        "workspace_image_dedicated_search_complete_v69050",
+        workspace=workspace,
+        destination=destination,
+        result_count=len(rows or []),
+    )
+    return [dict(row) for row in (rows or []) if isinstance(row, dict)]
+
+
+def _workspace_automatic_image_recovery_v69050(
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+):
+    """Recover automatic Sales/Marketing images after the ordinary answer search."""
+    workspace = str(workspace_label or "")
+    if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)):
+        return []
+    if is_graphic_workspace(workspace):
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt or not answer:
+        return []
+    ordinary_rows = [
+        dict(row) for row in (result_rows or []) if isinstance(row, dict)
+    ]
+    recovered = _workspace_website_images_from_file_search_v69040(
+        workspace, prompt, answer, ordinary_rows, max_images=max_images
+    )
+    diagnostic_log(
+        "workspace_image_ordinary_bridge_v69050",
+        workspace=workspace,
+        result_count=len(ordinary_rows),
+        recovered=len(recovered or []),
+    )
+    if recovered:
+        return recovered
+
+    dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
+        workspace, prompt, answer
+    )
+    if not dedicated_rows:
+        return []
+    recovered = _workspace_website_images_from_file_search_v69040(
+        workspace,
+        prompt,
+        answer,
+        ordinary_rows + dedicated_rows,
+        max_images=max_images,
+    )
+    diagnostic_log(
+        "workspace_image_post_gate_dedicated_v69050",
+        workspace=workspace,
+        result_count=len(dedicated_rows),
+        recovered=len(recovered or []),
+    )
+    return recovered or []
 
 
 def _website_image_self_heal_index_v69047(prompt_text, payload):
@@ -53205,6 +53339,76 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             break
     diagnostic_log("website_related_evidence_authority_v69047", **audit_v69047)
     return records
+
+
+def _website_automatic_related_image_recovery_v69049(
+    prompt_text, answer_text, result_rows, max_images=3
+):
+    """Recover a safe learned image for an ordinary Technical inquiry.
+
+    The ordinary answer search and prompt prefetch are evaluated first.  If they
+    reconstruct payloads but none survives the existing R2 authority, run the same
+    answer-aware dedicated image search that succeeds for explicit photo requests.
+    Candidate existence is never treated as publication success.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if str(assistant or "") != "🔧 Technical Support" or not prompt or not answer:
+        return []
+
+    ordinary_rows = [
+        dict(row) for row in (result_rows or []) if isinstance(row, dict)
+    ]
+    ordinary_payloads = _website_file_search_payloads_for_related_evidence_v69032(
+        ordinary_rows
+    )
+    ordinary_payloads = _website_bind_exact_supporting_page_payloads_v69047(
+        ordinary_payloads, ordinary_rows
+    )
+    ordinary_payloads.extend(
+        _website_durable_payloads_for_supporting_pages_v69045(ordinary_rows)
+    )
+    recovered = []
+    if ordinary_payloads:
+        recovered = _website_image_related_evidence_lookup_v69025r2(
+            prompt, answer, max_images=max_images, extra_payloads=ordinary_payloads
+        )
+    diagnostic_log(
+        "website_related_evidence_file_search_bridge_v69032",
+        payload_count=len(ordinary_payloads),
+        recovered=len(recovered or []),
+    )
+    if recovered:
+        return recovered
+
+    # v69049 root fix: run this after gate failure, not merely after an empty
+    # reconstruction list.  All downstream ownership/fitment/topic gates are the
+    # same ones used above and therefore remain fail-closed.
+    dedicated_rows = _website_image_dedicated_file_search_results_v69014(
+        prompt, answer
+    )
+    dedicated_payloads = _website_file_search_payloads_for_related_evidence_v69032(
+        dedicated_rows
+    )
+    dedicated_payloads = _website_bind_exact_supporting_page_payloads_v69047(
+        dedicated_payloads, dedicated_rows
+    )
+    dedicated_payloads.extend(
+        _website_durable_payloads_for_supporting_pages_v69045(dedicated_rows)
+    )
+    if dedicated_payloads:
+        recovered = _website_image_related_evidence_lookup_v69025r2(
+            prompt, answer, max_images=max_images, extra_payloads=dedicated_payloads
+        )
+    diagnostic_log(
+        "website_related_evidence_post_gate_dedicated_v69049",
+        result_rows=len(dedicated_rows or []),
+        payload_count=len(dedicated_payloads or []),
+        recovered=len(recovered or []),
+    )
+    return recovered or []
 
 
 def _dedupe_website_chat_images_v68883(images):
@@ -65594,46 +65798,14 @@ else:
                         related_rows_v69032.extend(
                             list(locals().get("dedicated_rows_v69014") or [])
                         )
-                        extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
-                            related_rows_v69032
-                        )
-                        extra_payloads_v69032 = _website_bind_exact_supporting_page_payloads_v69047(
-                            extra_payloads_v69032,
-                            related_rows_v69032,
-                        )
-                        extra_payloads_v69032.extend(
-                            _website_durable_payloads_for_supporting_pages_v69045(
-                                related_rows_v69032
-                            )
-                        )
-                        if not extra_payloads_v69032:
-                            dedicated_rows_v69032 = _website_image_dedicated_file_search_results_v69014(
-                                technical_request_prompt_v68879, answer
-                            )
-                            extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
-                                dedicated_rows_v69032
-                            )
-                            extra_payloads_v69032 = _website_bind_exact_supporting_page_payloads_v69047(
-                                extra_payloads_v69032,
-                                dedicated_rows_v69032,
-                            )
-                            extra_payloads_v69032.extend(
-                                _website_durable_payloads_for_supporting_pages_v69045(
-                                    dedicated_rows_v69032
-                                )
-                            )
-                        if extra_payloads_v69032:
-                            related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
+                        related_reference_images_v69025r1 = (
+                            _website_automatic_related_image_recovery_v69049(
                                 technical_request_prompt_v68879,
                                 answer,
+                                related_rows_v69032,
                                 max_images=3,
-                                extra_payloads=extra_payloads_v69032,
                             )
-                            diagnostic_log(
-                                "website_related_evidence_file_search_bridge_v69032",
-                                payload_count=len(extra_payloads_v69032),
-                                recovered=len(related_reference_images_v69025r1 or []),
-                            )
+                        )
                     diagnostic_log(
                         "website_related_evidence_lookup_completed_v69027",
                         recovered=len(related_reference_images_v69025r1 or []),
@@ -65659,28 +65831,30 @@ else:
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
 
-        # v69040: Sales and Marketing publish only images retrieved from their
-        # own learned destination package for this exact completed answer.
+        # v69050: Sales and Marketing first consume the exact answer evidence,
+        # then (only if no eligible image survived) run a dedicated search in
+        # the active workspace's own store and reconstruct a structured image
+        # record for the unchanged final publisher.
         if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
             try:
-                workspace_images_v69040 = _workspace_website_images_from_file_search_v69040(
+                workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
                     assistant,
                     interaction_prompt,
                     answer,
                     list(st.session_state.get("_workspace_file_search_results_v69040") or []),
                     max_images=3,
                 )
-                if workspace_images_v69040:
-                    generated_images.extend(workspace_images_v69040)
+                if workspace_images_v69050:
+                    generated_images.extend(workspace_images_v69050)
                     generated_images = _dedupe_website_chat_images_v68883(generated_images)
                     diagnostic_log(
-                        "workspace_website_auto_publication_v69040",
+                        "workspace_website_auto_publication_v69050",
                         workspace=str(assistant),
-                        recovered=len(workspace_images_v69040),
+                        recovered=len(workspace_images_v69050),
                     )
             except Exception as error:
                 diagnostic_log(
-                    "workspace_website_auto_publication_failed_v69040",
+                    "workspace_website_auto_publication_failed_v69050",
                     workspace=str(assistant),
                     error_type=type(error).__name__,
                     error=str(error)[:500],
