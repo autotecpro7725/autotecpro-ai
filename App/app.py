@@ -10909,6 +10909,8 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
+            "website_answer_url_reconstructed_v69056",
+            "website_answer_url_destination_v69056",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -38909,6 +38911,25 @@ def _website_image_response_rows_with_retry_v69047(request, event_name):
     return _response_file_search_results_v69012(response)
 
 
+def _website_image_response_rows_with_empty_retry_v69056(request, event_name):
+    """Recover image evidence when Responses succeeds but expands zero rows.
+
+    The retry uses only the vector store already present in ``request``. It does
+    not broaden destination, vehicle, product or workspace authority. All rows
+    continue through the existing Technical/Sales/Marketing publication gates.
+    """
+    rows = _website_image_response_rows_with_retry_v69047(request, event_name)
+    if rows:
+        return rows
+    rows = _website_request_vector_search_rows_v69047(request)
+    diagnostic_log(
+        str(event_name or "website_image_search")
+        + "_successful_empty_same_store_retry_v69056",
+        result_count=len(rows or []),
+    )
+    return rows or []
+
+
 def _stream_one_ai_response(request):
     """
     Yield text for one Responses API call and return its final response object.
@@ -53076,7 +53097,7 @@ def _workspace_image_dedicated_file_search_results_v69050(
         "max_output_tokens": 32,
     }
     try:
-        rows = _website_image_response_rows_with_retry_v69047(
+        rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "workspace_image_dedicated_search_v69050",
         )
@@ -53151,6 +53172,109 @@ def _workspace_automatic_image_recovery_v69050(
         recovered=len(recovered or []),
     )
     return recovered or []
+
+
+def _answer_owned_image_records_v69056(
+    workspace_label, prompt_text, answer_text, max_images=3
+):
+    """Convert exact learned first-party answer URLs into chat image records.
+
+    A model-emitted URL is never authority by itself. The exact URL must already
+    exist in the durable image index for the active destination and carry prior
+    QA/archive provenance. Existing vehicle/year/product gates remain mandatory.
+    This closes the live state where file_search can quote the correct learned URL
+    but optional result expansion supplies no structured AUTO_DISPLAY_IMAGE row.
+    """
+    workspace = str(workspace_label or "")
+    if is_graphic_workspace(workspace):
+        return []
+    if is_sales_workspace(workspace):
+        destination = "Sales Database"
+    elif is_marketing_workspace(workspace):
+        destination = "Marketing Database"
+    else:
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = clean_visible_chat_text(str(answer_text or ""))
+    if not prompt or not answer:
+        return []
+    urls = []
+    for raw in re.findall(
+        r"https://[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)(?:\?[^\s<>\"'\)\]]*)?",
+        answer,
+        flags=re.I,
+    ):
+        url = html.unescape(str(raw or "")).rstrip(".,;:")
+        parsed = urlparse(url)
+        if (
+            str(parsed.hostname or "").casefold()
+            not in {"autotecpro.com", "www.autotecpro.com"}
+            or not str(parsed.path or "").casefold().startswith("/wp-content/uploads/")
+        ):
+            continue
+        if url not in urls:
+            urls.append(url)
+    if not urls:
+        return []
+
+    requested_sizes = set(re.findall(
+        r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
+        prompt.casefold(),
+    ))
+    requested_codes = _website_image_product_codes_v69020(prompt)
+    ranked = []
+    for raw_payload in _website_image_index_rows_v68883() or []:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "").strip() != destination:
+            continue
+        image_url = str(payload.get("image_url") or "").strip()
+        if image_url not in urls:
+            continue
+        has_prior_qa = bool(
+            str(payload.get("visual_analysis") or "").strip()
+            or str(payload.get("archive_storage_path") or "").strip()
+            or str(payload.get("archive_storage_path_v69017") or "").strip()
+            or dict(payload.get("image_structured_metadata_v69017") or {})
+        )
+        if not has_prior_qa:
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt, payload):
+            continue
+        identity_text = _website_image_payload_identity_text_v69022(payload)
+        candidate_sizes = set(re.findall(
+            r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
+            identity_text.casefold(),
+        ))
+        if requested_sizes and candidate_sizes and not (requested_sizes & candidate_sizes):
+            continue
+        candidate_codes = _website_image_product_codes_v69020(identity_text)
+        if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        record["website_answer_url_reconstructed_v69056"] = True
+        record["website_answer_url_destination_v69056"] = destination
+        ranked.append(record)
+
+    output, seen = [], set()
+    for record in ranked:
+        identity = str(record.get("website_image_sha256") or record.get("data_url") or "")
+        if identity in seen:
+            continue
+        seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    diagnostic_log(
+        "website_answer_url_reconstruction_v69056",
+        workspace=workspace,
+        url_count=len(urls),
+        recovered=len(output),
+    )
+    return output
 
 
 def _website_image_self_heal_index_v69047(prompt_text, payload):
@@ -66014,6 +66138,31 @@ else:
             except Exception as error:
                 diagnostic_log(
                     "workspace_website_auto_publication_failed_v69050",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
+
+        # v69056 final live-evidence bridge: Responses can quote an exact learned
+        # AutoTecPro image URL while returning zero expanded file_search rows.
+        # Reconstruct only an exact durable, QA-backed record owned by the active
+        # destination; all existing fitment/product gates remain authoritative.
+        if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+            try:
+                answer_url_images_v69056 = _answer_owned_image_records_v69056(
+                    assistant,
+                    interaction_prompt,
+                    answer,
+                    max_images=3,
+                )
+                if answer_url_images_v69056:
+                    generated_images.extend(answer_url_images_v69056)
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        generated_images
+                    )
+            except Exception as error:
+                diagnostic_log(
+                    "website_answer_url_reconstruction_failed_v69056",
                     workspace=str(assistant),
                     error_type=type(error).__name__,
                     error=str(error)[:500],
