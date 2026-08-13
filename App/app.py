@@ -835,13 +835,14 @@ st.markdown(
 def _render_auth_transition_overlay():
     """Cover stale Streamlit DOM while login/logout reruns are completing."""
     transition = str(st.session_state.get("_auth_transition") or "").strip().lower()
-    if transition not in {"login", "logout"}:
+    if transition not in {"login", "logout", "restore"}:
         return None
 
     message = (
         "Loading AutoTecPro AI System..."
         if transition == "login"
-        else "Signing out..."
+        else "Signing out..." if transition == "logout"
+        else "Restoring your session..."
     )
     placeholder = st.empty()
     placeholder.markdown(
@@ -5819,7 +5820,9 @@ def _load_active_user_record(username):
     return result.data[0] if result.data else None
 
 
-def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None):
+def save_authenticated_session(
+    username, remember=False, workspace=None, conversation_id=None, force=False
+):
     """
     Save a signed browser session so Streamlit websocket/session resets do not
     unexpectedly return an authenticated user to the login page.
@@ -5846,6 +5849,30 @@ def save_authenticated_session(username, remember=False, workspace=None, convers
     if not active_user:
         remove_authenticated_session()
         return
+    recovery_identity_v69059 = (
+        username,
+        bool(remember),
+        active_workspace,
+        str(
+            conversation_id
+            if conversation_id is not None
+            else (
+                st.session_state.get("conversation_id")
+                if active_workspace != "🎨 Graphic Marketing"
+                else ""
+            )
+            or ""
+        ).strip(),
+        _auth_credential_fingerprint(active_user.get("password")),
+    )
+    # CookieController writes are browser component events and can cause an
+    # additional Streamlit rerun. Do not rewrite an identical signed session.
+    if (
+        not force
+        and st.session_state.get("_auth_cookie_identity_v69059")
+        == recovery_identity_v69059
+    ):
+        return False
     payload = {
         "version": 2,
         "username": username,
@@ -5896,6 +5923,8 @@ def save_authenticated_session(username, remember=False, workspace=None, convers
         json.dumps(envelope),
         **cookie_kwargs,
     )
+    st.session_state["_auth_cookie_identity_v69059"] = recovery_identity_v69059
+    return True
 
 
 def remove_authenticated_session():
@@ -6019,6 +6048,13 @@ def restore_login_session():
         restored_conversation_v69026 = str(payload.get("conversation_id") or "").strip()
         if restored_conversation_v69026:
             st.session_state["_restored_conversation_id_v69026"] = restored_conversation_v69026
+        st.session_state["_auth_cookie_identity_v69059"] = (
+            username,
+            bool(payload.get("remember")),
+            restored_workspace,
+            restored_conversation_v69026,
+            credential_fingerprint,
+        )
         diagnostic_log(
             "login_session_restored",
             username=username,
@@ -6357,11 +6393,31 @@ if not bool(st.session_state.get("logged_in")):
         _auth_restore_result_v69043 = restore_login_session()
         if _auth_restore_result_v69043 is True:
             st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
+            st.session_state.pop("_auth_restore_attempt_v69059", None)
 
 if not bool(st.session_state.get("logged_in")):
-    # v69043 production hotfix: an empty or temporarily unavailable first cookie
-    # read must never block a real user behind an authentication overlay. Render
-    # Login immediately; CookieController may still trigger a later safe rerun.
+    # v69059: a transient CookieController read is recovery-pending, not logout.
+    # Keep stale authenticated DOM covered until the component's bounded browser
+    # event completes. Definitive False still renders Login immediately.
+    if _auth_restore_result_v69043 is None:
+        st.session_state["_auth_transition"] = "restore"
+        if _auth_transition_placeholder is None:
+            _auth_transition_placeholder = _render_auth_transition_overlay()
+        restore_attempt_v69059 = int(
+            st.session_state.get("_auth_restore_attempt_v69059", 0) or 0
+        )
+        if restore_attempt_v69059 < 1:
+            st.session_state["_auth_restore_attempt_v69059"] = (
+                restore_attempt_v69059 + 1
+            )
+            diagnostic_log(
+                "auth_session_restore_pending_v69059",
+                attempt=restore_attempt_v69059 + 1,
+            )
+            st.rerun()
+        diagnostic_log("auth_session_restore_exhausted_v69059")
+        st.session_state.pop("_auth_restore_attempt_v69059", None)
+        st.session_state.pop("_auth_transition", None)
     st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
     st.session_state.pop("_auth_transition", None)
     if _auth_transition_placeholder is not None:
@@ -7415,7 +7471,8 @@ def switch_workspace(assistant_name):
 
     st.session_state["_workspace_nav_started_v68880"] = time.perf_counter()
     st.session_state["_workspace_nav_mobile_collapse_v68880"] = time.time_ns()
-    st.session_state["_workspace_auth_refresh_pending_v68880"] = assistant_name
+    # Navigation state is not authentication authority. A signed-cookie rewrite
+    # here caused a second component rerun and a temporary login/re-login cycle.
     st.session_state["_workspace_manual_entry_target_v69022"] = assistant_name
     st.session_state["_workspace_manual_entry_at_v69022"] = time.time()
 
@@ -7483,6 +7540,38 @@ components.html(
     """,
     height=0,
     width=0,
+)
+
+# v69058: keep wide Sales/Marketing comparison tables readable on phones.
+# This is destination- and viewport-scoped; Technical and Graphic rendering are
+# unchanged. Horizontal scrolling preserves every cell without letter wrapping.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 768px) {
+        body[data-atp-current-workspace="sales"] .assistant-bubble table,
+        body[data-atp-current-workspace="marketing"] .assistant-bubble table {
+            display: block !important;
+            width: 100% !important;
+            min-width: 640px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            table-layout: auto !important;
+        }
+        body[data-atp-current-workspace="sales"] .assistant-bubble th,
+        body[data-atp-current-workspace="sales"] .assistant-bubble td,
+        body[data-atp-current-workspace="marketing"] .assistant-bubble th,
+        body[data-atp-current-workspace="marketing"] .assistant-bubble td {
+            min-width: 92px !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+            hyphens: none !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -37036,6 +37125,12 @@ Sales knowledge first. Installation instructions and links should use verified
 Technical knowledge. If sources disagree or the exact configuration is not
 confirmed, state the uncertainty instead of guessing.
 
+For Chevrolet Silverado / GMC Sierra model year 2019, do not assume legacy-body
+or new-body fitment from the year alone. If the staff request does not already
+identify the dashboard/body style or an exact confirmed SKU, ask one concise
+clarifying question before recommending a model. Never choose 836/836-Pro merely
+because the request says 2019.
+
 The application may activate these prompt-routed Sales workflows:
 - AI Compatibility Advisor
 - AI Vehicle Identifier
@@ -42392,7 +42487,7 @@ def save_message(
         elapsed_seconds=round(time.perf_counter() - save_started_at, 3),
     )
 
-@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
 def _load_conversations_cached(
     username,
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
@@ -42449,7 +42544,7 @@ def _load_conversations_cached(
     )
 
 
-@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
 def _conversation_summary_index_cached(
     username,
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
@@ -42462,7 +42557,7 @@ def _conversation_summary_index_cached(
     }
 
 
-@st.cache_data(ttl=60, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
 def _active_conversation_count_cached(username):
     """Return the exact active saved-conversation count for one user."""
     username = str(username or "").strip()
@@ -42525,7 +42620,7 @@ def _require_owned_conversation(conversation_id):
     return username
 
 
-@st.cache_data(ttl=45, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=64, show_spinner=False)
 def _load_messages_cached(username, conversation_id):
     """Load selected-conversation messages with a short cache."""
     username = str(username or "").strip()
@@ -53064,6 +53159,136 @@ def _workspace_image_dedicated_search_query_v69050(
     )
 
 
+def _workspace_image_followup_prompt_v69058(
+    workspace_label, prompt_text, prior_messages=None
+):
+    """Restore fitment only from recent user turns for visual follow-ups.
+
+    A screen size by itself is not vehicle/year authority.  This intentionally
+    ignores assistant answers and is restricted to Sales/Marketing, preserving
+    cross-user isolation through the already user-owned conversation session.
+    """
+    workspace = str(workspace_label or "")
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)):
+        return current
+    if not re.search(
+        r"\b(?:photo|photos|image|images|picture|pictures|show|display|installed)\b",
+        current,
+        flags=re.I,
+    ):
+        return current
+    has_fitment = bool(
+        _website_identity_vehicle_families_v69022(current)
+        or _website_identity_years_v69022(current)
+        or _website_image_product_codes_v69020(current)
+    )
+    if has_fitment:
+        return current
+    messages = list(
+        prior_messages
+        if prior_messages is not None
+        else st.session_state.get("messages") or []
+    )
+    for message in reversed(messages[-12:]):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = re.sub(
+            r"\s+", " ", clean_visible_chat_text(str(visible or ""))
+        ).strip()
+        if not visible or visible == current:
+            continue
+        if (
+            _website_identity_vehicle_families_v69022(visible)
+            or _website_identity_years_v69022(visible)
+            or _website_image_product_codes_v69020(visible)
+        ):
+            return current + "\n\n[USER-CONFIRMED PRIOR FITMENT]\n" + visible[:1200]
+    return current
+
+
+def _workspace_image_url_identity_v69058(value):
+    """Canonical first-party URL identity without weakening path authority."""
+    raw = html.unescape(str(value or "").strip()).rstrip(".,;:")
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return ""
+    host = str(parsed.hostname or "").casefold().rstrip(".")
+    if host == "www.autotecpro.com":
+        host = "autotecpro.com"
+    if host != "autotecpro.com":
+        return ""
+    path = str(parsed.path or "")
+    if not path.casefold().startswith("/wp-content/uploads/"):
+        return ""
+    # Query strings/fragments are delivery details, not learned-asset identity.
+    return "https://autotecpro.com" + path
+
+
+def _workspace_answer_url_records_from_exact_rows_v69058(
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+):
+    """Rebuild answer URLs only from the active destination's exact-store rows."""
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database" if is_sales_workspace(workspace)
+        else "Marketing Database" if is_marketing_workspace(workspace)
+        else ""
+    )
+    if not destination or is_graphic_workspace(workspace):
+        return []
+    answer_urls = {
+        identity
+        for identity in (
+            _workspace_image_url_identity_v69058(raw)
+            for raw in re.findall(
+                r"https://[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)(?:\?[^\s<>\"'\)\]]*)?",
+                clean_visible_chat_text(str(answer_text or "")),
+                flags=re.I,
+            )
+        )
+        if identity
+    }
+    if not answer_urls:
+        return []
+    payloads = _workspace_file_search_payloads_v69051(
+        destination, result_rows, exact_destination_authority=True
+    )
+    output, seen = [], set()
+    for payload in payloads:
+        if str(payload.get("database_choice") or "").strip() != destination:
+            continue
+        identity = _workspace_image_url_identity_v69058(payload.get("image_url"))
+        if not identity or identity not in answer_urls or identity in seen:
+            continue
+        if not bool(
+            str(payload.get("visual_analysis") or "").strip()
+            or str(payload.get("archive_storage_path") or "").strip()
+            or str(payload.get("archive_storage_path_v69017") or "").strip()
+            or dict(payload.get("image_structured_metadata_v69017") or {})
+            or payload.get("website_plain_file_search_image_v69039")
+        ):
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        record["website_exact_store_answer_url_v69058"] = True
+        record["website_answer_url_destination_v69058"] = destination
+        seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    return output
+
+
 def _workspace_image_dedicated_file_search_results_v69050(
     workspace_label, prompt_text, answer_text=""
 ):
@@ -53128,7 +53353,9 @@ def _workspace_automatic_image_recovery_v69050(
         return []
     if is_graphic_workspace(workspace):
         return []
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = _workspace_image_followup_prompt_v69058(
+        workspace, re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    )
     answer = re.sub(
         r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
     ).strip()
@@ -53167,6 +53394,17 @@ def _workspace_automatic_image_recovery_v69050(
     )
     diagnostic_log(
         "workspace_image_post_gate_dedicated_v69050",
+        workspace=workspace,
+        result_count=len(dedicated_rows),
+        recovered=len(recovered or []),
+    )
+    if recovered:
+        return recovered
+    recovered = _workspace_answer_url_records_from_exact_rows_v69058(
+        workspace, prompt, answer, dedicated_rows, max_images=max_images
+    )
+    diagnostic_log(
+        "workspace_exact_store_answer_url_bridge_v69058",
         workspace=workspace,
         result_count=len(dedicated_rows),
         recovered=len(recovered or []),
@@ -53212,8 +53450,9 @@ def _answer_owned_image_records_v69056(
             or not str(parsed.path or "").casefold().startswith("/wp-content/uploads/")
         ):
             continue
-        if url not in urls:
-            urls.append(url)
+        identity_v69058 = _workspace_image_url_identity_v69058(url)
+        if identity_v69058 and identity_v69058 not in urls:
+            urls.append(identity_v69058)
     if not urls:
         return []
 
@@ -53230,7 +53469,7 @@ def _answer_owned_image_records_v69056(
         if str(payload.get("database_choice") or "").strip() != destination:
             continue
         image_url = str(payload.get("image_url") or "").strip()
-        if image_url not in urls:
+        if _workspace_image_url_identity_v69058(image_url) not in urls:
             continue
         has_prior_qa = bool(
             str(payload.get("visual_analysis") or "").strip()
@@ -67122,37 +67361,16 @@ st.markdown(
 )
 
 
-# v68880: refresh the signed workspace cookie only after the destination UI has
-# been emitted. This preserves reconnect recovery while removing the cookie
-# component write from the workspace-navigation callback/critical paint path.
+# v69059: consume one legacy pending flag from pre-v69059 browser sessions but
+# do not rewrite authentication during workspace navigation.
 _pending_workspace_auth_refresh_v68880 = str(
     st.session_state.pop("_workspace_auth_refresh_pending_v68880", "") or ""
 ).strip()
 if _pending_workspace_auth_refresh_v68880:
-    _workspace_cookie_started_v68880 = time.perf_counter()
-    username_v68880 = str(st.session_state.get("username") or "").strip()
-    if username_v68880:
-        try:
-            save_authenticated_session(
-                username_v68880,
-                remember=bool(
-                    st.session_state.get("_atp_session_remembered")
-                ),
-                workspace=_pending_workspace_auth_refresh_v68880,
-            )
-            diagnostic_log(
-                "workspace_auth_refresh_deferred_v68880",
-                workspace=_pending_workspace_auth_refresh_v68880,
-                elapsed_seconds=round(
-                    time.perf_counter() - _workspace_cookie_started_v68880,
-                    4,
-                ),
-            )
-        except Exception as error:
-            diagnostic_log(
-                "workspace_auth_refresh_failed",
-                error=str(error),
-            )
+    diagnostic_log(
+        "workspace_auth_refresh_suppressed_v69059",
+        workspace=_pending_workspace_auth_refresh_v68880,
+    )
 
 # v69023: only after the destination UI and deferred workspace-cookie refresh
 # have been emitted do we release the global first-render quarantine. This makes
