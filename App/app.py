@@ -52298,6 +52298,91 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
     return payloads_out
 
 
+def _website_durable_payloads_for_supporting_pages_v69045(result_rows):
+    """Hydrate durable Technical images from exact answer-supporting website pages.
+
+    File-search chunks can contain the page text and source URL but omit the later
+    IMAGE block. This reconstructs candidates from the durable index for only those
+    exact cited pages. It grants no publication authority: all existing resolved
+    identity, vehicle/year, role, topic and final gates still run afterward.
+    """
+    source_scores = {}
+    full_reads = set()
+    ordered = sorted(
+        [row for row in (result_rows or []) if isinstance(row, dict)],
+        key=lambda row: float(row.get("score") or 0.0),
+        reverse=True,
+    )
+    for row in ordered[:12]:
+        filename = str(row.get("filename") or "").strip()
+        file_id = str(row.get("file_id") or "").strip()
+        text_value = str(row.get("text") or "")
+        if filename and not filename.startswith("website_"):
+            continue
+        explicit_destinations_v69045 = {
+            str(value or "").strip()
+            for value in re.findall(r"(?im)^Destination\s*:\s*([^\r\n]+)", text_value)
+        }
+        if explicit_destinations_v69045 and explicit_destinations_v69045 != {"Technical Support Database"}:
+            continue
+        candidates = [text_value]
+        if file_id and (
+            not re.search(r"(?im)^(?:Requested URL|Final source URL)\s*:\s*https?://", text_value)
+            or not re.search(r"(?im)^Destination\s*:\s*Technical Support Database\s*$", text_value)
+        ):
+            if file_id not in full_reads:
+                full_reads.add(file_id)
+                candidates.append(str(_website_file_full_text_v69012(file_id) or ""))
+        combined = "\n".join(candidates)
+        if not re.search(r"(?im)^Destination\s*:\s*Technical Support Database\s*$", combined):
+            continue
+        for raw_url in re.findall(
+            r"(?im)^(?:Requested URL|Final source URL)\s*:\s*(https?://\S+)",
+            combined,
+        ):
+            try:
+                identity = canonical_website_url_identity(raw_url.rstrip(".,;"))
+            except Exception:
+                continue
+            source_scores[identity] = max(
+                float(source_scores.get(identity) or 0.0),
+                float(row.get("score") or 0.0),
+            )
+    if not source_scores:
+        return []
+
+    output = []
+    seen = set()
+    for raw_payload in _website_image_index_rows_v68883() or []:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "") != "Technical Support Database":
+            continue
+        source_page = str(payload.get("source_page") or "").strip()
+        if not source_page:
+            continue
+        try:
+            identity = canonical_website_url_identity(source_page)
+        except Exception:
+            continue
+        if identity not in source_scores:
+            continue
+        key = (
+            str(payload.get("image_sha256") or "").strip().lower()
+            or str(payload.get("image_url") or "").strip()
+        )
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        payload["_technical_file_search_extra_v69032"] = True
+        payload["_technical_supporting_page_hydration_v69045"] = True
+        payload["_technical_file_search_score_v69032"] = float(source_scores[identity])
+        output.append(payload)
+    return output
+
+
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
     """Return QA-approved durable payloads for exactly one non-Graphic database."""
@@ -53752,6 +53837,7 @@ def save_website_knowledge_to_destinations_v69029(
     reviewed_content,
     include_images=True,
     selected_image_urls=None,
+    shared_analysis_override_v69045=None,
 ):
     """Save one reviewed extraction to one or all supported website databases.
 
@@ -53765,7 +53851,10 @@ def save_website_knowledge_to_destinations_v69029(
     for destination in destinations:
         _website_database_vector_store_v69029(destination)
 
-    if include_images:
+    if include_images and isinstance(shared_analysis_override_v69045, dict):
+        shared_analysis = dict(shared_analysis_override_v69045)
+        shared_analysis["thin_html_analysis_reused_v69045"] = True
+    elif include_images:
         # Technical Support is the authoritative durable image-QA/index source.
         # Reuse that one analysis for All Databases so same-URL resubmits can reuse
         # existing byte-identical QA instead of re-running provider vision three times.
@@ -53819,6 +53908,67 @@ def save_website_knowledge_to_destinations_v69029(
         "completed": len(results) == len(destinations) and not failures,
         "partial_success": bool(results) and bool(failures),
     }
+
+
+WEBSITE_THIN_HTML_MAX_CHARS_V69045 = 1200
+WEBSITE_THIN_HTML_MAX_WORDS_V69045 = 180
+
+
+def _website_thin_html_v69045(extraction, reviewed_content=""):
+    """Identify image-led pages without changing ordinary HTML ingestion."""
+    content = clean_extracted_website_text(
+        reviewed_content if reviewed_content is not None else extraction.get("content")
+    )
+    return bool(
+        str(extraction.get("page_type_v69024") or "").strip() == "woocommerce_product"
+        and list(extraction.get("image_candidates") or [])
+        and (
+            len(content) < WEBSITE_THIN_HTML_MAX_CHARS_V69045
+            or len(content.split()) < WEBSITE_THIN_HTML_MAX_WORDS_V69045
+        )
+    )
+
+
+def _website_image_knowledge_summary_v69045(extraction, image_analysis):
+    """Build reviewer-visible product facts from already QA-approved image evidence."""
+    images = [item for item in (image_analysis or {}).get("images", []) if isinstance(item, dict)]
+    if not images:
+        return ""
+    rows = []
+    seen = set()
+    for item in images:
+        structured = dict(item.get("image_structured_metadata_v69017") or {})
+        visible = structured.get("visible_text") or []
+        if not isinstance(visible, list):
+            visible = [visible]
+        facts = []
+        for label, value in (
+            ("Vehicle make", structured.get("vehicle_make")),
+            ("Vehicle model", structured.get("vehicle_model")),
+            ("Year range", structured.get("year_range")),
+            ("System or variant", structured.get("system_or_variant")),
+            ("Topic", structured.get("topic")),
+            ("Visible text", "; ".join(str(x).strip() for x in visible if str(x).strip())),
+            ("Visual evidence", structured.get("visual_summary") or item.get("analysis")),
+        ):
+            clean = re.sub(r"\s+", " ", str(value or "")).strip()
+            if clean:
+                facts.append(f"{label}: {clean}")
+        if not facts:
+            continue
+        identity = "|".join(x.casefold() for x in facts)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        heading = re.sub(r"\s+", " ", str(item.get("nearest_heading") or "")).strip()
+        rows.append((f"Image section: {heading}" if heading else "Image evidence") + "\n" + "\n".join(facts))
+    if not rows:
+        return ""
+    return (
+        "STRUCTURED PRODUCT CONTENT RECOVERED FROM APPROVED PAGE IMAGES\n"
+        "Evidence status: Image-derived facts; review and edit before final approval.\n\n"
+        + "\n\n".join(rows)
+    )
 
 
 def render_learn_from_website(database_choice):
@@ -54102,12 +54252,93 @@ def render_learn_from_website(database_choice):
                 if include_website_images
                 else None
             )
+            selected_signature_v69045 = hashlib.sha256(
+                json.dumps(
+                    sorted(str(x or "") for x in (selected_image_urls_v68998 or [])),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            recovery_v69045 = dict(extraction.get("thin_html_recovery_v69045") or {})
+            original_thin_content_v69045 = str(
+                extraction.get("thin_html_original_content_v69045")
+                or reviewed_content
+            )
+            cached_analysis_v69045 = None
+            if (
+                include_website_images
+                and recovery_v69045.get("selected_signature") == selected_signature_v69045
+                and recovery_v69045.get("destination_selection") == website_database_choice_v69029
+                and isinstance(recovery_v69045.get("shared_image_analysis"), dict)
+            ):
+                cached_analysis_v69045 = dict(recovery_v69045.get("shared_image_analysis") or {})
+
+            # v69045: image-led WooCommerce pages must be reviewed twice. The first
+            # approval analyzes selected images and returns structured, explicitly
+            # image-derived facts to the review box. Only a second approval can save.
+            if (
+                include_website_images
+                and cached_analysis_v69045 is None
+                and _website_thin_html_v69045(
+                    reviewed_extraction,
+                    original_thin_content_v69045,
+                )
+            ):
+                analysis_label_v69045 = (
+                    "Technical Support Database"
+                    if len(website_destination_labels_v69029) > 1
+                    else website_destination_labels_v69029[0]
+                )
+                recovered_analysis_v69045 = analyze_website_images(
+                    reviewed_extraction,
+                    analysis_label_v69045,
+                    selected_urls=selected_image_urls_v68998,
+                )
+                recovered_summary_v69045 = _website_image_knowledge_summary_v69045(
+                    reviewed_extraction,
+                    recovered_analysis_v69045,
+                )
+                if recovered_summary_v69045:
+                    recovered_content_v69045 = clean_extracted_website_text(
+                        original_thin_content_v69045.rstrip() + "\n\n" + recovered_summary_v69045
+                    )
+                    recovered_extraction_v69045 = dict(extraction)
+                    recovered_extraction_v69045["content"] = recovered_content_v69045
+                    recovered_extraction_v69045["character_count"] = len(recovered_content_v69045)
+                    recovered_extraction_v69045["word_count"] = len(recovered_content_v69045.split())
+                    recovered_extraction_v69045["content_hash"] = hashlib.sha256(
+                        recovered_content_v69045.encode("utf-8")
+                    ).hexdigest()
+                    recovered_extraction_v69045["page_identity_v69024"] = _website_page_identity_v69024(
+                        recovered_extraction_v69045.get("source_url") or recovered_extraction_v69045.get("requested_url") or "",
+                        recovered_extraction_v69045.get("title") or "",
+                        recovered_content_v69045,
+                        recovered_extraction_v69045.get("page_type_v69024") or "",
+                    )
+                    recovered_extraction_v69045["thin_html_original_content_v69045"] = original_thin_content_v69045
+                    recovered_extraction_v69045["thin_html_recovery_v69045"] = {
+                        "selected_signature": selected_signature_v69045,
+                        "destination_selection": website_database_choice_v69029,
+                        "shared_image_analysis": recovered_analysis_v69045,
+                    }
+                    st.session_state["admin_website_extraction"] = recovered_extraction_v69045
+                    st.session_state.admin_website_save_notice = {
+                        "type": "info",
+                        "message": (
+                            "This image-led product page exposed limited HTML text. "
+                            "Structured facts were recovered from the selected approved images. "
+                            "Review or edit the recovered content, then click Approve and Save again."
+                        ),
+                    }
+                    return
+
             multi_save_v69029 = save_website_knowledge_to_destinations_v69029(
                 reviewed_extraction,
                 website_database_choice_v69029,
                 reviewed_content=reviewed_content,
                 include_images=include_website_images,
                 selected_image_urls=selected_image_urls_v68998,
+                shared_analysis_override_v69045=cached_analysis_v69045,
             )
 
         results_v69029 = dict(multi_save_v69029.get("results") or {})
@@ -64910,12 +65141,22 @@ else:
                         extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
                             related_rows_v69032
                         )
+                        extra_payloads_v69032.extend(
+                            _website_durable_payloads_for_supporting_pages_v69045(
+                                related_rows_v69032
+                            )
+                        )
                         if not extra_payloads_v69032:
                             dedicated_rows_v69032 = _website_image_dedicated_file_search_results_v69014(
                                 technical_request_prompt_v68879, answer
                             )
                             extra_payloads_v69032 = _website_file_search_payloads_for_related_evidence_v69032(
                                 dedicated_rows_v69032
+                            )
+                            extra_payloads_v69032.extend(
+                                _website_durable_payloads_for_supporting_pages_v69045(
+                                    dedicated_rows_v69032
+                                )
                             )
                         if extra_payloads_v69032:
                             related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
