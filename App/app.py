@@ -1,4 +1,4 @@
-# AutoTecPro AI v69062 — v69050-locked image authority + coordinated recovery; v69060 stability preserved
+# AutoTecPro AI v69063 — v69050 exact-image authority restored; v69062 stability preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,8 +87,8 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69062"
-ATP_IMAGE_AUTHORITY_V69062 = "v69050-locked+v69062-semantic"
+ATP_BUILD_VERSION_V69062 = "v69063"
+ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69063-role-locked"
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
     or os.environ.get("GIT_COMMIT_SHA")
@@ -448,7 +448,7 @@ def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69062", expanded=False):
+    with st.expander("Production Runtime Audit · v69063", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -39645,12 +39645,10 @@ def _website_image_response_rows_with_empty_retry_v69056(
                     stage="same_store_direct_search",
                 ))
                 return []
-            if coordinator.deadline is not None and not coordinator.within_budget():
-                coordinator.record(_image_recovery_outcome_v69062(
-                    "failed", "direct_search", [], "IMAGE_TIME_BUDGET_EXHAUSTED",
-                    stage="same_store_direct_search",
-                ))
-                return []
+            # v69063: the recovery window limits optional waits, never the
+            # primary same-store authority search.  v69062 returned [] here and
+            # silently converted a retrievable exact image into either no image
+            # or a later generic candidate.
 
     rows = []
     last_error = None
@@ -39664,9 +39662,6 @@ def _website_image_response_rows_with_empty_retry_v69056(
             transient = _image_provider_error_is_transient_v69062(error)
             if not transient or attempt >= 1:
                 break
-            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
-                if coordinator.deadline is not None and coordinator.remaining() <= 0.12:
-                    break
             time.sleep(0.08 * (2 ** attempt))
 
     if last_error is not None:
@@ -39690,12 +39685,9 @@ def _website_image_response_rows_with_empty_retry_v69056(
         coordinator.circuit = {"failures": 0, "open_until": 0.0}
 
     # A successful empty result is different from a provider failure. One direct
-    # vector search in the exact same store is allowed, subject to the turn budget.
-    if not rows and (
-        not isinstance(coordinator, _ImageSearchCoordinatorV69062)
-        or coordinator.deadline is None
-        or coordinator.within_budget()
-    ):
+    # vector search in the exact same store remains authoritative and is not
+    # cancelled by the optional recovery-wait budget.
+    if not rows:
         rows = _website_request_vector_search_rows_v69047(request)
         diagnostic_log(
             str(event_name or "website_image_search")
@@ -50590,6 +50582,8 @@ def _website_image_auto_topic_v68888(prompt_text):
         "protocol",
         "climate",
         "harness",
+        "power_harness",
+        "aux_audio_cable",
         "audio",
         "weather",
         "navigation",
@@ -50709,6 +50703,8 @@ def _website_image_visual_intent_v68883(prompt_text):
         "protocol",
         "climate",
         "harness",
+        "power_harness",
+        "aux_audio_cable",
         "audio",
         "weather",
         "navigation",
@@ -50756,6 +50752,15 @@ def _website_image_query_role_v68884(prompt_text):
         ("dashboard_fitment", (
             "dashboard fitment", "dash fitment", "doesn't fit", "does not fit",
             "fitment",
+        )),
+        # v69063: keep power/main harnesses separate from AUX/audio leads.
+        ("power_harness", (
+            "power harness", "main harness", "main power", "radio harness",
+            "wiring harness",
+        )),
+        ("aux_audio_cable", (
+            "aux cable", "aux wire", "aux lead", "aux connector",
+            "aux dummy",
         )),
         ("audio", (
             "audio", "aux", "bluetooth audio", "sound",
@@ -50849,6 +50854,14 @@ def _website_image_role_score_v68884(query_role, payload):
         "dashboard_fitment": (
             "dashboard fitment", "dash fitment", "fitment",
         ),
+        "power_harness": (
+            "power harness", "main harness", "main power harness",
+            "radio harness", "wiring harness",
+        ),
+        "aux_audio_cable": (
+            "aux cable", "aux wire", "aux lead", "aux connector",
+            "aux dummy", "armrest aux",
+        ),
         "audio": (
             "audio", "aux", "bluetooth audio", "sound",
         ),
@@ -50879,6 +50892,18 @@ def _website_image_role_score_v68884(query_role, payload):
         "dashboard_fitment": (
             "car model", "camera", "weather", "navigation",
         ),
+        "power_harness": (
+            "aux cable", "aux wire", "aux lead", "aux connector",
+            "armrest aux", "rca cable",
+        ),
+        "harness": (
+            "aux cable", "aux wire", "aux lead", "aux connector",
+            "armrest aux",
+        ),
+        "aux_audio_cable": (
+            "power harness", "main harness", "main power harness",
+            "radio harness",
+        ),
     }
 
     aliases = role_aliases.get(query_role, ())
@@ -50896,6 +50921,8 @@ def _website_image_role_score_v68884(query_role, payload):
 
     if conflict_terms and any(term in heading for term in conflict_terms):
         score -= 30.0
+    if conflict_terms and any(term in combined for term in conflict_terms):
+        score -= 40.0
 
     # Car Model/A/C is the most failure-prone section because a generic
     # "Setting Guide" screenshot can sit beside the actual selection screen.
@@ -50937,6 +50964,8 @@ def _website_image_section_gate_v68884(prompt_text, payload):
         "cargo_bed_camera",
         "aftermarket_camera",
         "dashboard_fitment",
+        "power_harness",
+        "aux_audio_cable",
     }:
         return role_score >= 14.0
     return role_score >= 6.0
@@ -50975,6 +51004,17 @@ def _website_image_url_role_v68885(image_url, caption=""):
         ("dashboard_fitment", (
             "dashboard fitment", "dash fitment", "dashfit", "fitment",
         )),
+        ("power_harness", (
+            "power harness", "main harness", "main power", "radio harness",
+            "wiring harness",
+        )),
+        ("aux_audio_cable", (
+            "aux wire", "aux cable", "aux lead", "aux connector",
+            "armrest aux", "aux dummy",
+        )),
+        ("harness", (
+            "harness", "wire harness", "wiring loom",
+        )),
         ("google_apps", (
             "google apps", "google app", "play store", "googleplay",
         )),
@@ -51006,10 +51046,14 @@ def _website_image_roles_conflict_v68885(query_role, asset_role):
         "aftermarket_camera",
         "dashboard_fitment",
         "factory_amp",
+        "audio",
         "google_apps",
         "navigation",
         "weather",
         "carplay_android_auto",
+        "harness",
+        "power_harness",
+        "aux_audio_cable",
     }
 
     query_role_normalized = (
@@ -51017,6 +51061,13 @@ def _website_image_roles_conflict_v68885(query_role, asset_role):
         else query_role
     )
     if query_role_normalized == asset_role:
+        return False
+
+    if query_role in {"harness", "power_harness"} and asset_role in {
+        "harness", "power_harness"
+    }:
+        return False
+    if query_role in {"audio", "aux_audio_cable"} and asset_role == "aux_audio_cable":
         return False
 
     if query_role == "camera_generic" and asset_role in {
@@ -51048,7 +51099,15 @@ def _website_image_effective_query_v68890(prompt_text):
     if _website_image_query_role_v68884(current):
         return current
 
-    if not _website_image_explicit_visual_request_v68888(current):
+    # v69063 also restores the subject for short clarification turns such as
+    # "836-pro", "15.6", or "send it".  v69062 only restored explicit photo
+    # requests, so the established harness/settings role disappeared before
+    # the final image authority gate.
+    short_followup = len(current) <= 120 and len(current.split()) <= 16
+    if not (
+        _website_image_explicit_visual_request_v68888(current)
+        or short_followup
+    ):
         return current
 
     recent_messages = list(st.session_state.get("messages") or [])[-10:]
@@ -51815,12 +51874,9 @@ def _website_file_full_text_coordinated_v69062(file_id, coordinator=None):
     with coordinator._lock:
         if clean_id in coordinator.file_text:
             return str(coordinator.file_text.get(clean_id) or "")
-    if coordinator.deadline is not None and not coordinator.within_budget():
-        coordinator.record(_image_recovery_outcome_v69062(
-            "failed", "full_file", [], "IMAGE_TIME_BUDGET_EXHAUSTED",
-            stage="complete_file_hydration",
-        ))
-        return ""
+    # v69063: exact file-citation hydration is primary evidence, not an optional
+    # fallback.  Cache it once per turn, but never discard it because a UI
+    # latency budget expired while the text answer was streaming.
     value = str(_website_file_full_text_v69012(clean_id) or "")
     with coordinator._lock:
         coordinator.file_text[clean_id] = value
@@ -52215,6 +52271,7 @@ def _website_image_dedicated_file_search_results_v69014(
     prompt_text, answer_text="", coordinator=None
 ):
     """Run universal independent Technical image retrieval after the answer exists."""
+    prompt_text = _website_image_effective_query_v68890(prompt_text)
     if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
         return []
     vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
@@ -52251,6 +52308,7 @@ def _website_file_search_images_v69014(
     prompt_text, answer_text, result_rows, coordinator=None
 ):
     """Recover any answer-related Technical images without a hard-coded topic list."""
+    prompt_text = _website_image_effective_query_v68890(prompt_text)
     if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
         return []
 
@@ -53181,7 +53239,8 @@ def _website_image_related_reference_lookup_v69025r1(prompt_text, answer_text=""
     """
     if str(assistant or "") != "🔧 Technical Support":
         return []
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
     answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
     if not prompt or not answer:
         return []
@@ -53884,7 +53943,8 @@ def _workspace_image_semantic_authority_v69062(
     """
     if not isinstance(payload, dict):
         return False, -1000.0, "INVALID_PAYLOAD", {}
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
     answer = re.sub(
         r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
     ).strip()
@@ -54732,10 +54792,7 @@ def _workspace_automatic_image_recovery_v69050(
     dedicated_rows = [
         dict(row) for row in (prefetched_rows or []) if isinstance(row, dict)
     ]
-    if not dedicated_rows and (
-        not isinstance(coordinator, _ImageSearchCoordinatorV69062)
-        or coordinator.within_budget()
-    ):
+    if not dedicated_rows:
         dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
             workspace, prompt, answer, coordinator=coordinator
         )
@@ -55052,7 +55109,8 @@ def _website_image_related_evidence_lookup_v69025r2(
     """
     if str(assistant or "") != "🔧 Technical Support":
         return []
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
     answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
     if not prompt or not answer:
         return []
@@ -55367,7 +55425,8 @@ def _website_automatic_related_image_recovery_v69049(
     answer-aware dedicated image search that succeeds for explicit photo requests.
     Candidate existence is never treated as publication success.
     """
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
     answer = re.sub(
         r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
     ).strip()
