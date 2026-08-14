@@ -1,4 +1,4 @@
-# AutoTecPro AI v69068 — Stability, bounded prefetch, and executed runtime proof
+# AutoTecPro AI v69070 — Graphic checkpoint deduplication and latency telemetry
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,10 +87,11 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69068"
+ATP_BUILD_VERSION_V69062 = "v69070"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
-    "v69067-semantic-subtitle+v69068-byte-locked"
+    "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
+    "v69070-graphic-checkpoint-dedup"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -113,10 +114,21 @@ ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062 = 3
 ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062 = 30.0
 ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068 = 3.0
 ATP_IMAGE_PREFETCH_MAX_WORKERS_V69068 = 4
+# v69069: every successful website-image promotion increments the destination
+# revision.  Search/negative-cache keys include this value, so a browser session
+# can never reuse rows that point at the superseded vector file after a same-URL
+# update.  The durable-index timestamp revision below protects fresh processes;
+# this process-local counter closes the immediate post-save window.
+_WEBSITE_LEARNING_REVISION_LOCK_V69069 = threading.RLock()
+_WEBSITE_LEARNING_REVISIONS_V69069 = {
+    "Technical Support Database": 0,
+    "Sales Database": 0,
+    "Marketing Database": 0,
+}
 ATP_PROTECTED_GROUP_DIGESTS_V69068 = {
     "graphic": {
-        "count": 607,
-        "sha256": "9b6496e601adb57b21d792b6cabe1c79cfe7abe80b0b1833ddc0cd3e3804bf2f",
+        "count": 611,
+        "sha256": "b118cce1db53f3a8103a8789759d6996ab2a201d9d94474244c0a28bbb67e94e",
     },
     "reference": {
         "count": 67,
@@ -14159,6 +14171,80 @@ def _graphic_v68854_project_prefix(conversation_id=None):
     return f"projects/{username}/{conversation}"
 
 
+GRAPHIC_V69070_CHECKPOINT_REGISTRY_KEY = "graphic_checkpoint_registry_v69070"
+
+
+def _graphic_v69070_checkpoint_scope(conversation_id=None):
+    """Return the authenticated owner scope for checkpoint reuse.
+
+    Reuse is intentionally limited to the same username and conversation.  It is
+    an orchestration optimization only and never changes Graphic role selection,
+    rendering, provider prompts, QA, Reference Mode, or After Install authority.
+    """
+    username = str(st.session_state.get("username") or "").strip().casefold()
+    conversation = str(
+        conversation_id
+        if conversation_id is not None
+        else st.session_state.get("conversation_id") or ""
+    ).strip()
+    return f"{username}:{conversation}" if username and conversation else ""
+
+
+def _graphic_v69070_checkpoint_registry():
+    registry = st.session_state.get(GRAPHIC_V69070_CHECKPOINT_REGISTRY_KEY)
+    if not isinstance(registry, dict):
+        registry = {"project_assets": {}, "metrics": {}}
+        st.session_state[GRAPHIC_V69070_CHECKPOINT_REGISTRY_KEY] = registry
+    if not isinstance(registry.get("project_assets"), dict):
+        registry["project_assets"] = {}
+    if not isinstance(registry.get("metrics"), dict):
+        registry["metrics"] = {}
+    return registry
+
+
+def _graphic_v69070_registered_project_asset(raw_digest, conversation_id=None):
+    """Return a previously confirmed durable project path for identical bytes."""
+    digest = str(raw_digest or "").strip().casefold()
+    scope = _graphic_v69070_checkpoint_scope(conversation_id)
+    if not scope or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return ""
+    record = (
+        _graphic_v69070_checkpoint_registry()
+        .get("project_assets", {})
+        .get(f"{scope}:{digest}")
+    )
+    if not isinstance(record, dict):
+        return ""
+    if str(record.get("scope") or "") != scope:
+        return ""
+    return str(record.get("storage_path") or "").strip()
+
+
+def _graphic_v69070_register_project_asset(raw_digest, storage_path, conversation_id=None):
+    """Remember a storage upload only after that upload completed successfully."""
+    digest = str(raw_digest or "").strip().casefold()
+    path = str(storage_path or "").strip()
+    scope = _graphic_v69070_checkpoint_scope(conversation_id)
+    if not scope or not path or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return False
+    registry = _graphic_v69070_checkpoint_registry()
+    registry["project_assets"][f"{scope}:{digest}"] = {
+        "scope": scope,
+        "sha256": digest,
+        "storage_path": path,
+        "registered_at": time.time(),
+    }
+    # Bound session memory even during unusually long multi-conversation admin use.
+    if len(registry["project_assets"]) > 96:
+        ordered = sorted(
+            registry["project_assets"].items(),
+            key=lambda row: float((row[1] or {}).get("registered_at") or 0.0),
+        )
+        registry["project_assets"] = dict(ordered[-96:])
+    st.session_state[GRAPHIC_V69070_CHECKPOINT_REGISTRY_KEY] = registry
+    return True
+
+
 def _graphic_v68854_persist_project_remote(state=None):
     """Persist exact active Graphic assets without changing generation behavior.
 
@@ -14181,6 +14267,9 @@ def _graphic_v68854_persist_project_remote(state=None):
     snapshot["durable_project_version"] = "v68854"
     snapshot["durable_saved_at"] = time.time()
     remote_assets = []
+    uploaded_assets_v69070 = 0
+    reused_assets_v69070 = 0
+    checkpoint_started_v69070 = time.perf_counter()
 
     assets = []
     for record in snapshot.get("assets") or []:
@@ -14193,13 +14282,25 @@ def _graphic_v68854_persist_project_remote(state=None):
         if asset_id and raw:
             suffix = Path(str(item.get("name") or "image")).suffix.lower() or ".bin"
             storage_path = f"{prefix}/assets/{_graphic_v68848_safe_segment(asset_id, 'asset')}{suffix}"
-            _graphic_v68848_upload_bytes(
-                storage_path,
-                raw,
-                item.get("type") or "application/octet-stream",
-                upsert=True,
+            raw_digest_v69070 = hashlib.sha256(raw).hexdigest()
+            registered_path_v69070 = _graphic_v69070_registered_project_asset(
+                raw_digest_v69070, conversation_id
             )
+            if registered_path_v69070 == storage_path:
+                reused_assets_v69070 += 1
+            else:
+                _graphic_v68848_upload_bytes(
+                    storage_path,
+                    raw,
+                    item.get("type") or "application/octet-stream",
+                    upsert=True,
+                )
+                _graphic_v69070_register_project_asset(
+                    raw_digest_v69070, storage_path, conversation_id
+                )
+                uploaded_assets_v69070 += 1
             item["durable_storage_path_v68854"] = storage_path
+            item["durable_sha256_v69070"] = raw_digest_v69070
             remote_assets.append(asset_id)
         assets.append(item)
     snapshot["assets"] = assets
@@ -14216,6 +14317,11 @@ def _graphic_v68854_persist_project_remote(state=None):
         conversation_id=conversation_id,
         asset_count=len(assets),
         exact_asset_count=len(remote_assets),
+        uploaded_asset_count_v69070=uploaded_assets_v69070,
+        reused_asset_count_v69070=reused_assets_v69070,
+        elapsed_seconds_v69070=round(
+            time.perf_counter() - checkpoint_started_v69070, 4
+        ),
         stage=str(project.get("stage") or ""),
     )
     return True
@@ -14603,6 +14709,9 @@ def _graphic_v68848_store_uploads(job, files):
     """Persist exact retry inputs in Supabase Storage, retaining local spool fallback."""
     prefix = _graphic_v68848_job_prefix(job)
     records = []
+    uploaded_count_v69070 = 0
+    reused_count_v69070 = 0
+    checkpoint_started_v69070 = time.perf_counter()
     local_records = _graphic_spool_upload_records_v68847(files, job.get("job_id"))
     for index, record in enumerate(local_records):
         item = dict(record)
@@ -14611,14 +14720,33 @@ def _graphic_v68848_store_uploads(job, files):
         except Exception:
             raw = b""
         if raw:
-            suffix = Path(item.get("name") or "image").suffix.lower() or ".bin"
-            storage_path = f"{prefix}/inputs/{index:02d}_{item.get('id','')[:16]}{suffix}"
-            try:
-                _graphic_v68848_upload_bytes(storage_path, raw, item.get("type") or "application/octet-stream", upsert=True)
-                item["storage_path"] = storage_path
-            except Exception as error:
-                diagnostic_log("graphic_v68848_input_upload_failed", error=str(error), name=item.get("name"))
+            raw_digest_v69070 = hashlib.sha256(raw).hexdigest()
+            shared_path_v69070 = _graphic_v69070_registered_project_asset(
+                raw_digest_v69070, job.get("conversation_id")
+            )
+            if shared_path_v69070:
+                item["storage_path"] = shared_path_v69070
+                item["shared_project_asset_v69070"] = True
+                item["storage_reuse_source_v69070"] = "same-owner-project-checkpoint"
+                reused_count_v69070 += 1
+            else:
+                suffix = Path(item.get("name") or "image").suffix.lower() or ".bin"
+                storage_path = f"{prefix}/inputs/{index:02d}_{item.get('id','')[:16]}{suffix}"
+                try:
+                    _graphic_v68848_upload_bytes(storage_path, raw, item.get("type") or "application/octet-stream", upsert=True)
+                    item["storage_path"] = storage_path
+                    uploaded_count_v69070 += 1
+                except Exception as error:
+                    diagnostic_log("graphic_v68848_input_upload_failed", error=str(error), name=item.get("name"))
         records.append(item)
+    diagnostic_log(
+        "graphic_v69070_durable_input_checkpoint",
+        job_id=str((job or {}).get("job_id") or ""),
+        input_count=len(records),
+        uploaded_count=uploaded_count_v69070,
+        reused_project_asset_count=reused_count_v69070,
+        elapsed_seconds=round(time.perf_counter() - checkpoint_started_v69070, 4),
+    )
     return records
 
 
@@ -14911,6 +15039,7 @@ def _graphic_v68851_retire_superseded_job(job):
         str(item.get("storage_path") or "")
         for item in (job.get("uploads") or [])
         if isinstance(item, dict)
+        and not bool(item.get("shared_project_asset_v69070"))
     ]
     paths.append(f"{_graphic_v68848_job_prefix(job)}/manifest.json")
     _graphic_v68848_remove_paths(paths)
@@ -15105,7 +15234,12 @@ def _graphic_complete_durable_job_v68844(job):
 
     _graphic_v68848_release_lease(completed)
     _graphic_cleanup_spooled_uploads_v68847(completed.get("uploads") or [])
-    storage_paths = [str(item.get("storage_path") or "") for item in (completed.get("uploads") or []) if isinstance(item, dict)]
+    storage_paths = [
+        str(item.get("storage_path") or "")
+        for item in (completed.get("uploads") or [])
+        if isinstance(item, dict)
+        and not bool(item.get("shared_project_asset_v69070"))
+    ]
     storage_paths += [f"{_graphic_v68848_job_prefix(completed)}/manifest.json", _graphic_v68848_active_pointer_path(completed.get("conversation_id"))]
     _graphic_v68848_remove_paths(storage_paths)
     for key in _graphic_durable_job_keys_v68844(completed.get("conversation_id")):
@@ -39728,8 +39862,12 @@ def _image_recovery_outcome_v69062(
 class _ImageSearchCoordinatorV69062:
     """Per-turn destination-scoped query, hydration and recovery coordinator."""
 
-    def __init__(self, workspace, prompt_text, store_ids, fitment_context, negative_cache=None, circuit=None):
+    def __init__(
+        self, workspace, prompt_text, store_ids, fitment_context,
+        negative_cache=None, circuit=None, index_revision="",
+    ):
         self.workspace = str(workspace or "").strip()
+        self.index_revision = str(index_revision or "unavailable").strip()
         self.prompt_hash = hashlib.sha256(
             _image_normalized_prompt_v69062(prompt_text).encode("utf-8")
         ).hexdigest()[:20]
@@ -39746,6 +39884,7 @@ class _ImageSearchCoordinatorV69062:
                 "prompt": self.prompt_hash,
                 "stores": self.store_hashes,
                 "fitment": self.fitment_hash,
+                "index_revision": self.index_revision,
             }, sort_keys=True).encode("utf-8")
         ).hexdigest()
         self.turn_id = self.turn_key[:16]
@@ -39814,6 +39953,11 @@ def _new_image_search_coordinator_v69062(workspace, prompt_text, store_ids):
         circuit = dict(st.session_state.get("_image_provider_circuit_v69062") or {})
     except Exception:
         negative_cache, circuit = {}, {}
+    destination_v69069 = _website_workspace_destination_v69069(workspace)
+    index_revision_v69069 = (
+        _website_destination_revision_v69069(destination_v69069)
+        if destination_v69069 else "unconfigured"
+    )
     coordinator = _ImageSearchCoordinatorV69062(
         workspace,
         prompt_text,
@@ -39821,6 +39965,7 @@ def _new_image_search_coordinator_v69062(workspace, prompt_text, store_ids):
         _image_fitment_context_v69062(prompt_text),
         negative_cache=negative_cache,
         circuit=circuit,
+        index_revision=index_revision_v69069,
     )
     _runtime_audit_update_v69062(
         active_workspace=str(workspace or ""),
@@ -39897,7 +40042,14 @@ def _website_image_response_rows_with_empty_retry_v69056(
     """
     request_signature = _image_request_signature_v69062(request)
     scoped_signature = request_signature
+    negative_signature_v69069 = request_signature
     if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        negative_signature_v69069 = hashlib.sha256(
+            (
+                str(coordinator.index_revision or "unavailable")
+                + "|" + request_signature
+            ).encode("utf-8")
+        ).hexdigest()
         scoped_signature = hashlib.sha256(
             f"{coordinator.turn_key}|{request_signature}".encode("utf-8")
         ).hexdigest()
@@ -39912,7 +40064,7 @@ def _website_image_response_rows_with_empty_retry_v69056(
                     stage="same_store_direct_search",
                 ))
                 return cached
-            negative = coordinator.negative_cache.get(request_signature)
+            negative = coordinator.negative_cache.get(negative_signature_v69069)
             if isinstance(negative, dict) and float(negative.get("expires_at") or 0.0) > time.time():
                 coordinator.search_rows[scoped_signature] = []
                 coordinator.record(_image_recovery_outcome_v69062(
@@ -39989,9 +40141,10 @@ def _website_image_response_rows_with_empty_retry_v69056(
         with coordinator._lock:
             coordinator.search_rows[scoped_signature] = rows
             if not rows:
-                coordinator.negative_cache[request_signature] = {
+                coordinator.negative_cache[negative_signature_v69069] = {
                     "expires_at": time.time() + ATP_IMAGE_NEGATIVE_CACHE_TTL_SECONDS_V69062,
                     "workspace": coordinator.workspace,
+                    "index_revision": coordinator.index_revision,
                 }
         coordinator.record(_image_recovery_outcome_v69062(
             "recovered" if rows else "empty",
@@ -50886,6 +51039,114 @@ def _website_image_index_rows_for_page_v69003(extraction, database_choice):
     return matches, True
 
 
+def _website_expected_image_issues_v69069(
+    extraction, database_choice, image_items,
+):
+    """Return the exact page-scoped identities expected after one save."""
+    expected = set()
+    for item in image_items or []:
+        if not isinstance(item, dict):
+            continue
+        payload = _website_image_index_record_v68883(
+            extraction, database_choice, item
+        )
+        expected.add(_website_image_scoped_issue_v69003(payload))
+    return expected
+
+
+def _website_image_snapshot_complete_v69069(
+    extraction, database_choice, image_items,
+):
+    """Prove an exact-package resubmission needs no image mutation.
+
+    v69068 re-archived and rewrote every image even when the vector filename was
+    already present.  A transient archive failure could therefore damage an
+    otherwise healthy page.  v69069 makes a byte-identical resubmission a true
+    no-op once every expected image has a verified archive promotion marker.
+    """
+    entries, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    if not loaded_ok:
+        return False, {
+            "loaded": 0, "expected": 0, "reason": "INDEX_LOAD_FAILED",
+        }
+    expected = _website_expected_image_issues_v69069(
+        extraction, database_choice, image_items
+    )
+    by_issue = {
+        str((entry.get("row") or {}).get("issue") or "").strip():
+        dict(entry.get("payload") or {})
+        for entry in entries if isinstance(entry, dict)
+    }
+    if set(by_issue) != expected:
+        return False, {
+            "loaded": len(by_issue), "expected": len(expected),
+            "reason": "IMAGE_SET_CHANGED",
+        }
+    for issue in expected:
+        payload = dict(by_issue.get(issue) or {})
+        if not bool(payload.get("archive_verified_v69069")):
+            return False, {
+                "loaded": len(by_issue), "expected": len(expected),
+                "reason": "ARCHIVE_NOT_VERIFIED_V69069",
+            }
+        if not str(payload.get("archive_storage_path") or "").strip():
+            return False, {
+                "loaded": len(by_issue), "expected": len(expected),
+                "reason": "ARCHIVE_PATH_MISSING",
+            }
+    return True, {
+        "loaded": len(by_issue), "expected": len(expected),
+        "reason": "EXACT_IMAGE_SNAPSHOT_VERIFIED",
+    }
+
+
+def _website_restore_image_snapshot_v69069(
+    extraction, database_choice, snapshot_entries,
+):
+    """Restore prior durable rows after a pre-promotion indexing failure."""
+    prior_payloads = [
+        dict(entry.get("payload") or {})
+        for entry in (snapshot_entries or [])
+        if isinstance(entry, dict) and isinstance(entry.get("payload"), dict)
+    ]
+    try:
+        for payload in prior_payloads:
+            if not _website_image_index_upsert_v68883(payload):
+                return False
+    except Exception:
+        return False
+
+    desired = {
+        _website_image_scoped_issue_v69003(payload)
+        for payload in prior_payloads
+    }
+    current, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    if not loaded_ok:
+        return False
+    try:
+        for entry in current:
+            row = dict(entry.get("row") or {})
+            issue = str(row.get("issue") or "").strip()
+            row_id = str(row.get("id") or "").strip()
+            if issue in desired or not row_id:
+                continue
+            supabase.table("learned_knowledge").delete().eq(
+                "id", row_id
+            ).execute()
+    except Exception:
+        return False
+    try:
+        _website_image_index_rows_v68883.clear()
+        _workspace_durable_image_payloads_v69041.clear()
+    except Exception:
+        pass
+    return True
+
+
 def _website_archive_path_is_referenced_v69003(archive_path):
     """Fail closed: remove a stored image only when no other website-image row references it."""
     target = str(archive_path or "").strip()
@@ -51020,20 +51281,41 @@ def _website_archive_and_index_images_v68883(
     database_choice,
     image_items,
 ):
-    """Best-effort archive + durable metadata index for approved website images.
+    """Atomically promote one page's approved image set.
 
-    Text/vector-store saving remains authoritative and must not fail merely because
-    private image archival/index persistence is temporarily unavailable.
+    Every archive is downloaded, uploaded and read-back verified before any
+    durable row is changed.  Only after every replacement row is present are
+    stale rows detached.  Therefore a same-URL retry can never destroy the last
+    working structured image record.  Cleanup failure may leave a harmless old
+    row temporarily, but cannot suppress the newly verified image set.
     """
-    indexed = 0
-    archived = 0
-    failures = 0
+    items = [dict(item) for item in (image_items or []) if isinstance(item, dict)]
+    snapshot, snapshot_loaded = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    stats = {
+        "expected": len(items),
+        "prepared": 0,
+        "indexed": 0,
+        "archived": 0,
+        "archive_failures": 0,
+        "index_failures": 0,
+        "failures": 0,
+        "stale_deleted": 0,
+        "archive_deleted": 0,
+        "cleanup_pending": False,
+        "rollback_restored": False,
+        "completed": False,
+        "transaction_version_v69069": "atomic-archive-before-index",
+    }
+    if not snapshot_loaded:
+        stats["failures"] = 1
+        stats["index_failures"] = 1
+        stats["reason_code"] = "PRIOR_IMAGE_SNAPSHOT_UNAVAILABLE"
+        return stats
 
-    for image_item in image_items or []:
-        if not isinstance(image_item, dict):
-            continue
-        archive_path = ""
-        archive_mime = ""
+    prepared = []
+    for image_item in items:
         try:
             downloaded = _download_public_website_image(
                 image_item.get("url"),
@@ -51041,28 +51323,20 @@ def _website_archive_and_index_images_v68883(
                 technical_context=bool(image_item.get("technical_context")),
             )
             raw = bytes(downloaded.get("bytes") or b"")
-            archive_mime = str(downloaded.get("mime_type") or "image/jpeg")
-            if raw:
-                archive_path = _website_image_archive_path_v68883(
-                    extraction,
-                    image_item,
-                    archive_mime,
-                )
-                _product_library_storage_upload(
-                    archive_path,
-                    raw,
-                    archive_mime,
-                )
-                archived += 1
-        except Exception as error:
-            diagnostic_log(
-                "website_image_archive_failed_v68883",
-                image_url=str(image_item.get("url") or "")[:500],
-                error_type=type(error).__name__,
-                error=str(error)[:500],
+            if not raw:
+                raise ValueError("Downloaded image is empty.")
+            archive_mime = str(
+                downloaded.get("mime_type") or "image/jpeg"
+            ).strip()
+            archive_path = _website_image_archive_path_v68883(
+                extraction, image_item, archive_mime
             )
-
-        try:
+            _product_library_storage_upload(archive_path, raw, archive_mime)
+            verified_raw = bytes(_website_storage_bytes_v68883(archive_path) or b"")
+            if not verified_raw:
+                raise RuntimeError("Archived image read-back returned no bytes.")
+            if hashlib.sha256(verified_raw).hexdigest() != hashlib.sha256(raw).hexdigest():
+                raise RuntimeError("Archived image read-back checksum mismatch.")
             payload = _website_image_index_record_v68883(
                 extraction,
                 database_choice,
@@ -51070,27 +51344,107 @@ def _website_archive_and_index_images_v68883(
                 archive_path=archive_path,
                 archive_mime_type=archive_mime,
             )
-            if _website_image_index_upsert_v68883(payload):
-                indexed += 1
+            payload["archive_verified_v69069"] = True
+            payload["archive_verified_at_v69069"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+            payload["archive_sha256_v69069"] = hashlib.sha256(raw).hexdigest()
+            prepared.append(payload)
+            stats["archived"] += 1
+            stats["prepared"] += 1
         except Exception as error:
-            failures += 1
+            stats["archive_failures"] += 1
+            stats["failures"] += 1
             diagnostic_log(
-                "website_image_index_save_failed_v68883",
+                "website_image_archive_failed_v69069",
                 image_url=str(image_item.get("url") or "")[:500],
                 error_type=type(error).__name__,
                 error=str(error)[:500],
+                promotion_blocked=True,
             )
+
+    if stats["failures"] or len(prepared) != len(items):
+        stats["reason_code"] = "ARCHIVE_PREPARATION_FAILED"
+        return stats
+
+    try:
+        for payload in prepared:
+            if not _website_image_index_upsert_v68883(payload):
+                raise RuntimeError("Image-index upsert returned false.")
+            stats["indexed"] += 1
+    except Exception as error:
+        stats["index_failures"] += 1
+        stats["failures"] += 1
+        stats["rollback_restored"] = bool(
+            _website_restore_image_snapshot_v69069(
+                extraction, database_choice, snapshot
+            )
+        )
+        stats["reason_code"] = (
+            "INDEX_PROMOTION_FAILED_ROLLBACK_RESTORED"
+            if stats["rollback_restored"]
+            else "INDEX_PROMOTION_FAILED_ROLLBACK_UNCONFIRMED"
+        )
+        diagnostic_log(
+            "website_image_index_promotion_failed_v69069",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+            rollback_restored=stats["rollback_restored"],
+        )
+        return stats
+
+    promoted_issues = {
+        _website_image_scoped_issue_v69003(payload) for payload in prepared
+    }
+    candidate_archive_paths = set()
+    for entry in snapshot:
+        row = dict(entry.get("row") or {})
+        payload = dict(entry.get("payload") or {})
+        issue = str(row.get("issue") or "").strip()
+        row_id = str(row.get("id") or "").strip()
+        if issue in promoted_issues or not row_id:
+            continue
+        try:
+            supabase.table("learned_knowledge").delete().eq(
+                "id", row_id
+            ).execute()
+            stats["stale_deleted"] += 1
+            archive_path = str(payload.get("archive_storage_path") or "").strip()
+            if archive_path:
+                candidate_archive_paths.add(archive_path)
+        except Exception as error:
+            stats["cleanup_pending"] = True
+            diagnostic_log(
+                "website_image_stale_row_cleanup_pending_v69069",
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+                row_id=row_id,
+            )
+
+    for archive_path in sorted(candidate_archive_paths):
+        referenced, checked = _website_archive_path_is_referenced_v69003(
+            archive_path
+        )
+        if not checked or referenced:
+            stats["cleanup_pending"] = stats["cleanup_pending"] or not checked
+            continue
+        try:
+            _product_library_storage_remove([archive_path])
+            stats["archive_deleted"] += 1
+        except Exception:
+            stats["cleanup_pending"] = True
 
     try:
         _website_image_index_rows_v68883.clear()
+        _workspace_durable_image_payloads_v69041.clear()
     except Exception:
         pass
-
-    return {
-        "indexed": indexed,
-        "archived": archived,
-        "failures": failures,
-    }
+    stats["completed"] = True
+    stats["reason_code"] = (
+        "PROMOTED_CLEANUP_PENDING"
+        if stats["cleanup_pending"] else "PROMOTED_ATOMICALLY"
+    )
+    return stats
 
 
 @st.cache_data(ttl=300, max_entries=4, show_spinner=False)
@@ -51122,6 +51476,61 @@ def _website_image_index_rows_v68883():
         ):
             parsed.append(payload)
     return parsed
+
+
+def _website_destination_revision_v69069(database_choice):
+    """Return a non-sensitive revision for one destination's learned images."""
+    destination = str(database_choice or "").strip()
+    if destination not in _WEBSITE_LEARNING_REVISIONS_V69069:
+        return "unconfigured"
+    try:
+        rows = [
+            dict(payload) for payload in (_website_image_index_rows_v68883() or [])
+            if isinstance(payload, dict)
+            and str(payload.get("database_choice") or "").strip() == destination
+        ]
+    except Exception:
+        rows = []
+    latest = max((str(row.get("indexed_at") or "") for row in rows), default="")
+    with _WEBSITE_LEARNING_REVISION_LOCK_V69069:
+        runtime_revision = int(
+            _WEBSITE_LEARNING_REVISIONS_V69069.get(destination) or 0
+        )
+    packed = json.dumps(
+        {
+            "destination": destination,
+            "count": len(rows),
+            "latest": latest,
+            "runtime_revision": runtime_revision,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(packed.encode("utf-8")).hexdigest()[:20]
+
+
+def _website_bump_destination_revision_v69069(database_choice):
+    """Advance one destination revision only after a verified promotion."""
+    destination = str(database_choice or "").strip()
+    if destination not in _WEBSITE_LEARNING_REVISIONS_V69069:
+        return "unconfigured"
+    with _WEBSITE_LEARNING_REVISION_LOCK_V69069:
+        _WEBSITE_LEARNING_REVISIONS_V69069[destination] = (
+            int(_WEBSITE_LEARNING_REVISIONS_V69069.get(destination) or 0) + 1
+        )
+    return _website_destination_revision_v69069(destination)
+
+
+def _website_workspace_destination_v69069(workspace_label):
+    value = str(workspace_label or "").strip()
+    if value == "🔧 Technical Support":
+        return "Technical Support Database"
+    if is_sales_workspace(value):
+        return "Sales Database"
+    if is_marketing_workspace(value):
+        return "Marketing Database"
+    return ""
 
 
 def _website_image_query_context_v68883(prompt_text):
@@ -52959,7 +53368,12 @@ def _technical_image_prefetch_cache_key_v69016(prompt_text):
     """Session-local cache key for raw prefetch evidence; never approves an image."""
     normalized = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     stores = "|".join(_configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID))
-    return hashlib.sha256((stores + "\n" + normalized).encode("utf-8")).hexdigest()
+    revision_v69069 = _website_destination_revision_v69069(
+        "Technical Support Database"
+    )
+    return hashlib.sha256(
+        (stores + "\n" + revision_v69069 + "\n" + normalized).encode("utf-8")
+    ).hexdigest()
 
 
 def _technical_image_prefetch_cache_get_v69016(prompt_text, ttl_seconds=300):
@@ -56373,6 +56787,48 @@ def _dedupe_website_chat_images_v68883(images):
     return output
 
 
+def _website_invalidate_learning_caches_v69069(database_choices):
+    """Invalidate every cache that can retain a superseded website file."""
+    destinations = {
+        str(value or "").strip() for value in (database_choices or [])
+        if str(value or "").strip() in _WEBSITE_LEARNING_REVISIONS_V69069
+    }
+    for cache_function_name in (
+        "_website_image_index_rows_v68883",
+        "_workspace_durable_image_payloads_v69041",
+        "_website_file_full_text_v69012",
+        "_vector_store_file_catalog_v69040",
+        "vector_store_has_filename",
+    ):
+        try:
+            cache_function = globals().get(cache_function_name)
+            clear_method = getattr(cache_function, "clear", None)
+            if callable(clear_method):
+                clear_method()
+        except Exception:
+            pass
+    try:
+        for key in (
+            "_technical_image_prefetch_cache_v69016",
+            "_image_negative_cache_v69062",
+            "_technical_file_search_results_v69012",
+        ):
+            st.session_state.pop(key, None)
+    except Exception:
+        pass
+    revisions = {}
+    for destination in sorted(destinations):
+        revisions[destination] = _website_bump_destination_revision_v69069(
+            destination
+        )
+    diagnostic_log(
+        "website_learning_cache_revision_advanced_v69069",
+        destinations=sorted(destinations),
+        revision_count=len(revisions),
+    )
+    return revisions
+
+
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -56435,24 +56891,58 @@ def save_website_knowledge_package(
     # Stable exact duplicate check happens before package timestamp can vary.
     if vector_store_has_filename(selected_vector_store_id, filename):
         if include_images:
-            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                extraction,
-                database_choice,
-                list(image_analysis.get("images") or []),
-            )
-            website_image_sync_v69003 = {
-                "completed": False,
-                "skipped_reason": "image-analysis-or-index-failure",
-            }
-            if (
-                int(image_analysis.get("failures") or 0) == 0
-                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
-            ):
-                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+            exact_images_v69069 = list(image_analysis.get("images") or [])
+            snapshot_complete_v69069, snapshot_detail_v69069 = (
+                _website_image_snapshot_complete_v69069(
                     extraction,
                     database_choice,
-                    list(image_analysis.get("images") or []),
+                    exact_images_v69069,
                 )
+            )
+            if snapshot_complete_v69069:
+                # A true no-op: do not rewrite archives, index rows, or caches.
+                website_image_index_stats_v68883 = {
+                    "indexed": len(exact_images_v69069),
+                    "archived": len(exact_images_v69069),
+                    "failures": 0,
+                    "completed": True,
+                    "exact_duplicate_noop_v69069": True,
+                    "snapshot": snapshot_detail_v69069,
+                }
+                website_image_sync_v69003 = {
+                    "completed": True,
+                    "skipped_reason": "exact-image-snapshot-noop-v69069",
+                }
+                image_records_repaired_v69069 = False
+            else:
+                if int(image_analysis.get("failures") or 0):
+                    raise RuntimeError(
+                        "Same-URL image repair was blocked because image analysis "
+                        "did not complete. The previously working package was preserved."
+                    )
+                website_image_index_stats_v68883 = (
+                    _website_archive_and_index_images_v68883(
+                        extraction,
+                        database_choice,
+                        exact_images_v69069,
+                    )
+                )
+                if not bool(website_image_index_stats_v68883.get("completed")):
+                    raise RuntimeError(
+                        "Same-URL image repair did not pass archive/index verification. "
+                        "The previously working package was preserved."
+                    )
+                website_image_sync_v69003 = {
+                    "completed": True,
+                    "reason_code": website_image_index_stats_v68883.get(
+                        "reason_code"
+                    ),
+                    "cleanup_pending": bool(
+                        website_image_index_stats_v68883.get("cleanup_pending")
+                    ),
+                }
+                _website_invalidate_learning_caches_v69069([database_choice])
+                image_records_repaired_v69069 = True
         else:
             website_image_index_stats_v68883 = {
                 "indexed": 0, "archived": 0, "failures": 0,
@@ -56462,17 +56952,21 @@ def save_website_knowledge_package(
                 "completed": True,
                 "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
             }
+            image_records_repaired_v69069 = False
         return {
             "already_saved": True,
             "updated_existing_url": False,
             "replaced_file_count": 0,
-            "replacement_cleanup_pending": False,
+            "replacement_cleanup_pending": bool(
+                website_image_index_stats_v68883.get("cleanup_pending")
+            ),
             "file_id": "",
             "filename": filename,
             "images": list(image_analysis.get("images") or []),
             "image_analysis": image_analysis,
             "website_image_index_v68883": website_image_index_stats_v68883,
             "website_image_sync_v69003": website_image_sync_v69003,
+            "image_records_repaired_v69069": image_records_repaired_v69069,
         }
 
     # Discover all prior versions for this exact URL in the selected database.
@@ -56541,28 +57035,43 @@ def save_website_knowledge_package(
 
     if str(indexing_status_v68892 or "").lower() == "completed":
         if include_images:
+            if int(image_analysis.get("failures") or 0):
+                _website_remove_vector_file_v68892(
+                    selected_vector_store_id, file_id
+                )
+                raise RuntimeError(
+                    "Replacement image analysis did not complete. The new vector "
+                    "package was rolled back and the prior package was preserved."
+                )
             website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
                 extraction,
                 database_choice,
                 list(image_analysis.get("images") or []),
             )
             image_sync_safe_v69003 = (
-                int(image_analysis.get("failures") or 0) == 0
-                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
+                int(website_image_index_stats_v68883.get("failures") or 0) == 0
+                and bool(website_image_index_stats_v68883.get("completed"))
+                and int(website_image_index_stats_v68883.get("indexed") or 0)
+                == len(list(image_analysis.get("images") or []))
             )
             if image_sync_safe_v69003:
-                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-                    extraction,
-                    database_choice,
-                    list(image_analysis.get("images") or []),
-                )
-            else:
                 website_image_sync_v69003 = {
-                    "completed": False,
-                    "skipped_reason": "image-analysis-or-index-failure",
-                    "image_analysis_failures": int(image_analysis.get("failures") or 0),
-                    "image_index_failures": int(website_image_index_stats_v68883.get("failures") or 0),
+                    "completed": True,
+                    "reason_code": website_image_index_stats_v68883.get(
+                        "reason_code"
+                    ),
+                    "cleanup_pending": bool(
+                        website_image_index_stats_v68883.get("cleanup_pending")
+                    ),
                 }
+            else:
+                _website_remove_vector_file_v68892(
+                    selected_vector_store_id, file_id
+                )
+                raise RuntimeError(
+                    "Replacement image archive/index verification failed. The new "
+                    "vector package was rolled back and the prior package was preserved."
+                )
         else:
             website_image_index_stats_v68883 = {
                 "indexed": 0, "archived": 0, "failures": 0,
@@ -56587,12 +57096,21 @@ def save_website_knowledge_package(
                     replaced_file_count_v68892 += 1
                 else:
                     cleanup_pending_v68892 = True
-        elif prior_same_url_files_v68892:
-            cleanup_pending_v68892 = True
-    elif prior_same_url_files_v68892:
-        # Fail safe: keep the old version and old image index until the new
-        # replacement package is confirmed indexed.
-        cleanup_pending_v68892 = True
+        cleanup_pending_v68892 = bool(
+            cleanup_pending_v68892
+            or website_image_index_stats_v68883.get("cleanup_pending")
+        )
+        _website_invalidate_learning_caches_v69069([database_choice])
+    else:
+        # A new package that never reached completed indexing is not eligible to
+        # coexist with or replace the prior working package.
+        _website_remove_vector_file_v68892(
+            selected_vector_store_id, file_id
+        )
+        raise RuntimeError(
+            "Replacement vector indexing did not complete. The new package was "
+            "rolled back and the prior package was preserved."
+        )
 
     return {
         "already_saved": False,
@@ -56606,6 +57124,7 @@ def save_website_knowledge_package(
         "image_analysis": image_analysis,
         "website_image_index_v68883": website_image_index_stats_v68883,
         "website_image_sync_v69003": website_image_sync_v69003,
+        "atomic_resubmission_v69069": True,
     }
 
 
@@ -58079,6 +58598,11 @@ def render_learn_from_website(database_choice):
             bool((result or {}).get("already_saved"))
             for result in results_v69029.values()
         ) and not failures_v69029
+        repaired_destinations_v69069 = [
+            short_name_v69029(destination)
+            for destination, result in results_v69029.items()
+            if bool((result or {}).get("image_records_repaired_v69069"))
+        ]
         file_ids_v69029 = [
             f"{short_name_v69029(destination)}={str((result or {}).get('file_id') or 'existing')}"
             for destination, result in results_v69029.items()
@@ -58097,7 +58621,18 @@ def render_learn_from_website(database_choice):
             }
             return
 
-        if all_already_saved_v69029:
+        if repaired_destinations_v69069:
+            st.session_state.admin_website_save_notice = {
+                "type": "warning" if cleanup_pending_v69029 else "success",
+                "message": (
+                    "The existing website package was preserved and its structured "
+                    "image records were atomically repaired for "
+                    + ", ".join(repaired_destinations_v69069) + ". "
+                    + ("Older cleanup remains pending. " if cleanup_pending_v69029 else "")
+                    + "Image-search caches were advanced to the repaired revision."
+                ),
+            }
+        elif all_already_saved_v69029:
             st.session_state.admin_website_save_notice = {
                 "type": "info",
                 "message": (
@@ -68062,7 +68597,12 @@ else:
             )
         elif is_graphic_generation:
             response_start_time = time.time()
+            graphic_preflight_started_v69070 = time.perf_counter()
+            graphic_project_checkpoint_started_v69070 = time.perf_counter()
             _graphic_persist_project_v68400(get_graphic_project_state())
+            graphic_project_checkpoint_seconds_v69070 = round(
+                time.perf_counter() - graphic_project_checkpoint_started_v69070, 4
+            )
 
             # v68843: refresh the signed auth/workspace cookie immediately before a
             # long Graphic request. If the websocket/session reconnects while the
@@ -68081,6 +68621,12 @@ else:
                         "graphic_workspace_checkpoint_failed_v68843",
                         error=str(error_v68843),
                     )
+            graphic_auth_checkpoint_seconds_v69070 = round(
+                time.perf_counter()
+                - graphic_preflight_started_v69070
+                - graphic_project_checkpoint_seconds_v69070,
+                4,
+            )
 
             # v68837 orchestration-only repair: when this turn activates a different
             # product in the same Graphic conversation, one recoverable/empty first
@@ -68139,6 +68685,7 @@ else:
             # v68844: checkpoint exact inputs before the provider call. Recoverable
             # attempt 2 runs after a controlled rerun, not inside the same long-lived
             # Streamlit execution. This preserves the existing generator unchanged.
+            graphic_job_checkpoint_started_v69070 = time.perf_counter()
             if is_graphic_resume_v68844:
                 durable_job_v68844 = dict(graphic_resume_job_v68844)
             else:
@@ -68149,7 +68696,11 @@ else:
                     intent=graphic_chat_intent,
                     max_attempts=generation_attempts_v68837,
                 )
+            graphic_job_checkpoint_seconds_v69070 = round(
+                time.perf_counter() - graphic_job_checkpoint_started_v69070, 4
+            )
 
+            graphic_lease_started_v69070 = time.perf_counter()
             lease_token_v68848 = _graphic_v68848_claim_lease(durable_job_v68844)
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
@@ -68164,6 +68715,9 @@ else:
                 durable_job_v68844,
                 status="processing",
                 attempt=current_attempt_v68844,
+            )
+            graphic_lease_and_manifest_seconds_v69070 = round(
+                time.perf_counter() - graphic_lease_started_v69070, 4
             )
 
             durable_spooled_bytes_v68847 = sum(
@@ -68194,6 +68748,25 @@ else:
 
             _graphic_v68874_release_transient_memory("before_graphic_generation")
 
+            graphic_preflight_total_seconds_v69070 = round(
+                time.perf_counter() - graphic_preflight_started_v69070, 4
+            )
+            diagnostic_log(
+                "graphic_v69070_preflight_timing",
+                mode=str(
+                    (durable_job_v68844.get("authority_manifest_v68994") or {}).get("mode")
+                    or "other"
+                ),
+                project_checkpoint_seconds=graphic_project_checkpoint_seconds_v69070,
+                auth_checkpoint_seconds=graphic_auth_checkpoint_seconds_v69070,
+                durable_job_checkpoint_seconds=graphic_job_checkpoint_seconds_v69070,
+                lease_and_manifest_seconds=graphic_lease_and_manifest_seconds_v69070,
+                total_seconds=graphic_preflight_total_seconds_v69070,
+                upload_count=len(graphic_generation_files or []),
+                resume=bool(is_graphic_resume_v68844),
+            )
+
+            graphic_engine_started_v69070 = time.perf_counter()
             try:
                 generated_images = generate_graphic_marketing_images(
                     prompt,
@@ -68212,6 +68785,23 @@ else:
                 generated_images = []
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
+                diagnostic_log(
+                    "graphic_v69070_engine_timing",
+                    mode=str(
+                        (durable_job_v68844.get("authority_manifest_v68994") or {}).get("mode")
+                        or "other"
+                    ),
+                    engine_seconds=round(
+                        time.perf_counter() - graphic_engine_started_v69070, 4
+                    ),
+                    preflight_seconds=graphic_preflight_total_seconds_v69070,
+                    result_count=len(generated_images or []),
+                    error_type=(
+                        type(generation_error_v68837).__name__
+                        if generation_error_v68837 is not None
+                        else ""
+                    ),
+                )
 
             retryable_v68848, retry_reason_v68848 = _graphic_v68848_is_retryable(
                 generation_error_v68837, generated_images
