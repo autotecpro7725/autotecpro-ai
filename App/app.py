@@ -1,4 +1,4 @@
-# AutoTecPro AI v69073 — Exact subtitle-to-image binding authority
+# AutoTecPro AI v69075 — Runtime image accuracy, latency, and learning resilience
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,13 +87,15 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69073"
+ATP_BUILD_VERSION_V69062 = "v69075"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
     "v69070-graphic-checkpoint-dedup+v69071-graphic-admission-control+"
     "v69072-wiring-image-local-visual-authority+"
-    "v69073-exact-subtitle-next-image-binding"
+    "v69073-exact-subtitle-next-image-binding+"
+    "v69074-complete-payload-prefetch+"
+    "v69075-runtime-image-accuracy-resilience"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -116,6 +118,9 @@ ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062 = 3
 ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062 = 30.0
 ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068 = 3.0
 ATP_IMAGE_PREFETCH_MAX_WORKERS_V69068 = 4
+ATP_WEBSITE_IMAGE_QA_TIMEOUT_SECONDS_V69075 = 18.0
+ATP_WEBSITE_IMAGE_QA_ATTEMPTS_V69075 = 2
+ATP_WEBSITE_IMAGE_QA_RETRY_BASE_SECONDS_V69075 = 0.35
 # v69069: every successful website-image promotion increments the destination
 # revision.  Search/negative-cache keys include this value, so a browser session
 # can never reuse rows that point at the superseded vector file after a same-URL
@@ -50714,7 +50719,7 @@ reason: concise evidence-based reason
 Use keep_image=false for decorative, branding, generic vehicle photography, blank, duplicate-looking,
 or otherwise non-reusable images. relationship=direct only when the image directly illustrates the
 same instruction/setting/component described by the local context."""
-    response = client.responses.create(
+    response = _website_ingestion_provider_client_v69075().responses.create(
         model="gpt-5.5",
         instructions=instructions,
         input=[{
@@ -50764,7 +50769,7 @@ section_conflict: boolean
 reason: concise explanation
 
 Fail closed if the image cannot be confidently tied to useful source knowledge."""
-    response = client.responses.create(
+    response = _website_ingestion_provider_client_v69075().responses.create(
         model="gpt-5.5",
         instructions=instructions,
         input=[{
@@ -50776,6 +50781,86 @@ Fail closed if the image cannot be confidently tied to useful source knowledge."
         }],
     )
     return _ingestion_json_object_v69017(getattr(response, "output_text", ""))
+
+
+def _website_ingestion_provider_client_v69075():
+    """Return a bounded, no-hidden-retry client for website image QA only."""
+    try:
+        return client.with_options(
+            timeout=ATP_WEBSITE_IMAGE_QA_TIMEOUT_SECONDS_V69075,
+            max_retries=0,
+        )
+    except Exception:
+        return client
+
+
+def _website_image_failure_classification_v69075(error, stage=""):
+    """Classify one image operation without exposing a URL or prompt.
+
+    Deterministic asset-policy rejections are normal skips. Transport/provider
+    failures remain fatal after bounded retry so a same-URL replacement can
+    never silently delete a previously healthy learned image.
+    """
+    value = re.sub(r"\s+", " ", str(error or "")).strip().casefold()
+    deterministic_tokens = (
+        "decorative/vector/animated image skipped",
+        "dimensions are too small or too narrow",
+        "exceeds the 8 mb safety limit",
+    )
+    deterministic_reject = isinstance(error, ValueError) and any(
+        token in value for token in deterministic_tokens
+    )
+    transient = bool(
+        not deterministic_reject
+        and (
+            _image_provider_error_is_transient_v69062(error)
+            or isinstance(error, (requests.Timeout, requests.ConnectionError))
+        )
+    )
+    stage_token = re.sub(r"[^A-Z0-9]+", "_", str(stage or "IMAGE").upper()).strip("_")
+    if deterministic_reject:
+        reason_code = f"{stage_token}_ASSET_POLICY_REJECTED"
+    elif transient:
+        reason_code = f"{stage_token}_TRANSIENT_EXHAUSTED"
+    else:
+        reason_code = f"{stage_token}_PERMANENT_FAILURE"
+    return {
+        "reason_code": reason_code[:80],
+        "transient": transient,
+        "deterministic_reject": deterministic_reject,
+        "error_type": type(error).__name__[:80],
+    }
+
+
+def _website_image_operation_with_retry_v69075(operation, stage, *args, **kwargs):
+    """Run one download/QA operation with bounded transient-only retries."""
+    retries = 0
+    attempts = max(1, int(ATP_WEBSITE_IMAGE_QA_ATTEMPTS_V69075 or 1))
+    for attempt in range(attempts):
+        try:
+            return operation(*args, **kwargs), retries
+        except Exception as error:
+            classification = _website_image_failure_classification_v69075(
+                error, stage
+            )
+            if not classification["transient"] or attempt >= attempts - 1:
+                raise
+            retries += 1
+            diagnostic_log(
+                "website_image_operation_retry_v69075",
+                stage=str(stage or "")[:40],
+                attempt=attempt + 2,
+                reason_code=classification["reason_code"],
+                error_type=classification["error_type"],
+            )
+            time.sleep(
+                min(
+                    1.5,
+                    ATP_WEBSITE_IMAGE_QA_RETRY_BASE_SECONDS_V69075
+                    * (2 ** attempt),
+                )
+            )
+    raise RuntimeError("Website image operation exhausted without a result.")
 
 
 def _analyze_ingestion_image_with_qa_v69017(
@@ -50903,6 +50988,9 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
     failures = 0
     reused = 0
     provider_calls = 0
+    retry_count_v69075 = 0
+    failure_records_v69075 = []
+    rejected_reason_counts_v69075 = {}
 
     for candidate in candidates:
         if len(learned) >= WEBSITE_MAX_ANALYZED_IMAGES:
@@ -50911,11 +50999,16 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             continue
         attempted += 1
         try:
-            downloaded = _download_public_website_image(
-                candidate.get("url"),
-                context_score=int(candidate.get("context_score") or 0),
-                technical_context=bool(candidate.get("technical_context")),
+            downloaded, download_retries_v69075 = (
+                _website_image_operation_with_retry_v69075(
+                    _download_public_website_image,
+                    "download",
+                    candidate.get("url"),
+                    context_score=int(candidate.get("context_score") or 0),
+                    technical_context=bool(candidate.get("technical_context")),
+                )
             )
+            retry_count_v69075 += int(download_retries_v69075 or 0)
             digest = str(downloaded.get("sha256") or "")
             if digest and digest in seen_hashes:
                 skipped += 1
@@ -50935,22 +51028,31 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                     f"data:{downloaded.get('mime_type') or 'image/jpeg'};base64,"
                     + base64.b64encode(downloaded.get("bytes") or b"").decode("ascii")
                 )
-                provider_calls += 2
-                qa_v69017 = _analyze_ingestion_image_with_qa_v69017(
-                    data_url,
-                    source_label=str(extraction.get("source_url") or ""),
-                    page_title=str(extraction.get("title") or ""),
-                    section_heading=" | ".join(x for x in (
-                        str(candidate.get("section_subtitle_v69067") or "").strip(),
-                        str(candidate.get("nearest_heading") or "").strip(),
-                    ) if x),
-                    context_before=str(candidate.get("context_before_text_v69017") or candidate.get("nearby_text") or ""),
-                    context_after=str(candidate.get("context_after_text_v69017") or ""),
-                    alt_text=str(candidate.get("alt") or candidate.get("title") or ""),
-                    database_choice=str(database_choice or ""),
+                qa_v69017, qa_retries_v69075 = (
+                    _website_image_operation_with_retry_v69075(
+                        _analyze_ingestion_image_with_qa_v69017,
+                        "provider_qa",
+                        data_url,
+                        source_label=str(extraction.get("source_url") or ""),
+                        page_title=str(extraction.get("title") or ""),
+                        section_heading=" | ".join(x for x in (
+                            str(candidate.get("section_subtitle_v69067") or "").strip(),
+                            str(candidate.get("nearest_heading") or "").strip(),
+                        ) if x),
+                        context_before=str(candidate.get("context_before_text_v69017") or candidate.get("nearby_text") or ""),
+                        context_after=str(candidate.get("context_after_text_v69017") or ""),
+                        alt_text=str(candidate.get("alt") or candidate.get("title") or ""),
+                        database_choice=str(database_choice or ""),
+                    )
                 )
+                retry_count_v69075 += int(qa_retries_v69075 or 0)
+                provider_calls += 2 * (1 + int(qa_retries_v69075 or 0))
                 if not qa_v69017.get("approved"):
                     skipped += 1
+                    rejection_code_v69075 = "PROVIDER_QA_REJECTED"
+                    rejected_reason_counts_v69075[rejection_code_v69075] = (
+                        int(rejected_reason_counts_v69075.get(rejection_code_v69075) or 0) + 1
+                    )
                     continue
                 analysis = str(qa_v69017.get("analysis") or "").strip()
             if not analysis or analysis.strip().upper() == "SKIP_IMAGE":
@@ -51015,12 +51117,36 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
             })
         except Exception as error:
             skipped += 1
-            failures += 1
+            classification_v69075 = _website_image_failure_classification_v69075(
+                error, "candidate"
+            )
+            reason_code_v69075 = classification_v69075["reason_code"]
+            if classification_v69075["deterministic_reject"]:
+                rejected_reason_counts_v69075[reason_code_v69075] = (
+                    int(rejected_reason_counts_v69075.get(reason_code_v69075) or 0) + 1
+                )
+            else:
+                failures += 1
+                failure_records_v69075.append({
+                    "reason_code": reason_code_v69075,
+                    "stage": "candidate",
+                    "error_type": classification_v69075["error_type"],
+                    "transient": bool(classification_v69075["transient"]),
+                    "asset_fingerprint": hashlib.sha256(
+                        str((candidate or {}).get("url") or "").encode("utf-8")
+                    ).hexdigest()[:16],
+                })
             diagnostic_log(
                 "website_image_ingestion_skipped_v68870",
-                image_url=str((candidate or {}).get("url") or "")[:500],
-                error_type=type(error).__name__,
-                error=str(error)[:500],
+                asset_fingerprint=hashlib.sha256(
+                    str((candidate or {}).get("url") or "").encode("utf-8")
+                ).hexdigest()[:16],
+                reason_code=reason_code_v69075,
+                transient=bool(classification_v69075["transient"]),
+                deterministic_reject=bool(
+                    classification_v69075["deterministic_reject"]
+                ),
+                error_type=classification_v69075["error_type"],
             )
 
     return {
@@ -51030,6 +51156,14 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
         "failures": failures,
         "reused": reused,
         "provider_calls": provider_calls,
+        "retry_count_v69075": retry_count_v69075,
+        "failure_records_v69075": failure_records_v69075[:24],
+        "failure_reason_codes_v69075": sorted({
+            str(item.get("reason_code") or "")
+            for item in failure_records_v69075
+            if str(item.get("reason_code") or "")
+        }),
+        "rejected_reason_counts_v69075": rejected_reason_counts_v69075,
         "selection_provided_v69005": bool(selection_provided_v69005),
         "discovered": len(candidates),
         "limited": len(candidates) > WEBSITE_MAX_ANALYZED_IMAGES,
@@ -53863,6 +53997,79 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     )
 
 
+def _website_prefetch_complete_payload_rows_v69074(
+    rows, coordinator=None, max_hydrations=3
+):
+    """Hydrate incomplete image-bearing result rows inside the prefetch worker.
+
+    File-search result boundaries are nondeterministic.  A row containing only an
+    image URL (or the first half of an IMAGE block) must not be treated as a
+    complete learned-image record.  Hydrating here overlaps the file read with
+    answer streaming; foreground selection then consumes the exact same complete
+    file text without a second provider/file-content call.
+    """
+    output = [dict(row) for row in (rows or []) if isinstance(row, dict)]
+    output.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
+    hydrated = 0
+    complete = 0
+    for row in output[:8]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        chunk_text = str(row.get("text") or "")
+        payloads = []
+        if chunk_text:
+            payloads.extend(
+                _website_structured_image_payloads_from_file_v69012(
+                    chunk_text, filename, file_id
+                )
+            )
+            payloads.extend(
+                _website_legacy_html_payloads_from_file_v69012(
+                    chunk_text, filename, file_id
+                )
+            )
+            payloads.extend(
+                _website_plain_file_search_image_payloads_v69039(
+                    chunk_text, filename, file_id
+                )
+            )
+        if not _website_payloads_require_complete_file_v69074(payloads):
+            complete += 1
+            continue
+        if not file_id or hydrated >= max(0, int(max_hydrations or 0)):
+            continue
+        full_text = str(
+            _website_file_full_text_coordinated_v69062(file_id, coordinator)
+            or ""
+        )
+        if not full_text:
+            continue
+        row["_website_complete_file_text_v69074"] = full_text
+        hydrated += 1
+        full_payloads = []
+        full_payloads.extend(
+            _website_structured_image_payloads_from_file_v69012(
+                full_text, filename, file_id
+            )
+        )
+        full_payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                full_text, filename, file_id
+            )
+        )
+        if not _website_payloads_require_complete_file_v69074(full_payloads):
+            complete += 1
+        # Three complete files are enough for the existing maximum publication
+        # count.  Remaining rows stay available, but do not add foreground cost.
+        if complete >= 3:
+            break
+    diagnostic_log(
+        "website_image_prefetch_payload_hydration_v69074",
+        row_count=len(output), hydrated=hydrated, complete=complete,
+    )
+    return output
+
+
 def _website_image_prefetch_file_search_results_v69015(
     prompt_text, workspace_label="🔧 Technical Support", coordinator=None
 ):
@@ -53913,6 +54120,9 @@ def _website_image_prefetch_file_search_results_v69015(
             request,
             "website_image_prefetch_v69015",
             coordinator=coordinator,
+        )
+        rows = _website_prefetch_complete_payload_rows_v69074(
+            rows, coordinator=coordinator, max_hydrations=3
         )
     except Exception as error:
         diagnostic_log(
@@ -54009,6 +54219,111 @@ def _website_image_dedicated_file_search_results_v69014(
     return rows
 
 
+def _website_image_payload_completeness_v69074(payload):
+    """Score whether one reconstructed row has enough local authority for QA.
+
+    A literal URL or a truncated IMAGE block is evidence that the correct file was
+    found, not evidence that the image may be published.  v69073 treated any such
+    partial payload as a reason to skip complete-file hydration, which made behavior
+    depend on the provider's chunk boundary.
+    """
+    if not isinstance(payload, dict):
+        return 0.0
+    score = 0.0
+    binding_version = str(payload.get("context_binding_version_v69067") or "")
+    if (
+        payload.get("subtitle_exact_image_binding_v69073")
+        and "v69073-semantic-subtitle-next-logical-image-group" in binding_version
+    ):
+        score += 8.0
+    if str(payload.get("visual_analysis") or "").strip():
+        score += 4.0
+    if dict(payload.get("image_structured_metadata_v69017") or {}):
+        score += 4.0
+    if str(
+        payload.get("archive_storage_path")
+        or payload.get("archive_storage_path_v69017")
+        or ""
+    ).strip():
+        score += 2.0
+    if str(
+        payload.get("section_subtitle_v69067")
+        or payload.get("section_heading")
+        or ""
+    ).strip():
+        score += 1.0
+    if str(payload.get("source_page") or "").strip():
+        score += 1.0
+    if str(payload.get("database_choice") or "").strip() in {
+        "Technical Support Database", "Sales Database", "Marketing Database"
+    }:
+        score += 1.0
+    if payload.get("website_plain_file_search_image_v69039"):
+        score -= 3.0
+    return score
+
+
+def _website_payloads_require_complete_file_v69074(payloads):
+    """Return True when a row has only URL/partial metadata and must be hydrated."""
+    rows = [dict(item) for item in (payloads or []) if isinstance(item, dict)]
+    if not rows:
+        return True
+    # A subtitle marker proves DOM adjacency, not prior image QA/archive
+    # authority.  v69074 assigned enough points to the marker alone that a
+    # truncated URL-bearing chunk could skip hydration and then be rejected at
+    # publication for missing QA.  Require at least one complete local authority
+    # field before the score may suppress the full-file read.
+    if not any(
+        str(item.get("visual_analysis") or "").strip()
+        or bool(dict(item.get("image_structured_metadata_v69017") or {}))
+        or str(
+            item.get("archive_storage_path")
+            or item.get("archive_storage_path_v69017")
+            or ""
+        ).strip()
+        for item in rows
+    ):
+        return True
+    return max(_website_image_payload_completeness_v69074(item) for item in rows) < 7.0
+
+
+def _website_merge_image_payloads_v69074(payloads):
+    """Prefer complete structured authority over a same-URL partial reconstruction."""
+    grouped = {}
+    unkeyed = []
+    for raw in payloads or []:
+        if not isinstance(raw, dict):
+            continue
+        item = dict(raw)
+        identity = (
+            str(item.get("image_sha256") or "").strip().casefold()
+            or str(item.get("image_url") or "").strip()
+            or str(item.get("archive_storage_path_v69017") or "").strip()
+            or str(item.get("archive_storage_path") or "").strip()
+        )
+        if not identity:
+            unkeyed.append(item)
+            continue
+        current = grouped.get(identity)
+        if current is None:
+            grouped[identity] = item
+            continue
+        current_score = _website_image_payload_completeness_v69074(current)
+        item_score = _website_image_payload_completeness_v69074(item)
+        preferred, secondary = (
+            (item, current) if item_score > current_score else (current, item)
+        )
+        merged = dict(secondary)
+        merged.update({
+            key: value for key, value in preferred.items()
+            if value not in (None, "", [], {})
+        })
+        grouped[identity] = merged
+    output = list(grouped.values()) + unkeyed
+    output.sort(key=_website_image_payload_completeness_v69074, reverse=True)
+    return output
+
+
 def _website_file_search_images_v69014(
     prompt_text, answer_text, result_rows, coordinator=None
 ):
@@ -54040,13 +54355,17 @@ def _website_file_search_images_v69014(
         if file_text:
             payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
             payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
-        if not payloads and file_id:
-            full_text = _website_file_full_text_coordinated_v69062(
-                file_id, coordinator
+        if file_id and _website_payloads_require_complete_file_v69074(payloads):
+            full_text = str(
+                row.get("_website_complete_file_text_v69074")
+                or _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                or ""
             )
             if full_text:
-                payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
+                payloads.extend(_website_structured_image_payloads_from_file_v69012(full_text, filename, file_id))
                 payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
+                payloads.extend(_website_plain_file_search_image_payloads_v69039(full_text, filename, file_id))
+        payloads = _website_merge_image_payloads_v69074(payloads)
         if not payloads:
             continue
         for raw_payload in payloads:
@@ -54072,8 +54391,14 @@ def _website_file_search_images_v69014(
         identity_v69017 = url or ("archive://" + archive_path_v69017 if archive_path_v69017 else "")
         if not identity_v69017 or identity_v69017 in seen_urls:
             continue
-        display_url_v69017 = url if url.startswith("https://") else ""
-        if archive_path_v69017:
+        display_url_v69017 = (
+            url if _workspace_image_url_identity_v69058(url) else ""
+        )
+        # A validated first-party CDN URL can be handed to the browser
+        # immediately.  Downloading and base64-encoding the archived copy here
+        # blocked the Streamlit response for 1-3 seconds after text completion.
+        # The archive remains the failover when no approved public URL exists.
+        if archive_path_v69017 and not display_url_v69017:
             raw_v69017 = _website_storage_bytes_v68883(archive_path_v69017)
             if raw_v69017:
                 mime_v69017 = str(payload.get("archive_mime_type_v69017") or "image/jpeg")
@@ -54771,8 +55096,9 @@ def _website_image_record_for_chat_v68883(payload):
         or payload.get("archive_mime_type_v69017")
         or "image/jpeg"
     ).strip()
-    data_url = ""
-    if archive_path:
+    public_url = str(payload.get("image_url") or "").strip()
+    data_url = public_url if _workspace_image_url_identity_v69058(public_url) else ""
+    if archive_path and not data_url:
         raw = _website_storage_bytes_v68883(archive_path)
         if raw:
             data_url = (
@@ -54780,7 +55106,7 @@ def _website_image_record_for_chat_v68883(payload):
                 + base64.b64encode(raw).decode("ascii")
             )
     if not data_url:
-        data_url = str(payload.get("image_url") or "").strip()
+        data_url = public_url
     if not data_url:
         return None
 
@@ -55274,9 +55600,11 @@ def _website_file_search_payloads_for_related_evidence_v69032(
                     result_text, filename, file_id
                 )
             )
-        if not payloads and file_id:
-            full_text = _website_file_full_text_coordinated_v69062(
-                file_id, coordinator
+        if file_id and _website_payloads_require_complete_file_v69074(payloads):
+            full_text = str(
+                row.get("_website_complete_file_text_v69074")
+                or _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                or ""
             )
             if full_text:
                 payloads.extend(
@@ -55294,6 +55622,7 @@ def _website_file_search_payloads_for_related_evidence_v69032(
                         full_text, filename, file_id
                     )
                 )
+        payloads = _website_merge_image_payloads_v69074(payloads)
         for payload in payloads:
             if not isinstance(payload, dict):
                 continue
@@ -55654,7 +55983,8 @@ def _workspace_file_search_payloads_v69051(
         if needs_full and file_id not in full_reads:
             full_reads.add(file_id)
             full_text = str(
-                _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                row.get("_website_complete_file_text_v69074")
+                or _website_file_full_text_coordinated_v69062(file_id, coordinator)
                 or ""
             )
             if full_text:
@@ -55936,6 +56266,13 @@ def _workspace_image_semantic_authority_v69062(
         + max(0.0, min(float(role_score), 30.0))
         + row_score * 8.0
     )
+    # The subtitle-to-next-logical-image binding is the nearest ingestion-time
+    # DOM authority. It may rank only after the unchanged vehicle/year/product,
+    # exact-role, visual-state, and topic-local gates above have all passed.
+    # Therefore it improves exactness without authorizing an otherwise unsafe
+    # image or broadening destination ownership.
+    if query_role and bool(payload.get("subtitle_exact_image_binding_v69073")):
+        semantic_score += 80.0
     # Answer/page identity is a small deterministic tie-breaker only.
     answer_tokens = set(_website_image_tokens_v68883(answer))
     semantic_score += min(len(answer_tokens & local_tokens), 8) * 0.5
@@ -56247,13 +56584,16 @@ def _workspace_website_images_from_file_search_v69040(
     # ranking input. This is the v69060 wrong-first-image root fix.
     ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     output, seen = [], set()
+    publication_limit_v69075 = max(1, int(max_images or 1))
+    if _website_image_query_role_v68884(prompt_text):
+        publication_limit_v69075 = 1
     for _, _, _, record in ranked:
         identity = str(record.get("website_image_sha256") or record.get("data_url") or "")
         if identity in seen:
             continue
         seen.add(identity)
         output.append(record)
-        if len(output) >= max(1, int(max_images or 1)):
+        if len(output) >= publication_limit_v69075:
             break
     if isinstance(coordinator, _ImageSearchCoordinatorV69062):
         durable_stage_v69062 = bool(
@@ -56308,6 +56648,46 @@ def _workspace_image_dedicated_search_query_v69050(
     )
 
 
+def _workspace_early_durable_images_v69075(
+    workspace_label, prompt_text, coordinator=None, max_images=3
+):
+    """Select exact-destination durable images before any optional provider search.
+
+    This runs the same vehicle/year/product/topic authority used after the answer.
+    It changes only execution order: a healthy learned image index can publish
+    without waiting for a second vector/provider round trip. Graphic is excluded.
+    """
+    workspace = str(workspace_label or "")
+    if is_graphic_workspace(workspace):
+        return []
+    if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)):
+        return []
+    prompt = _workspace_image_followup_prompt_v69058(
+        workspace, re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    )
+    if not prompt:
+        return []
+    result_limit = max(1, int(max_images or 1))
+    if _website_image_query_role_v68884(prompt):
+        result_limit = 1
+    images = _workspace_website_images_from_file_search_v69040(
+        workspace,
+        prompt,
+        prompt,
+        [],
+        max_images=result_limit,
+        coordinator=coordinator,
+        allow_durable_fallback_v69062=True,
+    )
+    diagnostic_log(
+        "workspace_early_durable_lookup_v69075",
+        workspace=workspace,
+        recovered=len(images or []),
+        exact_role=bool(_website_image_query_role_v68884(prompt)),
+    )
+    return images or []
+
+
 def _workspace_image_prefetch_file_search_results_v69062(
     workspace_label, prompt_text, coordinator=None
 ):
@@ -56346,10 +56726,13 @@ def _workspace_image_prefetch_file_search_results_v69062(
         "_atp_image_provider_attempts_v69068": 1,
     }
     try:
-        return _website_image_response_rows_with_empty_retry_v69056(
+        rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "workspace_image_prefetch_v69062",
             coordinator=coordinator,
+        )
+        return _website_prefetch_complete_payload_rows_v69074(
+            rows, coordinator=coordinator, max_hydrations=3
         )
     except Exception as error:
         diagnostic_log(
@@ -56430,6 +56813,106 @@ def _workspace_image_url_identity_v69058(value):
         return ""
     # Query strings/fragments are delivery details, not learned-asset identity.
     return "https://autotecpro.com" + path
+
+
+def _technical_answer_url_records_from_exact_rows_v69074(
+    prompt_text, answer_text, result_rows, max_images=3, coordinator=None
+):
+    """Publish an exact answer URL only after same-Technical-file reconstruction.
+
+    This is the Technical equivalent of the destination-owned Sales/Marketing
+    bridge, with stricter Technical final gates.  The model's URL is a pointer,
+    never publication authority: it must resolve to a complete learned payload
+    owned by Technical and pass resolved identity, vehicle/year, exact role and
+    image-local relevance gates.
+    """
+    answer_urls = {
+        identity
+        for identity in (
+            _workspace_image_url_identity_v69058(raw)
+            for raw in re.findall(
+                r"https://[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)(?:\?[^\s<>\"'\)\]]*)?",
+                clean_visible_chat_text(str(answer_text or "")),
+                flags=re.I,
+            )
+        )
+        if identity
+    }
+    if not answer_urls:
+        return []
+    payloads = _website_file_search_payloads_for_related_evidence_v69032(
+        result_rows, coordinator=coordinator
+    )
+    output, seen = [], set()
+    for raw_payload in payloads:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "").strip() != "Technical Support Database":
+            continue
+        identity = _workspace_image_url_identity_v69058(payload.get("image_url"))
+        if not identity or identity not in answer_urls or identity in seen:
+            continue
+        # URL-only payloads remain fail-closed.  The v69074 hydration path must
+        # reconstruct image-local authority from the complete learned file.
+        if _website_image_payload_completeness_v69074(payload) < 7.0:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("TECHNICAL_EXACT_URL_INCOMPLETE_PAYLOAD")
+            continue
+        if not _website_image_resolved_payload_gate_v69022(
+            prompt_text, answer_text, payload
+        ):
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("TECHNICAL_EXACT_URL_IDENTITY_REJECTED")
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("TECHNICAL_EXACT_URL_FITMENT_REJECTED")
+            continue
+        if not _website_image_final_payload_gate_v68885(prompt_text, payload):
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("TECHNICAL_EXACT_URL_FINAL_GATE_REJECTED")
+            continue
+        passed, score = _website_image_universal_payload_pass_v69014(
+            prompt_text, answer_text, payload,
+            float(payload.get("_technical_file_search_score_v69032") or 0.0),
+        )
+        if not passed:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("TECHNICAL_EXACT_URL_TOPIC_REJECTED")
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        record["website_file_search_universal_v69014"] = True
+        record["website_universal_relation_pass_v69014"] = True
+        record["website_universal_relation_score_v69014"] = float(score)
+        record["website_exact_store_answer_url_v69058"] = True
+        record["website_answer_url_destination_v69058"] = "Technical Support Database"
+        record["website_file_id_v69012"] = str(
+            payload.get("_technical_file_id_v69032")
+            or payload.get("file_id_v69012") or ""
+        ).strip()
+        _attach_image_provenance_v69062(
+            record, payload, "Technical Support Database",
+            "exact_answer_url_match", float(score),
+            "EXACT_TECHNICAL_URL_AND_FITMENT",
+            {"vehicle_gate": "pass", "year_gate": "pass",
+             "product_gate": "pass", "topic_gate": "pass"},
+        )
+        seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if output else "rejected", "direct_search", [],
+            "TECHNICAL_EXACT_ANSWER_URL_APPROVED" if output
+            else "TECHNICAL_EXACT_ANSWER_URL_REJECTED",
+            stage="exact_answer_url_match",
+            details={"url_count": len(answer_urls), "published": len(output)},
+        ))
+    return output
 
 
 def _workspace_answer_url_records_from_exact_rows_v69058(
@@ -56554,6 +57037,16 @@ def _workspace_image_dedicated_file_search_results_v69050(
         "tool_choice": "required",
         "include": ["file_search_call.results"],
         "max_output_tokens": 32,
+        "_atp_image_provider_timeout_v69068": min(
+            ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068,
+            max(
+                0.5,
+                coordinator.remaining()
+                if isinstance(coordinator, _ImageSearchCoordinatorV69062)
+                else ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068,
+            ),
+        ),
+        "_atp_image_provider_attempts_v69068": 1,
     }
     try:
         rows = _website_image_response_rows_with_empty_retry_v69056(
@@ -56582,6 +57075,7 @@ def _workspace_image_dedicated_file_search_results_v69050(
 def _workspace_automatic_image_recovery_v69050(
     workspace_label, prompt_text, answer_text, result_rows, max_images=3,
     prefetched_rows=None, coordinator=None,
+    allow_synchronous_search_v69075=True,
 ):
     """Run the explicit destination-scoped v69062 recovery state machine."""
     workspace = str(workspace_label or "")
@@ -56636,10 +57130,17 @@ def _workspace_automatic_image_recovery_v69050(
     dedicated_rows = [
         dict(row) for row in (prefetched_rows or []) if isinstance(row, dict)
     ]
-    if not dedicated_rows:
+    if not dedicated_rows and bool(allow_synchronous_search_v69075):
         dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
             workspace, prompt, answer, coordinator=coordinator
         )
+    elif not dedicated_rows and isinstance(
+        coordinator, _ImageSearchCoordinatorV69062
+    ):
+        coordinator.record(_image_recovery_outcome_v69062(
+            "empty", "direct_search", [], "INFLIGHT_PREFETCH_NOT_DUPLICATED",
+            stage="same_store_direct_search",
+        ))
 
     # Exact answer URLs are the strongest publication pointer, but only after
     # they resolve to structured/QA evidence from this destination's own store.
@@ -58619,6 +59120,44 @@ def _website_destination_image_analysis_v69040(shared_analysis, database_choice)
     return result
 
 
+def _website_shared_analysis_gate_v69075(shared_analysis, destinations):
+    """Fail before vector mutation when shared image QA is incomplete.
+
+    One analysis pass feeds every selected destination.  A transport/provider
+    failure therefore cannot be repaired by uploading the same incomplete
+    package to each vector store.  Return redacted, structured destination
+    failures so Admin can retry without leaking URLs, prompts, or credentials.
+    """
+    analysis = dict(shared_analysis or {})
+    failure_count = max(0, int(analysis.get("failures") or 0))
+    if not failure_count:
+        return {}
+    reason_codes = sorted({
+        str(value or "").strip().upper()[:80]
+        for value in (analysis.get("failure_reason_codes_v69075") or [])
+        if str(value or "").strip()
+    }) or ["IMAGE_ANALYSIS_INCOMPLETE"]
+    result = {}
+    for destination in _website_database_destinations_v69029(destinations):
+        result[destination] = {
+            "error_type": "WebsiteImageAnalysisIncomplete",
+            "error": (
+                "Shared website image analysis did not complete; no vector or "
+                "durable-image mutation was attempted. Retry is safe."
+            ),
+            "reason_codes": reason_codes,
+            "failure_count": failure_count,
+            "pre_mutation_abort_v69075": True,
+        }
+    diagnostic_log(
+        "website_multi_database_pre_mutation_abort_v69075",
+        destination_count=len(result),
+        failure_count=failure_count,
+        reason_codes=reason_codes,
+    )
+    return result
+
+
 def save_website_knowledge_to_destinations_v69029(
     extraction,
     destination_selection,
@@ -58659,7 +59198,20 @@ def save_website_knowledge_to_destinations_v69029(
         }
 
     results = {}
-    failures = {}
+    failures = _website_shared_analysis_gate_v69075(
+        shared_analysis, destinations
+    ) if include_images else {}
+    if failures:
+        return {
+            "destination_selection": list(destinations),
+            "destinations": destinations,
+            "results": results,
+            "failures": failures,
+            "shared_image_analysis": shared_analysis,
+            "completed": False,
+            "partial_success": False,
+            "pre_mutation_abort_v69075": True,
+        }
     for destination in destinations:
         try:
             destination_analysis_v69040 = _website_destination_image_analysis_v69040(
@@ -59242,12 +59794,35 @@ def render_learn_from_website(database_choice):
         if failures_v69029:
             # Keep extraction + preview state so retrying is safe. Destinations that
             # already succeeded are checksum/idempotency protected on the next click.
+            failure_reason_codes_v69075 = sorted({
+                str(code or "").strip().upper()[:80]
+                for detail in failures_v69029.values()
+                if isinstance(detail, dict)
+                for code in (detail.get("reason_codes") or [])
+                if str(code or "").strip()
+            })
+            failure_reason_suffix_v69075 = (
+                " Diagnostic code(s): "
+                + ", ".join(failure_reason_codes_v69075)
+                + "."
+                if failure_reason_codes_v69075 else ""
+            )
+            pre_mutation_abort_v69075 = any(
+                bool((detail or {}).get("pre_mutation_abort_v69075"))
+                for detail in failures_v69029.values()
+                if isinstance(detail, dict)
+            )
             st.session_state.admin_website_save_notice = {
                 "type": "warning",
                 "message": (
                     ("Saved to " + ", ".join(saved_names_v69029) + ". " if saved_names_v69029 else "")
                     + "Failed for " + ", ".join(failed_names_v69029) + ". "
+                    + (
+                        "No destination was mutated because shared image QA was incomplete. "
+                        if pre_mutation_abort_v69075 else ""
+                    )
                     + "The reviewed extraction is preserved so you can retry safely; successful destinations will not be duplicated."
+                    + failure_reason_suffix_v69075
                 ),
             }
             return
@@ -68751,6 +69326,7 @@ else:
         workspace_image_prefetch_executor_v69062 = None
         workspace_image_prefetch_future_v69062 = None
         workspace_image_prefetch_rows_v69062 = []
+        workspace_early_index_images_v69075 = []
         image_search_coordinator_v69062 = None
         image_coordinator_prompt_v69062 = (
             technical_request_prompt_v68879
@@ -68838,22 +69414,37 @@ else:
             and image_search_coordinator_v69062 is not None
         ):
             try:
-                (
-                    workspace_image_prefetch_future_v69062,
-                    workspace_image_prefetch_scope_v69068,
-                    workspace_image_prefetch_reused_v69068,
-                ) = _submit_image_prefetch_v69068(
-                    "workspace|" + str(image_search_coordinator_v69062.turn_key),
-                    _workspace_image_prefetch_file_search_results_v69062,
-                    assistant,
-                    interaction_prompt,
-                    image_search_coordinator_v69062,
+                workspace_early_index_images_v69075 = (
+                    _workspace_early_durable_images_v69075(
+                        assistant,
+                        interaction_prompt,
+                        coordinator=image_search_coordinator_v69062,
+                        max_images=3,
+                    )
                 )
-                diagnostic_log(
-                    "workspace_image_prefetch_scheduled_v69068",
-                    workspace=str(assistant),
-                    reused_running=workspace_image_prefetch_reused_v69068,
-                )
+                if not workspace_early_index_images_v69075:
+                    (
+                        workspace_image_prefetch_future_v69062,
+                        workspace_image_prefetch_scope_v69068,
+                        workspace_image_prefetch_reused_v69068,
+                    ) = _submit_image_prefetch_v69068(
+                        "workspace|" + str(image_search_coordinator_v69062.turn_key),
+                        _workspace_image_prefetch_file_search_results_v69062,
+                        assistant,
+                        interaction_prompt,
+                        image_search_coordinator_v69062,
+                    )
+                    diagnostic_log(
+                        "workspace_image_prefetch_scheduled_v69068",
+                        workspace=str(assistant),
+                        reused_running=workspace_image_prefetch_reused_v69068,
+                    )
+                else:
+                    diagnostic_log(
+                        "workspace_image_prefetch_skipped_exact_durable_v69075",
+                        workspace=str(assistant),
+                        recovered=len(workspace_early_index_images_v69075),
+                    )
             except Exception as error:
                 workspace_image_prefetch_executor_v69062 = None
                 workspace_image_prefetch_future_v69062 = None
@@ -70066,22 +70657,63 @@ else:
                     answer_result_rows_v69014 = list(
                         st.session_state.get("_technical_file_search_results_v69012") or []
                     )
-                    universal_images_v69014 = _website_file_search_images_v69014(
-                        technical_request_prompt_v68879,
-                        answer,
-                        answer_result_rows_v69014,
-                        coordinator=image_search_coordinator_v69062,
-                    )
-
-                    # v69015 fast path: the same independent image search that used to
-                    # start here was launched while the text was streaming. Consume its
-                    # rows now and run the unchanged universal/final authority gates.
                     prefetched_rows_v69015 = list(
                         locals().get("technical_image_prefetch_cached_rows_v69016") or []
                     )
                     technical_image_prefetch_future_active_v69015 = locals().get(
                         "technical_image_prefetch_future_v69015"
                     )
+                    # Never wait when the parallel worker has already completed;
+                    # consume its fully hydrated rows before foreground parsing.
+                    if (
+                        not prefetched_rows_v69015
+                        and technical_image_prefetch_future_active_v69015 is not None
+                        and technical_image_prefetch_future_active_v69015.done()
+                    ):
+                        try:
+                            prefetched_rows_v69015 = list(
+                                technical_image_prefetch_future_active_v69015.result() or []
+                            )
+                            if prefetched_rows_v69015:
+                                _technical_image_prefetch_cache_set_v69016(
+                                    technical_request_prompt_v68879,
+                                    prefetched_rows_v69015,
+                                )
+                        except Exception:
+                            prefetched_rows_v69015 = []
+                    early_rows_v69074 = (
+                        answer_result_rows_v69014 + prefetched_rows_v69015
+                    )
+                    defer_to_running_prefetch_v69074 = bool(
+                        technical_image_prefetch_future_active_v69015 is not None
+                        and not technical_image_prefetch_future_active_v69015.done()
+                        and not prefetched_rows_v69015
+                    )
+                    # v69074: when the answer already quotes an exact learned
+                    # AutoTecPro URL, resolve that pointer against the complete
+                    # Technical-owned payload before any broader ranking.  This
+                    # fixes URL-visible-but-not-rendered responses without giving
+                    # the URL itself publication authority.
+                    universal_images_v69014 = [] if defer_to_running_prefetch_v69074 else (
+                        _technical_answer_url_records_from_exact_rows_v69074(
+                            technical_request_prompt_v68879,
+                            answer,
+                            early_rows_v69074,
+                            max_images=3,
+                            coordinator=image_search_coordinator_v69062,
+                        )
+                    )
+                    if not universal_images_v69014 and not defer_to_running_prefetch_v69074:
+                        universal_images_v69014 = _website_file_search_images_v69014(
+                            technical_request_prompt_v68879,
+                            answer,
+                            early_rows_v69074,
+                            coordinator=image_search_coordinator_v69062,
+                        )
+
+                    # v69015 fast path: the same independent image search that used to
+                    # start here was launched while the text was streaming. Consume its
+                    # rows now and run the unchanged universal/final authority gates.
                     if (
                         not universal_images_v69014
                         and not prefetched_rows_v69015
@@ -70116,12 +70748,25 @@ else:
                             )
                             prefetched_rows_v69015 = []
                     if prefetched_rows_v69015 and not universal_images_v69014:
-                        universal_images_v69014 = _website_file_search_images_v69014(
-                            technical_request_prompt_v68879,
-                            answer,
-                            answer_result_rows_v69014 + prefetched_rows_v69015,
-                            coordinator=image_search_coordinator_v69062,
+                        combined_prefetch_rows_v69074 = (
+                            answer_result_rows_v69014 + prefetched_rows_v69015
                         )
+                        universal_images_v69014 = (
+                            _technical_answer_url_records_from_exact_rows_v69074(
+                                technical_request_prompt_v68879,
+                                answer,
+                                combined_prefetch_rows_v69074,
+                                max_images=3,
+                                coordinator=image_search_coordinator_v69062,
+                            )
+                        )
+                        if not universal_images_v69014:
+                            universal_images_v69014 = _website_file_search_images_v69014(
+                                technical_request_prompt_v68879,
+                                answer,
+                                combined_prefetch_rows_v69074,
+                                coordinator=image_search_coordinator_v69062,
+                            )
 
                     # If the prompt-only prefetch was not precise enough, preserve the
                     # existing answer-aware dedicated search as the fail-safe fallback.
@@ -70132,12 +70777,27 @@ else:
                             coordinator=image_search_coordinator_v69062,
                         )
                         if dedicated_rows_v69014:
-                            universal_images_v69014 = _website_file_search_images_v69014(
-                                technical_request_prompt_v68879,
-                                answer,
-                                answer_result_rows_v69014 + prefetched_rows_v69015 + dedicated_rows_v69014,
-                                coordinator=image_search_coordinator_v69062,
+                            combined_dedicated_rows_v69074 = (
+                                answer_result_rows_v69014
+                                + prefetched_rows_v69015
+                                + dedicated_rows_v69014
                             )
+                            universal_images_v69014 = (
+                                _technical_answer_url_records_from_exact_rows_v69074(
+                                    technical_request_prompt_v68879,
+                                    answer,
+                                    combined_dedicated_rows_v69074,
+                                    max_images=3,
+                                    coordinator=image_search_coordinator_v69062,
+                                )
+                            )
+                            if not universal_images_v69014:
+                                universal_images_v69014 = _website_file_search_images_v69014(
+                                    technical_request_prompt_v68879,
+                                    answer,
+                                    combined_dedicated_rows_v69074,
+                                    coordinator=image_search_coordinator_v69062,
+                                )
                     if universal_images_v69014:
                         # Replace only non-index legacy/model website fallbacks. Durable index
                         # results keep priority. Non-website assets are untouched.
@@ -70246,6 +70906,7 @@ else:
         if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
             try:
                 workspace_prefetched_rows_v69062 = []
+                workspace_prefetch_pending_v69075 = False
                 workspace_image_prefetch_future_active_v69062 = locals().get(
                     "workspace_image_prefetch_future_v69062"
                 )
@@ -70274,21 +70935,40 @@ else:
                             ) or []
                         )
                     except Exception as error:
+                        try:
+                            workspace_prefetch_pending_v69075 = not bool(
+                                workspace_image_prefetch_future_active_v69062.done()
+                            )
+                        except Exception:
+                            workspace_prefetch_pending_v69075 = True
                         diagnostic_log(
                             "workspace_image_prefetch_consume_failed_v69062",
                             workspace=str(assistant),
                             error_type=type(error).__name__,
                             error=str(error)[:500],
                         )
-                workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
-                    assistant,
-                    interaction_prompt,
-                    answer,
-                    list(st.session_state.get("_workspace_file_search_results_v69040") or []),
-                    max_images=3,
-                    prefetched_rows=workspace_prefetched_rows_v69062,
-                    coordinator=image_search_coordinator_v69062,
+                workspace_images_v69050 = list(
+                    locals().get("workspace_early_index_images_v69075") or []
                 )
+                if not workspace_images_v69050:
+                    workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
+                        assistant,
+                        interaction_prompt,
+                        answer,
+                        list(st.session_state.get("_workspace_file_search_results_v69040") or []),
+                        max_images=3,
+                        prefetched_rows=workspace_prefetched_rows_v69062,
+                        coordinator=image_search_coordinator_v69062,
+                        allow_synchronous_search_v69075=(
+                            not workspace_prefetch_pending_v69075
+                        ),
+                    )
+                else:
+                    diagnostic_log(
+                        "workspace_early_durable_publication_v69075",
+                        workspace=str(assistant),
+                        recovered=len(workspace_images_v69050),
+                    )
                 if workspace_images_v69050:
                     generated_images.extend(workspace_images_v69050)
                     generated_images = _dedupe_website_chat_images_v68883(generated_images)
