@@ -1,4 +1,4 @@
-# AutoTecPro AI v69072 — Exact Technical wiring-image visual authority
+# AutoTecPro AI v69073 — Exact subtitle-to-image binding authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,12 +87,13 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69072"
+ATP_BUILD_VERSION_V69062 = "v69073"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
     "v69070-graphic-checkpoint-dedup+v69071-graphic-admission-control+"
-    "v69072-wiring-image-local-visual-authority"
+    "v69072-wiring-image-local-visual-authority+"
+    "v69073-exact-subtitle-next-image-binding"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -39514,6 +39515,9 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
             "\"section_heading\":\"EXACT SECTION_HEADING\","
             "\"nearby_instruction_text\":\"EXACT NEARBY_INSTRUCTION_TEXT\","
             "\"visual_analysis\":\"EXACT IMAGE_ANALYSIS text or empty string for a legacy HTML image\","
+            "\"context_binding_version_v69067\":\"EXACT CONTEXT_BINDING_VERSION_V69067\","
+            "\"subtitle_exact_image_binding_v69073\":false,"
+            "\"subtitle_bound_group_v69073\":\"EXACT SUBTITLE_BOUND_GROUP_V69073\","
             "\"legacy_html_section_bound\":false}]]. "
             "For an older raw-HTML image with no IMAGE_ANALYSIS, copy its exact <img src> URL, exact "
             "source page/title, exact matching section heading and nearby instructions, set "
@@ -48801,7 +48805,9 @@ WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 # v69024: website-learning provenance authority. This deliberately invalidates
 # older image-QA reuse when page-zone/product provenance was not part of approval.
 WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69025-source-zone-provenance-2"
-WEBSITE_CONTEXT_BINDING_VERSION_V69067 = "v69067-semantic-subtitle-image-binding-1"
+WEBSITE_CONTEXT_BINDING_VERSION_V69067 = (
+    "v69073-semantic-subtitle-next-logical-image-group-1"
+)
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -48850,6 +48856,10 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._semantic_subtitle_capture_tag_v69067 = ""
         self._semantic_subtitle_parts_v69067 = []
         self._last_semantic_subtitle_v69067 = ""
+        # v69073: a semantic subtitle is authority for the next logical image
+        # group only.  v69067 left it active until another heading/subtitle,
+        # causing later wiring/product images to inherit "Car Model / A-C".
+        self._semantic_subtitle_bound_group_v69073 = ""
         self._recent_text_chunks = []
         # v69017 ingestion accuracy: retain ordered text blocks so every image can
         # be associated with both the instructions before it and the instructions
@@ -48906,7 +48916,25 @@ class KnowledgePageHTMLParser(HTMLParser):
             or re.search(r"/(?:uploads|images?|media|gallery|photos?)/", text, flags=re.I)
         )
 
-    def _context(self):
+    def _context(self, origin_group=""):
+        logical_group_v69073 = str(origin_group or "").strip()
+        bindable_image_group_v69073 = bool(logical_group_v69073)
+
+        subtitle_v69073 = self._last_semantic_subtitle_v69067
+        exact_binding_v69073 = False
+        if subtitle_v69073 and bindable_image_group_v69073:
+            if not self._semantic_subtitle_bound_group_v69073:
+                self._semantic_subtitle_bound_group_v69073 = logical_group_v69073
+                exact_binding_v69073 = True
+            elif self._semantic_subtitle_bound_group_v69073 == logical_group_v69073:
+                exact_binding_v69073 = True
+            else:
+                # A later image group must fall back to its own caption, vision,
+                # nearest heading, and nearby text. It cannot reuse this subtitle.
+                self._last_semantic_subtitle_v69067 = ""
+                self._semantic_subtitle_bound_group_v69073 = ""
+                subtitle_v69073 = ""
+
         nearby_text = " ".join(
             chunk for chunk in self._recent_text_chunks[-8:] if chunk
         )
@@ -48914,11 +48942,16 @@ class KnowledgePageHTMLParser(HTMLParser):
         return {
             "nearest_heading": self._last_heading,
             "heading_level": self._current_heading_level,
-            "section_subtitle_v69067": self._last_semantic_subtitle_v69067,
+            "section_subtitle_v69067": subtitle_v69073,
             "context_source_v69067": (
-                "explicit_subtitle" if self._last_semantic_subtitle_v69067
+                "explicit_subtitle" if subtitle_v69073
                 else ("nearest_heading" if self._last_heading else "")
             ),
+            "subtitle_exact_image_binding_v69073": bool(exact_binding_v69073),
+            "subtitle_bound_group_v69073": (
+                logical_group_v69073 if exact_binding_v69073 else ""
+            ),
+            "subtitle_image_distance_v69073": 0 if exact_binding_v69073 else None,
             "nearby_text": nearby_text[-1800:],
         }
 
@@ -48976,7 +49009,7 @@ class KnowledgePageHTMLParser(HTMLParser):
             "full_size_candidate": bool(full_size),
             "origin_group": str(origin_group or ""),
             "text_sequence_index_v69017": len(self._text_sequence_v69017),
-            **self._context(),
+            **self._context(origin_group),
         }
         self.images.append(record)
 
@@ -49025,6 +49058,7 @@ class KnowledgePageHTMLParser(HTMLParser):
             self._current_heading_level = tag
             self._current_heading_parts = []
             self._last_semantic_subtitle_v69067 = ""
+            self._semantic_subtitle_bound_group_v69073 = ""
 
         if tag in {"strong", "b"} and not self._semantic_subtitle_capture_tag_v69067:
             self._semantic_subtitle_capture_tag_v69067 = tag
@@ -49089,10 +49123,12 @@ class KnowledgePageHTMLParser(HTMLParser):
             self._picture_depth = max(0, self._picture_depth - 1)
             if self._picture_depth == 0:
                 if self._picture_sources and not self._picture_had_img:
+                    self._image_group_counter += 1
                     self._append_image(
                         self._picture_sources[0],
                         source_kind="picture-source-only",
                         full_size=True,
+                        origin_group=f"picture-{self._image_group_counter}",
                     )
                 self._picture_sources = []
                 self._picture_had_img = False
@@ -49114,6 +49150,7 @@ class KnowledgePageHTMLParser(HTMLParser):
             )
             if subtitle_v69067:
                 self._last_semantic_subtitle_v69067 = subtitle_v69067
+                self._semantic_subtitle_bound_group_v69073 = ""
                 self._recent_text_chunks.append(subtitle_v69067)
                 self._recent_text_chunks = self._recent_text_chunks[-12:]
             self._semantic_subtitle_capture_tag_v69067 = ""
@@ -49335,8 +49372,8 @@ class KnowledgePageHTMLParserV69024(KnowledgePageHTMLParser):
     def _zone_state_v69024(self):
         return self._zone_stack_v69024[-1] if self._zone_stack_v69024 else {"zone": "article_body", "excluded": False}
 
-    def _context(self):
-        value = super()._context()
+    def _context(self, origin_group=""):
+        value = super()._context(origin_group)
         state = self._zone_state_v69024()
         value["source_zone_v69024"] = self._void_zone_v69024 or str(state.get("zone") or "")
         value["page_type_v69024"] = self.page_type_v69024
@@ -49711,6 +49748,8 @@ def _website_scoped_raw_html_image_candidates_v69024(page_html, page_url, page_t
         for field in (
             "alt", "title", "nearest_heading", "heading_level", "nearby_text",
             "section_subtitle_v69067", "context_source_v69067", "context_confidence_v69067",
+            "subtitle_exact_image_binding_v69073", "subtitle_bound_group_v69073",
+            "subtitle_image_distance_v69073",
             "context_before_text_v69017", "context_after_text_v69017", "origin_group",
             "source_zone_v69024", "page_type_v69024", "ingestion_authority_version_v69024",
         ):
@@ -50000,6 +50039,15 @@ def _website_image_candidate_urls(parser_images, page_url):
             "section_subtitle_v69067": section_subtitle_v69067,
             "context_source_v69067": str(raw.get("context_source_v69067") or "").strip(),
             "context_confidence_v69067": float(raw.get("context_confidence_v69067") or 0.0),
+            "subtitle_exact_image_binding_v69073": bool(
+                raw.get("subtitle_exact_image_binding_v69073")
+            ),
+            "subtitle_bound_group_v69073": str(
+                raw.get("subtitle_bound_group_v69073") or ""
+            ).strip(),
+            "subtitle_image_distance_v69073": (
+                0 if raw.get("subtitle_exact_image_binding_v69073") else None
+            ),
             "nearby_text": nearby_text[:3600],
             "context_before_text_v69017": context_before_v69017[-1800:],
             "context_after_text_v69017": context_after_v69017[:1800],
@@ -50076,6 +50124,15 @@ def _website_image_candidate_urls(parser_images, page_url):
                 item["section_subtitle_v69067"] = previous.get("section_subtitle_v69067")
                 item["context_source_v69067"] = previous.get("context_source_v69067")
                 item["context_confidence_v69067"] = previous.get("context_confidence_v69067")
+                item["subtitle_exact_image_binding_v69073"] = bool(
+                    previous.get("subtitle_exact_image_binding_v69073")
+                )
+                item["subtitle_bound_group_v69073"] = previous.get(
+                    "subtitle_bound_group_v69073"
+                )
+                item["subtitle_image_distance_v69073"] = previous.get(
+                    "subtitle_image_distance_v69073"
+                )
             if not item.get("nearby_text") and previous.get("nearby_text"):
                 item["nearby_text"] = previous.get("nearby_text")
             if not item.get("context_before_text_v69017") and previous.get("context_before_text_v69017"):
@@ -50093,6 +50150,15 @@ def _website_image_candidate_urls(parser_images, page_url):
                 previous["section_subtitle_v69067"] = item.get("section_subtitle_v69067")
                 previous["context_source_v69067"] = item.get("context_source_v69067")
                 previous["context_confidence_v69067"] = item.get("context_confidence_v69067")
+                previous["subtitle_exact_image_binding_v69073"] = bool(
+                    item.get("subtitle_exact_image_binding_v69073")
+                )
+                previous["subtitle_bound_group_v69073"] = item.get(
+                    "subtitle_bound_group_v69073"
+                )
+                previous["subtitle_image_distance_v69073"] = item.get(
+                    "subtitle_image_distance_v69073"
+                )
             for context_field_v69067 in (
                 "nearest_heading", "nearby_text", "context_before_text_v69017",
                 "context_after_text_v69017", "alt", "title",
@@ -50918,6 +50984,15 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                     float(candidate.get("context_confidence_v69067") or 0.0),
                     0.76 if analysis and str(candidate.get("context_source_v69067") or "").strip() in {"", "unresolved"} else 0.0,
                 ),
+                "subtitle_exact_image_binding_v69073": bool(
+                    candidate.get("subtitle_exact_image_binding_v69073")
+                ),
+                "subtitle_bound_group_v69073": str(
+                    candidate.get("subtitle_bound_group_v69073") or ""
+                ).strip(),
+                "subtitle_image_distance_v69073": (
+                    0 if candidate.get("subtitle_exact_image_binding_v69073") else None
+                ),
                 "nearby_text": str(candidate.get("nearby_text") or "").strip(),
                 "context_before_text_v69017": str(candidate.get("context_before_text_v69017") or "").strip(),
                 "context_after_text_v69017": str(candidate.get("context_after_text_v69017") or "").strip(),
@@ -51023,6 +51098,9 @@ def build_website_knowledge_package_document(
                 f"CONTEXT_SOURCE_V69067: {str(item.get('context_source_v69067') or '').strip()}",
                 f"CONTEXT_CONFIDENCE_V69067: {float(item.get('context_confidence_v69067') or 0.0)}",
                 f"CONTEXT_BINDING_VERSION_V69067: {WEBSITE_CONTEXT_BINDING_VERSION_V69067}",
+                f"SUBTITLE_EXACT_IMAGE_BINDING_V69073: {bool(item.get('subtitle_exact_image_binding_v69073'))}",
+                f"SUBTITLE_BOUND_GROUP_V69073: {str(item.get('subtitle_bound_group_v69073') or '').strip()}",
+                f"SUBTITLE_IMAGE_DISTANCE_V69073: {item.get('subtitle_image_distance_v69073')}",
                 f"SECTION_HEADING: {str(item.get('nearest_heading') or '').strip()}",
                 f"NEARBY_INSTRUCTION_TEXT: {str(item.get('nearby_text') or '').strip()}",
                 f"CONTEXT_BEFORE_IMAGE: {str(item.get('context_before_text_v69017') or '').strip()}",
@@ -51112,6 +51190,15 @@ def _website_image_index_record_v68883(
         "context_source_v69067": str(image_item.get("context_source_v69067") or "").strip(),
         "context_confidence_v69067": float(image_item.get("context_confidence_v69067") or 0.0),
         "context_binding_version_v69067": WEBSITE_CONTEXT_BINDING_VERSION_V69067,
+        "subtitle_exact_image_binding_v69073": bool(
+            image_item.get("subtitle_exact_image_binding_v69073")
+        ),
+        "subtitle_bound_group_v69073": str(
+            image_item.get("subtitle_bound_group_v69073") or ""
+        ).strip(),
+        "subtitle_image_distance_v69073": (
+            0 if image_item.get("subtitle_exact_image_binding_v69073") else None
+        ),
         "section_heading": str(image_item.get("nearest_heading") or "").strip(),
         "nearby_instruction_text": str(image_item.get("nearby_text") or "").strip(),
         "caption": str(
@@ -52554,9 +52641,27 @@ def _website_image_car_model_visual_specificity_v69004(payload):
         "yellow connector", "red connector", "video connector", "aux cable",
         "aux harness", "wiring harness", "wire harness", "power harness",
         "connector photo", "wiring photo", "camera wiring", "cable harness",
+        "rear of radio", "rear of the radio", "rear of unit", "rear panel",
+        "back of radio", "radio antenna", "sim card", "canbus connector",
+        "connector labels", "main power harness", "physical harness",
+    )
+
+    # v69073: make the image-local vocabulary vehicle-neutral. Correct Ford,
+    # Toyota, GM, RAM, Jeep, and future setting screenshots should not depend on
+    # one historical Jeep phrase to prove that they show a model-selection UI.
+    generic_model_screen_patterns_v69073 = (
+        r"(?:ford|chevrolet|gmc|toyota|dodge|ram|jeep|honda|nissan|subaru|"
+        r"hyundai|kia|volkswagen|bmw|mercedes).{0,80}(?:model|f\s*-?\s*450|"
+        r"f\s*-?\s*250|silverado|sierra|tundra|durango)",
+        r"(?:protocol|canbus).{0,60}(?:simple|xinbasi|exinbasi)",
+        r"(?:automatic|manual).{0,30}(?:a\s*/?\s*c|ac|climate)",
     )
 
     strong_hits = sum(1 for term in strong_terms if term in visual)
+    strong_hits += sum(
+        1 for pattern in generic_model_screen_patterns_v69073
+        if re.search(pattern, visual, flags=re.I)
+    )
     screen_hits = sum(1 for term in screen_terms if term in visual)
     conflict_hits = sum(1 for term in physical_conflicts if term in visual)
 
@@ -52745,7 +52850,13 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
             # analysis clearly describes another physical function, section text
             # alone is no longer sufficient authority.
             sparse_visual_v69004 = len(visual_only.strip()) < 55
-            if sparse_visual_v69004:
+            exact_subtitle_binding_v69073 = bool(
+                payload.get("subtitle_exact_image_binding_v69073")
+            ) and "v69073-semantic-subtitle-next-logical-image-group" in str(
+                payload.get("context_binding_version_v69067")
+                or WEBSITE_CONTEXT_BINDING_VERSION_V69067
+            )
+            if sparse_visual_v69004 and exact_subtitle_binding_v69073:
                 # v69009: restore the proven v68996 legacy-image behavior without
                 # removing the later RAM safety gates. At this point the candidate
                 # has already passed vehicle/year fitment, subsection-role matching,
@@ -52754,6 +52865,11 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
                 # rejection. A genuinely sparse approved legacy record may therefore
                 # use its authoritative Car Model/A/C webpage association again.
                 return True
+            if sparse_visual_v69004:
+                # Legacy broad subtitle inheritance is no longer sufficient.
+                # It is the exact failure that attached a rear F250 wiring photo
+                # to a Car Model/A-C answer.
+                return False
             return visual_specificity_v69004 > -1.0 and strong_visual
 
         return strong_visual
@@ -53343,6 +53459,10 @@ def _website_model_control_payload_v69010(image_record):
         "section_subtitle_v69067": subtitle_v69067,
         "context_source_v69067": str(image_record.get("website_context_source_v69067") or "").strip(),
         "context_confidence_v69067": float(image_record.get("website_context_confidence_v69067") or 0.0),
+        "context_binding_version_v69067": str(image_record.get("website_context_binding_version_v69067") or "").strip(),
+        "subtitle_exact_image_binding_v69073": bool(image_record.get("website_subtitle_exact_image_binding_v69073")),
+        "subtitle_bound_group_v69073": str(image_record.get("website_subtitle_bound_group_v69073") or "").strip(),
+        "subtitle_image_distance_v69073": image_record.get("website_subtitle_image_distance_v69073"),
         "section_heading": section,
         "nearby_instruction_text": nearby,
         "visual_analysis": visual,
@@ -53495,6 +53615,11 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
                 field("CONTEXT_CONFIDENCE_V69067"), 0.0
             ),
             "context_binding_version_v69067": field("CONTEXT_BINDING_VERSION_V69067"),
+            "subtitle_exact_image_binding_v69073": field("SUBTITLE_EXACT_IMAGE_BINDING_V69073").casefold() == "true",
+            "subtitle_bound_group_v69073": field("SUBTITLE_BOUND_GROUP_V69073"),
+            "subtitle_image_distance_v69073": _website_safe_float_v69067(
+                field("SUBTITLE_IMAGE_DISTANCE_V69073"), 999.0
+            ),
             "section_heading": field("SECTION_HEADING"),
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
             "visual_analysis": analysis,
@@ -53556,6 +53681,10 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
             "section_subtitle_v69067": subtitle_v69067,
             "context_source_v69067": str(item.get("context_source_v69067") or "").strip(),
             "context_confidence_v69067": float(item.get("context_confidence_v69067") or 0.0),
+            "context_binding_version_v69067": str(item.get("context_binding_version_v69067") or "").strip(),
+            "subtitle_exact_image_binding_v69073": bool(item.get("subtitle_exact_image_binding_v69073")),
+            "subtitle_bound_group_v69073": str(item.get("subtitle_bound_group_v69073") or "").strip(),
+            "subtitle_image_distance_v69073": item.get("subtitle_image_distance_v69073"),
             "section_heading": section,
             "nearby_instruction_text": nearby,
             "visual_analysis": "",
@@ -53964,6 +54093,10 @@ def _website_file_search_images_v69014(
             "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
             "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
             "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
+            "website_context_binding_version_v69067": str(payload.get("context_binding_version_v69067") or "").strip(),
+            "website_subtitle_exact_image_binding_v69073": bool(payload.get("subtitle_exact_image_binding_v69073")),
+            "website_subtitle_bound_group_v69073": str(payload.get("subtitle_bound_group_v69073") or "").strip(),
+            "website_subtitle_image_distance_v69073": payload.get("subtitle_image_distance_v69073"),
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -54129,6 +54262,10 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
             "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
             "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
             "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
+            "website_context_binding_version_v69067": str(payload.get("context_binding_version_v69067") or "").strip(),
+            "website_subtitle_exact_image_binding_v69073": bool(payload.get("subtitle_exact_image_binding_v69073")),
+            "website_subtitle_bound_group_v69073": str(payload.get("subtitle_bound_group_v69073") or "").strip(),
+            "website_subtitle_image_distance_v69073": payload.get("subtitle_image_distance_v69073"),
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -54526,6 +54663,18 @@ def _website_image_rank_v68883(prompt_text, payload):
     ):
         return -900.0
     score += role_score_v68884
+    # v69073: an exact semantic subtitle may authorize only its immediately
+    # following logical image group.  Prefer that local relationship over broad
+    # page/heading similarity, but only after all existing fitment/role gates.
+    if (
+        query_role_v68884
+        and bool(payload.get("subtitle_exact_image_binding_v69073"))
+        and "v69073-semantic-subtitle-next-logical-image-group" in str(
+            payload.get("context_binding_version_v69067") or ""
+        )
+        and _website_image_section_role_match_v68890(query_role_v68884, payload)
+    ):
+        score += 36.0
     score += {
         "product_gallery": 7.0, "product_technical_content": 8.0,
         "product_description": 6.0, "technical_section": 8.0,
@@ -54654,6 +54803,10 @@ def _website_image_record_for_chat_v68883(payload):
         "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
         "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
         "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
+        "website_context_binding_version_v69067": str(payload.get("context_binding_version_v69067") or "").strip(),
+        "website_subtitle_exact_image_binding_v69073": bool(payload.get("subtitle_exact_image_binding_v69073")),
+        "website_subtitle_bound_group_v69073": str(payload.get("subtitle_bound_group_v69073") or "").strip(),
+        "website_subtitle_image_distance_v69073": payload.get("subtitle_image_distance_v69073"),
         "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
         "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
         "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -55856,6 +56009,18 @@ def _attach_image_provenance_v69062(
         "context_confidence_v69067": _website_safe_float_v69067(
             payload.get("context_confidence_v69067"), 0.0
         ),
+        "context_binding_version_v69067": str(
+            payload.get("context_binding_version_v69067") or ""
+        ).strip(),
+        "subtitle_exact_image_binding_v69073": bool(
+            payload.get("subtitle_exact_image_binding_v69073")
+        ),
+        "subtitle_bound_group_v69073": str(
+            payload.get("subtitle_bound_group_v69073") or ""
+        ).strip(),
+        "subtitle_image_distance_v69073": payload.get(
+            "subtitle_image_distance_v69073"
+        ),
         "published_at": published_at,
         "build_version": ATP_BUILD_VERSION_V69062,
     }
@@ -57027,6 +57192,15 @@ def _website_image_related_evidence_lookup_v69025r2(
             min(float(payload.get("_technical_file_search_score_v69032") or 0.0), 1.0),
         ) * 5.0
         total_score = identity_score + topic_score + file_search_score_v69032
+        if (
+            query_role
+            and bool(payload.get("subtitle_exact_image_binding_v69073"))
+            and "v69073-semantic-subtitle-next-logical-image-group" in str(
+                payload.get("context_binding_version_v69067") or ""
+            )
+            and _website_image_section_role_match_v68890(query_role, payload)
+        ):
+            total_score += 36.0
 
         # A topic-specific related image must carry real section/caption/visual evidence.
         is_topic_related = bool(topic_hits) or lexical_overlap >= 1 or role_score >= 8.0
@@ -57039,7 +57213,16 @@ def _website_image_related_evidence_lookup_v69025r2(
     _sort(topic_ranked)
     _sort(general_ranked)
 
-    selected = topic_ranked
+    precise_single_image_roles_v69073 = {
+        "car_model_ac", "camera", "factory_camera", "reverse_camera",
+        "dashboard", "wiring", "wiring_diagram", "connection",
+        "harness", "power",
+    }
+    selected = (
+        topic_ranked[:1]
+        if topic_ranked and query_role in precise_single_image_roles_v69073
+        else topic_ranked
+    )
     if not selected and general_ranked and not query_role:
         # Precision-first final fallback: one same-product/system image proves there is
         # a related visual without pretending it depicts the exact requested operation.
@@ -57594,6 +57777,10 @@ def _website_images_for_chat(image_items, max_images=WEBSITE_AUTO_DISPLAY_MAX_IM
             "website_context_confidence_v69067": _website_safe_float_v69067(
                 item.get("context_confidence_v69067"), 0.0
             ),
+            "website_context_binding_version_v69067": str(item.get("context_binding_version_v69067") or "").strip(),
+            "website_subtitle_exact_image_binding_v69073": bool(item.get("subtitle_exact_image_binding_v69073")),
+            "website_subtitle_bound_group_v69073": str(item.get("subtitle_bound_group_v69073") or "").strip(),
+            "website_subtitle_image_distance_v69073": item.get("subtitle_image_distance_v69073"),
         })
     return records
 
@@ -57676,6 +57863,10 @@ def extract_website_image_controls_v68870(text_value):
             "website_section_subtitle_v69067": re.sub(r"\s+", " ", str(payload.get("section_subtitle_v69067") or "")).strip(),
             "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
             "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
+            "website_context_binding_version_v69067": str(payload.get("context_binding_version_v69067") or "").strip(),
+            "website_subtitle_exact_image_binding_v69073": bool(payload.get("subtitle_exact_image_binding_v69073")),
+            "website_subtitle_bound_group_v69073": str(payload.get("subtitle_bound_group_v69073") or "").strip(),
+            "website_subtitle_image_distance_v69073": payload.get("subtitle_image_distance_v69073"),
             "website_section_heading_v69010": re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip(),
             "website_nearby_instruction_text_v69010": re.sub(r"\s+", " ", str(payload.get("nearby_instruction_text") or "")).strip(),
             "website_visual_analysis_v69010": re.sub(r"\s+", " ", str(payload.get("visual_analysis") or "")).strip(),
