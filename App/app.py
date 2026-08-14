@@ -87,8 +87,8 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69066"
-ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher"
+ATP_BUILD_VERSION_V69062 = "v69067"
+ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher+v69067-semantic-subtitle"
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
     or os.environ.get("GIT_COMMIT_SHA")
@@ -448,7 +448,7 @@ def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69066", expanded=False):
+    with st.expander("Production Runtime Audit · v69067", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -47922,6 +47922,7 @@ WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 # v69024: website-learning provenance authority. This deliberately invalidates
 # older image-QA reuse when page-zone/product provenance was not part of approval.
 WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69025-source-zone-provenance-2"
+WEBSITE_CONTEXT_BINDING_VERSION_V69067 = "v69067-semantic-subtitle-image-binding-1"
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -47963,6 +47964,13 @@ class KnowledgePageHTMLParser(HTMLParser):
         self._current_heading_level = ""
         self._current_heading_parts = []
         self._last_heading = ""
+        # v69067: many AutoTecPro pages use a standalone <strong>/<b> line as the
+        # real image subtitle instead of h1-h6.  Keep that local relationship
+        # separate from the broader section heading so year/topic-specific images
+        # cannot inherit only a generic parent section.
+        self._semantic_subtitle_capture_tag_v69067 = ""
+        self._semantic_subtitle_parts_v69067 = []
+        self._last_semantic_subtitle_v69067 = ""
         self._recent_text_chunks = []
         # v69017 ingestion accuracy: retain ordered text blocks so every image can
         # be associated with both the instructions before it and the instructions
@@ -48027,8 +48035,55 @@ class KnowledgePageHTMLParser(HTMLParser):
         return {
             "nearest_heading": self._last_heading,
             "heading_level": self._current_heading_level,
+            "section_subtitle_v69067": self._last_semantic_subtitle_v69067,
+            "context_source_v69067": (
+                "explicit_subtitle" if self._last_semantic_subtitle_v69067
+                else ("nearest_heading" if self._last_heading else "")
+            ),
             "nearby_text": nearby_text[-1800:],
         }
+
+    @staticmethod
+    def _semantic_subtitle_candidate_v69067(value):
+        """Return a high-confidence block-level bold subtitle, or an empty string.
+
+        The page learner remains fail closed: ordinary inline emphasis is ignored.
+        A candidate must describe a recognizable image/section topic or carry an
+        explicit year range.  This supports Technical, Sales, and Marketing pages
+        without weakening destination, vehicle, year, product, or topic gates.
+        """
+        text = re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip(" \t\r\n-|•")
+        if not text or len(text) < 4 or len(text) > 240:
+            return ""
+        words = re.findall(r"[A-Za-z0-9]+", text)
+        if len(words) < 2 or len(words) > 32:
+            return ""
+        lowered = text.casefold()
+        if re.fullmatch(
+            r"(?:note|important|warning|vehicle|model|year|sku|part(?:\s*#|\s+number)?|"
+            r"price|status|password|username|quantity|color|size)\s*:?,?",
+            lowered,
+        ):
+            return ""
+        explicit_year_range = bool(re.search(
+            r"\b(?:19|20)\d{2}\s*(?:-|–|—|/|to|through)\s*(?:19|20)\d{2}\b",
+            text,
+            flags=re.I,
+        ))
+        semantic_topic = bool(re.search(
+            r"\b(?:wiring(?:\s+diagram|\s+instruction)?|main\s+(?:power\s+)?harness|"
+            r"power\s+harness|harness\s+(?:checklist|diagram)|camera|car\s*model|"
+            r"a\s*/?\s*c|climate|protocol|canbus|compatibility|fitment|installation|"
+            r"setting(?:s|\s+guide)?|model\s+selection|package\s+(?:includes|contents?)|"
+            r"specifications?|features?|before\s*(?:&|and|/)\s*after|navigation|"
+            r"carplay|android\s+auto|audio|connector|cable|screen|display|product\s+image|"
+            r"gallery|campaign|creative)\b",
+            lowered,
+            flags=re.I,
+        ))
+        if not (explicit_year_range or semantic_topic):
+            return ""
+        return text
 
     def _append_image(self, src, *, alt="", title="", source_kind="html", full_size=False, origin_group=""):
         src = html.unescape(str(src or "").strip())
@@ -48090,6 +48145,11 @@ class KnowledgePageHTMLParser(HTMLParser):
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             self._current_heading_level = tag
             self._current_heading_parts = []
+            self._last_semantic_subtitle_v69067 = ""
+
+        if tag in {"strong", "b"} and not self._semantic_subtitle_capture_tag_v69067:
+            self._semantic_subtitle_capture_tag_v69067 = tag
+            self._semantic_subtitle_parts_v69067 = []
 
         if tag in self.BLOCK_TAGS:
             self._parts.append("\n")
@@ -48169,6 +48229,17 @@ class KnowledgePageHTMLParser(HTMLParser):
         if tag == "title":
             self._inside_title = False
 
+        if tag == self._semantic_subtitle_capture_tag_v69067:
+            subtitle_v69067 = self._semantic_subtitle_candidate_v69067(
+                " ".join(self._semantic_subtitle_parts_v69067)
+            )
+            if subtitle_v69067:
+                self._last_semantic_subtitle_v69067 = subtitle_v69067
+                self._recent_text_chunks.append(subtitle_v69067)
+                self._recent_text_chunks = self._recent_text_chunks[-12:]
+            self._semantic_subtitle_capture_tag_v69067 = ""
+            self._semantic_subtitle_parts_v69067 = []
+
         if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             heading = re.sub(r"\s+", " ", " ".join(self._current_heading_parts)).strip()
             if heading:
@@ -48198,6 +48269,9 @@ class KnowledgePageHTMLParser(HTMLParser):
         if self._current_heading_level:
             self._current_heading_parts.append(value)
 
+        if self._semantic_subtitle_capture_tag_v69067:
+            self._semantic_subtitle_parts_v69067.append(value)
+
         if not self._inside_title:
             self._recent_text_chunks.append(value)
             self._recent_text_chunks = self._recent_text_chunks[-12:]
@@ -48225,8 +48299,26 @@ class KnowledgePageHTMLParser(HTMLParser):
             record["context_before_text_v69017"] = before
             record["context_after_text_v69017"] = after
             heading = re.sub(r"\s+", " ", str(record.get("nearest_heading") or "")).strip()
-            combined = " ".join(x for x in (heading, before, after) if x)
+            subtitle_v69067 = re.sub(
+                r"\s+", " ", str(record.get("section_subtitle_v69067") or "")
+            ).strip()
+            combined = " ".join(x for x in (subtitle_v69067, heading, before, after) if x)
             record["nearby_text"] = re.sub(r"\s+", " ", combined).strip()[:3600]
+            if subtitle_v69067:
+                record["context_source_v69067"] = "explicit_subtitle"
+                record["context_confidence_v69067"] = 1.0
+            elif heading:
+                record["context_source_v69067"] = "nearest_heading"
+                record["context_confidence_v69067"] = 0.82
+            elif str(record.get("alt") or record.get("title") or "").strip():
+                record["context_source_v69067"] = "caption_alt_title"
+                record["context_confidence_v69067"] = 0.70
+            elif before or after:
+                record["context_source_v69067"] = "nearby_text"
+                record["context_confidence_v69067"] = 0.55
+            else:
+                record["context_source_v69067"] = "unresolved"
+                record["context_confidence_v69067"] = 0.0
         return self.images
 
     def text(self):
@@ -48739,6 +48831,7 @@ def _website_scoped_raw_html_image_candidates_v69024(page_html, page_url, page_t
         merged = dict(item)
         for field in (
             "alt", "title", "nearest_heading", "heading_level", "nearby_text",
+            "section_subtitle_v69067", "context_source_v69067", "context_confidence_v69067",
             "context_before_text_v69017", "context_after_text_v69017", "origin_group",
             "source_zone_v69024", "page_type_v69024", "ingestion_authority_version_v69024",
         ):
@@ -48953,6 +49046,9 @@ def _website_image_candidate_urls(parser_images, page_url):
         alt = re.sub(r"\s+", " ", str(raw.get("alt") or "")).strip()
         title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
         nearest_heading = re.sub(r"\s+", " ", str(raw.get("nearest_heading") or "")).strip()
+        section_subtitle_v69067 = re.sub(
+            r"\s+", " ", str(raw.get("section_subtitle_v69067") or "")
+        ).strip()
         nearby_text = re.sub(r"\s+", " ", str(raw.get("nearby_text") or "")).strip()
         context_before_v69017 = re.sub(r"\s+", " ", str(raw.get("context_before_text_v69017") or "")).strip()
         context_after_v69017 = re.sub(r"\s+", " ", str(raw.get("context_after_text_v69017") or "")).strip()
@@ -48969,7 +49065,7 @@ def _website_image_candidate_urls(parser_images, page_url):
         ).casefold()
         asset_basename = _website_asset_basename_v68999(normalized)
         contextual_haystack = " ".join(
-            part for part in (asset_identity, nearest_heading, nearby_text) if part
+            part for part in (asset_identity, section_subtitle_v69067, nearest_heading, nearby_text) if part
         ).casefold()
         technical_context = any(token in contextual_haystack for token in positive_tokens)
 
@@ -48991,6 +49087,8 @@ def _website_image_candidate_urls(parser_images, page_url):
             score += 6
         if nearest_heading:
             score += 2
+        if section_subtitle_v69067:
+            score += 4
         if nearby_text:
             score += 1
         if alt:
@@ -49020,6 +49118,9 @@ def _website_image_candidate_urls(parser_images, page_url):
             "alt": alt,
             "title": title,
             "nearest_heading": nearest_heading,
+            "section_subtitle_v69067": section_subtitle_v69067,
+            "context_source_v69067": str(raw.get("context_source_v69067") or "").strip(),
+            "context_confidence_v69067": float(raw.get("context_confidence_v69067") or 0.0),
             "nearby_text": nearby_text[:3600],
             "context_before_text_v69017": context_before_v69017[-1800:],
             "context_after_text_v69017": context_after_v69017[:1800],
@@ -49092,6 +49193,10 @@ def _website_image_candidate_urls(parser_images, page_url):
             # full-size URL itself came from a sparse lightbox/data attribute.
             if not item.get("nearest_heading") and previous.get("nearest_heading"):
                 item["nearest_heading"] = previous.get("nearest_heading")
+            if not item.get("section_subtitle_v69067") and previous.get("section_subtitle_v69067"):
+                item["section_subtitle_v69067"] = previous.get("section_subtitle_v69067")
+                item["context_source_v69067"] = previous.get("context_source_v69067")
+                item["context_confidence_v69067"] = previous.get("context_confidence_v69067")
             if not item.get("nearby_text") and previous.get("nearby_text"):
                 item["nearby_text"] = previous.get("nearby_text")
             if not item.get("context_before_text_v69017") and previous.get("context_before_text_v69017"):
@@ -49101,6 +49206,20 @@ def _website_image_candidate_urls(parser_images, page_url):
             if not item.get("alt") and previous.get("alt"):
                 item["alt"] = previous.get("alt")
             logical[logical_key] = item
+        else:
+            # The original/full-size URL may have been discovered on a wrapper
+            # before the contextual <img>. Keep the winning bytes, but enrich
+            # them with the later image-local subtitle/heading/caption evidence.
+            if not previous.get("section_subtitle_v69067") and item.get("section_subtitle_v69067"):
+                previous["section_subtitle_v69067"] = item.get("section_subtitle_v69067")
+                previous["context_source_v69067"] = item.get("context_source_v69067")
+                previous["context_confidence_v69067"] = item.get("context_confidence_v69067")
+            for context_field_v69067 in (
+                "nearest_heading", "nearby_text", "context_before_text_v69017",
+                "context_after_text_v69017", "alt", "title",
+            ):
+                if not previous.get(context_field_v69067) and item.get(context_field_v69067):
+                    previous[context_field_v69067] = item.get(context_field_v69067)
 
     results = list(logical.values())
     results.sort(
@@ -49575,7 +49694,7 @@ def _website_validated_preview_records_v68999(candidates):
             continue
         if digest:
             seen_sha.add(digest)
-        section = str(item.get("nearest_heading") or "").strip()
+        section = str(item.get("section_subtitle_v69067") or item.get("nearest_heading") or "").strip()
         alt = str(item.get("alt") or item.get("title") or "").strip()
         records.append({
             "name": section or alt or "Website instruction image",
@@ -49876,7 +49995,10 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                     data_url,
                     source_label=str(extraction.get("source_url") or ""),
                     page_title=str(extraction.get("title") or ""),
-                    section_heading=str(candidate.get("nearest_heading") or ""),
+                    section_heading=" | ".join(x for x in (
+                        str(candidate.get("section_subtitle_v69067") or "").strip(),
+                        str(candidate.get("nearest_heading") or "").strip(),
+                    ) if x),
                     context_before=str(candidate.get("context_before_text_v69017") or candidate.get("nearby_text") or ""),
                     context_after=str(candidate.get("context_after_text_v69017") or ""),
                     alt_text=str(candidate.get("alt") or candidate.get("title") or ""),
@@ -49906,6 +50028,17 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "alt": str(candidate.get("alt") or "").strip(),
                 "title": str(candidate.get("title") or "").strip(),
                 "nearest_heading": str(candidate.get("nearest_heading") or "").strip(),
+                "section_subtitle_v69067": str(candidate.get("section_subtitle_v69067") or "").strip(),
+                "context_source_v69067": (
+                    "visual_analysis"
+                    if str(candidate.get("context_source_v69067") or "").strip() in {"", "unresolved"}
+                    and analysis
+                    else str(candidate.get("context_source_v69067") or "unresolved").strip()
+                ),
+                "context_confidence_v69067": max(
+                    float(candidate.get("context_confidence_v69067") or 0.0),
+                    0.76 if analysis and str(candidate.get("context_source_v69067") or "").strip() in {"", "unresolved"} else 0.0,
+                ),
                 "nearby_text": str(candidate.get("nearby_text") or "").strip(),
                 "context_before_text_v69017": str(candidate.get("context_before_text_v69017") or "").strip(),
                 "context_after_text_v69017": str(candidate.get("context_after_text_v69017") or "").strip(),
@@ -49978,6 +50111,7 @@ def build_website_knowledge_package_document(
         f"Page content SHA-256: {extraction.get('content_hash')}",
         f"Page type v69024: {extraction.get('page_type_v69024')}",
         f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
+        f"Context binding authority v69067: {WEBSITE_CONTEXT_BINDING_VERSION_V69067}",
         f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
         f"Useful website images analyzed: {len(images)}",
         "APPROVED_IMAGE_ORIGINS_V69040: " + ",".join(approved_image_origins_v69040),
@@ -50006,6 +50140,10 @@ def build_website_knowledge_package_document(
             )
             lines.extend([
                 f"IMAGE {index}",
+                f"SECTION_SUBTITLE_V69067: {str(item.get('section_subtitle_v69067') or '').strip()}",
+                f"CONTEXT_SOURCE_V69067: {str(item.get('context_source_v69067') or '').strip()}",
+                f"CONTEXT_CONFIDENCE_V69067: {float(item.get('context_confidence_v69067') or 0.0)}",
+                f"CONTEXT_BINDING_VERSION_V69067: {WEBSITE_CONTEXT_BINDING_VERSION_V69067}",
                 f"SECTION_HEADING: {str(item.get('nearest_heading') or '').strip()}",
                 f"NEARBY_INSTRUCTION_TEXT: {str(item.get('nearby_text') or '').strip()}",
                 f"CONTEXT_BEFORE_IMAGE: {str(item.get('context_before_text_v69017') or '').strip()}",
@@ -50040,6 +50178,7 @@ def _website_image_index_keywords_v68883(extraction, image_item):
     parts = [
         str(extraction.get("title") or ""),
         str(extraction.get("source_url") or ""),
+        str(image_item.get("section_subtitle_v69067") or ""),
         str(image_item.get("nearest_heading") or ""),
         str(image_item.get("nearby_text") or ""),
         str(image_item.get("alt") or ""),
@@ -50090,6 +50229,10 @@ def _website_image_index_record_v68883(
         ).strip(),
         "image_url": str(image_item.get("url") or "").strip(),
         "image_sha256": str(image_item.get("sha256") or "").strip(),
+        "section_subtitle_v69067": str(image_item.get("section_subtitle_v69067") or "").strip(),
+        "context_source_v69067": str(image_item.get("context_source_v69067") or "").strip(),
+        "context_confidence_v69067": float(image_item.get("context_confidence_v69067") or 0.0),
+        "context_binding_version_v69067": WEBSITE_CONTEXT_BINDING_VERSION_V69067,
         "section_heading": str(image_item.get("nearest_heading") or "").strip(),
         "nearby_instruction_text": str(image_item.get("nearby_text") or "").strip(),
         "caption": str(
@@ -50799,6 +50942,9 @@ def _website_image_query_role_v68884(prompt_text):
 
 def _website_image_payload_text_v68884(payload):
     return {
+        "subtitle": re.sub(
+            r"\s+", " ", str(payload.get("section_subtitle_v69067") or "")
+        ).strip().casefold(),
         "heading": re.sub(
             r"\s+", " ", str(payload.get("section_heading") or "")
         ).strip().casefold(),
@@ -50829,11 +50975,12 @@ def _website_image_role_score_v68884(query_role, payload):
         return 0.0
 
     fields = _website_image_payload_text_v68884(payload)
+    subtitle = fields["subtitle"]
     heading = fields["heading"]
     nearby = fields["nearby"]
     caption = fields["caption"]
     analysis = fields["analysis"]
-    combined = " ".join((heading, nearby, caption, analysis))
+    combined = " ".join((subtitle, heading, nearby, caption, analysis))
 
     role_aliases = {
         "car_model_ac": (
@@ -50910,6 +51057,8 @@ def _website_image_role_score_v68884(query_role, payload):
     conflict_terms = conflicts.get(query_role, ())
 
     score = 0.0
+    if any(alias in subtitle for alias in aliases):
+        score += 32.0
     if any(alias in heading for alias in aliases):
         score += 24.0
     if any(alias in nearby for alias in aliases):
@@ -50919,6 +51068,8 @@ def _website_image_role_score_v68884(query_role, payload):
     if any(alias in analysis for alias in aliases):
         score += 10.0
 
+    if conflict_terms and any(term in subtitle for term in conflict_terms):
+        score -= 45.0
     if conflict_terms and any(term in heading for term in conflict_terms):
         score -= 30.0
     if conflict_terms and any(term in combined for term in conflict_terms):
@@ -51475,7 +51626,8 @@ def _website_image_payload_identity_text_v69022(payload):
         for value in ([page_identity_v69024.get(key)] if not isinstance(page_identity_v69024.get(key), list) else page_identity_v69024.get(key))
     )
     provenance = " ".join(str(payload.get(k) or "") for k in (
-        "page_title", "source_page", "section_heading", "nearby_instruction_text",
+        "page_title", "source_page", "section_subtitle_v69067", "context_source_v69067",
+        "section_heading", "nearby_instruction_text",
         "caption", "visual_analysis", "keywords",
     )) if isinstance(payload, dict) else ""
     return re.sub(r"\s+", " ", structured + " " + identity_v69024 + " " + provenance).strip()
@@ -51608,6 +51760,7 @@ def _website_image_documented_profile_equivalence_v69064(prompt_text, payload):
         return False
 
     local_text = " ".join((
+        str(payload.get("section_subtitle_v69067") or ""),
         str(payload.get("section_heading") or ""),
         str(payload.get("nearby_instruction_text") or ""),
         str(payload.get("caption") or ""),
@@ -51732,7 +51885,11 @@ def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     if not prompt:
         return True
 
+    subtitle_text_v69067 = str(
+        payload.get("section_subtitle_v69067") or ""
+    ).casefold()
     section_text = " ".join((
+        subtitle_text_v69067,
         str(payload.get("section_heading") or ""),
         str(payload.get("nearby_instruction_text") or ""),
         str(payload.get("caption") or ""),
@@ -51767,6 +51924,18 @@ def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
         return ranges, singles, covered
 
     if requested_years:
+        # An explicit subtitle is the nearest DOM authority.  If it contains a
+        # year/range, a different year can never be rescued by the broader page
+        # range or by nearby text that happens to mention adjacent variants.
+        subtitle_ranges, subtitle_singles, subtitle_covered = year_evidence(
+            subtitle_text_v69067
+        )
+        if subtitle_ranges or subtitle_singles:
+            if not any(
+                year in subtitle_covered or year in subtitle_singles
+                for year in requested_years
+            ):
+                return False
         section_ranges, section_singles, section_covered = year_evidence(section_text)
         page_ranges, page_singles, page_covered = year_evidence(page_text)
         if section_ranges or section_singles:
@@ -51852,6 +52021,9 @@ def _website_model_control_payload_v69010(image_record):
         or str(image_record.get("data_url") or "").strip()
     )
     section = str(image_record.get("website_section_heading_v69010") or "").strip()
+    subtitle_v69067 = str(
+        image_record.get("website_section_subtitle_v69067") or ""
+    ).strip()
     nearby = str(image_record.get("website_nearby_instruction_text_v69010") or "").strip()
     visual = str(image_record.get("website_visual_analysis_v69010") or "").strip()
     page_title = str(image_record.get("website_page_title_v69010") or "").strip()
@@ -51863,7 +52035,7 @@ def _website_model_control_payload_v69010(image_record):
     # can lack IMAGE_ANALYSIS while retaining the exact <img> inside the matching
     # section; v69011 permits that case only when the model marks the exact retrieved
     # HTML image as section-bound and provides section/nearby + source provenance.
-    if not image_url or not (section or nearby):
+    if not image_url or not (subtitle_v69067 or section or nearby):
         return None
     if not visual and not legacy_html_section_bound_v69011:
         return None
@@ -51886,6 +52058,9 @@ def _website_model_control_payload_v69010(image_record):
         "database_choice": "Technical Support Database",
         "image_url": image_url,
         "caption": str(image_record.get("name") or "").strip(),
+        "section_subtitle_v69067": subtitle_v69067,
+        "context_source_v69067": str(image_record.get("website_context_source_v69067") or "").strip(),
+        "context_confidence_v69067": float(image_record.get("website_context_confidence_v69067") or 0.0),
         "section_heading": section,
         "nearby_instruction_text": nearby,
         "visual_analysis": visual,
@@ -51896,7 +52071,7 @@ def _website_model_control_payload_v69010(image_record):
         "ingestion_authority_version_v69024": str(image_record.get("website_ingestion_authority_v69024") or "").strip(),
         "page_title": page_title,
         "source_page": source_page,
-        "keywords": " ".join((section, nearby, page_title)),
+        "keywords": " ".join((subtitle_v69067, section, nearby, page_title)),
         "legacy_html_section_bound_v69011": legacy_html_section_bound_v69011,
     }
 
@@ -51985,6 +52160,13 @@ def _website_safe_json_dict_v69024(value):
         return {}
 
 
+def _website_safe_float_v69067(value, default=0.0):
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
 def _website_structured_image_payloads_from_file_v69012(text_value, filename="", file_id=""):
     """Parse IMAGE/AUTO_DISPLAY_IMAGE records directly from a learned website package."""
     value = str(text_value or "")
@@ -52025,6 +52207,12 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             "archive_storage_path_v69017": archive_storage_path_v69017,
             "archive_mime_type_v69017": archive_mime_type_v69017,
             "caption": field("IMAGE_CAPTION"),
+            "section_subtitle_v69067": field("SECTION_SUBTITLE_V69067"),
+            "context_source_v69067": field("CONTEXT_SOURCE_V69067"),
+            "context_confidence_v69067": _website_safe_float_v69067(
+                field("CONTEXT_CONFIDENCE_V69067"), 0.0
+            ),
+            "context_binding_version_v69067": field("CONTEXT_BINDING_VERSION_V69067"),
             "section_heading": field("SECTION_HEADING"),
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
             "visual_analysis": analysis,
@@ -52035,7 +52223,10 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             "page_identity_v69024": _website_safe_json_dict_v69024(field("PAGE_IDENTITY_JSON_V69024")),
             "page_title": page_title,
             "source_page": source_page,
-            "keywords": " ".join((page_title, field("SECTION_HEADING"), field("NEARBY_INSTRUCTION_TEXT"))),
+            "keywords": " ".join((
+                page_title, field("SECTION_SUBTITLE_V69067"),
+                field("SECTION_HEADING"), field("NEARBY_INSTRUCTION_TEXT")
+            )),
             "file_id_v69012": str(file_id or ""),
             "legacy_html_section_bound_v69011": False,
         })
@@ -52069,14 +52260,20 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
         image_url = str(item.get("url") or "").strip()
         if not image_url.startswith("https://"):
             continue
+        subtitle_v69067 = re.sub(
+            r"\s+", " ", str(item.get("section_subtitle_v69067") or "")
+        ).strip()
         section = re.sub(r"\s+", " ", str(item.get("nearest_heading") or "")).strip()
         nearby = re.sub(r"\s+", " ", str(item.get("nearby_text") or "")).strip()
-        if not section or not nearby:
+        if not (subtitle_v69067 or section) or not nearby:
             continue
         payloads.append({
             "database_choice": database_choice_v69040,
             "image_url": image_url,
             "caption": re.sub(r"\s+", " ", str(item.get("alt") or item.get("title") or "")).strip(),
+            "section_subtitle_v69067": subtitle_v69067,
+            "context_source_v69067": str(item.get("context_source_v69067") or "").strip(),
+            "context_confidence_v69067": float(item.get("context_confidence_v69067") or 0.0),
             "section_heading": section,
             "nearby_instruction_text": nearby,
             "visual_analysis": "",
@@ -52085,7 +52282,7 @@ def _website_legacy_html_payloads_from_file_v69012(text_value, filename="", file
             "ingestion_authority_version_v69024": str(item.get("ingestion_authority_version_v69024") or "").strip(),
             "page_title": page_title,
             "source_page": source_page,
-            "keywords": " ".join((page_title, section, nearby)),
+            "keywords": " ".join((page_title, subtitle_v69067, section, nearby)),
             "file_id_v69012": str(file_id or ""),
             "legacy_html_section_bound_v69011": True,
         })
@@ -52110,7 +52307,7 @@ def _website_image_dedicated_search_query_v69013(prompt_text, answer_text=""):
         "Use file_search to find the learned AutoTecPro source file that contains the "
         "approved related image for the exact vehicle/year/topic in the request. Prioritize "
         "website knowledge records containing AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, "
-        "SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, ATP_WEB_IMAGE_JSON, or legacy raw HTML "
+        "SECTION_SUBTITLE_V69067, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, ATP_WEB_IMAGE_JSON, or legacy raw HTML "
         "<img> tags inside the matching Technical section. Search for the matching source "
         "file even when a different manual/text file already supplied the factual answer. "
         "Do not broaden to another vehicle, year range, camera type, harness type, or section.\n\n"
@@ -52246,7 +52443,7 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
         "images directly related to the Technical answer below. This is UNIVERSAL: do not require "
         "a predefined topic such as car model, camera, harness, audio, climate, or wiring. Match the "
         "exact section/nearby instructions that support the answer. Prefer records containing "
-        "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
+        "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_SUBTITLE_V69067, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
         "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags inside that same relevant section. "
         "Do not select an image merely because it is on the same vehicle page. Do not broaden to "
         "another vehicle/year/model/version or unrelated section.\n\n"
@@ -52284,7 +52481,7 @@ def _website_image_prefetch_file_search_results_v69015(
             "images directly related to this Technical inquiry. This is universal and must "
             "not depend on a predefined topic. Prefer the exact vehicle/year/model/version "
             "and the exact relevant Technical section. Prefer records containing "
-            "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
+            "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_SUBTITLE_V69067, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
             "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags in that same section. "
             "Do not broaden to unrelated sections or another fitment.\n\n"
             f"USER REQUEST:\n{prompt[:2600]}\n"
@@ -52471,6 +52668,9 @@ def _website_file_search_images_v69014(
             "generated": False,
             "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
             "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+            "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
+            "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
+            "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -52633,6 +52833,9 @@ def _website_file_search_images_v69012(prompt_text, result_rows):
             "generated": False,
             "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
             "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+            "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
+            "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
+            "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
             "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
             "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
             "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -52743,6 +52946,7 @@ def _website_image_answer_conflict_v69021(prompt_text, answer_text, image_record
 
     image_text = " ".join((
         str(image_record.get("name") or ""),
+        str(image_record.get("website_section_subtitle_v69067") or ""),
         str(image_record.get("website_section_heading_v69010") or ""),
         str(image_record.get("website_nearby_instruction_text_v69010") or ""),
         str(image_record.get("website_visual_analysis_v69010") or ""),
@@ -52994,6 +53198,7 @@ def _website_image_rank_v68883(prompt_text, payload):
     candidate = " ".join([
         str(payload.get("page_title") or ""),
         str(payload.get("source_page") or ""),
+        str(payload.get("section_subtitle_v69067") or ""),
         str(payload.get("section_heading") or ""),
         str(payload.get("nearby_instruction_text") or ""),
         str(payload.get("caption") or ""),
@@ -53151,6 +53356,9 @@ def _website_image_record_for_chat_v68883(payload):
         "website_image_sha256": str(payload.get("image_sha256") or ""),
         "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
         "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+        "website_section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
+        "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
+        "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
         "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
         "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
         "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
@@ -54100,6 +54308,7 @@ def _workspace_image_semantic_authority_v69062(
         }
 
     local_parts = {
+        "subtitle": str(payload.get("section_subtitle_v69067") or ""),
         "heading": str(payload.get("section_heading") or ""),
         "nearby": str(payload.get("nearby_instruction_text") or ""),
         "caption": str(payload.get("caption") or ""),
@@ -54343,6 +54552,11 @@ def _attach_image_provenance_v69062(
         "product_gate": str(gates.get("product_gate") or "pass"),
         "topic_gate": str(gates.get("topic_gate") or "pass"),
         "selected_reason": str(selected_reason or "APPROVED_IMAGE_AUTHORITY"),
+        "section_subtitle_v69067": str(payload.get("section_subtitle_v69067") or "").strip(),
+        "context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
+        "context_confidence_v69067": _website_safe_float_v69067(
+            payload.get("context_confidence_v69067"), 0.0
+        ),
         "published_at": published_at,
         "build_version": ATP_BUILD_VERSION_V69062,
     }
@@ -54368,6 +54582,9 @@ def _finalize_published_image_provenance_v69062(images, workspace_label, coordin
                     "image_url": record.get("archive_web_url") or record.get("data_url"),
                     "image_sha256": record.get("website_image_sha256"),
                     "source_page": record.get("website_source_page_v69010"),
+                    "section_subtitle_v69067": record.get("website_section_subtitle_v69067"),
+                    "context_source_v69067": record.get("website_context_source_v69067"),
+                    "context_confidence_v69067": record.get("website_context_confidence_v69067"),
                     "section_heading": record.get("website_section_heading_v69010"),
                     "nearby_instruction_text": record.get("website_nearby_instruction_text_v69010"),
                     "visual_analysis": record.get("website_visual_analysis_v69010"),
@@ -54618,7 +54835,7 @@ def _workspace_image_dedicated_search_query_v69050(
         "records directly related to the user's inquiry and completed answer. "
         "The vehicle, year, product, and configuration explicitly stated by the "
         "user outrank anything inferred in the answer. Prefer records containing "
-        "AUTO_DISPLAY_IMAGE, ATP_WEB_IMAGE_JSON, IMAGE_ANALYSIS, SECTION_HEADING, "
+        "AUTO_DISPLAY_IMAGE, ATP_WEB_IMAGE_JSON, IMAGE_ANALYSIS, SECTION_SUBTITLE_V69067, SECTION_HEADING, "
         "NEARBY_INSTRUCTION_TEXT, or an exact learned AutoTecPro image URL. Do not "
         "broaden to another destination, vehicle, year range, product, or unrelated "
         "page. Return file_search evidence only; never invent an image URL.\n\n"
@@ -54650,7 +54867,7 @@ def _workspace_image_prefetch_file_search_results_v69062(
             "AUTOTECPRO DESTINATION-OWNED IMAGE PREFETCH ONLY.\n"
             f"Search only the {destination}. Return learned image evidence directly "
             "related to the user's vehicle/year/product/topic. Prefer image-local "
-            "SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, IMAGE_CAPTION, IMAGE_ANALYSIS, "
+            "SECTION_SUBTITLE_V69067, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, IMAGE_CAPTION, IMAGE_ANALYSIS, "
             "AUTO_DISPLAY_IMAGE or ATP_WEB_IMAGE_JSON evidence. Do not broaden to "
             "another destination, vehicle, year, product or topic.\n\n"
             f"USER REQUEST:\n{prompt[:2600]}\n"
@@ -55485,6 +55702,7 @@ def _website_image_related_evidence_lookup_v69025r2(
         }.get(source_zone, 0.0)
 
         evidence_text = " ".join((
+            str(payload.get("section_subtitle_v69067") or ""),
             str(payload.get("section_heading") or ""),
             str(payload.get("nearby_instruction_text") or ""),
             str(payload.get("caption") or ""),
@@ -55963,6 +56181,11 @@ def _website_images_for_chat(image_items, max_images=WEBSITE_AUTO_DISPLAY_MAX_IM
             "asset_type": "website_instruction_image",
             "archive_web_url": url,
             "generated": False,
+            "website_section_subtitle_v69067": str(item.get("section_subtitle_v69067") or "").strip(),
+            "website_context_source_v69067": str(item.get("context_source_v69067") or "").strip(),
+            "website_context_confidence_v69067": _website_safe_float_v69067(
+                item.get("context_confidence_v69067"), 0.0
+            ),
         })
     return records
 
@@ -56042,6 +56265,9 @@ def extract_website_image_controls_v68870(text_value):
             # authority-validated when its durable image-index row is absent.
             "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
             "website_page_title_v69010": re.sub(r"\s+", " ", str(payload.get("page_title") or "")).strip(),
+            "website_section_subtitle_v69067": re.sub(r"\s+", " ", str(payload.get("section_subtitle_v69067") or "")).strip(),
+            "website_context_source_v69067": str(payload.get("context_source_v69067") or "").strip(),
+            "website_context_confidence_v69067": float(payload.get("context_confidence_v69067") or 0.0),
             "website_section_heading_v69010": re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip(),
             "website_nearby_instruction_text_v69010": re.sub(r"\s+", " ", str(payload.get("nearby_instruction_text") or "")).strip(),
             "website_visual_analysis_v69010": re.sub(r"\s+", " ", str(payload.get("visual_analysis") or "")).strip(),
