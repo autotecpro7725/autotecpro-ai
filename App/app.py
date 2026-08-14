@@ -1,4 +1,4 @@
-# AutoTecPro AI v69075 — Runtime image accuracy, latency, and learning resilience
+# AutoTecPro AI v69076 — Fresh-open New Case with reconnect-safe recovery
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69075"
+ATP_BUILD_VERSION_V69062 = "v69076"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -95,7 +95,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69072-wiring-image-local-visual-authority+"
     "v69073-exact-subtitle-next-image-binding+"
     "v69074-complete-payload-prefetch+"
-    "v69075-runtime-image-accuracy-resilience"
+    "v69075-runtime-image-accuracy-resilience+"
+    "v69076-fresh-open-new-case"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -1089,11 +1090,64 @@ def history_is_enabled():
     return user_can_use_feature("history")
 
 
+ATP_BROWSER_TAB_QUERY_KEY_V69076 = "session"
+
+
+def _normalize_browser_tab_session_v69076(value):
+    """Return one non-sensitive browser-tab token or an empty string."""
+    if isinstance(value, (list, tuple)):
+        value = value[-1] if value else ""
+    token = str(value or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,80}", token):
+        return ""
+    return token
+
+
+def _conversation_checkpoint_matches_tab_v69076(payload_tab, browser_tab):
+    """Allow conversation recovery only inside the browser tab that saved it.
+
+    Authentication and workspace restoration remain cookie-authoritative.  The
+    tab token scopes only the optional active-conversation checkpoint, so opening
+    the canonical app URL in a fresh tab starts a New Case while a websocket
+    reconnect or ordinary page refresh in the same tab can recover long work.
+    """
+    payload_token = _normalize_browser_tab_session_v69076(payload_tab)
+    browser_token = _normalize_browser_tab_session_v69076(browser_tab)
+    return bool(
+        payload_token
+        and browser_token
+        and hmac.compare_digest(payload_token, browser_token)
+    )
+
+
+def _ensure_browser_tab_session_v69076():
+    """Bind a random URL token to this tab without granting any authority."""
+    existing = _normalize_browser_tab_session_v69076(
+        st.query_params.get(ATP_BROWSER_TAB_QUERY_KEY_V69076)
+    )
+    fresh_open = not bool(existing)
+    token = existing
+    if fresh_open:
+        token = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
+        st.query_params[ATP_BROWSER_TAB_QUERY_KEY_V69076] = token
+    st.session_state["_browser_tab_session_v69076"] = token
+    st.session_state.setdefault("_fresh_app_open_v69076", fresh_open)
+    return token, fresh_open
+
+
 st.set_page_config(
     page_title="AutoTecPro AI",
     page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="auto"
+)
+
+# v69076: the canonical app URL has no tab token, so every genuine fresh open
+# begins with an empty New Case. Streamlit reruns and websocket reconnects keep
+# the token in the URL and may restore the active conversation from the signed
+# cookie. This does not delete History and does not touch any workspace pipeline.
+_browser_tab_session_v69076, _fresh_app_open_v69076 = (
+    _ensure_browser_tab_session_v69076()
 )
 
 # v69007: browser-print flow/color hardening built only on the v69006 print layer.
@@ -6338,6 +6392,21 @@ def process_pending_login_cookie_action():
             clear_browser_login_profile()
             if username:
                 save_authenticated_session(username, remember=False)
+        elif action == "new_case" and username:
+            # v69076: New Case is also the signed recovery boundary.  Clear only
+            # the optional conversation checkpoint after the button rerun; keep
+            # authentication, Remember Me, workspace, and durable History intact.
+            save_authenticated_session(
+                username,
+                remember=bool(pending.get("remember")),
+                workspace=str(
+                    st.session_state.get("current_assistant")
+                    or st.session_state.get("_restored_workspace_assistant_v68843")
+                    or ""
+                ).strip(),
+                conversation_id="",
+                force=True,
+            )
         else:
             st.session_state.pop("_atp_pending_login_cookie_action", None)
             return
@@ -6433,6 +6502,10 @@ def save_authenticated_session(
         if workspace is not None
         else st.session_state.get("current_assistant") or ""
     ).strip()
+    browser_tab_session_v69076 = _normalize_browser_tab_session_v69076(
+        st.session_state.get("_browser_tab_session_v69076")
+        or st.query_params.get(ATP_BROWSER_TAB_QUERY_KEY_V69076)
+    )
     active_user = _load_active_user_record(username)
     if not active_user:
         remove_authenticated_session()
@@ -6452,6 +6525,7 @@ def save_authenticated_session(
             or ""
         ).strip(),
         _auth_credential_fingerprint(active_user.get("password")),
+        browser_tab_session_v69076,
     )
     # CookieController writes are browser component events and can cause an
     # additional Streamlit rerun. Do not rewrite an identical signed session.
@@ -6473,6 +6547,10 @@ def save_authenticated_session(
         # iPhone/WebSocket reconnect returns to the in-flight case instead of the
         # workspace home. Graphic keeps its existing durable-job recovery path.
         "workspace": active_workspace,
+        # v69076: this random non-secret token grants no access. It only proves
+        # that an optional conversation checkpoint belongs to the same browser
+        # tab, separating a true fresh app open from a websocket reconnect.
+        "tab_session": browser_tab_session_v69076 or None,
         "conversation_id": (
             str(
                 conversation_id
@@ -6633,15 +6711,41 @@ def restore_login_session():
         restored_workspace = str(payload.get("workspace") or "").strip()
         if restored_workspace:
             st.session_state["_restored_workspace_assistant_v68843"] = restored_workspace
-        restored_conversation_v69026 = str(payload.get("conversation_id") or "").strip()
+        cookie_conversation_v69076 = str(
+            payload.get("conversation_id") or ""
+        ).strip()
+        cookie_tab_session_v69076 = _normalize_browser_tab_session_v69076(
+            payload.get("tab_session")
+        )
+        browser_tab_session_v69076 = _normalize_browser_tab_session_v69076(
+            st.session_state.get("_browser_tab_session_v69076")
+            or st.query_params.get(ATP_BROWSER_TAB_QUERY_KEY_V69076)
+        )
+        restored_conversation_v69026 = (
+            cookie_conversation_v69076
+            if _conversation_checkpoint_matches_tab_v69076(
+                cookie_tab_session_v69076,
+                browser_tab_session_v69076,
+            )
+            else ""
+        )
         if restored_conversation_v69026:
             st.session_state["_restored_conversation_id_v69026"] = restored_conversation_v69026
+        else:
+            st.session_state.pop("_restored_conversation_id_v69026", None)
+            if cookie_conversation_v69076:
+                diagnostic_log(
+                    "fresh_app_open_new_case_v69076",
+                    workspace=restored_workspace,
+                    reason="conversation_checkpoint_tab_mismatch",
+                )
         st.session_state["_auth_cookie_identity_v69059"] = (
             username,
             bool(payload.get("remember")),
             restored_workspace,
-            restored_conversation_v69026,
+            cookie_conversation_v69076,
             credential_fingerprint,
+            cookie_tab_session_v69076,
         )
         diagnostic_log(
             "login_session_restored",
@@ -9572,6 +9676,13 @@ def _start_new_case_callback():
     )
     _technical_clear_photo_context_v68879()
     clear_graphic_project_state()
+    username_v69076 = str(st.session_state.get("username") or "").strip()
+    if username_v69076:
+        queue_login_cookie_action(
+            "new_case",
+            username_v69076,
+            remember=bool(st.session_state.get("_atp_session_remembered")),
+        )
 
 
 _non_chat_workspaces = {
