@@ -1,4 +1,4 @@
-# AutoTecPro AI v69070 — Graphic checkpoint deduplication and latency telemetry
+# AutoTecPro AI v69071 — Cross-session Graphic concurrency stability
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,11 +87,11 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69070"
+ATP_BUILD_VERSION_V69062 = "v69071"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
-    "v69070-graphic-checkpoint-dedup"
+    "v69070-graphic-checkpoint-dedup+v69071-graphic-admission-control"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -14822,6 +14822,292 @@ def _graphic_v68848_release_lease(job):
         _graphic_v68848_remove_paths([f"{_graphic_v68848_job_prefix(job)}/lease.json"])
         cache = _graphic_mobile_runtime_cache_v68400()
         cache.setdefault("leases", {}).pop(f"lease:{job.get('job_id')}", None)
+
+
+# v69071: admission control is deliberately outside every Graphic engine.  It
+# serializes only the memory-intensive engine invocation within one Streamlit
+# process.  It does not inspect or mutate prompts, uploads, mode routing,
+# provider arguments, pixels, compositors, QA, or publication results.
+GRAPHIC_V69071_MAX_ACTIVE_ENGINE_CALLS = 1
+GRAPHIC_V69071_DISTRIBUTED_LEASE_SECONDS = 30 * 60
+GRAPHIC_V69071_DISTRIBUTED_POLL_SECONDS = 1.0
+
+
+@st.cache_resource(show_spinner=False)
+def _graphic_v69071_admission_runtime():
+    """Return one process-wide FIFO gate containing redacted coordination only.
+
+    Streamlit sessions remain isolated: no prompt, upload, image, username,
+    conversation content, or result is stored here.  Durable job manifests and
+    their existing conversation-scoped Supabase paths remain authoritative.
+    """
+    return {
+        "condition": threading.Condition(threading.RLock()),
+        "queue": [],
+        "active": {},
+    }
+
+
+def _graphic_v69071_admission_identity(job=None):
+    """Build non-reversible diagnostic identifiers without retaining user data."""
+    payload = job if isinstance(job, dict) else {}
+    job_id = str(payload.get("job_id") or "unidentified-job")
+    conversation_id = str(
+        payload.get("conversation_id")
+        or st.session_state.get("conversation_id")
+        or "unidentified-conversation"
+    )
+    username = str(st.session_state.get("username") or "anonymous").casefold()
+
+    def digest(value):
+        return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
+
+    return {
+        "job_fingerprint": digest(job_id),
+        "conversation_fingerprint": digest(conversation_id),
+        "user_fingerprint": digest(username),
+    }
+
+
+def _graphic_v69071_distributed_lease_path(identity):
+    """Return a credential-free per-user path shared by Streamlit workers."""
+    fingerprint = str((identity or {}).get("user_fingerprint") or "anonymous")
+    return f"admission/v69071/users/{fingerprint}/active.json"
+
+
+def _graphic_v69071_try_distributed_slot(identity):
+    """Attempt one atomic cross-worker claim.
+
+    Returns ("acquired", token), ("busy", None), or ("unavailable", None).
+    Storage unavailability never breaks Graphic generation because the process
+    FIFO gate remains active.
+    """
+    path = _graphic_v69071_distributed_lease_path(identity)
+    now = time.time()
+    token = hashlib.sha256(
+        (
+            str((identity or {}).get("job_fingerprint") or "job")
+            + ":"
+            + str(time.time_ns())
+            + ":"
+            + str(os.getpid())
+        ).encode("utf-8")
+    ).hexdigest()
+    lease = {
+        "schema_version": 1,
+        "token": token,
+        "job_fingerprint": str((identity or {}).get("job_fingerprint") or ""),
+        "conversation_fingerprint": str(
+            (identity or {}).get("conversation_fingerprint") or ""
+        ),
+        "claimed_at": now,
+        "expires_at": now + GRAPHIC_V69071_DISTRIBUTED_LEASE_SECONDS,
+        "build_version": ATP_BUILD_VERSION_V69062,
+    }
+    payload = json.dumps(lease, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    try:
+        _graphic_v68848_upload_bytes(
+            path,
+            payload,
+            "application/json",
+            upsert=False,
+        )
+        return "acquired", token
+    except Exception:
+        try:
+            existing_raw = _graphic_v68848_download_bytes(path)
+            existing = json.loads(existing_raw.decode("utf-8")) if existing_raw else {}
+        except Exception as error:
+            diagnostic_log(
+                "graphic_v69071_distributed_admission_unavailable",
+                error_type=type(error).__name__,
+            )
+            return "unavailable", None
+        if float(existing.get("expires_at") or 0.0) >= now:
+            return "busy", None
+        try:
+            _graphic_v68848_remove_paths([path])
+            _graphic_v68848_upload_bytes(
+                path,
+                payload,
+                "application/json",
+                upsert=False,
+            )
+            diagnostic_log(
+                "graphic_v69071_stale_distributed_admission_recovered",
+                user_fingerprint=(identity or {}).get("user_fingerprint"),
+            )
+            return "acquired", token
+        except Exception:
+            return "busy", None
+
+
+def _graphic_v69071_release_distributed_slot(identity, token):
+    """Release only the distributed lease owned by this exact invocation."""
+    if not token:
+        return
+    path = _graphic_v69071_distributed_lease_path(identity)
+    try:
+        existing_raw = _graphic_v68848_download_bytes(path)
+        existing = json.loads(existing_raw.decode("utf-8")) if existing_raw else {}
+        if not hmac.compare_digest(
+            str(existing.get("token") or ""),
+            str(token),
+        ):
+            diagnostic_log(
+                "graphic_v69071_distributed_release_owner_mismatch",
+                user_fingerprint=(identity or {}).get("user_fingerprint"),
+            )
+            return
+        _graphic_v68848_remove_paths([path])
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v69071_distributed_release_failed",
+            error_type=type(error).__name__,
+            user_fingerprint=(identity or {}).get("user_fingerprint"),
+        )
+
+
+def _graphic_v69071_acquire_engine_slot(job=None, wait_callback=None):
+    """Acquire the process Graphic slot in FIFO order and return a unique token."""
+    runtime = _graphic_v69071_admission_runtime()
+    condition = runtime["condition"]
+    identity = _graphic_v69071_admission_identity(job)
+    token = hashlib.sha256(
+        (
+            identity["job_fingerprint"]
+            + ":"
+            + str(time.time_ns())
+            + ":"
+            + str(threading.get_ident())
+        ).encode("utf-8")
+    ).hexdigest()
+    entry = {
+        "token": token,
+        **identity,
+        "enqueued_at": time.monotonic(),
+    }
+    wait_reported = False
+    with condition:
+        runtime["queue"].append(entry)
+        while True:
+            is_front = bool(
+                runtime["queue"]
+                and runtime["queue"][0].get("token") == token
+            )
+            if (
+                is_front
+                and len(runtime["active"])
+                < GRAPHIC_V69071_MAX_ACTIVE_ENGINE_CALLS
+            ):
+                runtime["queue"].pop(0)
+                entry["started_at"] = time.monotonic()
+                runtime["active"][token] = entry
+                break
+            waited = max(0.0, time.monotonic() - entry["enqueued_at"])
+            if not wait_reported and waited >= 0.25:
+                wait_reported = True
+                if callable(wait_callback):
+                    try:
+                        wait_callback()
+                    except Exception:
+                        pass
+                diagnostic_log(
+                    "graphic_v69071_generation_queued",
+                    **identity,
+                    queue_depth=len(runtime["queue"]),
+                    active_count=len(runtime["active"]),
+                )
+            condition.wait(timeout=0.5)
+    waited_seconds = max(0.0, time.monotonic() - entry["enqueued_at"])
+    diagnostic_log(
+        "graphic_v69071_generation_slot_acquired",
+        **identity,
+        waited_seconds=round(waited_seconds, 4),
+    )
+    return token, waited_seconds
+
+
+def _graphic_v69071_release_engine_slot(token):
+    """Release one slot on success, failure, or interruption and wake the queue."""
+    runtime = _graphic_v69071_admission_runtime()
+    condition = runtime["condition"]
+    released = None
+    with condition:
+        released = runtime["active"].pop(str(token or ""), None)
+        # Defensive cleanup protects against an exception during acquisition.
+        runtime["queue"][:] = [
+            row
+            for row in runtime["queue"]
+            if row.get("token") != str(token or "")
+        ]
+        condition.notify_all()
+    if released:
+        diagnostic_log(
+            "graphic_v69071_generation_slot_released",
+            job_fingerprint=released.get("job_fingerprint"),
+            conversation_fingerprint=released.get("conversation_fingerprint"),
+            user_fingerprint=released.get("user_fingerprint"),
+            active_seconds=round(
+                max(0.0, time.monotonic() - float(released.get("started_at") or 0.0)),
+                4,
+            ),
+        )
+
+
+def _graphic_v69071_execute_with_admission(function, *args, admission_job=None, **kwargs):
+    """Call the unchanged Graphic authority under the process-wide FIFO gate."""
+    wait_surface = None
+
+    def show_waiting_status():
+        nonlocal wait_surface
+        wait_surface = st.empty()
+        wait_surface.info(
+            "Another image is currently being created. Your request is safely "
+            "queued and will start automatically."
+        )
+
+    token = None
+    distributed_token = None
+    identity = _graphic_v69071_admission_identity(admission_job)
+    try:
+        token, _waited_seconds = _graphic_v69071_acquire_engine_slot(
+            admission_job,
+            wait_callback=show_waiting_status,
+        )
+        distributed_wait_reported = False
+        while True:
+            distributed_status, distributed_token = (
+                _graphic_v69071_try_distributed_slot(identity)
+            )
+            if distributed_status in {"acquired", "unavailable"}:
+                break
+            if not distributed_wait_reported:
+                distributed_wait_reported = True
+                show_waiting_status()
+                diagnostic_log(
+                    "graphic_v69071_cross_worker_generation_queued",
+                    **identity,
+                )
+            time.sleep(GRAPHIC_V69071_DISTRIBUTED_POLL_SECONDS)
+        if wait_surface is not None:
+            try:
+                wait_surface.empty()
+            except Exception:
+                pass
+        # Exact passthrough: the protected function and all of its arguments are
+        # invoked once, unchanged, after admission is granted.
+        return function(*args, **kwargs)
+    finally:
+        if distributed_token:
+            _graphic_v69071_release_distributed_slot(identity, distributed_token)
+        if token:
+            _graphic_v69071_release_engine_slot(token)
+        if wait_surface is not None:
+            try:
+                wait_surface.empty()
+            except Exception:
+                pass
 
 
 def _graphic_v68848_is_retryable(error, generated_images=None):
@@ -68768,9 +69054,11 @@ else:
 
             graphic_engine_started_v69070 = time.perf_counter()
             try:
-                generated_images = generate_graphic_marketing_images(
+                generated_images = _graphic_v69071_execute_with_admission(
+                    generate_graphic_marketing_images,
                     prompt,
                     graphic_generation_files,
+                    admission_job=durable_job_v68844,
                     use_approved_style=graphic_options.get("use_approved_style", True),
                     preserve_product=graphic_options.get("preserve_product", True),
                     style_strength=graphic_options.get("style_strength", "High"),
