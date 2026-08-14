@@ -1,4 +1,4 @@
-# AutoTecPro AI v69071 — Cross-session Graphic concurrency stability
+# AutoTecPro AI v69072 — Exact Technical wiring-image visual authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,11 +87,12 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69071"
+ATP_BUILD_VERSION_V69062 = "v69072"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
-    "v69070-graphic-checkpoint-dedup+v69071-graphic-admission-control"
+    "v69070-graphic-checkpoint-dedup+v69071-graphic-admission-control+"
+    "v69072-wiring-image-local-visual-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -51858,6 +51859,8 @@ def _website_image_auto_topic_v68888(prompt_text):
         "dashboard_fitment",
         "protocol",
         "climate",
+        "wiring_diagram",
+        "wiring_connection",
         "harness",
         "power_harness",
         "aux_audio_cable",
@@ -51897,6 +51900,13 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
         ),
         "dashboard_fitment": (
             "Dashboard Fitment; dash fitment; installation fitment"
+        ),
+        "wiring_diagram": (
+            "Wiring Diagram; wiring schematic; connector pinout; wire diagram"
+        ),
+        "wiring_connection": (
+            "Wiring connection; rear radio connections; connector labels; "
+            "CANBUS; Radio Antenna; Reverse Camera; CCD-12V; CCD-V"
         ),
         "protocol": (
             "Protocol Settings; protocol selection; Car Model / AC protocol"
@@ -51979,6 +51989,8 @@ def _website_image_visual_intent_v68883(prompt_text):
         "dashboard_fitment",
         "protocol",
         "climate",
+        "wiring_diagram",
+        "wiring_connection",
         "harness",
         "power_harness",
         "aux_audio_cable",
@@ -52038,6 +52050,18 @@ def _website_image_query_role_v68884(prompt_text):
         ("aux_audio_cable", (
             "aux cable", "aux wire", "aux lead", "aux connector",
             "aux dummy",
+        )),
+        # v69072: generic "wiring" must not inherit authority from every image
+        # inside one broad installation section. Keep diagrams and physical
+        # rear-unit/connector references distinct so image-local QA can prove
+        # the requested visual before publication.
+        ("wiring_diagram", (
+            "wiring diagram", "wire diagram", "wiring schematic",
+            "wire schematic", "pinout diagram", "connection diagram",
+        )),
+        ("wiring_connection", (
+            "wiring", "wire connection", "rear connection",
+            "rear connector", "radio connector", "canbus connector",
         )),
         ("audio", (
             "audio", "aux", "bluetooth audio", "sound",
@@ -52135,6 +52159,14 @@ def _website_image_role_score_v68884(query_role, payload):
         "dashboard_fitment": (
             "dashboard fitment", "dash fitment", "fitment",
         ),
+        "wiring_diagram": (
+            "wiring diagram", "wire diagram", "wiring schematic",
+            "wire schematic", "pinout diagram", "connection diagram",
+        ),
+        "wiring_connection": (
+            "wiring", "wire connection", "rear connection", "rear connector",
+            "radio connector", "canbus", "radio antenna", "ccd-12v", "ccd-v",
+        ),
         "power_harness": (
             "power harness", "main harness", "main power harness",
             "radio harness", "wiring harness",
@@ -52172,6 +52204,14 @@ def _website_image_role_score_v68884(query_role, payload):
         ),
         "dashboard_fitment": (
             "car model", "camera", "weather", "navigation",
+        ),
+        "wiring_diagram": (
+            "settings screen", "time setting", "date setting", "front view",
+            "installed screen", "dashboard fitment", "product photo",
+        ),
+        "wiring_connection": (
+            "settings screen", "time setting", "date setting", "front view",
+            "installed screen", "dashboard fitment", "product photo",
         ),
         "power_harness": (
             "aux cable", "aux wire", "aux lead", "aux connector",
@@ -52249,6 +52289,8 @@ def _website_image_section_gate_v68884(prompt_text, payload):
         "cargo_bed_camera",
         "aftermarket_camera",
         "dashboard_fitment",
+        "wiring_diagram",
+        "wiring_connection",
         "power_harness",
         "aux_audio_cable",
     }:
@@ -52297,6 +52339,15 @@ def _website_image_url_role_v68885(image_url, caption=""):
             "aux wire", "aux cable", "aux lead", "aux connector",
             "armrest aux", "aux dummy",
         )),
+        ("wiring_diagram", (
+            "wiring diagram", "wire diagram", "wiring schematic",
+            "wire schematic", "pinout diagram", "connection diagram",
+        )),
+        ("wiring_connection", (
+            "wiring connection", "rear connection", "rear connector",
+            "radio connector", "connector labels", "radio antenna",
+            "canbus connector", "ccd 12v", "ccd v",
+        )),
         ("harness", (
             "harness", "wire harness", "wiring loom",
         )),
@@ -52337,6 +52388,8 @@ def _website_image_roles_conflict_v68885(query_role, asset_role):
         "weather",
         "carplay_android_auto",
         "harness",
+        "wiring_diagram",
+        "wiring_connection",
         "power_harness",
         "aux_audio_cable",
     }
@@ -52351,6 +52404,12 @@ def _website_image_roles_conflict_v68885(query_role, asset_role):
     if query_role in {"harness", "power_harness"} and asset_role in {
         "harness", "power_harness"
     }:
+        return False
+    if query_role == "wiring_connection" and asset_role in {
+        "wiring_connection", "wiring_diagram", "harness", "power_harness"
+    }:
+        return False
+    if query_role == "harness" and asset_role == "wiring_connection":
         return False
     if query_role in {"audio", "aux_audio_cable"} and asset_role == "aux_audio_cable":
         return False
@@ -52509,6 +52568,81 @@ def _website_image_car_model_visual_specificity_v69004(payload):
     return score
 
 
+def _website_image_wiring_visual_specificity_v69072(payload, query_role):
+    """Require image-local proof for wiring/harness publication.
+
+    Parent-page subtitles, section headings, nearby instructions, and generic
+    structured topics intentionally do not contribute here.  They establish
+    retrieval context, but cannot prove what an individual image depicts.
+    """
+    if not isinstance(payload, dict):
+        return -100.0
+
+    caption = re.sub(
+        r"\s+", " ", str(payload.get("caption") or "")
+    ).strip().casefold()
+    analysis = re.sub(
+        r"\s+", " ", str(payload.get("visual_analysis") or "")
+    ).strip().casefold()
+    image_url = unquote(str(payload.get("image_url") or "")).casefold()
+    image_url = re.sub(r"[_+\-]+", " ", image_url)
+
+    diagram_terms = (
+        "wiring diagram", "wire diagram", "wiring schematic",
+        "wire schematic", "pinout diagram", "connection diagram",
+        "pin assignment", "connector pinout",
+    )
+    physical_terms = (
+        "wiring", "wire harness", "wiring harness", "power harness",
+        "main harness", "radio harness", "wiring loom", "connector",
+        "rear of radio", "rear of the radio", "rear of unit",
+        "rear of the unit", "back of radio", "back of the radio",
+        "back of unit", "rear panel", "radio antenna", "sim card",
+        "canbus", "reverse camera", "ccd-12v", "ccd 12v", "ccd-v",
+        "ccd v", "rca port", "rca connector", "plug", "socket",
+    )
+    power_terms = (
+        "power harness", "main harness", "main power harness",
+        "radio harness", "power connector", "power cable",
+    )
+    non_wiring_visual_terms = (
+        "settings screen", "setting screen", "time setting", "date setting",
+        "time and date", "clock setting", "car model screen",
+        "climate screen", "front view", "front of unit", "front of the unit",
+        "installed screen", "installed touchscreen", "dashboard photo",
+        "product photo", "product front", "home screen", "app screen",
+    )
+
+    def _hits(text, terms):
+        return sum(1 for term in terms if term in text)
+
+    analysis_diagram = _hits(analysis, diagram_terms)
+    analysis_physical = _hits(analysis, physical_terms)
+    analysis_power = _hits(analysis, power_terms)
+    caption_diagram = _hits(caption, diagram_terms)
+    caption_physical = _hits(caption, physical_terms)
+    caption_power = _hits(caption, power_terms)
+    url_diagram = _hits(image_url, diagram_terms)
+    url_physical = _hits(image_url, physical_terms)
+    url_power = _hits(image_url, power_terms)
+    conflicts = _hits(" ".join((caption, analysis, image_url)), non_wiring_visual_terms)
+
+    diagram_score = analysis_diagram * 18.0 + caption_diagram * 12.0 + url_diagram * 10.0
+    physical_score = analysis_physical * 9.0 + caption_physical * 6.0 + url_physical * 5.0
+    power_score = analysis_power * 14.0 + caption_power * 9.0 + url_power * 7.0
+
+    if conflicts and not (analysis_diagram or analysis_physical or analysis_power):
+        return -60.0
+
+    if query_role == "wiring_diagram":
+        return diagram_score - conflicts * 18.0
+    if query_role == "power_harness":
+        return power_score - conflicts * 18.0
+    if query_role in {"wiring_connection", "harness"}:
+        return max(physical_score, diagram_score, power_score) - conflicts * 18.0
+    return -100.0
+
+
 def _website_image_visual_state_gate_v68885(prompt_text, payload):
     """Validate that the image depicts the requested function, not merely a menu row."""
     effective_prompt_v68890 = _website_image_effective_query_v68890(prompt_text)
@@ -52527,6 +52661,20 @@ def _website_image_visual_state_gate_v68885(prompt_text, payload):
     asset_role = _website_image_url_role_v68885(image_url, caption)
     if _website_image_roles_conflict_v68885(query_role, asset_role):
         return False
+
+    # v69072 root fix: a wiring/harness image must prove its subject from the
+    # image-local caption, vision analysis, or asset identity.  A shared page
+    # heading such as "Wiring Harness & No-SYNC Installation" can retrieve a
+    # candidate, but can no longer authorize an unrelated settings/dashboard
+    # screenshot stored in the same section.
+    if query_role in {
+        "wiring_diagram", "wiring_connection", "harness", "power_harness"
+    }:
+        required_score_v69072 = 10.0 if query_role == "wiring_diagram" else 8.0
+        return (
+            _website_image_wiring_visual_specificity_v69072(payload, query_role)
+            >= required_score_v69072
+        )
 
     if query_role == "car_model_ac":
         visual_specificity_v69004 = _website_image_car_model_visual_specificity_v69004(payload)
@@ -54214,7 +54362,8 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
 
     high_risk_roles_v69005 = {
         "car_model_ac", "factory_camera", "cargo_bed_camera",
-        "aftermarket_camera", "dashboard_fitment",
+        "aftermarket_camera", "dashboard_fitment", "wiring_diagram",
+        "wiring_connection", "harness", "power_harness",
     }
     if query_role in high_risk_roles_v69005:
         payload_v69005 = _website_image_payload_for_chat_record_v69005(image_record)
@@ -54257,7 +54406,8 @@ def _website_image_final_authority_v68885(
     query_role = _website_image_query_role_v68884(effective_prompt_v69020)
     explicit_role = query_role in {
         "car_model_ac", "factory_camera", "cargo_bed_camera",
-        "aftermarket_camera", "dashboard_fitment",
+        "aftermarket_camera", "dashboard_fitment", "wiring_diagram",
+        "wiring_connection", "harness", "power_harness",
     }
 
     # v69021: precedence comes only from deterministic candidates that survive
@@ -54579,6 +54729,10 @@ def _website_image_lookup_v68883(prompt_text, ranking_context_v69008=""):
             "cargo_bed_camera",
             "aftermarket_camera",
             "dashboard_fitment",
+            "wiring_diagram",
+            "wiring_connection",
+            "harness",
+            "power_harness",
         }
         else WEBSITE_IMAGE_INDEX_QUERY_MAX_IMAGES_V68883
     )
