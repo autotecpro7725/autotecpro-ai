@@ -1,4 +1,4 @@
-# AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
+# AutoTecPro AI v69060 — exact file-citation image recovery; v69059 stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -10998,8 +10998,13 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
+            "website_workspace_full_file_restored_v69051",
+            "website_workspace_exact_destination_authority_v69051",
             "website_answer_url_reconstructed_v69056",
             "website_answer_url_destination_v69056",
+            "website_exact_store_answer_url_v69058",
+            "website_answer_url_destination_v69058",
+            "website_file_citation_recovered_v69060",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -38705,31 +38710,98 @@ def _response_file_search_results_v69012(response):
 
     output = response.get("output") if isinstance(response, dict) else getattr(response, "output", None)
     rows = []
+    citation_rows_v69060 = []
     for item in list(output or []):
         item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", "")
-        if str(item_type or "") != "file_search_call":
+        if str(item_type or "") == "file_search_call":
+            results = item.get("results") if isinstance(item, dict) else getattr(item, "results", None)
+            for result in list(results or []):
+                def value(name, default=""):
+                    if isinstance(result, dict):
+                        return result.get(name, default)
+                    return getattr(result, name, default)
+                file_id = str(value("file_id") or "").strip()
+                filename = str(value("filename") or value("file_name") or "").strip()
+                text = str(value("text") or "")
+                try:
+                    score = float(value("score", 0.0) or 0.0)
+                except Exception:
+                    score = 0.0
+                if not (file_id or text):
+                    continue
+                rows.append({
+                    "file_id": file_id,
+                    "filename": filename,
+                    "score": score,
+                    "text": text,
+                })
             continue
-        results = item.get("results") if isinstance(item, dict) else getattr(item, "results", None)
-        for result in list(results or []):
-            def value(name, default=""):
-                if isinstance(result, dict):
-                    return result.get(name, default)
-                return getattr(result, name, default)
-            file_id = str(value("file_id") or "").strip()
-            filename = str(value("filename") or value("file_name") or "").strip()
-            text = str(value("text") or "")
-            try:
-                score = float(value("score", 0.0) or 0.0)
-            except Exception:
-                score = 0.0
-            if not (file_id or text):
-                continue
-            rows.append({
-                "file_id": file_id,
-                "filename": filename,
-                "score": score,
-                "text": text,
-            })
+
+        # v69060 production root fix: a successful file_search response can carry
+        # exact supporting-file citations on the message while its optional
+        # ``file_search_call.results`` expansion is empty.  v69059 discarded those
+        # annotations, leaving the image reconstruction bridge with no file id even
+        # though the text answer came from the correct learned package.  Preserve
+        # citation file ids as exact, read-only evidence rows.  Downstream code must
+        # still reopen that exact file and pass every existing destination, QA,
+        # vehicle/year/product and visual-publication gate.
+        if str(item_type or "") != "message":
+            continue
+        content_items = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+        for content_item in list(content_items or []):
+            annotations = (
+                content_item.get("annotations")
+                if isinstance(content_item, dict)
+                else getattr(content_item, "annotations", None)
+            )
+            for annotation in list(annotations or []):
+                annotation_type = (
+                    annotation.get("type")
+                    if isinstance(annotation, dict)
+                    else getattr(annotation, "type", "")
+                )
+                if str(annotation_type or "") != "file_citation":
+                    continue
+                file_id = str((
+                    annotation.get("file_id")
+                    if isinstance(annotation, dict)
+                    else getattr(annotation, "file_id", "")
+                ) or "").strip()
+                filename = str((
+                    annotation.get("filename")
+                    if isinstance(annotation, dict)
+                    else getattr(annotation, "filename", "")
+                ) or "").strip()
+                if not file_id:
+                    continue
+                citation_rows_v69060.append({
+                    "file_id": file_id,
+                    "filename": filename,
+                    "score": 0.0,
+                    "text": "",
+                    "website_file_citation_recovered_v69060": True,
+                })
+
+    represented_file_ids_v69060 = {
+        str(row.get("file_id") or "").strip()
+        for row in rows if isinstance(row, dict) and str(row.get("file_id") or "").strip()
+    }
+    citation_seen_v69060 = set()
+    for citation_row_v69060 in citation_rows_v69060:
+        file_id_v69060 = str(citation_row_v69060.get("file_id") or "").strip()
+        if (
+            not file_id_v69060
+            or file_id_v69060 in represented_file_ids_v69060
+            or file_id_v69060 in citation_seen_v69060
+        ):
+            continue
+        citation_seen_v69060.add(file_id_v69060)
+        rows.append(citation_row_v69060)
+    if citation_seen_v69060:
+        diagnostic_log(
+            "file_search_citation_rows_recovered_v69060",
+            recovered=len(citation_seen_v69060),
+        )
     return rows
 
 
@@ -51341,7 +51413,7 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
         "max_output_tokens": 32,
     }
     try:
-        rows = _website_image_response_rows_with_retry_v69047(
+        rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "website_image_prefetch_v69015",
         )
@@ -51414,7 +51486,7 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
         "max_output_tokens": 32,
     }
     try:
-        rows = _website_image_response_rows_with_retry_v69047(
+        rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "website_image_universal_search_v69014",
         )
@@ -51466,7 +51538,10 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
                 payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
         if not payloads:
             continue
-        for payload in payloads:
+        for raw_payload in payloads:
+            payload = dict(raw_payload or {})
+            if row.get("website_file_citation_recovered_v69060"):
+                payload["_website_file_citation_recovered_v69060"] = True
             passed, score = _website_image_universal_payload_pass_v69014(
                 prompt_text, answer_text, payload, float(row.get("score") or 0.0)
             )
@@ -51514,6 +51589,9 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             "website_universal_relation_pass_v69014": True,
             "website_universal_relation_score_v69014": float(score),
             "website_file_id_v69012": str(file_id or "").strip(),
+            "website_file_citation_recovered_v69060": bool(
+                payload.get("_website_file_citation_recovered_v69060")
+            ),
             "website_image_match_score_v68883": float(score),
         })
         if len(output) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
@@ -51554,7 +51632,7 @@ def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text
     }
 
     try:
-        rows = _website_image_response_rows_with_retry_v69047(
+        rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "website_image_dedicated_search_v69013",
         )
@@ -52645,6 +52723,9 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
             payload["_technical_file_search_extra_v69032"] = True
             payload["_technical_file_search_score_v69032"] = float(row.get("score") or 0.0)
             payload["_technical_file_id_v69032"] = file_id
+            payload["_website_file_citation_recovered_v69060"] = bool(
+                row.get("website_file_citation_recovered_v69060")
+            )
             identity = (
                 str(payload.get("image_sha256") or "").strip().lower()
                 or str(payload.get("image_url") or "").strip()
@@ -52895,6 +52976,9 @@ def _workspace_file_search_payloads_v69051(
             if str(payload.get("database_choice") or "").strip() != target:
                 continue
             payload["_workspace_full_file_restored_v69051"] = bool(full_file)
+            payload["_website_file_citation_recovered_v69060"] = bool(
+                row.get("website_file_citation_recovered_v69060")
+            )
             payload["_technical_file_search_score_v69032"] = float(
                 row.get("score") or payload.get("_technical_file_search_score_v69032") or 0.0
             )
@@ -53121,6 +53205,9 @@ def _workspace_website_images_from_file_search_v69040(
         )
         record["website_workspace_exact_destination_authority_v69051"] = (
             exact_destination_v69051
+        )
+        record["website_file_citation_recovered_v69060"] = bool(
+            payload.get("_website_file_citation_recovered_v69060")
         )
         ranked.append((record["website_workspace_match_score_v69040"], record))
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -53855,6 +53942,9 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         record["website_related_evidence_topic_match_v69025r2"] = bool(topic_related)
         record["website_related_reference_score_v69025r1"] = round(float(score), 3)
         record["website_related_reference_role_v69025r1"] = str(query_role or "")
+        record["website_file_citation_recovered_v69060"] = bool(
+            payload.get("_website_file_citation_recovered_v69060")
+        )
         if payload.get("_technical_supporting_page_vector_authority_v69047"):
             if _website_image_self_heal_index_v69047(prompt, payload):
                 audit_v69047["self_healed"] += 1
