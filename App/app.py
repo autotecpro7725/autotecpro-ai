@@ -1,4 +1,4 @@
-# AutoTecPro AI v69065 — Admin website-learning destination checkboxes
+# AutoTecPro AI v69066 — Exact-store image ownership recovery
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69065"
+ATP_BUILD_VERSION_V69062 = "v69066"
 ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher"
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -448,7 +448,7 @@ def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69065", expanded=False):
+    with st.expander("Production Runtime Audit · v69066", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -53918,6 +53918,7 @@ def _workspace_file_search_payloads_v69051(
     )
 
     def add_payloads(payloads, row, *, full_file=False, exact_store=False):
+        added_count = 0
         for raw_payload in payloads or []:
             if not isinstance(raw_payload, dict):
                 continue
@@ -53955,6 +53956,8 @@ def _workspace_file_search_payloads_v69051(
             if identity:
                 seen.add(identity)
             output.append(payload)
+            added_count += 1
+        return added_count
 
     for row in ordered[:16]:
         file_id = str(row.get("file_id") or "").strip()
@@ -53986,6 +53989,8 @@ def _workspace_file_search_payloads_v69051(
             )
         )
         full_payloads = []
+        full_payloads_added = 0
+        full_destination_conflict = False
         if needs_full and file_id not in full_reads:
             full_reads.add(file_id)
             full_text = str(
@@ -53998,15 +54003,44 @@ def _workspace_file_search_payloads_v69051(
                 full_payloads = _website_file_search_payloads_for_related_evidence_v69032(
                     [full_row]
                 )
-                add_payloads(
-                    full_payloads,
-                    row,
-                    full_file=True,
-                    exact_store=False,
+                full_destination_values = {
+                    re.sub(r"\s+", " ", str(value or "")).strip()
+                    for value in re.findall(
+                        r"(?im)^Destination\s*:\s*([^\r\n]+)", full_text
+                    )
+                    if str(value or "").strip()
+                }
+                full_destination_conflict = bool(
+                    full_destination_values
+                    and full_destination_values != {target}
                 )
+                if not full_destination_conflict:
+                    # A dedicated search is bound to exactly one configured
+                    # destination vector store. Older learned files may predate
+                    # the Destination header; in that narrow case, store
+                    # membership restores ownership. An explicit different or
+                    # mixed destination above always remains fail-closed.
+                    full_exact_store_authority = bool(
+                        exact_destination_authority
+                        and file_id
+                        and not full_destination_values
+                    )
+                    full_payloads_added = add_payloads(
+                        full_payloads,
+                        row,
+                        full_file=True,
+                        exact_store=full_exact_store_authority,
+                    )
 
-        # If complete metadata was restored, never re-add the incomplete chunk.
-        if full_payloads:
+        # Stop only when complete metadata actually produced a destination-owned
+        # candidate. v69065 stopped merely because the parser returned a payload,
+        # even when that payload defaulted to Technical and add_payloads rejected
+        # it. That discarded exact Sales/Marketing URLs before publication.
+        if full_payloads_added:
+            continue
+        if full_destination_conflict:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("EXPLICIT_DESTINATION_CONFLICT")
             continue
         add_payloads(
             chunk_payloads,
