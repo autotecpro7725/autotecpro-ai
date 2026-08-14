@@ -1,4 +1,4 @@
-# AutoTecPro AI v69064 — destination image publication + documented profile authority
+# AutoTecPro AI v69065 — Admin website-learning destination checkboxes
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69064"
+ATP_BUILD_VERSION_V69062 = "v69065"
 ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher"
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -448,7 +448,7 @@ def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69064", expanded=False):
+    with st.expander("Production Runtime Audit · v69065", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -56676,12 +56676,45 @@ WEBSITE_DATABASE_DESTINATIONS_V69029 = (
 
 
 def _website_database_destinations_v69029(selection):
+    if isinstance(selection, (list, tuple, set)):
+        requested = {
+            re.sub(r"\s+", " ", str(value or "")).strip()
+            for value in selection
+            if str(value or "").strip()
+        }
+        invalid = requested - set(WEBSITE_DATABASE_DESTINATIONS_V69029)
+        if invalid:
+            raise ValueError(
+                "Invalid website knowledge database selection: "
+                + ", ".join(sorted(invalid))
+            )
+        destinations = [
+            value for value in WEBSITE_DATABASE_DESTINATIONS_V69029
+            if value in requested
+        ]
+        if not destinations:
+            raise ValueError("Select at least one website knowledge database.")
+        return destinations
     value = str(selection or "").strip()
     if value == WEBSITE_DATABASE_ALL_V69029:
+        # Backward compatibility for a stale pre-v69065 session/retry marker.
+        # The v69065 Admin UI no longer exposes an All Databases option.
         return list(WEBSITE_DATABASE_DESTINATIONS_V69029)
     if value in WEBSITE_DATABASE_DESTINATIONS_V69029:
         return [value]
     raise ValueError("Invalid website knowledge database selection.")
+
+
+def _website_shared_analysis_destination_v69065(destinations):
+    """Choose one selected destination for the single shared image-QA pass."""
+    selected = _website_database_destinations_v69029(destinations)
+    # Technical retains its established stricter analysis when it is actually
+    # selected. A Sales+Marketing submission that excludes Technical must never
+    # be analyzed under a destination the administrator did not choose.
+    for preferred in WEBSITE_DATABASE_DESTINATIONS_V69029:
+        if preferred in selected:
+            return preferred
+    raise ValueError("Select at least one website knowledge database.")
 
 
 def _website_database_vector_store_v69029(database_choice):
@@ -56736,7 +56769,7 @@ def save_website_knowledge_to_destinations_v69029(
     selected_image_urls=None,
     shared_analysis_override_v69045=None,
 ):
-    """Save one reviewed extraction to one or all supported website databases.
+    """Save one reviewed extraction to the selected supported website databases.
 
     Extraction and visual QA run once. Each destination then uses the existing
     transactional same-URL replacement path independently. Partial failure is safe
@@ -56752,12 +56785,9 @@ def save_website_knowledge_to_destinations_v69029(
         shared_analysis = dict(shared_analysis_override_v69045)
         shared_analysis["thin_html_analysis_reused_v69045"] = True
     elif include_images:
-        # Technical Support is the authoritative durable image-QA/index source.
-        # Reuse that one analysis for All Databases so same-URL resubmits can reuse
-        # existing byte-identical QA instead of re-running provider vision three times.
-        analysis_label = (
-            "Technical Support Database" if len(destinations) > 1 else destinations[0]
-        )
+        # Analyze pixels once, but never use an unselected destination as the
+        # semantic basis. Per-destination projections below remain independent.
+        analysis_label = _website_shared_analysis_destination_v69065(destinations)
         shared_analysis = analyze_website_images(
             extraction,
             analysis_label,
@@ -56797,7 +56827,7 @@ def save_website_knowledge_to_destinations_v69029(
             )
 
     return {
-        "destination_selection": str(destination_selection or ""),
+        "destination_selection": list(destinations),
         "destinations": destinations,
         "results": results,
         "failures": failures,
@@ -56874,37 +56904,103 @@ def render_learn_from_website(database_choice):
     st.markdown("### Learn from Website")
     st.caption(
         "Extract one public webpage once, review the cleaned content, then approve "
-        "it for Technical Support, Sales, Marketing, or all three databases."
+        "it for any selected combination of Technical Support, Sales, and Marketing."
     )
 
-    website_database_options_v69029 = [
-        WEBSITE_DATABASE_ALL_V69029,
-        "Technical Support Database",
-        "Sales Database",
-        "Marketing Database",
+    # v69065: replace the mutually exclusive destination dropdown with the same
+    # vertically aligned checkbox interaction used by Workspace Access. Migrate
+    # one stale pre-v69065 selection once, before any checkbox widget is mounted.
+    destination_widget_keys_v69065 = {
+        "Technical Support Database": "stable_admin_website_destination_technical_v69065",
+        "Sales Database": "stable_admin_website_destination_sales_v69065",
+        "Marketing Database": "stable_admin_website_destination_marketing_v69065",
+    }
+    if not bool(st.session_state.get("admin_website_destination_migrated_v69065")):
+        legacy_selection_v69065 = str(
+            st.session_state.get("stable_admin_website_database_choice_v69029") or ""
+        ).strip()
+        if legacy_selection_v69065 == WEBSITE_DATABASE_ALL_V69029:
+            migrated_destinations_v69065 = set(WEBSITE_DATABASE_DESTINATIONS_V69029)
+        elif legacy_selection_v69065 in WEBSITE_DATABASE_DESTINATIONS_V69029:
+            migrated_destinations_v69065 = {legacy_selection_v69065}
+        else:
+            migrated_destinations_v69065 = {"Technical Support Database"}
+        for destination_v69065, key_v69065 in destination_widget_keys_v69065.items():
+            if key_v69065 not in st.session_state:
+                st.session_state[key_v69065] = destination_v69065 in migrated_destinations_v69065
+        st.session_state["admin_website_destination_migrated_v69065"] = True
+
+    st.markdown(
+        """
+        <style>
+        div[class*="st-key-admin_website_destination_selector_v69065"]
+        > div[data-testid="stVerticalBlock"] {
+            gap: 0 !important;
+        }
+        div[class*="st-key-admin_website_destination_selector_v69065"]
+        div[data-testid="stElementContainer"]:has([data-testid="stCheckbox"]) {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 40px !important;
+        }
+        div[class*="st-key-admin_website_destination_selector_v69065"]
+        [data-testid="stCheckbox"] {
+            min-height: 40px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        div[class*="st-key-admin_website_destination_selector_v69065"]
+        [data-testid="stCheckbox"] label {
+            min-height: 40px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            font-weight: 650 !important;
+            line-height: 1.25 !important;
+        }
+        div[class*="st-key-admin_website_destination_selector_v69065"]
+        [data-testid="stCheckbox"] label p {
+            margin: 0 !important;
+            line-height: 1.25 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("**Learn website to databases**")
+    selected_destination_flags_v69065 = {}
+    with st.container(key="admin_website_destination_selector_v69065"):
+        for destination_v69065, label_v69065 in (
+            ("Technical Support Database", "Technical Support"),
+            ("Sales Database", "Sales"),
+            ("Marketing Database", "Marketing"),
+        ):
+            selected_destination_flags_v69065[destination_v69065] = st.checkbox(
+                label_v69065,
+                key=destination_widget_keys_v69065[destination_v69065],
+                help=f"Save the approved webpage knowledge and its owned image records to {label_v69065}.",
+            )
+
+    website_destination_labels_v69029 = [
+        destination for destination in WEBSITE_DATABASE_DESTINATIONS_V69029
+        if bool(selected_destination_flags_v69065.get(destination))
     ]
-    # Website destination is independent from the document-upload selector above.
-    # Default to Technical Support and persist the website-specific choice thereafter.
-    default_website_database_v69029 = "Technical Support Database"
-    if str(st.session_state.get("stable_admin_website_database_choice_v69029") or "") not in website_database_options_v69029:
-        st.session_state["stable_admin_website_database_choice_v69029"] = default_website_database_v69029
-    website_database_choice_v69029 = st.selectbox(
-        "Learn website to database",
-        website_database_options_v69029,
-        key="stable_admin_website_database_choice_v69029",
-        help=(
-            "All Databases extracts/analyzes the webpage once, then publishes the approved "
-            "knowledge to Technical Support, Sales, and Marketing. Graphic Marketing is not "
-            "included in All Databases."
-        ),
-    )
-    website_destination_labels_v69029 = _website_database_destinations_v69029(website_database_choice_v69029)
-    st.caption(
-        "Will save to: " + " · ".join(
-            ("Technical Support" if x == "Technical Support Database" else "Sales" if x == "Sales Database" else "Marketing")
-            for x in website_destination_labels_v69029
+    # Preserve the established downstream variable/call path, now as a canonical
+    # ordered list rather than one dropdown string.
+    website_database_choice_v69029 = list(website_destination_labels_v69029)
+    website_destinations_selected_v69065 = bool(website_destination_labels_v69029)
+    if website_destinations_selected_v69065:
+        st.caption(
+            "Will save to: " + " · ".join(
+                ("Technical Support" if x == "Technical Support Database" else "Sales" if x == "Sales Database" else "Marketing")
+                for x in website_destination_labels_v69029
+            )
         )
-    )
+    else:
+        st.warning("Select at least one database before extracting or saving this webpage.")
 
     website_url = st.text_input(
         "Website URL",
@@ -56932,6 +57028,7 @@ def render_learn_from_website(database_choice):
             key="stable_admin_website_extract",
             use_container_width=True,
             type="secondary",
+            disabled=not website_destinations_selected_v69065,
         )
 
     if extract_submitted:
@@ -57100,7 +57197,10 @@ def render_learn_from_website(database_choice):
             "Saving..." if website_save_in_progress else "Approve and Save",
             key="stable_admin_website_save",
             use_container_width=True,
-            disabled=website_save_in_progress,
+            disabled=(
+                website_save_in_progress
+                or not website_destinations_selected_v69065
+            ),
             on_click=begin_website_knowledge_save,
         )
 
@@ -57137,12 +57237,18 @@ def render_learn_from_website(database_choice):
         )
         reviewed_extraction["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
 
-        with st.spinner(
+        destination_display_names_v69065 = [
             (
-                "Saving website knowledge to "
-                + ("Technical Support, Sales, and Marketing" if website_database_choice_v69029 == WEBSITE_DATABASE_ALL_V69029 else website_database_choice_v69029.replace(" Database", ""))
-                + (" and analyzing useful images once..." if include_website_images else "...")
+                "Technical Support" if destination == "Technical Support Database"
+                else "Sales" if destination == "Sales Database"
+                else "Marketing"
             )
+            for destination in website_destination_labels_v69029
+        ]
+        with st.spinner(
+            "Saving website knowledge to "
+            + ", ".join(destination_display_names_v69065)
+            + (" and analyzing useful images once..." if include_website_images else "...")
         ):
             selected_image_urls_v68998 = (
                 list(extraction.get("selected_preview_urls_v69002") or [])
@@ -57157,6 +57263,13 @@ def render_learn_from_website(database_choice):
                 ).encode("utf-8")
             ).hexdigest()
             recovery_v69045 = dict(extraction.get("thin_html_recovery_v69045") or {})
+            recovery_destinations_v69065 = []
+            try:
+                recovery_destinations_v69065 = _website_database_destinations_v69029(
+                    recovery_v69045.get("destination_selection")
+                )
+            except Exception:
+                recovery_destinations_v69065 = []
             original_thin_content_v69045 = str(
                 extraction.get("thin_html_original_content_v69045")
                 or reviewed_content
@@ -57165,7 +57278,7 @@ def render_learn_from_website(database_choice):
             if (
                 include_website_images
                 and recovery_v69045.get("selected_signature") == selected_signature_v69045
-                and recovery_v69045.get("destination_selection") == website_database_choice_v69029
+                and recovery_destinations_v69065 == website_destination_labels_v69029
                 and isinstance(recovery_v69045.get("shared_image_analysis"), dict)
             ):
                 cached_analysis_v69045 = dict(recovery_v69045.get("shared_image_analysis") or {})
@@ -57181,10 +57294,8 @@ def render_learn_from_website(database_choice):
                     original_thin_content_v69045,
                 )
             ):
-                analysis_label_v69045 = (
-                    "Technical Support Database"
-                    if len(website_destination_labels_v69029) > 1
-                    else website_destination_labels_v69029[0]
+                analysis_label_v69045 = _website_shared_analysis_destination_v69065(
+                    website_destination_labels_v69029
                 )
                 recovered_analysis_v69045 = analyze_website_images(
                     reviewed_extraction,
@@ -57215,7 +57326,7 @@ def render_learn_from_website(database_choice):
                     recovered_extraction_v69045["thin_html_original_content_v69045"] = original_thin_content_v69045
                     recovered_extraction_v69045["thin_html_recovery_v69045"] = {
                         "selected_signature": selected_signature_v69045,
-                        "destination_selection": website_database_choice_v69029,
+                        "destination_selection": list(website_destination_labels_v69029),
                         "shared_image_analysis": recovered_analysis_v69045,
                     }
                     st.session_state["admin_website_extraction"] = recovered_extraction_v69045
