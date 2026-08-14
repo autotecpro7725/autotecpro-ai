@@ -1,4 +1,4 @@
-# AutoTecPro AI v69063 — v69050 exact-image authority restored; v69062 stability preserved
+# AutoTecPro AI v69064 — destination image publication + documented profile authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,8 +87,8 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69063"
-ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69063-role-locked"
+ATP_BUILD_VERSION_V69062 = "v69064"
+ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher"
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
     or os.environ.get("GIT_COMMIT_SHA")
@@ -448,7 +448,7 @@ def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69063", expanded=False):
+    with st.expander("Production Runtime Audit · v69064", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -51563,6 +51563,75 @@ def _website_image_exact_supporting_page_range_authority_v69046(prompt_text, pay
     return True
 
 
+def _website_image_documented_profile_equivalence_v69064(prompt_text, payload):
+    """Authorize one documented Durango-to-Jeep CANBUS profile screenshot.
+
+    AutoTecPro's 2011–2020 Dodge Durango instructions intentionally direct the
+    installer to the Jeep Grand Cherokee H/L profile with protocol Simple.  A
+    generic Dodge/Jeep alias would be unsafe, so this exception is bound to the
+    exact Technical-owned learned page, its exact vector-file authority, the
+    Car Model/A/C role, the documented year range, and image-local profile text.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if str(payload.get("database_choice") or "").strip() != "Technical Support Database":
+        return False
+    if not bool(
+        payload.get("_technical_supporting_page_hydration_v69045")
+        or payload.get("_technical_supporting_page_vector_authority_v69047")
+    ):
+        return False
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if _website_image_query_role_v68884(prompt) != "car_model_ac":
+        return False
+    if "durango" not in _website_identity_vehicle_families_v69022(prompt):
+        return False
+    requested_years = _website_identity_years_v69022(prompt)
+    if not requested_years or not requested_years.issubset(set(range(2011, 2021))):
+        return False
+
+    source_page = str(payload.get("source_page") or "").strip()
+    try:
+        parsed = urlparse(source_page)
+        host = str(parsed.hostname or "").casefold().rstrip(".")
+        if host == "www.autotecpro.com":
+            host = "autotecpro.com"
+        path = re.sub(r"/+", "/", str(parsed.path or "")).rstrip("/").casefold()
+    except Exception:
+        return False
+    exact_path = (
+        "/installation-instruction-technical-inforamtion-dodge-durango-"
+        "tesla-style-infotainment-system-2011-2020"
+    )
+    if host != "autotecpro.com" or path != exact_path:
+        return False
+
+    local_text = " ".join((
+        str(payload.get("section_heading") or ""),
+        str(payload.get("nearby_instruction_text") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+        json.dumps(
+            payload.get("image_structured_metadata_v69017") or {},
+            ensure_ascii=False,
+            default=str,
+        ),
+        unquote(str(payload.get("image_url") or "")),
+    )).casefold()
+    documented_profile = bool(
+        re.search(r"\bgrand\s+cherokee\s+[hl]\b", local_text)
+        or "jeep grand cherokee" in local_text
+    )
+    documented_protocol = bool(
+        "protocol simple" in local_text
+        or "simple protocol" in local_text
+        or re.search(r"\bprotocol\b.{0,60}\bsimple\b", local_text)
+        or "dodge_jeep-carmodel" in local_text
+    )
+    return documented_profile and documented_protocol
+
+
 def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payload):
     """Hard final provenance gate using the resolved Technical subject identity."""
     if not isinstance(payload, dict):
@@ -51587,9 +51656,20 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
     requested_systems = set(subject.get("systems") or set())
     requested_codes = set(subject.get("product_codes") or set())
 
-    if requested_brands and candidate_brands and not (requested_brands & candidate_brands):
+    documented_profile_v69064 = _website_image_documented_profile_equivalence_v69064(
+        prompt_text, payload
+    )
+    if (
+        requested_brands and candidate_brands
+        and not (requested_brands & candidate_brands)
+        and not documented_profile_v69064
+    ):
         return False
-    if requested_families and candidate_families and not (requested_families & candidate_families):
+    if (
+        requested_families and candidate_families
+        and not (requested_families & candidate_families)
+        and not documented_profile_v69064
+    ):
         return False
     if (
         requested_years
@@ -51711,7 +51791,13 @@ def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     candidate_tokens = set(re.findall(r"[a-z0-9]+", section_text + " " + page_text))
     requested_brands = prompt_tokens & known_brands
     candidate_brands = candidate_tokens & known_brands
-    if requested_brands and candidate_brands and not (requested_brands & candidate_brands):
+    if (
+        requested_brands and candidate_brands
+        and not (requested_brands & candidate_brands)
+        and not _website_image_documented_profile_equivalence_v69064(
+            prompt_text, payload
+        )
+    ):
         return False
 
     return True
@@ -54068,7 +54154,7 @@ def _workspace_image_semantic_authority_v69062(
         ),
         "product_overview": (
             "screen", "touchscreen", "infotainment", "head unit", "radio",
-            "product", "qhd", "ips", "tesla style", "display",
+            "product", "unit", "system", "qhd", "ips", "tesla style", "display",
         ),
     }
     prompt_cf = prompt.casefold()
@@ -54083,10 +54169,11 @@ def _workspace_image_semantic_authority_v69062(
             "product_gate": "pass", "topic_gate": "reject",
         }
 
-    topic_hits = {
-        topic for topic in requested_topics
+    local_topic_hits = {
+        topic for topic in topic_groups
         if any(phrase in semantic_local_text for phrase in topic_groups[topic])
     }
+    topic_hits = requested_topics & local_topic_hits
     lexical_overlap = topic_tokens & local_tokens
     caption_overlap = topic_tokens & caption_tokens
     visual_overlap = topic_tokens & visual_tokens
@@ -54095,11 +54182,38 @@ def _workspace_image_semantic_authority_v69062(
     # that the asset depicts the product. Same-page ownership alone is not proof.
     if not requested_topics:
         requested_topics = {"product_overview"}
-    missing_topics = requested_topics - topic_hits
+        topic_hits = requested_topics & local_topic_hits
+
+    # Marketing intent describes how the approved image will be used; it does
+    # not require the source asset itself to contain words such as "campaign" or
+    # "advertisement".  A Marketing-owned asset must still carry image-local
+    # product/installed-product or creative evidence, plus the unchanged fitment
+    # and product gates above.  This is destination-specific and cannot authorize
+    # a Sales or Technical record.
+    required_topics = set(requested_topics)
+    marketing_visual_bridge = True
+    if (
+        str(payload.get("database_choice") or "").strip()
+        == "Marketing Database"
+        and "marketing_creative" in required_topics
+    ):
+        non_intent_topics = required_topics - {"marketing_creative"}
+        if non_intent_topics:
+            required_topics = non_intent_topics
+        else:
+            required_topics = set()
+            marketing_visual_bridge = bool(
+                local_topic_hits
+                & {"marketing_creative", "product_overview", "installed_product"}
+            )
+    missing_topics = required_topics - local_topic_hits
     strong_lexical_topic_evidence = bool(
         len(lexical_overlap) >= 2 and (caption_overlap or visual_overlap)
     )
-    if missing_topics and not strong_lexical_topic_evidence:
+    if (
+        (missing_topics and not strong_lexical_topic_evidence)
+        or not marketing_visual_bridge
+    ):
         return False, -700.0, "TOPIC_LOCAL_EVIDENCE_MISSING", {
             "vehicle_gate": "pass", "year_gate": "pass",
             "product_gate": "pass", "topic_gate": "reject",
@@ -54120,7 +54234,7 @@ def _workspace_image_semantic_authority_v69062(
         min(float(payload.get("_technical_file_search_score_v69032") or 0.0), 1.0),
     )
     semantic_score = (
-        len(topic_hits) * 28.0
+        len(topic_hits | (local_topic_hits & {"installed_product", "product_overview"})) * 28.0
         + len(lexical_overlap) * 5.0
         + len(caption_overlap) * 5.0
         + len(visual_overlap) * 4.0
@@ -54769,15 +54883,26 @@ def _workspace_automatic_image_recovery_v69050(
     ordinary_rows = [
         dict(row) for row in (result_rows or []) if isinstance(row, dict)
     ]
-    recovered = _workspace_website_images_from_file_search_v69040(
-        workspace,
-        prompt,
+    has_exact_answer_image_url_v69064 = bool(re.search(
+        r"https://(?:www\.)?autotecpro\.com/wp-content/uploads/"
+        r"[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)",
         answer,
-        ordinary_rows,
-        max_images=max_images,
-        coordinator=coordinator,
-        allow_durable_fallback_v69062=False,
-    )
+        flags=re.I,
+    ))
+    # If the completed answer already cites exact learned assets, do not let a
+    # broader ordinary candidate pre-empt their destination-owned reconstruction.
+    # The exact rows are obtained below from only the active workspace store.
+    recovered = []
+    if not has_exact_answer_image_url_v69064:
+        recovered = _workspace_website_images_from_file_search_v69040(
+            workspace,
+            prompt,
+            answer,
+            ordinary_rows,
+            max_images=max_images,
+            coordinator=coordinator,
+            allow_durable_fallback_v69062=False,
+        )
     diagnostic_log(
         "workspace_image_ordinary_bridge_v69050",
         workspace=workspace,
@@ -54796,6 +54921,35 @@ def _workspace_automatic_image_recovery_v69050(
         dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
             workspace, prompt, answer, coordinator=coordinator
         )
+
+    # Exact answer URLs are the strongest publication pointer, but only after
+    # they resolve to structured/QA evidence from this destination's own store.
+    # This prevents a generic durable candidate from winning before the exact
+    # Sales/Marketing image is reconstructed.
+    if dedicated_rows and has_exact_answer_image_url_v69064:
+        recovered = _workspace_answer_url_records_from_exact_rows_v69058(
+            workspace,
+            prompt,
+            answer,
+            dedicated_rows,
+            max_images=max_images,
+            coordinator=coordinator,
+        )
+        if recovered:
+            return recovered
+
+    if has_exact_answer_image_url_v69064 and ordinary_rows:
+        recovered = _workspace_website_images_from_file_search_v69040(
+            workspace,
+            prompt,
+            answer,
+            ordinary_rows,
+            max_images=max_images,
+            coordinator=coordinator,
+            allow_durable_fallback_v69062=False,
+        )
+        if recovered:
+            return recovered
     if dedicated_rows:
         recovered = _workspace_website_images_from_file_search_v69040(
             workspace,
