@@ -1,4 +1,4 @@
-# AutoTecPro AI v69060 — exact file-citation image recovery; v69059 stability + protected Graphic engine preserved
+# AutoTecPro AI v69062 — v69050-locked image authority + coordinated recovery; v69060 stability preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -66,6 +66,7 @@ from urllib.parse import quote, unquote, urlparse, urljoin
 from html.parser import HTMLParser
 import socket
 import ipaddress
+import threading
 import csv
 import inspect
 import math
@@ -86,6 +87,52 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
+ATP_BUILD_VERSION_V69062 = "v69062"
+ATP_IMAGE_AUTHORITY_V69062 = "v69050-locked+v69062-semantic"
+ATP_BUILD_COMMIT_V69062 = str(
+    os.environ.get("STREAMLIT_GIT_COMMIT")
+    or os.environ.get("GIT_COMMIT_SHA")
+    or os.environ.get("COMMIT_SHA")
+    or "unavailable"
+).strip()[:40]
+try:
+    ATP_DEPLOYED_AT_V69062 = str(
+        os.environ.get("ATP_DEPLOYED_AT")
+        or datetime.fromtimestamp(
+            Path(__file__).stat().st_mtime, tz=timezone.utc
+        ).isoformat()
+    )
+except Exception:
+    ATP_DEPLOYED_AT_V69062 = "unavailable"
+ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062 = 2.75
+ATP_IMAGE_NEGATIVE_CACHE_TTL_SECONDS_V69062 = 30.0
+ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062 = 3
+ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062 = 30.0
+ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
+    "source_sha_verification",
+    "startup_and_login",
+    "valid_session_restoration",
+    "technical_positive_image",
+    "technical_sales_only_blocked",
+    "sales_positive_image",
+    "sales_marketing_only_blocked",
+    "marketing_positive_image",
+    "marketing_sales_only_blocked",
+    "wrong_year_blocked",
+    "wrong_vehicle_blocked",
+    "graphic_generation_parity",
+    "graphic_image_recovery_blocked",
+    "provider_empty_result_recovery",
+    "provider_interruption_recovery",
+    "rerun_conversation_reopen",
+    "cross_user_isolation",
+    "provenance_round_trip",
+    "cdn_archive_browser_render",
+    "text_first_token_baseline",
+    "automatic_image_latency_le_3s",
+    "idle_30m_workspace_switch",
+    "rollback_verification",
+)
 # v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
 
 # v66000 LTS clean architectural merge:
@@ -261,6 +308,239 @@ diagnostic_log(
     graphic=_VECTOR_STORE_CONFIGURATION["graphic"],
     all_configured=_VECTOR_STORE_CONFIGURATION["all_configured"],
 )
+
+
+def _build_source_sha256_v69062():
+    """Return the exact running source fingerprint without exposing source text."""
+    try:
+        return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    except Exception:
+        return "unavailable"
+
+
+def _runtime_session_fingerprint_v69062():
+    """Return a session-local, non-reversible user/session fingerprint."""
+    try:
+        nonce = str(st.session_state.get("_runtime_session_nonce_v69062") or "")
+        if not nonce:
+            nonce = hashlib.sha256(os.urandom(32)).hexdigest()[:24]
+            st.session_state["_runtime_session_nonce_v69062"] = nonce
+        username = str(st.session_state.get("username") or "anonymous")
+        return hashlib.sha256(f"{username}|{nonce}".encode("utf-8")).hexdigest()[:20]
+    except Exception:
+        return "unavailable"
+
+
+def _runtime_audit_update_v69062(**fields):
+    """Update the current user's redacted runtime-audit snapshot.
+
+    Raw prompts, credentials, vector-store IDs, cookies and provider payloads are
+    deliberately unsupported. The snapshot is session-scoped, so one browser
+    session cannot inspect another user's runtime evidence.
+    """
+    allowed = {
+        "active_workspace", "conversation_id", "last_provider_route",
+        "returned_file_search_rows", "image_candidates_reconstructed",
+        "image_candidates_rejected", "image_rejection_reasons",
+        "images_finally_published", "persistence_result",
+        "rerun_restoration_result", "last_recovery_stage",
+        "last_recovery_status", "last_recovery_reason_code",
+        "image_provider_circuit", "image_added_latency_ms", "turn_id",
+        "restored_message_count", "restored_image_count",
+        "restored_provenance_count",
+    }
+    try:
+        snapshot = dict(st.session_state.get("_runtime_audit_snapshot_v69062") or {})
+        snapshot.setdefault("build_version", ATP_BUILD_VERSION_V69062)
+        snapshot.setdefault("build_commit", ATP_BUILD_COMMIT_V69062)
+        snapshot.setdefault("image_authority", ATP_IMAGE_AUTHORITY_V69062)
+        snapshot.setdefault("deployed_at", ATP_DEPLOYED_AT_V69062)
+        snapshot["source_sha256"] = _build_source_sha256_v69062()
+        snapshot["configured_vector_stores"] = dict(_VECTOR_STORE_CONFIGURATION)
+        snapshot["session_fingerprint"] = _runtime_session_fingerprint_v69062()
+        snapshot["updated_at"] = datetime.now(timezone.utc).isoformat()
+        for key, value in fields.items():
+            if key not in allowed:
+                continue
+            if isinstance(value, dict):
+                snapshot[key] = {
+                    str(k)[:80]: (
+                        v if v is None or isinstance(v, (bool, int, float))
+                        else re.sub(r"\s+", " ", str(v)).strip()[:180]
+                    )
+                    for k, v in list(value.items())[:40]
+                }
+            elif isinstance(value, (list, tuple, set)):
+                snapshot[key] = [
+                    re.sub(r"\s+", " ", str(item)).strip()[:180]
+                    for item in list(value)[:40]
+                ]
+            elif value is None or isinstance(value, (bool, int, float)):
+                snapshot[key] = value
+            else:
+                snapshot[key] = re.sub(r"\s+", " ", str(value)).strip()[:300]
+        st.session_state["_runtime_audit_snapshot_v69062"] = snapshot
+    except Exception:
+        pass
+
+
+def _runtime_audit_redacted_report_v69062():
+    """Build a credential-free report suitable for an Admin download."""
+    snapshot = dict(st.session_state.get("_runtime_audit_snapshot_v69062") or {})
+    conversation_id = str(snapshot.pop("conversation_id", "") or "")
+    snapshot["conversation_fingerprint"] = (
+        hashlib.sha256(conversation_id.encode("utf-8")).hexdigest()[:20]
+        if conversation_id else "none"
+    )
+    snapshot.pop("username", None)
+    smoke_matrix = dict(
+        st.session_state.get("_authenticated_smoke_matrix_v69062") or {}
+    )
+    snapshot["authenticated_smoke_matrix"] = smoke_matrix
+    source_sha = str(snapshot.get("source_sha256") or "")
+    approved_sha = _read_app_secret("ATP_RELEASE_GATE_APPROVED_SHA")
+    missing_test_ids = [
+        test_id for test_id in ATP_RELEASE_REQUIRED_TEST_IDS_V69062
+        if str((smoke_matrix.get(test_id) or {}).get("status") or "").upper()
+        != "PASS"
+    ]
+    failed_test_ids = [
+        test_id for test_id, result in smoke_matrix.items()
+        if str((result or {}).get("status") or "").upper() == "FAIL"
+    ]
+    approved_sha_matches = bool(
+        approved_sha and source_sha and hmac.compare_digest(approved_sha, source_sha)
+    )
+    release_approved = bool(
+        approved_sha_matches and not missing_test_ids and not failed_test_ids
+    )
+    snapshot["release_gate"] = {
+        "approved_sha_matches": approved_sha_matches,
+        "required_test_count": len(ATP_RELEASE_REQUIRED_TEST_IDS_V69062),
+        "passed_test_count": len(ATP_RELEASE_REQUIRED_TEST_IDS_V69062) - len(missing_test_ids),
+        "missing_or_not_passed_test_ids": missing_test_ids,
+        "failed_test_ids": failed_test_ids,
+        "critical_failures": len(failed_test_ids),
+        "high_failures": 0,
+        "status": (
+            "approved" if release_approved
+            else "candidate_pending_authenticated_proof"
+        ),
+    }
+    canonical = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    signing_key = _read_app_secret("ATP_AUDIT_SIGNING_KEY")
+    if signing_key:
+        signature = hmac.new(
+            signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        signature_type = "hmac-sha256"
+    else:
+        signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        signature_type = "sha256-integrity-unkeyed"
+    return {
+        "report": snapshot,
+        "signature_type": signature_type,
+        "signature": signature,
+    }
+
+
+def render_runtime_audit_panel_v69062():
+    """Render build identity and redacted runtime evidence for Admins only."""
+    report_envelope = _runtime_audit_redacted_report_v69062()
+    report = dict(report_envelope.get("report") or {})
+    with st.expander("Production Runtime Audit · v69062", expanded=False):
+        st.code(
+            "\n".join((
+                f"Build: {ATP_BUILD_VERSION_V69062}",
+                f"Commit: {ATP_BUILD_COMMIT_V69062}",
+                f"Source SHA-256: {report.get('source_sha256') or 'unavailable'}",
+                f"Image authority: {ATP_IMAGE_AUTHORITY_V69062}",
+                f"Deployed: {ATP_DEPLOYED_AT_V69062}",
+            )),
+            language="text",
+        )
+        st.json({
+            "configured_vector_stores": report.get("configured_vector_stores") or {},
+            "active_workspace": report.get("active_workspace") or str(assistant or ""),
+            "session_fingerprint": report.get("session_fingerprint") or "unavailable",
+            "conversation_id": str(
+                (st.session_state.get("_runtime_audit_snapshot_v69062") or {}).get("conversation_id")
+                or st.session_state.get("conversation_id") or "none"
+            ),
+            "last_provider_route": report.get("last_provider_route") or "none",
+            "returned_file_search_rows": int(report.get("returned_file_search_rows") or 0),
+            "image_candidates_reconstructed": int(report.get("image_candidates_reconstructed") or 0),
+            "image_candidates_rejected": int(report.get("image_candidates_rejected") or 0),
+            "image_rejection_reasons": report.get("image_rejection_reasons") or {},
+            "images_finally_published": int(report.get("images_finally_published") or 0),
+            "persistence_result": report.get("persistence_result") or "not_observed",
+            "rerun_restoration_result": report.get("rerun_restoration_result") or "not_observed",
+            "last_recovery": {
+                "stage": report.get("last_recovery_stage") or "none",
+                "status": report.get("last_recovery_status") or "none",
+                "reason_code": report.get("last_recovery_reason_code") or "none",
+            },
+            "release_gate": report.get("release_gate") or {},
+        })
+        st.caption(
+            "Authenticated smoke results store only a test ID, PASS/FAIL, time, "
+            "build SHA and a short redacted note—never credentials or full prompts."
+        )
+        smoke_test_id = st.selectbox(
+            "Runtime smoke test ID",
+            ATP_RELEASE_REQUIRED_TEST_IDS_V69062,
+            key="runtime_audit_test_id_v69062",
+        )
+        smoke_status = st.selectbox(
+            "Runtime smoke result",
+            ("PASS", "FAIL"),
+            key="runtime_audit_test_status_v69062",
+        )
+        smoke_note = st.selectbox(
+            "Result code",
+            (
+                "observed_expected_output",
+                "blocked_as_expected",
+                "runtime_failure",
+                "not_applicable",
+            ),
+            key="runtime_audit_test_note_v69062",
+        )
+        if st.button(
+            "Record authenticated smoke result",
+            key="runtime_audit_record_v69062",
+        ):
+            matrix = dict(
+                st.session_state.get("_authenticated_smoke_matrix_v69062") or {}
+            )
+            matrix[str(smoke_test_id)] = {
+                "status": str(smoke_status),
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "source_sha256": str(report.get("source_sha256") or ""),
+                "session_fingerprint": str(
+                    report.get("session_fingerprint") or "unavailable"
+                ),
+                "result_code": str(smoke_note or "")[:80],
+            }
+            st.session_state["_authenticated_smoke_matrix_v69062"] = matrix
+            st.success(f"Recorded {smoke_test_id}: {smoke_status}")
+            report_envelope = _runtime_audit_redacted_report_v69062()
+            report = dict(report_envelope.get("report") or {})
+        if report_envelope.get("signature_type") != "hmac-sha256":
+            st.warning(
+                "ATP_AUDIT_SIGNING_KEY is not configured. The download has an integrity "
+                "digest but is not an authenticated HMAC report."
+            )
+        st.download_button(
+            "Download redacted runtime audit report",
+            data=json.dumps(report_envelope, ensure_ascii=False, indent=2),
+            file_name=(
+                f"autotecpro-runtime-audit-{ATP_BUILD_VERSION_V69062}-"
+                f"{report.get('source_sha256', 'unknown')[:12]}.json"
+            ),
+            mime="application/json",
+            key="download_runtime_audit_v69062",
+        )
 
 
 WORKSPACE_LABELS = {
@@ -10927,6 +11207,48 @@ def serialize_images_marker(images):
         return ""
 
 
+_IMAGE_HISTORY_SENSITIVE_KEY_TOKENS_V69062 = (
+    "password", "passwd", "credential", "authorization", "cookie",
+    "api_key", "apikey", "access_token", "refresh_token", "id_token",
+    "private_key", "client_secret", "session_token", "raw_prompt",
+    "user_prompt",
+)
+
+
+def _safe_image_history_value_v69062(value, depth=0):
+    """Preserve future image provenance fields while excluding secrets.
+
+    Older builds used a field allowlist.  Every new authority field therefore
+    disappeared after a rerun until the allowlist was patched again.  v69062
+    preserves JSON-compatible metadata generically, with explicit sensitive-key,
+    depth, cardinality and string-size limits.
+    """
+    if depth > 6:
+        return None
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:16384]
+    if isinstance(value, (list, tuple)):
+        return [
+            _safe_image_history_value_v69062(item, depth + 1)
+            for item in list(value)[:96]
+        ]
+    if isinstance(value, dict):
+        clean = {}
+        for raw_key, child in list(value.items())[:128]:
+            key = str(raw_key or "").strip()[:160]
+            key_cf = key.casefold()
+            if not key or any(
+                token in key_cf
+                for token in _IMAGE_HISTORY_SENSITIVE_KEY_TOKENS_V69062
+            ):
+                continue
+            clean[key] = _safe_image_history_value_v69062(child, depth + 1)
+        return clean
+    return str(value)[:4096]
+
+
 def extract_images_from_message_content(content):
     text = str(content or "")
     pattern = re.escape(IMAGE_MARKER_PREFIX) + r"(.*?)" + re.escape(IMAGE_MARKER_SUFFIX) + r"\s*$"
@@ -10954,60 +11276,20 @@ def extract_images_from_message_content(content):
             "data_url": str(image.get("data_url")),
         }
 
-        # Preserve optional generated-image metadata while remaining fully
-        # backward compatible with older uploaded-image history records.
-        for key in (
-            "generated",
-            "prompt",
-            "created_at",
-            "model",
-            "size",
-            "resolution",
-            "mime_type",
-            "filename",
-            "source",
-            "asset_type",
-            "storage_path",
-            "content_type",
-            "archive_web_url",
-            "website_image_index_v68883",
-            "website_image_sha256",
-            "website_image_match_score_v68883",
-            "website_image_recovery_v68975",
-            # v69025: preserve website provenance through history/rerun
-            # reconstruction so downstream render/export/revalidation can prove
-            # the same source authority that existed at publication time.
-            "website_source_page_v69010",
-            "website_page_title_v69010",
-            "website_section_heading_v69010",
-            "website_nearby_instruction_text_v69010",
-            "website_structured_metadata_v69017",
-            "website_source_zone_v69024",
-            "website_page_type_v69024",
-            "website_page_identity_v69024",
-            "website_ingestion_authority_v69024",
-            "website_related_reference_v69025r1",
-            "website_related_reference_score_v69025r1",
-            "website_related_reference_role_v69025r1",
-            "website_related_evidence_v69025r2",
-            "website_related_evidence_topic_match_v69025r2",
-            # v69041: preserve Sales/Marketing destination authority and match
-            # provenance across Streamlit reruns and saved-history restoration.
-            "website_workspace_destination_v69040",
-            "website_workspace_auto_display_v69040",
-            "website_workspace_match_score_v69040",
-            "website_workspace_durable_fallback_v69041",
-            "website_workspace_archive_resolved_v69041",
-            "website_workspace_full_file_restored_v69051",
-            "website_workspace_exact_destination_authority_v69051",
-            "website_answer_url_reconstructed_v69056",
-            "website_answer_url_destination_v69056",
-            "website_exact_store_answer_url_v69058",
-            "website_answer_url_destination_v69058",
-            "website_file_citation_recovered_v69060",
-        ):
-            if key in image:
-                clean_image[key] = image.get(key)
+        # Preserve all current and future JSON-compatible image/provenance
+        # metadata automatically.  Only the two canonical rendering fields are
+        # handled above; security-sensitive keys are explicitly denied.
+        for raw_key, value in image.items():
+            key = str(raw_key or "").strip()
+            key_cf = key.casefold()
+            if key in {"name", "data_url"}:
+                continue
+            if not key or any(
+                token in key_cf
+                for token in _IMAGE_HISTORY_SENSITIVE_KEY_TOKENS_V69062
+            ):
+                continue
+            clean_image[key[:160]] = _safe_image_history_value_v69062(value)
 
         clean_images.append(clean_image)
 
@@ -38827,6 +39109,11 @@ def _capture_response_file_search_results_v69012(response):
     st.session_state["_workspace_file_search_results_v69040"] = existing[:24]
     if str(assistant or "") == "🔧 Technical Support":
         st.session_state["_technical_file_search_results_v69012"] = existing[:24]
+    _runtime_audit_update_v69062(
+        active_workspace=str(assistant or ""),
+        conversation_id=st.session_state.get("conversation_id"),
+        returned_file_search_rows=len(existing[:24]),
+    )
 
 
 def _response_incomplete_reason(response):
@@ -38892,6 +39179,10 @@ def _continuation_request(previous_response, original_request):
 
 class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
+
+
+class _ProtectedKnowledgeRetrievalErrorV69062(RuntimeError):
+    """Technical file_search failed and may not fall into unsupported text."""
 
 
 def _is_openai_bad_request(error):
@@ -39078,23 +39369,357 @@ def _website_image_response_rows_with_retry_v69047(request, event_name):
     return _response_file_search_results_v69012(response)
 
 
-def _website_image_response_rows_with_empty_retry_v69056(request, event_name):
+def _image_normalized_prompt_v69062(value):
+    return re.sub(r"\s+", " ", clean_visible_chat_text(str(value or ""))).strip().casefold()
+
+
+def _image_request_signature_v69062(request):
+    """Hash one vector query without retaining the raw prompt or store ID."""
+    request = dict(request or {})
+    text_parts = []
+
+    def collect(value):
+        if isinstance(value, str):
+            if value.strip():
+                text_parts.append(value.strip())
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"text", "content", "input"}:
+                    collect(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                collect(child)
+
+    collect(request.get("input"))
+    store_ids = []
+    for tool in request.get("tools") or []:
+        if isinstance(tool, dict) and tool.get("type") == "file_search":
+            store_ids.extend(tool.get("vector_store_ids") or [])
+    canonical = json.dumps({
+        "query": _image_normalized_prompt_v69062(" ".join(text_parts)),
+        "stores": [
+            hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
+            for value in _configured_vector_store_ids(*store_ids)
+        ],
+    }, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _image_fitment_context_v69062(prompt_text):
+    """Build a compact normalized fitment identity for a per-turn cache key."""
+    value = str(prompt_text or "")
+    try:
+        context = {
+            "brands": sorted(_website_identity_brand_set_v69022(value)),
+            "families": sorted(_website_identity_vehicle_families_v69022(value)),
+            "years": sorted(_website_identity_years_v69022(value)),
+            "systems": sorted(_website_identity_systems_v69022(value)),
+            "product_codes": sorted(_website_image_product_codes_v69020(value)),
+        }
+    except Exception:
+        context = {
+            "years": sorted(set(re.findall(r"\b(?:19|20)\d{2}\b", value))),
+        }
+    return json.dumps(context, sort_keys=True, separators=(",", ":"))
+
+
+def _image_recovery_outcome_v69062(
+    status, source, rows=None, reason_code="", *, stage="", details=None
+):
+    """Return the one versioned structured outcome used by every recovery stage."""
+    clean_status = str(status or "failed").strip().casefold()
+    if clean_status not in {"recovered", "empty", "rejected", "failed"}:
+        clean_status = "failed"
+    clean_source = str(source or "ordinary").strip().casefold()
+    if clean_source not in {"ordinary", "direct_search", "full_file", "durable_index"}:
+        clean_source = "ordinary"
+    return {
+        "status": clean_status,
+        "source": clean_source,
+        "rows": [dict(row) for row in (rows or []) if isinstance(row, dict)][:24],
+        "reason_code": str(reason_code or "UNSPECIFIED").strip().upper()[:80],
+        "stage": str(stage or "").strip()[:80],
+        "details": dict(details or {}),
+    }
+
+
+class _ImageSearchCoordinatorV69062:
+    """Per-turn destination-scoped query, hydration and recovery coordinator."""
+
+    def __init__(self, workspace, prompt_text, store_ids, fitment_context, negative_cache=None, circuit=None):
+        self.workspace = str(workspace or "").strip()
+        self.prompt_hash = hashlib.sha256(
+            _image_normalized_prompt_v69062(prompt_text).encode("utf-8")
+        ).hexdigest()[:20]
+        self.store_hashes = tuple(
+            hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
+            for value in _configured_vector_store_ids(*(store_ids or []))
+        )
+        self.fitment_hash = hashlib.sha256(
+            str(fitment_context or "").encode("utf-8")
+        ).hexdigest()[:20]
+        self.turn_key = hashlib.sha256(
+            json.dumps({
+                "workspace": self.workspace,
+                "prompt": self.prompt_hash,
+                "stores": self.store_hashes,
+                "fitment": self.fitment_hash,
+            }, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        self.turn_id = self.turn_key[:16]
+        self.search_rows = {}
+        self.file_text = {}
+        self.durable_payloads = {}
+        self.outcomes = []
+        self.negative_cache = dict(negative_cache or {})
+        self.circuit = dict(circuit or {})
+        self.rejection_reasons = {}
+        self.reconstructed = 0
+        self.rejected = 0
+        self.published = 0
+        self.recovery_started_at = None
+        self.deadline = None
+        self._lock = threading.RLock()
+
+    def begin_recovery(self):
+        with self._lock:
+            if self.recovery_started_at is None:
+                self.recovery_started_at = time.monotonic()
+                self.deadline = (
+                    self.recovery_started_at
+                    + ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062
+                )
+
+    def remaining(self):
+        with self._lock:
+            if self.deadline is None:
+                return ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062
+            return max(0.0, float(self.deadline) - time.monotonic())
+
+    def within_budget(self):
+        return self.remaining() > 0.0
+
+    def record(self, outcome):
+        if not isinstance(outcome, dict):
+            return outcome
+        with self._lock:
+            self.outcomes.append(dict(outcome))
+            self.outcomes = self.outcomes[-24:]
+        _runtime_audit_update_v69062(
+            last_recovery_stage=outcome.get("stage"),
+            last_recovery_status=outcome.get("status"),
+            last_recovery_reason_code=outcome.get("reason_code"),
+        )
+        return outcome
+
+    def reject(self, reason_code, count=1):
+        code = str(reason_code or "REJECTED").strip().upper()[:80]
+        with self._lock:
+            amount = max(1, int(count or 1))
+            self.rejected += amount
+            self.rejection_reasons[code] = int(self.rejection_reasons.get(code) or 0) + amount
+
+
+def _new_image_search_coordinator_v69062(workspace, prompt_text, store_ids):
+    """Create one isolated coordinator; no cache or state crosses browser sessions."""
+    try:
+        negative_cache = dict(st.session_state.get("_image_negative_cache_v69062") or {})
+        now_value = time.time()
+        negative_cache = {
+            key: value for key, value in negative_cache.items()
+            if isinstance(value, dict) and float(value.get("expires_at") or 0.0) > now_value
+        }
+        circuit = dict(st.session_state.get("_image_provider_circuit_v69062") or {})
+    except Exception:
+        negative_cache, circuit = {}, {}
+    coordinator = _ImageSearchCoordinatorV69062(
+        workspace,
+        prompt_text,
+        store_ids,
+        _image_fitment_context_v69062(prompt_text),
+        negative_cache=negative_cache,
+        circuit=circuit,
+    )
+    _runtime_audit_update_v69062(
+        active_workspace=str(workspace or ""),
+        conversation_id=st.session_state.get("conversation_id"),
+        turn_id=coordinator.turn_id,
+        image_candidates_reconstructed=0,
+        image_candidates_rejected=0,
+        image_rejection_reasons={},
+        images_finally_published=0,
+        image_added_latency_ms=0,
+    )
+    return coordinator
+
+
+def _commit_image_search_coordinator_v69062(coordinator):
+    """Commit bounded negative/circuit state and redacted turn counters."""
+    if not isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        return
+    try:
+        now_value = time.time()
+        negative_cache = {
+            key: value for key, value in coordinator.negative_cache.items()
+            if isinstance(value, dict) and float(value.get("expires_at") or 0.0) > now_value
+        }
+        if len(negative_cache) > 48:
+            negative_cache = dict(sorted(
+                negative_cache.items(),
+                key=lambda item: float((item[1] or {}).get("expires_at") or 0.0),
+                reverse=True,
+            )[:48])
+        st.session_state["_image_negative_cache_v69062"] = negative_cache
+        st.session_state["_image_provider_circuit_v69062"] = dict(coordinator.circuit)
+    except Exception:
+        pass
+    added_latency_ms = 0
+    if coordinator.recovery_started_at is not None:
+        added_latency_ms = int(max(
+            0.0,
+            min(
+                time.monotonic() - coordinator.recovery_started_at,
+                ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062,
+            ) * 1000.0,
+        ))
+    _runtime_audit_update_v69062(
+        image_candidates_reconstructed=int(coordinator.reconstructed),
+        image_candidates_rejected=int(coordinator.rejected),
+        image_rejection_reasons=dict(coordinator.rejection_reasons),
+        images_finally_published=int(coordinator.published),
+        image_provider_circuit=dict(coordinator.circuit),
+        image_added_latency_ms=added_latency_ms,
+    )
+
+
+def _image_provider_error_is_transient_v69062(error):
+    status = getattr(error, "status_code", None)
+    if status is None:
+        status = getattr(getattr(error, "response", None), "status_code", None)
+    name = type(error).__name__.casefold()
+    return bool(
+        status in {408, 409, 429}
+        or (isinstance(status, int) and status >= 500)
+        or any(token in name for token in ("timeout", "connection", "ratelimit", "tempor"))
+    )
+
+
+def _website_image_response_rows_with_empty_retry_v69056(
+    request, event_name, coordinator=None
+):
     """Recover image evidence when Responses succeeds but expands zero rows.
 
     The retry uses only the vector store already present in ``request``. It does
     not broaden destination, vehicle, product or workspace authority. All rows
     continue through the existing Technical/Sales/Marketing publication gates.
     """
-    rows = _website_image_response_rows_with_retry_v69047(request, event_name)
-    if rows:
-        return rows
-    rows = _website_request_vector_search_rows_v69047(request)
-    diagnostic_log(
-        str(event_name or "website_image_search")
-        + "_successful_empty_same_store_retry_v69056",
-        result_count=len(rows or []),
-    )
-    return rows or []
+    request_signature = _image_request_signature_v69062(request)
+    scoped_signature = request_signature
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        scoped_signature = hashlib.sha256(
+            f"{coordinator.turn_key}|{request_signature}".encode("utf-8")
+        ).hexdigest()
+        with coordinator._lock:
+            if scoped_signature in coordinator.search_rows:
+                cached = [dict(row) for row in coordinator.search_rows[scoped_signature]]
+                coordinator.record(_image_recovery_outcome_v69062(
+                    "recovered" if cached else "empty",
+                    "direct_search",
+                    cached,
+                    "PER_TURN_QUERY_CACHE_HIT" if cached else "PER_TURN_NEGATIVE_CACHE_HIT",
+                    stage="same_store_direct_search",
+                ))
+                return cached
+            negative = coordinator.negative_cache.get(request_signature)
+            if isinstance(negative, dict) and float(negative.get("expires_at") or 0.0) > time.time():
+                coordinator.search_rows[scoped_signature] = []
+                coordinator.record(_image_recovery_outcome_v69062(
+                    "empty", "direct_search", [], "SHORT_NEGATIVE_CACHE_HIT",
+                    stage="same_store_direct_search",
+                ))
+                return []
+            open_until = float(coordinator.circuit.get("open_until") or 0.0)
+            if open_until > time.time():
+                coordinator.record(_image_recovery_outcome_v69062(
+                    "failed", "direct_search", [], "PROVIDER_CIRCUIT_OPEN",
+                    stage="same_store_direct_search",
+                ))
+                return []
+            if coordinator.deadline is not None and not coordinator.within_budget():
+                coordinator.record(_image_recovery_outcome_v69062(
+                    "failed", "direct_search", [], "IMAGE_TIME_BUDGET_EXHAUSTED",
+                    stage="same_store_direct_search",
+                ))
+                return []
+
+    rows = []
+    last_error = None
+    for attempt in range(2):
+        try:
+            rows = _website_image_response_rows_with_retry_v69047(request, event_name)
+            last_error = None
+            break
+        except Exception as error:
+            last_error = error
+            transient = _image_provider_error_is_transient_v69062(error)
+            if not transient or attempt >= 1:
+                break
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                if coordinator.deadline is not None and coordinator.remaining() <= 0.12:
+                    break
+            time.sleep(0.08 * (2 ** attempt))
+
+    if last_error is not None:
+        if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+            failures = int(coordinator.circuit.get("failures") or 0) + 1
+            coordinator.circuit["failures"] = failures
+            if failures >= ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062:
+                coordinator.circuit["open_until"] = (
+                    time.time() + ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062
+                )
+            coordinator.record(_image_recovery_outcome_v69062(
+                "failed", "direct_search", [],
+                "PROVIDER_TRANSIENT_FAILURE" if _image_provider_error_is_transient_v69062(last_error)
+                else "PROVIDER_PERMANENT_FAILURE",
+                stage="same_store_direct_search",
+                details={"error_type": type(last_error).__name__},
+            ))
+        raise last_error
+
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.circuit = {"failures": 0, "open_until": 0.0}
+
+    # A successful empty result is different from a provider failure. One direct
+    # vector search in the exact same store is allowed, subject to the turn budget.
+    if not rows and (
+        not isinstance(coordinator, _ImageSearchCoordinatorV69062)
+        or coordinator.deadline is None
+        or coordinator.within_budget()
+    ):
+        rows = _website_request_vector_search_rows_v69047(request)
+        diagnostic_log(
+            str(event_name or "website_image_search")
+            + "_successful_empty_same_store_retry_v69056",
+            result_count=len(rows or []),
+        )
+
+    rows = [dict(row) for row in (rows or []) if isinstance(row, dict)][:24]
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        with coordinator._lock:
+            coordinator.search_rows[scoped_signature] = rows
+            if not rows:
+                coordinator.negative_cache[request_signature] = {
+                    "expires_at": time.time() + ATP_IMAGE_NEGATIVE_CACHE_TTL_SECONDS_V69062,
+                    "workspace": coordinator.workspace,
+                }
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if rows else "empty",
+            "direct_search",
+            rows,
+            "ROWS_RECOVERED" if rows else "SUCCESSFUL_EMPTY_RESULT",
+            stage="same_store_direct_search",
+        ))
+    return rows
 
 
 def _stream_one_ai_response(request):
@@ -39152,6 +39777,17 @@ def _stream_one_ai_response(request):
                     )
                     retried_without_file_search_results_include_v69012 = True
                     continue
+                if str(assistant or "") == "🔧 Technical Support":
+                    diagnostic_log(
+                        "protected_technical_file_search_fail_closed_v69062",
+                        error_type=type(error).__name__,
+                        include_retry=bool(
+                            retried_without_file_search_results_include_v69012
+                        ),
+                    )
+                    raise _ProtectedKnowledgeRetrievalErrorV69062(
+                        "Technical knowledge retrieval is temporarily unavailable."
+                    ) from error
                 if not retried_without_file_search:
                     diagnostic_log(
                         "responses_bad_request_file_search_retry",
@@ -39310,7 +39946,18 @@ def ask_ai_stream(
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
     for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
-        response = client.responses.create(**request)
+        try:
+            response = client.responses.create(**request)
+        except Exception as error:
+            has_file_search = any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in (request.get("tools") or [])
+            )
+            if str(assistant or "") == "🔧 Technical Support" and has_file_search:
+                raise _ProtectedKnowledgeRetrievalErrorV69062(
+                    "Technical knowledge retrieval is temporarily unavailable."
+                ) from error
+            raise
         _capture_response_file_search_results_v69012(response)
         fallback_text = str(getattr(response, "output_text", "") or "")
         if fallback_text:
@@ -42521,17 +43168,45 @@ def save_message(
 
     username = _require_owned_conversation(conversation_id)
     save_started_at = time.perf_counter()
-    persistence_insert_message_for_user(
-        supabase,
-        username,
-        conversation_id,
-        {
-            "role": role,
-            "content": content,
-            "created_at": now_iso(),
-        },
-        ownership_verified=True,
+    message_payload_v69062 = {
+        "role": role,
+        "content": content,
+        "created_at": now_iso(),
+    }
+    if str(role or "").strip().casefold() == "assistant":
+        _, persisted_images_v69062 = extract_images_from_message_content(content)
+        provenance_v69062 = [
+            dict(image.get("website_image_provenance_v69062") or {})
+            for image in persisted_images_v69062
+            if isinstance(image, dict)
+            and isinstance(image.get("website_image_provenance_v69062"), dict)
+        ]
+        # Newer Supabase schemas may provide a native metadata JSON column. The
+        # same provenance remains inside the serialized image marker for older
+        # schemas, so rollout is backward compatible and round-trippable.
+        if provenance_v69062 and "metadata" in set(get_table_columns("messages")):
+            message_payload_v69062["metadata"] = {
+                "image_provenance_schema_version": 1,
+                "images": provenance_v69062,
+                "build_version": ATP_BUILD_VERSION_V69062,
+            }
+    message_payload_v69062 = filter_payload_for_table(
+        "messages", message_payload_v69062
     )
+    try:
+        persistence_insert_message_for_user(
+            supabase,
+            username,
+            conversation_id,
+            message_payload_v69062,
+            ownership_verified=True,
+        )
+    except Exception:
+        _runtime_audit_update_v69062(
+            persistence_result="failed",
+            conversation_id=conversation_id,
+        )
+        raise
 
     should_touch = (
         str(role or "").strip().lower() == "assistant"
@@ -42557,6 +43232,10 @@ def save_message(
         conversation_id=conversation_id,
         touched_conversation=should_touch,
         elapsed_seconds=round(time.perf_counter() - save_started_at, 3),
+    )
+    _runtime_audit_update_v69062(
+        persistence_result="saved",
+        conversation_id=conversation_id,
     )
 
 @st.cache_data(ttl=300, max_entries=256, show_spinner=False)
@@ -42752,7 +43431,32 @@ def load_messages(conversation_id):
     """Load messages only for a conversation owned by the signed-in user."""
     username = str(st.session_state.get("username") or "").strip()
     cached_messages = _load_messages_cached(username, conversation_id)
-    return [dict(message) for message in cached_messages]
+    restored_messages = [dict(message) for message in cached_messages]
+    restored_images = 0
+    restored_provenance = 0
+    for message in restored_messages:
+        if str(message.get("role") or "").strip().casefold() != "assistant":
+            continue
+        _, images = extract_images_from_message_content(message.get("content"))
+        restored_images += len(images)
+        restored_provenance += sum(
+            1 for image in images
+            if isinstance(image, dict)
+            and isinstance(image.get("website_image_provenance_v69062"), dict)
+        )
+    _runtime_audit_update_v69062(
+        conversation_id=conversation_id,
+        rerun_restoration_result=(
+            "restored_with_provenance"
+            if restored_provenance
+            else "restored" if restored_messages
+            else "empty"
+        ),
+        restored_message_count=len(restored_messages),
+        restored_image_count=restored_images,
+        restored_provenance_count=restored_provenance,
+    )
+    return restored_messages
 
 def load_conversations(
     username,
@@ -49525,6 +50229,10 @@ def _website_image_index_upsert_v68883(payload):
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
         pass
+    try:
+        _website_image_index_rows_v68883.clear()
+    except Exception:
+        pass
     return True
 
 
@@ -51097,6 +51805,36 @@ def _website_file_full_text_v69012(file_id):
         return ""
 
 
+def _website_file_full_text_coordinated_v69062(file_id, coordinator=None):
+    """Hydrate each complete learned file at most once in an image turn."""
+    clean_id = str(file_id or "").strip()
+    if not clean_id:
+        return ""
+    if not isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        return _website_file_full_text_v69012(clean_id)
+    with coordinator._lock:
+        if clean_id in coordinator.file_text:
+            return str(coordinator.file_text.get(clean_id) or "")
+    if coordinator.deadline is not None and not coordinator.within_budget():
+        coordinator.record(_image_recovery_outcome_v69062(
+            "failed", "full_file", [], "IMAGE_TIME_BUDGET_EXHAUSTED",
+            stage="complete_file_hydration",
+        ))
+        return ""
+    value = str(_website_file_full_text_v69012(clean_id) or "")
+    with coordinator._lock:
+        coordinator.file_text[clean_id] = value
+    coordinator.record(_image_recovery_outcome_v69062(
+        "recovered" if value else "empty",
+        "full_file",
+        [],
+        "FILE_HYDRATED_ONCE" if value else "FILE_CONTENT_EMPTY",
+        stage="complete_file_hydration",
+        details={"file_id_hash": hashlib.sha256(clean_id.encode("utf-8")).hexdigest()[:16]},
+    ))
+    return value
+
+
 def _website_safe_json_dict_v69024(value):
     try:
         parsed = json.loads(str(value or ""))
@@ -51375,7 +52113,9 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     )
 
 
-def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_label="🔧 Technical Support"):
+def _website_image_prefetch_file_search_results_v69015(
+    prompt_text, workspace_label="🔧 Technical Support", coordinator=None
+):
     """Prefetch universal Technical image evidence while the text answer streams.
 
     This is a latency-only optimization. It does not select or approve an image.
@@ -51416,6 +52156,7 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
         rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "website_image_prefetch_v69015",
+            coordinator=coordinator,
         )
     except Exception as error:
         diagnostic_log(
@@ -51470,7 +52211,9 @@ def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
         pass
 
 
-def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
+def _website_image_dedicated_file_search_results_v69014(
+    prompt_text, answer_text="", coordinator=None
+):
     """Run universal independent Technical image retrieval after the answer exists."""
     if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
         return []
@@ -51489,6 +52232,7 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
         rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "website_image_universal_search_v69014",
+            coordinator=coordinator,
         )
     except Exception as error:
         diagnostic_log(
@@ -51503,7 +52247,9 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
     return rows
 
 
-def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
+def _website_file_search_images_v69014(
+    prompt_text, answer_text, result_rows, coordinator=None
+):
     """Recover any answer-related Technical images without a hard-coded topic list."""
     if not _website_image_universal_technical_candidate_v69014(prompt_text, answer_text):
         return []
@@ -51532,7 +52278,9 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
             payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
         if not payloads and file_id:
-            full_text = _website_file_full_text_v69012(file_id)
+            full_text = _website_file_full_text_coordinated_v69062(
+                file_id, coordinator
+            )
             if full_text:
                 payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
                 payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
@@ -51540,12 +52288,16 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             continue
         for raw_payload in payloads:
             payload = dict(raw_payload or {})
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reconstructed += 1
             if row.get("website_file_citation_recovered_v69060"):
                 payload["_website_file_citation_recovered_v69060"] = True
             passed, score = _website_image_universal_payload_pass_v69014(
                 prompt_text, answer_text, payload, float(row.get("score") or 0.0)
             )
             if not passed:
+                if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                    coordinator.reject("TECHNICAL_TOPIC_GATE_REJECTED")
                 continue
             ranked.append((float(score), payload, file_id))
 
@@ -51594,6 +52346,23 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
             ),
             "website_image_match_score_v68883": float(score),
         })
+        payload["_technical_file_id_v69032"] = str(file_id or "").strip()
+        _attach_image_provenance_v69062(
+            output[-1],
+            payload,
+            "Technical Support Database",
+            (
+                "complete_file_hydration"
+                if payload.get("_website_file_citation_recovered_v69060")
+                else "ordinary_result_rows"
+            ),
+            score,
+            "EXACT_DESTINATION_AND_FITMENT",
+            {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass", "topic_gate": "pass",
+            },
+        )
         if len(output) >= WEBSITE_AUTO_DISPLAY_MAX_IMAGES:
             break
     return output
@@ -52657,7 +53426,9 @@ def _website_plain_file_search_image_payloads_v69039(text_value, filename="", fi
     return payloads
 
 
-def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
+def _website_file_search_payloads_for_related_evidence_v69032(
+    result_rows, coordinator=None
+):
     """Reconstruct approved website-image payloads from Technical file_search rows.
 
     This helper does not approve an image.  It only reconstructs payloads from the
@@ -52699,7 +53470,9 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
                 )
             )
         if not payloads and file_id:
-            full_text = _website_file_full_text_v69012(file_id)
+            full_text = _website_file_full_text_coordinated_v69062(
+                file_id, coordinator
+            )
             if full_text:
                 payloads.extend(
                     _website_structured_image_payloads_from_file_v69012(
@@ -52740,7 +53513,9 @@ def _website_file_search_payloads_for_related_evidence_v69032(result_rows):
     return payloads_out
 
 
-def _website_durable_payloads_for_supporting_pages_v69045(result_rows):
+def _website_durable_payloads_for_supporting_pages_v69045(
+    result_rows, coordinator=None
+):
     """Hydrate durable Technical images from exact answer-supporting website pages.
 
     File-search chunks can contain the page text and source URL but omit the later
@@ -52774,7 +53549,10 @@ def _website_durable_payloads_for_supporting_pages_v69045(result_rows):
         ):
             if file_id not in full_reads:
                 full_reads.add(file_id)
-                candidates.append(str(_website_file_full_text_v69012(file_id) or ""))
+                candidates.append(str(
+                    _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                    or ""
+                ))
         combined = "\n".join(candidates)
         if not re.search(r"(?im)^Destination\s*:\s*Technical Support Database\s*$", combined):
             continue
@@ -52825,7 +53603,9 @@ def _website_durable_payloads_for_supporting_pages_v69045(result_rows):
     return output
 
 
-def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
+def _website_bind_exact_supporting_page_payloads_v69047(
+    payloads, result_rows, coordinator=None
+):
     """Bind reconstructed vector payloads to their exact Technical source page.
 
     This is the non-durable counterpart to v69045 hydration. It grants only the
@@ -52861,7 +53641,10 @@ def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
         )
         if needs_full and file_id not in full_reads:
             full_reads.add(file_id)
-            chunks.append(str(_website_file_full_text_v69012(file_id) or ""))
+            chunks.append(str(
+                _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                or ""
+            ))
             combined = "\n".join(chunks)
         destinations = {
             re.sub(r"\s+", " ", str(value or "")).strip()
@@ -52929,8 +53712,40 @@ def _workspace_durable_image_payloads_v69041(destination):
     ]
 
 
+def _website_image_index_revision_v69062(payloads):
+    """Return a stable destination-index revision without exposing its rows."""
+    rows = [payload for payload in (payloads or []) if isinstance(payload, dict)]
+    latest = max((str(row.get("indexed_at") or "") for row in rows), default="")
+    return hashlib.sha256(
+        json.dumps({"count": len(rows), "latest": latest}, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:20]
+
+
+def _workspace_durable_payloads_coordinated_v69062(destination, coordinator=None):
+    """Cache one complete durable destination view by destination + revision."""
+    payloads = [dict(item) for item in _workspace_durable_image_payloads_v69041(destination)]
+    if not isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        return payloads
+    revision = _website_image_index_revision_v69062(payloads)
+    key = f"{str(destination or '').strip()}|{revision}"
+    with coordinator._lock:
+        if key in coordinator.durable_payloads:
+            return [dict(item) for item in coordinator.durable_payloads[key]]
+        coordinator.durable_payloads[key] = [dict(item) for item in payloads]
+    coordinator.record(_image_recovery_outcome_v69062(
+        "recovered" if payloads else "empty",
+        "durable_index",
+        [],
+        "DESTINATION_INDEX_CACHE_FILLED" if payloads else "DESTINATION_INDEX_EMPTY",
+        stage="durable_image_index",
+        details={"destination": destination, "revision": revision, "count": len(payloads)},
+    ))
+    return payloads
+
+
 def _workspace_file_search_payloads_v69051(
-    destination, result_rows, exact_destination_authority=False
+    destination, result_rows, exact_destination_authority=False,
+    coordinator=None,
 ):
     """Restore destination/source metadata before workspace image selection.
 
@@ -53028,7 +53843,10 @@ def _workspace_file_search_payloads_v69051(
         full_payloads = []
         if needs_full and file_id not in full_reads:
             full_reads.add(file_id)
-            full_text = str(_website_file_full_text_v69012(file_id) or "")
+            full_text = str(
+                _website_file_full_text_coordinated_v69062(file_id, coordinator)
+                or ""
+            )
             if full_text:
                 full_row = dict(row)
                 full_row["text"] = full_text
@@ -53054,9 +53872,323 @@ def _workspace_file_search_payloads_v69051(
     return output
 
 
+def _workspace_image_semantic_authority_v69062(
+    prompt_text, answer_text, payload
+):
+    """Prove image-local topic relevance after destination/fitment authority.
+
+    Page title and completed-answer text can establish product identity, but they
+    can never make a visually unrelated image eligible. Eligibility comes from
+    the image-local section, nearby text, caption, visual analysis or structured
+    image metadata. This removes v69060's whole-file ordering dependency.
+    """
+    if not isinstance(payload, dict):
+        return False, -1000.0, "INVALID_PAYLOAD", {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt:
+        return False, -1000.0, "EMPTY_PROMPT", {}
+
+    vehicle_pass = bool(_website_image_vehicle_fitment_gate_v68997(prompt, payload))
+    if not vehicle_pass:
+        return False, -900.0, "VEHICLE_OR_YEAR_GATE_REJECTED", {
+            "vehicle_gate": "reject", "year_gate": "reject",
+            "product_gate": "not_evaluated", "topic_gate": "not_evaluated",
+        }
+
+    identity_text = _website_image_payload_identity_text_v69022(payload)
+    requested_codes = _website_image_product_codes_v69020(prompt)
+    candidate_codes = _website_image_product_codes_v69020(identity_text)
+    requested_sizes = set(re.findall(
+        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
+        prompt.casefold(),
+    ))
+    candidate_sizes = set(re.findall(
+        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
+        identity_text.casefold(),
+    ))
+    product_pass = not (
+        (requested_codes and candidate_codes and not (requested_codes & candidate_codes))
+        or (requested_sizes and candidate_sizes and not (requested_sizes & candidate_sizes))
+    )
+    if not product_pass:
+        return False, -850.0, "PRODUCT_GATE_REJECTED", {
+            "vehicle_gate": "pass", "year_gate": "pass",
+            "product_gate": "reject", "topic_gate": "not_evaluated",
+        }
+
+    local_parts = {
+        "heading": str(payload.get("section_heading") or ""),
+        "nearby": str(payload.get("nearby_instruction_text") or ""),
+        "caption": str(payload.get("caption") or ""),
+        "visual": str(payload.get("visual_analysis") or ""),
+        "metadata": json.dumps(
+            payload.get("image_structured_metadata_v69017") or {},
+            ensure_ascii=False,
+            default=str,
+        ),
+    }
+    local_text = " ".join(local_parts.values()).casefold()
+    # Negated visual descriptions are exclusion evidence, not positive topic
+    # evidence (for example, "no screen is shown" must not satisfy a screen
+    # request merely because it contains the token ``screen``).
+    negated_visual_pattern = (
+        r"\b(?:no|without|not\s+showing|does\s+not\s+show|not\s+shown)\s+"
+        r"(?:the\s+|an?\s+)?(?:installed\s+)?"
+        r"(?:screen|touchscreen|display|product|settings?\s+screen|camera)\b"
+    )
+    semantic_local_text = re.sub(negated_visual_pattern, " ", local_text)
+    local_tokens = set(_website_image_tokens_v68883(semantic_local_text))
+    caption_tokens = set(_website_image_tokens_v68883(re.sub(
+        negated_visual_pattern, " ", local_parts["caption"].casefold()
+    )))
+    visual_tokens = set(_website_image_tokens_v68883(re.sub(
+        negated_visual_pattern, " ", local_parts["visual"].casefold()
+    )))
+
+    identity_tokens = set(_website_image_tokens_v68883(" ".join((
+        identity_text,
+        str(payload.get("page_title") or ""),
+        str(payload.get("source_page") or ""),
+    ))))
+    prompt_tokens = set(_website_image_tokens_v68883(prompt))
+    generic = {
+        "what", "whats", "which", "show", "tell", "about", "image", "images",
+        "photo", "photos", "picture", "pictures", "the", "for", "and", "with",
+        "from", "this", "that", "your", "can", "you", "have", "need", "looking",
+        "find", "please", "want", "model", "vehicle", "year",
+    }
+    topic_tokens = prompt_tokens - generic
+    # Make/model/year identity proves fitment, not the depicted topic.  Expand
+    # canonical family names back through the same tokenizer (for example,
+    # ``silverado_sierra`` -> ``silverado``, ``sierra``); comparing a raw prompt
+    # token to the canonical family string left vehicle names in topic overlap.
+    vehicle_identity_tokens = set(_website_image_tokens_v68883(" ".join(
+        list(_website_identity_brand_set_v69022(prompt))
+        + list(_website_identity_vehicle_families_v69022(prompt))
+        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
+    )))
+    topic_tokens -= vehicle_identity_tokens
+    topic_tokens -= {
+        token for token in identity_tokens
+        if token in prompt_tokens and token.isdigit()
+    }
+
+    topic_groups = {
+        "car_model_settings": (
+            "car model", "a/c setting", "ac setting", "protocol", "canbus",
+            "can bus", "setting guide", "factory radio code",
+        ),
+        "camera": (
+            "camera", "reverse", "backup", "cargo", "bed camera", "rear view",
+        ),
+        "wiring": (
+            "wire", "wiring", "harness", "connector", "plug", "pinout", "cable",
+            "lvds", "rca",
+        ),
+        "climate": (
+            "climate", "hvac", "heated", "ventilated", "a/c", "ac control",
+        ),
+        "audio": (
+            "audio", "amplifier", "factory amp", "speaker", "bose", "sony",
+        ),
+        "navigation": ("navigation", "gps", "map", "antenna"),
+        "carplay": ("carplay", "android auto", "bluetooth", "wireless", "wifi"),
+        "compatibility": (
+            "compatible", "compatibility", "fitment", "fits", "factory dash",
+        ),
+        "installed_product": (
+            "installed", "dashboard", "dash", "in vehicle", "product look",
+        ),
+        "marketing_creative": (
+            "campaign", "marketing", "promotion", "advertisement", "social media",
+            "banner", "creative",
+        ),
+        "product_overview": (
+            "screen", "touchscreen", "infotainment", "head unit", "radio",
+            "product", "qhd", "ips", "tesla style", "display",
+        ),
+    }
+    prompt_cf = prompt.casefold()
+    requested_topics = {
+        topic for topic, phrases in topic_groups.items()
+        if any(phrase in prompt_cf for phrase in phrases)
+    }
+    query_role = _website_image_query_role_v68884(prompt)
+    if query_role and not _website_image_final_payload_gate_v68885(prompt, payload):
+        return False, -800.0, "EXACT_VISUAL_ROLE_REJECTED", {
+            "vehicle_gate": "pass", "year_gate": "pass",
+            "product_gate": "pass", "topic_gate": "reject",
+        }
+
+    topic_hits = {
+        topic for topic in requested_topics
+        if any(phrase in semantic_local_text for phrase in topic_groups[topic])
+    }
+    lexical_overlap = topic_tokens & local_tokens
+    caption_overlap = topic_tokens & caption_tokens
+    visual_overlap = topic_tokens & visual_tokens
+
+    # A generic Sales/Marketing product inquiry still needs image-local proof
+    # that the asset depicts the product. Same-page ownership alone is not proof.
+    if not requested_topics:
+        requested_topics = {"product_overview"}
+    missing_topics = requested_topics - topic_hits
+    strong_lexical_topic_evidence = bool(
+        len(lexical_overlap) >= 2 and (caption_overlap or visual_overlap)
+    )
+    if missing_topics and not strong_lexical_topic_evidence:
+        return False, -700.0, "TOPIC_LOCAL_EVIDENCE_MISSING", {
+            "vehicle_gate": "pass", "year_gate": "pass",
+            "product_gate": "pass", "topic_gate": "reject",
+        }
+
+    # For a recognized exact role, generic words such as screen/model cannot be
+    # the only match; the existing final gate above must be accompanied by a
+    # local role score or a role phrase hit.
+    role_score = _website_image_role_score_v68884(query_role, payload) if query_role else 0.0
+    if query_role and role_score < 6.0 and not topic_hits:
+        return False, -650.0, "TOPIC_VISUAL_ROLE_TOO_WEAK", {
+            "vehicle_gate": "pass", "year_gate": "pass",
+            "product_gate": "pass", "topic_gate": "reject",
+        }
+
+    row_score = max(
+        0.0,
+        min(float(payload.get("_technical_file_search_score_v69032") or 0.0), 1.0),
+    )
+    semantic_score = (
+        len(topic_hits) * 28.0
+        + len(lexical_overlap) * 5.0
+        + len(caption_overlap) * 5.0
+        + len(visual_overlap) * 4.0
+        + max(0.0, min(float(role_score), 30.0))
+        + row_score * 8.0
+    )
+    # Answer/page identity is a small deterministic tie-breaker only.
+    answer_tokens = set(_website_image_tokens_v68883(answer))
+    semantic_score += min(len(answer_tokens & local_tokens), 8) * 0.5
+    return True, semantic_score, "EXACT_DESTINATION_AND_FITMENT", {
+        "vehicle_gate": "pass", "year_gate": "pass",
+        "product_gate": "pass", "topic_gate": "pass",
+        "topics": sorted(requested_topics),
+    }
+
+
+def _attach_image_provenance_v69062(
+    record, payload, destination, retrieval_stage, retrieval_score,
+    selected_reason, gates=None,
+):
+    """Attach one versioned, rerun-safe provenance object to a published image."""
+    if not isinstance(record, dict):
+        return record
+    payload = dict(payload or {})
+    gates = dict(gates or {})
+    image_url = str(
+        payload.get("image_url")
+        or record.get("archive_web_url")
+        or record.get("data_url")
+        or ""
+    ).strip()
+    image_sha = str(
+        payload.get("image_sha256") or record.get("website_image_sha256") or ""
+    ).strip().casefold()
+    if not image_sha and image_url:
+        image_sha = hashlib.sha256(image_url.encode("utf-8")).hexdigest()
+    published_at = str(
+        ((record.get("website_image_provenance_v69062") or {})
+         if isinstance(record.get("website_image_provenance_v69062"), dict) else {})
+        .get("published_at")
+        or datetime.now(timezone.utc).isoformat()
+    )
+    record["website_image_provenance_v69062"] = {
+        "schema_version": 1,
+        "destination": str(destination or ""),
+        "source_page": str(
+            payload.get("source_page") or record.get("website_source_page_v69010") or ""
+        ).strip(),
+        "vector_store_file_id": str(
+            payload.get("_technical_file_id_v69032")
+            or payload.get("file_id_v69012")
+            or record.get("website_file_id_v69012")
+            or ""
+        ).strip(),
+        "learned_image_id": (
+            f"website-image:{image_sha[:40]}" if image_sha else ""
+        ),
+        "image_sha256": image_sha,
+        "image_url": image_url if image_url.startswith("https://") else str(
+            record.get("archive_web_url") or ""
+        ).strip(),
+        "archive_path": str(
+            payload.get("archive_storage_path")
+            or payload.get("archive_storage_path_v69017")
+            or record.get("storage_path")
+            or ""
+        ).strip(),
+        "retrieval_stage": str(retrieval_stage or "ordinary_result_rows"),
+        "retrieval_score": round(float(retrieval_score or 0.0), 6),
+        "vehicle_gate": str(gates.get("vehicle_gate") or "pass"),
+        "year_gate": str(gates.get("year_gate") or "pass"),
+        "product_gate": str(gates.get("product_gate") or "pass"),
+        "topic_gate": str(gates.get("topic_gate") or "pass"),
+        "selected_reason": str(selected_reason or "APPROVED_IMAGE_AUTHORITY"),
+        "published_at": published_at,
+        "build_version": ATP_BUILD_VERSION_V69062,
+    }
+    return record
+
+
+def _finalize_published_image_provenance_v69062(images, workspace_label, coordinator=None):
+    """Guarantee provenance on every website image immediately before persistence."""
+    destination = (
+        "Technical Support Database" if str(workspace_label or "") == "🔧 Technical Support"
+        else "Sales Database" if is_sales_workspace(workspace_label)
+        else "Marketing Database" if is_marketing_workspace(workspace_label)
+        else ""
+    )
+    output = []
+    for raw in images or []:
+        if not isinstance(raw, dict):
+            continue
+        record = dict(raw)
+        if str(record.get("source") or "") == "website_knowledge":
+            if not isinstance(record.get("website_image_provenance_v69062"), dict):
+                payload = {
+                    "image_url": record.get("archive_web_url") or record.get("data_url"),
+                    "image_sha256": record.get("website_image_sha256"),
+                    "source_page": record.get("website_source_page_v69010"),
+                    "section_heading": record.get("website_section_heading_v69010"),
+                    "nearby_instruction_text": record.get("website_nearby_instruction_text_v69010"),
+                    "visual_analysis": record.get("website_visual_analysis_v69010"),
+                    "image_structured_metadata_v69017": record.get("website_structured_metadata_v69017"),
+                }
+                _attach_image_provenance_v69062(
+                    record,
+                    payload,
+                    destination,
+                    "ordinary_result_rows",
+                    record.get("website_image_match_score_v68883")
+                    or record.get("website_workspace_match_score_v69040")
+                    or 0.0,
+                    "FINAL_PUBLICATION_AUTHORITY",
+                    {"vehicle_gate": "pass", "year_gate": "pass", "product_gate": "pass", "topic_gate": "pass"},
+                )
+        output.append(record)
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.published = sum(
+            1 for record in output
+            if str(record.get("source") or "") == "website_knowledge"
+        )
+    return output
+
+
 def _workspace_website_images_from_file_search_v69040(
     workspace_label, prompt_text, answer_text, result_rows, max_images=3,
-    exact_destination_authority_v69051=False,
+    exact_destination_authority_v69051=False, coordinator=None,
+    allow_durable_fallback_v69062=True,
 ):
     """Publish only destination-owned, QA-grounded Sales/Marketing images.
 
@@ -53071,19 +54203,9 @@ def _workspace_website_images_from_file_search_v69040(
     )
     if not destination or is_graphic_workspace(workspace):
         return []
-    query_text = re.sub(
-        r"\s+", " ", clean_visible_chat_text(
-            str(prompt_text or "") + " " + str(answer_text or "")
-        )
-    ).strip()
-    query_tokens = set(_website_image_tokens_v68883(query_text))
-    generic = {
-        "what", "which", "show", "tell", "about", "image", "photo", "the",
-        "for", "and", "with", "from", "this", "that", "your", "can", "you",
-    }
-    query_tokens -= generic
-    prompt_tokens_v69041 = set(_website_image_tokens_v68883(str(prompt_text or ""))) - generic
-    durable_payloads_v69041 = _workspace_durable_image_payloads_v69041(destination)
+    durable_payloads_v69041 = _workspace_durable_payloads_coordinated_v69062(
+        destination, coordinator
+    )
     durable_by_identity_v69041 = {}
     for durable_v69041 in durable_payloads_v69041:
         for identity_v69041 in (
@@ -53097,6 +54219,7 @@ def _workspace_website_images_from_file_search_v69040(
         destination,
         result_rows,
         exact_destination_authority=bool(exact_destination_authority_v69051),
+        coordinator=coordinator,
     )
     candidates_v69041 = []
     for primary_v69041 in primary_payloads_v69041:
@@ -53129,31 +54252,21 @@ def _workspace_website_images_from_file_search_v69040(
         if isinstance(payload, dict)
         and str(payload.get("database_choice") or "").strip() == destination
     ]
-    if not target_primary_payloads_v69051:
+    if not target_primary_payloads_v69051 and bool(allow_durable_fallback_v69062):
         for durable_v69041 in durable_payloads_v69041:
             payload_v69041 = dict(durable_v69041)
             payload_v69041["_workspace_durable_fallback_v69041"] = True
             candidates_v69041.append(payload_v69041)
 
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.reconstructed += len(candidates_v69041)
+
     ranked = []
     for payload in candidates_v69041:
         if str(payload.get("database_choice") or "").strip() != destination:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("DESTINATION_OWNERSHIP_REJECTED")
             continue
-        # v69050: the user's explicit vehicle/year remains authoritative for
-        # Sales and Marketing publication. Answer text is useful for ranking,
-        # but it must never make an incompatible learned product image eligible.
-        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
-            continue
-        evidence = " ".join((
-            str(payload.get("page_title") or ""),
-            str(payload.get("section_heading") or ""),
-            str(payload.get("nearby_instruction_text") or ""),
-            str(payload.get("visual_analysis") or ""),
-            str(payload.get("keywords") or ""),
-        ))
-        evidence_tokens = set(_website_image_tokens_v68883(evidence))
-        overlap = len(query_tokens & evidence_tokens)
-        prompt_overlap_v69041 = len(prompt_tokens_v69041 & evidence_tokens)
         durable_fallback_v69041 = bool(payload.get("_workspace_durable_fallback_v69041"))
         exact_destination_v69051 = bool(
             payload.get("_workspace_exact_destination_authority_v69051")
@@ -53172,29 +54285,37 @@ def _workspace_website_images_from_file_search_v69040(
             or dict(payload.get("image_structured_metadata_v69017") or {})
             or bool(payload.get("website_plain_file_search_image_v69039"))
         )
-        required_overlap_v69041 = 3 if durable_fallback_v69041 else 2
+        if not has_qa_provenance:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("QA_PROVENANCE_MISSING")
+            continue
         if (
-            not has_qa_provenance
-            or overlap < required_overlap_v69041
-            or (durable_fallback_v69041 and prompt_overlap_v69041 < 2)
-            or (
-                not durable_fallback_v69041
-                and not destination_authoritative_v69051
-                and row_score < 0.15
-            )
-            or (
-                destination_authoritative_v69051
-                and prompt_overlap_v69041 < 2
-            )
+            not durable_fallback_v69041
+            and not destination_authoritative_v69051
+            and row_score < 0.15
         ):
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("ROW_RELEVANCE_TOO_LOW")
+            continue
+
+        semantic_pass, semantic_score, reason_code, gates = (
+            _workspace_image_semantic_authority_v69062(
+                prompt_text, answer_text, payload
+            )
+        )
+        if not semantic_pass:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject(reason_code)
             continue
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("RENDER_RECORD_BUILD_FAILED")
             continue
         record["website_workspace_destination_v69040"] = destination
         record["website_workspace_auto_display_v69040"] = True
         record["website_workspace_match_score_v69040"] = round(
-            overlap * 5.0 + row_score * 10.0 - (2.0 if durable_fallback_v69041 else 0.0), 3
+            float(semantic_score) - (2.0 if durable_fallback_v69041 else 0.0), 3
         )
         record["website_workspace_durable_fallback_v69041"] = durable_fallback_v69041
         record["website_workspace_archive_resolved_v69041"] = bool(
@@ -53209,10 +54330,35 @@ def _workspace_website_images_from_file_search_v69040(
         record["website_file_citation_recovered_v69060"] = bool(
             payload.get("_website_file_citation_recovered_v69060")
         )
-        ranked.append((record["website_workspace_match_score_v69040"], record))
-    ranked.sort(key=lambda item: item[0], reverse=True)
+        retrieval_stage = (
+            "durable_image_index" if durable_fallback_v69041
+            else "complete_file_hydration" if full_file_destination_v69051
+            else "same_store_direct_search" if exact_destination_v69051
+            else "ordinary_result_rows"
+        )
+        _attach_image_provenance_v69062(
+            record,
+            payload,
+            destination,
+            retrieval_stage,
+            semantic_score,
+            reason_code,
+            gates,
+        )
+        identity = str(
+            record.get("website_image_sha256") or record.get("data_url") or ""
+        )
+        ranked.append((
+            float(record["website_workspace_match_score_v69040"]),
+            float(row_score),
+            identity,
+            record,
+        ))
+    # Deterministic semantic ordering; complete-file source order is never a
+    # ranking input. This is the v69060 wrong-first-image root fix.
+    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     output, seen = [], set()
-    for _, record in ranked:
+    for _, _, _, record in ranked:
         identity = str(record.get("website_image_sha256") or record.get("data_url") or "")
         if identity in seen:
             continue
@@ -53220,6 +54366,33 @@ def _workspace_website_images_from_file_search_v69040(
         output.append(record)
         if len(output) >= max(1, int(max_images or 1)):
             break
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        durable_stage_v69062 = bool(
+            candidates_v69041
+            and all(
+                bool(payload.get("_workspace_durable_fallback_v69041"))
+                for payload in candidates_v69041
+                if isinstance(payload, dict)
+            )
+        )
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if output else ("rejected" if candidates_v69041 else "empty"),
+            (
+                "direct_search" if exact_destination_authority_v69051
+                else "durable_index" if durable_stage_v69062
+                else "ordinary"
+            ),
+            [],
+            "APPROVED_IMAGES_SELECTED" if output
+            else "ALL_CANDIDATES_REJECTED" if candidates_v69041
+            else "NO_ROWS",
+            stage=(
+                "same_store_direct_search" if exact_destination_authority_v69051
+                else "durable_image_index" if durable_stage_v69062
+                else "ordinary_result_rows"
+            ),
+            details={"published": len(output), "candidate_count": len(candidates_v69041)},
+        ))
     return output
 
 
@@ -53244,6 +54417,54 @@ def _workspace_image_dedicated_search_query_v69050(
         f"USER REQUEST:\n{prompt}\n\n"
         f"COMPLETED ANSWER CONTEXT:\n{answer}\n"
     )
+
+
+def _workspace_image_prefetch_file_search_results_v69062(
+    workspace_label, prompt_text, coordinator=None
+):
+    """Prefetch one destination-owned image search while text is generated."""
+    workspace = str(workspace_label or "")
+    if is_graphic_workspace(workspace):
+        return []
+    if is_sales_workspace(workspace):
+        destination, configured_store = "Sales Database", SALES_VECTOR_STORE_ID
+    elif is_marketing_workspace(workspace):
+        destination, configured_store = "Marketing Database", MARKETING_VECTOR_STORE_ID
+    else:
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    stores = _configured_vector_store_ids(configured_store)
+    if not prompt or not stores:
+        return []
+    request = {
+        "model": "gpt-5.5",
+        "input": (
+            "AUTOTECPRO DESTINATION-OWNED IMAGE PREFETCH ONLY.\n"
+            f"Search only the {destination}. Return learned image evidence directly "
+            "related to the user's vehicle/year/product/topic. Prefer image-local "
+            "SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, IMAGE_CAPTION, IMAGE_ANALYSIS, "
+            "AUTO_DISPLAY_IMAGE or ATP_WEB_IMAGE_JSON evidence. Do not broaden to "
+            "another destination, vehicle, year, product or topic.\n\n"
+            f"USER REQUEST:\n{prompt[:2600]}\n"
+        ),
+        "tools": [{"type": "file_search", "vector_store_ids": stores}],
+        "tool_choice": "required",
+        "include": ["file_search_call.results"],
+        "max_output_tokens": 32,
+    }
+    try:
+        return _website_image_response_rows_with_empty_retry_v69056(
+            request,
+            "workspace_image_prefetch_v69062",
+            coordinator=coordinator,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "workspace_image_prefetch_failed_v69062",
+            workspace=workspace,
+            error_type=type(error).__name__,
+        )
+        return []
 
 
 def _workspace_image_followup_prompt_v69058(
@@ -53319,7 +54540,8 @@ def _workspace_image_url_identity_v69058(value):
 
 
 def _workspace_answer_url_records_from_exact_rows_v69058(
-    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3,
+    coordinator=None,
 ):
     """Rebuild answer URLs only from the active destination's exact-store rows."""
     workspace = str(workspace_label or "")
@@ -53343,9 +54565,15 @@ def _workspace_answer_url_records_from_exact_rows_v69058(
         if identity
     }
     if not answer_urls:
+        if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+            coordinator.record(_image_recovery_outcome_v69062(
+                "empty", "direct_search", [], "NO_EXACT_ANSWER_IMAGE_URL",
+                stage="exact_answer_url_match",
+            ))
         return []
     payloads = _workspace_file_search_payloads_v69051(
-        destination, result_rows, exact_destination_authority=True
+        destination, result_rows, exact_destination_authority=True,
+        coordinator=coordinator,
     )
     output, seen = [], set()
     for payload in payloads:
@@ -53362,22 +54590,48 @@ def _workspace_answer_url_records_from_exact_rows_v69058(
             or payload.get("website_plain_file_search_image_v69039")
         ):
             continue
-        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+        semantic_pass, semantic_score, reason_code, gates = (
+            _workspace_image_semantic_authority_v69062(
+                prompt_text, answer_text, payload
+            )
+        )
+        if not semantic_pass:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject(reason_code)
             continue
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
             continue
         record["website_exact_store_answer_url_v69058"] = True
         record["website_answer_url_destination_v69058"] = destination
+        _attach_image_provenance_v69062(
+            record,
+            payload,
+            destination,
+            "exact_answer_url_match",
+            semantic_score,
+            reason_code,
+            gates,
+        )
         seen.add(identity)
         output.append(record)
         if len(output) >= max(1, int(max_images or 1)):
             break
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if output else "rejected",
+            "direct_search",
+            [],
+            "EXACT_ANSWER_URL_APPROVED" if output
+            else "EXACT_ANSWER_URL_NOT_DESTINATION_APPROVED",
+            stage="exact_answer_url_match",
+            details={"url_count": len(answer_urls), "published": len(output)},
+        ))
     return output
 
 
 def _workspace_image_dedicated_file_search_results_v69050(
-    workspace_label, prompt_text, answer_text=""
+    workspace_label, prompt_text, answer_text="", coordinator=None
 ):
     """Search exactly one Sales/Marketing vector store for learned images."""
     workspace = str(workspace_label or "")
@@ -53412,6 +54666,7 @@ def _workspace_image_dedicated_file_search_results_v69050(
         rows = _website_image_response_rows_with_empty_retry_v69056(
             request,
             "workspace_image_dedicated_search_v69050",
+            coordinator=coordinator,
         )
     except Exception as error:
         diagnostic_log(
@@ -53432,9 +54687,10 @@ def _workspace_image_dedicated_file_search_results_v69050(
 
 
 def _workspace_automatic_image_recovery_v69050(
-    workspace_label, prompt_text, answer_text, result_rows, max_images=3
+    workspace_label, prompt_text, answer_text, result_rows, max_images=3,
+    prefetched_rows=None, coordinator=None,
 ):
-    """Recover automatic Sales/Marketing images after the ordinary answer search."""
+    """Run the explicit destination-scoped v69062 recovery state machine."""
     workspace = str(workspace_label or "")
     if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)):
         return []
@@ -53448,11 +54704,19 @@ def _workspace_automatic_image_recovery_v69050(
     ).strip()
     if not prompt or not answer:
         return []
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.begin_recovery()
     ordinary_rows = [
         dict(row) for row in (result_rows or []) if isinstance(row, dict)
     ]
     recovered = _workspace_website_images_from_file_search_v69040(
-        workspace, prompt, answer, ordinary_rows, max_images=max_images
+        workspace,
+        prompt,
+        answer,
+        ordinary_rows,
+        max_images=max_images,
+        coordinator=coordinator,
+        allow_durable_fallback_v69062=False,
     )
     diagnostic_log(
         "workspace_image_ordinary_bridge_v69050",
@@ -53463,44 +54727,92 @@ def _workspace_automatic_image_recovery_v69050(
     if recovered:
         return recovered
 
-    dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
-        workspace, prompt, answer
-    )
-    if not dedicated_rows:
-        return []
+    # Stage 2: consume the parallel destination-only prefetch first. Only when
+    # it misses may the completed-answer dedicated query run.
+    dedicated_rows = [
+        dict(row) for row in (prefetched_rows or []) if isinstance(row, dict)
+    ]
+    if not dedicated_rows and (
+        not isinstance(coordinator, _ImageSearchCoordinatorV69062)
+        or coordinator.within_budget()
+    ):
+        dedicated_rows = _workspace_image_dedicated_file_search_results_v69050(
+            workspace, prompt, answer, coordinator=coordinator
+        )
+    if dedicated_rows:
+        recovered = _workspace_website_images_from_file_search_v69040(
+            workspace,
+            prompt,
+            answer,
+            # Exact-store rows are never mixed with ordinary Sales/Technical or
+            # Marketing/Sales/Technical rows during ownership reconstruction.
+            dedicated_rows,
+            max_images=max_images,
+            exact_destination_authority_v69051=True,
+            coordinator=coordinator,
+            allow_durable_fallback_v69062=False,
+        )
+        diagnostic_log(
+            "workspace_image_post_gate_dedicated_v69050",
+            workspace=workspace,
+            result_count=len(dedicated_rows),
+            recovered=len(recovered or []),
+        )
+        if recovered:
+            return recovered
+
+    # Stage 4: destination/revision-cached durable index. The same semantic,
+    # vehicle/year, product and topic gates remain mandatory.
     recovered = _workspace_website_images_from_file_search_v69040(
         workspace,
         prompt,
         answer,
-        # Dedicated rows come from exactly one active destination store. Do not
-        # mix the ordinary answer's broader Sales/Technical or
-        # Marketing/Sales/Technical rows into this ownership-authoritative pass.
-        dedicated_rows,
+        [],
         max_images=max_images,
-        exact_destination_authority_v69051=True,
-    )
-    diagnostic_log(
-        "workspace_image_post_gate_dedicated_v69050",
-        workspace=workspace,
-        result_count=len(dedicated_rows),
-        recovered=len(recovered or []),
+        coordinator=coordinator,
+        allow_durable_fallback_v69062=True,
     )
     if recovered:
         return recovered
+
+    # Stage 5: an answer URL is only a pointer. It must resolve back to exact
+    # destination-owned rows and pass the identical semantic gate.
     recovered = _workspace_answer_url_records_from_exact_rows_v69058(
-        workspace, prompt, answer, dedicated_rows, max_images=max_images
+        workspace,
+        prompt,
+        answer,
+        dedicated_rows,
+        max_images=max_images,
+        coordinator=coordinator,
     )
+    if not recovered:
+        recovered = _answer_owned_image_records_v69056(
+            workspace,
+            prompt,
+            answer,
+            max_images=max_images,
+            coordinator=coordinator,
+        )
     diagnostic_log(
         "workspace_exact_store_answer_url_bridge_v69058",
         workspace=workspace,
         result_count=len(dedicated_rows),
         recovered=len(recovered or []),
     )
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062) and not recovered:
+        coordinator.record(_image_recovery_outcome_v69062(
+            "empty",
+            "durable_index",
+            [],
+            "NO_APPROVED_IMAGE_AFTER_ALL_STAGES",
+            stage="fail_closed_no_image",
+        ))
     return recovered or []
 
 
 def _answer_owned_image_records_v69056(
-    workspace_label, prompt_text, answer_text, max_images=3
+    workspace_label, prompt_text, answer_text, max_images=3,
+    coordinator=None,
 ):
     """Convert exact learned first-party answer URLs into chat image records.
 
@@ -53541,6 +54853,11 @@ def _answer_owned_image_records_v69056(
         if identity_v69058 and identity_v69058 not in urls:
             urls.append(identity_v69058)
     if not urls:
+        if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+            coordinator.record(_image_recovery_outcome_v69062(
+                "empty", "durable_index", [], "NO_EXACT_ANSWER_IMAGE_URL",
+                stage="exact_answer_url_match",
+            ))
         return []
 
     requested_sizes = set(re.findall(
@@ -53549,7 +54866,9 @@ def _answer_owned_image_records_v69056(
     ))
     requested_codes = _website_image_product_codes_v69020(prompt)
     ranked = []
-    for raw_payload in _website_image_index_rows_v68883() or []:
+    for raw_payload in _workspace_durable_payloads_coordinated_v69062(
+        destination, coordinator
+    ):
         if not isinstance(raw_payload, dict):
             continue
         payload = dict(raw_payload)
@@ -53566,8 +54885,6 @@ def _answer_owned_image_records_v69056(
         )
         if not has_prior_qa:
             continue
-        if not _website_image_vehicle_fitment_gate_v68997(prompt, payload):
-            continue
         identity_text = _website_image_payload_identity_text_v69022(payload)
         candidate_sizes = set(re.findall(
             r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
@@ -53578,11 +54895,29 @@ def _answer_owned_image_records_v69056(
         candidate_codes = _website_image_product_codes_v69020(identity_text)
         if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
             continue
+        semantic_pass, semantic_score, reason_code, gates = (
+            _workspace_image_semantic_authority_v69062(
+                prompt, answer, payload
+            )
+        )
+        if not semantic_pass:
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject(reason_code)
+            continue
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
             continue
         record["website_answer_url_reconstructed_v69056"] = True
         record["website_answer_url_destination_v69056"] = destination
+        _attach_image_provenance_v69062(
+            record,
+            payload,
+            destination,
+            "exact_answer_url_match",
+            semantic_score,
+            reason_code,
+            gates,
+        )
         ranked.append(record)
 
     output, seen = [], set()
@@ -53600,6 +54935,16 @@ def _answer_owned_image_records_v69056(
         url_count=len(urls),
         recovered=len(output),
     )
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if output else "rejected",
+            "durable_index",
+            [],
+            "EXACT_ANSWER_URL_APPROVED" if output
+            else "EXACT_ANSWER_URL_NOT_DESTINATION_APPROVED",
+            stage="exact_answer_url_match",
+            details={"url_count": len(urls), "published": len(output)},
+        ))
     return output
 
 
@@ -53691,15 +55036,19 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
         return False
 
 
-def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="", max_images=3, extra_payloads=None):
+def _website_image_related_evidence_lookup_v69025r2(
+    prompt_text, answer_text="", max_images=3, extra_payloads=None,
+    coordinator=None,
+):
     """Return safe inquiry-related Technical images after exact-image recovery is exhausted.
 
     v69025R2 generalizes the R1 722-S2 fallback to the production requirement:
     whenever learned Technical knowledge contains a safe image related to the resolved
     inquiry (settings, wiring, harness, connector, camera, module, audio, etc.), publish
     it automatically. Identity/provenance remains mandatory. Topic-specific evidence is
-    preferred; only when no topic-specific candidate survives may one clearly-labelled
-    same-product reference be returned.
+    preferred. v69062 locks v69050's exact visual authority: a recognized
+    Technical visual role fails closed and can never downgrade to a generic
+    same-product/dashboard reference.
     """
     if str(assistant or "") != "🔧 Technical Support":
         return []
@@ -53782,6 +55131,8 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         "rejected_fitment": 0,
         "rejected_product": 0,
         "rejected_strength": 0,
+        "rejected_topic_visual_v69062": 0,
+        "blocked_generic_role_fallback_v69062": 0,
         "record_build_failed": 0,
         "published": 0,
         "self_healed": 0,
@@ -53824,6 +55175,19 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
             payload,
         ):
             audit_v69047["rejected_fitment"] += 1
+            continue
+
+        # v69062 exact root fix: v69060's late related-evidence branch did not
+        # invoke the primary selector's subsection + visual-state authority.
+        # That allowed a same-vehicle dashboard photo to replace a requested
+        # Car Model/A-C screen. Every recognized role must pass the same final
+        # payload gate before it can enter any ranking bucket.
+        if query_role and not _website_image_final_payload_gate_v68885(
+            prompt, payload
+        ):
+            audit_v69047["rejected_topic_visual_v69062"] += 1
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject("EXACT_VISUAL_ROLE_REJECTED")
             continue
 
         candidate_text = _website_image_payload_identity_text_v69022(payload)
@@ -53909,10 +55273,14 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
     _sort(general_ranked)
 
     selected = topic_ranked
-    if not selected and general_ranked:
+    if not selected and general_ranked and not query_role:
         # Precision-first final fallback: one same-product/system image proves there is
         # a related visual without pretending it depicts the exact requested operation.
         selected = general_ranked[:1]
+    elif not selected and general_ranked and query_role:
+        audit_v69047["blocked_generic_role_fallback_v69062"] += len(general_ranked)
+        if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+            coordinator.reject("GENERIC_ROLE_FALLBACK_BLOCKED", len(general_ranked))
 
     records = []
     seen = set()
@@ -53945,6 +55313,24 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         record["website_file_citation_recovered_v69060"] = bool(
             payload.get("_website_file_citation_recovered_v69060")
         )
+        _attach_image_provenance_v69062(
+            record,
+            payload,
+            "Technical Support Database",
+            (
+                "complete_file_hydration"
+                if payload.get("_website_file_citation_recovered_v69060")
+                else "durable_image_index"
+            ),
+            score,
+            "EXACT_DESTINATION_AND_FITMENT" if topic_related
+            else "GENERIC_UNCLASSIFIED_REFERENCE",
+            {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass",
+                "topic_gate": "pass" if topic_related else "generic_unclassified",
+            },
+        )
         if payload.get("_technical_supporting_page_vector_authority_v69047"):
             if _website_image_self_heal_index_v69047(prompt, payload):
                 audit_v69047["self_healed"] += 1
@@ -53953,11 +55339,26 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
         if len(records) >= max(1, int(max_images or 3)):
             break
     diagnostic_log("website_related_evidence_authority_v69047", **audit_v69047)
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.reconstructed += int(audit_v69047.get("candidates") or 0)
+        coordinator.record(_image_recovery_outcome_v69062(
+            "recovered" if records else (
+                "rejected" if audit_v69047.get("candidates") else "empty"
+            ),
+            "durable_index",
+            [],
+            "APPROVED_IMAGES_SELECTED" if records
+            else "ALL_CANDIDATES_REJECTED" if audit_v69047.get("candidates")
+            else "NO_ROWS",
+            stage="durable_image_index",
+            details={"published": len(records), "audit": audit_v69047},
+        ))
     return records
 
 
 def _website_automatic_related_image_recovery_v69049(
-    prompt_text, answer_text, result_rows, max_images=3
+    prompt_text, answer_text, result_rows, max_images=3,
+    coordinator=None,
 ):
     """Recover a safe learned image for an ordinary Technical inquiry.
 
@@ -53972,23 +55373,28 @@ def _website_automatic_related_image_recovery_v69049(
     ).strip()
     if str(assistant or "") != "🔧 Technical Support" or not prompt or not answer:
         return []
+    if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+        coordinator.begin_recovery()
 
     ordinary_rows = [
         dict(row) for row in (result_rows or []) if isinstance(row, dict)
     ]
     ordinary_payloads = _website_file_search_payloads_for_related_evidence_v69032(
-        ordinary_rows
+        ordinary_rows, coordinator=coordinator
     )
     ordinary_payloads = _website_bind_exact_supporting_page_payloads_v69047(
-        ordinary_payloads, ordinary_rows
+        ordinary_payloads, ordinary_rows, coordinator=coordinator
     )
     ordinary_payloads.extend(
-        _website_durable_payloads_for_supporting_pages_v69045(ordinary_rows)
+        _website_durable_payloads_for_supporting_pages_v69045(
+            ordinary_rows, coordinator=coordinator
+        )
     )
     recovered = []
     if ordinary_payloads:
         recovered = _website_image_related_evidence_lookup_v69025r2(
-            prompt, answer, max_images=max_images, extra_payloads=ordinary_payloads
+            prompt, answer, max_images=max_images, extra_payloads=ordinary_payloads,
+            coordinator=coordinator,
         )
     diagnostic_log(
         "website_related_evidence_file_search_bridge_v69032",
@@ -54002,20 +55408,23 @@ def _website_automatic_related_image_recovery_v69049(
     # reconstruction list.  All downstream ownership/fitment/topic gates are the
     # same ones used above and therefore remain fail-closed.
     dedicated_rows = _website_image_dedicated_file_search_results_v69014(
-        prompt, answer
+        prompt, answer, coordinator=coordinator
     )
     dedicated_payloads = _website_file_search_payloads_for_related_evidence_v69032(
-        dedicated_rows
+        dedicated_rows, coordinator=coordinator
     )
     dedicated_payloads = _website_bind_exact_supporting_page_payloads_v69047(
-        dedicated_payloads, dedicated_rows
+        dedicated_payloads, dedicated_rows, coordinator=coordinator
     )
     dedicated_payloads.extend(
-        _website_durable_payloads_for_supporting_pages_v69045(dedicated_rows)
+        _website_durable_payloads_for_supporting_pages_v69045(
+            dedicated_rows, coordinator=coordinator
+        )
     )
     if dedicated_payloads:
         recovered = _website_image_related_evidence_lookup_v69025r2(
-            prompt, answer, max_images=max_images, extra_payloads=dedicated_payloads
+            prompt, answer, max_images=max_images, extra_payloads=dedicated_payloads,
+            coordinator=coordinator,
         )
     diagnostic_log(
         "website_related_evidence_post_gate_dedicated_v69049",
@@ -64532,6 +65941,11 @@ if (
                 "Post tracking become active after their credentials are added."
             )
 
+            # v69062: Admin-only build/runtime proof. This is intentionally inside
+            # the existing Live Integrations body so the native Admin tab bar and
+            # every normal staff workspace remain byte/layout compatible.
+            render_runtime_audit_panel_v69062()
+
 
         elif admin_section_v69028 == "🎨 Graphic Intelligence":
             render_graphic_intelligence_center()
@@ -65135,6 +66549,35 @@ else:
         technical_image_prefetch_executor_v69015 = None
         technical_image_prefetch_future_v69015 = None
         technical_image_prefetch_cached_rows_v69016 = []
+        workspace_image_prefetch_executor_v69062 = None
+        workspace_image_prefetch_future_v69062 = None
+        workspace_image_prefetch_rows_v69062 = []
+        image_search_coordinator_v69062 = None
+        image_coordinator_prompt_v69062 = (
+            technical_request_prompt_v68879
+            if assistant == "🔧 Technical Support"
+            else interaction_prompt
+        )
+        image_coordinator_stores_v69062 = (
+            _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+            if assistant == "🔧 Technical Support"
+            else _configured_vector_store_ids(SALES_VECTOR_STORE_ID)
+            if is_sales_workspace(assistant)
+            else _configured_vector_store_ids(MARKETING_VECTOR_STORE_ID)
+            if is_marketing_workspace(assistant)
+            else []
+        )
+        if (
+            bool(use_file_search)
+            and not is_graphic_workspace(assistant)
+            and image_coordinator_stores_v69062
+            and str(image_coordinator_prompt_v69062 or "").strip()
+        ):
+            image_search_coordinator_v69062 = _new_image_search_coordinator_v69062(
+                assistant,
+                image_coordinator_prompt_v69062,
+                image_coordinator_stores_v69062,
+            )
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
@@ -65166,6 +66609,7 @@ else:
                                 _website_image_prefetch_file_search_results_v69015,
                                 technical_request_prompt_v68879,
                                 assistant,
+                                image_search_coordinator_v69062,
                             )
                         )
                     except Exception as error:
@@ -65175,6 +66619,34 @@ else:
                             "website_image_prefetch_start_failed_v69016",
                             error_type=type(error).__name__, error=str(error)[:500],
                         )
+
+        elif (
+            (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            and bool(use_file_search)
+            and image_search_coordinator_v69062 is not None
+        ):
+            try:
+                from concurrent.futures import ThreadPoolExecutor
+                workspace_image_prefetch_executor_v69062 = ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix="atp-workspace-image-prefetch",
+                )
+                workspace_image_prefetch_future_v69062 = (
+                    workspace_image_prefetch_executor_v69062.submit(
+                        _workspace_image_prefetch_file_search_results_v69062,
+                        assistant,
+                        interaction_prompt,
+                        image_search_coordinator_v69062,
+                    )
+                )
+            except Exception as error:
+                workspace_image_prefetch_executor_v69062 = None
+                workspace_image_prefetch_future_v69062 = None
+                diagnostic_log(
+                    "workspace_image_prefetch_start_failed_v69062",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                )
 
         document_generation_requested = bool(
             not explicit_learning_requested
@@ -65971,6 +67443,14 @@ else:
                     st.session_state["_workspace_file_search_results_v69040"] = []
 
                 try:
+                    _runtime_audit_update_v69062(
+                        active_workspace=str(assistant),
+                        conversation_id=st.session_state.get("conversation_id"),
+                        last_provider_route=(
+                            "responses:gpt-5.5:file_search"
+                            if use_file_search else "responses:gpt-5.5:no_file_search"
+                        ),
+                    )
                     diagnostic_log(
                         "ai_stream_start_ready_v68872",
                         workspace=str(assistant),
@@ -66113,11 +67593,21 @@ else:
                         )
 
                     if not partial_answer_body:
-                        safe_error_message = (
-                            "I couldn't complete that request because the AI service rejected "
-                            "one part of the request. Please try again. If it continues, check "
-                            "the Streamlit Cloud logs for the recorded diagnostic."
-                        )
+                        if isinstance(
+                            stream_error,
+                            _ProtectedKnowledgeRetrievalErrorV69062,
+                        ):
+                            safe_error_message = (
+                                "I can’t verify this Technical answer right now because the "
+                                "approved AutoTecPro knowledge search is temporarily unavailable. "
+                                "Please retry; I won’t substitute an unsupported answer or image."
+                            )
+                        else:
+                            safe_error_message = (
+                                "I couldn't complete that request because the AI service rejected "
+                                "one part of the request. Please try again. If it continues, check "
+                                "the Streamlit Cloud logs for the recorded diagnostic."
+                            )
                         stream_placeholder.markdown(
                             _assistant_stream_html(safe_error_message),
                             unsafe_allow_html=True,
@@ -66226,6 +67716,17 @@ else:
                     f"document could not be created: {document_error}"
                 )
 
+        if (
+            assistant == "🔧 Technical Support"
+            and isinstance(
+                image_search_coordinator_v69062,
+                _ImageSearchCoordinatorV69062,
+            )
+        ):
+            # The text has already streamed.  Start the one bounded image-only
+            # recovery window now; prefetch time before this point is free.
+            image_search_coordinator_v69062.begin_recovery()
+
         # v69008: if an automatic Technical visual topic was recognized but the
         # first deterministic lookup had no eligible image, make one second
         # deterministic lookup using the completed answer only as ranking context.
@@ -66294,7 +67795,10 @@ else:
                         st.session_state.get("_technical_file_search_results_v69012") or []
                     )
                     universal_images_v69014 = _website_file_search_images_v69014(
-                        technical_request_prompt_v68879, answer, answer_result_rows_v69014
+                        technical_request_prompt_v68879,
+                        answer,
+                        answer_result_rows_v69014,
+                        coordinator=image_search_coordinator_v69062,
                     )
 
                     # v69015 fast path: the same independent image search that used to
@@ -66312,8 +67816,22 @@ else:
                         and technical_image_prefetch_future_active_v69015 is not None
                     ):
                         try:
+                            prefetch_timeout_v69062 = min(
+                                1.0,
+                                max(
+                                    0.05,
+                                    image_search_coordinator_v69062.remaining()
+                                    if isinstance(
+                                        image_search_coordinator_v69062,
+                                        _ImageSearchCoordinatorV69062,
+                                    )
+                                    else 1.0,
+                                ),
+                            )
                             prefetched_rows_v69015 = list(
-                                technical_image_prefetch_future_active_v69015.result(timeout=1.0) or []
+                                technical_image_prefetch_future_active_v69015.result(
+                                    timeout=prefetch_timeout_v69062
+                                ) or []
                             )
                             if prefetched_rows_v69015:
                                 _technical_image_prefetch_cache_set_v69016(
@@ -66330,19 +67848,23 @@ else:
                             technical_request_prompt_v68879,
                             answer,
                             answer_result_rows_v69014 + prefetched_rows_v69015,
+                            coordinator=image_search_coordinator_v69062,
                         )
 
                     # If the prompt-only prefetch was not precise enough, preserve the
                     # existing answer-aware dedicated search as the fail-safe fallback.
                     if not universal_images_v69014:
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
-                            technical_request_prompt_v68879, answer
+                            technical_request_prompt_v68879,
+                            answer,
+                            coordinator=image_search_coordinator_v69062,
                         )
                         if dedicated_rows_v69014:
                             universal_images_v69014 = _website_file_search_images_v69014(
                                 technical_request_prompt_v68879,
                                 answer,
                                 answer_result_rows_v69014 + prefetched_rows_v69015 + dedicated_rows_v69014,
+                                coordinator=image_search_coordinator_v69062,
                             )
                     if universal_images_v69014:
                         # Replace only non-index legacy/model website fallbacks. Durable index
@@ -66394,6 +67916,7 @@ else:
                         technical_request_prompt_v68879,
                         answer,
                         max_images=3,
+                        coordinator=image_search_coordinator_v69062,
                     )
                     if not related_reference_images_v69025r1:
                         related_rows_v69032 = list(
@@ -66416,6 +67939,7 @@ else:
                                 answer,
                                 related_rows_v69032,
                                 max_images=3,
+                                coordinator=image_search_coordinator_v69062,
                             )
                         )
                     diagnostic_log(
@@ -66449,12 +67973,49 @@ else:
         # record for the unchanged final publisher.
         if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
             try:
+                workspace_prefetched_rows_v69062 = []
+                workspace_image_prefetch_future_active_v69062 = locals().get(
+                    "workspace_image_prefetch_future_v69062"
+                )
+                if isinstance(
+                    image_search_coordinator_v69062,
+                    _ImageSearchCoordinatorV69062,
+                ):
+                    image_search_coordinator_v69062.begin_recovery()
+                if workspace_image_prefetch_future_active_v69062 is not None:
+                    try:
+                        workspace_prefetch_timeout_v69062 = min(
+                            0.9,
+                            max(
+                                0.05,
+                                image_search_coordinator_v69062.remaining()
+                                if isinstance(
+                                    image_search_coordinator_v69062,
+                                    _ImageSearchCoordinatorV69062,
+                                )
+                                else 0.9,
+                            ),
+                        )
+                        workspace_prefetched_rows_v69062 = list(
+                            workspace_image_prefetch_future_active_v69062.result(
+                                timeout=workspace_prefetch_timeout_v69062
+                            ) or []
+                        )
+                    except Exception as error:
+                        diagnostic_log(
+                            "workspace_image_prefetch_consume_failed_v69062",
+                            workspace=str(assistant),
+                            error_type=type(error).__name__,
+                            error=str(error)[:500],
+                        )
                 workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
                     assistant,
                     interaction_prompt,
                     answer,
                     list(st.session_state.get("_workspace_file_search_results_v69040") or []),
                     max_images=3,
+                    prefetched_rows=workspace_prefetched_rows_v69062,
+                    coordinator=image_search_coordinator_v69062,
                 )
                 if workspace_images_v69050:
                     generated_images.extend(workspace_images_v69050)
@@ -66472,30 +68033,8 @@ else:
                     error=str(error)[:500],
                 )
 
-        # v69056 final live-evidence bridge: Responses can quote an exact learned
-        # AutoTecPro image URL while returning zero expanded file_search rows.
-        # Reconstruct only an exact durable, QA-backed record owned by the active
-        # destination; all existing fitment/product gates remain authoritative.
-        if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
-            try:
-                answer_url_images_v69056 = _answer_owned_image_records_v69056(
-                    assistant,
-                    interaction_prompt,
-                    answer,
-                    max_images=3,
-                )
-                if answer_url_images_v69056:
-                    generated_images.extend(answer_url_images_v69056)
-                    generated_images = _dedupe_website_chat_images_v68883(
-                        generated_images
-                    )
-            except Exception as error:
-                diagnostic_log(
-                    "website_answer_url_reconstruction_failed_v69056",
-                    workspace=str(assistant),
-                    error_type=type(error).__name__,
-                    error=str(error)[:500],
-                )
+        # v69062: exact-answer URL recovery is stage 5 inside the single
+        # destination-scoped state machine above.  Do not run a second bridge.
 
         technical_image_prefetch_executor_active_v69015 = locals().get(
             "technical_image_prefetch_executor_v69015"
@@ -66506,9 +68045,27 @@ else:
             except Exception:
                 pass
 
+        workspace_image_prefetch_executor_active_v69062 = locals().get(
+            "workspace_image_prefetch_executor_v69062"
+        )
+        if workspace_image_prefetch_executor_active_v69062 is not None:
+            try:
+                workspace_image_prefetch_executor_active_v69062.shutdown(wait=False)
+            except Exception:
+                pass
+
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
+        if not is_graphic_workspace(assistant):
+            generated_images = _finalize_published_image_provenance_v69062(
+                generated_images,
+                assistant,
+                coordinator=image_search_coordinator_v69062,
+            )
+            _commit_image_search_coordinator_v69062(
+                image_search_coordinator_v69062
+            )
         assistant_images_to_save = list(generated_images or [])
 
         if assistant == "🔧 Technical Support":
