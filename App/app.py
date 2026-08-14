@@ -1,4 +1,4 @@
-# AutoTecPro AI v69066 — Exact-store image ownership recovery
+# AutoTecPro AI v69068 — Stability, bounded prefetch, and executed runtime proof
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,8 +87,11 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69067"
-ATP_IMAGE_AUTHORITY_V69062 = "v69050-exact-restored+v69064-destination-publisher+v69067-semantic-subtitle"
+ATP_BUILD_VERSION_V69062 = "v69068"
+ATP_IMAGE_AUTHORITY_V69062 = (
+    "v69050-exact-restored+v69064-destination-publisher+"
+    "v69067-semantic-subtitle+v69068-byte-locked"
+)
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
     or os.environ.get("GIT_COMMIT_SHA")
@@ -108,6 +111,22 @@ ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062 = 2.75
 ATP_IMAGE_NEGATIVE_CACHE_TTL_SECONDS_V69062 = 30.0
 ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062 = 3
 ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062 = 30.0
+ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068 = 3.0
+ATP_IMAGE_PREFETCH_MAX_WORKERS_V69068 = 4
+ATP_PROTECTED_GROUP_DIGESTS_V69068 = {
+    "graphic": {
+        "count": 607,
+        "sha256": "9b6496e601adb57b21d792b6cabe1c79cfe7abe80b0b1833ddc0cd3e3804bf2f",
+    },
+    "reference": {
+        "count": 67,
+        "sha256": "58194e185e0e8e0f8cc60d505972b708caa3aeafcdad74fed880cba0b3965ffa",
+    },
+    "after_install": {
+        "count": 2,
+        "sha256": "1394ec71bfc393e2e98f5b5beaf1d1af8c40d7740009f73f06fc5ef8651e35ae",
+    },
+}
 ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
     "source_sha_verification",
     "startup_and_login",
@@ -238,6 +257,69 @@ client = get_openai_client(api_key)
 http_session = get_http_session()
 
 
+def _image_provider_client_v69068(timeout_seconds=None):
+    """Return a timeout-bounded client only for optional image evidence work."""
+    if timeout_seconds is None:
+        return client
+    try:
+        bounded = max(0.25, min(float(timeout_seconds), 10.0))
+        return client.with_options(timeout=bounded)
+    except Exception:
+        # Compatibility for older SDKs and controlled test doubles. The shared
+        # bounded executor still prevents unbounded worker growth.
+        return client
+
+
+@st.cache_resource(show_spinner=False)
+def get_image_prefetch_runtime_v69068():
+    """One process-bounded executor; evidence futures remain session-scoped."""
+    from concurrent.futures import ThreadPoolExecutor
+    return {
+        "executor": ThreadPoolExecutor(
+            max_workers=ATP_IMAGE_PREFETCH_MAX_WORKERS_V69068,
+            thread_name_prefix="atp-image-prefetch-v69068",
+        ),
+        "lock": threading.RLock(),
+        "inflight": {},
+    }
+
+
+def _submit_image_prefetch_v69068(task_key, function, *args):
+    """Submit or reuse one still-running, session-isolated prefetch."""
+    runtime = get_image_prefetch_runtime_v69068()
+    session_fingerprint = _runtime_session_fingerprint_v69062()
+    scoped_key = hashlib.sha256(
+        f"{session_fingerprint}|{str(task_key or '')}".encode("utf-8")
+    ).hexdigest()
+    with runtime["lock"]:
+        existing = runtime["inflight"].get(scoped_key)
+        if existing is not None and not existing.done():
+            return existing, scoped_key, True
+        future = runtime["executor"].submit(function, *args)
+        runtime["inflight"][scoped_key] = future
+
+    def release(completed_future):
+        try:
+            with runtime["lock"]:
+                if runtime["inflight"].get(scoped_key) is completed_future:
+                    runtime["inflight"].pop(scoped_key, None)
+        except Exception:
+            pass
+
+    future.add_done_callback(release)
+    return future, scoped_key, False
+
+
+def _cancel_pending_image_prefetch_v69068(future):
+    """Cancel queued work; running calls end at their image-only timeout."""
+    if future is None or future.done():
+        return False
+    try:
+        return bool(future.cancel())
+    except Exception:
+        return False
+
+
 def diagnostic_log(event, **fields):
     """Write compact, non-secret diagnostics to Streamlit Cloud logs only."""
     try:
@@ -347,7 +429,7 @@ def _runtime_audit_update_v69062(**fields):
         "last_recovery_status", "last_recovery_reason_code",
         "image_provider_circuit", "image_added_latency_ms", "turn_id",
         "restored_message_count", "restored_image_count",
-        "restored_provenance_count",
+        "restored_provenance_count", "protected_group_parity",
     }
     try:
         snapshot = dict(st.session_state.get("_runtime_audit_snapshot_v69062") or {})
@@ -399,6 +481,7 @@ def _runtime_audit_redacted_report_v69062():
     snapshot["authenticated_smoke_matrix"] = smoke_matrix
     source_sha = str(snapshot.get("source_sha256") or "")
     approved_sha = _read_app_secret("ATP_RELEASE_GATE_APPROVED_SHA")
+    signing_key = _read_app_secret("ATP_AUDIT_SIGNING_KEY")
     missing_test_ids = [
         test_id for test_id in ATP_RELEASE_REQUIRED_TEST_IDS_V69062
         if str((smoke_matrix.get(test_id) or {}).get("status") or "").upper()
@@ -408,11 +491,27 @@ def _runtime_audit_redacted_report_v69062():
         test_id for test_id, result in smoke_matrix.items()
         if str((result or {}).get("status") or "").upper() == "FAIL"
     ]
+    invalid_assertion_test_ids = [
+        test_id for test_id, result in smoke_matrix.items()
+        if (
+            test_id in ATP_RELEASE_REQUIRED_TEST_IDS_V69062
+            and (
+                str((result or {}).get("assertion_origin") or "")
+                != "executed_assertion_v69068"
+                or str((result or {}).get("source_sha256") or "") != source_sha
+                or not str((result or {}).get("evidence_sha256") or "").strip()
+            )
+        )
+    ]
     approved_sha_matches = bool(
         approved_sha and source_sha and hmac.compare_digest(approved_sha, source_sha)
     )
     release_approved = bool(
-        approved_sha_matches and not missing_test_ids and not failed_test_ids
+        approved_sha_matches
+        and bool(signing_key)
+        and not missing_test_ids
+        and not failed_test_ids
+        and not invalid_assertion_test_ids
     )
     snapshot["release_gate"] = {
         "approved_sha_matches": approved_sha_matches,
@@ -420,15 +519,16 @@ def _runtime_audit_redacted_report_v69062():
         "passed_test_count": len(ATP_RELEASE_REQUIRED_TEST_IDS_V69062) - len(missing_test_ids),
         "missing_or_not_passed_test_ids": missing_test_ids,
         "failed_test_ids": failed_test_ids,
+        "invalid_or_manual_assertion_test_ids": invalid_assertion_test_ids,
+        "authenticated_hmac_configured": bool(signing_key),
         "critical_failures": len(failed_test_ids),
-        "high_failures": 0,
+        "high_failures": len(invalid_assertion_test_ids),
         "status": (
             "approved" if release_approved
             else "candidate_pending_authenticated_proof"
         ),
     }
     canonical = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    signing_key = _read_app_secret("ATP_AUDIT_SIGNING_KEY")
     if signing_key:
         signature = hmac.new(
             signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
@@ -444,11 +544,217 @@ def _runtime_audit_redacted_report_v69062():
     }
 
 
+def _record_runtime_assertion_v69068(
+    test_id, passed, result_code, *, evidence=None
+):
+    """Record only a code-evaluated assertion from an authenticated Admin run."""
+    test_id = str(test_id or "").strip()
+    if test_id not in ATP_RELEASE_REQUIRED_TEST_IDS_V69062:
+        raise ValueError("Unknown production runtime test id.")
+    if not bool(st.session_state.get("logged_in")):
+        raise PermissionError("Authenticated runtime evidence is required.")
+    if str(st.session_state.get("role") or "").strip().casefold() != "admin":
+        raise PermissionError("Admin runtime evidence is required.")
+
+    safe_evidence = {
+        str(key)[:80]: (
+            value if value is None or isinstance(value, (bool, int, float))
+            else re.sub(r"\s+", " ", str(value)).strip()[:160]
+        )
+        for key, value in list(dict(evidence or {}).items())[:30]
+        if str(key).casefold() not in {
+            "password", "credential", "cookie", "prompt", "raw_prompt",
+            "vector_store_id", "api_key", "token",
+        }
+    }
+    evidence_digest = hashlib.sha256(
+        json.dumps(
+            safe_evidence, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    matrix = dict(st.session_state.get("_authenticated_smoke_matrix_v69062") or {})
+    matrix[test_id] = {
+        "status": "PASS" if bool(passed) else "FAIL",
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "source_sha256": _build_source_sha256_v69062(),
+        "session_fingerprint": _runtime_session_fingerprint_v69062(),
+        "result_code": re.sub(r"\s+", "_", str(result_code or ""))[:80],
+        "assertion_origin": "executed_assertion_v69068",
+        "evidence_sha256": evidence_digest,
+    }
+    st.session_state["_authenticated_smoke_matrix_v69062"] = matrix
+    return dict(matrix[test_id])
+
+
+def _runtime_source_group_digest_v69068(group_name):
+    """Hash complete protected function ASTs from the exact running source."""
+    import ast as _ast_v69068
+    parsed = _ast_v69068.parse(Path(__file__).read_text(encoding="utf-8"))
+    function_nodes = {
+        node.name: node for node in parsed.body
+        if isinstance(node, (_ast_v69068.FunctionDef, _ast_v69068.AsyncFunctionDef))
+    }
+    if group_name == "graphic":
+        names = sorted(
+            name for name in function_nodes if "graphic" in name.casefold()
+        )
+    elif group_name == "reference":
+        names = sorted(
+            name for name in function_nodes if "reference" in name.casefold()
+        )
+    elif group_name == "after_install":
+        names = sorted(
+            name for name in function_nodes
+            if "after_install" in name.casefold()
+            or "installed_view" in name.casefold()
+        )
+    else:
+        raise ValueError("Unknown protected function group.")
+    packed = "\n".join(
+        name + "\n" + _ast_v69068.dump(
+            function_nodes[name], include_attributes=False
+        )
+        for name in names
+    ).encode("utf-8")
+    return {
+        "count": len(names),
+        "sha256": hashlib.sha256(packed).hexdigest(),
+    }
+
+
+def _run_authenticated_runtime_self_tests_v69068():
+    """Execute safe in-process release assertions; never accept a manual PASS."""
+    source_sha = _build_source_sha256_v69062()
+    approved_sha = _read_app_secret("ATP_RELEASE_GATE_APPROVED_SHA")
+    _record_runtime_assertion_v69068(
+        "source_sha_verification",
+        bool(
+            approved_sha and source_sha
+            and hmac.compare_digest(str(approved_sha), str(source_sha))
+        ),
+        "approved_source_sha_match" if approved_sha else "approved_source_sha_missing",
+        evidence={"source_sha256": source_sha},
+    )
+    _record_runtime_assertion_v69068(
+        "startup_and_login",
+        bool(
+            st.session_state.get("logged_in")
+            and str(st.session_state.get("username") or "").strip()
+            and str(st.session_state.get("role") or "").casefold() == "admin"
+        ),
+        "authenticated_admin_runtime",
+        evidence={"session": _runtime_session_fingerprint_v69062()},
+    )
+
+    restore_status = str(
+        st.session_state.get("_conversation_restore_status_v69068") or ""
+    )
+    _record_runtime_assertion_v69068(
+        "valid_session_restoration",
+        bool(
+            st.session_state.get("logged_in")
+            and restore_status not in {
+                "ownership_transient", "messages_transient", "ownership_rejected"
+            }
+        ),
+        "authenticated_state_valid",
+        evidence={"conversation_restore_status": restore_status or "not_required"},
+    )
+
+    protected_results = {
+        group: _runtime_source_group_digest_v69068(group)
+        for group in ("graphic", "reference", "after_install")
+    }
+    protected_pass = all(
+        protected_results[group] == ATP_PROTECTED_GROUP_DIGESTS_V69068[group]
+        for group in protected_results
+    )
+    _runtime_audit_update_v69062(
+        protected_group_parity={
+            group: (
+                f"{value['count']}/{ATP_PROTECTED_GROUP_DIGESTS_V69068[group]['count']}"
+                if value == ATP_PROTECTED_GROUP_DIGESTS_V69068[group]
+                else "mismatch"
+            )
+            for group, value in protected_results.items()
+        }
+    )
+    _record_runtime_assertion_v69068(
+        "graphic_generation_parity",
+        protected_pass,
+        "protected_function_groups_exact",
+        evidence={
+            group: protected_results[group]["sha256"]
+            for group in protected_results
+        },
+    )
+    graphic_recovery_blocked = (
+        _workspace_automatic_image_recovery_v69050(
+            "🎨 Graphic Marketing", "audit", "audit", []
+        ) == []
+    )
+    _record_runtime_assertion_v69068(
+        "graphic_image_recovery_blocked",
+        graphic_recovery_blocked,
+        "graphic_recovery_entry_fail_closed",
+        evidence={"returned_image_count": 0 if graphic_recovery_blocked else 1},
+    )
+    return dict(st.session_state.get("_authenticated_smoke_matrix_v69062") or {})
+
+
+def _observe_live_image_publication_v69068(workspace, image_records):
+    """Automatically attest a real Admin image publication without storing URLs."""
+    if not bool(st.session_state.get("logged_in")):
+        return
+    if str(st.session_state.get("role") or "").strip().casefold() != "admin":
+        return
+    workspace = str(workspace or "")
+    if workspace == "🔧 Technical Support":
+        expected_destination = "Technical Support Database"
+        test_id = "technical_positive_image"
+    elif is_sales_workspace(workspace):
+        expected_destination = "Sales Database"
+        test_id = "sales_positive_image"
+    elif is_marketing_workspace(workspace):
+        expected_destination = "Marketing Database"
+        test_id = "marketing_positive_image"
+    else:
+        return
+
+    provenance_rows = []
+    for record in list(image_records or []):
+        if not isinstance(record, dict):
+            continue
+        provenance = record.get("website_image_provenance_v69062")
+        if isinstance(provenance, dict):
+            provenance_rows.append(dict(provenance))
+    if not provenance_rows:
+        return
+    observed_destinations = {
+        str(row.get("destination") or "").strip()
+        for row in provenance_rows
+    }
+    passed = bool(observed_destinations == {expected_destination})
+    _record_runtime_assertion_v69068(
+        test_id,
+        passed,
+        "live_destination_owned_image_publication"
+        if passed else "live_image_destination_mismatch",
+        evidence={
+            "workspace": workspace,
+            "expected_destination": expected_destination,
+            "published_count": len(provenance_rows),
+            "observed_destination_count": len(observed_destinations),
+        },
+    )
+
+
 def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69067", expanded=False):
+    with st.expander("Production Runtime Audit · v69068", expanded=False):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -483,49 +789,32 @@ def render_runtime_audit_panel_v69062():
             "release_gate": report.get("release_gate") or {},
         })
         st.caption(
-            "Authenticated smoke results store only a test ID, PASS/FAIL, time, "
-            "build SHA and a short redacted note—never credentials or full prompts."
-        )
-        smoke_test_id = st.selectbox(
-            "Runtime smoke test ID",
-            ATP_RELEASE_REQUIRED_TEST_IDS_V69062,
-            key="runtime_audit_test_id_v69062",
-        )
-        smoke_status = st.selectbox(
-            "Runtime smoke result",
-            ("PASS", "FAIL"),
-            key="runtime_audit_test_status_v69062",
-        )
-        smoke_note = st.selectbox(
-            "Result code",
-            (
-                "observed_expected_output",
-                "blocked_as_expected",
-                "runtime_failure",
-                "not_applicable",
-            ),
-            key="runtime_audit_test_note_v69062",
+            "PASS/FAIL values are generated only by executed assertions bound to "
+            "this authenticated Admin session and exact source SHA. Credentials, "
+            "full prompts and vector-store IDs are never stored."
         )
         if st.button(
-            "Record authenticated smoke result",
-            key="runtime_audit_record_v69062",
+            "Run authenticated automatic checks",
+            key="runtime_audit_execute_v69068",
         ):
-            matrix = dict(
-                st.session_state.get("_authenticated_smoke_matrix_v69062") or {}
-            )
-            matrix[str(smoke_test_id)] = {
-                "status": str(smoke_status),
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
-                "source_sha256": str(report.get("source_sha256") or ""),
-                "session_fingerprint": str(
-                    report.get("session_fingerprint") or "unavailable"
-                ),
-                "result_code": str(smoke_note or "")[:80],
-            }
-            st.session_state["_authenticated_smoke_matrix_v69062"] = matrix
-            st.success(f"Recorded {smoke_test_id}: {smoke_status}")
+            try:
+                _run_authenticated_runtime_self_tests_v69068()
+                st.success(
+                    "Automatic authenticated assertions completed. Tests that "
+                    "require live workspace, CDN, idle-duration or cross-user "
+                    "observations remain pending until actually executed."
+                )
+            except Exception as error:
+                st.error(
+                    "Automatic runtime assertions could not complete: "
+                    + type(error).__name__
+                )
             report_envelope = _runtime_audit_redacted_report_v69062()
             report = dict(report_envelope.get("report") or {})
+        st.json({
+            "executed_assertions": report.get("authenticated_smoke_matrix") or {},
+            "protected_group_parity": report.get("protected_group_parity") or {},
+        })
         if report_envelope.get("signature_type") != "hmac-sha256":
             st.warning(
                 "ATP_AUDIT_SIGNING_KEY is not configured. The download has an integrity "
@@ -7617,37 +7906,14 @@ if (
         else valid_assistants[0]
     )
 
-# v69026: restore the exact durable text conversation after a websocket/session
-# replacement. Ownership is re-verified before any messages are loaded. Graphic
-# Marketing remains on its existing durable-project/job recovery path.
-_restored_conversation_id_v69026 = str(
-    st.session_state.pop("_restored_conversation_id_v69026", "") or ""
+# v69068: capture, but do not consume, the signed-cookie conversation identity
+# here.  The previous top-level block called persistence helpers before Python
+# had defined them, producing a swallowed NameError on websocket/mobile restore.
+# The idempotent restore authority is invoked below only after both ownership
+# verification and message loading functions exist.
+_restored_conversation_id_v69068 = str(
+    st.session_state.get("_restored_conversation_id_v69026", "") or ""
 ).strip()
-if (
-    _restored_conversation_id_v69026
-    and st.session_state.current_assistant != "🎨 Graphic Marketing"
-    and not st.session_state.get("conversation_id")
-):
-    try:
-        if _conversation_owned_by_user_cached(
-            str(st.session_state.get("username") or "").strip(),
-            _restored_conversation_id_v69026,
-        ):
-            st.session_state.conversation_id = _restored_conversation_id_v69026
-            st.session_state.messages = load_messages(_restored_conversation_id_v69026)
-            st.session_state.scroll_to_bottom = True
-            diagnostic_log(
-                "mobile_conversation_restored_v69026",
-                conversation_id=_restored_conversation_id_v69026,
-                workspace=st.session_state.current_assistant,
-            )
-    except Exception as _restore_conversation_error_v69026:
-        diagnostic_log(
-            "mobile_conversation_restore_failed_v69026",
-            conversation_id=_restored_conversation_id_v69026,
-            error_type=type(_restore_conversation_error_v69026).__name__,
-            error=str(_restore_conversation_error_v69026)[:500],
-        )
 
 st.sidebar.markdown(
     '<div class="workspace-title">AutoTecPro AI</div>',
@@ -39240,13 +39506,21 @@ def _request_without_file_search_results_include_v69012(request):
 def _website_request_vector_search_rows_v69047(request, max_results=12):
     """Use the SDK vector-search endpoint when optional result expansion is rejected."""
     request = dict(request or {})
+    provider_timeout_v69068 = request.pop(
+        "_atp_image_provider_timeout_v69068", None
+    )
     vector_store_ids = []
     for tool in request.get("tools") or []:
         if not isinstance(tool, dict) or tool.get("type") != "file_search":
             continue
         vector_store_ids.extend(tool.get("vector_store_ids") or [])
     vector_store_ids = _configured_vector_store_ids(*vector_store_ids)
-    search_method = getattr(getattr(client, "vector_stores", None), "search", None)
+    provider_client_v69068 = _image_provider_client_v69068(
+        provider_timeout_v69068
+    )
+    search_method = getattr(
+        getattr(provider_client_v69068, "vector_stores", None), "search", None
+    )
     if not vector_store_ids or not callable(search_method):
         return []
 
@@ -39351,8 +39625,16 @@ def _capture_file_search_rows_v69047(rows):
 
 def _website_image_response_rows_with_retry_v69047(request, event_name):
     """Return image-search rows, falling back to direct vector search on include rejection."""
+    active_request_v69068 = dict(request or {})
+    provider_timeout_v69068 = active_request_v69068.pop(
+        "_atp_image_provider_timeout_v69068", None
+    )
+    active_request_v69068.pop("_atp_image_provider_attempts_v69068", None)
+    provider_client_v69068 = _image_provider_client_v69068(
+        provider_timeout_v69068
+    )
     try:
-        response = client.responses.create(**dict(request or {}))
+        response = provider_client_v69068.responses.create(**active_request_v69068)
     except Exception as error:
         if (
             _is_openai_bad_request(error)
@@ -39652,7 +39934,14 @@ def _website_image_response_rows_with_empty_retry_v69056(
 
     rows = []
     last_error = None
-    for attempt in range(2):
+    attempt_limit_v69068 = max(
+        1,
+        min(
+            int(dict(request or {}).get("_atp_image_provider_attempts_v69068") or 2),
+            2,
+        ),
+    )
+    for attempt in range(attempt_limit_v69068):
         try:
             rows = _website_image_response_rows_with_retry_v69047(request, event_name)
             last_error = None
@@ -39660,7 +39949,7 @@ def _website_image_response_rows_with_empty_retry_v69056(
         except Exception as error:
             last_error = error
             transient = _image_provider_error_is_transient_v69062(error)
-            if not transient or attempt >= 1:
+            if not transient or attempt >= (attempt_limit_v69068 - 1):
                 break
             time.sleep(0.08 * (2 ** attempt))
 
@@ -43448,7 +43737,157 @@ def load_messages(conversation_id):
         restored_image_count=restored_images,
         restored_provenance_count=restored_provenance,
     )
+    if (
+        restored_messages
+        and str(st.session_state.get("role") or "").strip().casefold() == "admin"
+    ):
+        _record_runtime_assertion_v69068(
+            "rerun_conversation_reopen",
+            True,
+            "owned_conversation_reopened",
+            evidence={
+                "message_count": len(restored_messages),
+                "image_count": restored_images,
+            },
+        )
+        if restored_provenance:
+            _record_runtime_assertion_v69068(
+                "provenance_round_trip",
+                True,
+                "published_provenance_restored",
+                evidence={
+                    "provenance_count": restored_provenance,
+                    "image_count": restored_images,
+                },
+            )
     return restored_messages
+
+
+def _restore_recovered_conversation_v69068():
+    """Atomically restore one owned text conversation after all dependencies exist.
+
+    A transient persistence failure preserves the signed-cookie conversation id
+    for a later rerun.  Only successful restoration, a definitive ownership
+    rejection, Graphic's separate recovery path, or an already-active
+    conversation may consume the pending id.
+    """
+    recovered_id = str(
+        st.session_state.get("_restored_conversation_id_v69026", "") or ""
+    ).strip()
+    if not recovered_id:
+        return "empty"
+
+    active_workspace = str(
+        st.session_state.get("current_assistant") or ""
+    ).strip()
+    if active_workspace == "🎨 Graphic Marketing":
+        st.session_state.pop("_restored_conversation_id_v69026", None)
+        st.session_state["_conversation_restore_status_v69068"] = "graphic_separate_path"
+        return "graphic_separate_path"
+
+    active_conversation = str(
+        st.session_state.get("conversation_id") or ""
+    ).strip()
+    if active_conversation:
+        # Never replace live state during an ordinary rerun or workspace switch.
+        if active_conversation == recovered_id:
+            st.session_state.pop("_restored_conversation_id_v69026", None)
+        st.session_state["_conversation_restore_status_v69068"] = "already_active"
+        return "already_active"
+
+    now_value = time.monotonic()
+    retry_after = float(
+        st.session_state.get("_conversation_restore_retry_after_v69068") or 0.0
+    )
+    if retry_after > now_value:
+        st.session_state["_conversation_restore_status_v69068"] = "retry_deferred"
+        return "retry_deferred"
+
+    username = str(st.session_state.get("username") or "").strip()
+    try:
+        owned = bool(_conversation_owned_by_user_cached(username, recovered_id))
+    except Exception as error:
+        # A network/provider error is not an ownership rejection. Keep the id.
+        st.session_state["_conversation_restore_retry_after_v69068"] = now_value + 1.5
+        st.session_state["_conversation_restore_status_v69068"] = "ownership_transient"
+        diagnostic_log(
+            "mobile_conversation_restore_transient_v69068",
+            conversation_id=recovered_id,
+            stage="ownership",
+            error_type=type(error).__name__,
+        )
+        _runtime_audit_update_v69062(
+            conversation_id=recovered_id,
+            rerun_restoration_result="ownership_transient_retry_preserved",
+        )
+        return "ownership_transient"
+
+    if not owned:
+        st.session_state.pop("_restored_conversation_id_v69026", None)
+        st.session_state.pop("_conversation_restore_retry_after_v69068", None)
+        st.session_state["_conversation_restore_status_v69068"] = "ownership_rejected"
+        diagnostic_log(
+            "mobile_conversation_restore_rejected_v69068",
+            conversation_id=recovered_id,
+            stage="ownership",
+        )
+        _runtime_audit_update_v69062(
+            conversation_id=recovered_id,
+            rerun_restoration_result="ownership_rejected",
+        )
+        return "ownership_rejected"
+
+    try:
+        # Load into a local value first.  No partial session publication occurs.
+        restored_messages = load_messages(recovered_id)
+    except Exception as error:
+        st.session_state["_conversation_restore_retry_after_v69068"] = now_value + 1.5
+        st.session_state["_conversation_restore_status_v69068"] = "messages_transient"
+        diagnostic_log(
+            "mobile_conversation_restore_transient_v69068",
+            conversation_id=recovered_id,
+            stage="messages",
+            error_type=type(error).__name__,
+        )
+        _runtime_audit_update_v69062(
+            conversation_id=recovered_id,
+            rerun_restoration_result="messages_transient_retry_preserved",
+        )
+        return "messages_transient"
+
+    st.session_state.update({
+        "conversation_id": recovered_id,
+        "messages": list(restored_messages or []),
+        "scroll_to_bottom": True,
+        "_conversation_restore_status_v69068": "restored",
+    })
+    st.session_state.pop("_restored_conversation_id_v69026", None)
+    st.session_state.pop("_conversation_restore_retry_after_v69068", None)
+    _remember_owned_conversation_v68960(recovered_id)
+    diagnostic_log(
+        "mobile_conversation_restored_v69068",
+        conversation_id=recovered_id,
+        workspace=active_workspace,
+        message_count=len(restored_messages or []),
+    )
+    _runtime_audit_update_v69062(
+        conversation_id=recovered_id,
+        rerun_restoration_result="restored_atomically_v69068",
+        restored_message_count=len(restored_messages or []),
+    )
+    if str(st.session_state.get("role") or "").strip().casefold() == "admin":
+        _record_runtime_assertion_v69068(
+            "valid_session_restoration",
+            True,
+            "signed_session_conversation_restored_atomically",
+            evidence={"message_count": len(restored_messages or [])},
+        )
+    return "restored"
+
+
+# This call is intentionally below _conversation_owned_by_user_cached,
+# load_messages, and _remember_owned_conversation_v68960 definitions.
+_conversation_restore_result_v69068 = _restore_recovered_conversation_v69068()
 
 def load_conversations(
     username,
@@ -52490,6 +52929,12 @@ def _website_image_prefetch_file_search_results_v69015(
         "tool_choice": "required",
         "include": ["file_search_call.results"],
         "max_output_tokens": 32,
+        # v69068: prefetch is optional latency work. Bound the underlying
+        # provider call itself, not only the foreground Future.result wait.
+        "_atp_image_provider_timeout_v69068": (
+            ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068
+        ),
+        "_atp_image_provider_attempts_v69068": 1,
     }
     try:
         rows = _website_image_response_rows_with_empty_retry_v69056(
@@ -54876,6 +55321,10 @@ def _workspace_image_prefetch_file_search_results_v69062(
         "tool_choice": "required",
         "include": ["file_search_call.results"],
         "max_output_tokens": 32,
+        "_atp_image_provider_timeout_v69068": (
+            ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068
+        ),
+        "_atp_image_provider_attempts_v69068": 1,
     }
     try:
         return _website_image_response_rows_with_empty_retry_v69056(
@@ -67184,17 +67633,30 @@ else:
                 )
                 if not technical_image_prefetch_cached_rows_v69016:
                     try:
-                        from concurrent.futures import ThreadPoolExecutor
-                        technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
-                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
+                        (
+                            technical_image_prefetch_future_v69015,
+                            technical_image_prefetch_scope_v69068,
+                            technical_image_prefetch_reused_v69068,
+                        ) = _submit_image_prefetch_v69068(
+                            "technical|" + str(
+                                image_search_coordinator_v69062.turn_key
+                                if isinstance(
+                                    image_search_coordinator_v69062,
+                                    _ImageSearchCoordinatorV69062,
+                                )
+                                else hashlib.sha256(
+                                    technical_request_prompt_v68879.encode("utf-8")
+                                ).hexdigest()
+                            ),
+                            _website_image_prefetch_file_search_results_v69015,
+                            technical_request_prompt_v68879,
+                            assistant,
+                            image_search_coordinator_v69062,
                         )
-                        technical_image_prefetch_future_v69015 = (
-                            technical_image_prefetch_executor_v69015.submit(
-                                _website_image_prefetch_file_search_results_v69015,
-                                technical_request_prompt_v68879,
-                                assistant,
-                                image_search_coordinator_v69062,
-                            )
+                        diagnostic_log(
+                            "website_image_prefetch_scheduled_v69068",
+                            workspace="technical",
+                            reused_running=technical_image_prefetch_reused_v69068,
                         )
                     except Exception as error:
                         technical_image_prefetch_executor_v69015 = None
@@ -67210,18 +67672,21 @@ else:
             and image_search_coordinator_v69062 is not None
         ):
             try:
-                from concurrent.futures import ThreadPoolExecutor
-                workspace_image_prefetch_executor_v69062 = ThreadPoolExecutor(
-                    max_workers=1,
-                    thread_name_prefix="atp-workspace-image-prefetch",
+                (
+                    workspace_image_prefetch_future_v69062,
+                    workspace_image_prefetch_scope_v69068,
+                    workspace_image_prefetch_reused_v69068,
+                ) = _submit_image_prefetch_v69068(
+                    "workspace|" + str(image_search_coordinator_v69062.turn_key),
+                    _workspace_image_prefetch_file_search_results_v69062,
+                    assistant,
+                    interaction_prompt,
+                    image_search_coordinator_v69062,
                 )
-                workspace_image_prefetch_future_v69062 = (
-                    workspace_image_prefetch_executor_v69062.submit(
-                        _workspace_image_prefetch_file_search_results_v69062,
-                        assistant,
-                        interaction_prompt,
-                        image_search_coordinator_v69062,
-                    )
+                diagnostic_log(
+                    "workspace_image_prefetch_scheduled_v69068",
+                    workspace=str(assistant),
+                    reused_running=workspace_image_prefetch_reused_v69068,
                 )
             except Exception as error:
                 workspace_image_prefetch_executor_v69062 = None
@@ -68620,23 +69085,15 @@ else:
         # v69062: exact-answer URL recovery is stage 5 inside the single
         # destination-scoped state machine above.  Do not run a second bridge.
 
-        technical_image_prefetch_executor_active_v69015 = locals().get(
-            "technical_image_prefetch_executor_v69015"
+        # v69068: no per-turn executor is created. Cancel only queued optional
+        # work; an already-running prefetch is bounded by its image-only provider
+        # timeout and the shared worker cap.
+        _cancel_pending_image_prefetch_v69068(
+            locals().get("technical_image_prefetch_future_v69015")
         )
-        if technical_image_prefetch_executor_active_v69015 is not None:
-            try:
-                technical_image_prefetch_executor_active_v69015.shutdown(wait=False)
-            except Exception:
-                pass
-
-        workspace_image_prefetch_executor_active_v69062 = locals().get(
-            "workspace_image_prefetch_executor_v69062"
+        _cancel_pending_image_prefetch_v69068(
+            locals().get("workspace_image_prefetch_future_v69062")
         )
-        if workspace_image_prefetch_executor_active_v69062 is not None:
-            try:
-                workspace_image_prefetch_executor_active_v69062.shutdown(wait=False)
-            except Exception:
-                pass
 
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
@@ -68646,6 +69103,9 @@ else:
                 generated_images,
                 assistant,
                 coordinator=image_search_coordinator_v69062,
+            )
+            _observe_live_image_publication_v69068(
+                assistant, generated_images
             )
             _commit_image_search_coordinator_v69062(
                 image_search_coordinator_v69062
