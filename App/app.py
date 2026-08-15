@@ -1,4 +1,4 @@
-# AutoTecPro AI v69081 — Knowledge response accuracy and first-token acceleration
+# AutoTecPro AI v69082 — Unified case and exact learned-image authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69081"
+ATP_BUILD_VERSION_V69062 = "v69082"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -101,7 +101,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69078-graphic-multitab-lease-heartbeat+"
     "v69079-v69050-ordinary-evidence-first+"
     "v69080-universal-exact-subtitle-image-authority+"
-    "v69081-knowledge-response-accuracy-acceleration"
+    "v69081-knowledge-response-accuracy-acceleration+"
+    "v69082-unified-case-image-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -41562,8 +41563,28 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
             "The selected vector store is not configured. Add its vs_ ID to "
             "Streamlit Secrets and restart the app."
         )
-    openai_file = client.files.create(file=uploaded_file, purpose="assistants")
-    client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
+    openai_file = None
+    try:
+        openai_file = client.files.create(
+            file=uploaded_file, purpose="assistants"
+        )
+        client.vector_stores.files.create(
+            vector_store_id=vector_store_id,
+            file_id=openai_file.id,
+        )
+    except Exception:
+        # Do not leak an unattached OpenAI file when the second half of the
+        # two-call upload transaction fails.  This is used by knowledge uploads;
+        # Graphic generation/reference/After Install do not enter this path.
+        orphan_id_v69082 = str(
+            getattr(openai_file, "id", "") or ""
+        ).strip()
+        if orphan_id_v69082:
+            try:
+                client.files.delete(orphan_id_v69082)
+            except Exception:
+                pass
+        raise
     try:
         vector_store_has_filename.clear()
     except Exception:
@@ -49296,10 +49317,13 @@ class KnowledgePageHTMLParser(HTMLParser):
     def _semantic_subtitle_candidate_v69067(value):
         """Return a high-confidence block-level bold subtitle, or an empty string.
 
-        The page learner remains fail closed: ordinary inline emphasis is ignored.
-        A candidate must describe a recognizable image/section topic or carry an
-        explicit year range.  This supports Technical, Sales, and Marketing pages
-        without weakening destination, vehicle, year, product, or topic gates.
+        v69082 keeps the existing known-topic/year rules and also accepts a short,
+        heading-shaped bold label for a topic that has never been hard-coded (for
+        example ``Time and Date Setup``).  The label is only *relationship metadata*:
+        it can authorize the immediately following logical image group only, and
+        every destination, vehicle, year, product, visual-role and final-publication
+        gate still runs later.  Long prose and ordinary inline emphasis remain
+        excluded here.
         """
         text = re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip(" \t\r\n-|•")
         if not text or len(text) < 4 or len(text) > 240:
@@ -49330,7 +49354,20 @@ class KnowledgePageHTMLParser(HTMLParser):
             lowered,
             flags=re.I,
         ))
-        if not (explicit_year_range or semantic_topic):
+        generic_heading_shape_v69082 = bool(
+            len(words) <= 18
+            and not re.search(r"[.!?;]\s*$", text)
+            and not re.match(
+                r"(?i)^(?:this|that|these|those|it|they|we|you|i|our|your)\b",
+                text,
+            )
+            and not re.search(
+                r"(?i)\b(?:click here|add to cart|buy now|read more|learn more|"
+                r"related products?|customer reviews?|share this)\b",
+                text,
+            )
+        )
+        if not (explicit_year_range or semantic_topic or generic_heading_shape_v69082):
             return ""
         return text
 
@@ -54522,6 +54559,124 @@ def _website_image_exact_subtitle_relation_v69080(
     return True, score, "EXACT_SUBTITLE_TOPIC_RELATED"
 
 
+def _website_image_local_structured_relation_v69082(
+    prompt_text, answer_text, payload
+):
+    """Prove image-local topic relevance for old and new learned packages.
+
+    A v69073 exact DOM subtitle remains the strongest relationship and is used
+    unchanged.  This second tier exists for two safe cases seen in production:
+    an older structured package created before v69073, or an image whose page uses
+    a short bold label that was not in the old hard-coded subtitle vocabulary.
+
+    It never treats a page URL/title as image authority.  The relationship must be
+    present in the image-local subtitle, heading, caption, structured visual QA, or
+    visual analysis.  Classified/high-risk roles must still pass the complete
+    v68885 role/visual gate.  Callers continue to enforce destination ownership,
+    vehicle, year, product, answer conflict and final publication gates.
+    """
+    exact_pass, exact_score, exact_reason = (
+        _website_image_exact_subtitle_relation_v69080(
+            prompt_text, answer_text, payload
+        )
+    )
+    if exact_pass:
+        return exact_pass, exact_score, exact_reason
+    if not isinstance(payload, dict):
+        return False, 0.0, "INVALID_PAYLOAD"
+    if _website_source_zone_is_excluded_v69024(
+        str(payload.get("source_zone_v69024") or "")
+    ):
+        return False, 0.0, "EXCLUDED_SOURCE_ZONE"
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt:
+        return False, 0.0, "EMPTY_PROMPT"
+
+    query_role = _website_image_query_role_v68884(prompt)
+    if query_role and not _website_image_final_payload_gate_v68885(
+        prompt, payload
+    ):
+        return False, 0.0, "CLASSIFIED_ROLE_GATE_REJECTED"
+
+    structured = _website_image_structured_metadata_v69022(payload)
+    structured_text = json.dumps(
+        structured, ensure_ascii=False, sort_keys=True, default=str
+    ) if structured else ""
+    anchor_text = " ".join((
+        str(payload.get("section_subtitle_v69067") or ""),
+        str(payload.get("section_heading") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+        structured_text,
+    ))
+    anchor_signature = _website_image_relation_signature_v69080(anchor_text)
+    if not anchor_signature:
+        return False, 0.0, "NO_IMAGE_LOCAL_TOPIC_EVIDENCE"
+
+    prompt_signature = _website_image_relation_signature_v69080(prompt)
+    answer_signature = _website_image_relation_signature_v69080(answer)
+    identity_text = " ".join(
+        list(_website_identity_brand_set_v69022(prompt))
+        + list(_website_identity_vehicle_families_v69022(prompt))
+        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
+        + sorted(_website_image_product_codes_v69020(prompt))
+        + sorted(_technical_product_variants_v69077(prompt))
+    )
+    identity_signature = _website_image_relation_signature_v69080(identity_text)
+    size_tokens = set(re.findall(
+        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
+        r"15\.1|15\.6|17\.2)\b",
+        prompt.casefold(),
+    ))
+    prompt_topic = prompt_signature - identity_signature - size_tokens
+    weak = {
+        "car", "carmodel", "model", "vehicle", "product", "system", "unit",
+        "screen", "display", "radio", "setting", "install", "technical",
+        "support", "factory", "original", "android", "style",
+    }
+    direct = prompt_topic & anchor_signature
+    strong_direct = direct - weak
+    answer_bridge = (answer_signature & anchor_signature) - weak
+
+    if query_role:
+        if not _website_image_section_role_match_v68890(query_role, payload):
+            return False, 0.0, "CLASSIFIED_LOCAL_ROLE_NOT_RELATED"
+        role_score = max(
+            0.0, float(_website_image_role_score_v68884(query_role, payload))
+        )
+        return True, 62.0 + min(role_score, 36.0), "CLASSIFIED_LOCAL_STRUCTURED"
+
+    direct_pass = bool(strong_direct) or len(direct) >= 2
+    bridge_pass = bool(
+        prompt_topic & answer_signature and len(answer_bridge) >= 2
+    )
+    if not (direct_pass or bridge_pass):
+        return False, 0.0, "LOCAL_TOPIC_NOT_RELATED"
+
+    confidence = _website_safe_float_v69067(
+        payload.get("context_confidence_v69067"), 0.0
+    )
+    has_visual_qa = bool(
+        str(payload.get("visual_analysis") or "").strip()
+        or structured
+    )
+    if confidence < 0.55 and not has_visual_qa:
+        return False, 0.0, "LOCAL_RELATION_NOT_VERIFIED"
+
+    score = (
+        38.0
+        + 14.0 * len(strong_direct)
+        + 6.0 * len(direct & weak)
+        + 3.0 * min(len(answer_bridge), 6)
+        + 8.0 * min(max(confidence, 0.0), 1.0)
+    )
+    return True, score, "IMAGE_LOCAL_STRUCTURED_TOPIC_RELATED"
+
+
 def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     """Universal image-specific retrieval query based on the actual answer context."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:2200]
@@ -56005,7 +56160,7 @@ def _technical_subtitle_image_manifest_v69080(
             continue
 
         subtitle_pass, subtitle_score, subtitle_reason = (
-            _website_image_exact_subtitle_relation_v69080(
+            _website_image_local_structured_relation_v69082(
                 prompt, answer, payload
             )
         )
@@ -56051,11 +56206,22 @@ def _technical_subtitle_image_manifest_v69080(
         score = base_score + float(subtitle_score) + 120.0
         record["website_exact_manifest_v69080"] = True
         record["website_exact_manifest_relation_v69080"] = subtitle_reason
+        record["website_local_structured_relation_v69082"] = bool(
+            subtitle_reason == "IMAGE_LOCAL_STRUCTURED_TOPIC_RELATED"
+            or subtitle_reason == "CLASSIFIED_LOCAL_STRUCTURED"
+        )
         record["website_image_match_score_v68883"] = round(score, 3)
         _attach_image_provenance_v69062(
             record, payload, "Technical Support Database",
             "durable_image_index", score,
-            "EXACT_SUBTITLE_INQUIRY_AND_FITMENT",
+            (
+                "EXACT_SUBTITLE_INQUIRY_AND_FITMENT"
+                if subtitle_reason in {
+                    "CLASSIFIED_EXACT_SUBTITLE",
+                    "EXACT_SUBTITLE_TOPIC_RELATED",
+                }
+                else "IMAGE_LOCAL_TOPIC_AND_FITMENT"
+            ),
             {
                 "vehicle_gate": "pass", "year_gate": "pass",
                 "product_gate": "pass", "topic_gate": "pass",
@@ -58835,6 +59001,91 @@ def _website_invalidate_learning_caches_v69069(database_choices):
     return revisions
 
 
+def _website_transient_provider_error_v69082(error):
+    """Classify only retry-safe OpenAI transport/service failures."""
+    status = getattr(error, "status_code", None)
+    try:
+        status = int(status) if status is not None else None
+    except Exception:
+        status = None
+    if status in {408, 409, 425, 429} or (status is not None and status >= 500):
+        return True
+    name = type(error).__name__.casefold()
+    text = str(error or "").casefold()
+    return any(token in name or token in text for token in (
+        "timeout", "timed out", "connectionerror", "connection error",
+        "apiconnection", "ratelimit", "rate limit", "temporarily unavailable",
+        "service unavailable", "bad gateway", "gateway timeout",
+    ))
+
+
+def _website_upload_and_wait_v69082(
+    package_bytes, filename, vector_store_id,
+):
+    """Attach one website package with bounded retry and indexing grace.
+
+    Upload/attach is retried only for transient transport/provider failures.  A
+    successfully attached file is never uploaded a second time merely because
+    indexing takes longer than the old 30-second window; it receives one bounded
+    60-second grace period.  The caller retains all existing rollback rules.
+    """
+    raw = bytes(package_bytes or b"")
+    if not raw:
+        raise RuntimeError("Website knowledge package is empty.")
+    file_id = ""
+    for attempt in range(3):
+        artifact = ManagedUploadedFile(raw, filename, "text/plain")
+        try:
+            file_id = upload_to_vector_store(artifact, vector_store_id)
+            break
+        except Exception as error:
+            retryable = _website_transient_provider_error_v69082(error)
+            diagnostic_log(
+                "website_vector_attach_attempt_v69082",
+                attempt=attempt + 1,
+                retryable=bool(retryable),
+                error_type=type(error).__name__,
+                status_code=getattr(error, "status_code", None),
+            )
+            if not retryable or attempt >= 2:
+                setattr(error, "failure_stage_v69082", "VECTOR_ATTACH")
+                raise
+            time.sleep(0.35 * (2 ** attempt))
+
+    if not file_id:
+        raise RuntimeError("OpenAI did not return a website vector file ID.")
+
+    try:
+        status = _wait_for_vector_store_file(
+            vector_store_id, file_id, timeout_seconds=30
+        )
+        if str(status or "").casefold() in {"queued", "in_progress", "processing"}:
+            diagnostic_log(
+                "website_vector_index_grace_started_v69082",
+                initial_status=str(status or ""),
+            )
+            status = _wait_for_vector_store_file(
+                vector_store_id, file_id, timeout_seconds=60
+            )
+    except Exception as error:
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=vector_store_id, file_id=file_id
+            )
+        except Exception:
+            pass
+        try:
+            client.files.delete(file_id)
+        except Exception:
+            pass
+        try:
+            setattr(error, "failure_stage_v69082", "VECTOR_INDEX")
+        except Exception:
+            pass
+        raise
+    return file_id, str(status or "queued").casefold()
+
+
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -59028,24 +59279,14 @@ def save_website_knowledge_package(
         "skipped_reason": "replacement-not-yet-indexed",
     }
 
-    website_file = ManagedUploadedFile(
-        package_text.encode("utf-8"),
-        filename,
-        "text/plain",
-    )
-
     file_id = ""
     try:
-        file_id = upload_to_vector_store(
-            website_file,
+        file_id, indexing_status_v68892 = _website_upload_and_wait_v69082(
+            package_text.encode("utf-8"),
+            filename,
             selected_vector_store_id,
         )
-        indexing_status_v68892 = _wait_for_vector_store_file(
-            selected_vector_store_id,
-            file_id,
-            timeout_seconds=30,
-        )
-    except Exception:
+    except Exception as error:
         # Never remove the previous good version if replacement upload/indexing fails.
         if file_id:
             try:
@@ -59057,6 +59298,11 @@ def save_website_knowledge_package(
                 pass
             try:
                 client.files.delete(file_id)
+            except Exception:
+                pass
+        if not getattr(error, "failure_stage_v69082", ""):
+            try:
+                setattr(error, "failure_stage_v69082", "VECTOR_UPLOAD_OR_INDEX")
             except Exception:
                 pass
         raise
@@ -60165,14 +60411,30 @@ def save_website_knowledge_to_destinations_v69029(
                 image_analysis_override_v69029=destination_analysis_v69040,
             )
         except Exception as error:
+            failure_stage_v69082 = str(
+                getattr(error, "failure_stage_v69082", "")
+                or getattr(error, "failure_stage_v69077", "")
+                or "DESTINATION_SAVE"
+            ).strip().upper()
+            reason_codes_v69082 = list(
+                getattr(error, "reason_codes_v69077", None) or []
+            )
+            if not reason_codes_v69082:
+                error_text_v69082 = str(error or "").casefold()
+                if "index" in error_text_v69082:
+                    reason_codes_v69082 = ["VECTOR_INDEX_NOT_COMPLETED"]
+                elif _website_transient_provider_error_v69082(error):
+                    reason_codes_v69082 = ["TRANSIENT_PROVIDER_FAILURE"]
+                else:
+                    reason_codes_v69082 = [failure_stage_v69082]
             failures[destination] = {
                 "error_type": type(error).__name__,
                 "error": str(error),
-                "reason_codes": list(
-                    getattr(error, "reason_codes_v69077", None) or []
-                ),
-                "failure_stage_v69077": str(
-                    getattr(error, "failure_stage_v69077", "") or ""
+                "reason_codes": reason_codes_v69082,
+                "failure_stage_v69077": failure_stage_v69082,
+                "retryable_v69082": bool(
+                    _website_transient_provider_error_v69082(error)
+                    or failure_stage_v69082 in {"VECTOR_ATTACH", "VECTOR_INDEX"}
                 ),
             }
             diagnostic_log(
@@ -65350,6 +65612,175 @@ def _technical_image_effective_turn_query_v69080(prompt_text):
     return current
 
 
+def _technical_case_image_authority_v69082(prompt_text):
+    """Build one user/staff-owned case identity for answer and image retrieval.
+
+    The production failure this closes was an authority split: the provider read
+    durable current-case staff knowledge, while image recovery inspected only a
+    short eight-message user window.  Long follow-ups such as ``show the time
+    setup photo`` therefore retained the right answer but lost F-250/2011/726
+    fitment before final image QA.
+
+    This resolver never reads assistant prose.  It uses the current prompt, the
+    nearest prior *user* subject in this open conversation, and at most one exact
+    vehicle/year staff-confirmed record from the same conversation.  Conflicting
+    variants/systems are omitted rather than guessed.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    result = {
+        "effective_query": current,
+        "vehicle_families": [],
+        "years": [],
+        "product_variants": [],
+        "factory_systems": [],
+        "screen_sizes": [],
+        "history_restored": False,
+        "staff_record_restored": False,
+    }
+    if not current or str(assistant or "") != "🔧 Technical Support":
+        return result
+
+    current_families = set(_website_identity_vehicle_families_v69022(current))
+    current_years = set(_website_identity_years_v69022(current))
+    current_variants = set(_technical_product_variants_v69077(current))
+    current_systems = set(_website_identity_systems_v69022(current))
+
+    user_rows = []
+    skipped_current = False
+    for message in list(st.session_state.get("messages") or [])[-48:]:
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = re.sub(
+            r"\s+", " ", clean_visible_chat_text(visible)
+        ).strip()
+        if visible:
+            user_rows.append(visible[:1600])
+    # The current message is appended to session state before this resolver runs.
+    for index in range(len(user_rows) - 1, -1, -1):
+        if user_rows[index].casefold() == current.casefold():
+            user_rows.pop(index)
+            skipped_current = True
+            break
+
+    anchor_index = None
+    anchor_text = ""
+    for index in range(len(user_rows) - 1, -1, -1):
+        candidate = user_rows[index]
+        families = set(_website_identity_vehicle_families_v69022(candidate))
+        years = set(_website_identity_years_v69022(candidate))
+        if not (families or years):
+            continue
+        if current_families and families and not (current_families & families):
+            continue
+        if current_years and years and not (current_years & years):
+            continue
+        if current_families and not years and not current_years:
+            continue
+        anchor_index = index
+        anchor_text = candidate
+        break
+
+    if anchor_text:
+        anchor_families = set(_website_identity_vehicle_families_v69022(anchor_text))
+        anchor_years = set(_website_identity_years_v69022(anchor_text))
+        if not current_families:
+            current_families = anchor_families
+        if not current_years:
+            current_years = anchor_years
+        result["history_restored"] = True
+
+    segment_rows = (
+        user_rows[anchor_index:] if anchor_index is not None else []
+    )
+    segment_text = "\n".join(segment_rows + [current])
+    segment_variants = set(_technical_product_variants_v69077(segment_text))
+    segment_systems = set(_website_identity_systems_v69022(segment_text))
+
+    # Only one exact staff-confirmed record may enrich this turn.  Never merge
+    # multiple records because a case can contain corrections or several vehicles.
+    matched_record = ""
+    try:
+        learned_context = _recent_case_learned_knowledge_context(
+            "🔧 Technical Support", limit=10
+        )
+    except Exception:
+        learned_context = ""
+    for block in re.split(r"(?=\nRECORD\s+\d+\n)", str(learned_context or "")):
+        if "Staff confirmed: True" not in block:
+            continue
+        block_families = set(_website_identity_vehicle_families_v69022(block))
+        block_years = set(_website_identity_years_v69022(block))
+        if not current_families or not block_families:
+            continue
+        if not (current_families & block_families):
+            continue
+        if current_years and block_years and not (current_years & block_years):
+            continue
+        matched_record = block[:5000]
+        result["staff_record_restored"] = True
+        break
+
+    record_variants = set(
+        _technical_product_variants_v69077(matched_record)
+    ) if matched_record else set()
+    record_systems = set(
+        _website_identity_systems_v69022(matched_record)
+    ) if matched_record else set()
+
+    variants = current_variants or segment_variants or record_variants
+    if len(variants) != 1:
+        variants = set()
+    systems = current_systems or segment_systems or record_systems
+    sync_systems = {
+        value for value in systems
+        if value == "no_sync" or value.startswith("sync_")
+    }
+    if len(sync_systems) > 1:
+        systems = systems - sync_systems
+
+    size_source = current + "\n" + segment_text
+    if matched_record:
+        size_source += "\n" + matched_record
+    sizes = set(re.findall(
+        r"(?<!\d)(?:10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
+        r"15\.1|15\.6|17\.2|17)(?=\s*(?:inch|inches|in|\"|\b))",
+        size_source.casefold(),
+    ))
+    if len(sizes) != 1:
+        sizes = set()
+
+    authority = {
+        "vehicle_families": sorted(current_families),
+        "years": sorted(current_years),
+        "product_variants": sorted(variants),
+        "factory_systems": sorted(systems),
+        "screen_sizes": sorted(sizes),
+    }
+    authority = {key: value for key, value in authority.items() if value}
+    result.update(authority)
+    if authority:
+        result["effective_query"] = (
+            current
+            + "\n\nCURRENT-CASE VERIFIED FITMENT AUTHORITY V69082:\n"
+            + json.dumps(authority, ensure_ascii=False, sort_keys=True)
+        )
+    diagnostic_log(
+        "technical_case_image_authority_v69082",
+        history_restored=bool(result.get("history_restored")),
+        staff_record_restored=bool(result.get("staff_record_restored")),
+        vehicle_family_count=len(result.get("vehicle_families") or []),
+        year_count=len(result.get("years") or []),
+        variant_count=len(result.get("product_variants") or []),
+        system_count=len(result.get("factory_systems") or []),
+    )
+    return result
+
+
 def _technical_store_photo_context_v68879(prompt_text, uploaded_files):
     records = []
     for item in uploaded_files or []:
@@ -70233,13 +70664,17 @@ else:
             if assistant == "🔧 Technical Support"
             else interaction_prompt
         )
-        technical_image_request_prompt_v69079 = (
-            _technical_image_effective_turn_query_v69080(
+        technical_case_image_authority_v69082 = (
+            _technical_case_image_authority_v69082(
                 technical_request_prompt_v68879
             )
             if assistant == "🔧 Technical Support"
-            else technical_request_prompt_v68879
+            else {"effective_query": technical_request_prompt_v68879}
         )
+        technical_image_request_prompt_v69079 = str(
+            technical_case_image_authority_v69082.get("effective_query")
+            or technical_request_prompt_v68879
+        ).strip()
 
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
@@ -71499,7 +71934,7 @@ else:
                         live_data_override=preloaded_live_data,
                         order_displayed_by_app=bool(order_display_text),
                         subject_authority_prompt_v69081=(
-                            technical_request_prompt_v68879
+                            technical_image_request_prompt_v69079
                             if assistant == "🔧 Technical Support"
                             else interaction_prompt
                         ),
@@ -71785,7 +72220,7 @@ else:
         if assistant == "🔧 Technical Support" and str(answer or "").strip():
             answer_v69077, variant_blocked_v69077 = (
                 _technical_variant_ambiguity_guard_v69077(
-                    technical_request_prompt_v68879, answer
+                    technical_image_request_prompt_v69079, answer
                 )
             )
             if variant_blocked_v69077:
@@ -72511,6 +72946,25 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
+        # v69082 single-card publication: the streamed card and the restored
+        # history card briefly coexisted during Streamlit's mandatory rerun.  Clear
+        # only the non-Graphic transient placeholders after persistence is complete
+        # and immediately before rerun.  The durable assistant message (including
+        # image provenance) is already in session state and Supabase.
+        if not is_graphic_workspace(assistant):
+            try:
+                active_stream_placeholder_v69082 = locals().get(
+                    "stream_placeholder"
+                )
+                if active_stream_placeholder_v69082 is not None:
+                    active_stream_placeholder_v69082.empty()
+                active_loading_placeholder_v69082 = locals().get(
+                    "loading_status_placeholder"
+                )
+                if active_loading_placeholder_v69082 is not None:
+                    active_loading_placeholder_v69082.empty()
+            except Exception:
+                pass
         st.rerun()
 
 # Process maintenance only after the completed answer has already been
