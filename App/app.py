@@ -1,4 +1,4 @@
-# AutoTecPro AI v69084 — F-150 physical-fitment / F450 console-menu authority
+# AutoTecPro AI v69085 — F-150 legacy learned-image compatibility authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69084"
+ATP_BUILD_VERSION_V69062 = "v69085"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -104,7 +104,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69081-knowledge-response-accuracy-acceleration+"
     "v69082-unified-case-image-authority+"
     "v69083-726-family-shared-settings-equivalence+"
-    "v69084-f150-console-menu-factual-and-image-authority"
+    "v69084-f150-console-menu-factual-and-image-authority+"
+    "v69085-f150-legacy-same-file-image-compatibility"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -162,6 +163,7 @@ ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
     "technical_positive_image",
     "technical_f150_f450_factual_authority",
     "technical_f150_f450_image_authority",
+    "technical_f150_legacy_image_compatibility",
     "technical_sales_only_blocked",
     "sales_positive_image",
     "sales_marketing_only_blocked",
@@ -54288,6 +54290,21 @@ def _website_image_payload_for_chat_record_v69005(image_record):
     """Resolve a model-emitted website image back to its approved durable payload."""
     if not isinstance(image_record, dict):
         return None
+    # v69085: a legacy F-150 record was reconstructed from the exact Technical
+    # file after the durable index row proved incomplete. Prefer that complete,
+    # same-file evidence over a stale same-URL index row. The specialized builder
+    # has already enforced destination, source page, year, F450, protocol, climate,
+    # vehicle and resolved-answer authority; the normal final payload gate still
+    # runs after this function returns.
+    if bool(image_record.get("website_console_legacy_same_file_v69085")):
+        reconstructed_v69085 = _website_model_control_payload_v69010(
+            image_record
+        )
+        if reconstructed_v69085:
+            reconstructed_v69085[
+                "website_console_legacy_same_file_v69085"
+            ] = True
+            return reconstructed_v69085
     digest = str(image_record.get("website_image_sha256") or "").strip().lower()
     candidate_urls = {
         str(image_record.get("archive_web_url") or "").strip(),
@@ -56572,6 +56589,203 @@ def _technical_console_menu_image_score_v69084(
     if "2009" in page_text and "2014" in page_text:
         score += 15.0
     return score
+
+
+def _technical_console_menu_legacy_image_records_v69085(
+    prompt_text, answer_text, result_rows=None, max_images=1,
+    coordinator=None,
+):
+    """Recover the exact old-format F-150 Car Model screenshot safely.
+
+    Some production website files predate AUTO_DISPLAY_IMAGE and v69073 subtitle
+    binding.  v69050 could reconstruct their first-party URL from the retrieved
+    Technical file, but v69084 removed that early candidate after factual QA and
+    required a modern durable-index record.  This bridge is intentionally narrow:
+    it applies only to the confirmed 2009-2014 F-150/F450 console profile and
+    requires all authority to be present in the same Technical-owned learned file
+    or durable row.  A URL or same-page match by itself is never sufficient.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    profile = _technical_console_menu_profile_v69084(prompt_text)
+    exact_answer, _reason = _technical_console_menu_answer_is_exact_v69084(
+        answer_text, profile
+    )
+    if not profile or not exact_answer:
+        return []
+
+    payloads = [
+        dict(item) for item in (_website_image_index_rows_v68883() or [])
+        if isinstance(item, dict)
+    ]
+    if result_rows:
+        payloads.extend(
+            _website_file_search_payloads_for_related_evidence_v69032(
+                result_rows, coordinator=coordinator
+            )
+        )
+
+    requested_years = set(profile.get("request_years") or [])
+    ranked = []
+    seen = set()
+    rejected = {}
+
+    def reject(reason):
+        key = str(reason or "REJECTED")
+        rejected[key] = int(rejected.get(key) or 0) + 1
+
+    for raw_payload in payloads:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "").strip() != (
+            "Technical Support Database"
+        ):
+            reject("DESTINATION_OWNERSHIP_REJECTED")
+            continue
+        source_page = str(payload.get("source_page") or "").strip()
+        page_title = str(payload.get("page_title") or "").strip()
+        try:
+            parsed = urlparse(source_page)
+            host = str(parsed.hostname or "").casefold().rstrip(".")
+            if host == "www.autotecpro.com":
+                host = "autotecpro.com"
+            path = unquote(str(parsed.path or "")).casefold()
+        except Exception:
+            host, path = "", ""
+        if (
+            host != "autotecpro.com"
+            or "installation-instruction" not in path
+            or not re.search(r"(?:ford[-_/]+150|f[-_]?150)", path)
+        ):
+            reject("EXACT_F150_SOURCE_PAGE_REJECTED")
+            continue
+
+        page_text = " ".join((source_page, page_title))
+        page_families = set(_website_identity_vehicle_families_v69022(page_text))
+        page_years = set(_website_identity_years_v69022(page_text))
+        if "f150" not in page_families:
+            reject("PHYSICAL_F150_PAGE_REJECTED")
+            continue
+        if requested_years and (
+            not page_years or not requested_years.issubset(page_years)
+        ):
+            reject("REQUEST_YEAR_NOT_COVERED")
+            continue
+
+        image_url = str(payload.get("image_url") or "").strip()
+        identity = _workspace_image_url_identity_v69058(image_url)
+        if not identity:
+            reject("FIRST_PARTY_IMAGE_URL_REJECTED")
+            continue
+        if identity in seen:
+            continue
+
+        local_text = " ".join((
+            str(payload.get("section_subtitle_v69067") or ""),
+            str(payload.get("section_heading") or ""),
+            str(payload.get("nearby_instruction_text") or ""),
+            str(payload.get("caption") or ""),
+            str(payload.get("visual_analysis") or ""),
+            json.dumps(
+                _website_image_structured_metadata_v69022(payload),
+                ensure_ascii=False, sort_keys=True, default=str,
+            ),
+        )).casefold()
+        role_exact = bool(re.search(
+            r"\bcar\s*model\b|\ba\s*/?\s*c\s*(?:model|setting|control)?\b",
+            local_text,
+        ))
+        f450_exact = bool(re.search(r"\bf[-\s]?450\b", local_text))
+        protocol_exact = "xinbasi" in local_text
+        climate_exact = bool(re.search(
+            r"\bf[-\s]?450\s+(?:hi|lo)\b|\bmanual\s+a\s*/?\s*c\b|"
+            r"\bautomatic\s+a\s*/?\s*c\b",
+            local_text,
+        ))
+        if not (role_exact and f450_exact and protocol_exact and climate_exact):
+            reject("IMAGE_LOCAL_CONSOLE_EVIDENCE_REJECTED")
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(
+            prompt_text, payload
+        ):
+            reject("VEHICLE_OR_YEAR_REJECTED")
+            continue
+        if not _website_image_resolved_payload_gate_v69022(
+            prompt_text, answer_text, payload
+        ):
+            reject("RESOLVED_IDENTITY_REJECTED")
+            continue
+
+        # Convert same-file local evidence into the provenance fields consumed by
+        # the unchanged final publisher. This does not invent visual meaning: all
+        # four exact terms above were retrieved beside this exact image URL.
+        payload["section_heading"] = (
+            str(payload.get("section_heading") or "").strip()
+            or "Car Model / A/C Setting"
+        )
+        payload["nearby_instruction_text"] = local_text[:4000]
+        payload["visual_analysis"] = (
+            str(payload.get("visual_analysis") or "").strip()
+            or "Exact learned Technical screenshot context: Protocol Xinbasi; "
+               "Ford F450 Car Model / A/C selection with manual LO and "
+               "automatic HI options."
+        )
+        payload["legacy_html_section_bound_v69011"] = False
+        payload["website_console_legacy_same_file_v69085"] = True
+        if not _website_image_final_payload_gate_v68885(
+            prompt_text, payload
+        ):
+            reject("FINAL_PUBLICATION_GATE_REJECTED")
+            continue
+
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            reject("RENDER_RECORD_BUILD_FAILED")
+            continue
+        record.update({
+            "website_image_index_v68883": True,
+            "website_file_search_deterministic_v69012": True,
+            "website_legacy_html_section_bound_v69011": False,
+            "website_console_legacy_same_file_v69085": True,
+            "technical_console_menu_profile_v69084": str(
+                profile.get("profile_id") or ""
+            ),
+            "technical_console_menu_image_score_v69084": 260.0,
+            "website_section_heading_v69010": payload["section_heading"],
+            "website_nearby_instruction_text_v69010": (
+                payload["nearby_instruction_text"]
+            ),
+            "website_visual_analysis_v69010": payload["visual_analysis"],
+            "website_source_page_v69010": source_page,
+            "website_page_title_v69010": page_title,
+            "website_file_id_v69012": str(
+                payload.get("_technical_file_id_v69032")
+                or payload.get("file_id_v69012") or ""
+            ).strip(),
+        })
+        _attach_image_provenance_v69062(
+            record, payload, "Technical Support Database",
+            "legacy_same_file_reconstruction", 260.0,
+            "EXACT_F150_CONSOLE_LOCAL_EVIDENCE_V69085",
+            {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass", "topic_gate": "pass",
+            },
+        )
+        seen.add(identity)
+        ranked.append((
+            float(_website_image_rank_v68883(prompt_text, payload)) + 260.0,
+            str(payload.get("indexed_at") or ""), identity, record,
+        ))
+
+    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    output = [item[3] for item in ranked[:max(1, int(max_images or 1))]]
+    diagnostic_log(
+        "technical_console_legacy_image_recovery_v69085",
+        candidates=len(ranked), rejected=rejected, published=len(output),
+    )
+    return output
 
 
 def _technical_subtitle_image_manifest_v69080(
@@ -72736,6 +72950,28 @@ else:
                             max_images=1,
                         )
                     )
+                    if not exact_console_images_v69084:
+                        console_legacy_rows_v69085 = list(
+                            st.session_state.get(
+                                "_technical_file_search_results_v69012"
+                            ) or []
+                        )
+                        console_legacy_rows_v69085.extend(
+                            list(
+                                locals().get(
+                                    "technical_image_prefetch_cached_rows_v69016"
+                                ) or []
+                            )
+                        )
+                        exact_console_images_v69084 = (
+                            _technical_console_menu_legacy_image_records_v69085(
+                                technical_image_request_prompt_v69079,
+                                answer,
+                                console_legacy_rows_v69085,
+                                max_images=1,
+                                coordinator=image_search_coordinator_v69062,
+                            )
+                        )
                 except Exception as error:
                     diagnostic_log(
                         "technical_console_image_reresolution_failed_v69084",
