@@ -1,4 +1,4 @@
-# AutoTecPro AI v69085 — F-150 legacy learned-image compatibility authority
+# AutoTecPro AI v69086 — F-150 Xinbasi protocol + learned-image authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69085"
+ATP_BUILD_VERSION_V69062 = "v69086"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -105,7 +105,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69082-unified-case-image-authority+"
     "v69083-726-family-shared-settings-equivalence+"
     "v69084-f150-console-menu-factual-and-image-authority+"
-    "v69085-f150-legacy-same-file-image-compatibility"
+    "v69085-f150-legacy-same-file-image-compatibility+"
+    "v69086-f150-xinbasi-protocol-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -164,6 +165,7 @@ ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
     "technical_f150_f450_factual_authority",
     "technical_f150_f450_image_authority",
     "technical_f150_legacy_image_compatibility",
+    "technical_f150_xinbasi_protocol_authority",
     "technical_sales_only_blocked",
     "sales_positive_image",
     "sales_marketing_only_blocked",
@@ -39993,6 +39995,7 @@ def _technical_console_menu_profile_v69084(prompt_text):
         "request_years": sorted(years),
         "console_make": "Ford",
         "console_car_model": "F450",
+        "protocol_selection": "Xinbasi",
         "manual_ac_selection": "F450 LO",
         "automatic_ac_selection": "F450 HI",
         "shared_screen_sizes": ["12.1", "14.4"],
@@ -40016,6 +40019,7 @@ def _technical_console_menu_canonical_answer_v69084(profile):
         f"## {year_label}Ford F-150 Car Model / A/C Setting\n\n"
         "The physical vehicle is a **Ford F-150**. Inside the AutoTecPro "
         "radio's Car Model / A/C menu, use these values:\n\n"
+        f"**Protocol: {profile.get('protocol_selection') or 'Xinbasi'}**\n\n"
         "| Factory climate control | Make | Car Model / A/C value |\n"
         "|---|---|---|\n"
         f"| Manual A/C | {profile.get('console_make') or 'Ford'} | "
@@ -40030,7 +40034,7 @@ def _technical_console_menu_canonical_answer_v69084(profile):
 
 
 def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
-    """Require both climate variants and reject F150 as a menu value."""
+    """Require Xinbasi plus both climate variants; reject F150 as a menu value."""
     answer = re.sub(r"\s+", " ", clean_visible_chat_text(
         str(answer_text or "")
     )).strip().casefold()
@@ -40048,6 +40052,9 @@ def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
         (profile or {}).get("automatic_ac_selection") or ""
     ).casefold()
     required = [value for value in (manual, automatic) if value]
+    protocol = str(
+        (profile or {}).get("protocol_selection") or ""
+    ).casefold()
     wrong_menu_patterns = (
         r"\bf[-\s]?150\s+(?:hi|lo)\b",
         r"(?:car\s*model|a\s*/?\s*c\s*model|menu\s*(?:value|profile))"
@@ -40061,6 +40068,8 @@ def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
         return False, "WRONG_PHYSICAL_IDENTITY_USED_AS_MENU_VALUE"
     if any(value not in answer for value in required):
         return False, "REQUIRED_CONSOLE_VALUES_MISSING"
+    if protocol and protocol not in answer:
+        return False, "PROTOCOL_XINBASI_MISSING"
     if not all(size in answer for size in ("12.1", "14.4")):
         return False, "SHARED_SCREEN_SETTING_NOT_CONFIRMED"
     return True, "EXACT_CONSOLE_PROFILE_PRESENT"
@@ -40096,6 +40105,7 @@ def _technical_console_menu_factual_qa_v69084(
         "authority_source": profile.get("authority_source"),
         "physical_vehicle_family": profile.get("physical_vehicle_family"),
         "console_car_model": profile.get("console_car_model"),
+        "protocol_selection": profile.get("protocol_selection"),
         "manual_ac_selection": profile.get("manual_ac_selection"),
         "automatic_ac_selection": profile.get("automatic_ac_selection"),
         "shared_screen_sizes": list(profile.get("shared_screen_sizes") or []),
@@ -40116,6 +40126,7 @@ def _technical_console_menu_factual_qa_v69084(
             "profile_id": profile.get("profile_id"),
             "physical_vehicle_family": profile.get("physical_vehicle_family"),
             "console_car_model": profile.get("console_car_model"),
+            "protocol_selection": profile.get("protocol_selection"),
         },
         technical_factual_qa={
             "status": qa.get("status"),
@@ -40183,6 +40194,9 @@ def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant)
                 "console_make": console_profile_v69084.get("console_make"),
                 "console_car_model": console_profile_v69084.get(
                     "console_car_model"
+                ),
+                "protocol_selection": console_profile_v69084.get(
+                    "protocol_selection"
                 ),
                 "manual_ac_selection": console_profile_v69084.get(
                     "manual_ac_selection"
