@@ -1,4 +1,4 @@
-# AutoTecPro AI v69083 — 726-family and shared-settings image equivalence
+# AutoTecPro AI v69084 — F-150 physical-fitment / F450 console-menu authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69083"
+ATP_BUILD_VERSION_V69062 = "v69084"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -103,7 +103,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69080-universal-exact-subtitle-image-authority+"
     "v69081-knowledge-response-accuracy-acceleration+"
     "v69082-unified-case-image-authority+"
-    "v69083-726-family-shared-settings-equivalence"
+    "v69083-726-family-shared-settings-equivalence+"
+    "v69084-f150-console-menu-factual-and-image-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -159,6 +160,8 @@ ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
     "startup_and_login",
     "valid_session_restoration",
     "technical_positive_image",
+    "technical_f150_f450_factual_authority",
+    "technical_f150_f450_image_authority",
     "technical_sales_only_blocked",
     "sales_positive_image",
     "sales_marketing_only_blocked",
@@ -457,6 +460,7 @@ def _runtime_audit_update_v69062(**fields):
         "image_provider_circuit", "image_added_latency_ms", "turn_id",
         "restored_message_count", "restored_image_count",
         "restored_provenance_count", "protected_group_parity",
+        "technical_factual_qa", "technical_console_menu_profile",
     }
     try:
         snapshot = dict(st.session_state.get("_runtime_audit_snapshot_v69062") or {})
@@ -777,11 +781,140 @@ def _observe_live_image_publication_v69068(workspace, image_records):
     )
 
 
+def _technical_bind_console_qa_provenance_v69084(image_records, qa_result):
+    """Persist the exact factual decision with each published website image."""
+    qa = dict(qa_result or {})
+    if qa.get("status") not in {"passed", "corrected"}:
+        return list(image_records or [])
+    safe_qa = {
+        key: value for key, value in qa.items()
+        if key in {
+            "schema_version", "status", "reason_code", "profile_id",
+            "authority_source", "physical_vehicle_family",
+            "console_car_model", "manual_ac_selection",
+            "automatic_ac_selection", "shared_screen_sizes",
+            "provider_file_search_row_count",
+        }
+    }
+    output = []
+    for raw_record in list(image_records or []):
+        if not isinstance(raw_record, dict):
+            continue
+        record = dict(raw_record)
+        if str(record.get("source") or "") == "website_knowledge":
+            provenance = dict(
+                record.get("website_image_provenance_v69062") or {}
+            )
+            provenance["technical_console_factual_qa_v69084"] = dict(safe_qa)
+            record["website_image_provenance_v69062"] = provenance
+            record["technical_console_factual_qa_v69084"] = dict(safe_qa)
+        output.append(record)
+    return output
+
+
+def _observe_live_technical_console_authority_v69084(
+    prompt_text, answer_text, qa_result, image_records,
+):
+    """Attest the exact deployed F-150/F450 answer and image in Admin runtime."""
+    if not bool(st.session_state.get("logged_in")):
+        return
+    if str(st.session_state.get("role") or "").strip().casefold() != "admin":
+        return
+    profile = _technical_console_menu_profile_v69084(prompt_text)
+    if not profile:
+        return
+    exact_answer, answer_reason = (
+        _technical_console_menu_answer_is_exact_v69084(answer_text, profile)
+    )
+    qa = dict(qa_result or {})
+    factual_pass = bool(
+        exact_answer
+        and qa.get("status") in {"passed", "corrected"}
+        and qa.get("profile_id") == profile.get("profile_id")
+    )
+    _record_runtime_assertion_v69068(
+        "technical_f150_f450_factual_authority",
+        factual_pass,
+        "live_f150_physical_f450_console_authority"
+        if factual_pass else "live_f150_console_factual_mismatch",
+        evidence={
+            "profile_id": profile.get("profile_id"),
+            "qa_status": qa.get("status") or "missing",
+            "answer_validation": answer_reason,
+            "provider_file_search_row_count": int(
+                qa.get("provider_file_search_row_count") or 0
+            ),
+        },
+    )
+
+    approved = []
+    for record in list(image_records or []):
+        if not isinstance(record, dict):
+            continue
+        provenance = record.get("website_image_provenance_v69062")
+        if not isinstance(provenance, dict):
+            continue
+        page_text = " ".join((
+            str(record.get("website_source_page_v69010") or ""),
+            str(record.get("website_page_title_v69010") or ""),
+        ))
+        local_text = " ".join((
+            str(record.get("website_section_subtitle_v69067") or ""),
+            str(record.get("website_section_heading_v69010") or ""),
+            str(record.get("website_nearby_instruction_text_v69010") or ""),
+            str(record.get("website_visual_analysis_v69010") or ""),
+        )).casefold()
+        page_families = set(
+            _website_identity_vehicle_families_v69022(page_text)
+        )
+        page_years = set(_website_identity_years_v69022(page_text))
+        gates_pass = all(
+            str(provenance.get(key) or "").casefold() == "pass"
+            for key in (
+                "vehicle_gate", "year_gate", "product_gate", "topic_gate"
+            )
+        )
+        page_is_f150_v69084 = bool(
+            "f150" in page_families
+            or re.search(
+                r"(?:\bford[-_/\s]+150\b|\bf[-\s]?150\b)",
+                page_text.casefold(),
+            )
+        )
+        if (
+            str(provenance.get("destination") or "")
+            == "Technical Support Database"
+            and page_is_f150_v69084
+            and set(profile.get("request_years") or []).issubset(page_years)
+            and bool(re.search(
+                r"\bcar\s*model\b|\ba\s*/?\s*c\s*model\b", local_text
+            ))
+            and gates_pass
+        ):
+            approved.append(record)
+    image_pass = bool(len(approved) == 1)
+    _record_runtime_assertion_v69068(
+        "technical_f150_f450_image_authority",
+        image_pass,
+        "live_f150_exact_subtitle_image_publication"
+        if image_pass else "live_f150_exact_image_missing_or_ambiguous",
+        evidence={
+            "profile_id": profile.get("profile_id"),
+            "published_image_count": len(list(image_records or [])),
+            "approved_exact_image_count": len(approved),
+            "expected_destination": "Technical Support Database",
+        },
+    )
+
+
 def render_runtime_audit_panel_v69062():
     """Render build identity and redacted runtime evidence for Admins only."""
     report_envelope = _runtime_audit_redacted_report_v69062()
     report = dict(report_envelope.get("report") or {})
-    with st.expander("Production Runtime Audit · v69068", expanded=False):
+    with st.expander(
+        f"Production Runtime Audit · {ATP_BUILD_VERSION_V69062}",
+        expanded=False,
+    ):
         st.code(
             "\n".join((
                 f"Build: {ATP_BUILD_VERSION_V69062}",
@@ -813,6 +946,10 @@ def render_runtime_audit_panel_v69062():
                 "status": report.get("last_recovery_status") or "none",
                 "reason_code": report.get("last_recovery_reason_code") or "none",
             },
+            "technical_console_menu_profile": (
+                report.get("technical_console_menu_profile") or {}
+            ),
+            "technical_factual_qa": report.get("technical_factual_qa") or {},
             "release_gate": report.get("release_gate") or {},
         })
         st.caption(
@@ -39819,6 +39956,175 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
     return ""
 
 
+def _technical_console_menu_profile_v69084(prompt_text):
+    """Return a narrowly scoped, AutoTecPro-confirmed radio-menu profile.
+
+    The vehicle shown in the customer's driveway and the value selected inside
+    an aftermarket radio are different identities.  Fitment remains F-150; the
+    radio's Car Model/A-C setting is F450.  This resolver deliberately requires
+    the explicit 2009-2014 F-150 generation and a Car Model/A-C inquiry, so it
+    cannot broaden an F-250/F-350/F-450 case or another model year.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    try:
+        role = _website_image_query_role_v68884(prompt)
+        families = set(_website_identity_vehicle_families_v69022(prompt))
+        years = set(_website_identity_years_v69022(prompt))
+    except Exception:
+        return {}
+    if role != "car_model_ac":
+        return {}
+    if families != {"f150"}:
+        return {}
+    covered_years = set(range(2009, 2015))
+    if not years or not years.issubset(covered_years):
+        return {}
+    return {
+        "schema_version": 1,
+        "profile_id": "ford_f150_2009_2014_f450_console_v69084",
+        "authority_source": "autotecpro_confirmed_console_profile_v69084",
+        "physical_vehicle_make": "Ford",
+        "physical_vehicle_family": "F-150",
+        "covered_years": sorted(covered_years),
+        "request_years": sorted(years),
+        "console_make": "Ford",
+        "console_car_model": "F450",
+        "manual_ac_selection": "F450 LO",
+        "automatic_ac_selection": "F450 HI",
+        "shared_screen_sizes": ["12.1", "14.4"],
+    }
+
+
+def _technical_console_menu_canonical_answer_v69084(profile):
+    """Build the exact staff answer for one validated console profile."""
+    profile = dict(profile or {})
+    request_years = [
+        int(value) for value in list(profile.get("request_years") or [])
+        if str(value).isdigit()
+    ]
+    if len(request_years) == 1:
+        year_label = str(request_years[0]) + " "
+    elif request_years:
+        year_label = f"{min(request_years)}–{max(request_years)} "
+    else:
+        year_label = ""
+    return (
+        f"## {year_label}Ford F-150 Car Model / A/C Setting\n\n"
+        "The physical vehicle is a **Ford F-150**. Inside the AutoTecPro "
+        "radio's Car Model / A/C menu, use these values:\n\n"
+        "| Factory climate control | Make | Car Model / A/C value |\n"
+        "|---|---|---|\n"
+        f"| Manual A/C | {profile.get('console_make') or 'Ford'} | "
+        f"**{profile.get('manual_ac_selection') or 'F450 LO'}** |\n"
+        f"| Automatic A/C | {profile.get('console_make') or 'Ford'} | "
+        f"**{profile.get('automatic_ac_selection') or 'F450 HI'}** |\n\n"
+        "The **12.1-inch and 14.4-inch systems use the same settings**. "
+        "F450 here is the radio-menu profile; it does not change the physical "
+        "vehicle fitment from F-150.\n\n"
+        "Path: **Settings → System → Setting Guide → Car Model / A/C Model**."
+    )
+
+
+def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
+    """Require both climate variants and reject F150 as a menu value."""
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(
+        str(answer_text or "")
+    )).strip().casefold()
+    if not answer:
+        return False, "EMPTY_PROVIDER_ANSWER"
+    menu_answer = re.sub(
+        r"(?:the\s+)?physical\s+vehicle(?:\s+fitment)?(?:\s+is|\s+remains|\s+from)?"
+        r"[^.\n]{0,35}\bf[-\s]?150\b",
+        " physical-vehicle-identity ",
+        answer,
+        flags=re.I,
+    )
+    manual = str((profile or {}).get("manual_ac_selection") or "").casefold()
+    automatic = str(
+        (profile or {}).get("automatic_ac_selection") or ""
+    ).casefold()
+    required = [value for value in (manual, automatic) if value]
+    wrong_menu_patterns = (
+        r"\bf[-\s]?150\s+(?:hi|lo)\b",
+        r"(?:car\s*model|a\s*/?\s*c\s*model|menu\s*(?:value|profile))"
+        r"[^.\n]{0,90}\bf[-\s]?150\b",
+        r"(?:select|choose|set)[^.\n]{0,80}\bf[-\s]?150\b",
+    )
+    if any(
+        re.search(pattern, menu_answer, flags=re.I)
+        for pattern in wrong_menu_patterns
+    ):
+        return False, "WRONG_PHYSICAL_IDENTITY_USED_AS_MENU_VALUE"
+    if any(value not in answer for value in required):
+        return False, "REQUIRED_CONSOLE_VALUES_MISSING"
+    if not all(size in answer for size in ("12.1", "14.4")):
+        return False, "SHARED_SCREEN_SETTING_NOT_CONFIRMED"
+    return True, "EXACT_CONSOLE_PROFILE_PRESENT"
+
+
+def _technical_console_menu_factual_qa_v69084(
+    prompt_text, answer_text, result_rows=None,
+):
+    """Deterministically prevent a physical/model-menu identity regression.
+
+    Provider text is preserved when it contains the complete approved profile.
+    If the provider asks an obsolete variant clarification, uses F150 as the
+    radio menu value, or omits either climate value, a concise canonical answer
+    replaces it before image ranking, rendering, or persistence.
+    """
+    answer = clean_visible_chat_text(str(answer_text or ""))
+    profile = _technical_console_menu_profile_v69084(prompt_text)
+    if not profile:
+        return answer, {
+            "schema_version": 1,
+            "status": "not_applicable",
+            "reason_code": "NO_MATCHING_CONSOLE_PROFILE",
+        }
+    exact, reason = _technical_console_menu_answer_is_exact_v69084(
+        answer, profile
+    )
+    rows = [row for row in list(result_rows or []) if isinstance(row, dict)]
+    qa = {
+        "schema_version": 1,
+        "status": "passed" if exact else "corrected",
+        "reason_code": reason,
+        "profile_id": profile.get("profile_id"),
+        "authority_source": profile.get("authority_source"),
+        "physical_vehicle_family": profile.get("physical_vehicle_family"),
+        "console_car_model": profile.get("console_car_model"),
+        "manual_ac_selection": profile.get("manual_ac_selection"),
+        "automatic_ac_selection": profile.get("automatic_ac_selection"),
+        "shared_screen_sizes": list(profile.get("shared_screen_sizes") or []),
+        "provider_file_search_row_count": len(rows),
+    }
+    corrected = answer if exact else _technical_console_menu_canonical_answer_v69084(
+        profile
+    )
+    diagnostic_log(
+        "technical_console_menu_factual_qa_v69084",
+        status=qa["status"],
+        reason_code=qa["reason_code"],
+        profile_id=qa["profile_id"],
+        provider_file_search_row_count=len(rows),
+    )
+    _runtime_audit_update_v69062(
+        technical_console_menu_profile={
+            "profile_id": profile.get("profile_id"),
+            "physical_vehicle_family": profile.get("physical_vehicle_family"),
+            "console_car_model": profile.get("console_car_model"),
+        },
+        technical_factual_qa={
+            "status": qa.get("status"),
+            "reason_code": qa.get("reason_code"),
+            "profile_id": qa.get("profile_id"),
+            "provider_file_search_row_count": len(rows),
+        },
+    )
+    return corrected, qa
+
+
 @st.cache_data(ttl=300, max_entries=2048, show_spinner=False)
 def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant):
     """Lock explicit current-message fitment facts before multi-store retrieval.
@@ -39857,6 +40163,7 @@ def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant)
         r"(?<!\d)(?:12\.1|13\.6|13\.8|14\.4|15\.6|17\.2|17)(?:\s*(?:inch|inches|in|\"))?",
         prompt.casefold(),
     )))
+    console_profile_v69084 = _technical_console_menu_profile_v69084(prompt)
     identity = {
         "brands": brands,
         "vehicle_families": families,
@@ -39865,6 +40172,28 @@ def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant)
         "product_codes": product_codes,
         "product_variants": variants,
         "screen_sizes": screen_sizes,
+        "console_menu_profile": (
+            {
+                "profile_id": console_profile_v69084.get("profile_id"),
+                "physical_vehicle_family": console_profile_v69084.get(
+                    "physical_vehicle_family"
+                ),
+                "console_make": console_profile_v69084.get("console_make"),
+                "console_car_model": console_profile_v69084.get(
+                    "console_car_model"
+                ),
+                "manual_ac_selection": console_profile_v69084.get(
+                    "manual_ac_selection"
+                ),
+                "automatic_ac_selection": console_profile_v69084.get(
+                    "automatic_ac_selection"
+                ),
+                "shared_screen_sizes": console_profile_v69084.get(
+                    "shared_screen_sizes"
+                ),
+            }
+            if console_profile_v69084 else None
+        ),
     }
     identity = {key: value for key, value in identity.items() if value}
     if not identity:
@@ -39877,8 +40206,14 @@ def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant)
           "answer constraints. Do not transfer specifications, compatibility, "
           "settings, policies, or product claims from a different vehicle family, "
           "year, factory system, screen size, product code, or product variant. "
-          "If exact evidence conflicts or the stated configuration remains "
-          "ambiguous, identify the missing distinction instead of guessing."
+          "A console_menu_profile, when present, is an AutoTecPro radio-menu "
+          "value and is NOT the physical vehicle identity. Preserve the physical "
+          "vehicle family for fitment, retrieval, and image safety, while using "
+          "the console_menu_profile exactly for the radio's Car Model/A-C menu. "
+          "Never retrieve or publish an F450-vehicle image merely because the "
+          "F-150 radio menu value is F450. If exact evidence conflicts or the "
+          "stated configuration remains ambiguous, identify the missing "
+          "distinction instead of guessing."
     )
 
 
@@ -56181,6 +56516,64 @@ def _technical_exact_image_manifest_v69077(
     return output
 
 
+def _technical_console_menu_image_score_v69084(
+    prompt_text, answer_text, payload,
+):
+    """Add ranking authority only after all existing safety gates pass.
+
+    This is not an eligibility bypass.  It recognizes an exact F-150 2009-2014
+    Technical page plus image-local Car Model/A-C subtitle evidence, keeping the
+    physical F-150 page authoritative even though the displayed radio value is
+    F450.
+    """
+    profile = _technical_console_menu_profile_v69084(prompt_text)
+    if not profile or not isinstance(payload, dict):
+        return 0.0
+    page_text = " ".join((
+        str(payload.get("source_page") or ""),
+        str(payload.get("page_title") or ""),
+    ))
+    page_families = set(_website_identity_vehicle_families_v69022(page_text))
+    page_years = set(_website_identity_years_v69022(page_text))
+    request_years = set(profile.get("request_years") or [])
+    page_is_f150_v69084 = bool(
+        "f150" in page_families
+        or re.search(
+            r"(?:\bford[-_/\s]+150\b|\bf[-\s]?150\b)",
+            page_text.casefold(),
+        )
+    )
+    if not page_is_f150_v69084:
+        return 0.0
+    if request_years and page_years and not request_years.issubset(page_years):
+        return 0.0
+    local_text = " ".join((
+        str(payload.get("section_subtitle_v69067") or ""),
+        str(payload.get("section_heading") or ""),
+        str(payload.get("nearby_instruction_text") or ""),
+        str(payload.get("caption") or ""),
+        str(payload.get("visual_analysis") or ""),
+        json.dumps(
+            _website_image_structured_metadata_v69022(payload),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        ),
+    )).casefold()
+    if not re.search(r"\bcar\s*model\b|\ba\s*/?\s*c\s*model\b", local_text):
+        return 0.0
+    score = 90.0
+    if bool(payload.get("subtitle_exact_image_binding_v69073")):
+        score += 70.0
+    if re.search(r"\bf[-\s]?450(?:\s+(?:hi|lo))?\b", local_text):
+        score += 55.0
+    if any(size in local_text for size in ("12.1", "14.4")):
+        score += 20.0
+    if "2009" in page_text and "2014" in page_text:
+        score += 15.0
+    return score
+
+
 def _technical_subtitle_image_manifest_v69080(
     prompt_text, answer_text="", max_images=3,
 ):
@@ -56203,6 +56596,7 @@ def _technical_subtitle_image_manifest_v69080(
         return []
 
     requested_variants = _technical_product_variants_v69077(prompt)
+    console_profile_v69084 = _technical_console_menu_profile_v69084(prompt)
     ranked = []
     rejected = 0
     rejection_reasons = {}
@@ -56270,9 +56664,22 @@ def _technical_subtitle_image_manifest_v69080(
         if base_score <= -500.0:
             reject("RANK_AUTHORITY_REJECTED")
             continue
-        score = base_score + float(subtitle_score) + 120.0
+        console_score_v69084 = _technical_console_menu_image_score_v69084(
+            prompt, answer, payload
+        )
+        score = (
+            base_score + float(subtitle_score) + 120.0
+            + float(console_score_v69084)
+        )
         record["website_exact_manifest_v69080"] = True
         record["website_exact_manifest_relation_v69080"] = subtitle_reason
+        if console_score_v69084:
+            record["technical_console_menu_profile_v69084"] = str(
+                console_profile_v69084.get("profile_id") or ""
+            )
+            record["technical_console_menu_image_score_v69084"] = round(
+                float(console_score_v69084), 3
+            )
         record["website_local_structured_relation_v69082"] = bool(
             subtitle_reason == "IMAGE_LOCAL_STRUCTURED_TOPIC_RELATED"
             or subtitle_reason == "CLASSIFIED_LOCAL_STRUCTURED"
@@ -56282,6 +56689,8 @@ def _technical_subtitle_image_manifest_v69080(
             record, payload, "Technical Support Database",
             "durable_image_index", score,
             (
+                "F150_EXACT_CONSOLE_PROFILE_SUBTITLE_AND_FITMENT"
+                if console_score_v69084 else
                 "EXACT_SUBTITLE_INQUIRY_AND_FITMENT"
                 if subtitle_reason in {
                     "CLASSIFIED_EXACT_SUBTITLE",
@@ -56310,7 +56719,11 @@ def _technical_subtitle_image_manifest_v69080(
         if identity:
             seen.add(identity)
         output.append(record)
-        if len(output) >= max(1, int(max_images or 1)):
+        output_limit_v69084 = (
+            1 if console_profile_v69084
+            else max(1, int(max_images or 1))
+        )
+        if len(output) >= output_limit_v69084:
             break
     diagnostic_log(
         "technical_subtitle_image_manifest_v69080",
@@ -70737,6 +71150,11 @@ else:
             technical_case_image_authority_v69082.get("effective_query")
             or technical_request_prompt_v68879
         ).strip()
+        technical_factual_qa_v69084 = {
+            "schema_version": 1,
+            "status": "not_applicable",
+            "reason_code": "NOT_EVALUATED",
+        }
 
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
@@ -72280,6 +72698,75 @@ else:
             image_search_coordinator_v69062.begin_recovery()
 
         if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            provider_answer_before_qa_v69084 = str(answer or "")
+            answer, technical_factual_qa_v69084 = (
+                _technical_console_menu_factual_qa_v69084(
+                    technical_image_request_prompt_v69079,
+                    answer,
+                    list(
+                        st.session_state.get(
+                            "_technical_file_search_results_v69012"
+                        ) or []
+                    ),
+                )
+            )
+            if answer != provider_answer_before_qa_v69084:
+                try:
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    pass
+
+            # Re-resolve the exact image after factual QA.  The original prompt
+            # remains the physical F-150 vehicle/year gate; the corrected F450
+            # console value is ranking context only.  Any prompt-only website
+            # image is removed first, so an incorrect early candidate cannot
+            # survive merely because it finished before the text response.
+            if technical_factual_qa_v69084.get("status") in {
+                "passed", "corrected"
+            }:
+                exact_console_images_v69084 = []
+                try:
+                    exact_console_images_v69084 = (
+                        _technical_subtitle_image_manifest_v69080(
+                            technical_image_request_prompt_v69079,
+                            answer_text=answer,
+                            max_images=1,
+                        )
+                    )
+                except Exception as error:
+                    diagnostic_log(
+                        "technical_console_image_reresolution_failed_v69084",
+                        error_type=type(error).__name__,
+                        error=str(error)[:500],
+                    )
+                generated_images = [
+                    image for image in list(generated_images or [])
+                    if not (
+                        isinstance(image, dict)
+                        and str(image.get("source") or "")
+                        == "website_knowledge"
+                    )
+                ]
+                website_index_images_v68883 = list(
+                    exact_console_images_v69084 or []
+                )
+                if exact_console_images_v69084:
+                    generated_images.extend(exact_console_images_v69084)
+                    generated_images = _website_image_final_authority_v68885(
+                        technical_image_request_prompt_v69079,
+                        _dedupe_website_chat_images_v68883(generated_images),
+                        deterministic_images=exact_console_images_v69084,
+                        answer_text=answer,
+                    )
+                diagnostic_log(
+                    "technical_console_image_reresolution_v69084",
+                    profile_id=technical_factual_qa_v69084.get("profile_id"),
+                    recovered=len(exact_console_images_v69084 or []),
+                )
+
             answer_v69077, variant_blocked_v69077 = (
                 _technical_variant_ambiguity_guard_v69077(
                     technical_image_request_prompt_v69079, answer
@@ -72773,9 +73260,23 @@ else:
                 assistant,
                 coordinator=image_search_coordinator_v69062,
             )
+            if assistant == "🔧 Technical Support":
+                generated_images = (
+                    _technical_bind_console_qa_provenance_v69084(
+                        generated_images,
+                        technical_factual_qa_v69084,
+                    )
+                )
             _observe_live_image_publication_v69068(
                 assistant, generated_images
             )
+            if assistant == "🔧 Technical Support":
+                _observe_live_technical_console_authority_v69084(
+                    technical_image_request_prompt_v69079,
+                    answer,
+                    technical_factual_qa_v69084,
+                    generated_images,
+                )
             _commit_image_search_coordinator_v69062(
                 image_search_coordinator_v69062
             )
