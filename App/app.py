@@ -1,4 +1,4 @@
-# AutoTecPro AI v69082 — Unified case and exact learned-image authority
+# AutoTecPro AI v69083 — 726-family and shared-settings image equivalence
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69082"
+ATP_BUILD_VERSION_V69062 = "v69083"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -102,7 +102,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69079-v69050-ordinary-evidence-first+"
     "v69080-universal-exact-subtitle-image-authority+"
     "v69081-knowledge-response-accuracy-acceleration+"
-    "v69082-unified-case-image-authority"
+    "v69082-unified-case-image-authority+"
+    "v69083-726-family-shared-settings-equivalence"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -53747,6 +53748,11 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
     requested_variants_v69077 = _technical_product_variants_v69077(
         prompt_text
     )
+    approved_726_equivalence_v69083 = (
+        _technical_726_shared_settings_equivalence_v69083(
+            prompt_text, identity_text
+        )
+    )
 
     if (
         requested_variants_v69077
@@ -53784,11 +53790,23 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
     # v69025 fail-closed polarity rule: explicit NO-SYNC evidence conflicts with
     # any requested SYNC generation (and vice versa), even if broad page text also
     # mentions that generation in a warning/cross-reference.
-    if "no_sync" in sync_candidate and any(x.startswith("sync_") for x in sync_requested):
+    if (
+        not approved_726_equivalence_v69083
+        and "no_sync" in sync_candidate
+        and any(x.startswith("sync_") for x in sync_requested)
+    ):
         return False
-    if "no_sync" in sync_requested and any(x.startswith("sync_") for x in sync_candidate):
+    if (
+        not approved_726_equivalence_v69083
+        and "no_sync" in sync_requested
+        and any(x.startswith("sync_") for x in sync_candidate)
+    ):
         return False
-    if sync_requested and sync_candidate and not (sync_requested & sync_candidate):
+    if (
+        not approved_726_equivalence_v69083
+        and sync_requested and sync_candidate
+        and not (sync_requested & sync_candidate)
+    ):
         return False
     if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
         return False
@@ -55333,15 +55351,58 @@ def _website_image_product_codes_v69020(value):
 
 
 def _technical_product_variants_v69077(value):
-    """Return exact ATP three-digit variants, preserving suffixes such as W."""
+    """Return ATP variants with the approved 726/726W finish equivalence.
+
+    AutoTecPro authority: 726 is the black finish and 726W is the wood finish.
+    Their settings, installation, and specifications are identical, so image
+    authority must treat both labels as the same product family. Other suffixes
+    remain exact and are not broadened.
+    """
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
     if not text:
         return set()
     masked = re.sub(r"\b(?:f|e)[\s-]?\d{3}\b", " ", text, flags=re.I)
-    return {
-        str(number) + str(suffix or "")
-        for number, suffix in re.findall(r"\b(\d{3})\s*([a-z])?\b", masked)
-    }
+    variants = set()
+    for number, suffix in re.findall(r"\b(\d{3})\s*([a-z])?\b", masked):
+        raw = str(number) + str(suffix or "")
+        variants.add("726_family" if raw in {"726", "726w"} else raw)
+    return variants
+
+
+def _technical_726_shared_settings_equivalence_v69083(left_text, right_text):
+    """Authorize only the documented 726-family settings equivalence.
+
+    This is deliberately narrower than a general product or screen-size bypass:
+    both sides must identify the 726/726W family, share an F-250/F-350/F-450
+    vehicle family when both expose one, and not carry disjoint explicit years.
+    The approved 12.1, 14.4, 17 and 17.2-inch screens share the same settings,
+    installation and specifications. Vehicle/year/topic/visual QA gates remain
+    independently authoritative.
+    """
+    left = re.sub(r"\s+", " ", str(left_text or "")).strip()
+    right = re.sub(r"\s+", " ", str(right_text or "")).strip()
+    if not left or not right:
+        return False
+    if "726_family" not in _technical_product_variants_v69077(left):
+        return False
+    if "726_family" not in _technical_product_variants_v69077(right):
+        return False
+
+    approved_families = {"f250", "f350", "f450"}
+    left_families = set(_website_identity_vehicle_families_v69022(left))
+    right_families = set(_website_identity_vehicle_families_v69022(right))
+    if left_families and not (left_families & approved_families):
+        return False
+    if right_families and not (right_families & approved_families):
+        return False
+    if left_families and right_families and not (left_families & right_families):
+        return False
+
+    left_years = set(_website_identity_years_v69022(left))
+    right_years = set(_website_identity_years_v69022(right))
+    if left_years and right_years and not (left_years & right_years):
+        return False
+    return True
 
 
 def _website_image_effective_answer_context_v69020(prompt_text, answer_text=""):
@@ -55752,7 +55813,13 @@ def _website_image_rank_v68883(prompt_text, payload):
         candidate_sizes = set(
             re.findall(r"\b(?:12\.1|13\.8|14\.4|14\.46|15\.6|17(?:\.2)?)\b", candidate)
         )
-        if candidate_sizes and not (explicit_sizes & candidate_sizes):
+        if (
+            candidate_sizes
+            and not (explicit_sizes & candidate_sizes)
+            and not _technical_726_shared_settings_equivalence_v69083(
+                prompt_only_v69020, candidate
+            )
+        ):
             return -1000.0
 
     return score
@@ -56255,35 +56322,18 @@ def _technical_subtitle_image_manifest_v69080(
 
 
 def _technical_variant_ambiguity_guard_v69077(prompt_text, answer_text):
-    """Block a silent 726/726W assumption for 2009-2016 Super Duty."""
+    """Preserve the answer because 726/726W differ only by finish.
+
+    v69077 treated the W suffix as a settings variant and inserted a redundant
+    clarification card. AutoTecPro's current product authority confirms that
+    726 (black) and 726W (wood) share settings, installation and specifications.
+    The vehicle/year/topic/image gates still run after this function.
+    """
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     answer = clean_visible_chat_text(str(answer_text or ""))
-    if _website_image_query_role_v68884(prompt) != "car_model_ac":
-        return answer, False
-    families = _website_identity_vehicle_families_v69022(prompt)
-    years = _website_identity_years_v69022(prompt)
-    if not (families & {"f250", "f350", "f450"}):
-        return answer, False
-    if years and not (years & set(range(2009, 2017))):
-        return answer, False
-    prompt_variant = bool(re.search(r"\b726\s*w?\b", prompt, flags=re.I))
-    answer_variant = bool(re.search(r"\b726\s*w?\b", answer, flags=re.I))
-    if prompt_variant or not answer_variant:
-        return answer, False
-    guarded = (
-        "## Product Variant Confirmation Required\n\n"
-        "The 2009–2016 Ford F-250/F-350/F-450 Technical records contain separate "
-        "settings for **AutoTecPro 726** and **726W No-SYNC** units. These variants "
-        "must not be treated as interchangeable.\n\n"
-        "Please confirm whether the label on the unit is **726** or **726W**, and "
-        "whether the truck has factory SYNC. After that confirmation, I can provide "
-        "the exact protocol, Car Model/A-C selection and its matching approved image."
-    )
-    diagnostic_log(
-        "technical_variant_ambiguity_blocked_v69077",
-        families=sorted(families), years=sorted(years),
-    )
-    return guarded, True
+    if "726_family" in _technical_product_variants_v69077(prompt + " " + answer):
+        diagnostic_log("technical_726_finish_equivalence_v69083")
+    return answer, False
 
 
 def _suppress_unpublished_learned_image_urls_v69077(answer_text, images):
@@ -57112,7 +57162,13 @@ def _workspace_image_semantic_authority_v69062(
     ))
     product_pass = not (
         (requested_codes and candidate_codes and not (requested_codes & candidate_codes))
-        or (requested_sizes and candidate_sizes and not (requested_sizes & candidate_sizes))
+        or (
+            requested_sizes and candidate_sizes
+            and not (requested_sizes & candidate_sizes)
+            and not _technical_726_shared_settings_equivalence_v69083(
+                prompt, identity_text
+            )
+        )
     )
     if not product_pass:
         return False, -850.0, "PRODUCT_GATE_REJECTED", {
@@ -58369,7 +58425,13 @@ def _answer_owned_image_records_v69056(
             r"\b(?:10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17\.2)\b",
             identity_text.casefold(),
         ))
-        if requested_sizes and candidate_sizes and not (requested_sizes & candidate_sizes):
+        if (
+            requested_sizes and candidate_sizes
+            and not (requested_sizes & candidate_sizes)
+            and not _technical_726_shared_settings_equivalence_v69083(
+                prompt, identity_text
+            )
+        ):
             continue
         candidate_codes = _website_image_product_codes_v69020(identity_text)
         if requested_codes and candidate_codes and not (requested_codes & candidate_codes):
