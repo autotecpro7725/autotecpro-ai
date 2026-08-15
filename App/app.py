@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69094"
+ATP_BUILD_VERSION_V69062 = "v69095"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -113,7 +113,7 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69090-product-scoped-newest-admin-authority+v69091-technical-settings-table+"
     "v69092-terminal-same-destination-image-completion+"
     "v69093-active-product-runtime-binding+destination-scoped-save+"
-    "v69094-active-package-first-image-single-pass"
+    "v69095-ford150-learned-image-identity"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -54914,6 +54914,16 @@ def _website_identity_vehicle_families_v69022(value):
             before,
         ))
         scores[name] = scores.get(name, 0.0) + (-5.0 if negative else 2.0)
+
+    # v69095 production root fix: AutoTecPro's authoritative F-150 learning
+    # page uses ``Ford 150`` / ``ford-150`` in its title and canonical URL.
+    # Earlier image QA recognized only F150/F-150, so the correct active
+    # package supplied the factual answer while its exact learned image failed
+    # the physical-vehicle gate as PHYSICAL_F150_PAGE_REJECTED.  Normalize this
+    # one unambiguous first-party naming form to the same physical family.  Do
+    # not infer a console-menu F450 mention as physical F-450 authority.
+    for match in re.finditer(r"\bford[-_/\s]+150\b", text):
+        add_family("f150", match.start())
 
     for match in re.finditer(r"\b([fe])[-\s]?(150|250|350|450|550|650)\b", text):
         add_family(f"{match.group(1)}{match.group(2)}", match.start())
