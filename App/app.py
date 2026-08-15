@@ -1,4 +1,4 @@
-# AutoTecPro AI v69090 — product-scoped newest Admin knowledge authority
+# AutoTecPro AI v69092 — reliable automatic learned-image completion
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69090"
+ATP_BUILD_VERSION_V69062 = "v69092"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -110,7 +110,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69087-f150-complete-file-image-recovery|"
     "v69088-latest-page-revision-single-pass-publication+"
     "v69089-uncached-archive-write-verification+"
-    "v69090-product-scoped-newest-admin-authority"
+    "v69090-product-scoped-newest-admin-authority+v69091-technical-settings-table+"
+    "v69092-terminal-same-destination-image-completion"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -132,6 +133,7 @@ ATP_IMAGE_NEGATIVE_CACHE_TTL_SECONDS_V69062 = 30.0
 ATP_IMAGE_PROVIDER_CIRCUIT_FAILURES_V69062 = 3
 ATP_IMAGE_PROVIDER_CIRCUIT_SECONDS_V69062 = 30.0
 ATP_IMAGE_PREFETCH_PROVIDER_TIMEOUT_SECONDS_V69068 = 3.0
+ATP_IMAGE_TERMINAL_WAIT_SECONDS_V69092 = 2.25
 ATP_IMAGE_PREFETCH_MAX_WORKERS_V69068 = 4
 ATP_WEBSITE_IMAGE_QA_TIMEOUT_SECONDS_V69075 = 18.0
 ATP_WEBSITE_IMAGE_QA_ATTEMPTS_V69075 = 2
@@ -38319,6 +38321,43 @@ NEWEST ADMIN PRODUCT AUTHORITY:
 """
 
 
+def _technical_settings_table_instructions_v69091():
+    """Require a compact settings table without changing retrieval authority."""
+    return """
+
+TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
+- Apply this block only when the user asks for a radio Car Model setting,
+  protocol setting, A/C setting, CANBUS setting, or the menu values needed to
+  configure an AutoTecPro unit.
+- After a short descriptive heading and one brief fitment sentence, the first
+  factual block MUST be a compact Markdown table with exactly these columns:
+  | Setting Field | Select |
+- Include every value supported by the active newest Technical evidence. Use
+  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series or Screen Size only when those values are necessary to distinguish
+  the correct configuration.
+- Put one setting in each row. Keep the Select value concise and preserve the
+  exact capitalization, punctuation, spelling, and menu wording found in the
+  evidence.
+- Never invent a value, fill an unknown cell with a guess, or copy a conflicting
+  value from superseded evidence. Omit an unsupported optional row. If a
+  required setting is not confirmed, put **Requires Verification** in that row
+  and explain what must be checked after the table.
+- When the original climate panel changes the correct A/C selection, list the
+  verified choices in the A/C Type row and explain how to choose between them
+  immediately after the table.
+- Follow the table with a short ## Menu Path numbered list when verified setup
+  steps are available. Add ## Important Note only for a material warning,
+  ambiguity, or fitment distinction.
+- Do not repeat the same answer in a second prose block. Do not expose internal
+  evidence conflicts, supersession mechanics, diagnostic labels, or retrieval
+  implementation details to staff.
+- This is a presentation rule only. It does not change evidence ownership,
+  newest-source authority, vehicle/year/product/variant gates, automatic-image
+  recovery, image selection, image publication, or provenance requirements.
+"""
+
+
 @st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -38434,7 +38473,7 @@ sections from the workflow above without forcing unrelated order sections.
 Never invent technical information.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
-""" + _knowledge_product_authority_instructions_v69090() + _workspace_response_formatting_rules()
+""" + _knowledge_product_authority_instructions_v69090() + _technical_settings_table_instructions_v69091() + _workspace_response_formatting_rules()
 
     if is_sales_workspace(selected_assistant):
         return """
@@ -57662,6 +57701,194 @@ def _technical_console_menu_legacy_image_records_v69085(
     return output
 
 
+def _terminal_learned_image_completion_v69092(
+    workspace_label,
+    prompt_text,
+    answer_text,
+    existing_images,
+    ordinary_rows=None,
+    cached_rows=None,
+    prefetch_future=None,
+    coordinator=None,
+    variant_blocked=False,
+    max_images=3,
+):
+    """Complete one automatic learned-image pass without broadening authority.
+
+    The parallel prefetch is optional latency work.  Older releases treated a
+    foreground Future timeout as if the destination-owned image did not exist,
+    then reached publication with an empty image list.  This terminal bridge is
+    deliberately downstream of factual QA and upstream of provenance/rendering:
+
+    * it first reuses ordinary and cached rows;
+    * it waits briefly for the already-running same-destination prefetch;
+    * it hydrates/ranks those exact rows with the existing safety gates; and
+    * only after a provider failure (not a successful empty result) may it retry
+      the established same-store answer-aware search through the coordinator.
+
+    Graphic Marketing is a hard forbidden entry.  Technical, Sales and Marketing
+    retain their existing destination, vehicle, year, product, topic, image-QA
+    and final-publication gates.  No URL or same-page relationship is promoted by
+    this function on its own.
+    """
+    workspace = str(workspace_label or "")
+    images = [dict(item) for item in (existing_images or []) if isinstance(item, dict)]
+    if is_graphic_workspace(workspace) or bool(variant_blocked):
+        return images
+    if any(str(item.get("source") or "") == "website_knowledge" for item in images):
+        return images
+    if not (
+        workspace == "🔧 Technical Support"
+        or is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ):
+        return images
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt or not answer:
+        return images
+
+    rows = []
+    seen_rows = set()
+
+    def add_rows(values):
+        for raw in values or []:
+            if not isinstance(raw, dict):
+                continue
+            row = dict(raw)
+            identity = (
+                str(row.get("file_id") or "").strip(),
+                str(row.get("filename") or "").strip(),
+                hashlib.sha256(str(row.get("text") or "").encode("utf-8")).hexdigest()[:16],
+            )
+            if identity in seen_rows:
+                continue
+            seen_rows.add(identity)
+            rows.append(row)
+
+    add_rows(ordinary_rows)
+    add_rows(cached_rows)
+
+    pending = prefetch_future
+    if pending is not None:
+        try:
+            add_rows(pending.result(timeout=ATP_IMAGE_TERMINAL_WAIT_SECONDS_V69092) or [])
+        except Exception as error:
+            diagnostic_log(
+                "terminal_image_prefetch_wait_incomplete_v69092",
+                workspace=workspace,
+                error_type=type(error).__name__,
+                error=str(error)[:300],
+            )
+
+    recovered = []
+    if workspace == "🔧 Technical Support":
+        # Fast durable authority first; this also handles newly learned exact
+        # subtitle bindings without a provider call.
+        recovered = _technical_subtitle_image_manifest_v69080(
+            prompt, answer_text=answer, max_images=max_images
+        )
+        if not recovered:
+            recovered = _technical_console_menu_legacy_image_records_v69085(
+                prompt,
+                answer,
+                rows,
+                max_images=max_images,
+                coordinator=coordinator,
+                allow_direct_search_v69087=False,
+            )
+        if not recovered and rows:
+            recovered = _technical_answer_url_records_from_exact_rows_v69074(
+                prompt,
+                answer,
+                rows,
+                max_images=max_images,
+                coordinator=coordinator,
+            )
+        if not recovered and rows:
+            recovered = _website_file_search_images_v69014(
+                prompt, answer, rows, coordinator=coordinator
+            )
+        if not recovered and rows:
+            recovered = _website_automatic_related_image_recovery_v69049(
+                prompt,
+                answer,
+                rows,
+                max_images=max_images,
+                coordinator=coordinator,
+            )
+
+        # The ordinary pipeline already performs the answer-aware direct search.
+        # Retry only when it failed before producing a cache entry. A successful
+        # empty result remains empty and is never queried twice in this turn.
+        retry_allowed = False
+        if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+            retry_allowed = any(
+                str(item.get("status") or "") == "failed"
+                and str(item.get("stage") or "") == "same_store_direct_search"
+                for item in coordinator.outcomes
+                if isinstance(item, dict)
+            )
+        if not recovered and retry_allowed:
+            retry_rows = _website_image_dedicated_file_search_results_v69014(
+                prompt, answer, coordinator=coordinator
+            )
+            add_rows(retry_rows)
+            if retry_rows:
+                recovered = _technical_console_menu_legacy_image_records_v69085(
+                    prompt,
+                    answer,
+                    rows,
+                    max_images=max_images,
+                    coordinator=coordinator,
+                    allow_direct_search_v69087=False,
+                )
+                if not recovered:
+                    recovered = _website_file_search_images_v69014(
+                        prompt, answer, rows, coordinator=coordinator
+                    )
+
+        if recovered:
+            recovered = _website_image_final_authority_v68885(
+                prompt,
+                _dedupe_website_chat_images_v68883(recovered),
+                deterministic_images=[],
+                answer_text=answer,
+            )
+    else:
+        recovered = _workspace_automatic_image_recovery_v69050(
+            workspace,
+            prompt,
+            answer,
+            ordinary_rows or [],
+            max_images=max_images,
+            prefetched_rows=rows,
+            coordinator=coordinator,
+            # At this point the prefetch was consumed or reached its provider
+            # bound. The established function may run its different,
+            # answer-aware query only when no rows survived.
+            allow_synchronous_search_v69075=True,
+        )
+
+    if recovered:
+        images.extend(recovered)
+        images = _dedupe_website_chat_images_v68883(images)
+    diagnostic_log(
+        "terminal_learned_image_completion_v69092",
+        workspace=workspace,
+        reused_rows=len(rows),
+        recovered=len(recovered or []),
+        published=len([
+            item for item in images
+            if str(item.get("source") or "") == "website_knowledge"
+        ]),
+    )
+    return images
+
+
 def _technical_subtitle_image_manifest_v69080(
     prompt_text, answer_text="", max_images=3,
 ):
@@ -74564,6 +74791,65 @@ else:
                     error_type=type(error).__name__,
                     error=str(error)[:500],
                 )
+
+        # v69092: a Future timeout is not an authoritative empty result.  Before
+        # provenance and rendering, consume the already-running destination-only
+        # prefetch once more and re-enter the established strict image gates. This
+        # is the only terminal completion pass; Graphic is forbidden inside it.
+        try:
+            terminal_prompt_v69092 = (
+                technical_image_request_prompt_v69079
+                if assistant == "🔧 Technical Support"
+                else interaction_prompt
+            )
+            terminal_ordinary_rows_v69092 = (
+                list(st.session_state.get("_technical_file_search_results_v69012") or [])
+                if assistant == "🔧 Technical Support"
+                else list(st.session_state.get("_workspace_file_search_results_v69040") or [])
+            )
+            terminal_cached_rows_v69092 = []
+            terminal_future_v69092 = None
+            if assistant == "🔧 Technical Support":
+                terminal_cached_rows_v69092.extend(
+                    list(locals().get("technical_image_prefetch_cached_rows_v69016") or [])
+                )
+                terminal_cached_rows_v69092.extend(
+                    list(locals().get("prefetched_rows_v69015") or [])
+                )
+                terminal_cached_rows_v69092.extend(
+                    list(locals().get("dedicated_rows_v69014") or [])
+                )
+                terminal_future_v69092 = locals().get(
+                    "technical_image_prefetch_future_v69015"
+                )
+            elif is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+                terminal_cached_rows_v69092.extend(
+                    list(locals().get("workspace_prefetched_rows_v69062") or [])
+                )
+                terminal_future_v69092 = locals().get(
+                    "workspace_image_prefetch_future_v69062"
+                )
+            generated_images = _terminal_learned_image_completion_v69092(
+                assistant,
+                terminal_prompt_v69092,
+                answer,
+                generated_images,
+                ordinary_rows=terminal_ordinary_rows_v69092,
+                cached_rows=terminal_cached_rows_v69092,
+                prefetch_future=terminal_future_v69092,
+                coordinator=image_search_coordinator_v69062,
+                variant_blocked=bool(locals().get("variant_blocked_v69077", False)),
+                max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES,
+            )
+        except Exception as error:
+            # Text remains available if optional image completion fails. The
+            # diagnostic distinguishes a failure from an authoritative empty.
+            diagnostic_log(
+                "terminal_learned_image_completion_failed_v69092",
+                workspace=str(assistant),
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
 
         if bool(locals().get("variant_blocked_v69077", False)):
             generated_images = [
