@@ -1,4 +1,4 @@
-# AutoTecPro AI v69092 — reliable automatic learned-image completion
+# AutoTecPro AI v69093 — active product authority + reliable destination save
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69092"
+ATP_BUILD_VERSION_V69062 = "v69094"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -111,7 +111,9 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69088-latest-page-revision-single-pass-publication+"
     "v69089-uncached-archive-write-verification+"
     "v69090-product-scoped-newest-admin-authority+v69091-technical-settings-table+"
-    "v69092-terminal-same-destination-image-completion"
+    "v69092-terminal-same-destination-image-completion+"
+    "v69093-active-product-runtime-binding+destination-scoped-save+"
+    "v69094-active-package-first-image-single-pass"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -40297,6 +40299,240 @@ def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant)
     )
 
 
+def _workspace_primary_knowledge_destination_v69093(selected_assistant):
+    """Return the owning Admin destination for one non-Graphic workspace."""
+    workspace = str(selected_assistant or "").strip()
+    if workspace == "🔧 Technical Support":
+        return "Technical Support Database"
+    if is_sales_workspace(workspace):
+        return "Sales Database"
+    if is_marketing_workspace(workspace):
+        return "Marketing Database"
+    return ""
+
+
+def _workspace_active_product_package_v69093(prompt_text, selected_assistant):
+    """Hydrate the single active Admin package matching the current subject.
+
+    v69090 persisted ``active_file_ids`` but used them only for cleanup and
+    durable-image suppression.  The ordinary Responses API request still
+    searched the entire vector store, so an obsolete file could write the
+    factual answer before image QA ran.  This resolver turns the persisted
+    manifest into query-time authority.  Ambiguous product matches fail closed
+    and never combine packages.
+    """
+    destination = _workspace_primary_knowledge_destination_v69093(
+        selected_assistant
+    )
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:5000]
+    if not destination or not prompt:
+        return {
+            "status": "not_applicable", "context": "", "rows": [],
+            "exclusive": False, "reason_code": "NO_OWNING_DESTINATION",
+            "matched_manifest": False,
+        }
+
+    try:
+        manifests = [
+            dict(item) for item in _knowledge_active_product_authorities_v69090()
+            if isinstance(item, dict)
+            and str(item.get("database_choice") or "").strip() == destination
+        ]
+    except Exception as error:
+        diagnostic_log(
+            "active_product_package_catalog_failed_v69093",
+            destination=destination,
+            error_type=type(error).__name__,
+        )
+        return {
+            "status": "failed", "context": "", "rows": [],
+            "exclusive": False, "reason_code": "MANIFEST_CATALOG_FAILED",
+            "matched_manifest": False,
+        }
+
+    candidates = []
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+    prompt_years = set(_website_identity_years_v69022(prompt))
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt))
+    for manifest in manifests:
+        authority = dict(manifest.get("product_authority") or {})
+        if not _knowledge_authority_candidate_matches_v69090(
+            authority, prompt
+        ):
+            continue
+        authority_families = set(authority.get("vehicle_families") or [])
+        authority_years = set(authority.get("years") or [])
+        authority_systems = set(authority.get("systems") or [])
+        authority_codes = set(_website_image_product_codes_v69020(
+            str(authority.get("connected_product") or "")
+        ))
+        score = 0
+        score += 50 * len(prompt_families & authority_families)
+        score += 8 * len(prompt_years & authority_years)
+        score += 30 * len(prompt_systems & authority_systems)
+        score += 35 * len(prompt_codes & authority_codes)
+        score += 3 if manifest.get("active_file_ids") else 0
+        candidates.append((score, str(manifest.get("activated_at") or ""), manifest))
+
+    if not candidates:
+        return {
+            "status": "empty", "context": "", "rows": [],
+            "exclusive": False, "reason_code": "NO_ACTIVE_PRODUCT_MATCH",
+            "matched_manifest": False,
+        }
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_score = candidates[0][0]
+    best = [item for item in candidates if item[0] == best_score]
+    best_ids = {
+        str((item[2].get("product_authority") or {}).get(
+            "product_authority_id"
+        ) or "")
+        for item in best
+    }
+    if len(best_ids) != 1:
+        diagnostic_log(
+            "active_product_package_ambiguous_v69093",
+            destination=destination,
+            candidate_count=len(best_ids),
+        )
+        return {
+            "status": "rejected", "context": "", "rows": [],
+            # A matched-but-ambiguous Technical product must never fall through
+            # to the unfiltered store: that is exactly how an obsolete package
+            # previously wrote a confident answer and selected the wrong image.
+            "exclusive": bool(
+                str(selected_assistant or "") == "🔧 Technical Support"
+            ),
+            "reason_code": "AMBIGUOUS_ACTIVE_PRODUCTS",
+            "matched_manifest": True,
+        }
+
+    manifest = dict(best[0][2])
+    authority = dict(manifest.get("product_authority") or {})
+    authority_id = str(authority.get("product_authority_id") or "").strip()
+    rows = []
+    package_sections = []
+    for file_id in list(manifest.get("active_file_ids") or [])[:6]:
+        clean_id = str(file_id or "").strip()
+        if not clean_id:
+            continue
+        full_text = str(_website_file_full_text_v69012(clean_id) or "")
+        if not full_text:
+            continue
+        marker = re.search(
+            r"(?im)^PRODUCT_AUTHORITY_ID_V69090:\s*(\S+)", full_text
+        )
+        if marker and str(marker.group(1) or "").strip() != authority_id:
+            diagnostic_log(
+                "active_product_package_file_rejected_v69093",
+                destination=destination,
+                reason_code="FILE_AUTHORITY_ID_MISMATCH",
+                file_id_hash=hashlib.sha256(clean_id.encode("utf-8")).hexdigest()[:16],
+            )
+            continue
+        file_destination = _website_file_destination_v69040(full_text)
+        if file_destination != destination:
+            continue
+        package_sections.append(full_text[:80000])
+        rows.append({
+            "file_id": clean_id,
+            "filename": "active_admin_product_package",
+            "score": 1000.0,
+            "text": full_text[:80000],
+            "_website_complete_file_text_v69074": full_text[:80000],
+            "active_product_authority_v69093": True,
+            "product_authority_id_v69090": authority_id,
+        })
+
+    if not package_sections:
+        return {
+            "status": "failed", "context": "", "rows": [],
+            "exclusive": bool(
+                str(selected_assistant or "") == "🔧 Technical Support"
+            ),
+            "reason_code": "ACTIVE_PRODUCT_FILES_UNAVAILABLE",
+            "matched_manifest": True,
+            "manifest": manifest,
+        }
+
+    context = (
+        "CURRENT ACTIVE ADMIN PRODUCT PACKAGE — application supplied:\n"
+        f"Destination: {destination}\n"
+        f"Connected product: {str(authority.get('connected_product') or '').strip()}\n"
+        f"Activated at: {str(manifest.get('activated_at') or '').strip()}\n"
+        "This is the newest successfully activated Admin package for the exact "
+        "matched product. It overrides every older file_search record for that "
+        "product in this destination. Use only this package for conflicting "
+        "settings, protocol, Car Model/A-C values, installation facts, and linked "
+        "images. Never merge an older value into this package.\n\n"
+        + "\n\n--- ACTIVE PACKAGE FILE ---\n\n".join(package_sections)
+    )[:180000]
+    diagnostic_log(
+        "active_product_package_bound_v69093",
+        destination=destination,
+        active_file_count=len(rows),
+        product_hash=authority_id[:16],
+    )
+    return {
+        "status": "recovered", "context": context, "rows": rows,
+        # Technical has one owning store.  Suppress the unfiltered store search
+        # only when a complete active package has been proven. Sales/Marketing
+        # retain their established multi-store factual routing.
+        "exclusive": bool(str(selected_assistant or "") == "🔧 Technical Support"),
+        "reason_code": "ACTIVE_PRODUCT_PACKAGE_BOUND",
+        "manifest": manifest,
+        "matched_manifest": True,
+    }
+
+
+def _seed_active_product_package_rows_v69094(package, selected_assistant):
+    """Bind one active package to the current turn before any image search.
+
+    Technical active-product rows are exclusive: stale ordinary or prefetched
+    rows from the same session are discarded. Sales and Marketing retain their
+    established factual routing, while the active destination rows are placed
+    first and remain subject to their existing destination ownership gates.
+    """
+    payload = dict(package or {})
+    active_rows = [
+        dict(row) for row in (payload.get("rows") or [])
+        if isinstance(row, dict)
+        and bool(row.get("active_product_authority_v69093"))
+    ]
+    if not active_rows:
+        return []
+    active_ids = {
+        str(row.get("file_id") or "").strip()
+        for row in active_rows if str(row.get("file_id") or "").strip()
+    }
+    if (
+        str(selected_assistant or "") == "🔧 Technical Support"
+        and bool(payload.get("exclusive"))
+    ):
+        seeded_rows = active_rows[:24]
+    else:
+        existing_rows = [
+            dict(row) for row in (
+                st.session_state.get("_workspace_file_search_results_v69040")
+                or []
+            )
+            if isinstance(row, dict)
+            and str(row.get("file_id") or "").strip() not in active_ids
+        ]
+        seeded_rows = (active_rows + existing_rows)[:24]
+    st.session_state["_workspace_file_search_results_v69040"] = seeded_rows
+    if str(selected_assistant or "") == "🔧 Technical Support":
+        st.session_state["_technical_file_search_results_v69012"] = seeded_rows
+    st.session_state["_active_product_package_turn_v69094"] = {
+        "status": str(payload.get("status") or ""),
+        "reason_code": str(payload.get("reason_code") or ""),
+        "exclusive": bool(payload.get("exclusive")),
+        "file_ids": sorted(active_ids),
+    }
+    return seeded_rows
+
+
 def _build_ai_request(
     prompt_text,
     uploaded_files,
@@ -40320,18 +40556,42 @@ def _build_ai_request(
         order_displayed_by_app=order_displayed_by_app,
     )
     knowledge_priority_instruction = _workspace_knowledge_priority_instruction(assistant)
+    subject_prompt_v69093 = (
+        subject_authority_prompt_v69081
+        if subject_authority_prompt_v69081 is not None
+        else prompt_text
+    )
     current_subject_authority_v69081 = (
         _workspace_current_subject_authority_v69081(
-            subject_authority_prompt_v69081
-            if subject_authority_prompt_v69081 is not None
-            else prompt_text,
+            subject_prompt_v69093,
             assistant,
         )
     )
+    active_product_package_v69093 = _workspace_active_product_package_v69093(
+        subject_prompt_v69093, assistant
+    )
+    active_product_context_v69093 = str(
+        active_product_package_v69093.get("context") or ""
+    )
+    if active_product_package_v69093.get("rows"):
+        _seed_active_product_package_rows_v69094(
+            active_product_package_v69093, assistant
+        )
+    if (
+        str(assistant or "") == "🔧 Technical Support"
+        and bool(active_product_package_v69093.get("exclusive"))
+        and str(active_product_package_v69093.get("status") or "")
+        != "recovered"
+    ):
+        raise _ProtectedKnowledgeRetrievalErrorV69062(
+            "The newest connected-product Technical package could not be "
+            "verified, so older store records were blocked."
+        )
     instructions = (
         get_instructions(assistant)
         + ("\n\n" + knowledge_priority_instruction if knowledge_priority_instruction else "")
         + ("\n\n" + current_subject_authority_v69081 if current_subject_authority_v69081 else "")
+        + ("\n\n" + active_product_context_v69093 if active_product_context_v69093 else "")
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
@@ -40364,7 +40624,11 @@ def _build_ai_request(
     if live_request_type == "web":
         tools.append({"type": "web_search"})
 
-    if use_file_search:
+    effective_file_search_v69093 = bool(
+        use_file_search
+        and not active_product_package_v69093.get("exclusive")
+    )
+    if effective_file_search_v69093:
         vector_store_ids = []
         if assistant == "🔧 Technical Support":
             vector_store_ids = _configured_vector_store_ids(
@@ -52169,15 +52433,79 @@ def _knowledge_filter_superseded_image_payloads_v69090(payloads):
     return output
 
 
+class _PriorProductImageRowsV69093(list):
+    """List-compatible cleanup snapshot carrying catalog completeness."""
+
+    def __init__(self, values=(), *, complete=True, reason_code="COMPLETE"):
+        super().__init__(values or [])
+        self.complete_v69093 = bool(complete)
+        self.reason_code_v69093 = str(reason_code or "")
+
+
 def _knowledge_product_prior_image_rows_v69090(database_choice, authority):
-    """Resolve persisted legacy image rows for transactional cleanup."""
-    rows, complete = _website_image_index_db_rows_v69005(
-        "id,solution,approved_answer,source_type,updated_at",
-        order_recent=True,
-        max_rows=20000,
+    """Resolve legacy image rows without blocking a new safe promotion.
+
+    The former implementation aborted every destination when the global image
+    catalog could not be fully paged.  That catalog is needed only to delete
+    superseded rows; it is not needed to upload, verify, or activate the new
+    package.  An incomplete scan now preserves every prior row and reports
+    cleanup pending. Query-time active-manifest filtering keeps those preserved
+    rows non-authoritative.
+    """
+    # v69093: the previous implementation paged the entire company image index
+    # (up to 20,000 rows) before every single destination save.  A pagination
+    # ceiling, an older PostgREST client without range support, or one transient
+    # read failure therefore blocked Technical, Sales, and Marketing alike.
+    # The active manifest already records the prior source page for this exact
+    # destination/product, so resolve only that bounded page cohort.  Missing or
+    # unreadable legacy rows are cleanup-pending; they are never a prerequisite
+    # for promoting the new verified package.
+    prior_manifest_v69093 = _knowledge_product_authority_manifest_v69090(
+        database_choice, authority
     )
+    prior_source_v69093 = str(
+        prior_manifest_v69093.get("source_name") or ""
+    ).strip()
+    rows = []
+    complete = True
+    if prior_source_v69093.startswith(("https://", "http://")):
+        try:
+            query_v69093 = (
+                supabase.table("learned_knowledge")
+                .select("id,solution,approved_answer,source_type,updated_at")
+                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                .eq("source_question", prior_source_v69093[:1200])
+                .order("updated_at", desc=True)
+                .limit(1000)
+            )
+            rows = list(query_v69093.execute().data or [])
+            complete = len(rows) < 1000
+        except Exception as error:
+            complete = False
+            diagnostic_log(
+                "product_image_authority_scoped_catalog_failed_v69093",
+                destination=str(database_choice or ""),
+                error_type=type(error).__name__,
+            )
+    elif prior_manifest_v69093:
+        # A document manifest has no website-image cohort to enumerate here.
+        rows = []
+    else:
+        # Legacy installations may have image rows but no product manifest.
+        # Preserve them and activate the new manifest; query-time authority
+        # suppression prevents those unmarked rows from being published.
+        complete = False
     if not complete:
-        raise RuntimeError("Product image authority catalog was incomplete; replacement aborted safely.")
+        diagnostic_log(
+            "product_image_authority_catalog_deferred_v69093",
+            destination=str(database_choice or ""),
+            loaded=len(rows),
+            reason_code="IMAGE_CATALOG_INCOMPLETE_CLEANUP_DEFERRED",
+        )
+        return _PriorProductImageRowsV69093(
+            [], complete=False,
+            reason_code="IMAGE_CATALOG_INCOMPLETE_CLEANUP_DEFERRED",
+        )
     matches = []
     for row in rows:
         raw = str(row.get("solution") or row.get("approved_answer") or "")
@@ -52197,7 +52525,9 @@ def _knowledge_product_prior_image_rows_v69090(database_choice, authority):
         ))
         if _knowledge_authority_candidate_matches_v69090(authority, candidate_text):
             matches.append({"id": row.get("id"), "payload": payload})
-    return matches
+    return _PriorProductImageRowsV69093(
+        matches, complete=True, reason_code="COMPLETE"
+    )
 
 
 def _knowledge_product_remove_prior_image_rows_v69090(prior_rows, active_authority):
@@ -52790,9 +53120,85 @@ def _website_image_index_rows_for_page_v69003(extraction, database_choice):
     target_page = _website_image_page_identity_v69003(extraction)
     target_database = str(database_choice or "").strip().casefold()
     matches = []
-    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
-        "id,issue,solution,approved_answer,source_type",
-        max_rows=20000,
+    if not target_page or not target_database:
+        return [], False
+
+    # v69093: page-scoped issues already encode destination + canonical page.
+    # Query that bounded prefix directly instead of enumerating the global image
+    # catalog for every preview, duplicate check, archive promotion and retry.
+    page_hash_v69093 = hashlib.sha256(
+        f"{target_database}|{target_page}".encode("utf-8")
+    ).hexdigest()[:16]
+    issue_prefix_v69093 = f"website-image:{page_hash_v69093}:"
+    rows_by_id_v69093 = {}
+    scoped_query_ok_v69093 = False
+    try:
+        scoped_query_v69093 = (
+            supabase.table("learned_knowledge")
+            .select("id,issue,solution,approved_answer,source_type")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+        )
+        like_method_v69093 = getattr(scoped_query_v69093, "like", None)
+        if not callable(like_method_v69093):
+            raise RuntimeError("PostgREST scoped LIKE filter is unavailable.")
+        scoped_rows_v69093 = list(
+            like_method_v69093("issue", issue_prefix_v69093 + "%")
+            .limit(1000)
+            .execute()
+            .data
+            or []
+        )
+        scoped_query_ok_v69093 = len(scoped_rows_v69093) < 1000
+        for row_v69093 in scoped_rows_v69093:
+            row_key_v69093 = str(row_v69093.get("id") or "").strip()
+            if row_key_v69093:
+                rows_by_id_v69093[row_key_v69093] = dict(row_v69093)
+    except Exception as error:
+        diagnostic_log(
+            "website_image_page_scoped_issue_query_failed_v69093",
+            error_type=type(error).__name__,
+        )
+
+    # Backward-compatible targeted lookup for pre-page-scoped issue rows.  The
+    # persisted source_question is the final source URL, so this remains bounded
+    # to the current page and never becomes a company-wide scan.
+    source_urls_v69093 = []
+    for raw_url_v69093 in (
+        (extraction or {}).get("source_url"),
+        (extraction or {}).get("requested_url"),
+    ):
+        clean_url_v69093 = str(raw_url_v69093 or "").strip()
+        if clean_url_v69093 and clean_url_v69093 not in source_urls_v69093:
+            source_urls_v69093.append(clean_url_v69093)
+    legacy_query_ok_v69093 = not source_urls_v69093
+    for source_url_v69093 in source_urls_v69093:
+        try:
+            legacy_rows_v69093 = list(
+                supabase.table("learned_knowledge")
+                .select("id,issue,solution,approved_answer,source_type")
+                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                .eq("source_question", source_url_v69093[:1200])
+                .limit(1000)
+                .execute()
+                .data
+                or []
+            )
+            if len(legacy_rows_v69093) >= 1000:
+                continue
+            legacy_query_ok_v69093 = True
+            for row_v69093 in legacy_rows_v69093:
+                row_key_v69093 = str(row_v69093.get("id") or "").strip()
+                if row_key_v69093:
+                    rows_by_id_v69093[row_key_v69093] = dict(row_v69093)
+        except Exception as error:
+            diagnostic_log(
+                "website_image_page_scoped_source_query_failed_v69093",
+                error_type=type(error).__name__,
+            )
+
+    rows = list(rows_by_id_v69093.values())
+    rows_complete_v69005 = bool(
+        scoped_query_ok_v69093 or legacy_query_ok_v69093
     )
     if not rows_complete_v69005:
         diagnostic_log(
@@ -52864,8 +53270,29 @@ def _website_image_snapshot_complete_v69069(
             "loaded": len(by_issue), "expected": len(expected),
             "reason": "IMAGE_SET_CHANGED",
         }
+    active_product_id_v69093 = str(
+        ((extraction or {}).get("product_authority_v69090") or {}).get(
+            "product_authority_id"
+        )
+        or ""
+    ).strip()
     for issue in expected:
         payload = dict(by_issue.get(issue) or {})
+        payload_product_id_v69093 = str(
+            payload.get("product_authority_id_v69090")
+            or (payload.get("product_authority_v69090") or {}).get(
+                "product_authority_id"
+            )
+            or ""
+        ).strip()
+        if (
+            active_product_id_v69093
+            and payload_product_id_v69093 != active_product_id_v69093
+        ):
+            return False, {
+                "loaded": len(by_issue), "expected": len(expected),
+                "reason": "PRODUCT_AUTHORITY_MARKER_REPAIR_REQUIRED_V69093",
+            }
         if not bool(payload.get("archive_verified_v69069")):
             return False, {
                 "loaded": len(by_issue), "expected": len(expected),
@@ -57772,8 +58199,29 @@ def _terminal_learned_image_completion_v69092(
     add_rows(ordinary_rows)
     add_rows(cached_rows)
 
+    active_rows_v69094 = [
+        dict(row) for row in rows
+        if isinstance(row, dict)
+        and bool(row.get("active_product_authority_v69093"))
+    ]
+    active_package_bound_v69094 = bool(active_rows_v69094)
+    if active_package_bound_v69094:
+        # Once the exact newest package is present, no stale ordinary/prefetch
+        # row may participate in image reconstruction for this turn.
+        rows = active_rows_v69094
+        seen_rows = {
+            (
+                str(row.get("file_id") or "").strip(),
+                str(row.get("filename") or "").strip(),
+                hashlib.sha256(
+                    str(row.get("text") or "").encode("utf-8")
+                ).hexdigest()[:16],
+            )
+            for row in rows
+        }
+
     pending = prefetch_future
-    if pending is not None:
+    if pending is not None and not active_package_bound_v69094:
         try:
             add_rows(pending.result(timeout=ATP_IMAGE_TERMINAL_WAIT_SECONDS_V69092) or [])
         except Exception as error:
@@ -57786,11 +58234,12 @@ def _terminal_learned_image_completion_v69092(
 
     recovered = []
     if workspace == "🔧 Technical Support":
-        # Fast durable authority first; this also handles newly learned exact
-        # subtitle bindings without a provider call.
-        recovered = _technical_subtitle_image_manifest_v69080(
-            prompt, answer_text=answer, max_images=max_images
-        )
+        # A current active package outranks the global durable catalog. Use the
+        # catalog only when no product-specific manifest matched this inquiry.
+        if not active_package_bound_v69094:
+            recovered = _technical_subtitle_image_manifest_v69080(
+                prompt, answer_text=answer, max_images=max_images
+            )
         if not recovered:
             recovered = _technical_console_menu_legacy_image_records_v69085(
                 prompt,
@@ -57832,7 +58281,11 @@ def _terminal_learned_image_completion_v69092(
                 for item in coordinator.outcomes
                 if isinstance(item, dict)
             )
-        if not recovered and retry_allowed:
+        if (
+            not recovered
+            and retry_allowed
+            and not active_package_bound_v69094
+        ):
             retry_rows = _website_image_dedicated_file_search_results_v69014(
                 prompt, answer, coordinator=coordinator
             )
@@ -57880,6 +58333,7 @@ def _terminal_learned_image_completion_v69092(
         "terminal_learned_image_completion_v69092",
         workspace=workspace,
         reused_rows=len(rows),
+        active_package_bound=bool(active_package_bound_v69094),
         recovered=len(recovered or []),
         published=len([
             item for item in images
@@ -60950,6 +61404,11 @@ def save_website_knowledge_package(
 
     # Stable exact duplicate check happens before package timestamp can vary.
     if vector_store_has_filename(selected_vector_store_id, filename):
+        exact_existing_file_ids_v69093 = (
+            _vector_store_file_ids_for_filename_v69093(
+                selected_vector_store_id, filename
+            )
+        )
         if include_images:
             exact_images_v69069 = list(image_analysis.get("images") or [])
             snapshot_complete_v69069, snapshot_detail_v69069 = (
@@ -61031,6 +61490,44 @@ def save_website_knowledge_package(
                 "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
             }
             image_records_repaired_v69069 = False
+
+        # v69093: an exact vector duplicate is not a complete no-op when an
+        # older deployment uploaded the file but never activated (or later lost)
+        # its product manifest. Bind the already-indexed file atomically so the
+        # newest package becomes answer and image authority without requiring a
+        # duplicate upload.
+        if not exact_existing_file_ids_v69093:
+            error_v69093 = RuntimeError(
+                "The exact package exists but its vector file ID could not be "
+                "verified; prior knowledge was preserved."
+            )
+            setattr(
+                error_v69093, "failure_stage_v69082",
+                "EXACT_DUPLICATE_FILE_ID_LOOKUP",
+            )
+            raise error_v69093
+        try:
+            _knowledge_product_authority_commit_v69090(
+                database_choice,
+                product_authority_v69090,
+                file_ids=exact_existing_file_ids_v69093,
+                source_type="website",
+                source_name=str(
+                    extraction.get("source_url")
+                    or extraction.get("requested_url")
+                    or ""
+                ),
+            )
+        except Exception as error:
+            try:
+                setattr(
+                    error, "failure_stage_v69082",
+                    "PRODUCT_AUTHORITY_ACTIVATION",
+                )
+            except Exception:
+                pass
+            raise
+        _website_invalidate_learning_caches_v69069([database_choice])
         return {
             "already_saved": True,
             "updated_existing_url": False,
@@ -61039,7 +61536,7 @@ def save_website_knowledge_package(
                 website_image_index_stats_v68883.get("cleanup_pending")
                 or website_image_index_stats_v68883.get("repair_pending_v69077")
             ),
-            "file_id": "",
+            "file_id": exact_existing_file_ids_v69093[0],
             "filename": filename,
             "images": list(image_analysis.get("images") or []),
             "image_analysis": image_analysis,
@@ -61065,6 +61562,13 @@ def save_website_knowledge_package(
     )
     prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
         database_choice, product_authority_v69090
+    )
+    prior_product_image_catalog_complete_v69093 = bool(
+        getattr(
+            prior_product_image_rows_v69090,
+            "complete_v69093",
+            True,
+        )
     )
     prior_product_rows_by_id_v69090 = {
         str((row or {}).get("file_id") or "").strip(): dict(row or {})
@@ -61122,7 +61626,7 @@ def save_website_knowledge_package(
         raise
 
     replaced_file_count_v68892 = 0
-    cleanup_pending_v68892 = False
+    cleanup_pending_v68892 = not prior_product_image_catalog_complete_v69093
 
     if str(indexing_status_v68892 or "").lower() == "completed":
         if include_images:
@@ -62058,6 +62562,26 @@ def vector_store_has_filename(vector_store_id, filename):
         )
 
     return False
+
+
+def _vector_store_file_ids_for_filename_v69093(vector_store_id, filename):
+    """Resolve exact existing file IDs for idempotent authority activation."""
+    target = str(filename or "").strip()
+    if not target:
+        return []
+    try:
+        return sorted({
+            str(row.get("file_id") or "").strip()
+            for row in _vector_store_file_catalog_v69040(vector_store_id)
+            if str(row.get("filename") or "").strip() == target
+            and str(row.get("file_id") or "").strip()
+        })
+    except Exception as error:
+        diagnostic_log(
+            "exact_duplicate_file_id_lookup_failed_v69093",
+            error_type=type(error).__name__,
+        )
+        return []
 
 
 
@@ -63614,6 +64138,13 @@ def _upload_knowledge_transaction_v69040(
     prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
         database_choice, product_authority_v69090
     ) if product_authority_v69090 else []
+    prior_product_image_catalog_complete_v69093 = bool(
+        getattr(
+            prior_product_image_rows_v69090,
+            "complete_v69093",
+            True,
+        )
+    )
     staged = []
     uploaded_ids = []
     if searchable_override is not None:
@@ -63702,8 +64233,15 @@ def _upload_knowledge_transaction_v69040(
         and str((row or {}).get("file_id") or "").strip() not in set(uploaded_ids)
     }
     removed, cleanup_pending = 0, bool(
-        product_authority_v69090
-        and not (product_image_cleanup_v69090 if 'product_image_cleanup_v69090' in locals() else {"completed": False}).get("completed")
+        not prior_product_image_catalog_complete_v69093
+        or (
+            product_authority_v69090
+            and not (
+                product_image_cleanup_v69090
+                if 'product_image_cleanup_v69090' in locals()
+                else {"completed": False}
+            ).get("completed")
+        )
     )
     for row in old_rows_by_id_v69090.values():
         if _website_remove_vector_file_v68892(vector_store_id, row.get("file_id")):
@@ -72935,6 +73473,33 @@ else:
             if is_marketing_workspace(assistant)
             else []
         )
+        # v69094: bind the newest connected-product package before *any* image
+        # prefetch is allowed to run. Previously this binding happened only
+        # inside _build_ai_request, after the early prefetch had already searched
+        # the entire store. That race could cache an obsolete image even though
+        # the later text request correctly received the newest package.
+        turn_active_product_package_v69094 = {
+            "status": "not_applicable", "rows": [], "exclusive": False,
+            "reason_code": "IMAGE_SEARCH_NOT_APPLICABLE",
+        }
+        turn_active_product_rows_v69094 = []
+        if (
+            bool(use_file_search)
+            and not is_graphic_workspace(assistant)
+            and str(image_coordinator_prompt_v69062 or "").strip()
+        ):
+            turn_active_product_package_v69094 = (
+                _workspace_active_product_package_v69093(
+                    image_coordinator_prompt_v69062, assistant
+                )
+            )
+            turn_active_product_rows_v69094 = (
+                _seed_active_product_package_rows_v69094(
+                    turn_active_product_package_v69094, assistant
+                )
+                if turn_active_product_package_v69094.get("rows")
+                else []
+            )
         if (
             bool(use_file_search)
             and not is_graphic_workspace(assistant)
@@ -72951,25 +73516,54 @@ else:
             and bool(use_file_search)
             and str(technical_image_request_prompt_v69079 or "").strip()
         ):
-            try:
-                technical_early_index_images_v69016 = (
-                    _technical_subtitle_image_manifest_v69080(
-                        technical_image_request_prompt_v69079,
-                        max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES,
-                    )
+            if turn_active_product_rows_v69094:
+                # The complete current package is both faster and more precise
+                # than a global durable-index scan or an unfiltered prefetch.
+                technical_image_prefetch_cached_rows_v69016 = list(
+                    turn_active_product_rows_v69094
                 )
-                if not technical_early_index_images_v69016:
-                    technical_early_index_images_v69016 = _website_image_lookup_v68883(
-                        technical_image_request_prompt_v69079
-                    )
-            except Exception as error:
                 diagnostic_log(
-                    "website_image_early_lookup_failed_v69016",
-                    error_type=type(error).__name__, error=str(error)[:500],
+                    "technical_active_package_prefetch_bound_v69094",
+                    row_count=len(technical_image_prefetch_cached_rows_v69016),
+                    reason_code=str(
+                        turn_active_product_package_v69094.get("reason_code")
+                        or ""
+                    ),
                 )
-                technical_early_index_images_v69016 = []
+            elif bool(turn_active_product_package_v69094.get("exclusive")):
+                # Matched-but-unverifiable/ambiguous newest authority is a hard
+                # negative test. Do not search an older Technical package.
+                diagnostic_log(
+                    "technical_active_package_prefetch_blocked_v69094",
+                    reason_code=str(
+                        turn_active_product_package_v69094.get("reason_code")
+                        or "ACTIVE_PACKAGE_UNVERIFIED"
+                    ),
+                )
+            else:
+                try:
+                    technical_early_index_images_v69016 = (
+                        _technical_subtitle_image_manifest_v69080(
+                            technical_image_request_prompt_v69079,
+                            max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES,
+                        )
+                    )
+                    if not technical_early_index_images_v69016:
+                        technical_early_index_images_v69016 = _website_image_lookup_v68883(
+                            technical_image_request_prompt_v69079
+                        )
+                except Exception as error:
+                    diagnostic_log(
+                        "website_image_early_lookup_failed_v69016",
+                        error_type=type(error).__name__, error=str(error)[:500],
+                    )
+                    technical_early_index_images_v69016 = []
 
-            if not technical_early_index_images_v69016:
+            if (
+                not technical_early_index_images_v69016
+                and not technical_image_prefetch_cached_rows_v69016
+                and not bool(turn_active_product_package_v69094.get("exclusive"))
+            ):
                 technical_image_prefetch_cached_rows_v69016 = (
                     _technical_image_prefetch_cache_get_v69016(
                         technical_image_request_prompt_v69079
@@ -74274,31 +74868,55 @@ else:
             }:
                 exact_console_images_v69084 = []
                 try:
-                    exact_console_images_v69084 = (
-                        _technical_subtitle_image_manifest_v69080(
-                            technical_image_request_prompt_v69079,
-                            answer_text=answer,
-                            max_images=1,
-                        )
+                    console_legacy_rows_v69085 = list(
+                        st.session_state.get(
+                            "_technical_file_search_results_v69012"
+                        ) or []
                     )
-                    if not exact_console_images_v69084:
-                        console_legacy_rows_v69085 = list(
-                            st.session_state.get(
-                                "_technical_file_search_results_v69012"
+                    console_legacy_rows_v69085.extend(
+                        list(
+                            locals().get(
+                                "technical_image_prefetch_cached_rows_v69016"
                             ) or []
                         )
-                        console_legacy_rows_v69085.extend(
-                            list(
-                                locals().get(
-                                    "technical_image_prefetch_cached_rows_v69016"
-                                ) or []
+                    )
+                    active_console_rows_v69094 = [
+                        dict(row) for row in console_legacy_rows_v69085
+                        if isinstance(row, dict)
+                        and bool(row.get("active_product_authority_v69093"))
+                    ]
+                    if active_console_rows_v69094:
+                        console_legacy_rows_v69085 = active_console_rows_v69094
+                    else:
+                        exact_console_images_v69084 = (
+                            _technical_subtitle_image_manifest_v69080(
+                                technical_image_request_prompt_v69079,
+                                answer_text=answer,
+                                max_images=1,
                             )
                         )
+                    if not exact_console_images_v69084:
                         exact_console_images_v69084 = (
                             _technical_console_menu_legacy_image_records_v69085(
                                 technical_image_request_prompt_v69079,
                                 answer,
                                 console_legacy_rows_v69085,
+                                max_images=1,
+                                coordinator=image_search_coordinator_v69062,
+                                allow_direct_search_v69087=(
+                                    not bool(active_console_rows_v69094)
+                                ),
+                            )
+                        )
+                    if (
+                        not exact_console_images_v69084
+                        and active_console_rows_v69094
+                    ):
+                        exact_console_images_v69084 = (
+                            _technical_answer_url_records_from_exact_rows_v69074(
+                                technical_image_request_prompt_v69079,
+                                answer,
+                                active_console_rows_v69094,
                                 max_images=1,
                                 coordinator=image_search_coordinator_v69062,
                             )
