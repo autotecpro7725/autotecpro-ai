@@ -1,4 +1,4 @@
-# AutoTecPro AI v69078 — Graphic multi-tab lease heartbeat stability
+# AutoTecPro AI v69081 — Knowledge response accuracy and first-token acceleration
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69078"
+ATP_BUILD_VERSION_V69062 = "v69081"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -98,7 +98,10 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69075-runtime-image-accuracy-resilience+"
     "v69076-fresh-open-new-case+"
     "v69077-deterministic-exact-image-authority+"
-    "v69078-graphic-multitab-lease-heartbeat"
+    "v69078-graphic-multitab-lease-heartbeat+"
+    "v69079-v69050-ordinary-evidence-first+"
+    "v69080-universal-exact-subtitle-image-authority+"
+    "v69081-knowledge-response-accuracy-acceleration"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -39524,6 +39527,17 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
             error_type=type(error).__name__,
             error=str(error),
         )
+        # A transient Supabase outage must not add the same blocking network
+        # timeout to every response in a staff session.  Cache only the empty
+        # failure result for 15 seconds.  A successful in-session learning write
+        # increments the revision in the key and bypasses this entry immediately.
+        if len(session_cache) >= 16:
+            session_cache.clear()
+        session_cache[cache_key] = {
+            "cached_at": time.monotonic() - 285.0,
+            "text": "",
+            "transient_failure_v69081": True,
+        }
         return ""
 
     approved_rows = [
@@ -39803,6 +39817,69 @@ def _workspace_knowledge_priority_instruction(selected_assistant):
     return ""
 
 
+@st.cache_data(ttl=300, max_entries=2048, show_spinner=False)
+def _workspace_current_subject_authority_v69081(prompt_text, selected_assistant):
+    """Lock explicit current-message fitment facts before multi-store retrieval.
+
+    The block is intentionally derived from the current user message only.  It
+    never promotes assistant prose or an older case into vehicle/year/product
+    authority, and it does not participate in image selection.  Existing image
+    ownership, subtitle, vehicle, year, product, QA, and publication gates remain
+    the sole visual authority.
+    """
+    workspace = str(selected_assistant or "")
+    if not (
+        workspace == "🔧 Technical Support"
+        or is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ):
+        return ""
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()[:4000]
+    if not prompt:
+        return ""
+
+    try:
+        brands = sorted(_website_identity_brand_set_v69022(prompt))
+        families = sorted(_website_identity_vehicle_families_v69022(prompt))
+        years = sorted(_website_identity_years_v69022(prompt))
+        systems = sorted(_website_identity_systems_v69022(prompt))
+        product_codes = sorted(_website_image_product_codes_v69020(prompt))
+        variants = sorted(_technical_product_variants_v69077(prompt))
+    except Exception:
+        # Accuracy context is optional.  Any parser problem must leave the
+        # established provider and image pipelines unchanged.
+        return ""
+
+    screen_sizes = sorted(set(re.findall(
+        r"(?<!\d)(?:12\.1|13\.6|13\.8|14\.4|15\.6|17\.2|17)(?:\s*(?:inch|inches|in|\"))?",
+        prompt.casefold(),
+    )))
+    identity = {
+        "brands": brands,
+        "vehicle_families": families,
+        "years": years,
+        "factory_systems": systems,
+        "product_codes": product_codes,
+        "product_variants": variants,
+        "screen_sizes": screen_sizes,
+    }
+    identity = {key: value for key, value in identity.items() if value}
+    if not identity:
+        return ""
+
+    return (
+        "CURRENT-MESSAGE SUBJECT AUTHORITY — deterministic application parse:\n"
+        + json.dumps(identity, ensure_ascii=False, sort_keys=True)
+        + "\nTreat these explicit current-user identifiers as hard retrieval and "
+          "answer constraints. Do not transfer specifications, compatibility, "
+          "settings, policies, or product claims from a different vehicle family, "
+          "year, factory system, screen size, product code, or product variant. "
+          "If exact evidence conflicts or the stated configuration remains "
+          "ambiguous, identify the missing distinction instead of guessing."
+    )
+
+
 def _build_ai_request(
     prompt_text,
     uploaded_files,
@@ -39813,6 +39890,7 @@ def _build_ai_request(
     use_file_search=True,
     live_data_override=_LIVE_DATA_UNSET,
     order_displayed_by_app=False,
+    subject_authority_prompt_v69081=None,
 ):
     user_input = build_user_input(
         prompt_text,
@@ -39825,9 +39903,18 @@ def _build_ai_request(
         order_displayed_by_app=order_displayed_by_app,
     )
     knowledge_priority_instruction = _workspace_knowledge_priority_instruction(assistant)
+    current_subject_authority_v69081 = (
+        _workspace_current_subject_authority_v69081(
+            subject_authority_prompt_v69081
+            if subject_authority_prompt_v69081 is not None
+            else prompt_text,
+            assistant,
+        )
+    )
     instructions = (
         get_instructions(assistant)
         + ("\n\n" + knowledge_priority_instruction if knowledge_priority_instruction else "")
+        + ("\n\n" + current_subject_authority_v69081 if current_subject_authority_v69081 else "")
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
@@ -40832,6 +40919,7 @@ def ask_ai_stream(
     use_file_search=True,
     live_data_override=_LIVE_DATA_UNSET,
     order_displayed_by_app=False,
+    subject_authority_prompt_v69081=None,
 ):
     """
     Yield the complete Responses API answer.
@@ -40851,6 +40939,7 @@ def ask_ai_stream(
         use_file_search=use_file_search,
         live_data_override=live_data_override,
         order_displayed_by_app=order_displayed_by_app,
+        subject_authority_prompt_v69081=subject_authority_prompt_v69081,
     )
 
     request = original_request
@@ -54201,9 +54290,16 @@ def _website_image_universal_relation_score_v69014(
     else:
         base = 0.0
 
+    exact_subtitle_pass_v69080, exact_subtitle_score_v69080, _ = (
+        _website_image_exact_subtitle_relation_v69080(
+            prompt_text, answer_text, payload
+        )
+    )
+
     prompt_tokens = set(_website_image_tokens_v68883(prompt_text))
     answer_tokens = set(_website_image_tokens_v68883(answer_text))
     section_text = " ".join((
+        str(payload.get("section_subtitle_v69067") or ""),
         str(payload.get("section_heading") or ""),
         str(payload.get("nearby_instruction_text") or ""),
         str(payload.get("caption") or ""),
@@ -54211,24 +54307,33 @@ def _website_image_universal_relation_score_v69014(
     ))
     section_tokens = set(_website_image_tokens_v68883(section_text))
     heading_tokens = set(_website_image_tokens_v68883(payload.get("section_heading") or ""))
+    subtitle_tokens_v69080 = set(_website_image_tokens_v68883(
+        payload.get("section_subtitle_v69067") or ""
+    ))
 
     prompt_overlap = prompt_tokens & section_tokens
     answer_overlap = answer_tokens & section_tokens
     heading_prompt_overlap = prompt_tokens & heading_tokens
     heading_answer_overlap = answer_tokens & heading_tokens
+    subtitle_prompt_overlap_v69080 = prompt_tokens & subtitle_tokens_v69080
+    subtitle_answer_overlap_v69080 = answer_tokens & subtitle_tokens_v69080
 
     # Page/source metadata is fitment evidence, never enough by itself to prove
     # image relevance. A candidate needs section-local relationship evidence.
     if not section_tokens:
         return -800.0
     if query_role:
-        if not prompt_overlap and len(answer_overlap) < 2:
+        if (
+            not exact_subtitle_pass_v69080
+            and not prompt_overlap
+            and len(answer_overlap) < 2
+        ):
             return -700.0
     else:
         # Universal/new topics need stronger section-local proof than a generic
         # verb such as "connect". Require either two direct question concepts,
         # or a heading concept plus supporting overlap with the actual answer.
-        if not (
+        if not exact_subtitle_pass_v69080 and not (
             len(prompt_overlap) >= 2
             or (len(heading_prompt_overlap) >= 1 and len(answer_overlap) >= 2)
         ):
@@ -54239,6 +54344,10 @@ def _website_image_universal_relation_score_v69014(
     score += 1.5 * min(len(answer_overlap), 12)
     score += 4.0 * len(heading_prompt_overlap)
     score += 2.0 * min(len(heading_answer_overlap), 6)
+    score += 5.0 * len(subtitle_prompt_overlap_v69080)
+    score += 2.0 * min(len(subtitle_answer_overlap_v69080), 6)
+    if exact_subtitle_pass_v69080:
+        score += float(exact_subtitle_score_v69080)
     score += max(0.0, min(float(file_score or 0.0), 1.0)) * 10.0
 
     # Strong phrase alignment between the question/answer and section heading is
@@ -54264,6 +54373,153 @@ def _website_image_universal_payload_pass_v69014(
     # New/unclassified topics require stronger section-local evidence.
     threshold = 6.0 if query_role else 12.0
     return score >= threshold, score
+
+
+def _website_image_relation_signature_v69080(value):
+    """Return topic concepts for arbitrary learned subtitles and inquiries.
+
+    This is deliberately generic: it does not enumerate supported image topics.
+    A small morphology/synonym layer only makes ordinary wording variants compare
+    consistently (for example, ``configuration`` and ``settings``).  Vehicle,
+    year and product identity are removed separately by the authority function so
+    same-page fitment can never masquerade as subtitle relevance.
+    """
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return set()
+    text = re.sub(r"a\s*/\s*c", " climate ", text)
+    text = re.sub(r"android\s+auto", " androidauto ", text)
+    text = re.sub(r"apple\s+carplay", " carplay ", text)
+    text = re.sub(r"car\s+model", " carmodel ", text)
+    text = re.sub(r"can\s+bus", " canbus ", text)
+    text = re.sub(r"rear\s+view", " reverse ", text)
+    text = re.sub(r"back(?:up|\s+up)", " reverse ", text)
+
+    canonical = {
+        "settings": "setting", "setup": "setting", "setups": "setting",
+        "configure": "setting", "configured": "setting",
+        "configuration": "setting", "configurations": "setting",
+        "controls": "control", "controlled": "control",
+        "connections": "connection", "connect": "connection",
+        "connected": "connection", "connecting": "connection",
+        "connectors": "connector", "cables": "cable", "wires": "wiring",
+        "installation": "install", "installed": "install",
+        "installing": "install", "cameras": "camera",
+        "screens": "screen", "touchscreen": "screen",
+        "touchscreens": "screen", "displays": "display",
+        "models": "model", "protocols": "protocol",
+        "applications": "app", "application": "app", "apps": "app",
+        "radios": "radio", "logos": "logo", "buttons": "button",
+    }
+    stop = {
+        "what", "whats", "which", "where", "when", "why", "how", "does",
+        "doing", "could", "would", "should", "please", "show", "display",
+        "give", "tell", "find", "need", "want", "have", "with", "from",
+        "this", "that", "these", "those", "your", "about", "into", "onto",
+        "image", "images", "photo", "photos", "picture", "pictures",
+        "screenshot", "screenshots", "related", "inquiry", "information",
+    }
+    output = set()
+    for token in _website_image_tokens_v68883(text):
+        token = canonical.get(token, token)
+        if token and token not in stop:
+            output.add(token)
+    return output
+
+
+def _website_image_exact_subtitle_relation_v69080(
+    prompt_text, answer_text, payload
+):
+    """Prove inquiry-to-subtitle relevance without a hard-coded topic list.
+
+    The relation is usable only for v69073's exact subtitle-to-next-logical-image
+    binding.  It is relevance evidence, never ownership or fitment authority;
+    callers must still apply destination, vehicle, year, product and visual QA
+    gates.  Existing classified/high-risk roles retain their stricter gate.
+    """
+    if not isinstance(payload, dict):
+        return False, 0.0, "INVALID_PAYLOAD"
+    binding_version = str(payload.get("context_binding_version_v69067") or "")
+    if not (
+        bool(payload.get("subtitle_exact_image_binding_v69073"))
+        and "v69073-semantic-subtitle-next-logical-image-group" in binding_version
+    ):
+        return False, 0.0, "NO_EXACT_SUBTITLE_BINDING"
+
+    subtitle = re.sub(
+        r"\s+", " ", str(payload.get("section_subtitle_v69067") or "")
+    ).strip()
+    if not subtitle:
+        return False, 0.0, "EMPTY_SUBTITLE"
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt:
+        return False, 0.0, "EMPTY_PROMPT"
+
+    query_role = _website_image_query_role_v68884(prompt)
+    if query_role:
+        # Classified roles (camera type, wiring type, Car Model/A-C, and so on)
+        # may not use the generic subtitle bridge to bypass their strict role and
+        # visual-state authority.
+        if not _website_image_final_payload_gate_v68885(prompt, payload):
+            return False, 0.0, "CLASSIFIED_ROLE_GATE_REJECTED"
+        role_score = max(
+            0.0, float(_website_image_role_score_v68884(query_role, payload))
+        )
+        return True, 80.0 + min(role_score, 40.0), "CLASSIFIED_EXACT_SUBTITLE"
+
+    prompt_signature = _website_image_relation_signature_v69080(prompt)
+    answer_signature = _website_image_relation_signature_v69080(answer)
+    subtitle_signature = _website_image_relation_signature_v69080(subtitle)
+    if not prompt_signature or not subtitle_signature:
+        return False, 0.0, "EMPTY_TOPIC_SIGNATURE"
+
+    identity_text = " ".join(
+        list(_website_identity_brand_set_v69022(prompt))
+        + list(_website_identity_vehicle_families_v69022(prompt))
+        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
+        + sorted(_website_image_product_codes_v69020(prompt))
+        + sorted(_technical_product_variants_v69077(prompt))
+    )
+    identity_signature = _website_image_relation_signature_v69080(identity_text)
+    size_tokens = set(re.findall(
+        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
+        r"15\.1|15\.6|17\.2)\b",
+        prompt.casefold(),
+    ))
+    prompt_topic = prompt_signature - identity_signature - size_tokens
+
+    # These words are meaningful for classified roles, but too broad to prove a
+    # brand-new subtitle topic by themselves.  A pair may still establish a
+    # relationship (for example, "factory radio" or "screen setting").
+    weak = {
+        "car", "carmodel", "model", "vehicle", "product", "system", "unit",
+        "screen", "display", "radio", "setting", "install", "technical",
+        "support", "factory", "original", "android", "style",
+    }
+    direct = prompt_topic & subtitle_signature
+    strong_direct = direct - weak
+    answer_to_subtitle = answer_signature & subtitle_signature
+    prompt_to_answer = prompt_topic & answer_signature
+    strong_answer_bridge = (answer_to_subtitle - weak)
+
+    direct_pass = bool(strong_direct) or len(direct) >= 2
+    answer_bridge_pass = bool(
+        prompt_to_answer and len(strong_answer_bridge) >= 2
+    )
+    if not (direct_pass or answer_bridge_pass):
+        return False, 0.0, "SUBTITLE_TOPIC_NOT_RELATED"
+
+    score = (
+        55.0
+        + 14.0 * len(strong_direct)
+        + 6.0 * len(direct & weak)
+        + 3.0 * min(len(strong_answer_bridge), 6)
+    )
+    return True, score, "EXACT_SUBTITLE_TOPIC_RELATED"
 
 
 def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
@@ -55703,6 +55959,135 @@ def _technical_exact_image_manifest_v69077(
     return output
 
 
+def _technical_subtitle_image_manifest_v69080(
+    prompt_text, answer_text="", max_images=3,
+):
+    """Resolve every inquiry-related exact-subtitle Technical image.
+
+    v69077's manifest intentionally required a known role such as Car Model/A-C
+    or camera.  That made its durable, fast path unavailable to a newly learned
+    subtitle topic.  v69080 replaces only that eligibility assumption: exact
+    Technical ownership, v69073 DOM binding, vehicle/year/product fitment,
+    visual-state QA and answer-conflict checks remain mandatory.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    if not prompt:
+        return []
+
+    requested_variants = _technical_product_variants_v69077(prompt)
+    ranked = []
+    rejected = 0
+    rejection_reasons = {}
+
+    def reject(reason):
+        nonlocal rejected
+        rejected += 1
+        key = str(reason or "REJECTED")
+        rejection_reasons[key] = int(rejection_reasons.get(key) or 0) + 1
+
+    for raw_payload in _website_image_index_rows_v68883() or []:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "").strip() != "Technical Support Database":
+            reject("DESTINATION_OWNERSHIP_REJECTED")
+            continue
+        if _website_source_zone_is_excluded_v69024(
+            str(payload.get("source_zone_v69024") or "")
+        ):
+            reject("EXCLUDED_SOURCE_ZONE")
+            continue
+
+        subtitle_pass, subtitle_score, subtitle_reason = (
+            _website_image_exact_subtitle_relation_v69080(
+                prompt, answer, payload
+            )
+        )
+        if not subtitle_pass:
+            reject(subtitle_reason)
+            continue
+
+        candidate_variants = _technical_product_variants_v69077(
+            _website_image_payload_identity_text_v69022(payload)
+        )
+        if (
+            requested_variants and candidate_variants
+            and not (requested_variants & candidate_variants)
+        ):
+            reject("PRODUCT_VARIANT_REJECTED")
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt, payload):
+            reject("VEHICLE_OR_YEAR_REJECTED")
+            continue
+        if not _website_image_final_payload_gate_v68885(prompt, payload):
+            reject("FINAL_PAYLOAD_GATE_REJECTED")
+            continue
+        if answer and not _website_image_resolved_payload_gate_v69022(
+            prompt, answer, payload
+        ):
+            reject("RESOLVED_PRODUCT_GATE_REJECTED")
+            continue
+
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            reject("RENDER_RECORD_BUILD_FAILED")
+            continue
+        if answer and _website_image_answer_conflict_v69021(
+            prompt, answer, record
+        ):
+            reject("ANSWER_CONFLICT_REJECTED")
+            continue
+
+        base_score = float(_website_image_rank_v68883(prompt, payload))
+        if base_score <= -500.0:
+            reject("RANK_AUTHORITY_REJECTED")
+            continue
+        score = base_score + float(subtitle_score) + 120.0
+        record["website_exact_manifest_v69080"] = True
+        record["website_exact_manifest_relation_v69080"] = subtitle_reason
+        record["website_image_match_score_v68883"] = round(score, 3)
+        _attach_image_provenance_v69062(
+            record, payload, "Technical Support Database",
+            "durable_image_index", score,
+            "EXACT_SUBTITLE_INQUIRY_AND_FITMENT",
+            {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass", "topic_gate": "pass",
+            },
+        )
+        ranked.append((
+            score,
+            str(payload.get("indexed_at") or ""),
+            str(payload.get("image_sha256") or payload.get("image_url") or ""),
+            record,
+        ))
+
+    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    output, seen = [], set()
+    for _score, _indexed_at, identity, record in ranked:
+        identity = str(identity or "").strip().casefold()
+        if identity and identity in seen:
+            continue
+        if identity:
+            seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    diagnostic_log(
+        "technical_subtitle_image_manifest_v69080",
+        candidates=len(ranked), rejected=rejected,
+        rejection_reasons=rejection_reasons,
+        published=len(output),
+    )
+    return output
+
+
 def _technical_variant_ambiguity_guard_v69077(prompt_text, answer_text):
     """Block a silent 726/726W assumption for 2009-2016 Super Duty."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
@@ -56674,10 +57059,22 @@ def _workspace_image_semantic_authority_v69062(
             "product_gate": "pass", "topic_gate": "reject",
         }
 
+    exact_subtitle_pass_v69080, exact_subtitle_score_v69080, exact_subtitle_reason_v69080 = (
+        _website_image_exact_subtitle_relation_v69080(
+            prompt, answer, payload
+        )
+    )
+
     local_topic_hits = {
         topic for topic in topic_groups
         if any(phrase in semantic_local_text for phrase in topic_groups[topic])
     }
+    if exact_subtitle_pass_v69080:
+        # An exact subtitle binding is an image-local topic, not page-level
+        # similarity.  It can therefore represent a new subject that has never
+        # appeared in ``topic_groups`` without weakening destination or fitment.
+        requested_topics.add("exact_subtitle")
+        local_topic_hits.add("exact_subtitle")
     topic_hits = requested_topics & local_topic_hits
     lexical_overlap = topic_tokens & local_tokens
     caption_overlap = topic_tokens & caption_tokens
@@ -56745,6 +57142,7 @@ def _workspace_image_semantic_authority_v69062(
         + len(visual_overlap) * 4.0
         + max(0.0, min(float(role_score), 30.0))
         + row_score * 8.0
+        + (float(exact_subtitle_score_v69080) if exact_subtitle_pass_v69080 else 0.0)
     )
     # The subtitle-to-next-logical-image binding is the nearest ingestion-time
     # DOM authority. It may rank only after the unchanged vehicle/year/product,
@@ -56756,7 +57154,11 @@ def _workspace_image_semantic_authority_v69062(
     # Answer/page identity is a small deterministic tie-breaker only.
     answer_tokens = set(_website_image_tokens_v68883(answer))
     semantic_score += min(len(answer_tokens & local_tokens), 8) * 0.5
-    return True, semantic_score, "EXACT_DESTINATION_AND_FITMENT", {
+    return True, semantic_score, (
+        exact_subtitle_reason_v69080
+        if exact_subtitle_pass_v69080
+        else "EXACT_DESTINATION_AND_FITMENT"
+    ), {
         "vehicle_gate": "pass", "year_gate": "pass",
         "product_gate": "pass", "topic_gate": "pass",
         "topics": sorted(requested_topics),
@@ -64389,6 +64791,49 @@ def _product_library_prompt_requests_images(prompt):
     return any(word in value for word in image_words)
 
 
+def _product_library_lookup_required_v69081(prompt):
+    """Avoid a catalogue read only for provably unrelated ordinary messages.
+
+    This is deliberately a broad allow-list.  Any product, vehicle, fitment,
+    technical, visual, model-code, or pending-clarification signal preserves the
+    exact existing Product Library path.  Only greetings, conversational turns,
+    and self-contained language work bypass it.
+    """
+    if _product_library_pending_candidates():
+        return True
+    if _product_library_is_asset_refinement_followup(prompt):
+        return True
+    if _product_library_prompt_requests_images(prompt):
+        return True
+    if _product_library_prompt_requests_facts(prompt):
+        return True
+
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
+    if not value:
+        return False
+
+    product_domain_terms = (
+        "autotecpro", "vehicle", "car", "truck", "screen", "radio",
+        "head unit", "infotainment", "tesla style", "android", "carplay",
+        "product", "model", "unit", "part", "sku", "serial", "harness",
+        "canbus", "sync", "uconnect", "onstar", "entune", "climate",
+        "audio", "sound", "amplifier", "camera", "installation", "install",
+        "wiring", "silverado", "sierra", "f150", "f-150", "f250", "f-250",
+        "f350", "f-350", "f450", "f-450", "ram", "tundra", "tacoma",
+        "durango", "wrangler", "gladiator", "q50", "q60",
+    )
+    if any(term in value for term in product_domain_terms):
+        return True
+
+    # Preserve short AutoTecPro identifiers such as 836-Pro or KVN83A, while a
+    # standalone calendar year does not force a catalogue lookup.
+    if re.search(r"\b(?=[a-z0-9-]{3,16}\b)(?=[a-z0-9-]*[a-z])(?=[a-z0-9-]*\d)[a-z0-9]+(?:-[a-z0-9]+)*\b", value):
+        return True
+    if re.search(r"(?<!\d)\d{2,4}-(?:pro|max|s[123]|qs1|[a-z]\w*)\b", value):
+        return True
+    return False
+
+
 PRODUCT_LIBRARY_ASSET_INTENTS = {
     "front_view": (
         "front", "front view", "face", "display side", "screen side",
@@ -64781,6 +65226,128 @@ def _technical_recent_user_context_v68879(max_messages=3):
             break
     rows.reverse()
     return "\n".join(rows)
+
+
+def _technical_image_effective_turn_query_v69079(prompt_text):
+    """Restore exact user-owned fitment context for short Technical confirmations.
+
+    The answer pipeline continues to receive the original current prompt. This helper
+    is image-retrieval-only: a short reply such as ``only 726`` inherits the previous
+    user's vehicle/year/topic question so every existing ownership, fitment, product,
+    section and visual gate can evaluate the complete inquiry. Assistant wording is
+    never used as authority.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current or str(assistant or "") != "🔧 Technical Support":
+        return current
+
+    current_role = _website_image_query_role_v68884(current)
+    current_families = _website_identity_vehicle_families_v69022(current)
+    current_years = _website_identity_years_v69022(current)
+    if current_role and current_families and current_years:
+        return current
+
+    current_cf = current.casefold()
+    confirmation = bool(
+        len(current) <= 64
+        and (
+            _technical_product_variants_v69077(current)
+            or re.fullmatch(
+                r"(?:only\s+)?(?:manual|automatic|auto|sync\s*[123]|no[\s-]?sync)",
+                current_cf,
+            )
+            or current_cf in {"yes", "no", "correct", "that's correct", "that is correct"}
+        )
+    )
+    if not confirmation:
+        return current
+
+    skipped_current = False
+    for message in reversed(list(st.session_state.get("messages") or [])[-12:]):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = re.sub(
+            r"\s+", " ", clean_visible_chat_text(visible)
+        ).strip()
+        if not visible:
+            continue
+        if not skipped_current and visible.casefold() == current_cf:
+            skipped_current = True
+            continue
+        if not _website_image_query_role_v68884(visible):
+            continue
+        if not _website_identity_vehicle_families_v69022(visible):
+            continue
+        if not _website_identity_years_v69022(visible):
+            continue
+        return (
+            visible[:900]
+            + "\n\nCONFIRMED PRODUCT DETAIL: "
+            + current[:120]
+        )
+    return current
+
+
+def _technical_image_effective_turn_query_v69080(prompt_text):
+    """Retain user-owned fitment for any short Technical follow-up topic.
+
+    v69079 covered product-variant confirmations such as ``only 726``.  This
+    extension is topic-agnostic: a short follow-up about any learned subtitle can
+    inherit only the nearest prior *user* vehicle/year wording in the same case.
+    It never reads assistant output and never changes the factual provider prompt.
+    """
+    current = _technical_image_effective_turn_query_v69079(prompt_text)
+    current = re.sub(r"\s+", " ", str(current or "")).strip()
+    if not current or str(assistant or "") != "🔧 Technical Support":
+        return current
+
+    # v69079 already restored an authoritative prior question when appropriate.
+    if "CONFIRMED PRODUCT DETAIL:" in current:
+        return current
+    if (
+        _website_identity_vehicle_families_v69022(current)
+        and _website_identity_years_v69022(current)
+    ):
+        return current
+
+    # Do not attach stale context to a long, standalone request. New-case opening
+    # clears messages, and this short bound keeps inheritance inside a clear
+    # conversational follow-up.
+    if len(current) > 180 or len(current.split()) > 24:
+        return current
+
+    skipped_current = False
+    for message in reversed(list(st.session_state.get("messages") or [])[-8:]):
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(
+            str(message.get("content") or "")
+        )
+        visible = re.sub(
+            r"\s+", " ", clean_visible_chat_text(visible)
+        ).strip()
+        if not visible:
+            continue
+        if not skipped_current and visible.casefold() == current.casefold():
+            skipped_current = True
+            continue
+        if not _website_identity_vehicle_families_v69022(visible):
+            continue
+        if not _website_identity_years_v69022(visible):
+            continue
+        return (
+            current[:700]
+            + "\n\nPRIOR USER FITMENT CONTEXT: "
+            + visible[:900]
+        )
+    return current
 
 
 def _technical_store_photo_context_v68879(prompt_text, uploaded_files):
@@ -69666,6 +70233,13 @@ else:
             if assistant == "🔧 Technical Support"
             else interaction_prompt
         )
+        technical_image_request_prompt_v69079 = (
+            _technical_image_effective_turn_query_v69080(
+                technical_request_prompt_v68879
+            )
+            if assistant == "🔧 Technical Support"
+            else technical_request_prompt_v68879
+        )
 
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
@@ -69888,7 +70462,7 @@ else:
         workspace_early_index_images_v69075 = []
         image_search_coordinator_v69062 = None
         image_coordinator_prompt_v69062 = (
-            technical_request_prompt_v68879
+            technical_image_request_prompt_v69079
             if assistant == "🔧 Technical Support"
             else interaction_prompt
         )
@@ -69915,18 +70489,18 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
-            and str(technical_request_prompt_v68879 or "").strip()
+            and str(technical_image_request_prompt_v69079 or "").strip()
         ):
             try:
                 technical_early_index_images_v69016 = (
-                    _technical_exact_image_manifest_v69077(
-                        technical_request_prompt_v68879,
-                        max_images=1,
+                    _technical_subtitle_image_manifest_v69080(
+                        technical_image_request_prompt_v69079,
+                        max_images=WEBSITE_AUTO_DISPLAY_MAX_IMAGES,
                     )
                 )
                 if not technical_early_index_images_v69016:
                     technical_early_index_images_v69016 = _website_image_lookup_v68883(
-                        technical_request_prompt_v68879
+                        technical_image_request_prompt_v69079
                     )
             except Exception as error:
                 diagnostic_log(
@@ -69937,7 +70511,9 @@ else:
 
             if not technical_early_index_images_v69016:
                 technical_image_prefetch_cached_rows_v69016 = (
-                    _technical_image_prefetch_cache_get_v69016(technical_request_prompt_v68879)
+                    _technical_image_prefetch_cache_get_v69016(
+                        technical_image_request_prompt_v69079
+                    )
                 )
                 if not technical_image_prefetch_cached_rows_v69016:
                     try:
@@ -69953,11 +70529,11 @@ else:
                                     _ImageSearchCoordinatorV69062,
                                 )
                                 else hashlib.sha256(
-                                    technical_request_prompt_v68879.encode("utf-8")
+                                    technical_image_request_prompt_v69079.encode("utf-8")
                                 ).hexdigest()
                             ),
                             _website_image_prefetch_file_search_results_v69015,
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             assistant,
                             image_search_coordinator_v69062,
                         )
@@ -70163,7 +70739,26 @@ else:
             if graphic_chat_intent in {"planning", "conversation"}:
                 use_file_search = False
 
-        allow_product_library_lookup = bool(not attachment_only_mode)
+        allow_product_library_lookup = bool(
+            not attachment_only_mode
+            and not explicit_learning_requested
+            and not technical_website_learning_requested_v68870
+            and (
+                assistant == "🎨 Graphic Marketing"
+                or _product_library_lookup_required_v69081(interaction_prompt)
+            )
+        )
+        if (
+            not attachment_only_mode
+            and not explicit_learning_requested
+            and not technical_website_learning_requested_v68870
+            and assistant != "🎨 Graphic Marketing"
+            and not allow_product_library_lookup
+        ):
+            diagnostic_log(
+                "product_library_irrelevant_preflight_bypassed_v69081",
+                workspace=str(assistant),
+            )
         if assistant == "🎨 Graphic Marketing":
             allow_product_library_lookup = bool(
                 allow_product_library_lookup
@@ -70768,6 +71363,7 @@ else:
                 last_stream_update = 0.0
                 last_stream_render_chars_v69026 = 0
                 first_stream_delta_received = False
+                first_stream_delta_at_v69081 = None
                 analysis_heading = (
                     "Technical Support"
                     if assistant == "🔧 Technical Support"
@@ -70819,7 +71415,7 @@ else:
                 auto_visual_topic_v68888 = ""
                 if assistant == "🔧 Technical Support":
                     auto_visual_topic_v68888 = _website_image_auto_topic_v68888(
-                        technical_request_prompt_v68879
+                        technical_image_request_prompt_v69079
                     )
 
                 if (
@@ -70871,6 +71467,7 @@ else:
                 if not is_graphic_workspace(assistant):
                     st.session_state["_workspace_file_search_results_v69040"] = []
 
+                provider_stream_started_v69081 = time.perf_counter()
                 try:
                     _runtime_audit_update_v69062(
                         active_workspace=str(assistant),
@@ -70901,11 +71498,33 @@ else:
                         use_file_search=use_file_search,
                         live_data_override=preloaded_live_data,
                         order_displayed_by_app=bool(order_display_text),
+                        subject_authority_prompt_v69081=(
+                            technical_request_prompt_v68879
+                            if assistant == "🔧 Technical Support"
+                            else interaction_prompt
+                        ),
                     ):
                         delta_text = str(delta or "")
                         if delta_text and not first_stream_delta_received:
                             first_stream_delta_received = True
+                            first_stream_delta_at_v69081 = time.perf_counter()
                             loading_status_placeholder.empty()
+                            diagnostic_log(
+                                "ai_first_text_delta_v69081",
+                                workspace=str(assistant),
+                                elapsed_from_submit_seconds=round(
+                                    first_stream_delta_at_v69081
+                                    - command_preflight_started_v68864,
+                                    4,
+                                ),
+                                elapsed_from_provider_start_seconds=round(
+                                    first_stream_delta_at_v69081
+                                    - provider_stream_started_v69081,
+                                    4,
+                                ),
+                                file_search=bool(use_file_search),
+                                prompt_characters=len(str(interaction_prompt or "")),
+                            )
 
                         streamed_answer += delta_text
                         visible_stream = strip_website_image_control_tail_v68870(
@@ -70955,7 +71574,7 @@ else:
                     if auto_website_images_v68870:
                         generated_images.extend(auto_website_images_v68870)
                     generated_images = _website_image_final_authority_v68885(
-                        technical_request_prompt_v68879
+                        technical_image_request_prompt_v69079
                         if assistant == "🔧 Technical Support"
                         else interaction_prompt,
                         _dedupe_website_chat_images_v68883(generated_images),
@@ -71002,7 +71621,7 @@ else:
                     if partial_web_images_v68870:
                         generated_images.extend(partial_web_images_v68870)
                     generated_images = _website_image_final_authority_v68885(
-                        technical_request_prompt_v68879
+                        technical_image_request_prompt_v69079
                         if assistant == "🔧 Technical Support"
                         else interaction_prompt,
                         _dedupe_website_chat_images_v68883(generated_images),
@@ -71094,6 +71713,13 @@ else:
                 response_time = round(
                     time.time() - response_start_time,
                     2,
+                )
+                diagnostic_log(
+                    "ai_response_latency_v69081",
+                    workspace=str(assistant),
+                    total_seconds=response_time,
+                    first_text_delta_received=bool(first_stream_delta_received),
+                    file_search=bool(use_file_search),
                 )
                 tokens_used = None
 
@@ -71193,18 +71819,18 @@ else:
                 and str(image.get("source") or "") == "website_knowledge"
             ]
             auto_visual_topic_v69008 = _website_image_auto_topic_v68888(
-                technical_request_prompt_v68879
+                technical_image_request_prompt_v69079
             )
             if auto_visual_topic_v69008 and not existing_website_images_v69008 and str(answer or "").strip():
                 try:
                     answer_context_images_v69008 = _website_image_lookup_v68883(
-                        technical_request_prompt_v68879,
+                        technical_image_request_prompt_v69079,
                         ranking_context_v69008=answer,
                     )
                     if answer_context_images_v69008:
                         generated_images.extend(answer_context_images_v69008)
                         generated_images = _website_image_final_authority_v68885(
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             _dedupe_website_chat_images_v68883(generated_images),
                             deterministic_images=answer_context_images_v69008,
                             answer_text=answer,
@@ -71227,7 +71853,7 @@ else:
         # must be related to the exact answer-supporting section and still pass vehicle/year
         # authority; broad same-page similarity alone is never sufficient.
         if assistant == "🔧 Technical Support" and _website_image_universal_technical_candidate_v69014(
-            technical_request_prompt_v68879, answer
+            technical_image_request_prompt_v69079, answer
         ):
             indexed_website_images_v69014 = [
                 image for image in (generated_images or [])
@@ -71265,36 +71891,68 @@ else:
                             )
                             if prefetched_rows_v69015:
                                 _technical_image_prefetch_cache_set_v69016(
-                                    technical_request_prompt_v68879,
+                                    technical_image_request_prompt_v69079,
                                     prefetched_rows_v69015,
                                 )
                         except Exception:
                             prefetched_rows_v69015 = []
+                    # v69079 root fix: restore v69050's proven runtime order. The
+                    # ordinary rows that produced the text answer are authoritative
+                    # first evidence and must be parsed/hydrated immediately, even
+                    # while an optional background prefetch is still running. v69074
+                    # accidentally deferred these rows and could discard the later
+                    # prefetch result after a one-second wait, yielding correct text
+                    # with zero published image. All current destination, fitment,
+                    # product, subtitle/section and visual-state gates remain inside
+                    # the two unchanged reconstruction functions below.
+                    universal_images_v69014 = []
+                    if answer_result_rows_v69014:
+                        universal_images_v69014 = (
+                            _technical_answer_url_records_from_exact_rows_v69074(
+                                technical_image_request_prompt_v69079,
+                                answer,
+                                answer_result_rows_v69014,
+                                max_images=3,
+                                coordinator=image_search_coordinator_v69062,
+                            )
+                        )
+                        if not universal_images_v69014:
+                            universal_images_v69014 = _website_file_search_images_v69014(
+                                technical_image_request_prompt_v69079,
+                                answer,
+                                answer_result_rows_v69014,
+                                coordinator=image_search_coordinator_v69062,
+                            )
+                        diagnostic_log(
+                            "technical_ordinary_evidence_first_v69079",
+                            result_rows=len(answer_result_rows_v69014),
+                            recovered=len(universal_images_v69014 or []),
+                        )
+
                     early_rows_v69074 = (
                         answer_result_rows_v69014 + prefetched_rows_v69015
                     )
                     defer_to_running_prefetch_v69074 = bool(
-                        technical_image_prefetch_future_active_v69015 is not None
+                        not universal_images_v69014
+                        and technical_image_prefetch_future_active_v69015 is not None
                         and not technical_image_prefetch_future_active_v69015.done()
                         and not prefetched_rows_v69015
                     )
-                    # v69074: when the answer already quotes an exact learned
-                    # AutoTecPro URL, resolve that pointer against the complete
-                    # Technical-owned payload before any broader ranking.  This
-                    # fixes URL-visible-but-not-rendered responses without giving
-                    # the URL itself publication authority.
-                    universal_images_v69014 = [] if defer_to_running_prefetch_v69074 else (
+                    # v69074 exact-answer URL bridge remains the next authority for
+                    # completed prefetch rows. A URL alone never grants publication.
+                    if not universal_images_v69014 and not defer_to_running_prefetch_v69074:
+                        universal_images_v69014 = (
                         _technical_answer_url_records_from_exact_rows_v69074(
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             answer,
                             early_rows_v69074,
                             max_images=3,
                             coordinator=image_search_coordinator_v69062,
                         )
-                    )
+                        )
                     if not universal_images_v69014 and not defer_to_running_prefetch_v69074:
                         universal_images_v69014 = _website_file_search_images_v69014(
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             answer,
                             early_rows_v69074,
                             coordinator=image_search_coordinator_v69062,
@@ -71310,7 +71968,7 @@ else:
                     ):
                         try:
                             prefetch_timeout_v69062 = min(
-                                1.0,
+                                ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062,
                                 max(
                                     0.05,
                                     image_search_coordinator_v69062.remaining()
@@ -71318,7 +71976,7 @@ else:
                                         image_search_coordinator_v69062,
                                         _ImageSearchCoordinatorV69062,
                                     )
-                                    else 1.0,
+                                    else ATP_IMAGE_RECOVERY_BUDGET_SECONDS_V69062,
                                 ),
                             )
                             prefetched_rows_v69015 = list(
@@ -71328,7 +71986,8 @@ else:
                             )
                             if prefetched_rows_v69015:
                                 _technical_image_prefetch_cache_set_v69016(
-                                    technical_request_prompt_v68879, prefetched_rows_v69015
+                                    technical_image_request_prompt_v69079,
+                                    prefetched_rows_v69015,
                                 )
                         except Exception as error:
                             diagnostic_log(
@@ -71342,7 +72001,7 @@ else:
                         )
                         universal_images_v69014 = (
                             _technical_answer_url_records_from_exact_rows_v69074(
-                                technical_request_prompt_v68879,
+                                technical_image_request_prompt_v69079,
                                 answer,
                                 combined_prefetch_rows_v69074,
                                 max_images=3,
@@ -71351,7 +72010,7 @@ else:
                         )
                         if not universal_images_v69014:
                             universal_images_v69014 = _website_file_search_images_v69014(
-                                technical_request_prompt_v68879,
+                                technical_image_request_prompt_v69079,
                                 answer,
                                 combined_prefetch_rows_v69074,
                                 coordinator=image_search_coordinator_v69062,
@@ -71361,7 +72020,7 @@ else:
                     # existing answer-aware dedicated search as the fail-safe fallback.
                     if not universal_images_v69014:
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             answer,
                             coordinator=image_search_coordinator_v69062,
                         )
@@ -71373,7 +72032,7 @@ else:
                             )
                             universal_images_v69014 = (
                                 _technical_answer_url_records_from_exact_rows_v69074(
-                                    technical_request_prompt_v68879,
+                                    technical_image_request_prompt_v69079,
                                     answer,
                                     combined_dedicated_rows_v69074,
                                     max_images=3,
@@ -71382,7 +72041,7 @@ else:
                             )
                             if not universal_images_v69014:
                                 universal_images_v69014 = _website_file_search_images_v69014(
-                                    technical_request_prompt_v68879,
+                                    technical_image_request_prompt_v69079,
                                     answer,
                                     combined_dedicated_rows_v69074,
                                     coordinator=image_search_coordinator_v69062,
@@ -71400,7 +72059,7 @@ else:
                         ]
                         generated_images.extend(universal_images_v69014)
                         generated_images = _website_image_final_authority_v68885(
-                            technical_request_prompt_v68879,
+                            technical_image_request_prompt_v69079,
                             _dedupe_website_chat_images_v68883(generated_images),
                             deterministic_images=website_index_images_v68883,
                             answer_text=answer,
@@ -71434,7 +72093,7 @@ else:
                     # could find an approved image while the automatic path stayed
                     # text-only because the durable image-index row was missing/stale.
                     related_reference_images_v69025r1 = _website_image_related_evidence_lookup_v69025r2(
-                        technical_request_prompt_v68879,
+                        technical_image_request_prompt_v69079,
                         answer,
                         max_images=3,
                         coordinator=image_search_coordinator_v69062,
@@ -71445,7 +72104,7 @@ else:
                         )
                         related_rows_v69032.extend(
                             _technical_image_prefetch_cache_get_v69016(
-                                technical_request_prompt_v68879
+                                technical_image_request_prompt_v69079
                             )
                         )
                         # Reuse the answer-aware dedicated rows already fetched by
@@ -71456,7 +72115,7 @@ else:
                         )
                         related_reference_images_v69025r1 = (
                             _website_automatic_related_image_recovery_v69049(
-                                technical_request_prompt_v68879,
+                                technical_image_request_prompt_v69079,
                                 answer,
                                 related_rows_v69032,
                                 max_images=3,
@@ -71466,11 +72125,17 @@ else:
                     diagnostic_log(
                         "website_related_evidence_lookup_completed_v69027",
                         recovered=len(related_reference_images_v69025r1 or []),
-                        role=_website_image_query_role_v68884(technical_request_prompt_v68879),
-                        prompt_years=sorted(_website_identity_years_v69022(technical_request_prompt_v68879)),
+                        role=_website_image_query_role_v68884(
+                            technical_image_request_prompt_v69079
+                        ),
+                        prompt_years=sorted(
+                            _website_identity_years_v69022(
+                                technical_image_request_prompt_v69079
+                            )
+                        ),
                         resolved_years=sorted(
                             _website_resolved_subject_identity_v69022(
-                                technical_request_prompt_v68879, answer
+                                technical_image_request_prompt_v69079, answer
                             ).get("years") or []
                         ),
                     )
@@ -71480,7 +72145,9 @@ else:
                         diagnostic_log(
                             "website_related_evidence_auto_publication_v69025r2",
                             recovered=len(related_reference_images_v69025r1),
-                            role=_website_image_query_role_v68884(technical_request_prompt_v68879),
+                            role=_website_image_query_role_v68884(
+                                technical_image_request_prompt_v69079
+                            ),
                         )
                 except Exception as error:
                     diagnostic_log(
