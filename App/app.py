@@ -1,4 +1,4 @@
-# AutoTecPro AI v69086 — F-150 Xinbasi protocol + learned-image authority
+# AutoTecPro AI v69089 — uncached archive verification + precise learning diagnostics
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69086"
+ATP_BUILD_VERSION_V69062 = "v69089"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -106,7 +106,10 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69083-726-family-shared-settings-equivalence+"
     "v69084-f150-console-menu-factual-and-image-authority+"
     "v69085-f150-legacy-same-file-image-compatibility+"
-    "v69086-f150-xinbasi-protocol-authority"
+    "v69086-f150-xinbasi-protocol-authority+"
+    "v69087-f150-complete-file-image-recovery|"
+    "v69088-latest-page-revision-single-pass-publication+"
+    "v69089-uncached-archive-write-verification"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -166,6 +169,11 @@ ATP_RELEASE_REQUIRED_TEST_IDS_V69062 = (
     "technical_f150_f450_image_authority",
     "technical_f150_legacy_image_compatibility",
     "technical_f150_xinbasi_protocol_authority",
+    "technical_f150_complete_file_image_recovery",
+    "latest_same_url_image_revision_authority",
+    "single_pass_chat_publication",
+    "website_archive_write_readback_freshness",
+    "website_learning_failure_code_accuracy",
     "technical_sales_only_blocked",
     "sales_positive_image",
     "sales_marketing_only_blocked",
@@ -51918,6 +51926,7 @@ def build_website_knowledge_package_document(
         f"Final source URL: {extraction.get('source_url')}",
         f"Extracted at (UTC): {extraction.get('extracted_at')}",
         f"Page content SHA-256: {extraction.get('content_hash')}",
+        f"Website version SHA-256 v68892: {extraction.get('website_version_hash_v68892') or ''}",
         f"Page type v69024: {extraction.get('page_type_v69024')}",
         f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
         f"Context binding authority v69067: {WEBSITE_CONTEXT_BINDING_VERSION_V69067}",
@@ -52038,6 +52047,13 @@ def _website_image_index_record_v68883(
         "source_page": str(extraction.get("source_url") or "").strip(),
         "requested_page": str(
             extraction.get("requested_url") or extraction.get("source_url") or ""
+        ).strip(),
+        # v69088: bind every durable image row to the exact reviewed page
+        # revision that produced it.  Without this field, a failed best-effort
+        # stale-row deletion left old and replacement rows indistinguishable at
+        # query time after a same-URL resubmission.
+        "website_version_hash_v68892": str(
+            extraction.get("website_version_hash_v68892") or ""
         ).strip(),
         "image_url": str(image_item.get("url") or "").strip(),
         "image_sha256": str(image_item.get("sha256") or "").strip(),
@@ -52566,8 +52582,13 @@ def _website_archive_and_index_images_v68883(
                 # The physical archive is shared safely across destinations by
                 # digest. Avoid rewriting an already verified object when Sales
                 # and Marketing ingest the same selected image set.
+                # v69089: both the existence probe and the post-write checksum
+                # verification are transaction reads and must bypass the normal
+                # 15-minute chat-render cache.  v69077 used the cached reader
+                # here; a legitimate pre-upload miss poisoned the immediate
+                # post-upload read with the same empty value.
                 verified_raw = bytes(
-                    _website_storage_bytes_v68883(archive_path) or b""
+                    _website_storage_bytes_uncached_v69089(archive_path) or b""
                 )
                 archive_reused_v69077 = bool(
                     verified_raw
@@ -52578,8 +52599,14 @@ def _website_archive_and_index_images_v68883(
                     _product_library_storage_upload(
                         archive_path, raw, archive_mime
                     )
+                    # Remove any historical negative/read entry before this new
+                    # object can be consumed by chat publication.
+                    try:
+                        _website_storage_bytes_v68883.clear()
+                    except Exception:
+                        pass
                     verified_raw = bytes(
-                        _website_storage_bytes_v68883(archive_path) or b""
+                        _website_storage_bytes_uncached_v69089(archive_path) or b""
                     )
                 if not verified_raw:
                     raise RuntimeError(
@@ -52602,6 +52629,7 @@ def _website_archive_and_index_images_v68883(
                 ).isoformat()
                 payload["archive_sha256_v69069"] = raw_digest_v69077
                 payload["archive_reused_v69077"] = archive_reused_v69077
+                payload["archive_write_verified_uncached_v69089"] = True
                 prepared.append(payload)
                 stats["archived"] += 1
                 stats["prepared"] += 1
@@ -52708,6 +52736,89 @@ def _website_archive_and_index_images_v68883(
     return stats
 
 
+def _website_latest_page_revision_rows_v69088(payloads):
+    """Expose only the newest complete image snapshot per page/destination.
+
+    Same-URL replacement is upload-first and cleanup-second.  If cleanup of an
+    older durable row is temporarily unavailable, both snapshots can coexist.
+    Publication must nevertheless be atomic: one chat turn may see the newest
+    snapshot or no snapshot, never a mixture of old and new image records.
+
+    v69088 rows carry the exact website version hash.  Legacy rows do not, so
+    they are grouped into the latest bounded ingestion cohort using their
+    persisted UTC timestamps.  This repairs existing deployments without asking
+    staff to submit the page again.
+    """
+    groups = {}
+    for raw in list(payloads or []):
+        if not isinstance(raw, dict):
+            continue
+        payload = dict(raw)
+        key = (
+            str(payload.get("database_choice") or "").strip(),
+            _website_image_page_identity_v69003(payload),
+        )
+        if not key[0] or not key[1]:
+            continue
+        groups.setdefault(key, []).append(payload)
+
+    selected = []
+    for key, rows in groups.items():
+        def parsed_time(item):
+            value = str(item.get("indexed_at") or "").strip()
+            try:
+                stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=timezone.utc)
+                return stamp.astimezone(timezone.utc)
+            except Exception:
+                return datetime.min.replace(tzinfo=timezone.utc)
+
+        newest = max(rows, key=parsed_time)
+        newest_time = parsed_time(newest)
+        newest_revision = str(
+            newest.get("website_version_hash_v68892") or ""
+        ).strip()
+        if newest_revision:
+            active = [
+                row for row in rows
+                if str(row.get("website_version_hash_v68892") or "").strip()
+                == newest_revision
+            ]
+            authority = "VERSION_HASH"
+        elif newest_time != datetime.min.replace(tzinfo=timezone.utc):
+            # All pre-v69088 images from one approval are inserted together.
+            # Thirty minutes comfortably covers a large visual-analysis batch
+            # while excluding an older page revision from a prior submission.
+            cohort_start = newest_time - timedelta(minutes=30)
+            active = [
+                row for row in rows
+                if not str(row.get("website_version_hash_v68892") or "").strip()
+                and parsed_time(row) >= cohort_start
+            ]
+            authority = "LEGACY_LATEST_COHORT"
+        else:
+            # Missing timestamps cannot establish newest authority. Preserve
+            # only the first row instead of mixing unorderable revisions.
+            active = rows[:1]
+            authority = "LEGACY_UNORDERED_FAIL_CLOSED"
+
+        for row in active:
+            row["latest_page_revision_authority_v69088"] = authority
+            row["latest_page_revision_v69088"] = True
+            selected.append(row)
+        if len(active) != len(rows):
+            diagnostic_log(
+                "website_stale_image_rows_suppressed_v69088",
+                destination=key[0],
+                page_hash=hashlib.sha256(key[1].encode("utf-8")).hexdigest()[:12],
+                retained=len(active),
+                suppressed=max(0, len(rows) - len(active)),
+                authority=authority,
+            )
+    return selected
+
+
 @st.cache_data(ttl=300, max_entries=4, show_spinner=False)
 def _website_image_index_rows_v68883():
     """Load durable approved website-image metadata without touching file_search."""
@@ -52736,7 +52847,7 @@ def _website_image_index_rows_v68883():
             or str(payload.get("archive_storage_path") or "").strip()
         ):
             parsed.append(payload)
-    return parsed
+    return _website_latest_page_revision_rows_v69088(parsed)
 
 
 def _website_destination_revision_v69069(database_choice):
@@ -56191,8 +56302,14 @@ def _website_image_rank_v68883(prompt_text, payload):
     return score
 
 
-@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
-def _website_storage_bytes_v68883(path):
+def _website_storage_bytes_uncached_v69089(path):
+    """Read one archived image directly from private storage.
+
+    This function is deliberately uncached.  It is the write-transaction
+    authority used before and after an archive upload.  A cached negative read
+    must never be reused to decide whether a just-uploaded object exists.
+    Normal chat rendering continues to use the cached wrapper below.
+    """
     clean_path = str(path or "").strip().lstrip("/")
     if not clean_path:
         return b""
@@ -56228,6 +56345,12 @@ def _website_storage_bytes_v68883(path):
         return b""
 
     return _extract(payload)
+
+
+@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
+def _website_storage_bytes_v68883(path):
+    """Cached read path used by normal chat/image rendering."""
+    return _website_storage_bytes_uncached_v69089(path)
 
 
 def _website_image_record_for_chat_v68883(payload):
@@ -56607,7 +56730,7 @@ def _technical_console_menu_image_score_v69084(
 
 def _technical_console_menu_legacy_image_records_v69085(
     prompt_text, answer_text, result_rows=None, max_images=1,
-    coordinator=None,
+    coordinator=None, allow_direct_search_v69087=True,
 ):
     """Recover the exact old-format F-150 Car Model screenshot safely.
 
@@ -56639,6 +56762,166 @@ def _technical_console_menu_legacy_image_records_v69085(
             )
         )
 
+    # v69087 production fix: the real learned F-150 package does not place the
+    # protocol, both climate values, subtitle and image URL inside one vector
+    # chunk/image record.  Hydrate the exact returned Technical file once and
+    # preserve file-level console authority separately from image-local topic
+    # authority.  This is intentionally narrower than whole-page similarity:
+    # the file must declare (or inherit from this Technical-only search) the
+    # Technical destination, identify the exact F-150 2009-2014 source page and
+    # contain Xinbasi plus F450 LO and F450 HI.  Each candidate image must still
+    # be locally bound to the Car Model/A-C section and pass every unchanged
+    # vehicle/year/resolved/final publication gate below.
+    complete_file_ids_v69087 = set()
+    for row_v69087 in [
+        dict(item) for item in (result_rows or []) if isinstance(item, dict)
+    ][:16]:
+        file_id_v69087 = str(row_v69087.get("file_id") or "").strip()
+        if not file_id_v69087 or file_id_v69087 in complete_file_ids_v69087:
+            continue
+        complete_file_ids_v69087.add(file_id_v69087)
+        full_text_v69087 = str(
+            row_v69087.get("_website_complete_file_text_v69074")
+            or _website_file_full_text_coordinated_v69062(
+                file_id_v69087, coordinator
+            )
+            or ""
+        )
+        if not full_text_v69087:
+            continue
+        extracted_at_match_v69088 = re.search(
+            r"(?im)^Extracted at \(UTC\)\s*:\s*([^\r\n]+)",
+            full_text_v69087,
+        )
+        extracted_at_v69088 = str(
+            extracted_at_match_v69088.group(1)
+            if extracted_at_match_v69088 else ""
+        ).strip()
+        destinations_v69087 = {
+            re.sub(r"\s+", " ", str(value or "")).strip()
+            for value in re.findall(
+                r"(?im)^Destination\s*:\s*([^\r\n]+)",
+                full_text_v69087,
+            )
+            if str(value or "").strip()
+        }
+        if destinations_v69087 and destinations_v69087 != {
+            "Technical Support Database"
+        }:
+            continue
+        source_page_v69087 = _website_file_source_url_v69012(
+            full_text_v69087
+        )
+        try:
+            parsed_v69087 = urlparse(source_page_v69087)
+            host_v69087 = str(
+                parsed_v69087.hostname or ""
+            ).casefold().rstrip(".")
+            if host_v69087 == "www.autotecpro.com":
+                host_v69087 = "autotecpro.com"
+            path_v69087 = unquote(
+                str(parsed_v69087.path or "")
+            ).casefold()
+        except Exception:
+            host_v69087, path_v69087 = "", ""
+        if not (
+            host_v69087 == "autotecpro.com"
+            and "installation-instruction" in path_v69087
+            and re.search(r"(?:ford[-_/]+150|f[-_]?150)", path_v69087)
+            and "2009" in path_v69087
+            and "2014" in path_v69087
+        ):
+            continue
+        authority_text_v69087 = re.sub(
+            r"\s+", " ", clean_visible_chat_text(full_text_v69087)
+        ).casefold()
+        if not (
+            "xinbasi" in authority_text_v69087
+            and re.search(r"\bf[-\s]?450\s+lo\b", authority_text_v69087)
+            and re.search(r"\bf[-\s]?450\s+hi\b", authority_text_v69087)
+            and re.search(
+                r"\bcar\s*model\b|\ba\s*/?\s*c\s*model\b",
+                authority_text_v69087,
+            )
+        ):
+            continue
+        full_payloads_v69087 = []
+        full_payloads_v69087.extend(
+            _website_structured_image_payloads_from_file_v69012(
+                full_text_v69087,
+                str(row_v69087.get("filename") or ""),
+                file_id_v69087,
+            )
+        )
+        full_payloads_v69087.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                full_text_v69087,
+                str(row_v69087.get("filename") or ""),
+                file_id_v69087,
+            )
+        )
+        full_payloads_v69087.extend(
+            _website_plain_file_search_image_payloads_v69039(
+                full_text_v69087,
+                str(row_v69087.get("filename") or ""),
+                file_id_v69087,
+            )
+        )
+        for payload_v69087 in _website_merge_image_payloads_v69074(
+            full_payloads_v69087
+        ):
+            if not isinstance(payload_v69087, dict):
+                continue
+            payload_v69087 = dict(payload_v69087)
+            explicit_destination_v69087 = str(
+                payload_v69087.get("database_choice") or ""
+            ).strip()
+            if destinations_v69087:
+                if explicit_destination_v69087 != "Technical Support Database":
+                    continue
+            else:
+                # These rows came from a search bound only to the configured
+                # Technical vector store. Absence of a legacy Destination header
+                # may restore ownership; an explicit conflicting header above may
+                # never do so.
+                payload_v69087["database_choice"] = (
+                    "Technical Support Database"
+                )
+                payload_v69087[
+                    "_technical_exact_store_authority_v69087"
+                ] = True
+            payload_v69087["source_page"] = (
+                str(payload_v69087.get("source_page") or "").strip()
+                or source_page_v69087
+            )
+            payload_v69087["page_title"] = (
+                str(payload_v69087.get("page_title") or "").strip()
+                or _website_file_title_v69012(
+                    full_text_v69087,
+                    str(row_v69087.get("filename") or ""),
+                )
+            )
+            payload_v69087["_technical_file_id_v69032"] = file_id_v69087
+            # v69088: when cleanup left two same-URL vector packages attached,
+            # rank the package from the newest completed extraction first.  The
+            # ordinary relevance score is intentionally unchanged; this is only
+            # the same-page/same-role revision tiebreaker.
+            if extracted_at_v69088:
+                payload_v69087["indexed_at"] = extracted_at_v69088
+                payload_v69087[
+                    "latest_vector_revision_authority_v69088"
+                ] = "EXTRACTED_AT_UTC"
+            payload_v69087[
+                "_technical_console_complete_file_authority_v69087"
+            ] = True
+            payloads.append(payload_v69087)
+
+    payloads.sort(
+        key=lambda item: str(
+            (item or {}).get("indexed_at") or ""
+        ),
+        reverse=True,
+    )
     requested_years = set(profile.get("request_years") or [])
     ranked = []
     seen = set()
@@ -56706,9 +56989,19 @@ def _technical_console_menu_legacy_image_records_v69085(
                 ensure_ascii=False, sort_keys=True, default=str,
             ),
         )).casefold()
+        local_label_text_v69087 = " ".join((
+            str(payload.get("section_subtitle_v69067") or ""),
+            str(payload.get("section_heading") or ""),
+            str(payload.get("caption") or ""),
+            str(payload.get("visual_analysis") or ""),
+        )).casefold()
         role_exact = bool(re.search(
             r"\bcar\s*model\b|\ba\s*/?\s*c\s*(?:model|setting|control)?\b",
             local_text,
+        ))
+        role_label_exact_v69087 = bool(re.search(
+            r"\bcar\s*model\b|\ba\s*/?\s*c\s*(?:model|setting|control)?\b",
+            local_label_text_v69087,
         ))
         f450_exact = bool(re.search(r"\bf[-\s]?450\b", local_text))
         protocol_exact = "xinbasi" in local_text
@@ -56717,7 +57010,29 @@ def _technical_console_menu_legacy_image_records_v69085(
             r"\bautomatic\s+a\s*/?\s*c\b",
             local_text,
         ))
-        if not (role_exact and f450_exact and protocol_exact and climate_exact):
+        complete_file_authority_v69087 = bool(
+            payload.get(
+                "_technical_console_complete_file_authority_v69087"
+            )
+        )
+        local_label_exclusion_v69087 = bool(re.search(
+            r"\b(?:camera|reverse|backup|wiring|wire|harness|connector|"
+            r"speaker|microphone|gps|antenna|usb|lvds)\b",
+            local_label_text_v69087,
+        ))
+        if complete_file_authority_v69087:
+            if (
+                not role_exact
+                or (
+                    local_label_exclusion_v69087
+                    and not role_label_exact_v69087
+                )
+            ):
+                reject("COMPLETE_FILE_IMAGE_LOCAL_ROLE_REJECTED_V69087")
+                continue
+        elif not (
+            role_exact and f450_exact and protocol_exact and climate_exact
+        ):
             reject("IMAGE_LOCAL_CONSOLE_EVIDENCE_REJECTED")
             continue
         if not _website_image_vehicle_fitment_gate_v68997(
@@ -56747,6 +57062,9 @@ def _technical_console_menu_legacy_image_records_v69085(
         )
         payload["legacy_html_section_bound_v69011"] = False
         payload["website_console_legacy_same_file_v69085"] = True
+        payload["website_console_complete_file_authority_v69087"] = bool(
+            complete_file_authority_v69087
+        )
         if not _website_image_final_payload_gate_v68885(
             prompt_text, payload
         ):
@@ -56762,6 +57080,9 @@ def _technical_console_menu_legacy_image_records_v69085(
             "website_file_search_deterministic_v69012": True,
             "website_legacy_html_section_bound_v69011": False,
             "website_console_legacy_same_file_v69085": True,
+            "website_console_complete_file_authority_v69087": bool(
+                complete_file_authority_v69087
+            ),
             "technical_console_menu_profile_v69084": str(
                 profile.get("profile_id") or ""
             ),
@@ -56795,9 +57116,40 @@ def _technical_console_menu_legacy_image_records_v69085(
 
     ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     output = [item[3] for item in ranked[:max(1, int(max_images or 1))]]
+
+    # The ordinary text answer can be deterministically corrected from the
+    # approved profile even when its provider result rows do not include the
+    # image-bearing chunk. Reproduce the explicit-photo behavior immediately by
+    # running one same-Technical-store, answer-aware search, hydrating that exact
+    # file, and re-entering this identical authority function once. This is not a
+    # broader fallback and cannot query Sales, Marketing, or Graphic stores.
+    if not output and bool(allow_direct_search_v69087):
+        try:
+            dedicated_rows_v69087 = (
+                _website_image_dedicated_file_search_results_v69014(
+                    prompt_text, answer_text, coordinator=coordinator
+                )
+            )
+        except Exception as error_v69087:
+            dedicated_rows_v69087 = []
+            diagnostic_log(
+                "technical_console_direct_search_failed_v69087",
+                error_type=type(error_v69087).__name__,
+                error=str(error_v69087)[:500],
+            )
+        if dedicated_rows_v69087:
+            output = _technical_console_menu_legacy_image_records_v69085(
+                prompt_text,
+                answer_text,
+                dedicated_rows_v69087,
+                max_images=max_images,
+                coordinator=coordinator,
+                allow_direct_search_v69087=False,
+            )
     diagnostic_log(
         "technical_console_legacy_image_recovery_v69085",
         candidates=len(ranked), rejected=rejected, published=len(output),
+        complete_file_ids=len(complete_file_ids_v69087),
     )
     return output
 
@@ -59885,7 +60237,7 @@ def save_website_knowledge_package(
                     )
                 website_image_index_stats_v68883 = (
                     _website_archive_and_index_images_v68883(
-                        extraction,
+                        package_extraction,
                         database_choice,
                         exact_images_v69069,
                     )
@@ -60024,7 +60376,7 @@ def save_website_knowledge_package(
                     "package was rolled back and the prior package was preserved."
                 )
             website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                extraction,
+                package_extraction,
                 database_choice,
                 list(image_analysis.get("images") or []),
             )
@@ -60688,6 +61040,7 @@ def build_website_knowledge_document(extraction, database_choice):
         f"Final source URL: {extraction.get('source_url')}\n"
         f"Extracted at (UTC): {extraction.get('extracted_at')}\n"
         f"Content SHA-256: {extraction.get('content_hash')}\n"
+        f"Website version SHA-256: {extraction.get('website_version_hash_v68892') or ''}\n"
         f"Word count: {extraction.get('word_count')}\n"
         "\n"
         "EXTRACTED CONTENT\n"
@@ -60854,17 +61207,32 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
     file_id = str(file_id or "").strip()
     if not file_id:
         return False
-    try:
-        client.vector_stores.files.delete(
-            vector_store_id=vector_store_id,
-            file_id=file_id,
-        )
-    except Exception as error:
+    last_error_v69088 = None
+    detached_v69088 = False
+    for attempt_v69088 in range(3):
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            detached_v69088 = True
+            break
+        except Exception as error:
+            last_error_v69088 = error
+            transient_v69088 = bool(
+                _website_transient_provider_error_v69082(error)
+            )
+            if not transient_v69088 or attempt_v69088 >= 2:
+                break
+            time.sleep(0.20 * (2 ** attempt_v69088))
+    if not detached_v69088:
+        error = last_error_v69088 or RuntimeError("vector detach failed")
         diagnostic_log(
             "website_v68892_vector_detach_failed",
             error_type=type(error).__name__,
             error=str(error)[:500],
             file_id=file_id,
+            attempts=3,
         )
         return False
 
@@ -61124,7 +61492,14 @@ def save_website_knowledge_to_destinations_v69029(
             )
             if not reason_codes_v69082:
                 error_text_v69082 = str(error or "").casefold()
-                if "index" in error_text_v69082:
+                if (
+                    "image archive/index" in error_text_v69082
+                    or "image repair did not pass archive/index" in error_text_v69082
+                ):
+                    reason_codes_v69082 = [
+                        "IMAGE_ARCHIVE_VERIFICATION_NOT_COMPLETED"
+                    ]
+                elif "vector indexing" in error_text_v69082:
                     reason_codes_v69082 = ["VECTOR_INDEX_NOT_COMPLETED"]
                 elif _website_transient_provider_error_v69082(error):
                     reason_codes_v69082 = ["TRANSIENT_PROVIDER_FAILURE"]
@@ -73759,18 +74134,16 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69082 single-card publication: the streamed card and the restored
-        # history card briefly coexisted during Streamlit's mandatory rerun.  Clear
-        # only the non-Graphic transient placeholders after persistence is complete
-        # and immediately before rerun.  The durable assistant message (including
-        # image provenance) is already in session state and Supabase.
+        # v69088 atomic publication: ordinary Technical/Sales/Marketing chat is
+        # already fully visible and durable at this point.  A forced rerun erased
+        # that live card and rebuilt it from history, producing a visible refresh
+        # and sometimes exposing a stale durable image row during the second pass.
+        # Keep the final text + approved image gallery mounted exactly once.  The
+        # next genuine user action performs Streamlit's normal rerun and restores
+        # the identical serialized message/provenance.  Graphic retains its exact
+        # historical rerun lifecycle because its project widgets depend on it.
         if not is_graphic_workspace(assistant):
             try:
-                active_stream_placeholder_v69082 = locals().get(
-                    "stream_placeholder"
-                )
-                if active_stream_placeholder_v69082 is not None:
-                    active_stream_placeholder_v69082.empty()
                 active_loading_placeholder_v69082 = locals().get(
                     "loading_status_placeholder"
                 )
@@ -73778,6 +74151,13 @@ else:
                     active_loading_placeholder_v69082.empty()
             except Exception:
                 pass
+            diagnostic_log(
+                "ai_response_single_pass_committed_v69088",
+                workspace=str(assistant),
+                image_count=len(assistant_images_to_save),
+                conversation_id=st.session_state.get("conversation_id"),
+            )
+            st.stop()
         st.rerun()
 
 # Process maintenance only after the completed answer has already been
