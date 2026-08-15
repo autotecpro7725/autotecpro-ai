@@ -1,4 +1,4 @@
-# AutoTecPro AI v69076 — Fresh-open New Case with reconnect-safe recovery
+# AutoTecPro AI v69078 — Graphic multi-tab lease heartbeat stability
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69076"
+ATP_BUILD_VERSION_V69062 = "v69078"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -96,7 +96,9 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69073-exact-subtitle-next-image-binding+"
     "v69074-complete-payload-prefetch+"
     "v69075-runtime-image-accuracy-resilience+"
-    "v69076-fresh-open-new-case"
+    "v69076-fresh-open-new-case+"
+    "v69077-deterministic-exact-image-authority+"
+    "v69078-graphic-multitab-lease-heartbeat"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -14947,8 +14949,13 @@ def _graphic_v68848_release_lease(job):
 # process.  It does not inspect or mutate prompts, uploads, mode routing,
 # provider arguments, pixels, compositors, QA, or publication results.
 GRAPHIC_V69071_MAX_ACTIVE_ENGINE_CALLS = 1
-GRAPHIC_V69071_DISTRIBUTED_LEASE_SECONDS = 30 * 60
 GRAPHIC_V69071_DISTRIBUTED_POLL_SECONDS = 1.0
+# v69078 changes only admission orchestration. The protected Reference and
+# After Install engines, their inputs and their results remain untouched.
+GRAPHIC_V69078_DISTRIBUTED_LEASE_SECONDS = 3 * 60
+GRAPHIC_V69078_HEARTBEAT_SECONDS = 15.0
+GRAPHIC_V69078_HEARTBEAT_JOIN_SECONDS = 1.0
+GRAPHIC_V69078_LEASE_SCHEMA_VERSION = 2
 
 
 @st.cache_resource(show_spinner=False)
@@ -14993,6 +15000,25 @@ def _graphic_v69071_distributed_lease_path(identity):
     return f"admission/v69071/users/{fingerprint}/active.json"
 
 
+def _graphic_v69078_distributed_lease_payload(identity, token, now=None, sequence=0):
+    """Build one credential-free renewable admission lease."""
+    claimed_at = float(now if now is not None else time.time())
+    return {
+        "schema_version": GRAPHIC_V69078_LEASE_SCHEMA_VERSION,
+        "token": str(token or ""),
+        "job_fingerprint": str((identity or {}).get("job_fingerprint") or ""),
+        "conversation_fingerprint": str(
+            (identity or {}).get("conversation_fingerprint") or ""
+        ),
+        "user_fingerprint": str((identity or {}).get("user_fingerprint") or ""),
+        "claimed_at": claimed_at,
+        "heartbeat_at": claimed_at,
+        "heartbeat_sequence": max(0, int(sequence or 0)),
+        "expires_at": claimed_at + GRAPHIC_V69078_DISTRIBUTED_LEASE_SECONDS,
+        "build_version": ATP_BUILD_VERSION_V69062,
+    }
+
+
 def _graphic_v69071_try_distributed_slot(identity):
     """Attempt one atomic cross-worker claim.
 
@@ -15011,17 +15037,9 @@ def _graphic_v69071_try_distributed_slot(identity):
             + str(os.getpid())
         ).encode("utf-8")
     ).hexdigest()
-    lease = {
-        "schema_version": 1,
-        "token": token,
-        "job_fingerprint": str((identity or {}).get("job_fingerprint") or ""),
-        "conversation_fingerprint": str(
-            (identity or {}).get("conversation_fingerprint") or ""
-        ),
-        "claimed_at": now,
-        "expires_at": now + GRAPHIC_V69071_DISTRIBUTED_LEASE_SECONDS,
-        "build_version": ATP_BUILD_VERSION_V69062,
-    }
+    lease = _graphic_v69078_distributed_lease_payload(
+        identity, token, now=now, sequence=0
+    )
     payload = json.dumps(lease, separators=(",", ":"), sort_keys=True).encode("utf-8")
     try:
         _graphic_v68848_upload_bytes(
@@ -15052,12 +15070,112 @@ def _graphic_v69071_try_distributed_slot(identity):
                 upsert=False,
             )
             diagnostic_log(
-                "graphic_v69071_stale_distributed_admission_recovered",
+                "graphic_v69078_stale_distributed_admission_recovered",
                 user_fingerprint=(identity or {}).get("user_fingerprint"),
+                stale_seconds=round(
+                    max(0.0, now - float(existing.get("heartbeat_at") or existing.get("claimed_at") or 0.0)),
+                    3,
+                ),
             )
             return "acquired", token
         except Exception:
             return "busy", None
+
+
+def _graphic_v69078_renew_distributed_slot(identity, token):
+    """Renew only the lease still owned by this exact invocation.
+
+    The read/owner-check prevents a late heartbeat from overwriting a newer
+    worker's recovered lease. No prompt, upload or generated image is stored.
+    """
+    if not token:
+        return "missing"
+    path = _graphic_v69071_distributed_lease_path(identity)
+    try:
+        existing_raw = _graphic_v68848_download_bytes(path)
+        existing = json.loads(existing_raw.decode("utf-8")) if existing_raw else {}
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v69078_lease_heartbeat_read_failed",
+            error_type=type(error).__name__,
+            user_fingerprint=(identity or {}).get("user_fingerprint"),
+        )
+        return "unavailable"
+    if not hmac.compare_digest(
+        str(existing.get("token") or ""), str(token or "")
+    ):
+        diagnostic_log(
+            "graphic_v69078_lease_heartbeat_owner_mismatch",
+            user_fingerprint=(identity or {}).get("user_fingerprint"),
+            job_fingerprint=(identity or {}).get("job_fingerprint"),
+        )
+        return "owner_mismatch"
+    now = time.time()
+    renewed = dict(existing)
+    renewed.update({
+        "schema_version": GRAPHIC_V69078_LEASE_SCHEMA_VERSION,
+        "heartbeat_at": now,
+        "heartbeat_sequence": max(
+            0, int(existing.get("heartbeat_sequence") or 0)
+        ) + 1,
+        "expires_at": now + GRAPHIC_V69078_DISTRIBUTED_LEASE_SECONDS,
+        "build_version": ATP_BUILD_VERSION_V69062,
+    })
+    try:
+        _graphic_v68848_upload_bytes(
+            path,
+            json.dumps(
+                renewed, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8"),
+            "application/json",
+            upsert=True,
+        )
+        diagnostic_log(
+            "graphic_v69078_lease_heartbeat_renewed",
+            user_fingerprint=(identity or {}).get("user_fingerprint"),
+            job_fingerprint=(identity or {}).get("job_fingerprint"),
+            heartbeat_sequence=renewed["heartbeat_sequence"],
+        )
+        return "renewed"
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v69078_lease_heartbeat_write_failed",
+            error_type=type(error).__name__,
+            user_fingerprint=(identity or {}).get("user_fingerprint"),
+        )
+        return "unavailable"
+
+
+def _graphic_v69078_start_distributed_heartbeat(identity, token):
+    """Start a daemon heartbeat and return its bounded shutdown controls."""
+    stop_event = threading.Event()
+
+    def heartbeat_loop():
+        consecutive_unavailable = 0
+        while not stop_event.wait(GRAPHIC_V69078_HEARTBEAT_SECONDS):
+            status = _graphic_v69078_renew_distributed_slot(identity, token)
+            if status == "owner_mismatch":
+                break
+            if status == "renewed":
+                consecutive_unavailable = 0
+            else:
+                consecutive_unavailable += 1
+                diagnostic_log(
+                    "graphic_v69078_lease_heartbeat_degraded",
+                    user_fingerprint=(identity or {}).get("user_fingerprint"),
+                    consecutive_failures=consecutive_unavailable,
+                )
+
+    worker = threading.Thread(
+        target=heartbeat_loop,
+        name=(
+            "atp-graphic-heartbeat-"
+            + str((identity or {}).get("job_fingerprint") or "job")[:12]
+        ),
+        daemon=True,
+    )
+    worker.start()
+    return stop_event, worker
 
 
 def _graphic_v69071_release_distributed_slot(identity, token):
@@ -15187,6 +15305,8 @@ def _graphic_v69071_execute_with_admission(function, *args, admission_job=None, 
 
     token = None
     distributed_token = None
+    heartbeat_stop_v69078 = None
+    heartbeat_worker_v69078 = None
     identity = _graphic_v69071_admission_identity(admission_job)
     try:
         token, _waited_seconds = _graphic_v69071_acquire_engine_slot(
@@ -15208,6 +15328,12 @@ def _graphic_v69071_execute_with_admission(function, *args, admission_job=None, 
                     **identity,
                 )
             time.sleep(GRAPHIC_V69071_DISTRIBUTED_POLL_SECONDS)
+        if distributed_status == "acquired" and distributed_token:
+            heartbeat_stop_v69078, heartbeat_worker_v69078 = (
+                _graphic_v69078_start_distributed_heartbeat(
+                    identity, distributed_token
+                )
+            )
         if wait_surface is not None:
             try:
                 wait_surface.empty()
@@ -15217,6 +15343,12 @@ def _graphic_v69071_execute_with_admission(function, *args, admission_job=None, 
         # invoked once, unchanged, after admission is granted.
         return function(*args, **kwargs)
     finally:
+        if heartbeat_stop_v69078 is not None:
+            heartbeat_stop_v69078.set()
+        if heartbeat_worker_v69078 is not None:
+            heartbeat_worker_v69078.join(
+                timeout=GRAPHIC_V69078_HEARTBEAT_JOIN_SECONDS
+            )
         if distributed_token:
             _graphic_v69071_release_distributed_slot(identity, distributed_token)
         if token:
@@ -51935,43 +52067,74 @@ def _website_archive_and_index_images_v68883(
 
     prepared = []
     for image_item in items:
-        try:
-            downloaded = _download_public_website_image(
-                image_item.get("url"),
-                context_score=int(image_item.get("context_score") or 0),
-                technical_context=bool(image_item.get("technical_context")),
-            )
-            raw = bytes(downloaded.get("bytes") or b"")
-            if not raw:
-                raise ValueError("Downloaded image is empty.")
-            archive_mime = str(
-                downloaded.get("mime_type") or "image/jpeg"
-            ).strip()
-            archive_path = _website_image_archive_path_v68883(
-                extraction, image_item, archive_mime
-            )
-            _product_library_storage_upload(archive_path, raw, archive_mime)
-            verified_raw = bytes(_website_storage_bytes_v68883(archive_path) or b"")
-            if not verified_raw:
-                raise RuntimeError("Archived image read-back returned no bytes.")
-            if hashlib.sha256(verified_raw).hexdigest() != hashlib.sha256(raw).hexdigest():
-                raise RuntimeError("Archived image read-back checksum mismatch.")
-            payload = _website_image_index_record_v68883(
-                extraction,
-                database_choice,
-                image_item,
-                archive_path=archive_path,
-                archive_mime_type=archive_mime,
-            )
-            payload["archive_verified_v69069"] = True
-            payload["archive_verified_at_v69069"] = datetime.now(
-                timezone.utc
-            ).isoformat()
-            payload["archive_sha256_v69069"] = hashlib.sha256(raw).hexdigest()
-            prepared.append(payload)
-            stats["archived"] += 1
-            stats["prepared"] += 1
-        except Exception as error:
+        last_error_v69077 = None
+        for attempt_v69077 in range(3):
+            try:
+                downloaded = _download_public_website_image(
+                    image_item.get("url"),
+                    context_score=int(image_item.get("context_score") or 0),
+                    technical_context=bool(image_item.get("technical_context")),
+                )
+                raw = bytes(downloaded.get("bytes") or b"")
+                if not raw:
+                    raise ValueError("Downloaded image is empty.")
+                archive_mime = str(
+                    downloaded.get("mime_type") or "image/jpeg"
+                ).strip()
+                archive_path = _website_image_archive_path_v68883(
+                    extraction, image_item, archive_mime
+                )
+                raw_digest_v69077 = hashlib.sha256(raw).hexdigest()
+                # The physical archive is shared safely across destinations by
+                # digest. Avoid rewriting an already verified object when Sales
+                # and Marketing ingest the same selected image set.
+                verified_raw = bytes(
+                    _website_storage_bytes_v68883(archive_path) or b""
+                )
+                archive_reused_v69077 = bool(
+                    verified_raw
+                    and hashlib.sha256(verified_raw).hexdigest()
+                    == raw_digest_v69077
+                )
+                if not archive_reused_v69077:
+                    _product_library_storage_upload(
+                        archive_path, raw, archive_mime
+                    )
+                    verified_raw = bytes(
+                        _website_storage_bytes_v68883(archive_path) or b""
+                    )
+                if not verified_raw:
+                    raise RuntimeError(
+                        "Archived image read-back returned no bytes."
+                    )
+                if hashlib.sha256(verified_raw).hexdigest() != raw_digest_v69077:
+                    raise RuntimeError(
+                        "Archived image read-back checksum mismatch."
+                    )
+                payload = _website_image_index_record_v68883(
+                    extraction,
+                    database_choice,
+                    image_item,
+                    archive_path=archive_path,
+                    archive_mime_type=archive_mime,
+                )
+                payload["archive_verified_v69069"] = True
+                payload["archive_verified_at_v69069"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+                payload["archive_sha256_v69069"] = raw_digest_v69077
+                payload["archive_reused_v69077"] = archive_reused_v69077
+                prepared.append(payload)
+                stats["archived"] += 1
+                stats["prepared"] += 1
+                last_error_v69077 = None
+                break
+            except Exception as error:
+                last_error_v69077 = error
+                if attempt_v69077 < 2:
+                    time.sleep(0.20 * (2 ** attempt_v69077))
+        if last_error_v69077 is not None:
+            error = last_error_v69077
             stats["archive_failures"] += 1
             stats["failures"] += 1
             diagnostic_log(
@@ -51980,6 +52143,7 @@ def _website_archive_and_index_images_v68883(
                 error_type=type(error).__name__,
                 error=str(error)[:500],
                 promotion_blocked=True,
+                attempts=3,
             )
 
     if stats["failures"] or len(prepared) != len(items):
@@ -53445,12 +53609,25 @@ def _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payloa
     candidate_years = _website_identity_years_v69022(identity_text)
     candidate_systems = _website_identity_systems_v69022(identity_text)
     candidate_codes = _website_image_product_codes_v69020(candidate_text)
+    candidate_variants_v69077 = _technical_product_variants_v69077(
+        candidate_text
+    )
 
     requested_brands = set(subject.get("brands") or set())
     requested_families = set(subject.get("families") or set())
     requested_years = set(subject.get("years") or set())
     requested_systems = set(subject.get("systems") or set())
     requested_codes = set(subject.get("product_codes") or set())
+    requested_variants_v69077 = _technical_product_variants_v69077(
+        prompt_text
+    )
+
+    if (
+        requested_variants_v69077
+        and candidate_variants_v69077
+        and not (requested_variants_v69077 & candidate_variants_v69077)
+    ):
+        return False
 
     documented_profile_v69064 = _website_image_documented_profile_equivalence_v69064(
         prompt_text, payload
@@ -54095,6 +54272,9 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
     answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()[:3600]
     return (
         "AUTOTECPRO TECHNICAL RELATED-IMAGE RETRIEVAL ONLY.\n"
+        "Treat this as the user's explicit request: SHOW THE EXACT APPROVED PHOTO OR "
+        "SCREENSHOT for the original inquiry. The first-turn automatic path must retrieve "
+        "the same exact learned image evidence as a later 'do you have a photo?' turn. "
         "Use file_search to find learned AutoTecPro source files/sections containing one or more "
         "images directly related to the Technical answer below. This is UNIVERSAL: do not require "
         "a predefined topic such as car model, camera, harness, audio, climate, or wiring. Match the "
@@ -54206,6 +54386,8 @@ def _website_image_prefetch_file_search_results_v69015(
         "model": "gpt-5.5",
         "input": (
             "AUTOTECPRO TECHNICAL RELATED-IMAGE PREFETCH ONLY.\n"
+            "Treat this as an explicit request to SHOW THE EXACT APPROVED PHOTO OR "
+            "SCREENSHOT for the inquiry, even when the user did not type the word photo. "
             "Use file_search to locate learned AutoTecPro source files/sections containing "
             "images directly related to this Technical inquiry. This is universal and must "
             "not depend on a predefined topic. Prefer the exact vehicle/year/model/version "
@@ -54737,6 +54919,18 @@ def _website_image_product_codes_v69020(value):
     # without treating ordinary prose such as "for 726" as a vehicle prefix.
     masked = re.sub(r"\b(?:f|e)[\s-]?\d{3}\b", " ", text, flags=re.I)
     return set(re.findall(r"\b\d{3}\b", masked))
+
+
+def _technical_product_variants_v69077(value):
+    """Return exact ATP three-digit variants, preserving suffixes such as W."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text:
+        return set()
+    masked = re.sub(r"\b(?:f|e)[\s-]?\d{3}\b", " ", text, flags=re.I)
+    return {
+        str(number) + str(suffix or "")
+        for number, suffix in re.findall(r"\b(\d{3})\s*([a-z])?\b", masked)
+    }
 
 
 def _website_image_effective_answer_context_v69020(prompt_text, answer_text=""):
@@ -55407,6 +55601,181 @@ def _website_image_lookup_v68883(prompt_text, ranking_context_v69008=""):
 
     return records
 
+
+def _technical_exact_image_manifest_v69077(
+    prompt_text, answer_text="", max_images=1,
+):
+    """Resolve exact Technical subtitle assets without provider-order authority."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    prompt = _website_image_effective_query_v68890(prompt_text)
+    prompt = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    answer = re.sub(
+        r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))
+    ).strip()
+    role = _website_image_query_role_v68884(prompt)
+    if not prompt or not role:
+        return []
+    requested_variants_v69077 = _technical_product_variants_v69077(prompt)
+
+    ranked = []
+    rejected = 0
+    for raw_payload in _website_image_index_rows_v68883() or []:
+        if not isinstance(raw_payload, dict):
+            continue
+        payload = dict(raw_payload)
+        if str(payload.get("database_choice") or "").strip() != "Technical Support Database":
+            continue
+        if not bool(payload.get("subtitle_exact_image_binding_v69073")):
+            continue
+        if "v69073-semantic-subtitle-next-logical-image-group" not in str(
+            payload.get("context_binding_version_v69067") or ""
+        ):
+            continue
+        candidate_variants_v69077 = _technical_product_variants_v69077(
+            _website_image_payload_identity_text_v69022(payload)
+        )
+        if (
+            requested_variants_v69077
+            and candidate_variants_v69077
+            and not (requested_variants_v69077 & candidate_variants_v69077)
+        ):
+            rejected += 1
+            continue
+        if not _website_image_section_role_match_v68890(role, payload):
+            rejected += 1
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt, payload):
+            rejected += 1
+            continue
+        if not _website_image_final_payload_gate_v68885(prompt, payload):
+            rejected += 1
+            continue
+        if answer and not _website_image_resolved_payload_gate_v69022(
+            prompt, answer, payload
+        ):
+            rejected += 1
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            rejected += 1
+            continue
+        if answer and _website_image_answer_conflict_v69021(prompt, answer, record):
+            rejected += 1
+            continue
+        score = float(_website_image_rank_v68883(prompt, payload)) + 100.0
+        score += max(0.0, float(_website_image_role_score_v68884(role, payload)))
+        record["website_exact_manifest_v69077"] = True
+        record["website_exact_manifest_role_v69077"] = role
+        record["website_image_match_score_v68883"] = round(score, 3)
+        _attach_image_provenance_v69062(
+            record, payload, "Technical Support Database",
+            "durable_image_index", score,
+            "EXACT_SUBTITLE_MANIFEST_AND_FITMENT",
+            {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass", "topic_gate": "pass",
+            },
+        )
+        ranked.append((score, str(payload.get("indexed_at") or ""), record))
+
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    output, seen = [], set()
+    for _score, _indexed_at, record in ranked:
+        identity = str(
+            record.get("website_image_sha256")
+            or record.get("archive_web_url")
+            or record.get("data_url")
+            or ""
+        ).strip().casefold()
+        if identity and identity in seen:
+            continue
+        if identity:
+            seen.add(identity)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 1)):
+            break
+    diagnostic_log(
+        "technical_exact_image_manifest_v69077",
+        role=role, candidates=len(ranked), rejected=rejected,
+        published=len(output),
+    )
+    return output
+
+
+def _technical_variant_ambiguity_guard_v69077(prompt_text, answer_text):
+    """Block a silent 726/726W assumption for 2009-2016 Super Duty."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    answer = clean_visible_chat_text(str(answer_text or ""))
+    if _website_image_query_role_v68884(prompt) != "car_model_ac":
+        return answer, False
+    families = _website_identity_vehicle_families_v69022(prompt)
+    years = _website_identity_years_v69022(prompt)
+    if not (families & {"f250", "f350", "f450"}):
+        return answer, False
+    if years and not (years & set(range(2009, 2017))):
+        return answer, False
+    prompt_variant = bool(re.search(r"\b726\s*w?\b", prompt, flags=re.I))
+    answer_variant = bool(re.search(r"\b726\s*w?\b", answer, flags=re.I))
+    if prompt_variant or not answer_variant:
+        return answer, False
+    guarded = (
+        "## Product Variant Confirmation Required\n\n"
+        "The 2009–2016 Ford F-250/F-350/F-450 Technical records contain separate "
+        "settings for **AutoTecPro 726** and **726W No-SYNC** units. These variants "
+        "must not be treated as interchangeable.\n\n"
+        "Please confirm whether the label on the unit is **726** or **726W**, and "
+        "whether the truck has factory SYNC. After that confirmation, I can provide "
+        "the exact protocol, Car Model/A-C selection and its matching approved image."
+    )
+    diagnostic_log(
+        "technical_variant_ambiguity_blocked_v69077",
+        families=sorted(families), years=sorted(years),
+    )
+    return guarded, True
+
+
+def _suppress_unpublished_learned_image_urls_v69077(answer_text, images):
+    """Remove first-party image URLs that failed final publication authority."""
+    answer = str(answer_text or "")
+    if not answer:
+        return answer, 0
+    published = set()
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        if str(image.get("source") or "") != "website_knowledge":
+            continue
+        provenance = image.get("image_provenance_v69062")
+        for value in (
+            image.get("archive_web_url"), image.get("data_url"),
+            provenance.get("image_url") if isinstance(provenance, dict) else "",
+        ):
+            identity = _workspace_image_url_identity_v69058(value)
+            if identity:
+                published.add(identity)
+
+    removed = 0
+    pattern = re.compile(
+        r"https://(?:www\.)?autotecpro\.com/wp-content/uploads/"
+        r"[^\s<>\"'\)\]]+?\.(?:jpe?g|png|webp)(?:\?[^\s<>\"'\)\]]*)?",
+        flags=re.I,
+    )
+
+    def replace(match):
+        nonlocal removed
+        raw = html.unescape(str(match.group(0) or "")).rstrip(".,;:")
+        if _workspace_image_url_identity_v69058(raw) in published:
+            return match.group(0)
+        removed += 1
+        return "[image withheld because no exact approved publication record passed QA]"
+
+    cleaned = pattern.sub(replace, answer)
+    cleaned = re.sub(
+        r"(?:Photo|Image)\s+URL\s*:\s*(?=\[image withheld)",
+        "", cleaned, flags=re.I,
+    )
+    return cleaned, removed
 
 
 def _website_image_related_reference_lookup_v69025r1(prompt_text, answer_text="", max_images=1):
@@ -58091,6 +58460,9 @@ def save_website_knowledge_package(
         "Marketing Database": MARKETING_VECTOR_STORE_ID,
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
     }[database_choice]
+    verified_subset_destination_v69077 = database_choice in {
+        "Sales Database", "Marketing Database"
+    }
 
     if include_images and image_analysis_override_v69029 is not None:
         image_analysis = dict(image_analysis_override_v69029 or {})
@@ -58163,21 +58535,39 @@ def save_website_knowledge_package(
                     )
                 )
                 if not bool(website_image_index_stats_v68883.get("completed")):
-                    raise RuntimeError(
-                        "Same-URL image repair did not pass archive/index verification. "
-                        "The previously working package was preserved."
-                    )
-                website_image_sync_v69003 = {
-                    "completed": True,
-                    "reason_code": website_image_index_stats_v68883.get(
-                        "reason_code"
-                    ),
-                    "cleanup_pending": bool(
-                        website_image_index_stats_v68883.get("cleanup_pending")
-                    ),
-                }
-                _website_invalidate_learning_caches_v69069([database_choice])
-                image_records_repaired_v69069 = True
+                    if verified_subset_destination_v69077:
+                        # The exact vector package already exists and remains
+                        # usable. Keep prior durable rows and expose a bounded,
+                        # retryable repair marker instead of rejecting the
+                        # reviewed Sales/Marketing text transaction.
+                        website_image_index_stats_v68883["repair_pending_v69077"] = True
+                        website_image_index_stats_v68883["preserved_prior_snapshot_v69077"] = True
+                        website_image_sync_v69003 = {
+                            "completed": False,
+                            "cleanup_pending": True,
+                            "reason_code": str(
+                                website_image_index_stats_v68883.get("reason_code")
+                                or "IMAGE_REPAIR_PENDING_V69077"
+                            ),
+                        }
+                        image_records_repaired_v69069 = False
+                    else:
+                        raise RuntimeError(
+                            "Same-URL image repair did not pass archive/index verification. "
+                            "The previously working package was preserved."
+                        )
+                else:
+                    website_image_sync_v69003 = {
+                        "completed": True,
+                        "reason_code": website_image_index_stats_v68883.get(
+                            "reason_code"
+                        ),
+                        "cleanup_pending": bool(
+                            website_image_index_stats_v68883.get("cleanup_pending")
+                        ),
+                    }
+                    _website_invalidate_learning_caches_v69069([database_choice])
+                    image_records_repaired_v69069 = True
         else:
             website_image_index_stats_v68883 = {
                 "indexed": 0, "archived": 0, "failures": 0,
@@ -58194,6 +58584,7 @@ def save_website_knowledge_package(
             "replaced_file_count": 0,
             "replacement_cleanup_pending": bool(
                 website_image_index_stats_v68883.get("cleanup_pending")
+                or website_image_index_stats_v68883.get("repair_pending_v69077")
             ),
             "file_id": "",
             "filename": filename,
@@ -58202,6 +58593,9 @@ def save_website_knowledge_package(
             "website_image_index_v68883": website_image_index_stats_v68883,
             "website_image_sync_v69003": website_image_sync_v69003,
             "image_records_repaired_v69069": image_records_repaired_v69069,
+            "image_repair_pending_v69077": bool(
+                website_image_index_stats_v68883.get("repair_pending_v69077")
+            ),
         }
 
     # Discover all prior versions for this exact URL in the selected database.
@@ -58300,13 +58694,31 @@ def save_website_knowledge_package(
                     ),
                 }
             else:
-                _website_remove_vector_file_v68892(
-                    selected_vector_store_id, file_id
-                )
-                raise RuntimeError(
-                    "Replacement image archive/index verification failed. The new "
-                    "vector package was rolled back and the prior package was preserved."
-                )
+                if verified_subset_destination_v69077:
+                    # The vector package contains only images that passed visual
+                    # QA. Preserve it and any prior durable snapshot; a future
+                    # identical retry repairs archival/index provenance without
+                    # duplicating the vector file. Do not detach an older same-URL
+                    # package until that repair completes.
+                    website_image_index_stats_v68883["repair_pending_v69077"] = True
+                    website_image_index_stats_v68883["preserved_prior_snapshot_v69077"] = True
+                    website_image_sync_v69003 = {
+                        "completed": False,
+                        "cleanup_pending": True,
+                        "reason_code": str(
+                            website_image_index_stats_v68883.get("reason_code")
+                            or "IMAGE_ARCHIVE_INDEX_PENDING_V69077"
+                        ),
+                    }
+                    cleanup_pending_v68892 = True
+                else:
+                    _website_remove_vector_file_v68892(
+                        selected_vector_store_id, file_id
+                    )
+                    raise RuntimeError(
+                        "Replacement image archive/index verification failed. The new "
+                        "vector package was rolled back and the prior package was preserved."
+                    )
         else:
             website_image_index_stats_v68883 = {
                 "indexed": 0, "archived": 0, "failures": 0,
@@ -58360,6 +58772,9 @@ def save_website_knowledge_package(
         "website_image_index_v68883": website_image_index_stats_v68883,
         "website_image_sync_v69003": website_image_sync_v69003,
         "atomic_resubmission_v69069": True,
+        "image_repair_pending_v69077": bool(
+            website_image_index_stats_v68883.get("repair_pending_v69077")
+        ),
     }
 
 
@@ -59228,6 +59643,19 @@ def _website_destination_image_analysis_v69040(shared_analysis, database_choice)
         projected.append(record)
     result["images"] = projected
     result["destination_projection_v69040"] = destination
+    # v69077: Sales/Marketing publication is allowed to retain only the subset
+    # that completed both visual QA passes. A transport failure for a different
+    # candidate must not discard the reviewed HTML or the already-approved
+    # records. Technical remains strictly fail-closed below.
+    if destination in {"Sales Database", "Marketing Database"}:
+        result["nonfatal_candidate_failures_v69077"] = max(
+            0, int(result.get("failures") or 0)
+        )
+        result["failure_reason_codes_preserved_v69077"] = list(
+            result.get("failure_reason_codes_v69075") or []
+        )
+        result["failures"] = 0
+        result["verified_subset_publication_v69077"] = True
     return result
 
 
@@ -59250,6 +59678,13 @@ def _website_shared_analysis_gate_v69075(shared_analysis, destinations):
     }) or ["IMAGE_ANALYSIS_INCOMPLETE"]
     result = {}
     for destination in _website_database_destinations_v69029(destinations):
+        # Candidate-level provider/transport failures cannot turn an unverified
+        # image into an approved image: failed candidates are absent from
+        # analysis["images"]. Sales and Marketing may therefore publish the
+        # verified subset while preserving a repair marker. Technical remains
+        # protected by the original all-or-nothing policy.
+        if destination in {"Sales Database", "Marketing Database"}:
+            continue
         result[destination] = {
             "error_type": "WebsiteImageAnalysisIncomplete",
             "error": (
@@ -59312,18 +59747,9 @@ def save_website_knowledge_to_destinations_v69029(
     failures = _website_shared_analysis_gate_v69075(
         shared_analysis, destinations
     ) if include_images else {}
-    if failures:
-        return {
-            "destination_selection": list(destinations),
-            "destinations": destinations,
-            "results": results,
-            "failures": failures,
-            "shared_image_analysis": shared_analysis,
-            "completed": False,
-            "partial_success": False,
-            "pre_mutation_abort_v69075": True,
-        }
     for destination in destinations:
+        if destination in failures:
+            continue
         try:
             destination_analysis_v69040 = _website_destination_image_analysis_v69040(
                 shared_analysis, destination
@@ -59340,6 +59766,12 @@ def save_website_knowledge_to_destinations_v69029(
             failures[destination] = {
                 "error_type": type(error).__name__,
                 "error": str(error),
+                "reason_codes": list(
+                    getattr(error, "reason_codes_v69077", None) or []
+                ),
+                "failure_stage_v69077": str(
+                    getattr(error, "failure_stage_v69077", "") or ""
+                ),
             }
             diagnostic_log(
                 "website_multi_database_save_failed_v69029",
@@ -59897,6 +60329,11 @@ def render_learn_from_website(database_choice):
             for destination, result in results_v69029.items()
             if bool((result or {}).get("image_records_repaired_v69069"))
         ]
+        image_repair_pending_destinations_v69077 = [
+            short_name_v69029(destination)
+            for destination, result in results_v69029.items()
+            if bool((result or {}).get("image_repair_pending_v69077"))
+        ]
         file_ids_v69029 = [
             f"{short_name_v69029(destination)}={str((result or {}).get('file_id') or 'existing')}"
             for destination, result in results_v69029.items()
@@ -59938,7 +60375,18 @@ def render_learn_from_website(database_choice):
             }
             return
 
-        if repaired_destinations_v69069:
+        if image_repair_pending_destinations_v69077:
+            st.session_state.admin_website_save_notice = {
+                "type": "warning",
+                "message": (
+                    "Website text and the verified image subset were saved to "
+                    + ", ".join(image_repair_pending_destinations_v69077)
+                    + ". Durable image archive/index repair remains pending; "
+                    "retrying the same reviewed extraction is safe and will not "
+                    "duplicate the vector package or delete the prior healthy image snapshot."
+                ),
+            }
+        elif repaired_destinations_v69069:
             st.session_state.admin_website_save_notice = {
                 "type": "warning" if cleanup_pending_v69029 else "success",
                 "message": (
@@ -69470,9 +69918,16 @@ else:
             and str(technical_request_prompt_v68879 or "").strip()
         ):
             try:
-                technical_early_index_images_v69016 = _website_image_lookup_v68883(
-                    technical_request_prompt_v68879
+                technical_early_index_images_v69016 = (
+                    _technical_exact_image_manifest_v69077(
+                        technical_request_prompt_v68879,
+                        max_images=1,
+                    )
                 )
+                if not technical_early_index_images_v69016:
+                    technical_early_index_images_v69016 = _website_image_lookup_v68883(
+                        technical_request_prompt_v68879
+                    )
             except Exception as error:
                 diagnostic_log(
                     "website_image_early_lookup_failed_v69016",
@@ -70701,6 +71156,29 @@ else:
             # recovery window now; prefetch time before this point is free.
             image_search_coordinator_v69062.begin_recovery()
 
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            answer_v69077, variant_blocked_v69077 = (
+                _technical_variant_ambiguity_guard_v69077(
+                    technical_request_prompt_v68879, answer
+                )
+            )
+            if variant_blocked_v69077:
+                answer = answer_v69077
+                generated_images = [
+                    image for image in (generated_images or [])
+                    if not (
+                        isinstance(image, dict)
+                        and str(image.get("source") or "") == "website_knowledge"
+                    )
+                ]
+                try:
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    pass
+
         # v69008: if an automatic Technical visual topic was recognized but the
         # first deterministic lookup had no eligible image, make one second
         # deterministic lookup using the completed answer only as ranking context.
@@ -71096,6 +71574,19 @@ else:
                     error=str(error)[:500],
                 )
 
+        if bool(locals().get("variant_blocked_v69077", False)):
+            generated_images = [
+                image for image in (generated_images or [])
+                if not (
+                    isinstance(image, dict)
+                    and str(image.get("source") or "") == "website_knowledge"
+                )
+            ]
+            diagnostic_log(
+                "technical_variant_images_fail_closed_v69077",
+                workspace=str(assistant),
+            )
+
         # v69062: exact-answer URL recovery is stage 5 inside the single
         # destination-scoped state machine above.  Do not run a second bridge.
 
@@ -71124,6 +71615,25 @@ else:
             _commit_image_search_coordinator_v69062(
                 image_search_coordinator_v69062
             )
+            answer_v69077, removed_urls_v69077 = (
+                _suppress_unpublished_learned_image_urls_v69077(
+                    answer, generated_images
+                )
+            )
+            if removed_urls_v69077:
+                answer = answer_v69077
+                diagnostic_log(
+                    "unpublished_learned_image_urls_suppressed_v69077",
+                    workspace=str(assistant),
+                    removed=removed_urls_v69077,
+                )
+                try:
+                    stream_placeholder.markdown(
+                        _assistant_stream_html(answer),
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    pass
         assistant_images_to_save = list(generated_images or [])
 
         if assistant == "🔧 Technical Support":
