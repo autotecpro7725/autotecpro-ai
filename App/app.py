@@ -1,4 +1,4 @@
-# AutoTecPro AI v69089 — uncached archive verification + precise learning diagnostics
+# AutoTecPro AI v69090 — product-scoped newest Admin knowledge authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69089"
+ATP_BUILD_VERSION_V69062 = "v69090"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -109,7 +109,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69086-f150-xinbasi-protocol-authority+"
     "v69087-f150-complete-file-image-recovery|"
     "v69088-latest-page-revision-single-pass-publication+"
-    "v69089-uncached-archive-write-verification"
+    "v69089-uncached-archive-write-verification+"
+    "v69090-product-scoped-newest-admin-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -38302,6 +38303,22 @@ RESPONSE PRESENTATION RULES:
   or code fences. Preserve all facts, uncertainty, warnings, and required steps.
 """
 
+def _knowledge_product_authority_instructions_v69090():
+    """Provider-facing precedence rule for approved Admin knowledge only."""
+    return """
+
+NEWEST ADMIN PRODUCT AUTHORITY:
+- Retrieved records containing PRODUCT_AUTHORITY_ID_V69090 are the newest approved
+  Admin authority for that product in the active destination.
+- If an older retrieved record conflicts with such a record for the same product,
+  ignore the older conflict and use the marked record.
+- This precedence never permits cross-destination evidence and never bypasses
+  vehicle, year, product, variant, climate, protocol, or topic safety checks.
+- If the marked evidence does not safely fit the inquiry, say that the exact
+  configuration is not confirmed instead of substituting an older or nearby model.
+"""
+
+
 @st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -38417,7 +38434,7 @@ sections from the workflow above without forcing unrelated order sections.
 Never invent technical information.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _knowledge_product_authority_instructions_v69090() + _workspace_response_formatting_rules()
 
     if is_sales_workspace(selected_assistant):
         return """
@@ -38518,7 +38535,7 @@ workflow. Image identification must distinguish visible facts from inference.
 
 Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _knowledge_product_authority_instructions_v69090() + _workspace_response_formatting_rules()
 
     if is_marketing_workspace(selected_assistant):
         return """
@@ -38642,7 +38659,7 @@ When the application identifies a MARKETING TOOL request:
 - Never treat generic marketing assumptions as verified AutoTecPro facts.
 
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _knowledge_product_authority_instructions_v69090() + _workspace_response_formatting_rules()
 
     return """
 You are AutoTecPro Graphic Marketing AI and a professional automotive Creative Director.
@@ -51899,6 +51916,472 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
     }
 
 
+KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090 = "knowledge_product_authority_v69090"
+KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090 = "PRODUCT_AUTHORITY_JSON_V69090:"
+
+
+def _knowledge_product_authority_v69090(
+    connected_product="", *, title="", content="", source_url=""
+):
+    """Return one stable cross-source product identity for Admin knowledge.
+
+    Screen size and cosmetic suffixes are deliberately not identity boundaries:
+    they may share the same settings.  Safety-relevant system families (for
+    example No-SYNC versus SYNC) remain part of the identity.
+    """
+    explicit = re.sub(r"\s+", " ", str(connected_product or "")).strip()
+    primary_evidence = explicit or " ".join((str(title or ""), str(source_url or "")))
+    fallback_evidence = str(content or "")[:18000]
+    evidence = primary_evidence or fallback_evidence
+    try:
+        # Product identity comes from the Admin-connected product or page
+        # title/URL.  Body instructions may legitimately say "Car Model F450"
+        # for a physical F-150, so body answer values must never change identity.
+        families = sorted(_website_identity_vehicle_families_v69022(evidence))
+        brands = sorted(_website_identity_brand_set_v69022(evidence))
+        years = sorted(_website_identity_years_v69022(evidence))
+        systems = sorted(_website_identity_systems_v69022(evidence))
+        if not families:
+            families = sorted(_website_identity_vehicle_families_v69022(fallback_evidence))
+        if not brands:
+            brands = sorted(_website_identity_brand_set_v69022(fallback_evidence))
+        if not years:
+            years = sorted(_website_identity_years_v69022(fallback_evidence))
+        if not systems:
+            systems = sorted(_website_identity_systems_v69022(fallback_evidence[:2000]))
+    except Exception:
+        families, brands, systems = [], [], []
+        years = sorted(set(re.findall(r"\b(?:19|20)\d{2}\b", evidence)))
+    if "no_sync" in set(systems):
+        systems = [item for item in systems if item == "no_sync" or not str(item).startswith("sync_")]
+    sku_match = re.search(
+        r"\bSKU\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9._/-]{2,40})",
+        explicit or evidence,
+        flags=re.I,
+    )
+    sku = str(sku_match.group(1) or "").strip().casefold() if sku_match else ""
+    normalized_label = normalize_text_for_match(explicit)
+    if not explicit:
+        label_parts = list(families)
+        if years:
+            label_parts.append(f"{years[0]}-{years[-1]}" if len(years) > 1 else years[0])
+        label_parts.extend(systems)
+        explicit = " ".join(str(value) for value in label_parts if str(value).strip())
+        normalized_label = normalize_text_for_match(explicit)
+    fallback_tokens = [
+        token for token in normalized_label.split()
+        if len(token) >= 2 and token not in {"the", "and", "for", "with", "system", "unit"}
+    ]
+    if not families and not sku and len(fallback_tokens) < 2:
+        return {}
+    semantic = {
+        "brands": brands,
+        "vehicle_families": families,
+        "years": years,
+        "systems": systems,
+        "sku": sku,
+        "fallback_label": normalized_label if not families and not sku else "",
+    }
+    packed = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return {
+        "schema_version": 1,
+        "product_authority_id": hashlib.sha256(packed.encode("utf-8")).hexdigest(),
+        "connected_product": explicit[:500],
+        **semantic,
+        "authority_revision_at": datetime.now(timezone.utc).isoformat(),
+        "build_version": ATP_BUILD_VERSION_V69062,
+    }
+
+
+def _knowledge_product_authority_label_v69090(extraction):
+    authority = dict((extraction or {}).get("product_authority_v69090") or {})
+    return str(authority.get("connected_product") or "").strip()
+
+
+def _knowledge_product_authority_issue_v69090(database_choice, authority):
+    destination_hash = hashlib.sha256(str(database_choice or "").encode("utf-8")).hexdigest()[:12]
+    product_id = str((authority or {}).get("product_authority_id") or "").strip()
+    return f"product-authority:{destination_hash}:{product_id[:40]}"
+
+
+def _knowledge_product_authority_manifest_v69090(database_choice, authority):
+    issue = _knowledge_product_authority_issue_v69090(database_choice, authority)
+    if not issue or issue.endswith(":"):
+        return {}
+    try:
+        rows = (
+            supabase.table("learned_knowledge")
+            .select("id,solution,approved_answer,updated_at")
+            .eq("source_type", KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090)
+            .eq("issue", issue)
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "product_authority_manifest_read_failed_v69090",
+            error_type=type(error).__name__,
+        )
+        return {}
+    if not rows:
+        return {}
+    raw = str(rows[0].get("solution") or rows[0].get("approved_answer") or "")
+    if raw.startswith(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):
+        raw = raw[len(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):]
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        payload = {}
+    if isinstance(payload, dict):
+        payload["_row_id_v69090"] = rows[0].get("id")
+        return payload
+    return {}
+
+
+@st.cache_data(ttl=120, max_entries=2, show_spinner=False)
+def _knowledge_active_product_authorities_v69090():
+    """Load compact active product manifests for query-time stale-image suppression."""
+    try:
+        rows = (
+            supabase.table("learned_knowledge")
+            .select("solution,approved_answer,source_type,updated_at")
+            .eq("source_type", KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090)
+            .order("updated_at", desc=True)
+            .limit(2000)
+            .execute()
+            .data
+            or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "product_authority_manifest_catalog_failed_v69090",
+            error_type=type(error).__name__,
+        )
+        return []
+    output, seen = [], set()
+    for row in rows:
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if raw.startswith(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):
+            raw = raw[len(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):]
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        authority = dict((payload or {}).get("product_authority") or {})
+        key = (
+            str((payload or {}).get("database_choice") or ""),
+            str(authority.get("product_authority_id") or ""),
+        )
+        if not key[0] or not key[1] or key in seen:
+            continue
+        seen.add(key)
+        output.append(dict(payload))
+    return output
+
+
+def _knowledge_filter_superseded_image_payloads_v69090(payloads):
+    """Hide legacy cross-URL/document images once a product manifest is active."""
+    manifests = _knowledge_active_product_authorities_v69090()
+    if not manifests:
+        return [dict(item) for item in (payloads or []) if isinstance(item, dict)]
+    output = []
+    for raw in payloads or []:
+        if not isinstance(raw, dict):
+            continue
+        payload = dict(raw)
+        destination = str(payload.get("database_choice") or "").strip()
+        product_id = str(
+            payload.get("product_authority_id_v69090")
+            or (payload.get("product_authority_v69090") or {}).get("product_authority_id")
+            or ""
+        ).strip()
+        suppressed = False
+        for manifest in manifests:
+            if str(manifest.get("database_choice") or "").strip() != destination:
+                continue
+            authority = dict(manifest.get("product_authority") or {})
+            active_id = str(authority.get("product_authority_id") or "").strip()
+            if product_id:
+                if product_id == active_id:
+                    break
+                continue
+            candidate_text = " ".join((
+                str(payload.get("page_title") or ""),
+                str(payload.get("source_page") or ""),
+                str(payload.get("section_subtitle_v69067") or ""),
+                str(payload.get("section_heading") or ""),
+                str(payload.get("nearby_instruction_text") or ""),
+                str(payload.get("caption") or ""),
+                str(payload.get("visual_analysis") or ""),
+            ))
+            if _knowledge_authority_candidate_matches_v69090(authority, candidate_text):
+                suppressed = True
+                diagnostic_log(
+                    "product_authority_legacy_image_suppressed_v69090",
+                    destination=destination,
+                    product_hash=active_id[:16],
+                )
+                break
+        if not suppressed:
+            output.append(payload)
+    return output
+
+
+def _knowledge_product_prior_image_rows_v69090(database_choice, authority):
+    """Resolve persisted legacy image rows for transactional cleanup."""
+    rows, complete = _website_image_index_db_rows_v69005(
+        "id,solution,approved_answer,source_type,updated_at",
+        order_recent=True,
+        max_rows=20000,
+    )
+    if not complete:
+        raise RuntimeError("Product image authority catalog was incomplete; replacement aborted safely.")
+    matches = []
+    for row in rows:
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+            continue
+        try:
+            payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
+        except Exception:
+            continue
+        if str(payload.get("database_choice") or "").strip() != str(database_choice or "").strip():
+            continue
+        candidate_text = " ".join((
+            str(payload.get("page_title") or ""), str(payload.get("source_page") or ""),
+            str(payload.get("section_subtitle_v69067") or ""), str(payload.get("section_heading") or ""),
+            str(payload.get("nearby_instruction_text") or ""), str(payload.get("caption") or ""),
+            str(payload.get("visual_analysis") or ""),
+        ))
+        if _knowledge_authority_candidate_matches_v69090(authority, candidate_text):
+            matches.append({"id": row.get("id"), "payload": payload})
+    return matches
+
+
+def _knowledge_product_remove_prior_image_rows_v69090(prior_rows, active_authority):
+    active_id = str((active_authority or {}).get("product_authority_id") or "").strip()
+    removed, pending = 0, []
+    for row in prior_rows or []:
+        row_id = (row or {}).get("id")
+        if not row_id:
+            continue
+        try:
+            current_rows = (
+                supabase.table("learned_knowledge")
+                .select("solution,approved_answer")
+                .eq("id", row_id)
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+            if current_rows:
+                current_raw = str(
+                    current_rows[0].get("solution")
+                    or current_rows[0].get("approved_answer")
+                    or ""
+                )
+                if current_raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+                    try:
+                        current_payload = json.loads(
+                            current_raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):]
+                        )
+                    except Exception:
+                        current_payload = {}
+                    current_id = str(
+                        current_payload.get("product_authority_id_v69090")
+                        or (current_payload.get("product_authority_v69090") or {}).get(
+                            "product_authority_id"
+                        )
+                        or ""
+                    ).strip()
+                    if current_id == active_id:
+                        continue
+            supabase.table("learned_knowledge").delete().eq("id", row_id).execute()
+            removed += 1
+        except Exception:
+            pending.append(str(row_id))
+    try:
+        _website_image_index_rows_v68883.clear()
+        _workspace_durable_image_payloads_v69041.clear()
+        _knowledge_active_product_authorities_v69090.clear()
+    except Exception:
+        pass
+    return {"removed": removed, "pending_row_ids": pending, "completed": not pending}
+
+
+def _knowledge_product_authority_commit_v69090(
+    database_choice, authority, *, file_ids, source_type, source_name
+):
+    authority = dict(authority or {})
+    product_id = str(authority.get("product_authority_id") or "").strip()
+    clean_ids = sorted({str(value or "").strip() for value in (file_ids or []) if str(value or "").strip()})
+    if not product_id or not clean_ids:
+        raise RuntimeError("Product authority cannot activate without a product identity and completed vector files.")
+    prior = _knowledge_product_authority_manifest_v69090(database_choice, authority)
+    payload = {
+        "schema_version": 1,
+        "database_choice": str(database_choice or ""),
+        "product_authority": authority,
+        "active_file_ids": clean_ids,
+        "source_type": str(source_type or "admin"),
+        "source_name": str(source_name or "")[:1200],
+        "activated_at": datetime.now(timezone.utc).isoformat(),
+        "build_version": ATP_BUILD_VERSION_V69062,
+    }
+    solution = KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090 + json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":")
+    )
+    issue = _knowledge_product_authority_issue_v69090(database_choice, authority)
+    row = {
+        "assistant": {
+            "Technical Support Database": "Technical Support",
+            "Sales Database": "Sales",
+            "Marketing Database": "Marketing",
+        }.get(str(database_choice or ""), "Technical Support"),
+        "record_type": "product_authority",
+        "vehicle": str(authority.get("connected_product") or "")[:240],
+        "issue": issue,
+        "question": "Newest approved Admin knowledge for connected product",
+        "source_question": str(source_name or "")[:1200],
+        "solution": solution,
+        "approved_answer": solution,
+        "keywords": str(authority.get("connected_product") or "")[:5000],
+        "source_type": KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090,
+        "staff_confirmed": True,
+        "confidence_score": 100,
+        "updated_at": now_iso(),
+    }
+    clean_row = filter_payload_for_table("learned_knowledge", row)
+    row_id = prior.get("_row_id_v69090")
+    if row_id:
+        result = (
+            supabase.table("learned_knowledge")
+            .update(clean_row)
+            .eq("id", row_id)
+            .execute()
+        )
+    else:
+        result = safe_insert_row("learned_knowledge", clean_row)
+    if result is None:
+        raise RuntimeError("Product authority activation could not be persisted.")
+    diagnostic_log(
+        "product_authority_activated_v69090",
+        destination=str(database_choice or ""),
+        product_hash=product_id[:16],
+        active_file_count=len(clean_ids),
+        source_type=str(source_type or ""),
+    )
+    try:
+        _knowledge_active_product_authorities_v69090.clear()
+        _website_image_index_rows_v68883.clear()
+        _workspace_durable_image_payloads_v69041.clear()
+    except Exception:
+        pass
+    return prior
+
+
+def _knowledge_authority_candidate_matches_v69090(authority, text_value, filename=""):
+    """Strictly identify a legacy file for the same product; ambiguity fails closed."""
+    authority = dict(authority or {})
+    candidate = " ".join((str(filename or ""), str(text_value or "")))
+    try:
+        candidate_families = set(_website_identity_vehicle_families_v69022(candidate))
+        candidate_years = set(_website_identity_years_v69022(candidate))
+        candidate_systems = set(_website_identity_systems_v69022(candidate))
+    except Exception:
+        candidate_families, candidate_systems = set(), set()
+        candidate_years = set(re.findall(r"\b(?:19|20)\d{2}\b", candidate))
+    expected_families = set(authority.get("vehicle_families") or [])
+    expected_years = set(authority.get("years") or [])
+    expected_systems = set(authority.get("systems") or [])
+    if expected_families:
+        if not candidate_families or expected_families.isdisjoint(candidate_families):
+            return False
+    else:
+        expected_tokens = set(str(authority.get("fallback_label") or "").split())
+        candidate_tokens = set(normalize_text_for_match(candidate).split())
+        if len(expected_tokens & candidate_tokens) < min(3, max(2, len(expected_tokens))):
+            return False
+    if expected_years:
+        if not candidate_years or expected_years.isdisjoint(candidate_years):
+            return False
+    if expected_systems and candidate_systems:
+        if "no_sync" in expected_systems and "no_sync" not in candidate_systems:
+            return False
+        expected_sync = {item for item in expected_systems if str(item).startswith("sync_")}
+        candidate_sync = {item for item in candidate_systems if str(item).startswith("sync_")}
+        if expected_sync and candidate_sync and expected_sync.isdisjoint(candidate_sync):
+            return False
+    sku = str(authority.get("sku") or "").casefold()
+    if sku and sku not in candidate.casefold():
+        return False
+    return bool(expected_families or authority.get("fallback_label") or sku)
+
+
+def _knowledge_product_authority_prior_rows_v69090(
+    vector_store_id, database_choice, authority, *, exclude_file_ids=None
+):
+    """Resolve tracked plus strictly matched legacy files before mutation."""
+    excluded = {str(value or "").strip() for value in (exclude_file_ids or []) if str(value or "").strip()}
+    rows_by_id = {}
+    prior = _knowledge_product_authority_manifest_v69090(database_choice, authority)
+    for file_id in prior.get("active_file_ids") or []:
+        clean = str(file_id or "").strip()
+        if clean and clean not in excluded:
+            rows_by_id[clean] = {"file_id": clean, "authority": "TRACKED_MANIFEST"}
+    label = str(authority.get("connected_product") or "").strip()
+    if label:
+        request = {
+            "input": (
+                "Find source files about exactly this connected AutoTecPro product. "
+                "Do not broaden to another vehicle, year range, or SYNC/system family.\n"
+                f"CONNECTED PRODUCT: {label}"
+            ),
+            "tools": [{"type": "file_search", "vector_store_ids": [vector_store_id]}],
+        }
+        try:
+            legacy_rows = _website_request_vector_search_rows_v69047(request, max_results=50)
+        except Exception as error:
+            diagnostic_log(
+                "product_authority_legacy_discovery_failed_v69090",
+                error_type=type(error).__name__,
+            )
+            legacy_rows = []
+        for row in legacy_rows:
+            file_id = str((row or {}).get("file_id") or "").strip()
+            if not file_id or file_id in excluded:
+                continue
+            text_value = str((row or {}).get("text") or "")
+            filename = str((row or {}).get("filename") or "")
+            if _knowledge_authority_candidate_matches_v69090(authority, text_value, filename):
+                rows_by_id[file_id] = {
+                    "file_id": file_id,
+                    "filename": filename,
+                    "authority": "STRICT_LEGACY_FILE_SEARCH_MATCH",
+                }
+    return list(rows_by_id.values())
+
+
+def _knowledge_product_authority_remove_prior_v69090(
+    vector_store_id, prior_rows, *, exclude_file_ids=None
+):
+    excluded = {str(value or "").strip() for value in (exclude_file_ids or []) if str(value or "").strip()}
+    removed, pending = 0, []
+    for row in prior_rows or []:
+        file_id = str((row or {}).get("file_id") or "").strip()
+        if not file_id or file_id in excluded:
+            continue
+        if _website_remove_vector_file_v68892(vector_store_id, file_id):
+            removed += 1
+        else:
+            pending.append(file_id)
+    return {"removed": removed, "pending_file_ids": pending, "completed": not pending}
+
+
 def build_website_knowledge_package_document(
     extraction,
     database_choice,
@@ -51917,6 +52400,7 @@ def build_website_knowledge_package_document(
         and str(item.get("url") or "").startswith("https://")
         and str(urlparse(str(item.get("url") or "")).hostname or "").strip()
     })
+    product_authority_v69090 = dict(extraction.get("product_authority_v69090") or {})
 
     lines = [
         "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE",
@@ -51930,6 +52414,10 @@ def build_website_knowledge_package_document(
         f"Page type v69024: {extraction.get('page_type_v69024')}",
         f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
         f"Context binding authority v69067: {WEBSITE_CONTEXT_BINDING_VERSION_V69067}",
+        f"PRODUCT_AUTHORITY_ID_V69090: {str(product_authority_v69090.get('product_authority_id') or '').strip()}",
+        f"CONNECTED_PRODUCT_V69090: {str(product_authority_v69090.get('connected_product') or '').strip()}",
+        f"PRODUCT_AUTHORITY_REVISION_AT_V69090: {str(product_authority_v69090.get('authority_revision_at') or '').strip()}",
+        f"{KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090} {json.dumps(product_authority_v69090, ensure_ascii=False, separators=(',', ':'))}",
         f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
         f"Useful website images analyzed: {len(images)}",
         "APPROVED_IMAGE_ORIGINS_V69040: " + ",".join(approved_image_origins_v69040),
@@ -52054,6 +52542,14 @@ def _website_image_index_record_v68883(
         # query time after a same-URL resubmission.
         "website_version_hash_v68892": str(
             extraction.get("website_version_hash_v68892") or ""
+        ).strip(),
+        "product_authority_v69090": dict(
+            extraction.get("product_authority_v69090") or {}
+        ),
+        "product_authority_id_v69090": str(
+            (extraction.get("product_authority_v69090") or {}).get(
+                "product_authority_id"
+            ) or ""
         ).strip(),
         "image_url": str(image_item.get("url") or "").strip(),
         "image_sha256": str(image_item.get("sha256") or "").strip(),
@@ -52754,9 +53250,20 @@ def _website_latest_page_revision_rows_v69088(payloads):
         if not isinstance(raw, dict):
             continue
         payload = dict(raw)
+        product_authority_id_v69090 = str(
+            payload.get("product_authority_id_v69090")
+            or (payload.get("product_authority_v69090") or {}).get(
+                "product_authority_id"
+            )
+            or ""
+        ).strip()
         key = (
             str(payload.get("database_choice") or "").strip(),
-            _website_image_page_identity_v69003(payload),
+            (
+                "product://" + product_authority_id_v69090
+                if product_authority_id_v69090
+                else _website_image_page_identity_v69003(payload)
+            ),
         )
         if not key[0] or not key[1]:
             continue
@@ -52847,6 +53354,7 @@ def _website_image_index_rows_v68883():
             or str(payload.get("archive_storage_path") or "").strip()
         ):
             parsed.append(payload)
+    parsed = _knowledge_filter_superseded_image_payloads_v69090(parsed)
     return _website_latest_page_revision_rows_v69088(parsed)
 
 
@@ -60168,6 +60676,16 @@ def save_website_knowledge_package(
         "Marketing Database": MARKETING_VECTOR_STORE_ID,
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
     }[database_choice]
+    product_authority_v69090 = dict(
+        extraction.get("product_authority_v69090") or {}
+    )
+    if database_choice in {
+        "Technical Support Database", "Sales Database", "Marketing Database"
+    } and not str(product_authority_v69090.get("product_authority_id") or "").strip():
+        raise ValueError(
+            "Connected Product could not be established. Confirm the product in "
+            "Admin before approving this webpage."
+        )
     verified_subset_destination_v69077 = database_choice in {
         "Sales Database", "Marketing Database"
     }
@@ -60306,12 +60824,26 @@ def save_website_knowledge_package(
             ),
         }
 
-    # Discover all prior versions for this exact URL in the selected database.
+    # Discover all prior versions for this exact URL and every tracked/strictly
+    # matched legacy source for the same connected product in this destination.
     prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
         selected_vector_store_id,
         extraction,
         exclude_filename=filename,
     )
+    prior_product_files_v69090 = _knowledge_product_authority_prior_rows_v69090(
+        selected_vector_store_id,
+        database_choice,
+        product_authority_v69090,
+    )
+    prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
+        database_choice, product_authority_v69090
+    )
+    prior_product_rows_by_id_v69090 = {
+        str((row or {}).get("file_id") or "").strip(): dict(row or {})
+        for row in (list(prior_same_url_files_v68892) + list(prior_product_files_v69090))
+        if str((row or {}).get("file_id") or "").strip()
+    }
 
     package_text = build_website_knowledge_package_document(
         extraction,
@@ -60435,7 +60967,30 @@ def save_website_knowledge_package(
         # Remove the superseded vector package only after the image knowledge
         # for this same canonical page has also synchronized successfully.
         if bool(website_image_sync_v69003.get("completed")):
-            for old_row in prior_same_url_files_v68892:
+            try:
+                _knowledge_product_authority_commit_v69090(
+                    database_choice,
+                    product_authority_v69090,
+                    file_ids=[file_id],
+                    source_type="website",
+                    source_name=str(extraction.get("source_url") or extraction.get("requested_url") or ""),
+                )
+            except Exception as error:
+                _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
+                try:
+                    setattr(error, "failure_stage_v69082", "PRODUCT_AUTHORITY_ACTIVATION")
+                except Exception:
+                    pass
+                raise
+            product_image_cleanup_v69090 = (
+                _knowledge_product_remove_prior_image_rows_v69090(
+                    prior_product_image_rows_v69090,
+                    product_authority_v69090,
+                )
+            )
+            if not product_image_cleanup_v69090.get("completed"):
+                cleanup_pending_v68892 = True
+            for old_row in prior_product_rows_by_id_v69090.values():
                 old_file_id = str(old_row.get("file_id") or "").strip()
                 if not old_file_id or old_file_id == str(file_id):
                     continue
@@ -60475,6 +61030,10 @@ def save_website_knowledge_package(
         "website_image_index_v68883": website_image_index_stats_v68883,
         "website_image_sync_v69003": website_image_sync_v69003,
         "atomic_resubmission_v69069": True,
+        "product_authority_v69090": product_authority_v69090,
+        "product_supersession_v69090": True,
+        "superseded_product_file_count_v69090": replaced_file_count_v68892,
+        "product_image_cleanup_v69090": product_image_cleanup_v69090 if 'product_image_cleanup_v69090' in locals() else {"removed": 0, "completed": True},
         "image_repair_pending_v69077": bool(
             website_image_index_stats_v68883.get("repair_pending_v69077")
         ),
@@ -60989,6 +61548,9 @@ def _website_knowledge_version_hash_v68892(
         "reviewed_content": clean_extracted_website_text(reviewed_content),
         "page_type_v69024": str(extraction.get("page_type_v69024") or "").strip(),
         "page_identity_v69024": dict(extraction.get("page_identity_v69024") or {}),
+        "product_authority_v69090": dict(
+            extraction.get("product_authority_v69090") or {}
+        ),
         "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
         "images": stable_images,
     }
@@ -61703,6 +62265,17 @@ def render_learn_from_website(database_choice):
         placeholder="https://example.com/product-page",
         key="stable_admin_website_url",
     )
+    website_connected_product_v69090 = st.text_input(
+        "Connected Product (optional override)",
+        placeholder="Auto-detected after extraction, or enter: Ford F-150 2009–2014 No-SYNC",
+        key="stable_admin_website_connected_product_v69090",
+        help=(
+            "The extracted page normally supplies this automatically. Enter a value "
+            "only to correct or refine the product identity. The newest approved "
+            "submission for this product supersedes older links/documents separately "
+            "inside each selected database."
+        ),
+    )
     website_page_password = st.text_input(
         "Page Password (optional)",
         type="password",
@@ -61762,6 +62335,23 @@ def render_learn_from_website(database_choice):
 
     if not extraction:
         return
+
+    detected_product_authority_v69090 = _knowledge_product_authority_v69090(
+        website_connected_product_v69090,
+        title=str(extraction.get("title") or ""),
+        content=str(extraction.get("content") or ""),
+        source_url=str(extraction.get("source_url") or extraction.get("requested_url") or ""),
+    )
+    if detected_product_authority_v69090:
+        st.caption(
+            "Connected Product authority: "
+            + str(detected_product_authority_v69090.get("connected_product") or "")
+        )
+    else:
+        st.warning(
+            "The product could not be identified safely. Enter Connected Product "
+            "before approving this webpage."
+        )
 
     # v69028: establish save state before rendering the expensive preview grid.
     # The button callback creates an intermediate rerun; during that rerun the
@@ -61932,6 +62522,22 @@ def render_learn_from_website(database_choice):
             reviewed_extraction.get("page_type_v69024") or "",
         )
         reviewed_extraction["ingestion_authority_version_v69024"] = WEBSITE_INGESTION_AUTHORITY_VERSION_V69024
+        reviewed_product_authority_v69090 = _knowledge_product_authority_v69090(
+            website_connected_product_v69090,
+            title=str(reviewed_extraction.get("title") or ""),
+            content=reviewed_content,
+            source_url=str(reviewed_extraction.get("source_url") or reviewed_extraction.get("requested_url") or ""),
+        )
+        if not reviewed_product_authority_v69090:
+            st.session_state.admin_website_save_notice = {
+                "type": "warning",
+                "message": (
+                    "Connected Product could not be established. Enter the product "
+                    "name/year/system and approve again; no database was changed."
+                ),
+            }
+            return
+        reviewed_extraction["product_authority_v69090"] = reviewed_product_authority_v69090
 
         destination_display_names_v69065 = [
             (
@@ -62747,21 +63353,40 @@ def _commit_visual_knowledge_v69040(prepared, database_choice):
     return {"committed": committed, "sync": sync}
 
 
-def _knowledge_artifact_prefix_v69040(original_name, database_choice):
+def _knowledge_artifact_prefix_v69040(
+    original_name, database_choice, product_authority_v69090=None
+):
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original_name).stem).strip("._-") or "document"
     destination_hash = hashlib.sha256(str(database_choice or "").encode("utf-8")).hexdigest()[:8]
-    return f"knowledge_v69040_{destination_hash}_{safe}_"
+    product_hash_v69090 = str(
+        (product_authority_v69090 or {}).get("product_authority_id") or ""
+    ).strip()[:12]
+    product_segment_v69090 = f"p{product_hash_v69090}_" if product_hash_v69090 else ""
+    return f"knowledge_v69040_{destination_hash}_{product_segment_v69090}{safe}_"
 
 
 def _upload_knowledge_transaction_v69040(
     original_file, vector_store_id, database_choice, *, prepared_visual=None,
-    upload_original=True, searchable_override=None
+    upload_original=True, searchable_override=None, product_authority_v69090=None
 ):
     """Stage vectors, verify readiness, activate images, then remove old versions."""
     original_name = Path(str(getattr(original_file, "name", "knowledge"))).name
     original_bytes = bytes(original_file.getvalue() or b"")
     digest = hashlib.sha256(original_bytes).hexdigest()
-    prefix = _knowledge_artifact_prefix_v69040(original_name, database_choice)
+    product_authority_v69090 = dict(product_authority_v69090 or {})
+    if database_choice in {
+        "Technical Support Database", "Sales Database", "Marketing Database"
+    } and not str(product_authority_v69090.get("product_authority_id") or "").strip():
+        raise ValueError("Connected Product is required for document/image knowledge uploads.")
+    prefix = _knowledge_artifact_prefix_v69040(
+        original_name, database_choice, product_authority_v69090
+    )
+    prior_product_rows_v69090 = _knowledge_product_authority_prior_rows_v69090(
+        vector_store_id, database_choice, product_authority_v69090
+    ) if product_authority_v69090 else []
+    prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
+        database_choice, product_authority_v69090
+    ) if product_authority_v69090 else []
     staged = []
     uploaded_ids = []
     if searchable_override is not None:
@@ -62779,6 +63404,24 @@ def _upload_knowledge_transaction_v69040(
         staged.append(ManagedUploadedFile(
             companion_bytes, f"{prefix}{digest[:16]}__visual.txt", "text/plain"
         ))
+    if product_authority_v69090:
+        authority_text_v69090 = (
+            "AUTOTECPRO ADMIN PRODUCT AUTHORITY\n"
+            f"Destination: {database_choice}\n"
+            f"Original document: {original_name}\n"
+            f"Document SHA-256: {digest}\n"
+            f"CONNECTED_PRODUCT_V69090: {product_authority_v69090.get('connected_product', '')}\n"
+            f"PRODUCT_AUTHORITY_ID_V69090: {product_authority_v69090.get('product_authority_id', '')}\n"
+            f"PRODUCT_AUTHORITY_REVISION_AT_V69090: {product_authority_v69090.get('authority_revision_at', '')}\n"
+            f"{KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090} "
+            + json.dumps(product_authority_v69090, ensure_ascii=False, separators=(",", ":"))
+            + "\n"
+        )
+        staged.append(ManagedUploadedFile(
+            authority_text_v69090.encode("utf-8"),
+            f"{prefix}{digest[:16]}__authority.txt",
+            "text/plain",
+        ))
     if not staged:
         raise RuntimeError("No knowledge artifact was prepared for upload.")
     try:
@@ -62792,6 +63435,20 @@ def _upload_knowledge_transaction_v69040(
             _commit_visual_knowledge_v69040(prepared_visual, database_choice)
             if prepared_visual else {"committed": 0, "sync": {"completed": True}}
         )
+        if product_authority_v69090:
+            _knowledge_product_authority_commit_v69090(
+                database_choice,
+                product_authority_v69090,
+                file_ids=uploaded_ids,
+                source_type="document",
+                source_name=original_name,
+            )
+            product_image_cleanup_v69090 = (
+                _knowledge_product_remove_prior_image_rows_v69090(
+                    prior_product_image_rows_v69090,
+                    product_authority_v69090,
+                )
+            )
     except Exception:
         for file_id in uploaded_ids:
             _website_remove_vector_file_v68892(vector_store_id, file_id)
@@ -62811,8 +63468,17 @@ def _upload_knowledge_transaction_v69040(
         if str(row.get("filename") or "").startswith(prefix)
         and str(row.get("file_id") or "") not in set(uploaded_ids)
     ]
-    removed, cleanup_pending = 0, False
-    for row in old_rows:
+    old_rows_by_id_v69090 = {
+        str((row or {}).get("file_id") or "").strip(): dict(row or {})
+        for row in (list(old_rows) + list(prior_product_rows_v69090))
+        if str((row or {}).get("file_id") or "").strip()
+        and str((row or {}).get("file_id") or "").strip() not in set(uploaded_ids)
+    }
+    removed, cleanup_pending = 0, bool(
+        product_authority_v69090
+        and not (product_image_cleanup_v69090 if 'product_image_cleanup_v69090' in locals() else {"completed": False}).get("completed")
+    )
+    for row in old_rows_by_id_v69090.values():
         if _website_remove_vector_file_v68892(vector_store_id, row.get("file_id")):
             removed += 1
         else:
@@ -62821,6 +63487,9 @@ def _upload_knowledge_transaction_v69040(
         "file_ids": uploaded_ids, "filename_prefix": prefix,
         "activated_images": int(activation.get("committed") or 0),
         "superseded_removed": removed, "cleanup_pending": cleanup_pending,
+        "product_authority_v69090": product_authority_v69090,
+        "product_supersession_v69090": bool(product_authority_v69090),
+        "product_image_cleanup_v69090": product_image_cleanup_v69090 if 'product_image_cleanup_v69090' in locals() else {"removed": 0, "completed": True},
     }
 
 def render_admin_upload_knowledge_tab():
@@ -62839,6 +63508,19 @@ def render_admin_upload_knowledge_tab():
             "Graphic Marketing Database",
         ],
         key="stable_admin_database_choice"
+    )
+
+    admin_connected_product_v69090 = st.text_input(
+        "Connected Product",
+        placeholder="Example: Ford F-150 2009–2014 No-SYNC",
+        key="stable_admin_connected_product_v69090",
+        help=(
+            "Required for Technical, Sales, and Marketing document/image uploads. "
+            "The newest successfully indexed Admin submission with this same product "
+            "identity becomes authoritative and supersedes older sources only in the "
+            "selected database. Screen size and 726/726W finish do not split settings authority."
+        ),
+        disabled=database_choice == "Graphic Marketing Database",
     )
 
     admin_context = st.text_area(
@@ -62881,6 +63563,15 @@ def render_admin_upload_knowledge_tab():
     if admin_upload_submitted:
         if not admin_files:
             st.warning("Please upload at least one document or image.")
+        elif (
+            database_choice != "Graphic Marketing Database"
+            and not str(admin_connected_product_v69090 or "").strip()
+            and any(not is_tabular_knowledge_file(item) for item in admin_files)
+        ):
+            st.warning(
+                "Enter the Connected Product before uploading documents or images. "
+                "This is required to replace older knowledge safely."
+            )
         else:
             selected_vector_store_id = {
                 "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
@@ -62894,6 +63585,17 @@ def render_admin_upload_knowledge_tab():
 
             for index, admin_file in enumerate(admin_files, start=1):
                 try:
+                    product_authority_v69090 = (
+                        _knowledge_product_authority_v69090(
+                            admin_connected_product_v69090,
+                            title=str(getattr(admin_file, "name", "") or ""),
+                            content=str(admin_context or ""),
+                            source_url=f"document://{Path(str(getattr(admin_file, 'name', 'document'))).name}",
+                        )
+                        if database_choice != "Graphic Marketing Database"
+                        and not is_tabular_knowledge_file(admin_file)
+                        else {}
+                    )
                     if is_admin_image_file(admin_file):
                         with st.spinner(
                             f"Analyzing image: {admin_file.name}"
@@ -62913,6 +63615,11 @@ def render_admin_upload_knowledge_tab():
                                 admin_context,
                                 extracted_text,
                             )
+                            standalone_visual_v69040.setdefault(
+                                "extraction_v69040", {}
+                            )["product_authority_v69090"] = dict(
+                                product_authority_v69090
+                            )
                             image_transaction_v69040 = _upload_knowledge_transaction_v69040(
                                 admin_file,
                                 selected_vector_store_id,
@@ -62920,6 +63627,7 @@ def render_admin_upload_knowledge_tab():
                                 prepared_visual=standalone_visual_v69040,
                                 upload_original=False,
                                 searchable_override=searchable_file,
+                                product_authority_v69090=product_authority_v69090,
                             )
 
                         st.success(
@@ -62977,6 +63685,12 @@ def render_admin_upload_knowledge_tab():
                                         admin_context,
                                         commit_index_v69040=False,
                                     )
+                                    if visual_companion_v69017:
+                                        visual_companion_v69017.setdefault(
+                                            "extraction_v69040", {}
+                                        )["product_authority_v69090"] = dict(
+                                            product_authority_v69090
+                                        )
                             except RuntimeError as visual_error_v69040:
                                 visual_warning_v69040 = str(visual_error_v69040)
                                 diagnostic_log(
@@ -62990,6 +63704,7 @@ def render_admin_upload_knowledge_tab():
                             database_choice,
                             prepared_visual=visual_companion_v69017,
                             upload_original=True,
+                            product_authority_v69090=product_authority_v69090,
                         )
                         st.success(
                             f"Uploaded: {admin_file.name} "
