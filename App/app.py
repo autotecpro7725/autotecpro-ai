@@ -1,4 +1,4 @@
-# AutoTecPro AI v69101 — destination image-local authority + resumable website saves
+# AutoTecPro AI v69100 — dynamic image-local topic authority
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69101"
+ATP_BUILD_VERSION_V69062 = "v69100"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -118,8 +118,7 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69097-v69050-locked-related-image-publication+"
     "v69098-active-package-first-turn-image-hydration+"
     "v69099-precise-classified-role-image-selection+"
-    "v69100-dynamic-image-local-topic-authority+"
-    "v69101-destination-image-local-authority-and-resumable-save"
+    "v69100-dynamic-image-local-topic-authority"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -10929,20 +10928,9 @@ def _wait_for_vector_store_file(
                 return "completed"
             if status in {"failed", "cancelled"}:
                 error_value = getattr(record, "last_error", None)
-                terminal_error_v69101 = RuntimeError(
+                raise RuntimeError(
                     f"OpenAI indexing {status}: {error_value or 'unknown error'}"
                 )
-                setattr(
-                    terminal_error_v69101,
-                    "vector_index_terminal_failure_v69101",
-                    True,
-                )
-                setattr(
-                    terminal_error_v69101,
-                    "vector_index_status_v69101",
-                    status,
-                )
-                raise terminal_error_v69101
         except TypeError:
             # Older SDK compatibility: attachment succeeded but this SDK does
             # not expose the same retrieve signature.
@@ -52663,41 +52651,6 @@ def _knowledge_product_remove_prior_image_rows_v69090(prior_rows, active_authori
     return {"removed": removed, "pending_row_ids": pending, "completed": not pending}
 
 
-def _knowledge_product_authority_manifest_checked_v69101(
-    database_choice, authority
-):
-    """Read one authority manifest without converting provider failure to empty.
-
-    The legacy reader is intentionally best-effort for chat. A save transaction
-    cannot use that behavior: treating a failed read as "no row" can insert a
-    duplicate manifest or report success without proving newest-authority state.
-    """
-    issue = _knowledge_product_authority_issue_v69090(database_choice, authority)
-    if not issue or issue.endswith(":"):
-        return {}
-    rows = (
-        supabase.table("learned_knowledge")
-        .select("id,solution,approved_answer,updated_at")
-        .eq("source_type", KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090)
-        .eq("issue", issue)
-        .order("updated_at", desc=True)
-        .limit(1)
-        .execute()
-        .data
-        or []
-    )
-    if not rows:
-        return {}
-    raw = str(rows[0].get("solution") or rows[0].get("approved_answer") or "")
-    if raw.startswith(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):
-        raw = raw[len(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):]
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise RuntimeError("Product authority manifest is not a JSON object.")
-    payload["_row_id_v69090"] = rows[0].get("id")
-    return payload
-
-
 def _knowledge_product_authority_commit_v69090(
     database_choice, authority, *, file_ids, source_type, source_name
 ):
@@ -52706,26 +52659,7 @@ def _knowledge_product_authority_commit_v69090(
     clean_ids = sorted({str(value or "").strip() for value in (file_ids or []) if str(value or "").strip()})
     if not product_id or not clean_ids:
         raise RuntimeError("Product authority cannot activate without a product identity and completed vector files.")
-    def read_manifest_v69101():
-        last_error_v69101 = None
-        for attempt_v69101 in range(3):
-            try:
-                return _knowledge_product_authority_manifest_checked_v69101(
-                    database_choice, authority
-                )
-            except Exception as error_v69101:
-                last_error_v69101 = error_v69101
-                if (
-                    not _website_transient_provider_error_v69082(error_v69101)
-                    or attempt_v69101 >= 2
-                ):
-                    raise
-                time.sleep(0.20 * (2 ** attempt_v69101))
-        raise last_error_v69101 or RuntimeError(
-            "Product authority manifest read did not complete."
-        )
-
-    prior = read_manifest_v69101()
+    prior = _knowledge_product_authority_manifest_v69090(database_choice, authority)
     payload = {
         "schema_version": 1,
         "database_choice": str(database_choice or ""),
@@ -52760,97 +52694,18 @@ def _knowledge_product_authority_commit_v69090(
         "updated_at": now_iso(),
     }
     clean_row = filter_payload_for_table("learned_knowledge", row)
-    # These columns are not optional for authority. The generic schema helper's
-    # conservative fallback omits them when its RPC is temporarily unavailable;
-    # silently dropping one made a save appear successful while the new package
-    # could not override the old one. The existing authority query already
-    # requires these columns, so fail explicitly if the deployed schema lacks one.
-    for required_key_v69101 in (
-        "issue", "source_type", "solution", "approved_answer", "updated_at"
-    ):
-        clean_row[required_key_v69101] = row[required_key_v69101]
-
-    last_error_v69101 = None
-    verified_v69101 = {}
-    for attempt_v69101 in range(3):
-        row_id = str(prior.get("_row_id_v69090") or "").strip()
-        try:
-            if row_id:
-                result = (
-                    supabase.table("learned_knowledge")
-                    .update(clean_row)
-                    .eq("id", row_id)
-                    .execute()
-                )
-            else:
-                result = (
-                    supabase.table("learned_knowledge")
-                    .insert(clean_row)
-                    .execute()
-                )
-            if result is None:
-                raise RuntimeError(
-                    "Product authority activation returned no persistence result."
-                )
-        except Exception as error_v69101:
-            last_error_v69101 = error_v69101
-            # A response can be interrupted after Postgres commits. Read back
-            # before retrying so an uncertain insert never creates a duplicate.
-            try:
-                verified_v69101 = read_manifest_v69101()
-            except Exception:
-                raise error_v69101
-            if (
-                sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
-                and str(verified_v69101.get("database_choice") or "")
-                == str(database_choice or "")
-            ):
-                break
-            if (
-                not _website_transient_provider_error_v69082(error_v69101)
-                or attempt_v69101 >= 2
-            ):
-                raise
-            prior = verified_v69101
-            time.sleep(0.25 * (2 ** attempt_v69101))
-            continue
-
-        # A write response is not authority proof. Verify the exact active file
-        # set from durable storage before old vectors can be detached.
-        for verify_attempt_v69101 in range(3):
-            verified_v69101 = read_manifest_v69101()
-            if (
-                sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
-                and str(verified_v69101.get("database_choice") or "")
-                == str(database_choice or "")
-            ):
-                break
-            time.sleep(0.18 * (verify_attempt_v69101 + 1))
-        if (
-            sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
-            and str(verified_v69101.get("database_choice") or "")
-            == str(database_choice or "")
-        ):
-            break
-        last_error_v69101 = RuntimeError(
-            "Product authority activation could not be verified after write."
+    row_id = prior.get("_row_id_v69090")
+    if row_id:
+        result = (
+            supabase.table("learned_knowledge")
+            .update(clean_row)
+            .eq("id", row_id)
+            .execute()
         )
-        # Do not issue a second insert after a successful response. A delayed
-        # read must be retried by the idempotent outer save instead.
-        raise last_error_v69101
     else:
-        raise last_error_v69101 or RuntimeError(
-            "Product authority activation could not be persisted."
-        )
-
-    if not (
-        sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
-        and str(verified_v69101.get("database_choice") or "")
-        == str(database_choice or "")
-    ):
-        raise last_error_v69101 or RuntimeError(
-            "Product authority activation verification failed."
-        )
+        result = safe_insert_row("learned_knowledge", clean_row)
+    if result is None:
+        raise RuntimeError("Product authority activation could not be persisted.")
     diagnostic_log(
         "product_authority_activated_v69090",
         destination=str(database_choice or ""),
@@ -59698,10 +59553,9 @@ def _workspace_image_semantic_authority_v69062(
     """Prove image-local topic relevance after destination/fitment authority.
 
     Page title and completed-answer text can establish product identity, but they
-    can never make a visually unrelated image eligible. Eligibility comes only
-    from the image's own subtitle, caption/asset name, visual analysis or
-    structured image metadata. Section headings and nearby prose remain useful
-    for retrieval but can never authorize publication.
+    can never make a visually unrelated image eligible. Eligibility comes from
+    the image-local section, nearby text, caption, visual analysis or structured
+    image metadata. This removes v69060's whole-file ordering dependency.
     """
     if not isinstance(payload, dict):
         return False, -1000.0, "INVALID_PAYLOAD", {}
@@ -59747,26 +59601,11 @@ def _workspace_image_semantic_authority_v69062(
             "product_gate": "reject", "topic_gate": "not_evaluated",
         }
 
-    image_url_v69101 = str(payload.get("image_url") or "").strip()
-    try:
-        asset_name_v69101 = unquote(
-            urlparse(image_url_v69101).path.rsplit("/", 1)[-1]
-        )
-    except Exception:
-        asset_name_v69101 = image_url_v69101.rsplit("/", 1)[-1]
-    caption_v69101 = str(payload.get("caption") or "")
-    heading_v69101 = str(payload.get("section_heading") or "")
-    if (
-        caption_v69101.strip()
-        and heading_v69101.strip()
-        and caption_v69101.strip().casefold()
-        == heading_v69101.strip().casefold()
-    ):
-        caption_v69101 = ""
     local_parts = {
         "subtitle": str(payload.get("section_subtitle_v69067") or ""),
-        "caption": caption_v69101,
-        "asset": asset_name_v69101,
+        "heading": str(payload.get("section_heading") or ""),
+        "nearby": str(payload.get("nearby_instruction_text") or ""),
+        "caption": str(payload.get("caption") or ""),
         "visual": str(payload.get("visual_analysis") or ""),
         "metadata": json.dumps(
             payload.get("image_structured_metadata_v69017") or {},
@@ -59872,14 +59711,6 @@ def _workspace_image_semantic_authority_v69062(
             prompt, answer, payload
         )
     )
-    dynamic_local_pass_v69101, dynamic_local_score_v69101, dynamic_local_reason_v69101 = (
-        _website_image_local_structured_relation_v69082(
-            prompt,
-            answer,
-            payload,
-            allow_legacy_classified_v69100=False,
-        )
-    )
 
     local_topic_hits = {
         topic for topic in topic_groups
@@ -59891,12 +59722,6 @@ def _workspace_image_semantic_authority_v69062(
         # appeared in ``topic_groups`` without weakening destination or fitment.
         requested_topics.add("exact_subtitle")
         local_topic_hits.add("exact_subtitle")
-    elif dynamic_local_pass_v69101:
-        # v69101 gives Sales and Marketing the same arbitrary, image-owned
-        # subtitle/caption/visual relationship already proven in Technical.
-        # This cannot be satisfied by a page heading or nearby instruction.
-        requested_topics.add("dynamic_image_local")
-        local_topic_hits.add("dynamic_image_local")
     topic_hits = requested_topics & local_topic_hits
     lexical_overlap = topic_tokens & local_tokens
     caption_overlap = topic_tokens & caption_tokens
@@ -59905,16 +59730,6 @@ def _workspace_image_semantic_authority_v69062(
     # A generic Sales/Marketing product inquiry still needs image-local proof
     # that the asset depicts the product. Same-page ownership alone is not proof.
     if not requested_topics:
-        # A prompt with a meaningful but unfamiliar subject is not a generic
-        # product-overview request. It must have passed the dynamic image-local
-        # subtitle/caption/visual relation above. Falling through here previously
-        # converted requests such as "JBL fiber optic adapter" into "screen" and
-        # allowed an unrelated same-product UI screenshot to publish.
-        if topic_tokens:
-            return False, -725.0, "UNCLASSIFIED_LOCAL_TOPIC_NOT_RELATED", {
-                "vehicle_gate": "pass", "year_gate": "pass",
-                "product_gate": "pass", "topic_gate": "reject",
-            }
         requested_topics = {"product_overview"}
         topic_hits = requested_topics & local_topic_hits
 
@@ -59975,11 +59790,6 @@ def _workspace_image_semantic_authority_v69062(
         + max(0.0, min(float(role_score), 30.0))
         + row_score * 8.0
         + (float(exact_subtitle_score_v69080) if exact_subtitle_pass_v69080 else 0.0)
-        + (
-            float(dynamic_local_score_v69101)
-            if dynamic_local_pass_v69101 and not exact_subtitle_pass_v69080
-            else 0.0
-        )
     )
     # The subtitle-to-next-logical-image binding is the nearest ingestion-time
     # DOM authority. It may rank only after the unchanged vehicle/year/product,
@@ -59994,8 +59804,6 @@ def _workspace_image_semantic_authority_v69062(
     return True, semantic_score, (
         exact_subtitle_reason_v69080
         if exact_subtitle_pass_v69080
-        else dynamic_local_reason_v69101
-        if dynamic_local_pass_v69101
         else "EXACT_DESTINATION_AND_FITMENT"
     ), {
         "vehicle_gate": "pass", "year_gate": "pass",
@@ -61724,40 +61532,6 @@ def _website_transient_provider_error_v69082(error):
     ))
 
 
-def _website_mark_save_failure_v69101(
-    error, stage, reason_code, *, retryable=False, preserve_attached=False
-):
-    """Attach redacted, structured transaction state to an existing error."""
-    try:
-        setattr(error, "failure_stage_v69082", str(stage or "").strip().upper())
-        setattr(
-            error,
-            "reason_codes_v69077",
-            [str(reason_code or stage or "WEBSITE_SAVE_FAILED").strip().upper()],
-        )
-        setattr(error, "retryable_v69082", bool(retryable))
-        setattr(
-            error,
-            "preserve_attached_file_v69101",
-            bool(preserve_attached),
-        )
-    except Exception:
-        pass
-    return error
-
-
-def _website_save_failure_v69101(
-    message, stage, reason_code, *, retryable=False, preserve_attached=False
-):
-    return _website_mark_save_failure_v69101(
-        RuntimeError(str(message or "Website save failed.")),
-        stage,
-        reason_code,
-        retryable=retryable,
-        preserve_attached=preserve_attached,
-    )
-
-
 def _website_upload_and_wait_v69082(
     package_bytes, filename, vector_store_id,
 ):
@@ -61770,11 +61544,7 @@ def _website_upload_and_wait_v69082(
     """
     raw = bytes(package_bytes or b"")
     if not raw:
-        raise _website_save_failure_v69101(
-            "Website knowledge package is empty.",
-            "PACKAGE_BUILD",
-            "EMPTY_WEBSITE_PACKAGE",
-        )
+        raise RuntimeError("Website knowledge package is empty.")
     file_id = ""
     for attempt in range(3):
         artifact = ManagedUploadedFile(raw, filename, "text/plain")
@@ -61791,23 +61561,12 @@ def _website_upload_and_wait_v69082(
                 status_code=getattr(error, "status_code", None),
             )
             if not retryable or attempt >= 2:
-                raise _website_mark_save_failure_v69101(
-                    error,
-                    "VECTOR_ATTACH",
-                    (
-                        "TRANSIENT_VECTOR_ATTACH_FAILURE"
-                        if retryable else "VECTOR_ATTACH_REJECTED"
-                    ),
-                    retryable=retryable,
-                )
+                setattr(error, "failure_stage_v69082", "VECTOR_ATTACH")
+                raise
             time.sleep(0.35 * (2 ** attempt))
 
     if not file_id:
-        raise _website_save_failure_v69101(
-            "OpenAI did not return a website vector file ID.",
-            "VECTOR_ATTACH",
-            "VECTOR_FILE_ID_MISSING",
-        )
+        raise RuntimeError("OpenAI did not return a website vector file ID.")
 
     try:
         status = _wait_for_vector_store_file(
@@ -61822,50 +61581,21 @@ def _website_upload_and_wait_v69082(
                 vector_store_id, file_id, timeout_seconds=60
             )
     except Exception as error:
-        status_code_v69101 = getattr(error, "status_code", None)
         try:
-            status_code_v69101 = (
-                int(status_code_v69101)
-                if status_code_v69101 is not None else None
+            client.vector_stores.files.delete(
+                vector_store_id=vector_store_id, file_id=file_id
             )
         except Exception:
-            status_code_v69101 = None
-        terminal_v69101 = bool(
-            getattr(error, "vector_index_terminal_failure_v69101", False)
-        )
-        transient_v69101 = bool(
-            _website_transient_provider_error_v69082(error)
-        )
-        preserve_attached_v69101 = bool(
-            not terminal_v69101
-            and (
-                transient_v69101
-                or status_code_v69101 is None
-                or status_code_v69101 not in {400, 401, 403, 404}
-            )
-        )
-        if not preserve_attached_v69101:
-            try:
-                client.vector_stores.files.delete(
-                    vector_store_id=vector_store_id, file_id=file_id
-                )
-            except Exception:
-                pass
-            try:
-                client.files.delete(file_id)
-            except Exception:
-                pass
-        raise _website_mark_save_failure_v69101(
-            error,
-            "VECTOR_INDEX_STATUS",
-            (
-                "VECTOR_INDEX_TERMINAL_FAILURE"
-                if terminal_v69101
-                else "VECTOR_INDEX_STATUS_UNAVAILABLE"
-            ),
-            retryable=bool(preserve_attached_v69101),
-            preserve_attached=preserve_attached_v69101,
-        )
+            pass
+        try:
+            client.files.delete(file_id)
+        except Exception:
+            pass
+        try:
+            setattr(error, "failure_stage_v69082", "VECTOR_INDEX")
+        except Exception:
+            pass
+        raise
     return file_id, str(status or "queued").casefold()
 
 
@@ -61888,35 +61618,23 @@ def save_website_knowledge_package(
         reviewed_content if reviewed_content is not None else extraction.get("content")
     )
     if len(reviewed) < 120:
-        raise _website_save_failure_v69101(
-            "The reviewed website content is too short to save.",
-            "INPUT_VALIDATION",
-            "REVIEWED_CONTENT_TOO_SHORT",
-        )
+        raise ValueError("The reviewed website content is too short to save.")
 
-    selected_vector_store_id = str({
+    selected_vector_store_id = {
         "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
         "Sales Database": SALES_VECTOR_STORE_ID,
         "Marketing Database": MARKETING_VECTOR_STORE_ID,
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
-    }.get(database_choice) or "").strip()
-    if not selected_vector_store_id.startswith("vs_"):
-        raise _website_save_failure_v69101(
-            "The selected website destination is not configured.",
-            "DESTINATION_CONFIGURATION",
-            "DESTINATION_VECTOR_STORE_NOT_CONFIGURED",
-        )
+    }[database_choice]
     product_authority_v69090 = dict(
         extraction.get("product_authority_v69090") or {}
     )
     if database_choice in {
         "Technical Support Database", "Sales Database", "Marketing Database"
     } and not str(product_authority_v69090.get("product_authority_id") or "").strip():
-        raise _website_save_failure_v69101(
+        raise ValueError(
             "Connected Product could not be established. Confirm the product in "
-            "Admin before approving this webpage.",
-            "PRODUCT_AUTHORITY_VALIDATION",
-            "CONNECTED_PRODUCT_AUTHORITY_MISSING",
+            "Admin before approving this webpage."
         )
     # v69096: every supported learned-knowledge destination may activate an
     # indexed package whose image pixels passed QA even when the secondary
@@ -61928,154 +61646,53 @@ def save_website_knowledge_package(
         "Technical Support Database", "Sales Database", "Marketing Database"
     }
 
-    try:
-        if include_images and image_analysis_override_v69029 is not None:
-            image_analysis = dict(image_analysis_override_v69029 or {})
-            image_analysis["shared_analysis_reused_v69029"] = True
-        else:
-            image_analysis = (
-                analyze_website_images(
-                    extraction,
-                    database_choice,
-                    selected_urls=selected_image_urls,
-                )
-                if include_images
-                else {
-                    "images": [],
-                    "attempted": 0,
-                    "skipped": 0,
-                    "failures": 0,
-                    "discovered": 0,
-                    "limited": False,
-                }
+    if include_images and image_analysis_override_v69029 is not None:
+        image_analysis = dict(image_analysis_override_v69029 or {})
+        image_analysis["shared_analysis_reused_v69029"] = True
+    else:
+        image_analysis = (
+            analyze_website_images(
+                extraction,
+                database_choice,
+                selected_urls=selected_image_urls,
             )
-    except Exception as error_v69101:
-        raise _website_mark_save_failure_v69101(
-            error_v69101,
-            "IMAGE_ANALYSIS",
-            "IMAGE_ANALYSIS_NOT_COMPLETED",
-            retryable=_website_transient_provider_error_v69082(error_v69101),
+            if include_images
+            else {
+                "images": [],
+                "attempted": 0,
+                "skipped": 0,
+                "failures": 0,
+                "discovered": 0,
+                "limited": False,
+            }
         )
 
-    try:
-        version_hash_v68892 = _website_knowledge_version_hash_v68892(
-            extraction,
-            database_choice,
-            reviewed,
-            image_analysis,
-        )
-        package_extraction = dict(extraction)
-        package_extraction["website_version_hash_v68892"] = version_hash_v68892
-        filename = website_knowledge_filename(package_extraction)
-    except Exception as error_v69101:
-        raise _website_mark_save_failure_v69101(
-            error_v69101,
-            "PACKAGE_BUILD",
-            "PACKAGE_IDENTITY_BUILD_FAILED",
-        )
+    version_hash_v68892 = _website_knowledge_version_hash_v68892(
+        extraction,
+        database_choice,
+        reviewed,
+        image_analysis,
+    )
+    package_extraction = dict(extraction)
+    package_extraction["website_version_hash_v68892"] = version_hash_v68892
+    filename = website_knowledge_filename(package_extraction)
 
     # Stable exact duplicate check happens before package timestamp can vary.
-    # v69101 proves indexing status before archive/index or authority mutation.
-    # A prior timed-out attachment is resumed by its exact filename/file ID and
-    # is never uploaded a second time while still processing.
-    exact_existing_file_ids_v69093 = _website_exact_file_ids_checked_v69101(
-        selected_vector_store_id, filename
-    )
-    exact_file_states_v69101 = _website_exact_file_states_v69101(
-        selected_vector_store_id, exact_existing_file_ids_v69093
-    ) if exact_existing_file_ids_v69093 else {
-        "completed": [], "pending": [], "terminal": [], "unknown": [],
-        "statuses": {},
-    }
-    terminal_removed_v69101 = set()
-    for terminal_file_id_v69101 in exact_file_states_v69101.get("terminal") or []:
-        _website_remove_vector_file_v68892(
-            selected_vector_store_id, terminal_file_id_v69101
+    if vector_store_has_filename(selected_vector_store_id, filename):
+        exact_existing_file_ids_v69093 = (
+            _vector_store_file_ids_for_filename_v69093(
+                selected_vector_store_id, filename
+            )
         )
-        terminal_removed_v69101.add(terminal_file_id_v69101)
-    if (
-        not exact_file_states_v69101.get("completed")
-        and exact_file_states_v69101.get("pending")
-    ):
-        for pending_file_id_v69101 in exact_file_states_v69101.get("pending") or []:
-            try:
-                _wait_for_vector_store_file(
-                    selected_vector_store_id,
-                    pending_file_id_v69101,
-                    timeout_seconds=15,
-                )
-            except Exception as error_v69101:
-                if getattr(
-                    error_v69101,
-                    "vector_index_terminal_failure_v69101",
-                    False,
-                ):
-                    _website_remove_vector_file_v68892(
-                        selected_vector_store_id, pending_file_id_v69101
-                    )
-                    terminal_removed_v69101.add(pending_file_id_v69101)
-                    continue
-                raise _website_mark_save_failure_v69101(
-                    error_v69101,
-                    "VECTOR_INDEX_STATUS",
-                    "VECTOR_INDEX_STATUS_UNAVAILABLE",
-                    retryable=True,
-                    preserve_attached=True,
-                )
-        exact_file_states_v69101 = _website_exact_file_states_v69101(
-            selected_vector_store_id,
-            [
-                value_v69101 for value_v69101 in exact_existing_file_ids_v69093
-                if value_v69101 not in terminal_removed_v69101
-            ],
-        )
-    if (
-        not exact_file_states_v69101.get("completed")
-        and exact_file_states_v69101.get("pending")
-    ):
-        raise _website_save_failure_v69101(
-            "The exact reviewed package is still indexing. Its attached file was "
-            "preserved; retrying resumes the same file without duplication.",
-            "VECTOR_INDEX_PENDING",
-            "VECTOR_INDEX_PENDING",
-            retryable=True,
-            preserve_attached=True,
-        )
-    if (
-        not exact_file_states_v69101.get("completed")
-        and exact_file_states_v69101.get("unknown")
-    ):
-        raise _website_save_failure_v69101(
-            "The exact reviewed package exists but completed indexing could not "
-            "be proven. No database mutation was attempted.",
-            "VECTOR_INDEX_STATUS",
-            "EXACT_PACKAGE_INDEX_STATUS_UNKNOWN",
-            retryable=True,
-            preserve_attached=True,
-        )
-    exact_existing_file_ids_v69093 = list(
-        exact_file_states_v69101.get("completed") or []
-    )
-    if exact_existing_file_ids_v69093:
         if include_images:
             exact_images_v69069 = list(image_analysis.get("images") or [])
-            try:
-                snapshot_complete_v69069, snapshot_detail_v69069 = (
-                    _website_image_snapshot_complete_v69069(
-                        extraction,
-                        database_choice,
-                        exact_images_v69069,
-                    )
+            snapshot_complete_v69069, snapshot_detail_v69069 = (
+                _website_image_snapshot_complete_v69069(
+                    extraction,
+                    database_choice,
+                    exact_images_v69069,
                 )
-            except Exception as error_v69101:
-                raise _website_mark_save_failure_v69101(
-                    error_v69101,
-                    "PRIOR_IMAGE_SNAPSHOT",
-                    "PRIOR_IMAGE_SNAPSHOT_UNAVAILABLE",
-                    retryable=_website_transient_provider_error_v69082(
-                        error_v69101
-                    ),
-                )
+            )
             if snapshot_complete_v69069:
                 # A true no-op: do not rewrite archives, index rows, or caches.
                 website_image_index_stats_v68883 = {
@@ -62093,30 +61710,17 @@ def save_website_knowledge_package(
                 image_records_repaired_v69069 = False
             else:
                 if int(image_analysis.get("failures") or 0):
-                    raise _website_save_failure_v69101(
+                    raise RuntimeError(
                         "Same-URL image repair was blocked because image analysis "
-                        "did not complete. The previously working package was preserved.",
-                        "IMAGE_ANALYSIS",
-                        "IMAGE_ANALYSIS_NOT_COMPLETED",
-                        retryable=True,
+                        "did not complete. The previously working package was preserved."
                     )
-                try:
-                    website_image_index_stats_v68883 = (
-                        _website_archive_and_index_images_v68883(
-                            package_extraction,
-                            database_choice,
-                            exact_images_v69069,
-                        )
+                website_image_index_stats_v68883 = (
+                    _website_archive_and_index_images_v68883(
+                        package_extraction,
+                        database_choice,
+                        exact_images_v69069,
                     )
-                except Exception as error_v69101:
-                    raise _website_mark_save_failure_v69101(
-                        error_v69101,
-                        "IMAGE_ARCHIVE_INDEX",
-                        "IMAGE_ARCHIVE_INDEX_NOT_COMPLETED",
-                        retryable=_website_transient_provider_error_v69082(
-                            error_v69101
-                        ),
-                    )
+                )
                 if not bool(website_image_index_stats_v68883.get("completed")):
                     if verified_subset_destination_v69077:
                         # The exact vector package already exists and remains
@@ -62197,12 +61801,14 @@ def save_website_knowledge_package(
                 ),
             )
         except Exception as error:
-            raise _website_mark_save_failure_v69101(
-                error,
-                "PRODUCT_AUTHORITY_ACTIVATION",
-                "PRODUCT_AUTHORITY_ACTIVATION_NOT_COMPLETED",
-                retryable=_website_transient_provider_error_v69082(error),
-            )
+            try:
+                setattr(
+                    error, "failure_stage_v69082",
+                    "PRODUCT_AUTHORITY_ACTIVATION",
+                )
+            except Exception:
+                pass
+            raise
         _website_invalidate_learning_caches_v69069([database_choice])
         return {
             "already_saved": True,
@@ -62226,27 +61832,19 @@ def save_website_knowledge_package(
 
     # Discover all prior versions for this exact URL and every tracked/strictly
     # matched legacy source for the same connected product in this destination.
-    try:
-        prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
-            selected_vector_store_id,
-            extraction,
-            exclude_filename=filename,
-        )
-        prior_product_files_v69090 = _knowledge_product_authority_prior_rows_v69090(
-            selected_vector_store_id,
-            database_choice,
-            product_authority_v69090,
-        )
-        prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
-            database_choice, product_authority_v69090
-        )
-    except Exception as error_v69101:
-        raise _website_mark_save_failure_v69101(
-            error_v69101,
-            "PRIOR_AUTHORITY_DISCOVERY",
-            "PRIOR_AUTHORITY_DISCOVERY_NOT_COMPLETED",
-            retryable=_website_transient_provider_error_v69082(error_v69101),
-        )
+    prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
+        selected_vector_store_id,
+        extraction,
+        exclude_filename=filename,
+    )
+    prior_product_files_v69090 = _knowledge_product_authority_prior_rows_v69090(
+        selected_vector_store_id,
+        database_choice,
+        product_authority_v69090,
+    )
+    prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
+        database_choice, product_authority_v69090
+    )
     prior_product_image_catalog_complete_v69093 = bool(
         getattr(
             prior_product_image_rows_v69090,
@@ -62260,19 +61858,12 @@ def save_website_knowledge_package(
         if str((row or {}).get("file_id") or "").strip()
     }
 
-    try:
-        package_text = build_website_knowledge_package_document(
-            extraction,
-            database_choice,
-            reviewed_content=reviewed,
-            image_analysis=image_analysis,
-        )
-    except Exception as error_v69101:
-        raise _website_mark_save_failure_v69101(
-            error_v69101,
-            "PACKAGE_BUILD",
-            "PACKAGE_DOCUMENT_BUILD_FAILED",
-        )
+    package_text = build_website_knowledge_package_document(
+        extraction,
+        database_choice,
+        reviewed_content=reviewed,
+        image_analysis=image_analysis,
+    )
 
     # v69003: defer image archive/index mutation until the replacement vector
     # package is confirmed indexed. This prevents a failed replacement from
@@ -62310,12 +61901,10 @@ def save_website_knowledge_package(
             except Exception:
                 pass
         if not getattr(error, "failure_stage_v69082", ""):
-            raise _website_mark_save_failure_v69101(
-                error,
-                "VECTOR_UPLOAD_OR_INDEX",
-                "VECTOR_UPLOAD_OR_INDEX_NOT_COMPLETED",
-                retryable=_website_transient_provider_error_v69082(error),
-            )
+            try:
+                setattr(error, "failure_stage_v69082", "VECTOR_UPLOAD_OR_INDEX")
+            except Exception:
+                pass
         raise
 
     replaced_file_count_v68892 = 0
@@ -62327,31 +61916,15 @@ def save_website_knowledge_package(
                 _website_remove_vector_file_v68892(
                     selected_vector_store_id, file_id
                 )
-                raise _website_save_failure_v69101(
+                raise RuntimeError(
                     "Replacement image analysis did not complete. The new vector "
-                    "package was rolled back and the prior package was preserved.",
-                    "IMAGE_ANALYSIS",
-                    "IMAGE_ANALYSIS_NOT_COMPLETED",
-                    retryable=True,
+                    "package was rolled back and the prior package was preserved."
                 )
-            try:
-                website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                    package_extraction,
-                    database_choice,
-                    list(image_analysis.get("images") or []),
-                )
-            except Exception as error_v69101:
-                _website_remove_vector_file_v68892(
-                    selected_vector_store_id, file_id
-                )
-                raise _website_mark_save_failure_v69101(
-                    error_v69101,
-                    "IMAGE_ARCHIVE_INDEX",
-                    "IMAGE_ARCHIVE_INDEX_NOT_COMPLETED",
-                    retryable=_website_transient_provider_error_v69082(
-                        error_v69101
-                    ),
-                )
+            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+                package_extraction,
+                database_choice,
+                list(image_analysis.get("images") or []),
+            )
             image_sync_safe_v69003 = (
                 int(website_image_index_stats_v68883.get("failures") or 0) == 0
                 and bool(website_image_index_stats_v68883.get("completed"))
@@ -62433,12 +62006,11 @@ def save_website_knowledge_package(
                 )
             except Exception as error:
                 _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
-                raise _website_mark_save_failure_v69101(
-                    error,
-                    "PRODUCT_AUTHORITY_ACTIVATION",
-                    "PRODUCT_AUTHORITY_ACTIVATION_NOT_COMPLETED",
-                    retryable=_website_transient_provider_error_v69082(error),
-                )
+                try:
+                    setattr(error, "failure_stage_v69082", "PRODUCT_AUTHORITY_ACTIVATION")
+                except Exception:
+                    pass
+                raise
         if bool(website_image_sync_v69003.get("completed")):
             product_image_cleanup_v69090 = (
                 _knowledge_product_remove_prior_image_rows_v69090(
@@ -62465,17 +62037,14 @@ def save_website_knowledge_package(
         )
         _website_invalidate_learning_caches_v69069([database_choice])
     else:
-        # Preserve a still-processing attachment. A retry resolves this exact
-        # filename/file ID and resumes status polling without a duplicate upload.
-        # It remains ineligible for activation or publication until completed.
-        raise _website_save_failure_v69101(
-            "Replacement vector indexing is still processing. The attached file "
-            "was preserved and the prior package remains authoritative; retrying "
-            "will resume this exact file without duplication.",
-            "VECTOR_INDEX_PENDING",
-            "VECTOR_INDEX_PENDING",
-            retryable=True,
-            preserve_attached=True,
+        # A new package that never reached completed indexing is not eligible to
+        # coexist with or replace the prior working package.
+        _website_remove_vector_file_v68892(
+            selected_vector_store_id, file_id
+        )
+        raise RuntimeError(
+            "Replacement vector indexing did not complete. The new package was "
+            "rolled back and the prior package was preserved."
         )
 
     return {
@@ -63314,102 +62883,6 @@ def _vector_store_file_ids_for_filename_v69093(vector_store_id, filename):
         return []
 
 
-def _website_exact_file_ids_checked_v69101(vector_store_id, filename):
-    """Resolve an exact filename without treating a catalog error as absent."""
-    target = str(filename or "").strip()
-    if not target:
-        return []
-    last_error_v69101 = None
-    for attempt_v69101 in range(3):
-        try:
-            return sorted({
-                str(row.get("file_id") or "").strip()
-                for row in _vector_store_file_catalog_v69040(vector_store_id)
-                if str(row.get("filename") or "").strip() == target
-                and str(row.get("file_id") or "").strip()
-            })
-        except Exception as error_v69101:
-            last_error_v69101 = error_v69101
-            retryable_v69101 = _website_transient_provider_error_v69082(
-                error_v69101
-            )
-            if not retryable_v69101 or attempt_v69101 >= 2:
-                raise _website_mark_save_failure_v69101(
-                    error_v69101,
-                    "DUPLICATE_LOOKUP",
-                    (
-                        "TRANSIENT_DUPLICATE_LOOKUP_FAILURE"
-                        if retryable_v69101
-                        else "DUPLICATE_LOOKUP_REJECTED"
-                    ),
-                    retryable=retryable_v69101,
-                )
-            time.sleep(0.20 * (2 ** attempt_v69101))
-    raise _website_mark_save_failure_v69101(
-        last_error_v69101 or RuntimeError("Exact file lookup did not complete."),
-        "DUPLICATE_LOOKUP",
-        "DUPLICATE_LOOKUP_NOT_COMPLETED",
-        retryable=True,
-    )
-
-
-def _website_exact_file_states_v69101(vector_store_id, file_ids):
-    """Return exact attached-file states; provider errors remain distinguishable."""
-    states = {
-        "completed": [], "pending": [], "terminal": [], "unknown": [],
-        "statuses": {},
-    }
-    for file_id in sorted({
-        str(value or "").strip() for value in (file_ids or [])
-        if str(value or "").strip()
-    }):
-        last_error_v69101 = None
-        status_v69101 = ""
-        for attempt_v69101 in range(3):
-            try:
-                record_v69101 = client.vector_stores.files.retrieve(
-                    vector_store_id=vector_store_id,
-                    file_id=file_id,
-                )
-                status_v69101 = str(
-                    getattr(record_v69101, "status", "") or ""
-                ).strip().casefold()
-                break
-            except (TypeError, AttributeError):
-                status_v69101 = "unknown_sdk_status"
-                break
-            except Exception as error_v69101:
-                last_error_v69101 = error_v69101
-                retryable_v69101 = _website_transient_provider_error_v69082(
-                    error_v69101
-                )
-                if not retryable_v69101 or attempt_v69101 >= 2:
-                    raise _website_mark_save_failure_v69101(
-                        error_v69101,
-                        "VECTOR_INDEX_STATUS",
-                        (
-                            "VECTOR_INDEX_STATUS_UNAVAILABLE"
-                            if retryable_v69101
-                            else "VECTOR_INDEX_STATUS_REJECTED"
-                        ),
-                        retryable=retryable_v69101,
-                        preserve_attached=True,
-                    )
-                time.sleep(0.20 * (2 ** attempt_v69101))
-        if not status_v69101 and last_error_v69101:
-            raise last_error_v69101
-        states["statuses"][file_id] = status_v69101 or "unknown"
-        if status_v69101 == "completed":
-            states["completed"].append(file_id)
-        elif status_v69101 in {"queued", "in_progress", "processing"}:
-            states["pending"].append(file_id)
-        elif status_v69101 in {"failed", "cancelled"}:
-            states["terminal"].append(file_id)
-        else:
-            states["unknown"].append(file_id)
-    return states
-
-
 
 WEBSITE_DATABASE_ALL_V69029 = "All Databases"
 WEBSITE_DATABASE_DESTINATIONS_V69029 = (
@@ -63580,90 +63053,25 @@ def save_website_knowledge_to_destinations_v69029(
     """
     destinations = _website_database_destinations_v69029(destination_selection)
     # Fail before any mutation if a requested destination is not configured.
-    preflight_failures_v69101 = {}
     for destination in destinations:
-        try:
-            _website_database_vector_store_v69029(destination)
-        except Exception as error_v69101:
-            preflight_failures_v69101[destination] = {
-                "error_type": type(error_v69101).__name__,
-                "error": str(error_v69101),
-                "reason_codes": ["DESTINATION_VECTOR_STORE_NOT_CONFIGURED"],
-                "failure_stage_v69077": "DESTINATION_CONFIGURATION",
-                "retryable_v69082": False,
-                "pre_mutation_abort_v69101": True,
-            }
-    if preflight_failures_v69101:
-        for destination_v69101 in destinations:
-            if destination_v69101 in preflight_failures_v69101:
-                continue
-            preflight_failures_v69101[destination_v69101] = {
-                "error_type": "DestinationPreflightAborted",
-                "error": (
-                    "No destination was mutated because another selected "
-                    "destination failed configuration preflight."
-                ),
-                "reason_codes": ["DESTINATION_PREFLIGHT_ABORTED"],
-                "failure_stage_v69077": "DESTINATION_CONFIGURATION",
-                "retryable_v69082": False,
-                "pre_mutation_abort_v69101": True,
-            }
-        return {
-            "destination_selection": list(destinations),
-            "destinations": destinations,
-            "results": {},
-            "failures": preflight_failures_v69101,
-            "shared_image_analysis": {},
-            "completed": False,
-            "partial_success": False,
-            "pre_mutation_abort_v69101": True,
-        }
+        _website_database_vector_store_v69029(destination)
 
-    try:
-        if include_images and isinstance(shared_analysis_override_v69045, dict):
-            shared_analysis = dict(shared_analysis_override_v69045)
-            shared_analysis["thin_html_analysis_reused_v69045"] = True
-        elif include_images:
-            # Analyze pixels once, but never use an unselected destination as the
-            # semantic basis. Per-destination projections below remain independent.
-            analysis_label = _website_shared_analysis_destination_v69065(destinations)
-            shared_analysis = analyze_website_images(
-                extraction,
-                analysis_label,
-                selected_urls=selected_image_urls,
-            )
-        else:
-            shared_analysis = {
-                "images": [], "attempted": 0, "skipped": 0, "failures": 0,
-                "discovered": 0, "limited": False,
-            }
-    except Exception as error_v69101:
-        retryable_v69101 = _website_transient_provider_error_v69082(
-            error_v69101
+    if include_images and isinstance(shared_analysis_override_v69045, dict):
+        shared_analysis = dict(shared_analysis_override_v69045)
+        shared_analysis["thin_html_analysis_reused_v69045"] = True
+    elif include_images:
+        # Analyze pixels once, but never use an unselected destination as the
+        # semantic basis. Per-destination projections below remain independent.
+        analysis_label = _website_shared_analysis_destination_v69065(destinations)
+        shared_analysis = analyze_website_images(
+            extraction,
+            analysis_label,
+            selected_urls=selected_image_urls,
         )
-        reason_v69101 = (
-            "TRANSIENT_IMAGE_ANALYSIS_FAILURE"
-            if retryable_v69101 else "IMAGE_ANALYSIS_NOT_COMPLETED"
-        )
-        return {
-            "destination_selection": list(destinations),
-            "destinations": destinations,
-            "results": {},
-            "failures": {
-                destination: {
-                    "error_type": type(error_v69101).__name__,
-                    "error": str(error_v69101),
-                    "reason_codes": [reason_v69101],
-                    "failure_stage_v69077": "IMAGE_ANALYSIS",
-                    "retryable_v69082": retryable_v69101,
-                    "pre_mutation_abort_v69101": True,
-                }
-                for destination in destinations
-            },
-            "shared_image_analysis": {},
-            "completed": False,
-            "partial_success": False,
-            "pre_mutation_abort_v69101": True,
+    else:
+        shared_analysis = {
+            "images": [], "attempted": 0, "skipped": 0, "failures": 0,
+            "discovered": 0, "limited": False,
         }
 
     results = {}
@@ -63689,7 +63097,7 @@ def save_website_knowledge_to_destinations_v69029(
             failure_stage_v69082 = str(
                 getattr(error, "failure_stage_v69082", "")
                 or getattr(error, "failure_stage_v69077", "")
-                or "UNCLASSIFIED_DESTINATION_FAILURE"
+                or "DESTINATION_SAVE"
             ).strip().upper()
             reason_codes_v69082 = list(
                 getattr(error, "reason_codes_v69077", None) or []
@@ -63715,17 +63123,8 @@ def save_website_knowledge_to_destinations_v69029(
                 "reason_codes": reason_codes_v69082,
                 "failure_stage_v69077": failure_stage_v69082,
                 "retryable_v69082": bool(
-                    getattr(error, "retryable_v69082", False)
-                    or getattr(error, "preserve_attached_file_v69101", False)
-                    or
                     _website_transient_provider_error_v69082(error)
-                    or failure_stage_v69082 in {
-                        "VECTOR_ATTACH", "VECTOR_INDEX", "VECTOR_INDEX_PENDING",
-                        "VECTOR_INDEX_STATUS",
-                    }
-                ),
-                "attached_file_preserved_v69101": bool(
-                    getattr(error, "preserve_attached_file_v69101", False)
+                    or failure_stage_v69082 in {"VECTOR_ATTACH", "VECTOR_INDEX"}
                 ),
             }
             diagnostic_log(
