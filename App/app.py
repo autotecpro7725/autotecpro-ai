@@ -1,4 +1,4 @@
-# AutoTecPro AI v69098 — active-package first-turn image hydration
+# AutoTecPro AI v69099 — precise classified-role image selection
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69098"
+ATP_BUILD_VERSION_V69062 = "v69099"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -116,7 +116,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69095-ford150-learned-image-identity+"
     "v69096-atomic-newest-authority-first-turn-images+"
     "v69097-v69050-locked-related-image-publication+"
-    "v69098-active-package-first-turn-image-hydration"
+    "v69098-active-package-first-turn-image-hydration+"
+    "v69099-precise-classified-role-image-selection"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -61174,18 +61175,19 @@ def _website_image_related_evidence_lookup_v69025r2(
         if topic_ranked and query_role in precise_single_image_roles_v69073
         else topic_ranked
     )
-    if (
-        not selected
-        and general_ranked
-        and (
-            not query_role
-            or bool(allow_v69050_related_reference_v69097)
-        )
-    ):
+    if not selected and general_ranked and not query_role:
         # Precision-first final fallback: one same-product/system image proves there is
         # a related visual without pretending it depicts the exact requested operation.
         selected = general_ranked[:1]
     elif not selected and general_ranked and query_role:
+        # v69099: v69097's compatibility flag restored older valid topic-bound
+        # images, but it also reopened the generic same-product fallback for a
+        # classified request.  That is how a 2011 RAM Car Model/A-C inquiry
+        # published an unrelated settings/dashboard screen labelled "Related
+        # product reference".  Compatibility may relax newer metadata fields;
+        # it may never relax the requested visual role.  Older images still
+        # publish through ``topic_ranked`` when their subtitle, heading,
+        # caption, nearby text, or visual analysis proves the requested role.
         audit_v69047["blocked_generic_role_fallback_v69062"] += len(general_ranked)
         if isinstance(coordinator, _ImageSearchCoordinatorV69062):
             coordinator.reject("GENERIC_ROLE_FALLBACK_BLOCKED", len(general_ranked))
