@@ -1,3 +1,4 @@
+# AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
 # AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
 # Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
 # Only presentation is added: Technical settings-table guidance and professional Customer Reply Draft layout.
@@ -36959,9 +36960,12 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When the original climate panel changes the correct A/C selection, list the
-  verified choices in the A/C Type row and explain how to choose between them
-  immediately after the table.
+- When the original climate panel changes the correct A/C selection, list ALL
+  verified Manual and Automatic choices from the SAME configuration family in
+  the first table and explain how to choose between them immediately after it.
+  Keep the base Car Model separate from the climate selector; do not turn a
+  climate label into a different Car Model unless the same Technical source
+  explicitly identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -38389,6 +38393,90 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
     return context_text
 
 
+
+
+def _technical_recent_conversation_context_v69106(limit=6):
+    """Return bounded same-case dialogue context for Technical follow-up continuity.
+
+    v69106 deliberately uses only already-visible messages from the current owned
+    Streamlit case.  It does not create factual authority by itself; it tells the
+    provider what exact vehicle/product/configuration the follow-up refers to so
+    file_search does not silently jump to a nearby legacy record.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return ""
+    rows = list(st.session_state.get("messages") or [])
+    if not rows:
+        return ""
+    bounded = []
+    for row in rows[-max(2, min(int(limit or 6), 10)):]:
+        if not isinstance(row, dict):
+            continue
+        role = str(row.get("role") or "").strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        value = clean_visible_chat_text(str(row.get("content") or ""))
+        value = re.sub(r"\s+", " ", value).strip()
+        if not value:
+            continue
+        # Keep enough exact menu/vehicle wording for identity continuity while
+        # preventing a long old transcript from dominating the current query.
+        bounded.append((role, value[:1800]))
+    if not bounded:
+        return ""
+    lines = [
+        "CURRENT TECHNICAL CASE CONTINUITY — context only, not independent factual authority:",
+        "Use this only to resolve pronouns/elliptical follow-ups and preserve the exact vehicle, product, factory-system, and already-established configuration family. Re-check Technical knowledge for the requested fact. Do not switch to a different Car Model or nearby product merely because a new vector-search chunk ranks higher.",
+    ]
+    for role, value in bounded:
+        lines.append(("USER" if role == "user" else "ASSISTANT") + ": " + value)
+    return "\n".join(lines)
+
+
+def _technical_variant_retrieval_instruction_v69106(prompt_text):
+    """Add generic same-family Manual/Automatic retrieval requirements.
+
+    This contains no vehicle-specific menu values.  Learned Technical evidence
+    remains the sole factual authority.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return ""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not prompt:
+        return ""
+    configuration_query = bool(
+        re.search(r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|\ba\s*/?\s*c\b|\bclimate\b", prompt)
+    )
+    if not configuration_query:
+        return ""
+    asks_manual = bool(re.search(r"\bmanual\b|\bman\s*a/?c\b|\blo\b", prompt))
+    asks_auto = bool(re.search(r"\bauto(?:matic)?\b|\bdigital\s+climate\b|\bhi\b", prompt))
+    lines = [
+        "TECHNICAL SAME-CONFIGURATION VARIANT AUTHORITY (v69106):",
+        "- Resolve one exact vehicle/product/factory-system configuration family first, then keep every setting in the answer inside that same family.",
+        "- Car Model and climate/A-C option are separate fields. A Manual/Automatic follow-up must not silently replace the previously established Car Model with a nearby model-name chunk unless the same authoritative Technical source explicitly requires a different Car Model.",
+        "- Prefer values that coexist in the same learned Technical page/file/configuration package. Do not splice Car Model from one package with A/C values from another.",
+    ]
+    if asks_auto and not asks_manual:
+        lines += [
+            "- This is an Automatic-A/C follow-up. Preserve the exact vehicle/product/Car Model established by the current case, re-check the same Technical configuration family, and return its verified Automatic climate option.",
+        ]
+    elif asks_manual and not asks_auto:
+        lines += [
+            "- This is a Manual-A/C follow-up. Preserve the exact vehicle/product/Car Model established by the current case, re-check the same Technical configuration family, and return its verified Manual climate option.",
+        ]
+    else:
+        lines += [
+            "- Climate type is not uniquely specified. Before answering, retrieve/reconcile BOTH verified Manual and Automatic climate branches for this exact configuration family when both exist in Technical knowledge.",
+            "- In the first settings table, keep one base Car Model row. Show both verified climate choices together in A/C Type (or separate Manual A/C and Automatic A/C rows when clearer). Do not answer with only whichever climate-specific chunk ranked first if the same source contains both branches.",
+        ]
+    lines += [
+        "- If the same authoritative source does not support both variants, say which variant is confirmed and which requires verification; never manufacture the missing counterpart.",
+        "- These rules change retrieval/continuity only. Existing v69050 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
+    ]
+    return "\n".join(lines)
+
+
 def build_user_input(
     prompt_text,
     uploaded_files,
@@ -38533,6 +38621,18 @@ def build_user_input(
     case_learned_context = _recent_case_learned_knowledge_context(assistant)
     if case_learned_context:
         content.append({"type": "input_text", "text": case_learned_context})
+
+    # v69106: preserve exact same-case vehicle/product/configuration identity for
+    # elliptical Technical follow-ups (for example, "how about auto A/C?").
+    # This is context only; factual values must still be re-verified from Technical
+    # knowledge.  The separate variant directive forces Manual/Automatic siblings
+    # to be retrieved from one configuration family instead of mixed packages.
+    technical_case_context_v69106 = _technical_recent_conversation_context_v69106()
+    if technical_case_context_v69106:
+        content.append({"type": "input_text", "text": technical_case_context_v69106})
+    technical_variant_instruction_v69106 = _technical_variant_retrieval_instruction_v69106(prompt_text)
+    if technical_variant_instruction_v69106:
+        content.append({"type": "input_text", "text": technical_variant_instruction_v69106})
 
     if prompt_text:
         content.append({"type": "input_text", "text": prompt_text})
