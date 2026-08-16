@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69096"
+ATP_BUILD_VERSION_V69062 = "v69097"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -114,7 +114,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69092-terminal-same-destination-image-completion+"
     "v69093-active-product-runtime-binding+destination-scoped-save+"
     "v69095-ford150-learned-image-identity+"
-    "v69096-atomic-newest-authority-first-turn-images"
+    "v69096-atomic-newest-authority-first-turn-images+"
+    "v69097-v69050-locked-related-image-publication"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -58379,13 +58380,63 @@ def _terminal_learned_image_completion_v69092(
                         prompt, answer, rows, coordinator=coordinator
                     )
 
-        if recovered:
+        # v69097: last-resort compatibility with the proven v69050 publisher.
+        # Newer exact-role metadata is not present in every previously learned
+        # package.  When every stricter recovery stage above is empty, reuse the
+        # v69050 same-destination/same-product related-image decision.  The
+        # called function still enforces destination ownership, resolved page
+        # identity, vehicle/year fitment and product identity before returning
+        # a first-party image.  This path is Technical-only and never crosses
+        # into Sales, Marketing, or Graphic Marketing data.
+        v69050_locked_recovery_v69097 = False
+        if not recovered:
+            compatibility_payloads_v69097 = (
+                _website_file_search_payloads_for_related_evidence_v69032(
+                    rows,
+                    coordinator=coordinator,
+                )
+            )
+            compatibility_payloads_v69097 = (
+                _website_bind_exact_supporting_page_payloads_v69047(
+                    compatibility_payloads_v69097,
+                    rows,
+                    coordinator=coordinator,
+                )
+            )
+            compatibility_payloads_v69097.extend(
+                _website_durable_payloads_for_supporting_pages_v69045(
+                    rows,
+                    coordinator=coordinator,
+                )
+            )
+            recovered = _website_image_related_evidence_lookup_v69025r2(
+                prompt,
+                answer,
+                max_images=max_images,
+                extra_payloads=compatibility_payloads_v69097,
+                coordinator=coordinator,
+                allow_v69050_related_reference_v69097=True,
+            )
+            v69050_locked_recovery_v69097 = bool(recovered)
+            diagnostic_log(
+                "terminal_v69050_locked_image_recovery_v69097",
+                workspace=workspace,
+                reused_rows=len(rows),
+                payloads=len(compatibility_payloads_v69097),
+                recovered=len(recovered or []),
+            )
+
+        if recovered and not v69050_locked_recovery_v69097:
             recovered = _website_image_final_authority_v68885(
                 prompt,
                 _dedupe_website_chat_images_v68883(recovered),
                 deterministic_images=[],
                 answer_text=answer,
             )
+        elif recovered:
+            # Do not send this already-v69050-authorized result back through
+            # the newer role-local metadata gate that caused the regression.
+            recovered = _dedupe_website_chat_images_v68883(recovered)
     else:
         recovered = _workspace_automatic_image_recovery_v69050(
             workspace,
@@ -60836,7 +60887,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
 
 def _website_image_related_evidence_lookup_v69025r2(
     prompt_text, answer_text="", max_images=3, extra_payloads=None,
-    coordinator=None,
+    coordinator=None, allow_v69050_related_reference_v69097=False,
 ):
     """Return safe inquiry-related Technical images after exact-image recovery is exhausted.
 
@@ -60981,8 +61032,12 @@ def _website_image_related_evidence_lookup_v69025r2(
         # That allowed a same-vehicle dashboard photo to replace a requested
         # Car Model/A-C screen. Every recognized role must pass the same final
         # payload gate before it can enter any ranking bucket.
-        if query_role and not _website_image_final_payload_gate_v68885(
-            prompt, payload
+        if (
+            query_role
+            and not bool(allow_v69050_related_reference_v69097)
+            and not _website_image_final_payload_gate_v68885(
+                prompt, payload
+            )
         ):
             audit_v69047["rejected_topic_visual_v69062"] += 1
             if isinstance(coordinator, _ImageSearchCoordinatorV69062):
@@ -61091,7 +61146,14 @@ def _website_image_related_evidence_lookup_v69025r2(
         if topic_ranked and query_role in precise_single_image_roles_v69073
         else topic_ranked
     )
-    if not selected and general_ranked and not query_role:
+    if (
+        not selected
+        and general_ranked
+        and (
+            not query_role
+            or bool(allow_v69050_related_reference_v69097)
+        )
+    ):
         # Precision-first final fallback: one same-product/system image proves there is
         # a related visual without pretending it depicts the exact requested operation.
         selected = general_ranked[:1]
@@ -61128,6 +61190,9 @@ def _website_image_related_evidence_lookup_v69025r2(
         record["website_related_evidence_topic_match_v69025r2"] = bool(topic_related)
         record["website_related_reference_score_v69025r1"] = round(float(score), 3)
         record["website_related_reference_role_v69025r1"] = str(query_role or "")
+        record["website_v69050_locked_fallback_v69097"] = bool(
+            allow_v69050_related_reference_v69097
+        )
         record["website_file_citation_recovered_v69060"] = bool(
             payload.get("_website_file_citation_recovered_v69060")
         )
@@ -61142,7 +61207,11 @@ def _website_image_related_evidence_lookup_v69025r2(
             ),
             score,
             "EXACT_DESTINATION_AND_FITMENT" if topic_related
-            else "GENERIC_UNCLASSIFIED_REFERENCE",
+            else (
+                "V69050_LOCKED_SAME_PRODUCT_REFERENCE"
+                if allow_v69050_related_reference_v69097
+                else "GENERIC_UNCLASSIFIED_REFERENCE"
+            ),
             {
                 "vehicle_gate": "pass", "year_gate": "pass",
                 "product_gate": "pass",
